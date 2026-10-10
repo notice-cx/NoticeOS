@@ -1,6 +1,5 @@
-// A NEW INSTALLATION'S POSTGRES STORE FOR ONE TEST (epic ro-ujb9.76; the
-// pattern is docs/briefs/2026-09-29-postgres-port-pattern.md) — the Postgres
-// fixture path used by Tower readers and Workers.
+// A NEW INSTALLATION'S POSTGRES STORE FOR ONE TEST (epic ro-ujb9.76) — the
+// Postgres fixture path used by Tower readers and Workers.
 //
 // Each call asks the run's copy service (test/postgres-global-setup.mjs) for
 // a copy of the template in a database of its own, and opens the one helper

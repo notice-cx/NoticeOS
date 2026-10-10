@@ -35,7 +35,7 @@ export type SeriesTone =
   | "error";
 
 export const SERIES_TONE_CLASS: Record<SeriesTone, string> = {
-  // Doc 21: "a sparkline on a neutral metric is `text-muted-foreground`". The
+  // doc 14: "a sparkline on a neutral metric is `text-muted-foreground`". The
   // `--spark` token stays available for a line drawn on its own, away from a
   // delta that could have given it a tone.
   muted: "text-muted-foreground",
@@ -54,7 +54,7 @@ export const SERIES_TONE_CLASS: Record<SeriesTone, string> = {
 };
 
 /**
- * The three places doc 21 puts a sparkline, at the three sizes it names. A size
+ * The three places doc 14 puts a sparkline, at the three sizes it names. A size
  * rather than a width/height pair, so five call sites cannot land on five
  * nearly-equal rectangles — which is exactly how the desk grew four card
  * variants before the registry existed.
@@ -75,7 +75,7 @@ export interface SparklineProps {
   data: readonly SeriesPointOrGap[];
   size?: SparklineSize;
   tone?: SeriesTone;
-  /** Draw the trailing average rather than the raw daily line. Doc 21's
+  /** Draw the trailing average rather than the raw daily line. doc 14's
    * sparkline is "28 points, 7-day average" — the raw line at 64×22 is noise
    * with a shape hidden in it. Off for a series that is already smooth. */
   average?: boolean;
@@ -91,7 +91,7 @@ export interface SparklineProps {
   provisionalFrom?: string | null;
   /** Pointer, touch and keyboard readout: the period and the plotted value.
    * Averaged lines identify their window and show the raw value separately.
-   * Doc 21 asks for it on `Kpi` sparklines — a 64px line answers "which way"
+   * doc 14 asks for it on `Kpi` sparklines — a 64px line answers "which way"
    * on its own, and the reader who wants "how much on which day" gets it
    * without leaving the strip. */
   readout?: boolean;
@@ -106,7 +106,7 @@ export interface SparklineProps {
    * usually 33–45" is a shape before it is a sentence. The band widens the
    * plotted range; it never colours the line. */
   band?: { low: number; high: number };
-  /** Why there is no line, for the hover on the empty state's dash. Doc 21:
+  /** Why there is no line, for the hover on the empty state's dash. doc 14:
    * "a missing figure is a dash with a reason on hover". */
   emptyReason?: string;
   ariaLabel?: string;
@@ -119,7 +119,7 @@ export interface SparklineProps {
 const PAD = 2;
 
 /**
- * The desk's one small trend line (doc 21). It draws a shape and nothing else:
+ * The desk's one small trend line (doc 14). It draws a shape and nothing else:
  * no axis, no grid, no label. Anything that needs those is a `HeroChart`.
  *
  * This is the desk's compact line; the Wall's rows draw their own charts in
@@ -171,7 +171,7 @@ export function Sparkline({
      * 64px wide at the `kpi` size through an INLINE width no call site can
      * relax — so the label wrapped to two lines inside a 22px box, and /tasks
      * worked around it by asking for the wider `cell` size, putting a chip a
-     * third wider than the sparkline it stands in for into the strip. Doc 21
+     * third wider than the sparkline it stands in for into the strip. doc 14
      * already says what this state draws: "a missing figure is a dash with a
      * reason on hover". A dash fits at every size there is.
      *

@@ -46,7 +46,7 @@ export function priorityFace(priority: number): PriorityFace {
 }
 
 /**
- * The ring every task mark is drawn in — doc 21's row glyph (18px, a 1.5px
+ * The ring every task mark is drawn in — doc 14's row glyph (18px, a 1.5px
  * border, the mark inside) on the board, and the same ring at chip scale on the
  * task page's header, so one mark never has two geometries.
  */
@@ -126,7 +126,7 @@ export function askFace(task: Parameters<typeof isGate>[0]): AskFace {
  *
  * A CLOSED TASK WEARS NO GREEN. Doc 14 keeps the healthy token for evidenced
  * health, and closing records a decision, not a proven outcome
- * (docs/playbooks/task-key-chain.md): the outcome is read later, in a watch
+ * (the task-key chain): the outcome is read later, in a watch
  * window carrying the task's id. Only Blocked is an attention tone, because
  * only Blocked is a problem.
  */

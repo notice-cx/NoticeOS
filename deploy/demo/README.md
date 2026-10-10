@@ -118,9 +118,9 @@ The scenario is versioned. A release whose scenario version differs from a
 running demo's refuses that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which
 [update.sh](update.sh) performs by itself as a fresh generation (see
-[Stop, restart and update](#stop-restart-and-update)); the
-[showcase brief](../../docs/briefs/2026-10-08-demo-showcase.md) explains the
-version-4 change.
+[Stop, restart and update](#stop-restart-and-update)). Version 4 (2026-10-08)
+added a fourth, ad-supported fictional site so every Wall widget, counter and
+chart shows data.
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
 

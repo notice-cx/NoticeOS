@@ -7,7 +7,7 @@ on:
 
 # Six jobs side by side (issue #2): the Tower's unit suite, the other
 # workspaces' (ingest, contract, mediavine, postgres), the root script suite,
-# the build with the browser journeys, the UX flow gate, and the task store
+# the build with the browser journeys, the UX flow walker, and the task store
 # suites against a real Dolt server. Each gate runs once, in one job; `build`
 # is the verdict branch protection requires.
 jobs:
@@ -138,17 +138,17 @@ jobs:
       - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: pnpm --filter @noticeos/tower run journey:install --with-deps
       - run: pnpm --filter @noticeos/tower run test:journey-harness
-      # The UX flow gate (bead ro-ujb9.95) walks every declared operator flow
-      # and fails when one gains a step, an empty step, a repeated check, a
-      # duplicate status or an ungrouped list (apps/tower/ux-flows.json).
+      # The UX flow walker walks every declared operator flow in a browser and
+      # reports what each costs (results.json in the artifact below); it fails
+      # only when a flow cannot be walked to its end.
       - run: pnpm --filter @noticeos/tower run test:ux-flows
         env:
-          # Flow-gate lanes, each with its own fixture server (bead ro-ujb9.167).
+          # Walker lanes, each with its own fixture server.
           JOURNEY_WORKERS: 3
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: ux-flow-gate-evidence
+          name: ux-flow-walker-report
           path: apps/tower/e2e/ux-flows-results/
           retention-days: 14
 

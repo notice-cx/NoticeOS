@@ -28,8 +28,8 @@ export interface RegisterField {
     type: FieldType;
     required: boolean;
     /** The hint under the Add form's input and the column heading's hover: a
-     * format or an example, label-length (doc 21 principle 3a — the UX gate
-     * reads it). What a field MEANS is its label; what it may hold is its type
+     * format or an example, label-length (the hint is read at a glance; `pnpm ux:gate`
+     * lists long ones). What a field MEANS is its label; what it may hold is its type
      * and rule; a warning about editing it is a rule (`readOnly`), never a
      * sentence here. */
     describe: string;

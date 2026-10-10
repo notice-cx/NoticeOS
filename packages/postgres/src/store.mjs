@@ -12,8 +12,8 @@
 //     uses unchanged.
 //   - Result parsing is replaceable per query (`types`), so every exactness rule
 //     below lives in one function here and no process-wide setting changes.
-//   Postgres.js was the alternative. The comparison and the prior art are in
-//   docs/briefs/2026-09-24-postgres-driver.md.
+//   Postgres.js was the alternative; its parsing is configured process-wide,
+//   so the exactness rules below could not live in one place.
 //
 // EVERY TRANSACTION NAMES ONE WORKSPACE. `inWorkspace(workspaceId, work)` sends
 // BEGIN and, in the same round trip, sets the workspace with

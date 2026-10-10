@@ -1,4 +1,4 @@
-// A page whose first read fails says so (bead ro-ujb9.218; docs/19 finding 15).
+// A page whose first read fails says so (bead ro-ujb9.218; the 2026-07 audit's finding 15).
 //
 // Home, Sites, Alerts, the Wall and Tasks used to print "Waiting for the
 // store…" once their read (/api/wall; /api/work for Tasks) had failed: TanStack

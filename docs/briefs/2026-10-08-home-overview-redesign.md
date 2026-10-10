@@ -11,7 +11,7 @@ the business-focused founders NoticeOS is for.
 This brief records the research, the decision and the prior art each new flow
 cites. The directions themselves were presented as a private design canvas
 (fifteen boards; historical evidence, not in the public source). The rule is
-[doc 21](../21-surface-design.md); this brief is the evidence behind its
+[doc 14](../14-design.md); this brief is the evidence behind its
 2026-10-08 amendment.
 
 ## What the code showed (the diagnosis)
@@ -42,7 +42,7 @@ cites. The directions themselves were presented as a private design canvas
 - **Accent system 3, soft depth**: a card declares a kind and wears its tint,
   the live point has a halo, glass is for chrome only.
 - **The language sweep covers the whole Tower**: the altitude rule in
-  [doc 17](../17-ui-lexicon.md) and its test.
+  [doc 14](../14-design.md) and its test.
 
 ## Prior art
 

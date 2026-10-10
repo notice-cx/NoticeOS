@@ -278,7 +278,7 @@ describe("Kpi", () => {
   });
 
   it("colours by what is GOOD for the metric, not by which way it moved", () => {
-    // Open alerts falling is the good direction (doc 21).
+    // Open alerts falling is the good direction (doc 14).
     render(
       <Kpi
         label="Open alerts"
@@ -962,7 +962,7 @@ describe("SectionLabel", () => {
     );
 
     const eyebrow = screen.getByRole("heading", { level: 2, name: "Search" });
-    // Doc 21's eyebrow: 11px, tracked 0.08em, uppercase, muted.
+    // doc 14's eyebrow: 11px, tracked 0.08em, uppercase, muted.
     expect(eyebrow.className).toContain("text-[11px]");
     expect(eyebrow.className).toContain("tracking-[0.08em]");
     expect(eyebrow.className).toContain("uppercase");
@@ -993,7 +993,7 @@ describe("SectionLabel", () => {
     expect(container.querySelector("button")).toBeNull();
   });
 
-  /** Doc 21 keeps owner chips to Settings and Sources — and that is where the
+  /** doc 14 keeps owner chips to Settings and Sources — and that is where the
    * end of an eyebrow row holds something that is not a link. */
   it("takes a node at the end of the row for what is not a link", () => {
     inRouter(

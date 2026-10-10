@@ -705,7 +705,7 @@ function LaneMappingList({
  * reason — and the prefix is still the product's to write, never the
  * operator's to type (`shared/lane-decline.ts`).
  *
- * The row's own actions, under its evidence (doc 21: a row expands in place
+ * The row's own actions, under its evidence (doc 14: a row expands in place
  * to show its actions), so the verdict is read before the decision is offered.
  * A deployment that cannot save renders nothing: a control that cannot act is
  * not offered.

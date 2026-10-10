@@ -44,7 +44,7 @@ import { useAskActions } from "@/routes/tasks/ask-actions";
 import { askFace } from "@/routes/tasks/task-face";
 
 /**
- * HOME IS THE MORNING BRIEF (D44, doc 21 § Home; the research and the prior
+ * HOME IS THE MORNING BRIEF (D44, doc 14 § Home; the research and the prior
  * art in docs/briefs/2026-10-08-home-overview-redesign.md).
  *
  * It answers one question — what changed since I last looked, and what needs
@@ -85,7 +85,7 @@ export function HomeRoute() {
       <PageHeader
         title="Home"
         documentTitle={null}
-        // The census is a FACT about the page, not a control, and doc 21 seats
+        // The census is a FACT about the page, not a control, and doc 14 seats
         // it at the end of the header row: how old the reading is, in one
         // quiet line.
         actions={data && !guide ? <Census assetCount={data.assets.length} generatedAt={data.generatedAt} nowMs={now} /> : null}
@@ -237,7 +237,7 @@ function sinceWords(since: string | null, nowMs: number): string {
 // ─── decide ──────────────────────────────────────────────────────────────────
 
 /** How many rows Decide shows before its own expander: three, the number a
- * person can hold while reading the cards above (doc 21). */
+ * person can hold while reading the cards above (doc 14). */
 const DECIDE_ROWS = 3;
 
 interface WaitingRow {
@@ -275,7 +275,7 @@ function LiveDecidePanel({ nowMs }: { nowMs: number }) {
 
 /**
  * DECIDE — every project's operator inbox, flattened, with the verb on the row
- * (doc 21 § Home; Linear Triage, Superhuman and Codex in the brief's prior
+ * (doc 14 § Home; Linear Triage, Superhuman and Codex in the brief's prior
  * art). A gate offers Approve; an ask offers Answer and Dismiss; both go
  * through the Tasks board's own path, with its Undo toast.
  *
@@ -350,7 +350,7 @@ function DecideRow({ row, nowMs }: { row: WaitingRow; nowMs: number }) {
       // priority and a gate's △. Priority is the ORDER, never the colour.
       {...askFace(item)}
       title={item.title}
-      // Business altitude (doc 17): the project and what the row asks, never
+      // Business altitude (doc 14): the project and what the row asks, never
       // the task's id — that is on the page the row opens.
       caption={item.issueType === "gate" ? `${project} · needs your approval` : project}
       value={formatAge(ageMs(nowMs, item.updatedAt))}
@@ -364,7 +364,7 @@ function DecideRow({ row, nowMs }: { row: WaitingRow; nowMs: number }) {
 // ─── sites ───────────────────────────────────────────────────────────────────
 
 /**
- * THE SITES, IN SEED ORDER, ONE HEALTH WORD EACH (doc 21 § Home). Never
+ * THE SITES, IN SEED ORDER, ONE HEALTH WORD EACH (doc 14 § Home). Never
  * sorted: the operator learns where each site is and it stays there whether
  * or not it had a good week. The comparison table is on Sites; this strip
  * says the one word and the one figure a glance needs.
@@ -454,7 +454,7 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
 }
 
 /**
- * How old the reading is — doc 21's Home header line. The age is the payload's
+ * How old the reading is — doc 14's Home header line. The age is the payload's
  * own `generatedAt` rather than a per-source freshness: the question here is
  * "am I looking at a stale tab".
  */

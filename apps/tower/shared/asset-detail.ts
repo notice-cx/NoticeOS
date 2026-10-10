@@ -167,7 +167,7 @@ export type SenseMode = "pull" | "push";
  * asset detail render the same flags. */
 export type { FlagKind } from "./wall";
 
-/** db/0001 flags.disposition — the only sanctioned flag mutation (doc 15-E). */
+/** db/0001 flags.disposition — the only sanctioned flag mutation (doc 14-E). */
 export type Disposition = "ack" | "snooze" | "tune" | "incident" | "hypothesis";
 
 export type BookingState = "estimated" | "reconciled";
@@ -309,7 +309,7 @@ export interface AssetInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Wiring panel (doc 15 principle 10 — secondary, operator-expandable config)
+// Wiring panel (doc 14 principle 10 — secondary, operator-expandable config)
 // ---------------------------------------------------------------------------
 /** One open wiring-health flag surfaced on the sense-mode card (read-only). */
 export interface WiringFlag {
@@ -393,7 +393,7 @@ export interface Wiring {
 // Rules in force (anomaly config)
 // ---------------------------------------------------------------------------
 /** One anomaly-rule knob: plain-language label + jargon, effective value, a
- * one-line explainer (doc 15 principle 9), and its owner file. */
+ * one-line explainer (doc 14 principle 9), and its owner file. */
 export interface KnobFact {
   key: string;
   label: string;
@@ -596,7 +596,7 @@ export interface LedgerRollup {
  *
  * This period used to carry ONE revenue/cost/net rolled up over every current
  * row regardless of `booking_state`, so the page quoted a booked-P&L number over
- * money nobody had confirmed — doc 19 finding 4, one surface further down than
+ * money nobody had confirmed — the 2026-07 audit's finding 4, one surface further down than
  * the Wall. The two sides are separate fields precisely so nothing can add them:
  * `figureHasMoney` (shared/wall) decides which of them renders, and the stated
  * net is `booked` and only `booked`. */
@@ -1419,7 +1419,7 @@ export function bySerpPanelDevice(left: string, right: string): number {
   return rank(left) - rank(right) || left.localeCompare(right);
 }
 
-/** The surface as the OPERATOR names it (doc 17: the collection mechanism is
+/** The surface as the OPERATOR names it (doc 14: the collection mechanism is
  * never the asset page's vocabulary, and neither is the lane's `mobile`).
  * One implementation, because two surfaces on the same page calling the same
  * device different things is two devices to the reader. */
@@ -1431,7 +1431,7 @@ export function serpPanelDeviceNoun(device: string): string {
 
 /** The three AI-Overview states the ✧ glyph has weights for, plus the fourth
  * that has none: `unknown` draws no mark at all, which is why the
- * checked-and-clear case gets its own ghosted one (doc 17). */
+ * checked-and-clear case gets its own ghosted one (doc 14). */
 export type AiOverviewGlyphState = "cited" | "uncited" | "absent" | "unknown";
 
 /**
@@ -1838,7 +1838,7 @@ export interface AssetDetailPayload {
   metrics: PulseMetric[];
   /** This site's all-time totals and catalog counts (config/counters.json),
    * drawn on its Overview since the Wall's asset card left (bead
-   * `ro-trai.21`, docs/25-the-wall.md § What leaves the Wall). Null: the site
+   * `ro-trai.21`, docs/14-design.md § What leaves the Wall). Null: the site
    * configures none, and the Overview draws nothing. */
   counters: SiteCounters | null;
   flags: FlagsSection;

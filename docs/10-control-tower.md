@@ -1,13 +1,14 @@
 # 10 — Control Tower UX
 
 *The Tower is the operator's control surface over the loop — not a reporting
-afterthought. Design persona: **one operator**, three contexts: an
+afterthought. Design persona: **one person at the desk** — a workspace's
+owner, operator or viewer (D39) — in three contexts: an
 office TV across the room, a desk browser for decisions, a phone for approvals
 and the kill switch. Operator UX profile (confirmed 2026-07-30): **adult
 ADHD-C** — design for
 pre-attentive scanning, not reading. State uses concise text plus a glyph where
 useful (doc 14 "state is scannable and never color-only"), hierarchy is strong, each
-surface has one primary action (doc 15 principle 4), and noise control is aggressive —
+surface has one primary action (doc 14 principle 4), and noise control is aggressive —
 alert fatigue lands faster and harder here, which makes doc 02's volume-aware
 flag rules load-bearing accessibility, not tuning niceties.*
 
@@ -95,7 +96,7 @@ one page header.
 - **`/assets` is canonical; `/properties` is an alias.** The sidebar reads
   **Sites** (D31) while the URL keeps the code's noun:
   `/assets` is the index and `/assets/:id` the page (D20), and
-  [doc 17](17-ui-lexicon.md) maps *asset* to *site* on screen. `/properties` and
+  [doc 14](14-design.md) maps *asset* to *site* on screen. `/properties` and
   `/properties/:id` redirect to them with the hash intact.
   Every deep link the Tower has ever emitted — an alert's change chip to
   `#timeline`, a matrix cell to `#integrations` — still lands where it aimed.
@@ -135,8 +136,8 @@ one page header.
 **Superseded on 2026-10-08 by D44**: `/` is the Morning Brief — a greeting
 line with three small figures, at most five highlight cards since the operator
 last looked, Decide at three rows, the sites in seed order and a finish line.
-The composition is [doc 21 § Home](21-surface-design.md#home--the-morning-brief-2026-10-08-d44);
-the words are [doc 17 § Altitude](17-ui-lexicon.md#altitude-2026-10-08-d44).
+The composition is [doc 14 § Home](14-design.md);
+the words are [doc 14 § Altitude](14-design.md).
 The 2026-09-04 design below is kept as the record of what the strip was.
 
 `/` answers four questions, in the order an operator arrives with them, and
@@ -194,7 +195,7 @@ links to the page that owns each.
 `/settings` is **one place to
 change anything that applies to the whole portfolio.**
 
-Six sections (bead `ro-ujb9.18`, [brief](briefs/2026-09-23-settings-forms.md)),
+Six sections (bead `ro-ujb9.18`),
 General first, each with an anchor id that selects it — only the selected
 section renders — and a left section list on `lg` that reads
 as the page's outline. **General** holds the time zone, the monthly data cap
@@ -263,10 +264,10 @@ disagree about what `alpha` is called or which file owns it.
 
 ## The Wall (TV mode)
 
-**What the Wall shows is [doc 25](25-the-wall.md)** *(2026-09-23, D28, bead
+**What the Wall shows is [doc 14](14-design.md)** *(2026-09-23, D28, bead
 `ro-i4gc`; the default since bead `ro-trai.11`)*: a slim strip, the month's
 revenue beside Needs you, one row per site and a live feed. The sections below
-keep the route, refresh, layout document and editor mechanics; doc 25 owns what
+keep the route, refresh, layout document and editor mechanics; doc 14 owns what
 is on the screen.
 
 **One payload, two renderings, two routes.** `/wall` is the TV: full-screen,
@@ -282,31 +283,31 @@ mouse. A failed poll keeps the **last-good values** (never blank, never a
 spinner) and the strip says how old they are — the only time the Wall states
 its payload's age.
 
-The TV rendering is its own frame: doc 25's budget (a 24/32 px page inset, 20 px
+The TV rendering is its own frame: doc 14's budget (a 24/32 px page inset, 20 px
 between stacked regions, 28 px between regions side by side) on tokens in
 `index.css`. It does not shrink away dates, labels, alert meaning or state.
 
 **The television says Tasks, like every other screen**:
 `scripts/ui-lexicon.test.mjs` does not exempt the Wall, so
-*bead* cannot come back on any surface ([doc 17](17-ui-lexicon.md)). The Wall
+*bead* cannot come back on any surface ([doc 14](14-design.md)). The Wall
 draws no task strips at all; urgent tasks are Needs you's count.
 
 **The setup checklist ring stays a desk element** *(2026-09-05, bead `ro-jkiu`)*:
 its meaning lives in a hover a television has no pointer for, nobody sets up an
 integration from the sofa, and a site with no report yet is one quiet row on the
-Wall ("No data yet") — see [doc 15 flow A](15-operator-flows.md#a-onboard-an-asset-repo--living-asset-card).
+Wall ("No data yet") — see [doc 14 flow A](14-design.md).
 
 ### The Wall draws a layout document (2026-09-05, epic `ro-lzmq`)
 
 **Everything on the TV is a saved document, not this route's source.**
 [Doc 15 flow
-D](15-operator-flows.md#d-edit-dashboards-wall--panels) says the
+D](14-design.md) says the
 operator arranges tiles from a fixed library and never authors new tile types,
-which is a component-registry PR ([doc 14](14-ui-standards.md)). The composition
+which is a component-registry PR ([doc 14](14-design.md)). The composition
 is a `WallLayout`: rows top to bottom, each holding widgets with a weight
 each, and one row taking the remaining screen height. A row may also hold a
 **column** that stacks rows of its own, one level deep, so a widget can run the
-full height beside several (bead `ro-trai.2`, [doc 25](25-the-wall.md) § Regions).
+full height beside several (bead `ro-trai.2`, [doc 14](14-design.md) § Regions).
 
 - **The contract** is [`scripts/wall-layout.mts`](../scripts/wall-layout.mts),
   which [`apps/tower/shared/wall-layout.ts`](../apps/tower/shared/wall-layout.ts)
@@ -322,7 +323,7 @@ full height beside several (bead `ro-trai.2`, [doc 25](25-the-wall.md) § Region
   read, so a Wall on another device converges within 60 seconds. The document
   lives in the store (D22); the shape is the same.
 - **The default** is `DEFAULT_WALL_LAYOUT`, and since bead `ro-trai.11` it is
-  D28's arrangement ([doc 25](25-the-wall.md) § Regions): the strip, then a
+  D28's arrangement ([doc 14](14-design.md) § Regions): the strip, then a
   column — revenue beside Needs you, the site rows under them — beside the
   full-height feed. **A fresh install's `/wall` is `null`, or absent** — both
   mean "nothing saved; draw the default" — so the default has exactly one
@@ -347,7 +348,7 @@ full height beside several (bead `ro-trai.2`, [doc 25](25-the-wall.md) § Region
 - **A widget with nothing to show renders nothing and yields its track**, the
   countdown/meetings rule (bead `ro-py40`) applied to every widget the library
   marks that way; a row whose every widget is hiding draws nothing at all. D28's
-  five each draw their own empty state (doc 25 § Regions), so none is marked
+  five each draw their own empty state (doc 14 § Regions), so none is marked
   today; the rule stays for the next widget that needs it.
 - **The renderer is `WallCanvas`, and the editor's preview is the same
   component** — a preview drawn by a second renderer is a preview that can lie.
@@ -620,13 +621,13 @@ with its logo, its name, **one status** and one action — Connect, Reconnect or
 Manage. The status is one of `CONNECTION_LABELS`
 (`apps/tower/shared/connection-status.ts`): Not connected · Not checked · Key
 accepted · Collecting · Working · Overdue · Failing · Not using · Unknown, a
-glyph-led chip in integration connectivity's tones ([doc 14](14-ui-standards.md)).
+glyph-led chip in integration connectivity's tones ([doc 14](14-design.md)).
 A provider's own page (`?provider=<id>`) carries:
 
 - **One verdict**: whether it last worked and when — the probe the operator just
   ran, else the stored error while it is failing, else the stored last success.
   A `Test connection` runs one real authenticated call and answers with a glyph,
-  a sentence and a time ([doc 15](15-operator-flows.md) flow C: validation comes
+  a sentence and a time ([doc 14](14-design.md) flow C: validation comes
   from a collector attempt, never from a manual health toggle).
 - **Which sites use it** (*Used by N sites*), as their own favicons, each
   linking to that site's Sources tab.
@@ -709,7 +710,7 @@ now?"* — a question that had no answer at all while each repo's tasks lived in
 its own embedded database ([`config/beads.README.md`](../config/beads.README.md))
 — and, since D19, the place the operator ANSWERS it from rather than reads it
 and opens a terminal. The word on the page is **task**, not bead ([doc
-17](17-ui-lexicon.md)): `bd` keeps its own noun in the CLI, the ids and the
+17](14-design.md)): `bd` keeps its own noun in the CLI, the ids and the
 docs, where it names the tool's object rather than ours.
 
 **What it reads.** The newest row of `beads_snapshots`
@@ -786,7 +787,7 @@ breaking.
   its id links to `/tasks/:id`. The actions open in the row rather than a
   dialog: every one of
   these is a sentence about the row the operator is looking at, and a modal would
-  hide it. These writes are not Tower-local, so [doc 15](15-operator-flows.md)'s
+  hide it. These writes are not Tower-local, so [doc 14](14-design.md)'s
   undo-over-confirm does not apply — principle 1 does, and the inline field IS
   the "show, then ask".
 - **A status `bd` invented renders** as its own raw value. The board must never
@@ -840,7 +841,7 @@ header's glyph-led chips in the lifecycle vocabulary (`STATUS_FACE`) — open ci
 in-progress dot, blocked ban, parked snowflake, closed tick — and because that
 chip is the page's one *display* of each fact, the editors below it are controls
 with no second chip beside them (doc 14). Every field saves in place through the
-lane with a toast carrying **Undo** (doc 15 principle 5, the same idiom as
+lane with a toast carrying **Undo** (doc 14 principle 5, the same idiom as
 `KnobEditor`); **Claim** and **Close** are the two primary actions and a close
 carries its reason, because completion is evidence. A task filed from a Tower
 handoff also links **back** to the section that raised it — `noticeos_kind` picks
@@ -975,7 +976,7 @@ launched, and Add writes the asset row and then commits its config entries as a
 single changeset, landing on the asset's Data sources.
 
 The flow, its refusals, the write order and the designed failure states are
-specified once, in [doc 15 flow A](15-operator-flows.md#one-screen-as-built-2026-09-23-bead-ro-ujb99675);
+specified once, in [doc 14 flow A](14-design.md);
 the routes it writes through are in
 [doc 11 / the Tower's API](../apps/tower/README.md#settings-write-in-place-d18-bead-ro-pbzu5).
 
@@ -1002,8 +1003,8 @@ sections are mounted**, each tab reading its own view.
 | **Sources** | Data sources, the setup checklist, the scheduled lanes (asset #0), daily metrics, site health |
 | **Settings** | Asset management — see below, including **Tracked search terms** |
 
-**Why**, from [doc 19](19-architecture-implementation-ux-audit.md) finding 11
-and the operator's 2026-09-04 direction (D17): the question-shaped disclosures
+**Why**, from the 2026-07 architecture audit (finding 11; the audit itself is
+no longer kept) and the operator's 2026-09-04 direction (D17): the question-shaped disclosures
 (*"Where is growth moving?"*, *"What happened before?"*, *"Can I trust the
 inputs?"*) were the right grouping, but one very long scroll of collapsed
 `<details>` under a sticky **Jump to** navigator never told a stranger where
@@ -1081,7 +1082,7 @@ construction. Nothing here is tickable — every line is derived from the asset'
 own state, and a box the operator could tick without doing the work would be the
 one part of the page that can lie. The four items, the exit test they use, and
 why the Wall does not draw the ring are specified in
-[doc 15 flow A](15-operator-flows.md#the-checklist-ring-as-built-2026-09-04-bead-ro-28ma).
+[doc 14 flow A](14-design.md).
 
 **Deep links keep working.** Every anchor the page has ever emitted —
 `#setup`, `#insights`, `#growth-evidence`, `#performance`, `#query-visibility`,
@@ -1116,7 +1117,7 @@ write lane (D18) with an Undo, and a stale write refused visibly:
   and the metric map stay read-only with their owners.
 - **Alert rules in force** — the thresholds this asset is judged against,
   **read-only**, with one line each pointing at `/settings#alert-rules` and
-  `/settings#budget`, because every one of them is portfolio-wide. The values still belong here (doc 15 principle
+  `/settings#budget`, because every one of them is portfolio-wide. The values still belong here (doc 14 principle
   10); the editor belongs where the scope is obvious. **This tab still has no
   editor** after `ro-u072` added Tune rule to the alerts above. The distinction
   is evidence, not location: an always-on set of fields under one asset's page
@@ -1125,7 +1126,7 @@ write lane (D18) with an Undo, and a stale write refused visibly:
   exists to show what a change would have done — which is the reason to touch
   these values at all, and the one thing neither this tab nor `/settings` can
   say.
-- **Archive** — the one action that leaves the Tower, so it follows doc 15
+- **Archive** — the one action that leaves the Tower, so it follows doc 14
   principle 1 rather than principle 5: an inline confirmation names what stops as
   glyph rows (data collection, alerts, its card on Home and the TV dashboard)
   *before* it moves `assets.status` to `retired`. A retired asset shows
@@ -1144,7 +1145,7 @@ write lane (D18) with an Undo, and a stale write refused visibly:
   edited from this tab under the `db · assets row` owner. An asset with no
   recorded move gets a stage picker (Live first) beside **Restore** and a *No
   recorded stage* chip. The Activity tab gets the moves for free, rendered as the sentence
-  *"Stage moved from Baselining to Retired"* rather than the ref (doc 17).
+  *"Stage moved from Baselining to Retired"* rather than the ref (doc 14).
 - **No Delete** *(operator, 2026-09-29, bead `ro-ujb9.76.4.5`)* — a site is
   never deleted, a mistaken add included: the store is history, and the
   Postgres model gives the application no DELETE on a site
@@ -1239,7 +1240,7 @@ operator questions rather than by system wiring:
    handoff somebody actually filed shows that bead — its id and whether it
    is still open — as a quiet muted marker in the proof/handoff cell, joined by
    the `noticeos_key` the handoff wrote into the bead's metadata
-   ([task-key-chain](playbooks/task-key-chain.md)) and read off the same
+   ([§Handoff metadata](../config/beads.README.md#handoff-metadata)) and read off the same
    once-a-minute `beads_snapshots` photograph the Tasks board uses. A
    closed bead reads as **shipped, not proven** and never retires the finding —
    only a watch-window verdict does — and a finding with no bead, or an asset
@@ -1354,8 +1355,8 @@ the largest collector the OS runs — has its per-provider
 health ride as an additional evidence line on the GA4, Search Console, and
 Bing Webmaster lanes it belongs to, in the register and on the asset page. It
 is evidence, not a vote: the 15-minute collector is the fresher and more direct
-observation of the same feed, so it keeps deciding the lane's state, and doc 19
-item 13's rule holds — a lane still speaks only from its own observations, and
+observation of the same feed, so it keeps deciding the lane's state, and the
+standing rule holds — a lane still speaks only from its own observations, and
 says nothing at all where it has none. Second, **System health** and
 **Settings** carry a month-to-date meter for the one lane that costs money to read:
 **Data spend**, $X of $Y in the month, against the portfolio `monthly_caps.data_usd`
@@ -1418,8 +1419,8 @@ to create one would be a dead end rather than an invitation.
 
 ### Link outreach: the reclamation pipeline as state
 
-An asset that has run a broken-link reclamation campaign
-([playbook](playbooks/reclamation-pipeline.md)) gains a **Link outreach**
+An asset that has run a broken-link reclamation campaign (find the lost link,
+pitch the linking page, track the reply) gains a **Link outreach**
 panel on its Activity tab: a single funnel line — *to pitch → sent → opened →
 clicked → replied → link updated* — followed by the ten targets that moved most
 recently, each with its domain, stage, and the date it reached it. A stage with
@@ -1455,7 +1456,7 @@ The kill switch is the one of the three that does not exist yet: doc 06's
 mechanism is unbuilt, so nothing on the desk offers it.
 
 **The desk IS the phone, reflowed** — no parallel mobile app, no second
-component set ([doc 14](14-ui-standards.md#accessibility--modes)), and nothing
+component set ([doc 14](14-design.md)), and nothing
 hidden at 390px that the desk shows. Below `md` the sidebar becomes a top bar
 with a menu button opening the same nav as a drawer, with the asset list
 collapsed (a drawer is opened to go one place). Below `sm` four things change,

@@ -243,7 +243,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(within(row).getByRole('button', { name: /^File task for/ })).toBeInTheDocument();
   });
   /**
-   * Doc 21, bead `ro-78qo.7`. The page printed four buttons under every row, so
+   * doc 14, bead `ro-78qo.7`. The page printed four buttons under every row, so
    * five alerts meant twenty verbs on screen and the queue's own severity was
    * the quietest ink on it. A row is one line now and the verbs are inside it.
    */
@@ -549,7 +549,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
   });
 
   /**
-   * Doc 21, bead `ro-78qo.7`. The old page said how bad the rows were in a pair
+   * doc 14, bead `ro-78qo.7`. The old page said how bad the rows were in a pair
    * of counts beside the filters; the strip says it in the loudest type on the
    * screen, and each count carries the SHAPE of its own share — "9 open" is a
    * shrug when it is nine warnings and an emergency when it is nine errors.
@@ -633,7 +633,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     const row = screen.getByRole("button", { name: /Signups well below normal/ });
     expect(row.textContent).toContain("4× in 2d");
     // The ring carries the severity and the mark carries the kind, so neither
-    // is colour alone (doc 14, doc 21's row glyphs).
+    // is colour alone (doc 14, doc 14's row glyphs).
     expect(row.querySelector(".text-error")).not.toBeNull();
     expect(row.textContent).toContain("△");
   });
@@ -738,7 +738,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       expect(section.textContent).toContain("1,000th signup");
 
       // The severity is the ROW'S OWN, carried by the ring, so a parked error
-      // still reads as an error; the `◦` mark is what says parked. Doc 21's
+      // still reads as an error; the `◦` mark is what says parked. doc 14's
       // mark set has no milestone glyph — a milestone is info-severity and its
       // mark is the same quiet one — so this ledger states the kind in words
       // when it has to, rather than growing a colour the vocabulary lacks.

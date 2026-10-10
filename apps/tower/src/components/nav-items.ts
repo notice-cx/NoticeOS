@@ -80,7 +80,7 @@ export const NAV_ITEMS: NavItem[] = [
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
   {
     to: "/financials",
-    // Money, not Financials (D44, doc 17 § Altitude): the founder's word.
+    // Money, not Financials (D44, doc 14 § Altitude): the founder's word.
     // The route, the payload and the asset tab's id keep `financials`.
     label: "Money",
     icon: Wallet,
@@ -91,7 +91,7 @@ export const NAV_ITEMS: NavItem[] = [
     label: "System health",
     icon: HeartPulse,
     // "integrations" is deliberately gone from here: it is a page now, and one
-    // word may not point at two of them (doc 17 rule 1).
+    // word may not point at two of them (doc 14 rule 1).
     keywords: ["sources", "connections", "unblock"],
   },
   {

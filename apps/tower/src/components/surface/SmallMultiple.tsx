@@ -5,7 +5,7 @@ import { Sparkline, type SeriesTone } from "@/components/surface/Sparkline";
 import { cn } from "@/lib/utils";
 
 /** The same static map `KpiStrip` uses, and for the same reason: Tailwind reads
- * source text, so a class assembled at runtime generates no CSS. Doc 21's
+ * source text, so a class assembled at runtime generates no CSS. doc 14's
  * strips are rows of five or six; a phone gets two. */
 const COLUMNS: Record<number, string> = {
   1: "grid-cols-1",
@@ -23,7 +23,7 @@ export interface SmallMultipleStripProps {
 }
 
 /**
- * A row of comparable measures in ONE bordered strip (doc 21).
+ * A row of comparable measures in ONE bordered strip (doc 14).
  *
  * *Registry justification:* the asset page drew five product-use figures as
  * five separate cards, each with its own border, heading and subtitle — five

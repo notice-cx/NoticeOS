@@ -92,8 +92,7 @@ const wranglerConfig = JSON.parse(stripJsonc(readFileSync(WRANGLER_CONFIG, 'utf8
 };
 
 /**
- * POSTGRES TEST COPIES (epic ro-ujb9.76; the pattern is
- * docs/briefs/2026-09-29-postgres-port-pattern.md). One throwaway cluster per
+ * POSTGRES TEST COPIES (epic ro-ujb9.76). One throwaway cluster per
  * run (scripts/postgres-test-cluster.mts), started when the first Workers
  * runtime is built. Each runtime — one per Vitest worker — gets its own copy
  * of the store as its `POSTGRES` Hyperdrive binding, the binding a deployed

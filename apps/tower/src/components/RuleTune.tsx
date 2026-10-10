@@ -364,7 +364,7 @@ export function RuleTunePanel({
         <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
           Tune rule
         </span>
-        {/* The rule NAMED, with its id in the hover — doc 17's tune row: an
+        {/* The rule NAMED, with its id in the hover — doc 14's tune row: an
             id is a name for the code, not for the operator. */}
         <span className="truncate text-[11px] text-muted-foreground" title={ruleId}>
           {ruleLabel(ruleId)}

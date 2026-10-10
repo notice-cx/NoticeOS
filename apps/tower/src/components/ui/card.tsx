@@ -2,18 +2,18 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * THE ONE CARD SHAPE (doc 21 principle 4 and its "Details the mockup settles"):
+ * THE ONE CARD SHAPE (doc 14 principle 4 and its "Details the mockup settles"):
  * `rounded-[10px]`, one border, no shadow.
  *
  * The radius and the shadow are what made a page of cards read as a page of
- * boxes. Doc 21's hierarchy comes from SCALE — an eyebrow over large numbers —
+ * boxes. doc 14's hierarchy comes from SCALE — an eyebrow over large numbers —
  * so every card that lifts off the page with its own drop shadow is competing
  * for the rank the numbers are supposed to hold, and twelve of them competing at
  * once is the "scattered rectangles" the operator named. Ten pixels also matches
  * `ListPanel`, which drew the new radius first: two radii on one screen is one
  * card style in name only.
  *
- * ONE SHAPE, FOUR TINTS (D44, accent system 3; doc 21 § Surface kinds). A card
+ * ONE SHAPE, FOUR TINTS (D44, accent system 3; doc 14 § Surface kinds). A card
  * may declare its SUBJECT as a `kind`, and wears that kind's tint from its top
  * edge down to the ordinary surface, with the kind's border and a one-pixel
  * inner highlight. A tint is the subject, never the verdict: an alert card is

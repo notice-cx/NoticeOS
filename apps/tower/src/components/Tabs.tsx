@@ -21,7 +21,7 @@ export interface TabSpec {
   /** A small state glyph seated before the count (a severity dot, a segmented
    * ratio bar). doc 14: a tab with state answers with a shape, not a word. */
   glyph?: ReactNode;
-  /** Hover/tap explainer for what the count or glyph means (doc 15 principle 9). */
+  /** Hover/tap explainer for what the count or glyph means (doc 14 principle 9). */
   title?: string;
   /** Called when a pointer rests on the tab or the keyboard focuses it — the
    * moment before it is opened. The asset page fetches that tab's code here
@@ -72,7 +72,7 @@ export function isTabActive(pathname: string, to: string, end = false): boolean 
  * exist to replace — one very long scroll with collapsed question disclosures and
  * a sticky "Jump to" navigator, which told a stranger nothing about where they
  * were and needed a deep link to open a `<details>` programmatically before it
- * could scroll (doc 19 finding 11).
+ * could scroll (the 2026-07 audit's finding 11).
  *
  * Two decisions worth keeping:
  *

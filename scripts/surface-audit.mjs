@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// Does a desk surface still meet doc 21? Measures the LIVE Tower's routes at the
+// Does a desk surface still meet doc 14? Measures the LIVE Tower's routes at the
 // desk viewport (1440×900) and the phone viewport (390×844) and reports, per
-// route, every acceptance line in `docs/21-surface-design.md` that a browser can
+// route, every acceptance line in `docs/14-design.md` that a browser can
 // see.
 //
-// Why this exists (bead `ro-78qo.9`): doc 21's acceptance list is a list of
+// Why this exists (bead `ro-78qo.9`): doc 14's acceptance list is a list of
 // MEASUREMENTS — "the first screen answers the question without scrolling", "no
 // paragraph longer than one sentence outside About", "no owner chip on a view
 // surface", "every number that can have a series shows one", "the 44px floor
@@ -27,7 +27,7 @@
 // have produced, so the rule that passes the test is the rule that ran against
 // the Tower rather than a second implementation of it.
 //
-// Exit 0 every route meets doc 21; 1 offenders (named per route); 2 could not
+// Exit 0 every route meets doc 14; 1 offenders (named per route); 2 could not
 // measure (no Chrome, no Tower, a route that never rendered). See scripts/README.md.
 
 import path from "node:path";
@@ -39,7 +39,7 @@ import { resolveAuditBrowser, withAuditBrowser } from "./audit-browser.mjs";
  * this script (bead ro-ujb9.120). */
 export const SITE_TOKEN = ":site";
 
-/** The desk routes doc 21 governs. `--routes` overrides. */
+/** The desk routes doc 14 governs. `--routes` overrides. */
 export const DEFAULT_ROUTES = [
   "/",
   "/assets",
@@ -56,16 +56,16 @@ export const DEFAULT_ROUTES = [
 
 export const DEFAULT_URL = "http://127.0.0.1:5173";
 
-/** Doc 21: "The first screen at 1440×900 answers the surface's one question." */
+/** doc 14: "The first screen at 1440×900 answers the surface's one question." */
 export const DESK_VIEWPORT = { name: "desk", width: 1440, height: 900 };
-/** Doc 21: "Phone width (390) … the 44px floor holds (bead `ro-md80`)." */
+/** doc 14: "Phone width (390) … the 44px floor holds (bead `ro-md80`)." */
 export const PHONE_VIEWPORT = { name: "phone", width: 390, height: 844 };
 
 /** ro-md80's touch floor, in CSS pixels. */
 export const TOUCH_FLOOR = 44;
 
 /** `--strict` only: a subtitle is "one sentence" and this long is a paragraph
- * wearing a subtitle's punctuation. Doc 21 principle 3. */
+ * wearing a subtitle's punctuation. doc 14 principle 3. */
 export const SUBTITLE_MAX_CHARS = 120;
 
 /** Sub-pixel slack. A control laid out at exactly 44px measures 43.99 often
@@ -169,7 +169,7 @@ export function selfAndAncestors(node) {
   return [node, ...(node?.ancestors ?? [])];
 }
 
-/** Doc 21: prose lives behind THE ONE disclosure per screen. `[data-about]` is
+/** doc 14: prose lives behind THE ONE disclosure per screen. `[data-about]` is
  * the contract; `details.about` is the shape the disclosure took before the
  * attribute existed, and is accepted so the audit can measure a surface that
  * has not been rebuilt yet. */
@@ -193,7 +193,7 @@ export function isIgnored(node) {
 /**
  * FOLDED AWAY INSIDE A CLOSED DISCLOSURE (bead `ro-78qo.20`).
  *
- * Doc 21's whole progressive-disclosure principle is `<details>`: the `About`
+ * doc 14's whole progressive-disclosure principle is `<details>`: the `About`
  * on every surface, "Show all 28 →" on Search, the reference tables that open
  * collapsed. None of that is on the page by default, and the audit was counting
  * all of it — Chrome no longer hides a closed `<details>` with `display: none`
@@ -279,14 +279,14 @@ export function sentenceCount(text) {
     if (ABBREVIATIONS.has(word.toLowerCase())) continue;
     // A terminator followed by lowercase is mid-sentence punctuation, not a
     // sentence break: "reported 14h ago. see Sources" is one careless line, but
-    // "…ago. See Sources" is two sentences and doc 21 says so.
+    // "…ago. See Sources" is two sentences and doc 14 says so.
     if (/^[“"'(\[A-Z0-9]/.test(rest)) count++;
   }
   return count === 0 ? 1 : count;
 }
 
 /**
- * Doc 21 acceptance: "No paragraph longer than one sentence is visible by
+ * doc 14 acceptance: "No paragraph longer than one sentence is visible by
  * default outside `About`." `--strict` adds principle 3's other half — a
  * subtitle is at most one sentence AND says what the section is, so a
  * single-sentence run past `SUBTITLE_MAX_CHARS` is prose with a full stop at
@@ -333,11 +333,11 @@ export function paragraphOffenders(paragraphs, options = {}) {
   return offenders;
 }
 
-/** Doc 21 principle 4: config-file paths belong on Settings and Sources. */
+/** doc 14 principle 4: config-file paths belong on Settings and Sources. */
 export const CONFIG_PATH_RE = /(^|[\s(])config\/[A-Za-z0-9._/-]+\.(json|md|yaml|yml)/;
 
 /**
- * The two surfaces doc 21 exempts: Settings (the page and the asset tab) and an
+ * The two surfaces doc 14 exempts: Settings (the page and the asset tab) and an
  * asset's Sources tab. Everything else is a view surface.
  */
 export function isConfigSurfaceRoute(route) {
@@ -350,7 +350,7 @@ export function isConfigSurfaceRoute(route) {
 }
 
 /**
- * Doc 21 acceptance: "No owner chip or config path on a view surface."
+ * doc 14 acceptance: "No owner chip or config path on a view surface."
  *
  * Three signatures, because the vocabulary that will carry the first one has
  * not landed yet and the audit still has to be able to measure today's desk:
@@ -407,7 +407,7 @@ export function ownerChipOffenders(nodes, options = {}) {
 const SPARK_TAGS = new Set(["svg", "canvas"]);
 
 /**
- * Doc 21 acceptance: "Every number that CAN have a series shows one." A
+ * doc 14 acceptance: "Every number that CAN have a series shows one." A
  * `[data-kpi]` declares itself as a number; the offender is the one with no
  * `[data-spark]` (or bare chart element) inside it — and no declared reason why
  * it has none.
@@ -417,7 +417,7 @@ const SPARK_TAGS = new Set(["svg", "canvas"]);
  * operator's inbox posture and the count of conditions open tonight are both
  * point-in-time totals, and the store keeps no by-day record of either. What
  * they have instead is a COMPOSITION — how the total divides, which is the
- * urgency bar and the severity bar doc 21's own Home template asks for. A KPI
+ * urgency bar and the severity bar doc 14's own Home template asks for. A KPI
  * carrying `[data-composition]` has answered the question the rule is really
  * asking (does this number show its shape?) with the only shape it has. It is
  * a declaration, not an exemption: a number with a real series that draws a bar
@@ -470,7 +470,7 @@ export function kpiOffenders(kpis) {
  * It is separate from {@link kpiOffenders} rather than a field on it because
  * these two answer different questions: one is "what is wrong with this
  * surface", the other is "what is this surface still waiting on". A route can
- * meet doc 21 with six of these on it, and the report says so on its own line
+ * meet doc 14 with six of these on it, and the report says so on its own line
  * so nobody has to read a passing run to notice the gap.
  */
 export function pendingSeries(kpis) {
@@ -493,7 +493,7 @@ export function pendingSeries(kpis) {
  *
  * Two deliberate exemptions. A link laid out `display: inline` is a word inside
  * a sentence, not a control — growing it would break the line box it sits in,
- * and doc 21 has no opinion about running text. A checkbox or radio is measured
+ * and doc 14 has no opinion about running text. A checkbox or radio is measured
  * through its `label`, because that is the box a thumb actually hits (`label`
  * rect arrives on the descriptor as `hitRect`).
  */
@@ -525,12 +525,12 @@ export function touchTargetOffenders(controls, options = {}) {
 }
 
 /**
- * Doc 21 acceptance: "The first screen at 1440×900 answers the surface's one
+ * doc 14 acceptance: "The first screen at 1440×900 answers the surface's one
  * question without scrolling."
  *
  * The declared hero is `[data-surface-hero]`. Where a surface has not declared
  * one, the hero is the union of its first `[data-kpi-strip]` and its first
- * `[data-hero-chart]` — the strip-plus-chart pair doc 21's Overview template
+ * `[data-hero-chart]` — the strip-plus-chart pair doc 14's Overview template
  * draws. A surface carrying none of the three has not declared a hero at all,
  * which is itself the offence: the audit cannot certify a first screen nobody
  * named.
@@ -579,7 +579,7 @@ export function routeVerdict(measured, options = {}) {
   offenders.push(...kpiOffenders(desk?.kpis));
   offenders.push(...touchTargetOffenders(phone?.controls));
   // Informational, and deliberately NOT in `offenders`: a route with six of
-  // these still meets doc 21. It rides the verdict so the report can say what
+  // these still meets doc 14. It rides the verdict so the report can say what
   // the surface is waiting on without failing it.
   const pending = pendingSeries(desk?.kpis);
 
@@ -589,7 +589,7 @@ export function routeVerdict(measured, options = {}) {
   }
   return {
     route,
-    // Whole pixels: a page height is a budget doc 21 states in whole pixels
+    // Whole pixels: a page height is a budget doc 14 states in whole pixels
     // ("≤ 1,600px at 1440"), and a tenth of one is noise on a 10,000px page.
     heights: {
       desk: desk ? Math.round(desk.pageHeight) : null,
@@ -751,7 +751,7 @@ export function collectSurface(options) {
    * Every rule below trusts `visible`, so without this the audit reported the
    * asset Overview at 3,175px with 35 paragraphs where the browser rendered
    * 1,377 with none — the whole difference being one closed "All findings" and
-   * the `About` that doc 21 tells every surface to have.
+   * the `About` that doc 14 tells every surface to have.
    *
    * The SUMMARY is the exception and the reason this is not simply "inside a
    * closed details": the summary is the visible line, it is a control a thumb
@@ -1017,12 +1017,12 @@ export function measureExpression(options) {
 // The CLI. Everything below runs only when this file is the entry point.
 // ---------------------------------------------------------------------------
 
-const HELP = `Measure the live Tower's desk surfaces against docs/21-surface-design.md.
+const HELP = `Measure the live Tower's desk surfaces against docs/14-design.md.
 
 The Tower must be running (pnpm os:up, or apps/tower's dev server) and a local
 Chrome must be launchable. Read-only: it navigates and measures, nothing else.
 
-Exit 0 = every route meets doc 21, 1 = offenders (named per route),
+Exit 0 = every route meets doc 14, 1 = offenders (named per route),
 2 = could not measure (no Chrome, no Tower, a route that never rendered).
 
 Options:
@@ -1147,7 +1147,7 @@ const FINGERPRINT = `(() => {
 /**
  * The mark that says a route has drawn its OWN content, not just the shell.
  *
- * Every desk route declares one of these (doc 21's attribute table), so waiting
+ * Every desk route declares one of these (doc 14's attribute table), so waiting
  * for one is the difference between measuring a surface and measuring the
  * skeleton in front of it. A route that never grows one is still measured and
  * still reported `no-hero` — that finding is what the mark exists for, and a
@@ -1390,7 +1390,7 @@ async function main() {
       }
     }
     console.log(
-      `\n${summary.ok ? "MEETS doc 21" : "DOES NOT MEET doc 21"} — ${summary.failing} of ${summary.routes} route(s) with offenders: ` +
+      `\n${summary.ok ? "MEETS doc 14" : "DOES NOT MEET doc 14"} — ${summary.failing} of ${summary.routes} route(s) with offenders: ` +
         `${summary.totals.hero} hero, ${summary.totals.prose} prose, ${summary.totals.owners} chip/path, ${summary.totals.kpis} number without a series, ${summary.totals.touch} under ${TOUCH_FLOOR}px.` +
         (summary.totals.pending
           ? ` ${summary.totals.pending} number(s) declare no series yet.`

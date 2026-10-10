@@ -1,6 +1,6 @@
 /** Reporting obligation and coverage — who owes the OS a nightly report, and
  * what the store can honestly say about each one (docs/06 §ingest freshness,
- * docs/19 finding 5).
+ * the 2026-07 audit's finding 5).
  *
  * Freshness is a property of the ASSET SET, never of the `pulses` table. Read
  * from the pulses side it answers a different question — "of the properties

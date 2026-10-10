@@ -1134,11 +1134,8 @@ describe("/settings — the task-hub project map", () => {
     expect(yaml.querySelector("[data-command-removed] del")).toHaveTextContent("sync.remote");
     expect(yaml.textContent).toContain("+ no-git-ops: true");
     expect(yaml.textContent).toContain("+ import.auto: false");
-    // And the freeze register the project is not onboarded without.
-    expect(within(checklist).getByText("New file · the project checkout/docs/freeze-register.md")).toBeTruthy();
-    expect(checklist.textContent).toContain("Unknown — review");
     expect(within(checklist).getByText("File · installation/task-host.json · repositories")).toBeTruthy();
-    expect(checklist.textContent).toContain("four steps left");
+    expect(checklist.textContent).toContain("three steps left");
     // Titles and text to paste, no paragraph per step (bead ro-ujb9.96.6.3).
     expect(checklist.textContent).not.toMatch(/within a minute|quietly starts|not onboarded until/u);
 
@@ -1525,7 +1522,7 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     const section = container.querySelector("#alert-rules") as HTMLElement;
     expect(section.querySelector("[data-alert-rule-preview]")).toBeNull();
     expect(section.querySelector("[data-backtest-day]")).toBeNull();
-    // One calm line with its glyph, not a paragraph (doc 21 empty states).
+    // One calm line with its glyph, not a paragraph (doc 14 empty states).
     expect(section.querySelector("[data-alert-rule-preview-empty]")).toHaveTextContent(
       "No reports to replay yet",
     );

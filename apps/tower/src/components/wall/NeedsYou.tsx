@@ -6,11 +6,11 @@ import { operatorState } from "@/lib/operator-posture";
 import { withSystemIssues } from "@/lib/wall-system-state";
 import { needsYouRows, type WallIssue, type WallIssueSeverity } from "@/lib/wall-issues";
 
-// NEEDS YOU (docs/25-the-wall.md § Needs you, D28, bead `ro-trai.4`): the top
+// NEEDS YOU (docs/14-design.md § Needs you, D28, bead `ro-trai.4`): the top
 // three things that need the operator, errors first then newest, each with its
 // site, one line and its age — every row staying put until it resolves. It
 // replaces the alert rail's rotation, which showed one item of six at a time
-// behind a ten-second cursor (docs/briefs/2026-09-23-wall-rethink.md § Audit).
+// behind a ten-second cursor.
 //
 // Registry justification: `AttentionRail` rotates one alert at a time and knows
 // only alerts; `ListPanel` is the desk's list with links and actions. Nothing

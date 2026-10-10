@@ -387,7 +387,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   }
   const inbox = projects.flatMap(project => project.waiting.map(task => ({ project, task })))
     .filter(row => matches(row.task)).sort((a, b) => inboxOrder(a.task, b.task));
-  // ONE ROW PER TASK ON THE PAGE (bead `ro-ujb9.96.7.11`, doc 21 3b): an ask
+  // ONE ROW PER TASK ON THE PAGE (bead `ro-ujb9.96.7.11`, doc 14 3b): an ask
   // is answered in Waiting on you, so the table below does not list it again.
   const waitingIds = new Set(inbox.map(row => row.task.id));
   const totals = boardTotals(projects);

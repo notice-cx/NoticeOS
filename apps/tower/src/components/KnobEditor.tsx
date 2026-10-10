@@ -117,7 +117,7 @@ export interface KnobEditorProps {
    * saves are paused (bead `ro-p8qq`). A page that states it once for every
    * editor on it (`SavesPaused`) passes `false`, and the field then shows only
    * its lock — the same fact under five fields was five statuses for one
-   * subject on one screen (doc 21 principle 3b).
+   * subject on one screen (doc 14 principle 3b).
    */
   statesReadOnly?: boolean;
   className?: string;
@@ -130,13 +130,13 @@ export interface KnobEditorProps {
  * IT WRITES (since D18, bead `ro-pbzu.5`). Until 2026-09-04 this component
  * staged an op into a browser-local cart, and the operator exported it and ran
  * `pnpm config:apply` in a terminal to make anything happen — high-friction
- * pseudo-settings (doc 19 finding 18). Save now applies configuration documents
+ * pseudo-settings (the 2026-07 audit's finding 18). Save now applies configuration documents
  * and asset columns through the database write lane (D22).
  *
  * ITS OUTCOME IS SAID BESIDE IT, EVERYWHERE (beads `ro-ujb9.96.6.3`,
  * `ro-ujb9.96.7.12`; D30). "Saved" and an Undo, or "Not saved" and why, next to
- * the control the operator just used (`InlineSaveState`, GitLab Pajamas —
- * docs/briefs/2026-09-23-inline-save.md#prior-art) rather than in a corner
+ * the control the operator just used (`InlineSaveState`, GitLab Pajamas'
+ * saving pattern) rather than in a corner
  * toast. There is no other mode: every setting, present and future, gets the
  * same save, the same Undo and the same refusal for free. The way back is
  * that Undo — the same write reversed and guarded by the value just saved —

@@ -323,7 +323,7 @@ export async function buildWallPayload(
   // there is a single query, a single filter, and a single split. The per-asset
   // net used to come from a second query with no booking_state at all, which is
   // how the Wall came to sit booked money above asset nets full of estimates
-  // — doc 19 finding 4, one grain down.
+  // — the 2026-07 audit's finding 4, one grain down.
   //
   // Summed in `amount_minor` (integer cents, db/0018) and divided once, at the
   // end, per figure. Adding REAL dollars — or dividing per asset and adding the
@@ -548,7 +548,7 @@ export async function buildWallPayload(
   ]);
   const counterCadence = countersCadenceHours(schedules ?? null);
 
-  // Counted over the ASSET rows, never over the pulses map (docs/19 finding 5),
+  // Counted over the ASSET rows, never over the pulses map (the 2026-07 audit's finding 5),
   // by the rule the ingest freshness cron counts with (`owesNightlyReport`): a
   // site that has never sent a report (D29 amended, `ro-ujb9.121`) or was
   // declared as sending none owes nothing and sits outside the denominator, so
@@ -649,7 +649,7 @@ export async function buildWallPayload(
   // widget took that space (doc 10) — and reading a lane nothing draws is cost
   // a television pays every sixty seconds for nothing.
   //
-  // What changed is not the card: /assets reads this same payload, and doc 21's
+  // What changed is not the card: /assets reads this same payload, and doc 14's
   // comparison table asks each row for search clicks beside its users. So the
   // lane is read again, and the two providers are merged into ONE card field
   // rather than shipped as a pair — the card still draws none of it, and the

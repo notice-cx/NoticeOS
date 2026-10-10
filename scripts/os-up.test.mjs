@@ -3156,7 +3156,7 @@ test('the acceptance bar drops the half a panel-less property cannot produce', (
   assert.doesNotMatch(COLLECTION_REVIEW_ACCEPTANCE, /panel row/);
   assert.match(COLLECTION_REVIEW_ACCEPTANCE, /ranked keywords, backlinks, LLM mentions/);
   assert.match(COLLECTION_REVIEW_ACCEPTANCE, /evidence-to-readback/);
-  assert.match(COLLECTION_REVIEW_ACCEPTANCE, /freeze state and last content ship date\/commit/);
+  assert.match(COLLECTION_REVIEW_ACCEPTANCE, /measurement state and last content ship date\/commit/);
 });
 
 test('a panel-less review asks for the inventory, never for a panel walk', () => {
@@ -3166,9 +3166,9 @@ test('a panel-less review asks for the inventory, never for a panel walk', () =>
   assert.match(text, /dataforseo-ranked-keywords\.csv/);
   assert.match(text, /gsc-\*, ga4-\*, bing-webmaster-\*/);
   assert.match(text, /freshness\.json FIRST/);
-  assert.match(text, /docs\/freeze-register\.md/);
+  assert.match(text, /open readback beads for an active measurement window/);
   assert.match(text, /git log/);
-  assert.match(text, /freeze state and last ship date\/commit/);
+  assert.match(text, /measurement state and last ship date\/commit/);
   assert.match(text, /too-recently-changed-to-verdict/);
   assert.match(text, /readback bead/);
   // The panel walk is not in it — there is no panel to walk.
@@ -3192,7 +3192,7 @@ test('the bead tells its reader where the panel is, from inside the property rep
   const landing = { asset: 'nosh.example', panelDate: '2026-08-02', queries: 6 };
   const text = panelReviewDescription(landing, { osCheckout: 'home-os', installation: { root: '/srv/home-os', env: {} } });
   assert.match(text, /all 6 collected result pages/);
-  assert.match(text, /docs\/playbooks\/serp-opportunity-execution\.md/);
+  assert.match(text, /docs\/20-signal-panels\.md in home-os/);
   assert.match(text, /\.local\/signal-dumps\/reports\/nosh\.example\//);
   assert.match(text, /dataforseo-serp-panel\.csv/);
   // Every path is qualified: none of these files are the reader's.
@@ -3209,9 +3209,9 @@ test('the bead tells its reader where the panel is, from inside the property rep
   assert.doesNotMatch(relocated, /home-os\/installation\//);
   // Measurement state belongs to the property repo, and recency is derived at
   // the target surface rather than guessed from repository-wide activity.
-  assert.match(text, /THIS property's docs\/freeze-register\.md/);
+  assert.match(text, /THIS property's open readback beads/);
   assert.match(text, /git log/);
-  assert.match(text, /freeze state and last ship date\/commit/);
+  assert.match(text, /measurement state and last ship date\/commit/);
   assert.match(text, /too-recently-changed-to-verdict/);
   assert.match(text, /readback bead/);
   assert.match(text, /scoped to the content source paths/);
@@ -3227,7 +3227,7 @@ test("a filed bead names the OS checkout by the home folder's own name", () => {
   const home = runnerPaths(REPO_ROOT, process.env).osCheckout;
   const text = panelReviewDescription(landing);
   assert.equal(text, panelReviewDescription(landing, { osCheckout: home }));
-  assert.match(text, new RegExp(`through the ${home} playbook docs/playbooks/`));
+  assert.match(text, new RegExp(`docs/20-signal-panels\\.md in ${home} is the read contract`));
   const panelless = panelReviewDescription({ ...landing, panel: false, queries: null, families: 5 }, { osCheckout: 'noticeos' });
   assert.match(panelless, /current saved terms at NoticeOS: Sites → shop\.example → Settings/);
   assert.match(panelless, /that is a bead in the OS's own tracker/);
@@ -3304,7 +3304,7 @@ test('“done” covers both halves, or the second half is decoration', () => {
   assert.match(PANEL_REVIEW_ACCEPTANCE, /Every panel row/);
   assert.match(PANEL_REVIEW_ACCEPTANCE, /week's other collections/);
   assert.match(PANEL_REVIEW_ACCEPTANCE, /evidence-to-readback/);
-  assert.match(PANEL_REVIEW_ACCEPTANCE, /freeze state and last content ship date\/commit/);
+  assert.match(PANEL_REVIEW_ACCEPTANCE, /measurement state and last content ship date\/commit/);
   assert.match(PANEL_REVIEW_ACCEPTANCE, /readback beads updated/);
 });
 

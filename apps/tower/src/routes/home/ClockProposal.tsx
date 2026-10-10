@@ -11,7 +11,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { formatZoneName } from "@/lib/format";
 
 /** The same field Settings → General → Time zone saves, so a save here and there
- * is one subject (doc 21 principle 3b). */
+ * is one subject (doc 14 principle 3b). */
 const SUBJECT = "field:Time zone";
 
 /**
@@ -22,7 +22,7 @@ const SUBJECT = "field:Time zone";
  * (`clock.chosen`) and the browser reads another zone, the first-run screen
  * shows the clock in effect and one press to use the browser's — the zone is
  * a low-risk choice, so the press is the save and Undo sits beside it, as on
- * Settings (docs/briefs/2026-09-23-first-run.md#the-clock). Nothing is saved
+ * Settings. Nothing is saved
  * on a page view: the operator presses, or the clock stays as it is.
  *
  * Once pressed, the row stays for the visit — with the zone that landed and

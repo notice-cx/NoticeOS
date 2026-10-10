@@ -25,7 +25,7 @@ Unlike the product pulse (each asset self-reports), SEO signals should be pulled
 **centrally** by NoticeOS crons: the external APIs (GSC, GA4, DataForSEO) need
 portfolio-level credentials and a shared spend budget, and none of it requires
 code inside the asset. Assets stay dumb; the Tower joins product pulse × search
-signals on the asset id. One D1 table family, one row per (asset, date, signal).
+signals on the asset id. One table family in the store, one row per (asset, date, signal).
 
 ## Signal families
 
@@ -113,8 +113,8 @@ been applying by hand:
 
 - a decision that would have recommended **title or snippet surgery** on a query
   carrying an AI Overview that does not cite us is demoted from *act* to
-  *investigate* — churn without reach, the
-  [impression-harvest](playbooks/impression-harvest.md) gate, applied
+  *investigate* — churn without reach: the impression-harvest gate (snippet
+  work earns clicks only where the result is still the click), applied
   automatically;
 - a query the overview **does** cite classifies as *protect* regardless of its
   position trend, with a next step that says not to wash out the cited content.
@@ -127,10 +127,9 @@ somebody triages it, and one site's went three-plus weeks unread under the honor
 system. Since 2026-08-03 the panel day is the ANCHOR and the scope is the
 week's whole collection — the broad inventory, the link and LLM families and the
 property's own GSC/GA4/Bing exports land on the same schedule and had no reader
-of their own. What closing that bead requires is*
-[serp-opportunity-execution §Panel review](playbooks/serp-opportunity-execution.md#panel-review)
-*then*
-[§Inventory pass](playbooks/serp-opportunity-execution.md#inventory-pass)*;
+of their own. What closing that bead requires — the panel walk, then the
+inventory pass over the week's other families — is written into the bead by*
+`scripts/runner/panel-review.mjs`*;
 the triage state rides the beads snapshot as* `panelReview` *so the Tower can
 show a property that is overdue.*
 
@@ -351,13 +350,12 @@ limits:*
   rather than claiming the property is clean.*
 - ***An unreachable home page landed 2026-08-04*** *(`ro-6ad`) as its own rule,
   `hygiene-home-unreachable`, on the same fetch as the depth check.*
-- ***That fetch is also each site's uptime since 2026-09-23*** *(`ro-ujb9.165`,
-  [brief](briefs/2026-09-23-uptime.md)): the home-page check alone runs every
+- ***That fetch is also each site's uptime since 2026-09-23*** *(`ro-ujb9.165`):
+  the home-page check alone runs every
   hour as well (`runUptimeChecks`), and `hygiene-home-unreachable` files at
   `error` — a site that does not answer is the revenue-off-switch band. Robots,
   sitemap and the page sample stay nightly.*
-- ***A failure is confirmed before it alerts since 2026-09-24*** *(`ro-ujb9.180`,
-  [brief](briefs/2026-09-23-uptime.md#confirming-a-failure-bead-ro-ujb9180)): a
+- ***A failure is confirmed before it alerts since 2026-09-24*** *(`ro-ujb9.180`): a
   home page that fails is asked once more 45 seconds later in the same run, the
   hourly check and the nightly sweep alike. Only two failures in a row file
   `hygiene-home-unreachable`; a page that answers the retry reads up, with the
@@ -378,8 +376,8 @@ limits:*
   come across is the other twenty-odd checks. This register records incidents,
   not a competitor's feature list: each founding guard came from a real "nobody
   noticed for months" event, and these four clear the same bar because each has a
-  decision attached —* [serp-snippet-standard](playbooks/serp-snippet-standard.md)
-  *for the snippet pair, and "a page canonicalized elsewhere cannot rank" for the
+  decision attached — the snippet standard (a title and description written
+  for the query, not the page) for the snippet pair, and "a page canonicalized elsewhere cannot rank" for the
   loudest of the four. **Title and description length are deliberately excluded**:
   Google truncates by pixel width and rewrites titles at will, so "your title is
   61 characters" is taste with no decision behind it, and a check that fires on

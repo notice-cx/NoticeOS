@@ -1,6 +1,5 @@
 // The config store — where a setting is read from, and the one door it is
-// written through (epic `ro-syok`). On Postgres (the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md; bead ro-ujb9.76.4.1): the
+// written through (epic `ro-syok`). On Postgres (bead ro-ujb9.76.4.1): the
 // tables config_documents and config_changes, through this call's store,
 // `env.STORE`.
 //

@@ -42,7 +42,7 @@ export interface TimelineProps {
  * The annotation timeline (doc 10 asset-detail: the visual "did it help?"
  * surface — deploys, model changes, incidents, external events). Neutral by
  * design; the events are history, not attention. Times are relative with the
- * absolute on hover (doc 15 principle 7).
+ * absolute on hover (doc 14 principle 7).
  */
 export function Timeline({
   items,
@@ -70,7 +70,7 @@ export function Timeline({
         // A lifecycle move (bead `ro-3085`) stores the two stages in its `ref`,
         // because that is the row's identity and the field Restore reads. The
         // ref is MACHINE text, so the row renders the sentence instead of it —
-        // one representation of the move, in words (doc 14, doc 17).
+        // one representation of the move, in words (doc 14, doc 14).
         const move = parseLifecycleMoveRef(it.ref);
         return (
           <li key={it.id} className="flex gap-3 pb-4 last:pb-0">
@@ -100,7 +100,7 @@ export function Timeline({
                   A CLOSED bead here is still not a measured outcome: the badge
                   says shipped-not-proven in its own hover, and the verdict comes
                   from a watch window carrying the same id
-                  (docs/playbooks/task-key-chain.md). Nothing on this row may be
+                  (the task-key chain). Nothing on this row may be
                   read as "and it worked". */}
               {move ? (
                 <span className="text-sm text-foreground">{lifecycleMoveSentence(move)}</span>
@@ -117,7 +117,7 @@ export function Timeline({
         // The end of the read, said out loud. A history that simply stops reads
         // as a history that ends — so the cut names its own size, on a dashed
         // node that continues the line. "Not shown" already says the rows
-        // exist; the sentence that restated it is gone (doc 21 principle 3a).
+        // exist; the sentence that restated it is gone (doc 14 principle 3a).
         <li className="flex gap-3" data-timeline-older={olderCount}>
           <div className="flex flex-col items-center">
             <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-border text-muted-foreground">

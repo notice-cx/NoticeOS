@@ -18,7 +18,7 @@ import { timelineAnnotations, watchSpans } from "@/routes/asset-detail/shared";
 
 /**
  * THE FIRST THING A SITE'S PAGE DRAWS: its own numbers, fused to their chart
- * (doc 21; beads `ro-ujb9.124`, `ro-ujb9.127`, `ro-ujb9.146`).
+ * (doc 14; beads `ro-ujb9.124`, `ro-ujb9.127`, `ro-ujb9.146`).
  *
  * One composition in two places — the site's Overview, and Home when the
  * installation has one site — so the two can never state the site differently.
@@ -211,7 +211,7 @@ function TrafficLead({
       data-site-lead={source === "posthog" ? "posthog" : undefined}
       className="overflow-hidden rounded-[10px] border border-border bg-card"
     >
-      {/* No explanation beside the title (doc 21 principle 3a): each KPI
+      {/* No explanation beside the title (doc 14 principle 3a): each KPI
           names its own aggregate ("Avg. daily users", a period total for the
           rest) and its plotted method ("Trend: 7-day average"), and the chart
           legend names the provider. A tooltip restating them was a second
@@ -266,7 +266,7 @@ function TrafficLead({
 /**
  * DataForSEO's latest weekly rankings: four figures and no chart. The saved
  * analysis keeps only the newest report, so each KPI declares that rather than
- * drawing a line through one reading (doc 21's `seriesUnavailable`).
+ * drawing a line through one reading (doc 14's `seriesUnavailable`).
  */
 function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapshot; aside?: ReactNode }) {
   const id = useId();

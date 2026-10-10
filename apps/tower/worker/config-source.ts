@@ -291,7 +291,7 @@ export async function resolveTowerConfig(
   //
   // The key is reached through a type rather than a string literal because
   // `scripts/ui-lexicon.test.mjs` reads quoted words in shipped Worker code as
-  // operator copy, and this one is a JSON key in a config file (doc 17 rule 8).
+  // operator copy, and this one is a JSON key in a config file (doc 14 rule 8).
   const beadsDoc = stored.get(TOWER_CONFIG_FILES.beads);
   const storedSpokes = isObject(beadsDoc)
     ? (beadsDoc as { spokes?: unknown }).spokes

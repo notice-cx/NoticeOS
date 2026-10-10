@@ -5,8 +5,8 @@ week (2026-07-01→05 on one site) — SERP triage, Clarity analysis, an
 affiliate integration built from docs to deployed cards, four commissioned
 fixes, dozens of portfolio questions — all of it ran through an interactive
 chat session. The recurring loop (docs 00–07) doesn't absorb that work; these
-seven features do. Same contract as [doc 15](15-operator-flows.md): flows are
-specified here before they're built, and the [doc 15 polish principles](15-operator-flows.md#polish-principles-the-visual-intuitive-polished-bar-made-enforceable)
+seven features do. Same contract as [doc 14](14-design.md): flows are
+specified here before they're built, and the [doc 14 polish principles](14-design.md)
 bind every surface below.*
 
 **What deliberately stays in chat:** design partnership, taste arguments,
@@ -89,7 +89,7 @@ Without this lane, novel work falls back to chat and escapes the ledger.
 > `bd create` the receiving agent runs in the property's own repo, filing a
 > bead on the portfolio task hub with the rule id, the decision key, and the
 > asset as labels ([`config/beads.json`](../config/beads.json),
-> [task-key-chain](playbooks/task-key-chain.md)). Work handed off this way is
+> [§Handoff metadata](../config/beads.README.md#handoff-metadata)). Work handed off this way is
 > visible to the portfolio while it is in flight and closes with a note,
 > instead of living and dying inside one chat session.
 > **Partly**, precisely: a bead is intent and status, not a work order. There
@@ -128,7 +128,7 @@ Amends doc 05 §2 (claims are artifacts): **any change touching a user-facing
 surface must attach before/after screenshots (desktop + mobile viewports) as
 claim artifacts.** Queue cards and registry rows render them inline;
 side-by-side with a slider where the diff is subtle. An approve control on a
-UI-class change without rendered visual evidence does not exist (doc 15
+UI-class change without rendered visual evidence does not exist (doc 14
 principle 1: show, then ask). Screenshot capture is itself a crystallized
 tool (Playwright shots against the preview build), so builders attach
 evidence by calling it, not by improvising.
@@ -164,7 +164,7 @@ asset is a ready-made hypothesis for the siblings.
 
 ## What this sharpens in D1
 
-Ask and Commissions split [doc 12](12-implementation-readiness.md) D1 into
+Ask and Commissions split decision D1 ([register](../config/decisions.md)) into
 two cleaner sub-decisions: **(a) the cron substrate** (Sense/Decide sweeps,
 scheduled runs — cloud, boring, decided by default proposal) and **(b) the
 interactive substrate** (Ask answers in seconds; commission plan-backs in

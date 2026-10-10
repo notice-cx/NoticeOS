@@ -20,7 +20,7 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
  * THE OVERVIEW DOC 21 ASKED FOR (bead `ro-78qo.3`).
  *
  * The DOM pin in `asset-detail-tabs.test.tsx` records what this tab renders;
- * these are the four rules that make it the surface doc 21 specifies rather
+ * these are the four rules that make it the surface doc 14 specifies rather
  * than a rearrangement — the strip drives the chart, the range re-derives every
  * number under it, the prose is behind the one disclosure, and the banner is
  * there only while the setup is open.
@@ -369,7 +369,7 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(alerts.querySelector("[data-spark]")).toBeNull();
     expect(alerts.querySelector("[data-hero-chart]")).toBeNull();
     // No explanation of the missing trend: there is simply no line (bead
-    // `ro-ujb9.96.6.6`, doc 21 principle 3a).
+    // `ro-ujb9.96.6.6`, doc 14 principle 3a).
     expect(alerts.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meals.example/alerts");
   });
@@ -553,7 +553,7 @@ describe("Asset Overview — the strip drives the chart", () => {
  * down or on another tab. The lead is now chosen from what the site has.
  */
 // The totals the old Wall card drew now live on the site's own Overview
-// (bead ro-trai.21, docs/25-the-wall.md § What leaves the Wall).
+// (bead ro-trai.21, docs/14-design.md § What leaves the Wall).
 describe("Asset Overview — the site's all-time totals", () => {
   const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
@@ -1072,7 +1072,7 @@ describe("Asset Overview — the two lists", () => {
     // Warnings outrank recommendations whatever order the snapshot arrived in.
     expect(rows[0]!.textContent).toContain("11.3% of sessions are unattributed");
     // The first row is expanded, with its EVIDENCE and the three actions — the
-    // finding's own paragraphs are behind All findings, because doc 21 allows
+    // finding's own paragraphs are behind All findings, because doc 14 allows
     // no paragraph on a view surface outside About.
     expect(rows[0]!.textContent).toContain("Unassigned share");
     expect(rows[0]!.textContent).toContain("11.3%");
@@ -1087,7 +1087,7 @@ describe("Asset Overview — the two lists", () => {
 
   // Bead ro-ujb9.96.6.21: an empty What matters is a state in the panel's own
   // noun, never a sentence about an internal job ("the archive analysis has
-  // not run") — doc 21 principle 3b, zero words needed to act.
+  // not run") — doc 14 principle 3b, zero words needed to act.
   it.each([
     ["no analysis saved yet", null, "No findings yet"],
     ["an analysis that found nothing", "empty", "Nothing found"],

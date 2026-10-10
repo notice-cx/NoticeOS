@@ -1,5 +1,5 @@
 // @vitest-environment node
-// What the Wall lists as broken (docs/25-the-wall.md § Needs you and § Site
+// What the Wall lists as broken (docs/14-design.md § Needs you and § Site
 // rows; beads `ro-trai.4`, `ro-trai.5`): one ordered list that Needs you states
 // as sentences and a site row as one short mark.
 

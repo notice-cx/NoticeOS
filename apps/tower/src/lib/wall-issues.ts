@@ -1,4 +1,4 @@
-// What is broken, once, for the two Wall widgets that say so (docs/25-the-wall.md
+// What is broken, once, for the two Wall widgets that say so (docs/14-design.md
 // § Needs you and § Site rows; beads `ro-trai.4`, `ro-trai.5`).
 //
 // ONE LIST, TWO SIZES. "Needs you" states each problem as a sentence with its

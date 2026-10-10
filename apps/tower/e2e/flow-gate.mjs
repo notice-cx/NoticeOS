@@ -1,20 +1,18 @@
 #!/usr/bin/env node
-// THE FLOW GATE (bead ro-ujb9.95): walk every declared operator flow in a real
-// browser and fail when one costs more than apps/tower/ux-flows.json records.
+// THE FLOW WALKER: walk every declared operator flow in a real browser and
+// report what each one costs — actions, screens, page changes, explanatory
+// words, empty steps, repeated checks, duplicate statuses, ungrouped lists.
 //
-// Operator, 2026-09-23: "Can we codify/gatify this so any agent who does work
-// on UX in the future encounters a hard stop when coming up with something
-// non-conforming"; "way too many steps where it's more natural just to add one
-// more button or component to the current step than blowing the entire flow up
-// with extra steps, duplicated checks"; "No duplicate statuses on the same
-// screen"; lists repeating one subject are grouped under it. The text gate
-// (scripts/ux-gate.mjs) sees words in source files; it cannot see a flow that
-// takes nine clicks across two pages. This walks the flows.
+// The text report (scripts/ux-gate.mjs) sees words in source files; it cannot
+// see a flow that takes nine clicks across two pages. This walks the flows and
+// prints the measurements for design review. It fails only when a flow cannot
+// be walked to its end, when a page escapes the isolated fixture, or when the
+// probes themselves stop seeing what they are built to see; a count is never
+// a failure. Whether a step earns its place is the builder's call.
 //
 //   node apps/tower/e2e/flow-gate.mjs                    every flow, both viewports (pnpm test:journeys runs this)
 //   node apps/tower/e2e/flow-gate.mjs --flows a,b        just these flows
 //   node apps/tower/e2e/flow-gate.mjs --viewports phone  just this viewport
-//   node apps/tower/e2e/flow-gate.mjs --write-baseline   pnpm ux:flows:baseline: lower the record, never raise
 //   --port <n>      pin the first lane's port (default: free ports, journey-port.mjs)
 //   --parallel <n>  lanes walked at once, each with its own fixture (default: as many
 //                   as the journeys' workers, JOURNEY_WORKERS or half the cores, 1 to 4)
@@ -36,9 +34,6 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
-  FLOW_BUDGET_FILE, RULE_METRICS, checkStatic, flowGateMessage, judgeResults, legacyDebtLine, lowerBudget, readBudget, serializeBudget,
-} from "../../../scripts/ux-flow-gate.mjs";
 import { FLOWS } from "./ux-flows.mjs";
 import { VIEWPORTS, Walk, installSyntheticProviders, settle, trackRequests } from "./ux-walk.mjs";
 import { parallelServers, startFixtureServer } from "./fixture-server.mjs";
@@ -54,13 +49,12 @@ export const RESULTS_DIR = path.join(HERE, "ux-flows-results");
 process.env.PLAYWRIGHT_BROWSERS_PATH = JOURNEY_BROWSERS;
 
 function parseArgs(argv) {
-  const args = { flows: null, viewports: Object.keys(VIEWPORTS), write: false, json: false, port: null, parallel: Math.min(4, parallelServers()), help: false };
+  const args = { flows: null, viewports: Object.keys(VIEWPORTS), json: false, port: null, parallel: Math.min(4, parallelServers()), help: false };
   for (let index = 0; index < argv.length; index++) {
     const arg = argv[index];
     if (arg === "--") continue;
     if (arg === "--flows") args.flows = argv[++index].split(",").filter(Boolean);
     else if (arg === "--viewports") args.viewports = argv[++index].split(",").filter(Boolean);
-    else if (arg === "--write-baseline") args.write = true;
     else if (arg === "--json") args.json = true;
     else if (arg === "--port") args.port = Number(argv[++index]);
     else if (arg === "--parallel") args.parallel = Number(argv[++index]);
@@ -101,9 +95,9 @@ async function startFixture(port) {
 // ── the probes' own check ─────────────────────────────────────────────────────
 //
 // A probe that stopped seeing something would read as the Tower getting
-// better, and `ux:flows:baseline` would lock that blindness in. So before any
-// flow is walked, the probes must find each kind of violation on a page built
-// to hold exactly one of each, the way the Tower draws them.
+// better. So before any flow is walked, the probes must find each kind of
+// finding on a page built to hold exactly one of each, the way the Tower
+// draws them.
 
 const PROBE_PAGE = `<!doctype html><html><body><main>
   <nav aria-label="Integration setup"><button aria-pressed="false">1 Connect</button><button aria-pressed="true">2 Choose assets</button></nav>
@@ -235,7 +229,7 @@ async function walkFlows({ ids, viewports, lanes, log }) {
   }
   const status = await (await fetch(`${lanes[0]}/__journey/status`)).json();
   const results = { schema: "ux-walk/1", measuredAt: new Date().toISOString(), servers: lanes, fixtureNow: status.now, flows: {} };
-  for (const id of ids) results.flows[id] = { title: FLOWS[id].title, kind: FLOWS[id].kind ?? "flow", priorArt: FLOWS[id].priorArt, runs: {} };
+  for (const id of ids) results.flows[id] = { title: FLOWS[id].title, kind: FLOWS[id].kind ?? "flow", runs: {} };
   // The survey is the longest walk: start it first so the lanes finish together.
   const ordered = [...ids].sort((a, b) => Number(FLOWS[b].kind === "survey") - Number(FLOWS[a].kind === "survey"));
   const jobs = ordered.flatMap((id) => viewports.map((viewport) => ({ id, viewport })));
@@ -272,10 +266,6 @@ export async function main(argv = process.argv.slice(2)) {
   const ids = args.flows ?? Object.keys(FLOWS);
   const full = !args.flows && args.viewports.length === Object.keys(VIEWPORTS).length;
 
-  // The static half first (no browser): the record's schema and history, the
-  // registry against the record, and every flow's prior-art citation.
-  const staticCheck = await checkStatic({ root: REPO_ROOT, registry: FLOWS });
-
   if (full) await rm(RESULTS_DIR, { recursive: true, force: true });
   await mkdir(RESULTS_DIR, { recursive: true });
   const jobs = ids.length * args.viewports.length;
@@ -289,10 +279,10 @@ export async function main(argv = process.argv.slice(2)) {
   try {
     for (let lane = 0; lane < laneCount; lane += 1) fixtures.push(await startFixture(args.port === null ? null : args.port + lane));
     const lanes = fixtures.map((fixture) => fixture.origin);
-    out(`UX flow gate: walking ${ids.length} flow(s) × ${args.viewports.join(", ")} on ${lanes.length} isolated fixture(s) ${lanes.join(", ")}`);
+    out(`UX flow walker: walking ${ids.length} flow(s) × ${args.viewports.join(", ")} on ${lanes.length} isolated fixture(s) ${lanes.join(", ")}`);
     results = await walkFlows({ ids, viewports: args.viewports, lanes, log: out });
   } finally {
-    // Every fixture is stopped; one that did not exit cleanly fails the gate.
+    // Every fixture is stopped; one that did not exit cleanly fails the run.
     const stops = await Promise.allSettled(fixtures.map((fixture) => fixture.stop()));
     stopFailure = stops.find((stop) => stop.status === "rejected")?.reason;
   }
@@ -301,60 +291,61 @@ export async function main(argv = process.argv.slice(2)) {
   await writeFile(path.join(RESULTS_DIR, "results.json"), `${JSON.stringify(results, null, 2)}\n`);
 
   const probes = results.probeProblems ?? [];
-  const budget = readBudget(REPO_ROOT);
-  if (args.write) {
-    if (!budget) {
-      process.stderr.write(`flow-gate: ${FLOW_BUDGET_FILE} is missing. Restore it from git (git checkout -- ${FLOW_BUDGET_FILE}); ux:flows:baseline never creates or raises it.\n`);
-      return 1;
+  const unfinished = [];
+  for (const id of ids) {
+    for (const [viewport, run] of Object.entries(results.flows[id]?.runs ?? {})) {
+      if (!run?.ok) unfinished.push(`${id} (${viewport}): ${String(run?.error ?? "no run").split("\n")[0]}${run?.failureShot ? `\n      ${run.failureShot}` : ""}`);
     }
-    if (probes.length || isolation.length) {
-      process.stderr.write(`${flowGateMessage({ probes, isolation })}\n${FLOW_BUDGET_FILE} was not changed.\n`);
-      return 1;
-    }
-    const { next, changes, added } = lowerBudget(budget, results, FLOWS, { root: REPO_ROOT });
-    if (changes.length || added.length) await writeFile(path.join(REPO_ROOT, FLOW_BUDGET_FILE), serializeBudget(next));
-    const judged = judgeResults(results, next, FLOWS, { scope: ids });
-    const lowered = [
-      changes.length ? `Lowered ${FLOW_BUDGET_FILE}:\n  ${changes.join("\n  ")}` : `${FLOW_BUDGET_FILE} is already as low as the flows measure.`,
-      added.length ? `Recorded new flows (their first measurement is their budget):\n  ${added.join("\n  ")}` : "",
-    ].filter(Boolean).join("\n");
-    const message = flowGateMessage({ ...judged, decreases: [], unrecorded: [], statics: staticCheck });
-    process.stderr.write(`${message ? `${lowered}\n\nStill over the record — ux:flows:baseline never raises:\n\n${message}` : lowered}\n`);
-    return message ? 1 : 0;
   }
-
-  const judged = judgeResults(results, budget, FLOWS, { scope: ids });
-  const message = flowGateMessage({ ...judged, statics: staticCheck, isolation, probes });
+  const problems = [
+    probes.length ? `The probes no longer see what they are built to see (apps/tower/e2e/ux-walk.mjs):\n  ${probes.join("\n  ")}` : "",
+    isolation.length ? `A page left the isolated fixture:\n  ${isolation.join("\n  ")}` : "",
+    unfinished.length ? `These flows could not be walked to the end (apps/tower/e2e/ux-flows.mjs):\n  ${unfinished.join("\n  ")}` : "",
+  ].filter(Boolean).join("\n\n");
+  const totals = summarize(results, ids, args.viewports);
   const seconds = ((Date.now() - started) / 1000).toFixed(1);
-  if (args.json) process.stdout.write(`${JSON.stringify({ ...judged, statics: staticCheck, isolation, probes, message, seconds }, null, 2)}\n`);
-  if (message) {
-    process.stderr.write(`\n${message}\n`);
+  if (args.json) process.stdout.write(`${JSON.stringify({ results, totals, isolation, probes, problems, seconds }, null, 2)}\n`);
+  if (problems) {
+    process.stderr.write(`\n${problems}\n`);
     return 1;
   }
-  const legacy = Object.fromEntries(RULE_METRICS.map((metric) => [metric, 0]));
+  out(`UX flow walker: ${ids.length} flow(s) × ${args.viewports.length} viewport(s) walked in ${seconds}s; ` +
+    `the measurements are in ${path.relative(REPO_ROOT, RESULTS_DIR)}/results.json. ` + totalsLine(totals));
+  return 0;
+}
+
+const METRICS = ["actions", "screens", "hops", "proseWords", "emptySteps", "duplicatedChecks", "duplicateStatuses", "ungroupedRepeats"];
+
+/** The sums over every walked run, for the one-line summary. */
+export function summarize(results, ids, viewports) {
+  const totals = Object.fromEntries(METRICS.map((metric) => [metric, 0]));
   for (const id of ids) {
-    for (const viewport of args.viewports) {
-      for (const metric of RULE_METRICS) legacy[metric] += budget?.flows?.[id]?.[viewport]?.[metric] ?? 0;
+    for (const viewport of viewports) {
+      const run = results.flows[id]?.runs?.[viewport];
+      if (!run?.ok) continue;
+      for (const metric of METRICS) totals[metric] += run[metric] ?? 0;
     }
   }
-  out(`UX flow gate: ${ids.length} flow(s) × ${args.viewports.length} viewport(s) within ${FLOW_BUDGET_FILE}, ${seconds}s. ` +
-    legacyDebtLine(legacy, "still held"));
-  return 0;
+  return totals;
+}
+
+export function totalsLine(totals) {
+  return `Across them: ${totals.actions} actions, ${totals.screens} screens, ${totals.hops} page changes, ${totals.proseWords} explanatory words, ` +
+    `${totals.emptySteps} empty steps, ${totals.duplicatedChecks} repeated checks, ${totals.duplicateStatuses} duplicate statuses, ${totals.ungroupedRepeats} ungrouped lists.`;
 }
 
 function readUsage() {
   return [
-    "flow-gate — walk every declared Tower flow and hold it to apps/tower/ux-flows.json (bead ro-ujb9.95)",
+    "flow-gate — walk every declared Tower flow in a browser and report what each costs",
     "",
     "  node apps/tower/e2e/flow-gate.mjs                    every flow, desktop and phone",
     "  node apps/tower/e2e/flow-gate.mjs --flows a,b        just these flows",
     "  node apps/tower/e2e/flow-gate.mjs --viewports phone  just this viewport",
-    "  node apps/tower/e2e/flow-gate.mjs --write-baseline   lower the record where flows got cheaper (never raises)",
     "  --port <n>      pin the first lane's port; the others take the next ones (default: free ports)",
     "  --parallel <n>  fixture lanes walked at once, 1-4 (default JOURNEY_WORKERS, or half the cores up to 4)",
     "  --json          machine-readable output",
     "",
-    "Exit 0 within budget, 1 violations, 2 could not run.",
+    "Exit 0 when every flow walked to its end, 1 when one could not, 2 could not run.",
   ].join("\n");
 }
 

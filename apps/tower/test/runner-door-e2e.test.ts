@@ -180,8 +180,7 @@ async function settingsUntil(until: (read: SettingsRead) => boolean): Promise<Se
 }
 
 // BOTH WORKERS READ THE CONFIG STORE FROM POSTGRES THE WAY THE LOCAL OS RUNS
-// THEM (epic ro-ujb9.76; the pattern every port copies is
-// docs/briefs/2026-09-29-postgres-port-pattern.md).
+// THEM (epic ro-ujb9.76).
 //
 // The local OS — the managed service and `pnpm start` alike — runs ONE Vite
 // dev server (apps/tower/vite.config.ts): the Cloudflare plugin runs the Tower

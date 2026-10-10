@@ -645,7 +645,7 @@ pnpm postgres:dev new add_example_table            # the next numbered file, fro
 | Target | What happens |
 |---|---|
 | `--dir` naming a missing or empty folder | A throwaway cluster is created there; each command starts it on a private unix socket (no TCP port) and stops it again |
-| A test run's cluster (`scripts/postgres-test-cluster.mts`) | Also listens on 127.0.0.1 at one port, for `noticeos_app` alone, by a password made at its start and held only in memory: the way a Worker's Hyperdrive binding reaches it ([the port pattern](../../docs/briefs/2026-09-29-postgres-port-pattern.md)) |
+| A test run's cluster (`scripts/postgres-test-cluster.mts`) | Also listens on 127.0.0.1 at one port, for `noticeos_app` alone, by a password made at its start and held only in memory: the way a Worker's Hyperdrive binding reaches it (a local Hyperdrive binding is a plain TCP pipe, and workerd opens no unix socket) |
 | `--dir` naming a folder this profile made | Reused |
 | `--dir` naming any other non-empty folder | Refused untouched |
 | `--url` on this machine (localhost, a loopback address or `?host=/socket/folder`), database name ending in `_dev`, marked for development | Used |

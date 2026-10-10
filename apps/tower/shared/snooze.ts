@@ -14,7 +14,7 @@
  * a quarter — past that the honest action is Resolve (the issue is gone) or
  * Mark read (the rule is noise and should be tuned), not silence with no end in
  * sight. The cap is what keeps "muting without a reason doesn't exist"
- * (docs/15-E) true in practice rather than only in the note field.
+ * (docs/14-design.md § Operator flows) true in practice rather than only in the note field.
  */
 export const SNOOZE_MAX_DAYS = 90;
 

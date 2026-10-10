@@ -54,7 +54,7 @@ export const MATERIALITY = {
     source: "WallPayload.attention / AssetDetailPayload.flags.open",
     derivation: "Open rows retain severity and kind as independent visual channels.",
     priority: "critical",
-    // D28 (docs/25-the-wall.md, bead `ro-trai.4`): Needs you lists them, still.
+    // D28 (docs/14-design.md, bead `ro-trai.4`): Needs you lists them, still.
     wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="open-flags"]' },
     asset: { placement: "primary-content", component: "AlertsTab", selector: 'section[aria-label="Open"]' },
     behavior: {
@@ -145,7 +145,7 @@ export const MATERIALITY = {
     derivation: "Only pre-registered open comparisons count as active bets.",
     priority: "high",
     // The Wall card's bet line left on 2026-08-31 (3997151a) and D28 took the
-    // card itself (bead `ro-trai.11`, docs/25-the-wall.md § What leaves the
+    // card itself (bead `ro-trai.11`, docs/14-design.md § What leaves the
     // Wall). A watch that closes badly is `rollback-failure`, which Needs you
     // lists; an open one is asset state.
     wall: {

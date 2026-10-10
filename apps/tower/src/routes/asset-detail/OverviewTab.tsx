@@ -68,7 +68,7 @@ import { askFace } from "@/routes/tasks/task-face";
 
 /**
  * THE OVERVIEW TAB — the index tab, so `/assets/:id` IS this (`ro-pbzu.4`),
- * rebuilt to doc 21's Asset · Overview template (bead `ro-78qo.3`).
+ * rebuilt to doc 14's Asset · Overview template (bead `ro-78qo.3`).
  *
  * It answers ONE question in three parts: how is this asset doing, what needs
  * me, and what matters. Traffic follows the selected day range; financials and
@@ -138,7 +138,7 @@ export function OverviewTab({
         </div>
       ) : null}
 
-      {/* THE VERDICT LINE (D44, doc 21 § Asset · Overview): three facts
+      {/* THE VERDICT LINE (D44, doc 14 § Asset · Overview): three facts
           joined by dots, under the header's verdict word — money, alerts,
           bets — each from the read this tab already makes. Never a sentence. */}
       <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
@@ -185,7 +185,7 @@ export function OverviewTab({
             /> : null}
           </details> : null}
         </section>
-        {/* THE SPLIT IS THE ANSWER (doc 21: a number whose shape is how a
+        {/* THE SPLIT IS THE ANSWER (doc 14: a number whose shape is how a
             total divides shows the division). One row names the errors and
             warnings open now, in the severity ring, with when one last fired —
             and opens the Alerts tab, where each one is verified. It draws no
@@ -255,7 +255,7 @@ export function OverviewTab({
         </details>
       ) : null}
 
-      {/* NO "ABOUT THESE NUMBERS" (doc 21 principle 3a, bead
+      {/* NO "ABOUT THESE NUMBERS" (doc 14 principle 3a, bead
           `ro-ujb9.96.6.6`). Its three paragraphs each restated something the
           surface already draws: the provider in each chart legend, the
           averaged or totalled measure in each KPI label, the compared window in
@@ -574,10 +574,10 @@ function WhatMatters({
               />
             }
           >
-            {/* EVIDENCE, NOT PROSE (doc 21: "a row expands in place to show
+            {/* EVIDENCE, NOT PROSE (doc 14: "a row expands in place to show
                 evidence and its actions"). The producer writes `summary` and
                 `whyItMatters` as free paragraphs — two or three sentences of
-                them — and doc 21's acceptance forbids a paragraph visible by
+                them — and doc 14's acceptance forbids a paragraph visible by
                 default outside `About`. The mockup shows one because it is
                 illustration; the rule is the document. Both sentences are one
                 press away, with the sources and the limitation, in All findings. */}
@@ -628,7 +628,7 @@ const COUNT = /^\d[\d,]*$/;
  * An internal identifier — a rule id, a decision key, the machine name of the
  * thing that produced the finding.
  *
- * Doc 17: an operator never has to read one. They are real evidence and they
+ * doc 14: an operator never has to read one. They are real evidence and they
  * stay in All findings beside the sources and the limitation, where the reader
  * has asked for the machinery; on the row itself they spend a line of the four
  * this panel has on a string nobody can act on.
@@ -751,7 +751,7 @@ function metricLabel(name: string): string {
 /**
  * THE SITE'S ALL-TIME TOTALS (bead `ro-trai.21`): accounts, leads, catalog
  * counts — the stock figures config/counters.json declares, which only the old
- * Wall card drew until D28 moved them here (docs/25-the-wall.md § What leaves
+ * Wall card drew until D28 moved them here (docs/14-design.md § What leaves
  * the Wall). The register's own heading, one cell per total that has a number.
  *
  * AN AGE ONLY WHERE IT IS ITS OWN (doc 14, one representation): a figure from
@@ -823,7 +823,7 @@ export function ProductUse({
           {/* Exact times and dates only. What each figure IS is printed on the
               cell ("in 24h", "Prior 7 reports: … / day", "Daily counts",
               "1 missing day"), so the two methodology paragraphs that restated
-              it are gone (doc 21 principle 3a). */}
+              it are gone (doc 14 principle 3a). */}
           <span className="block">{receivedLabel === null ? "Report time unknown" : `Report received ${receivedLabel} · ${formatAge(age)} ago.`}</span>
           {cells.map(({ metric, summary }) => summary.previousMean === null ? null : <span key={metric.name} className="block">{metricLabel(metric.name)} comparison: {summary.previousCount} reports · {formatCalendarRange(summary.previousFirst!, summary.previousLast!)}.</span>)}
         </InfoTooltip>

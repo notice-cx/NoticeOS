@@ -1,6 +1,7 @@
 // THE NAMES A TASK FILED BY NOTICEOS CARRIES IN A PROJECT'S OWN TRACKER
-// (bead ro-ujb9.77.4; config/beads.README.md § Handoff metadata,
-// docs/playbooks/task-key-chain.md).
+// (bead ro-ujb9.77.4; config/beads.README.md § Handoff metadata). These names
+// are the one key carried from a finding to its task, commit, annotation and
+// watch window, so renaming them breaks every existing join.
 //
 // A finding handed off from the Tower, a weekly panel review, an unpushed-work
 // ask and a task-map drift report are beads in OTHER repositories' trackers,

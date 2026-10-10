@@ -283,7 +283,7 @@ describe("ingest-freshness — the report that never arrived", () => {
     expect(a.hint).toBe("reporting may have stopped");
   });
 
-  // docs/19 finding 5: the same rule now also fires for an asset that has
+  // the 2026-07 audit's finding 5: the same rule now also fires for an asset that has
   // never reported. It has no age to state, and the fix is a different one.
   const neverReported: AlertFacts = {
     ruleId: "ingest-freshness",

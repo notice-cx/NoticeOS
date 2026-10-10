@@ -471,8 +471,7 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
 
 const towerHandler = {
   // Every way in — a request, a scheduled tick — runs with a store of its
-  // own, opened for the call and closed when it ends (the port pattern,
-  // docs/briefs/2026-09-29-postgres-port-pattern.md; the ingest does the same).
+  // own, opened for the call and closed when it ends (the ingest does the same).
   async fetch(request: Request, env: TowerEnv, ctx: CallContext): Promise<Response> {
     if ([MEMBERSHIP_PATH, ACCEPT_INVITATION_PATH].includes(new URL(request.url).pathname)) {
       return handleMembershipRequest(request, env);

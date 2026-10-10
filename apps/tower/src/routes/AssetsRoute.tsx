@@ -319,7 +319,7 @@ export function AssetsRoute() {
         <FilterFold active={activeFilterCount} label="Filters & sort">
           {/* The fold's one press shares the range's row on a phone: the
               period stays in view (it changes what every number means), the
-              filters and the sort wait behind the button (doc 21's phone first
+              filters and the sort wait behind the button (doc 14's phone first
               screen, bead `ro-ujb9.13`). */}
           <div className="flex flex-wrap items-end justify-between gap-2" data-assets-traffic-controls>
             <FilterToggle />
@@ -429,7 +429,7 @@ export function AssetsRoute() {
  * days of each asset's daily series and a 90d button would have drawn 28 days of
  * line under a label claiming three months. The payload reaches back ninety now
  * — `contextSeries` is 62 days beside a 28-day `series` — so the selector is
- * doc 21's own `SURFACE_RANGES` and nothing here narrows it.
+ * doc 14's own `SURFACE_RANGES` and nothing here narrows it.
  */
 function readRange(value: string | null): number {
   const days = Number(value);

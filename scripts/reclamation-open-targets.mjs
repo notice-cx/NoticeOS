@@ -8,8 +8,7 @@
 // Open is every target not won, skipped or dead. The command reads them from
 // the store through the ingest's door (GET /api/reclamation-targets
 // ?asset=<site>&open=1, with the operator bearer), never with a database
-// credential of its own (bead ro-ujb9.76.5.9; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md, section 4).
+// credential of its own (bead ro-ujb9.76.5.9).
 //
 // The file holds the rule's own reading of the answer (`reclamationTargetList`,
 // imported, never a second copy of its shape), so the rule reads back exactly

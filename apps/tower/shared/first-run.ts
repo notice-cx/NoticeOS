@@ -3,8 +3,7 @@
 // site it follows and which step is next are all read off the wall payload's
 // site cards and each source's one status (`connection-status.ts`).
 //
-// Plausible's waiting screen is the model (docs/briefs/2026-09-23-first-run.md
-// #prior-art): the guide stays until the first number arrives, then Home is
+// Plausible's waiting screen is the model: the guide stays until the first number arrives, then Home is
 // the dashboard.
 
 import { connectHref, firstToConnect } from "./connect-panel";
@@ -34,8 +33,7 @@ export function siteHasFirstNumber(card: AssetCard): boolean {
  * nothing to draw and its next action is on Data sources, so the sidebar, the
  * Sites table and the command palette open it there; from the first number on
  * they open its Overview. The same rule ends Home's guide (`firstRunSite`); a
- * new Sentry project opens on its setup guide the same way
- * (docs/briefs/2026-09-24-site-opens-on-sources.md#prior-art).
+ * new Sentry project opens on its setup guide the same way.
  */
 export function siteOpensOn(card: AssetCard): "overview" | "sources" {
   return siteHasFirstNumber(card) ? "overview" : "sources";

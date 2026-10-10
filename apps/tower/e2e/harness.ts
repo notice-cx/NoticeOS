@@ -175,8 +175,7 @@ export interface JourneyIngest {
 }
 
 /**
- * The journey's isolated Postgres store (epic
- * ro-ujb9.76; the port pattern, docs/briefs/2026-09-29-postgres-port-pattern.md):
+ * The journey's isolated Postgres store (epic ro-ujb9.76):
  * a copy of the run's template for this server alone, asked of the run's copy
  * service (scripts/postgres-test-copies.mts).
  *

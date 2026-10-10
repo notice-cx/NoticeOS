@@ -332,7 +332,7 @@ async function assembleIntegrationsMatrix(
 
   // Columns: the register's authored asset order (== db/0002 seed order), joined
   // to live display names from the site list on Postgres. Never sorted — a
-  // stable column order is what makes the matrix scannable (doc 15 principle 3).
+  // stable column order is what makes the matrix scannable (doc 14 principle 3).
   const dbById = new Map((await readSites(store)).map((a) => [a.id, a]));
   const assets: IntegrationAssetRef[] = Object.keys(integrations.assets)
     .filter((id) => dbById.has(id))

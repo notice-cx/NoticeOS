@@ -39,7 +39,7 @@ export const STATE_TONE: Record<StateTone, { chip: string; dot: string; ring: st
  * `field:Time zone` (bead `ro-ujb9.96.10`). Every status renderer draws it as
  * `data-status-for`, and a row in a list of subjects carries it as
  * `data-subject`: the flow gate reads both from the markup to hold one status
- * per subject per screen and lists grouped by subject (doc 21 principle 3b),
+ * per subject per screen and lists grouped by subject (doc 14 principle 3b),
  * rather than guessing the subject from the screen around it. Two chips with
  * one subject and one label on one screen are one fact said twice.
  */
@@ -52,10 +52,10 @@ export interface StateChipProps {
   /** What this state is about (`StatusSubject`), drawn as `data-status-for`. */
   subject: StatusSubject;
   className?: string;
-  /** Hover/tap explainer (doc 15 principle 9 — what this state means). */
+  /** Hover/tap explainer (doc 14 principle 9 — what this state means). */
   title?: string;
   /** `hollow` renders the dot as a ring — the "hollow notch" for an operator-
-   * declined (skipped) state (doc 11 / doc 15-A). Default `solid`. */
+   * declined (skipped) state (doc 11 / doc 14-A). Default `solid`. */
   dot?: "solid" | "hollow";
   /** Draws a soft halo on the dot — the "this still needs you" affordance for an
    * unresolved state (needs-setup), keeping it within the tone's own color. */

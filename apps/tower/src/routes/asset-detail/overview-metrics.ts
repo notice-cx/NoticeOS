@@ -24,7 +24,7 @@ import {
 import { formatMoney } from "@/lib/format";
 
 /**
- * WHAT THE OVERVIEW'S SIX NUMBERS ARE MADE OF (doc 21, bead `ro-78qo.3`).
+ * WHAT THE OVERVIEW'S SIX NUMBERS ARE MADE OF (doc 14, bead `ro-78qo.3`).
  *
  * The arithmetic every desk surface shares — windows, rolling averages, the
  * period delta and its honesty flag — is `shared/surface.ts`. What is here is
@@ -35,7 +35,7 @@ import { formatMoney } from "@/lib/format";
 
 /** Add two providers' daily series date by date. A date only one of them has
  * reported carries only that one: a provider's latency is never a zero
- * (doc 21), and the About says so where the number is read.
+ * (doc 14), and the About says so where the number is read.
  *
  * The rule moved to `shared/wall.ts` for bead `ro-78qo.35`: the wall payload
  * needs the same merge for /assets' comparison table, and a worker cannot
@@ -110,7 +110,7 @@ export function averageOverRange(
   return windowSeries(averageSeries(settled, window), days);
 }
 
-/** Doc 21: fewer than three complete days in the window is a dash and no
+/** doc 14: fewer than three complete days in the window is a dash and no
  * sparkline — three points is the least a direction can be read from. */
 export const MIN_POINTS = 3;
 
@@ -123,7 +123,7 @@ export const MIN_POINTS = 3;
  * built them separately: Growth read Google alone where the strip read Google
  * and Bing as one measurement, so one asset page printed 16,905 search clicks in
  * one place and 25,452 in another. Both numbers were arithmetically fine and one
- * of them was a lie, which is exactly the failure doc 21's "one representation
+ * of them was a lie, which is exactly the failure doc 14's "one representation
  * per fact" is about.
  *
  * So the merge, the settled window, the aggregate, the delta and the

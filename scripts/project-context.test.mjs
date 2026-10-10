@@ -14,9 +14,7 @@ async function fixture(t) {
   fs.mkdirSync(repo);
   const sourceRoot = path.join(base, 'noticeos-source');
   fs.mkdirSync(path.join(sourceRoot, 'config'), { recursive: true });
-  fs.mkdirSync(path.join(sourceRoot, 'docs/templates'), { recursive: true });
   fs.writeFileSync(path.join(sourceRoot, 'config/beads.README.md'), `# Task contract\n<!-- spoke-stanza:begin -->\n${STANZA}\n<!-- spoke-stanza:end -->\n`);
-  fs.writeFileSync(path.join(sourceRoot, 'docs/templates/project-freeze-register.md'), '# Freeze register\n\n## Active freezes\n\nUnknown measurement windows; owner review and readback required.\n\n## Closed windows\n\nNone recorded.\n');
   const env = { PATH: '/usr/bin:/bin', HOME: base, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const git = args => runCommand('git', ['-C', repo, ...args], { cwd: repo, env });
   assert.equal((await git(['init', '--quiet'])).code, 0);
@@ -30,7 +28,7 @@ async function fixture(t) {
   return { base, repo, sourceRoot, git, calls, options, write: (name, text, opts) => fs.writeFileSync(path.join(repo, name), text, opts) };
 }
 
-test('check mode changes no files and explicit preparation copies the canonical rules with unknown measurement state', async t => {
+test('check mode changes no files and explicit preparation copies the canonical rules', async t => {
   const f = await fixture(t);
   const before = fs.readdirSync(f.repo);
   const planned = await prepareProjectContext(f.repo, f.options);
@@ -42,26 +40,23 @@ test('check mode changes no files and explicit preparation copies the canonical 
   const agents = fs.readFileSync(path.join(f.repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.includes(STANZA));
   assert.match(agents, /NoticeOS Tower.*noticeos_\*/u);
+  assert.match(agents, /open readback beads for an active measurement window/u);
   const link = /\[NoticeOS task-hub contract\]\(([^)]+)\)/u.exec(agents)[1];
   assert.equal(fs.realpathSync(path.resolve(f.repo, decodeURIComponent(link))), path.join(f.sourceRoot, 'config/beads.README.md'));
-  assert.match(fs.readFileSync(path.join(f.repo, 'docs/freeze-register.md'), 'utf8'), /Unknown measurement windows/u);
   assert.equal(fs.existsSync(path.join(f.repo, '.beads')), false);
   assert.equal(fs.existsSync(path.join(f.repo, 'CLAUDE.md')), false);
   assert.deepEqual((await prepareProjectContext(f.repo, { ...f.options, write: true })).files, []);
 });
 
-test('existing agent instructions, uncommitted work and an active measurement register survive preparation byte-for-byte', async t => {
+test('existing agent instructions and uncommitted work survive preparation byte-for-byte', async t => {
   const f = await fixture(t);
   const agents = '# Owner rules\n\nKeep this product accessible.\n';
   const claude = '# Build commands\n\nRun the local fixture suite.\n';
-  const freeze = '# Freeze register\n\n## Active freezes\n\nPricing page; 2026-10-01 to 2026-10-28; readback ex-synthetic.\n\n## Closed windows\n\nPrior experiment evidence.\n';
   f.write('AGENTS.md', agents); f.write('CLAUDE.md', claude);
   f.write('unrelated.txt', 'uncommitted owner work');
-  fs.mkdirSync(path.join(f.repo, 'docs')); f.write('docs/freeze-register.md', freeze);
   await prepareProjectContext(f.repo, { ...f.options, write: true });
   assert.ok(fs.readFileSync(path.join(f.repo, 'AGENTS.md'), 'utf8').startsWith(agents));
   assert.ok(fs.readFileSync(path.join(f.repo, 'CLAUDE.md'), 'utf8').startsWith(claude));
-  assert.equal(fs.readFileSync(path.join(f.repo, 'docs/freeze-register.md'), 'utf8'), freeze);
   assert.equal(fs.readFileSync(path.join(f.repo, 'unrelated.txt'), 'utf8'), 'uncommitted owner work');
   assert.equal(fs.readdirSync(f.repo).some(name => name.includes('.noticeos-')), false);
 });
@@ -81,13 +76,12 @@ test('an existing local connection remains untouched and its private lock and ig
   assert.equal((await f.git(['check-ignore', '.beads/metadata.json', '.beads.gate.lock'])).code, 0);
 });
 
-test('tracked task connections are refused before any context or freeze write', async t => {
+test('tracked task connections are refused before any context write', async t => {
   const f = await fixture(t);
   fs.mkdirSync(path.join(f.repo, '.beads')); f.write('.beads/metadata.json', 'synthetic tracked connection');
   assert.equal((await f.git(['add', '.beads/metadata.json'])).code, 0);
   await assert.rejects(prepareProjectContext(f.repo, { ...f.options, write: true }));
   assert.equal(fs.existsSync(path.join(f.repo, 'AGENTS.md')), false);
-  assert.equal(fs.existsSync(path.join(f.repo, 'docs')), false);
 });
 
 test('conflicting or malformed task instruction blocks require review without partial changes', async t => {
@@ -101,18 +95,17 @@ test('conflicting or malformed task instruction blocks require review without pa
 });
 
 test('aliases, symlink targets and hard links cannot redirect writes or alter another file', async t => {
-  for (const name of ['AGENTS.md', 'CLAUDE.md', '.gitignore', 'docs/freeze-register.md', '.beads.gate.lock']) {
+  for (const name of ['AGENTS.md', 'CLAUDE.md', '.gitignore', '.beads.gate.lock']) {
     for (const link of ['symbolic', 'hard']) {
       const f = await fixture(t);
       const target = path.join(f.base, 'owner-file'); fs.writeFileSync(target, 'preserve owner file', { mode: 0o600 });
-      if (name.startsWith('docs/')) fs.mkdirSync(path.join(f.repo, 'docs'));
       if (link === 'symbolic') fs.symlinkSync(target, path.join(f.repo, name));
       else fs.linkSync(target, path.join(f.repo, name));
       await assert.rejects(prepareProjectContext(f.repo, { ...f.options, write: true }));
       assert.equal(fs.readFileSync(target, 'utf8'), 'preserve owner file');
     }
   }
-  for (const name of ['docs', '.beads']) {
+  for (const name of ['.beads']) {
     const f = await fixture(t);
     const target = path.join(f.base, 'other-directory'); fs.mkdirSync(target);
     fs.symlinkSync(target, path.join(f.repo, name));
@@ -123,7 +116,7 @@ test('aliases, symlink targets and hard links cannot redirect writes or alter an
   await assert.rejects(prepareProjectContext(alias, { ...f.options, write: true }));
 });
 
-test('a changed managed section or broad-access lock is refused and existing measurement state is preserved', async t => {
+test('a changed managed section or broad-access lock is refused', async t => {
   const f = await fixture(t);
   await prepareProjectContext(f.repo, { ...f.options, write: true });
   const file = path.join(f.repo, 'AGENTS.md');

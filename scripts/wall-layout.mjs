@@ -28,7 +28,7 @@
 // WHERE THE LAYOUT LIVES. `config/tower.json` at pointer `/wall`, as a
 // `WallConfig`: the current layout plus the versions it replaced, newest first.
 // Absent, the Wall is `DEFAULT_WALL_LAYOUT` — D28's arrangement since
-// 2026-09-23 (docs/25-the-wall.md § Regions, bead `ro-trai.11`).
+// 2026-09-23 (docs/14-design.md § Regions, bead `ro-trai.11`).
 //
 // RETIRED WIDGETS (bead `ro-trai.11`). D28 took seven widgets off the Wall — the
 // alert rail, the portfolio and System cards, the clock, meetings and countdown
@@ -74,7 +74,7 @@ export const WALL_WIDTH_STEP = 0.05;
 /** The TV the Wall is fitted to (`scripts/wall-fit-check.mjs`). */
 export const WALL_TV_WIDTH = 1920;
 export const WALL_TV_HEIGHT = 1080;
-/** D28's widgets (docs/25-the-wall.md, epic `ro-trai`), in reading order. */
+/** D28's widgets (docs/14-design.md, epic `ro-trai`), in reading order. */
 export const WALL_WIDGET_TYPES = ['strip', 'revenue', 'needs', 'sites', 'feed'];
 /** The widgets D28 took off the Wall (bead `ro-trai.11`). A saved layout may
  * still name them; see the header's RETIRED WIDGETS. */
@@ -88,7 +88,7 @@ export const RETIRED_WALL_WIDGET_TYPES = [
     'assets',
 ];
 export const WALL_WIDGET_LIBRARY = {
-    // D28's one top line (bead `ro-trai.3`, docs/25-the-wall.md § Strip): it
+    // D28's one top line (bead `ro-trai.3`, docs/14-design.md § Strip): it
     // replaced the clock, meetings, countdown and System panels. Its countdown is
     // the one at `/countdown`, so the editor shows that form for it.
     strip: {
@@ -144,7 +144,7 @@ export const WALL_WIDGET_LIBRARY = {
         hidesWhenEmpty: false,
         settings: ['assets', 'pulseMetrics'],
     },
-    // The live feed (bead ro-trai.9, docs/25-the-wall.md § Feed): what just
+    // The live feed (bead ro-trai.9, docs/14-design.md § Feed): what just
     // happened, newest on top, from its own 30-second read. Never hides — an
     // empty window says so ("Nothing new since last night"). Its weight is the
     // one it has beside the default's column, 3.1 to 1 (docs/25 § Budget), so
@@ -184,7 +184,7 @@ export function wallLayoutWidgets(layout) {
     return layout.rows.flatMap((row) => row.widgets.flatMap((slot) => (isWallColumn(slot) ? slot.rows.flatMap((inner) => inner.widgets) : [slot])));
 }
 /**
- * D28's Wall (docs/25-the-wall.md § Regions, bead `ro-trai.11`): the strip on
+ * D28's Wall (docs/14-design.md § Regions, bead `ro-trai.11`): the strip on
  * top; below it a column — revenue beside Needs you, then the site rows taking
  * the rest — beside the live feed, which runs the body's full height. The
  * weights are the budget's (column ≈1,390 px to the feed's 440 px at 1920).
@@ -274,7 +274,7 @@ export function isWallWidth(value) {
  *
  * Reasons are operator sentences: the editor prints them under Save and every
  * write door returns them as the refusal, so the operator reads the same words
- * in the browser and in the terminal (doc 15 principle 2).
+ * in the browser and in the terminal (doc 14 principle 2).
  */
 export function validateWallLayout(value) {
     if (!isRecord(value))
@@ -571,7 +571,7 @@ export function withSavedWallLayout(config, layout, reason, savedAt) {
 /**
  * Revert is a Save whose layout is an older version — the current layout is
  * retired into the history like any other, so a revert can itself be undone
- * (doc 15 principle 5). The reverted entry stays in the history: it is a
+ * (doc 14 principle 5). The reverted entry stays in the history: it is a
  * record of what the Wall showed, not a stack to pop.
  */
 export function withRevertedWallLayout(config, historyIndex, savedAt) {

@@ -224,7 +224,7 @@ describe("/alerts — the Open | History switch", () => {
       "true",
     );
     // The sentence that used to sit under the title is in the About with the
-    // rest of the prose (doc 21 principle 3, bead `ro-78qo.7`); what says which
+    // rest of the prose (doc 14 principle 3, bead `ro-78qo.7`); what says which
     // view this is, is the selected tab.
     expect(within(tabs).getByRole("tab", { name: "Open" })).toHaveAttribute(
       "aria-selected",

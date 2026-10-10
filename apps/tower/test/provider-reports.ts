@@ -1,7 +1,6 @@
 // A TEST'S PROVIDER REPORT RUNS, PAID LOOKUPS AND INSIGHT SNAPSHOTS, on
 // Postgres where the collectors and the publisher write them (bead
-// ro-ujb9.76.5.4; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md, section 7 step 8).
+// ro-ujb9.76.5.4).
 //
 // Written through the application role into the store a test's readers take
 // (`ctx.call`, test/sites.ts), so the sites must be added first:

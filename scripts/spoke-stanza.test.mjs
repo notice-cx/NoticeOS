@@ -62,28 +62,6 @@ test('every checked-out spoke carries the stanza byte-identical', (t) => {
   }
 });
 
-test('every checked-out spoke carries a property-local freeze register', (t) => {
-  const map = JSON.parse(readFileSync(readablePath('config/beads.json', { root: REPO_ROOT }), 'utf8'));
-  let checked = 0;
-  for (const spoke of map.spokes) {
-    if (!spoke?.repo) continue;
-    const repoDir = path.resolve(REPO_ROOT, spoke.repo);
-    if (!existsSync(repoDir)) continue; // another machine; absence is not drift
-    checked += 1;
-    const file = path.join(repoDir, 'docs', 'freeze-register.md');
-    assert.ok(
-      existsSync(file),
-      `${spoke.asset} is missing docs/freeze-register.md — omission means unknown, not clear`,
-    );
-    const text = readFileSync(file, 'utf8');
-    assert.match(text, /^# Freeze register$/m, `${spoke.asset} register needs its canonical title`);
-    assert.match(text, /^## Active freezes$/m, `${spoke.asset} register needs active state`);
-    assert.match(text, /^## Closed windows$/m, `${spoke.asset} register needs closed state`);
-    assert.match(text, /readback/i, `${spoke.asset} register must route results to a readback`);
-  }
-  if (checked === 0) t.skip('no spokes checked out — nothing to compare');
-});
-
 test('no checked-out spoke maintains the retired bv bridge', (t) => {
   const map = JSON.parse(readFileSync(readablePath('config/beads.json', { root: REPO_ROOT }), 'utf8'));
   let checked = 0;

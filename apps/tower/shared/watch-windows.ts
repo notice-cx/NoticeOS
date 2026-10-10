@@ -50,12 +50,12 @@ export const WATCH_VERDICT_DAYS = [28, 56, 90] as const;
  * one: symmetric, "call it a win at +10%, a loss at −10%".
  *
  * It is the README's EXAMPLE, and until bead `ro-5e8.2` it was also the answer —
- * which is the defect that bead names. `docs/playbooks/kill-thresholds.md` is
- * explicit that every number in it is the origin's and must be calibrated per
+ * which is the defect that bead names. A stop rule's numbers are one
+ * origin's and must be calibrated per
  * asset from its own base rates, and nothing calibrated anything: the four
  * windows registered for `ro-hpf` carry this 10 and a ±5 on `position` chosen on
  * the spot, and that ±5 would not have fired on the known-good recovery
- * (8.02 → 7.67, −4.4%) the release-cohort playbook treats as real. So this is
+ * (8.02 → 7.67, −4.4%) a release-cohort reading treats as real. So this is
  * now the LAST resort — used when a series has no usable history — and the
  * composer says which of the two it is showing, because "10%" and "10%, and
  * nobody has ever checked what this asset does when nothing ships" are
@@ -244,7 +244,7 @@ export function watchCalibration(
 
 /**
  * WHAT THE COMPOSER'S THRESHOLD STANDS ON — a code and its evidence, never a
- * sentence (bead `ro-ujb9.96.6.6`, docs/briefs/watch-windows.md).
+ * sentence (bead `ro-ujb9.96.6.6`).
  *
  * It replaced a calibration paragraph of up to 34 words. The composer draws the
  * basis as a chip, the floor as a noise bar against the threshold, and the

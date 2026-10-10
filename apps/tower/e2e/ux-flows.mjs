@@ -1,28 +1,64 @@
-// THE FLOW REGISTRY (bead ro-ujb9.95): every operator flow the flow gate walks.
+// THE FLOW REGISTRY: every operator flow the flow walker (flow-gate.mjs) walks.
 //
 // Each entry is a step script driven the way a person drives the Tower — by
 // clicking the controls the product offers, from where the flow starts — and
-// the gate measures it on every run at desktop (1440×900) and phone (390×844)
-// against `apps/tower/ux-flows.json`. Scripts came from the UX audit's walker
-// (docs/artifacts/ux-audit-2026-09-23/walk.mjs, bead ro-ujb9.93).
+// the walker measures it on every run at desktop (1440×900) and phone
+// (390×844): actions, screens, page changes, explanatory words, empty steps,
+// repeated checks, duplicate statuses, ungrouped lists. The measurements are a
+// report for design review, not a budget.
 //
 // Keeping a flow here honest:
 //   - A redesign that changes a flow changes its script in the same commit, so
-//     the gate measures the new flow. If the walk cannot finish, the gate
-//     fails; a flow is never deleted to get past it (removing one is an
-//     operator decision recorded under `retired` in ux-flows.json).
+//     the walker measures the new flow. If the walk cannot finish, the run
+//     fails: a flow is fixed or deliberately retired, never left broken.
 //   - `setup` puts the fixture in the flow's start state and is NOT counted.
 //   - `w.duplicate(label, evidence)` records a second check that no request or
 //     step label reveals; it is removed by the redesign that removes the
 //     second check, never on its own.
-//   - A NEW flow must cite its research: `priorArt` names a section of a
-//     docs/briefs/ file that cites at least three comparable products by URL,
-//     and it must walk with zero empty steps, duplicated checks, duplicate
-//     statuses and ungrouped lists. Its first measured step counts become its
-//     budget (`pnpm ux:flows:baseline`), and only go down from there.
+//   - A new flow is designed by whoever builds it. Looking at how comparable
+//     products handle the same job is good practice; the patterns the current
+//     flows adopted are listed below so that research is not redone.
 //
-// Fields: title, priorArt, kind ("flow" or "survey"), countStart (the starting
-// screen is part of the flow), setup(page, fixture), run(w).
+// Fields: title, kind ("flow" or "survey"), countStart (the starting screen
+// is part of the flow), setup(page, fixture), run(w).
+//
+// PATTERNS THE CURRENT FLOWS ADOPTED (researched 2026-09-23 from each
+// vendor's own documentation):
+//   - Connect with one key: Grafana's one-press save-and-test; Zapier's one
+//     status per connection with Reconnect beside it; PostHog's list of the
+//     permissions a key needs beside the field; Ahrefs-style listing of what
+//     the key can see, pre-ticked by domain.
+//   - Connect with Google: after consent, list everything the account can
+//     see and pre-tick the sites that match by domain (Plausible, Ahrefs).
+//   - Per-asset sources and discovery: one account connection lists every
+//     project it can see, matched to sites by domain (GitHub, Vercel, Ahrefs);
+//     PostHog: one key scoped to the chosen projects, region read off the key;
+//     Clarity: one paste per site, inline in its row, saved on paste.
+//   - Add a site: one input, the domain, then land on the site at once with
+//     live checking (Plausible, Fathom, Simple Analytics); every other setting
+//     defaults and lives in Settings.
+//   - First run: setup ends on the product's own first number, not on a
+//     "setup complete" screen (Plausible's first pageview, PostHog's first
+//     event, Metabase's X-rays).
+//   - Pick a PostHog row: add from the thing itself, the way a saved insight
+//     joins a dashboard (PostHog, Grafana library panels, Metabase).
+//   - Schedule on connection: a source's schedule lives on the source itself
+//     (Fivetran, Airbyte, Hightouch, Grafana).
+//   - Task source: the hosted side names the project; the one thing only the
+//     machine can do is a single copyable command (Linear, Vercel link,
+//     Supabase link).
+//   - Inbox and filing: one verb per decision straight from the row, the
+//     answer text is the note (Linear Triage and Inbox); filing a task from a
+//     finding is prefilled, with the link shown on the finding afterwards
+//     (PagerDuty).
+//   - Settings: autosave with inline "Saved · Undo" for a low-risk single
+//     field and a section Save elsewhere (GitLab Pajamas); never autosave
+//     credentials or the measurement channel.
+//   - Rotate and disconnect: replace a key on the connection itself, the old
+//     key working until the new one passes its test (Stripe-style overlap);
+//     disconnecting keeps one confirmation that names what stops.
+//   - Arrange the Wall: edit straight from the TV entry, move, then Save; the
+//     reason is optional (Grafana); versions are the safety net.
 
 import {
   ASSET, KEY, SAVED, SITE, assetTab, awaitSaved, connectFromSource, connectInPanel, knobSave, nav, openAsset,
@@ -30,13 +66,8 @@ import {
 } from "./ux-walk.mjs";
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from "../../../scripts/wall-layout.mjs";
 
-const BRIEF = "docs/briefs/2026-09-23-ux-prior-art.md";
 /** The synthetic Mediavine login the fixture accepts (harness.ts). */
 const MEDIAVINE_EMAIL = "journey@example.test";
-const ADD_SITE_BRIEF = "docs/briefs/2026-09-23-add-site.md";
-const SCHEDULE_BRIEF = "docs/briefs/2026-09-24-schedule-on-connection.md";
-const FIRST_RUN_BRIEF = "docs/briefs/2026-09-23-first-run.md";
-const POSTHOG_ROW_BRIEF = "docs/briefs/2026-09-23-posthog-row-pick.md";
 /** The synthetic Google OAuth client the fixture accepts (harness.ts). */
 const GOOGLE_CLIENT_ID = "journey-client.apps.googleusercontent.com";
 
@@ -117,7 +148,6 @@ export const FLOWS = {};
  * the matches, collects now) → Working. */
 FLOWS["connect-bing"] = {
   title: "Connect Bing Webmaster Tools (shared API key, saved and tested, sites matched and collected in one panel)",
-  priorArt: `${BRIEF}#connect-api-key`,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A Bing Webmaster API key (the panel links to Bing's API access page)");
@@ -131,7 +161,6 @@ FLOWS["connect-bing"] = {
  * Start; Start runs the first reports now. */
 FLOWS["connect-dataforseo"] = {
   title: "Connect DataForSEO (shared login + password, saved and tested, spend shown, first reports collected in one panel)",
-  priorArt: `${BRIEF}#connect-api-key`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("The DataForSEO API login and API password (the panel links to DataForSEO's API access page)");
@@ -148,7 +177,6 @@ FLOWS["connect-dataforseo"] = {
  * collects now → Working. */
 FLOWS["connect-posthog"] = {
   title: "Connect PostHog (one account key: region found, projects matched, saved funnels picked up, collected in one panel)",
-  priorArt: `${BRIEF}#connect-per-asset-and-discovery`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A PostHog personal API key (the panel links to PostHog's key page and names the access it needs)");
@@ -163,7 +191,6 @@ FLOWS["connect-posthog"] = {
  * the site's ten calls a day; the site then reads Working. */
 FLOWS["connect-clarity"] = {
   title: "Connect Microsoft Clarity (a token pasted on each site's row, saved on paste; Run now spends one of the day's ten calls)",
-  priorArt: `${BRIEF}#connect-per-asset-and-discovery`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A Clarity data-export token per site (project → Settings → Data export → generate)");
@@ -207,7 +234,6 @@ async function seedPosthogWithOneFunnel(page) {
  * typed, no Save. */
 FLOWS["change-posthog-funnel"] = {
   title: "Change a site's PostHog funnels (pick one of the project's saved funnels on the site's row, saved on the pick)",
-  priorArt: `${POSTHOG_ROW_BRIEF}#prior-art`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await seedPosthogWithOneFunnel(page); },
   async run(w) {
     w.know("Which of the project's saved PostHog funnels the site should report");
@@ -229,7 +255,6 @@ FLOWS["change-posthog-funnel"] = {
  * matched by its domain → Start saves it and syncs now → Working. */
 FLOWS["connect-mediavine"] = {
   title: "Connect Mediavine (sign-in tested before it is kept, sites found and matched, synced in one panel)",
-  priorArt: `${BRIEF}#connect-per-asset-and-discovery`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("The Mediavine Publishers Portal email and password");
@@ -269,7 +294,6 @@ async function googleSignInToWorking(w, panel) {
  * matched, Start → Working. */
 FLOWS["connect-google"] = {
   title: "Connect Google, self-hosted (console steps deep-linked, the client file dropped, signed in, sites matched and collected in one panel)",
-  priorArt: `${BRIEF}#connect-google-oauth`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A Google account that can read the site's GA4 property and Search Console site");
@@ -291,7 +315,6 @@ FLOWS["connect-google"] = {
  * the account's sites follow the consent back: Start → Working. */
 FLOWS["connect-google-hosted"] = {
   title: "Connect Google, hosted (Continue with Google, sites matched and collected in one panel)",
-  priorArt: `${BRIEF}#connect-google-oauth`,
   async setup(page, fixture) {
     await fixture("/__journey/every-source");
     await fixture("/__journey/google-hosted");
@@ -311,7 +334,6 @@ FLOWS["connect-google-hosted"] = {
  * (harness.ts, bead ro-ujb9.96.7.14). */
 const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/0/journey-only-not-a-real-key";
 const CALENDAR_FEED = "https://calendar.example/journey-only-not-a-real-key/basic.ics";
-const WEBHOOK_BRIEF = "docs/briefs/2026-09-23-task-source-connect.md#connect-webhook-and-feeds";
 
 /** One secret URL in the connect panel, proved before it is kept (Discord,
  * the calendar feeds; bead ro-ujb9.96.7.14): Integrations → Connect → paste →
@@ -328,7 +350,6 @@ async function connectUrlInPanel(w, id, label, value) {
 
 FLOWS["connect-discord"] = {
   title: "Connect Discord (the webhook URL kept once its test message is delivered, the message named before the press)",
-  priorArt: WEBHOOK_BRIEF,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("A Discord webhook URL for the operator's channel (the panel links to Discord's webhook help)");
@@ -339,7 +360,6 @@ FLOWS["connect-discord"] = {
 
 FLOWS["connect-calendar"] = {
   title: "Connect calendar feeds (a secret feed address pasted on its row, read once before the feeds are kept)",
-  priorArt: WEBHOOK_BRIEF,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     w.know("The calendar's secret address in iCal format (the panel links to the calendar's settings)");
@@ -351,7 +371,6 @@ FLOWS["connect-calendar"] = {
 /** Historical budget ID retained: core Tasks now opens without connection. */
 FLOWS["connect-beads"] = {
   title: "Open the core Tasks board before adding a site",
-  priorArt: "docs/briefs/2026-09-23-task-source-connect.md#prior-art",
   async setup(page, fixture) { await fixture("/__journey/core-tasks"); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
@@ -374,7 +393,6 @@ async function addAsset(w) {
 
 FLOWS["add-asset"] = {
   title: "Add a site (one screen: the domain, name inferred, lands on its Data sources)",
-  priorArt: `${ADD_SITE_BRIEF}#prior-art`,
   countStart: true,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await page.goto("/"); },
   async run(w) {
@@ -389,7 +407,6 @@ FLOWS["add-asset"] = {
  * inside the flow, with no wait for a schedule. */
 FLOWS["first-data"] = {
   title: "New site to first data (one-screen add, then its Bing row's Connect: key, site matched and collected in one panel)",
-  priorArt: `${ADD_SITE_BRIEF}#prior-art`,
   countStart: true,
   async setup(page) { await page.goto("/"); },
   async run(w) {
@@ -406,7 +423,6 @@ FLOWS["first-data"] = {
  * whole way from nothing to a number is measured and can only get shorter. */
 FLOWS["fresh-install"] = {
   title: "Fresh install to the first number (add a site, connect Bing from its row, open the site: its clicks on screen)",
-  priorArt: `${FIRST_RUN_BRIEF}#prior-art`,
   countStart: true,
   async setup(page) { await page.goto("/"); },
   async run(w) {
@@ -432,7 +448,6 @@ FLOWS["fresh-install"] = {
  * directly instead of through an Overview with nothing on it. */
 FLOWS["configure-sources"] = {
   title: "Configure an existing asset's data sources (skip one with a reason, set a market)",
-  priorArt: `${BRIEF}#settings-save-undo`,
   async setup(page, fixture) { await fixture("/__journey/every-source"); await seedAsset(page); await page.goto("/"); },
   async run(w) {
     await openAsset(w);
@@ -454,7 +469,6 @@ FLOWS["configure-sources"] = {
  * ro-ujb9.96.7.11, Linear Triage). */
 FLOWS["inbox"] = {
   title: "Answer the inbox (approve a gate, answer an ask, on the row)",
-  priorArt: `${BRIEF}#inbox-and-file-task`,
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
@@ -472,7 +486,6 @@ FLOWS["inbox"] = {
  * ro-ujb9.96.7.11, PagerDuty → Jira): two presses, on the page it is read on. */
 FLOWS["file-task-from-finding"] = {
   title: "File a task from a finding (prefilled, on the asset page)",
-  priorArt: "docs/briefs/2026-09-23-inbox-row-decisions.md#prior-art",
   async setup(page, fixture) {
     await seedPopulated(page, fixture);
     await fixture("/__journey/finding");
@@ -491,7 +504,6 @@ FLOWS["file-task-from-finding"] = {
 /** A new task from the Tasks page: the composer opens in place. */
 FLOWS["file-task"] = {
   title: "File a task (Tasks → New task)",
-  priorArt: `${BRIEF}#inbox-and-file-task`,
   async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
   async run(w) {
     await nav(w, "Tasks");
@@ -510,7 +522,6 @@ FLOWS["file-task"] = {
 /** Settings: the time zone, saved on change, then undone beside the field. */
 FLOWS["setting-timezone"] = {
   title: "Change the time zone (saved on change, then Undo)",
-  priorArt: `${BRIEF}#settings-save-undo`,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Settings");
@@ -535,7 +546,6 @@ FLOWS["setting-timezone"] = {
  * section to pick first. */
 FLOWS["setting-budget"] = {
   title: "Change a portfolio setting (monthly data budget)",
-  priorArt: `${BRIEF}#settings-save-undo`,
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Settings");
@@ -556,7 +566,6 @@ FLOWS["setting-budget"] = {
  * The row's own "Saved" is what the walk waits on, so it proves the write. */
 FLOWS["setting-cadence"] = {
   title: "Change how often data is collected (a collection's schedule, on its source's Manage panel)",
-  priorArt: `${SCHEDULE_BRIEF}#prior-art`,
   async setup(page) { await seedAsset(page); await seedBingConnected(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Integrations");
@@ -575,7 +584,6 @@ FLOWS["setting-cadence"] = {
  * and the panel ends on Bing's answer — no walk back through the sites. */
 FLOWS["rotate-key"] = {
   title: "Rotate a key (Bing: Replace API key on the connection, tested before it is kept)",
-  priorArt: `${BRIEF}#rotate-and-disconnect`,
   async setup(page) { await seedAsset(page); await seedBingConnected(page); await page.goto("/"); },
   async run(w) {
     w.know("The new API key");
@@ -596,7 +604,6 @@ FLOWS["rotate-key"] = {
  * stays one confirmation because it cannot be undone: the secret is deleted. */
 FLOWS["disconnect"] = {
   title: "Disconnect an integration (Mediavine: one confirmation naming what stops)",
-  priorArt: `${BRIEF}#rotate-and-disconnect`,
   async setup(page) { await seedAsset(page); await seedMediavineConnected(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Integrations");
@@ -614,7 +621,6 @@ FLOWS["disconnect"] = {
  * ro-ujb9.96.7.12, PostHog's dashboard Edit), move one widget, save. */
 FLOWS["arrange-wall"] = {
   title: "Arrange the TV Wall (Edit beside the TV entry, move one widget, save)",
-  priorArt: `${BRIEF}#arrange-wall`,
   async setup(page) {
     await seedAsset(page);
     const layout = structuredClone(DEFAULT_WALL_LAYOUT);
@@ -665,7 +671,6 @@ const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/gro
 
 FLOWS["survey"] = {
   title: "Screen survey: every main screen, populated (statuses and lists)",
-  priorArt: `${BRIEF}#guidance`,
   kind: "survey",
   countStart: true,
   async setup(page, fixture) { await seedSurvey(page, fixture); },

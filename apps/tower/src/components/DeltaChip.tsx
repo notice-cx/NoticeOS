@@ -68,7 +68,7 @@ export type PerformanceTone =
 
 /**
  * TODAY'S PACE HAS ITS OWN DIRECTION SCALE (bead `ro-trai.48`;
- * docs/25-the-wall.md § Site rows, doc 14 § Tokens): today's
+ * docs/14-design.md § Site rows, doc 14 § Tokens): today's
  * completed hours against the same hours on the same weekday last week. The
  * direction says ahead, on pace or behind; large deficits keep red. It is a
  * comparison, never an alert: "a little behind" borrows the warn HUE through
@@ -99,7 +99,7 @@ const TONE_CLASS: Record<ChipTone, string> = {
 /**
  * The tone's colour for something else drawn in it — D28's site rows draw
  * today's line, its wash and its now point in its pace's tone
- * (docs/25-the-wall.md § Site rows). The element carries `data-tone={tone}`
+ * (docs/14-design.md § Site rows). The element carries `data-tone={tone}`
  * like the chip does, so both read the one table above rather than a second
  * copy of the steps.
  */

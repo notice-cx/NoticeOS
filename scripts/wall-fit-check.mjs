@@ -57,7 +57,7 @@ function pixels(name, fallback) {
 }
 
 /** The screens the TV's layout is drawn on, scaled (bead ro-trai.31,
- * docs/25-the-wall.md § Laptop, tablet and phone): the 16:9 laptops, the
+ * docs/14-design.md § Laptop, tablet and phone): the 16:9 laptops, the
  * 16:10 MacBooks as Chrome leaves them, and the TV itself. */
 const LAPTOP_VIEWPORTS = ["1280x720", "1366x768", "1440x900", "1470x830", "1512x860", "1728x1000", "1920x1080"];
 

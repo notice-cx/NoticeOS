@@ -5,8 +5,7 @@
 // retired, never deleted (db/postgres/README.md, choice 5; bead
 // ro-ujb9.76.4.5).
 //
-// ON POSTGRES (bead ro-ujb9.76.4.2; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md). The site list is
+// ON POSTGRES (bead ro-ujb9.76.4.2). The site list is
 // `noticeos.assets`, read and written through this call's store, `env.STORE`.
 // Postgres is the one answer: every read here asks it, and every write is one
 // transaction on it.
@@ -443,7 +442,7 @@ function summarize(row: SiteRow): AssetRowSummary {
  * runtime's clock for the same reason `writeAssetColumn` stamps `updated_at`
  * there — they are metadata about when the STORE changed, and the store is here.
  *
- * DEFAULTS. `status` defaults to `onboarding` (docs/15-A: "Creates the asset row
+ * DEFAULTS. `status` defaults to `onboarding` (docs/14-design.md § Operator flows: "Creates the asset row
  * in state `onboarding`") and `senseOnly` to 1, the table's own default — a
  * brand-new asset observes before it acts. A wizard that asks sends both.
  *

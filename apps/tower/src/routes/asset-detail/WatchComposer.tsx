@@ -78,8 +78,7 @@ import { formatCalendarDate, formatCalendarRange, formatInt, formatSeriesDate } 
  * or the baseline length changes, because both change which comparison is being
  * calibrated.
  *
- * THE PLAN IS DRAWN, NOT WRITTEN (bead `ro-ujb9.96.6.6`,
- * docs/briefs/watch-windows.md). Under the fields: the win and loss thresholds
+ * THE PLAN IS DRAWN, NOT WRITTEN (bead `ro-ujb9.96.6.6`). Under the fields: the win and loss thresholds
  * with their direction, the check dates and the verdict date; a chip naming
  * where the threshold came from with the asset's normal noise as a bar against
  * it; and, for a check opened from a query, the scope as a chip. A rule the
@@ -709,7 +708,7 @@ export function WatchesStrip({
   const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
   const open = watches.open.length;
   const closed = watches.closed.length;
-  // The Overview's word for the same subject (doc 17: watch window → Bets).
+  // The Overview's word for the same subject (doc 14: watch window → Bets).
   const count = [
     open > 0 ? `${open} being watched` : null,
     closed > 0 ? `${closed} with a verdict` : null,

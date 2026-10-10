@@ -1,6 +1,6 @@
 // @vitest-environment node
 //
-// The Wall's live feed (bead `ro-trai.6`, docs/25-the-wall.md § Feed).
+// The Wall's live feed (bead `ro-trai.6`, docs/14-design.md § Feed).
 //
 // One stored row per source, placed around the window (6 PM yesterday in the
 // OS time zone), and the feed must state each once, newest first, with the

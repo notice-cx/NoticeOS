@@ -55,7 +55,6 @@ export const HISTORICAL_PATHS = Object.freeze({
   'docs/reports/': 'Dated reports: a record of what was found under the name of the day.',
   'docs/artifacts/': 'Dated evidence: captures, measurements and the scripts that took them.',
   'docs/briefs/': 'Dated briefs handed to agents, kept as written.',
-  'docs/19-architecture-implementation-ux-audit.md': 'A dated audit of the repository as it stood on its review date.',
   'config/decisions.md': "The decision register's rows are dated decisions; what a past decision said is not rewritten.",
 });
 
@@ -202,7 +201,7 @@ const CODE_FILES = FILES.filter(isProductCode);
 
 test('the product-name rule has the Tower and the living documents to read', () => {
   assert.ok(SCANNED.length > 300, `only ${SCANNED.length} files in scope — the listing did not resolve`);
-  for (const file of ['apps/tower/index.html', 'apps/tower/src/components/BrandLockup.tsx', 'README.md', 'AGENTS.md', 'CONTEXT.md', 'docs/14-ui-standards.md']) {
+  for (const file of ['apps/tower/index.html', 'apps/tower/src/components/BrandLockup.tsx', 'README.md', 'AGENTS.md', 'CONTEXT.md', 'docs/10-control-tower.md']) {
     assert.ok(SCANNED.includes(file), `${file} must be read by the rule`);
   }
   for (const file of ['config/decisions.md']) {
@@ -231,19 +230,10 @@ test('nothing a person reads calls the product by its old name', () => {
 });
 
 test('every historical entry still names a tracked record', () => {
-  const publicManifest = path.join(REPO_ROOT, 'public-source.json');
-  const exported = existsSync(publicManifest) ? JSON.parse(readFileSync(publicManifest, 'utf8')) : null;
-  if (exported) {
-    assert.equal(exported.schema, 'noticeos-public-source/1');
-    assert.match(exported.commit, /^[a-f0-9]{40}$/);
-    assert.ok(Array.isArray(exported.files) && exported.files.length > 100);
-  }
   for (const prefix of Object.keys(HISTORICAL_PATHS)) {
-    // The history-free export deliberately omits private reports and evidence.
-    // A published historical path must still exist; private checkouts keep the
-    // original stale-exemption check for their complete tracked inventory.
-    if (exported && /^docs\/(?:reports|artifacts|briefs)\/$/u.test(prefix)
-      && !exported.files.some(({ file }) => file.startsWith(prefix))) continue;
+    // The public source deliberately omits private reports and evidence, so a
+    // dated folder may be absent from a checkout; a named file may not.
+    if (/^docs\/(?:reports|artifacts|briefs)\/$/u.test(prefix) && !FILES.some((file) => file.startsWith(prefix))) continue;
     assert.ok(FILES.some((file) => file.startsWith(prefix)), `${prefix} matches no tracked file; remove it from HISTORICAL_PATHS`);
   }
 });

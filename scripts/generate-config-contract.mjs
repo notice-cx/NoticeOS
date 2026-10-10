@@ -1,3 +1,4 @@
+// Compile every checked TypeScript source that ships as a committed `.mjs` + `.d.mts` pair; `--check` fails when a pair is stale.
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';

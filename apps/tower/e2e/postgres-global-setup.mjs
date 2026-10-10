@@ -1,5 +1,4 @@
-// ONE THROWAWAY POSTGRES FOR A JOURNEY RUN (epic ro-ujb9.76; the pattern is
-// docs/briefs/2026-09-29-postgres-port-pattern.md).
+// ONE THROWAWAY POSTGRES FOR A JOURNEY RUN (epic ro-ujb9.76).
 //
 // Started once, in Playwright's own process, before any worker: every worker's
 // fixture server takes its own copies of it (fixture-server.mjs), so a run

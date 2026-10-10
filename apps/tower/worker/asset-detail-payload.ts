@@ -10,7 +10,7 @@ import { shiftRevenueDate } from "../shared/revenue-projection";
 // AssetDetail payload assembly — the one read behind GET /api/assets/:id. Pure
 // over the call's Postgres store (isolated real copies in tests), so the exact
 // SQL below runs against the migrated Postgres schema under Vitest. Every fact is paired
-// with the file (or store table) that owns it — doc 15 principle 10.
+// with the file (or store table) that owns it — doc 14 principle 10.
 //
 // Config the builder needs is passed in (not read from disk): the flag defaults
 // and the pull-mode registry, injected at build time in vite.config.ts and

@@ -101,7 +101,8 @@ export const PAGE_DIRECTIVES_RULE_ID = 'hygiene-page-directives';
  * attached and no room to be wrong:
  *
  *   - **no title / no meta description** — the snippet is the click, and
- *     `docs/playbooks/serp-snippet-standard.md` is the fix. A page with
+ *     a title and description written against the live result page are the
+ *     fix. A page with
  *     impressions and no title is losing the click it already earned.
  *   - **no h1 / several h1** — the page states no subject, or several.
  *   - **canonical elsewhere** — a page canonicalized to another URL cannot
@@ -157,7 +158,7 @@ const RESPONSE_BYTE_LIMIT = 8 * 1024 * 1024;
 /** How many prior READINGS feed the html-depth median (see `depthBaseline`). */
 const DEPTH_BASELINE_WINDOW = 14;
 /** Below this many prior readings the depth rule stays unarmed — never flag on
- * sparse history (docs/15-A: rules arm after baselining, not before). */
+ * sparse history (docs/14-design.md § Operator flows: rules arm after baselining, not before). */
 const DEPTH_MIN_READINGS = 7;
 /** Today must be at or under this share of the baseline median to flag. */
 const DEPTH_COLLAPSE_RATIO = 0.5;
@@ -830,7 +831,7 @@ type HygieneReading = {
  * the store would quietly redefine normal as broken. Comparing only against
  * readings the check considered healthy means a standing regression keeps
  * alerting until the bytes recover or an operator dispositions the flag (which
- * is what disposition is for, docs/15-E).
+ * is what disposition is for, docs/14-design.md § Operator flows).
  */
 async function priorReadings(
   env: IngestEnv,
@@ -1074,7 +1075,7 @@ export interface HygieneOptions {
  * CDN hiccup is over within it; a site that is really down still is. Uptime
  * products confirm the same way before alerting — UptimeRobot re-checks up to
  * three times 10–20 seconds apart, Pingdom needs a second failed test
- * (docs/briefs/2026-09-23-uptime.md#confirming-a-failure-bead-ro-ujb9180).
+ * (bead ro-ujb9.180).
  *
  * The run waits ONCE, for every site whose first GET failed, after every other
  * site is read: never a wait per site. A timer costs no CPU, and a scheduled
@@ -1950,7 +1951,7 @@ async function checkPageStructure(
   if (regression) {
     // The count as the headline (bead `ro-ujb9.96.6.26`); each URL and its
     // faults are in the inputs (`faulty_urls`, `pages`), which the Tower draws
-    // as one row per page. The repairs are docs/playbooks/serp-snippet-standard.md's.
+    // as one row per page.
     const write = await fireHygieneFlag(
       env,
       entry.asset,

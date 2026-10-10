@@ -14,7 +14,7 @@ export declare const WALL_WIDTH_STEP: number;
 /** The TV the Wall is fitted to (`scripts/wall-fit-check.mjs`). */
 export declare const WALL_TV_WIDTH: number;
 export declare const WALL_TV_HEIGHT: number;
-/** D28's widgets (docs/25-the-wall.md, epic `ro-trai`), in reading order. */
+/** D28's widgets (docs/14-design.md, epic `ro-trai`), in reading order. */
 export declare const WALL_WIDGET_TYPES: readonly ["strip", "revenue", "needs", "sites", "feed"];
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 /** The widgets D28 took off the Wall (bead `ro-trai.11`). A saved layout may
@@ -31,7 +31,7 @@ export interface WallWidgetSettings {
 export type WallSettingKey = keyof WallWidgetSettings;
 export interface WallWidgetSpec {
     type: WallWidgetType;
-    /** Operator-facing name — doc 17 words, the same the desk uses. */
+    /** Operator-facing name — doc 14 words, the same the desk uses. */
     label: string;
     /** What the widget shows, as the library panel's facets — two to five
      * nouns, never a sentence (bead `ro-ujb9.96.6.17`): the name says what it
@@ -57,7 +57,7 @@ export interface WallWidgetSpec {
     /**
      * Its place in the one column the Wall becomes on a portrait tablet or a
      * phone (operator 2026-09-23, beads `ro-trai.24`, `ro-trai.29`,
-     * `ro-trai.31`, docs/25-the-wall.md § Laptop, tablet and phone): the strip,
+     * `ro-trai.31`, docs/14-design.md § Laptop, tablet and phone): the strip,
      * revenue, the site rows, Needs you, the feed. The sites come before Needs
      * you and the feed because their numbers are what changes and what shows
      * the state of the business. By type, so any saved layout reads the same.
@@ -83,14 +83,14 @@ export interface WallWidget {
 }
 /**
  * A slot that stacks rows of widgets inside a row (bead `ro-trai.2`,
- * docs/25-the-wall.md § Regions), so one widget can run the full height beside
+ * docs/14-design.md § Regions), so one widget can run the full height beside
  * several: D28's live feed beside the revenue band and the site rows. It sits
  * in its row's `widgets` like a widget and takes a width like one.
  *
  * ONE LEVEL DEEP. A column holds rows of widgets and never another column —
  * the types say so and the validator refuses it — because a Wall arranged from
  * across a room needs a layout an operator can picture, and two levels already
- * express every region doc 25 names.
+ * express every region doc 14 names.
  */
 export interface WallColumn {
     /** Shares the widget id space: the editor selects and keys it the same way. */
@@ -172,7 +172,7 @@ export declare function wallRowPlaces(layout: WallLayout): WallRowPlace[];
 /** Every widget on the Wall, columns' included, in reading order. */
 export declare function wallLayoutWidgets(layout: WallLayout): WallWidget[];
 /**
- * D28's Wall (docs/25-the-wall.md § Regions, bead `ro-trai.11`): the strip on
+ * D28's Wall (docs/14-design.md § Regions, bead `ro-trai.11`): the strip on
  * top; below it a column — revenue beside Needs you, then the site rows taking
  * the rest — beside the live feed, which runs the body's full height. The
  * weights are the budget's (column ≈1,390 px to the feed's 440 px at 1920).
@@ -194,7 +194,7 @@ export declare function isWallWidth(value: unknown): value is number;
  *
  * Reasons are operator sentences: the editor prints them under Save and every
  * write door returns them as the refusal, so the operator reads the same words
- * in the browser and in the terminal (doc 15 principle 2).
+ * in the browser and in the terminal (doc 14 principle 2).
  */
 export declare function validateWallLayout(value: unknown): WallLayoutCheck;
 /**
@@ -232,7 +232,7 @@ export declare function withSavedWallLayout(config: WallConfig, layout: WallLayo
 /**
  * Revert is a Save whose layout is an older version — the current layout is
  * retired into the history like any other, so a revert can itself be undone
- * (doc 15 principle 5). The reverted entry stays in the history: it is a
+ * (doc 14 principle 5). The reverted entry stays in the history: it is a
  * record of what the Wall showed, not a stack to pop.
  */
 export declare function withRevertedWallLayout(config: WallConfig, historyIndex: number, savedAt: string): WallConfig;

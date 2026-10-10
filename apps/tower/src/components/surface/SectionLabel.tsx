@@ -30,14 +30,14 @@ export interface SectionLabelProps {
   /** One sentence at most, and about what the section IS — never how it works.
    * The mechanics belong in `About`. A panel's quiet count sits here too. */
   caption?: ReactNode;
-  /** The section's one link out, doc 21's "All →". */
+  /** The section's one link out, doc 14's "All →". */
   action?: SectionLabelAction;
   /** Goes on the HEADING, not the row: a section that labels itself with
    * `aria-labelledby` must point at the title, not at the title plus the
    * caption plus the link. Also what a tab bar or a skip link anchors to. */
   id?: string;
   /** The end of the row when what belongs there is NOT a link — the owner chip
-   * on a Settings or Sources panel is the standing case (doc 21 keeps chips to
+   * on a Settings or Sources panel is the standing case (doc 14 keeps chips to
    * those two surfaces). A caller passing both gets the link first. */
   children?: ReactNode;
   className?: string;
@@ -50,7 +50,7 @@ export interface SectionLabelProps {
  * caption of at most a sentence saying what the section is, and, at the right, a
  * link that takes the question somewhere else. It replaces `SectionCard`'s
  * header — a card per section, each with a title, a paragraph and a chip, is the
- * shape doc 21 exists to end.
+ * shape doc 14 exists to end.
  *
  * *Registry justification (beads `ro-78qo.27`, `ro-78qo.33`):* it was built
  * beside the two asset tabs that first needed it, because two callers in one
@@ -63,7 +63,7 @@ export interface SectionLabelProps {
  * its "All →" through `action`, and its own props did not change.
  *
  * The caption is `tabular-nums` because most of them carry a count or a date,
- * and doc 21 asks for tabular digits wherever numbers align.
+ * and doc 14 asks for tabular digits wherever numbers align.
  */
 export function SectionLabel({
   title,

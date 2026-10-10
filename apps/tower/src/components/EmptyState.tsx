@@ -11,7 +11,7 @@ export interface EmptyStateProps {
   className?: string;
 }
 
-/** A designed empty state (doc 15 principle 2) — never a blank tile, never a
+/** A designed empty state (doc 14 principle 2) — never a blank tile, never a
  * spinner. Used for the first-run portfolio band and any band with no data yet. */
 export function EmptyState({ title, hint, size = "default", className }: EmptyStateProps) {
   const small = size === "sm";

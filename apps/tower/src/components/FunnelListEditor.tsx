@@ -389,8 +389,8 @@ function stepLine(funnel: PosthogFunnel): string {
 
 /**
  * THE FUNNELS PICKED FROM THE PROJECT'S SAVED ONES (bead `ro-ujb9.96.7.24`) —
- * PostHog's own "Add to dashboard" and Grafana's "Use library panel"
- * (docs/briefs/2026-09-23-posthog-row-pick.md#prior-art): what is defined once
+ * PostHog's own "Add to dashboard" and Grafana's "Use library panel":
+ * what is defined once
  * in PostHog is chosen here, never retyped. Each change is the same one write
  * of the whole list the typed editor makes, saved at once with Undo beside it.
  * A funnel on the list that the project no longer holds stays listed and

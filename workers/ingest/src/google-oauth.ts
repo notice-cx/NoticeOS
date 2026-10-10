@@ -1,5 +1,5 @@
 // Signing in to Google from the Integrations page — the whole round trip
-// (bead `ro-vu8d.3`, epic `ro-vu8d`, D21, doc 15 flow C).
+// (bead `ro-vu8d.3`, epic `ro-vu8d`, D21, doc 14 flow C).
 //
 // WHY IT ALL LIVES IN THE INGEST WORKER. The Tower is served unauthenticated on
 // the LAN and must never hold a credential. So its two routes carry a redirect

@@ -8,7 +8,7 @@ import { MinutePulse, type MinutePulseSize } from "@/components/surface/MinutePu
 import { formatInt } from "@/lib/format";
 import { useTweenedNumber } from "@/lib/use-tweened-number";
 
-// A SITE'S LIVE USERS ON THE WALL (docs/25-the-wall.md § Site rows, beads
+// A SITE'S LIVE USERS ON THE WALL (docs/14-design.md § Site rows, beads
 // `ro-trai.19`, `ro-trai.27`): "84 · 30 min", the figure counting to each new
 // reading, over the minute pulse — the last 30 minutes one bar a minute, the
 // newest five bright beside "19 · 5 min". One cell for every tier: a compact

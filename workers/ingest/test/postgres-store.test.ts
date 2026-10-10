@@ -1,6 +1,5 @@
 // THIS WORKER'S RUNTIME REACHES POSTGRES THE WAY THE DEPLOYED WORKER WILL
-// (epic ro-ujb9.76; the pattern every port copies is
-// docs/briefs/2026-09-29-postgres-port-pattern.md).
+// (epic ro-ujb9.76).
 //
 // Inside workerd, through the `POSTGRES` Hyperdrive binding (a local
 // Hyperdrive: a TCP pipe to the run's throwaway cluster, vitest.config.ts),

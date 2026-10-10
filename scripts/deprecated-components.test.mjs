@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 // DESK CONSOLIDATION, WITH SUPPORTED WALL CONSUMERS (`ro-78qo.1`, `ro-ujb9.41`).
 //
-// Doc 21 makes `HeroChart` the desk's one time-series surface and `Kpi` its one
+// doc 14 makes `HeroChart` the desk's one time-series surface and `Kpi` its one
 // headline figure. The pre-D28 Wall's own `Spark` and `DailyBars` left the
 // Tower with its cards (bead `ro-trai.20`); `Stat` and the `AttentionBand`
 // desk table followed once only the gallery and their own tests drew them
@@ -123,7 +123,7 @@ test('every desk-restricted component exists and documents its boundary', () => 
   for (const [name, entry] of Object.entries(DEPRECATED)) {
     assert.ok(
       FILES.includes(entry.file),
-      `${name} is gone from ${entry.file} — delete its entry here and its row in REGISTRY.md`,
+      `${name} is gone from ${entry.file} — delete its entry here and its registry entry`,
     );
     assert.match(
       read(entry.file),
@@ -158,7 +158,7 @@ test('no unregistered file imports a desk-restricted component', () => {
     offenders,
     [],
     `these files import a desk-restricted component:\n  ${offenders.join('\n  ')}\n` +
-      'New desk consumers use apps/tower/src/components/surface/ (doc 21). ' +
+      'New desk consumers use apps/tower/src/components/surface/ (doc 14). ' +
       'A supported Wall consumer or its regression test needs an explicit callers entry ' +
       'with its purpose. Wall specialization is not a reason to allow duplicate desk designs.',
   );
@@ -183,7 +183,7 @@ test('every recorded call site still is one', () => {
     [],
     `these recorded call sites are no longer true — delete them:\n  ${stale.join('\n  ')}\n` +
       'Unused entries become permission slips. When a component\'s list empties, delete the ' +
-      'component, its registry entry, its REGISTRY.md row and its entry here.',
+      'component, its registry entry and its entry here.',
   );
 });
 

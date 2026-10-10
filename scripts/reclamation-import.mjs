@@ -4,14 +4,13 @@
 //
 // The list goes to the ingest's door (POST /api/reclamation-targets, with the
 // operator bearer), which stores it in one transaction — a script never holds
-// a database credential (bead ro-ujb9.76.5.8; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md, section 4). `--dry-run`
+// a database credential (bead ro-ujb9.76.5.8). `--dry-run`
 // shows what would be sent and sends nothing. Importing the same list twice
 // changes nothing: a page is stored once, keyed on its site, domain and page,
 // and a status only moves forward from a status strictly earlier in the
 // funnel, so a row a person moved forward is never dragged back.
 //
-// Method: docs/playbooks/reclamation-pipeline.md step 7.
+// The list is the campaign's touch log, one row per target page.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';

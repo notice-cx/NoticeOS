@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
  *
  * The desk width is chosen per count, so five KPIs cannot land on a six-track
  * grid with a hole in it. On a phone the strip is one row: up to three KPIs
- * side by side, four or more a row you swipe (below, doc 21's phone first
+ * side by side, four or more a row you swipe (below, doc 14's phone first
  * screen).
  * A static map rather than a computed class because Tailwind generates
  * utilities from source TEXT — a `grid-cols-${n}` built at runtime produces no
@@ -30,8 +30,7 @@ const COLUMNS: Record<number, string> = {
 };
 
 /**
- * ON A PHONE A STRIP IS ONE ROW (bead `ro-ujb9.13`,
- * docs/briefs/2026-09-24-mobile-first-screen.md).
+ * ON A PHONE A STRIP IS ONE ROW (bead `ro-ujb9.13`).
  *
  * Two columns stacked a six-KPI strip three rows deep: 380px of Alerts' and
  * 330px of Tasks' 844px first screen went on the summary before the first
@@ -54,13 +53,13 @@ const PHONE_ROW =
 
 export interface KpiStripProps {
   children: ReactNode;
-  /** Defaults to six across on a desk — doc 21's Overview strip. */
+  /** Defaults to six across on a desk — doc 14's Overview strip. */
   columns?: number;
   className?: string;
 }
 
 /**
- * ONE STRIP, SO THE EYE READS LEFT TO RIGHT ONCE (doc 21).
+ * ONE STRIP, SO THE EYE READS LEFT TO RIGHT ONCE (doc 14).
  *
  * *Registry justification:* it replaces `Stat`, the four Home widgets and the
  * asset page's state cards — four ways of drawing "a label, a number and
@@ -104,7 +103,7 @@ export function KpiStrip({ children, columns = 6, className }: KpiStripProps) {
   return (
     <div
       ref={strip}
-      // The audit script measuring doc 21's acceptance list finds the strip, its
+      // The audit script measuring doc 14's acceptance list finds the strip, its
       // KPIs and their sparks by these marks rather than by a class name, which
       // is styling and may change without the structure changing.
       data-kpi-strip=""
@@ -125,7 +124,7 @@ export function KpiStrip({ children, columns = 6, className }: KpiStripProps) {
 export type KpiValueTone = "default" | "healthy" | "warn" | "error";
 
 /**
- * Which direction is GOOD for this metric (doc 21).
+ * Which direction is GOOD for this metric (doc 14).
  *
  * Up for users, sessions, clicks, impressions and product counts; DOWN for open
  * alerts and errors; `none` for a figure whose movement carries no verdict at
@@ -136,7 +135,7 @@ export type KpiValueTone = "default" | "healthy" | "warn" | "error";
 export type KpiImprovement = "up" | "down" | "none";
 
 /**
- * Under this, a movement is not a verdict (doc 21). Two percent on a
+ * Under this, a movement is not a verdict (doc 14). Two percent on a
  * fortnight's traffic is weather, and a strip where six KPIs are all faintly
  * green or faintly red says nothing louder than one that is honestly grey.
  */
@@ -172,17 +171,17 @@ export interface KpiProps {
   explanation?: ReactNode;
   /** The same window the delta covers, drawn as its 7-day average. Fewer than
    * three points draws NO line: two dots joined by a segment is a shape the eye
-   * reads as a trend and the data cannot support (doc 21). */
+   * reads as a trend and the data cannot support (doc 14). */
   spark?: readonly SeriesPoint[];
   /** The plotted quantity when it differs from the headline's time scope. */
   sparkLabel?: string;
-  /** Defaults to the delta's own tone — doc 21: "a KPI's sparkline takes the
+  /** Defaults to the delta's own tone — doc 14: "a KPI's sparkline takes the
    * same tone; a sparkline on a neutral metric is muted". */
   sparkTone?: SeriesTone;
   /**
    * Smooth the spark, and over how many PERIODS of its own grain.
    *
-   * The default is doc 21's daily line: seven days, drawn in place of the raw
+   * The default is doc 14's daily line: seven days, drawn in place of the raw
    * one, because at 64×22 the raw series is noise with a shape hidden in it. A
    * MONTHLY series wants neither (bead `ro-78qo.18`): seven periods is seven
    * MONTHS, and a portfolio with six months of net flattens into a line that
@@ -194,7 +193,7 @@ export interface KpiProps {
   sparkPreAveragedWindow?: number;
   /**
    * The first period the provider has not finished, so the spark's endpoint cap
-   * goes hollow (doc 21: "the latest day of any daily series is provisional
+   * goes hollow (doc 14: "the latest day of any daily series is provisional
    * until the provider closes it").
    *
    * Forwarded alongside the two above because they arrive together: the caller
@@ -207,7 +206,7 @@ export interface KpiProps {
    * WHY THIS NUMBER HAS NO SERIES YET, in the operator's words — "the queue
    * keeps 7 days of snapshots" (bead `ro-78qo.6`).
    *
-   * Doc 21 asks every number that CAN have a series to show one, and a payload
+   * doc 14 asks every number that CAN have a series to show one, and a payload
    * that keeps no history is a third answer beside a series and a composition:
    * the series does not exist YET. Six KPIs each printing a grey "no series"
    * placard is six identical pills saying nothing, so the honest treatment is
@@ -241,7 +240,7 @@ export interface KpiProps {
 }
 
 /**
- * ONE KPI: a label, a value, its movement, and its own series (doc 21
+ * ONE KPI: a label, a value, its movement, and its own series (doc 14
  * principle 2 — "a number without its series is noise").
  */
 export function Kpi({

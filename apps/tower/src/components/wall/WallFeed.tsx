@@ -1,4 +1,4 @@
-// The Wall's live feed column (bead ro-trai.9, docs/25-the-wall.md § Feed).
+// The Wall's live feed column (bead ro-trai.9, docs/14-design.md § Feed).
 //
 // What just happened, newest on top, from GET /api/wall/feed — the Wall's one
 // moving part. Every row is a stored event (the Worker unions and folds them);
@@ -221,7 +221,7 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
           ro-trai.29, ro-trai.31). */}
       <div className="relative tv:min-h-80 tv:flex-1">
         {/* Newest first: a feed's order is its meaning, so its rows are not
-            grouped by site (doc 21 principle 3b's timeline exemption). */}
+            grouped by site (doc 14 principle 3b's timeline exemption). */}
         <ol ref={listRef} aria-live="polite" data-order="chronological" className="flex flex-col gap-1 tv:absolute tv:inset-0 tv:overflow-hidden">
           {visible.map((item, index) => {
             const tone = TONE[item.tone];

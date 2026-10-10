@@ -170,7 +170,7 @@ describe('POST /api/revenue — constraint rejection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Idempotency (db/0018, doc 19 finding 1, bead ro-dql). The lane was
+// Idempotency (db/0018, the 2026-07 audit's finding 1, bead ro-dql). The lane was
 // append-only with no key: the same export posted twice booked the money twice
 // and every total downstream inherited it silently.
 // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 // against the same CHECK constraints the migration enforces before insert;
 // results are reported per row.
 //
-// IDEMPOTENT SINCE db/0018 (doc 19 finding 1, bead ro-dql). Every row carries a
+// IDEMPOTENT SINCE db/0018 (the 2026-07 audit's finding 1, bead ro-dql). Every row carries a
 // stable, source-namespaced `external_id` under a unique index, so the same
 // export posted twice books the money once:
 //

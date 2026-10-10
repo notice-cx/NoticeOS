@@ -1441,7 +1441,7 @@ async function deleteProviderCredentialRequest(fetch: ApiTransport, provider: st
 }
 
 /**
- * One real authenticated call against the provider (doc 15 flow C step 2:
+ * One real authenticated call against the provider (doc 14 flow C step 2:
  * validation comes from a collector attempt, never a manual health toggle).
  *
  * `ok: false` is a 200 with the provider's own reason in `message` — a wrong

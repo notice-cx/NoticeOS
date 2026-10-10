@@ -99,7 +99,7 @@ export type AssetStateWriteResult =
 /**
  * A new asset row, as the wizard describes it.
  *
- * `status` and `senseOnly` are optional and default the way docs/15-A says a new
+ * `status` and `senseOnly` are optional and default the way docs/14-design.md § Operator flows says a new
  * asset starts — `onboarding`, observing only. `is_os` is NOT here and never
  * will be: asset #0 is a fact about this repo, not something a route may mint a
  * second of.

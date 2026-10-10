@@ -28,7 +28,7 @@ Its palette and fonts come from
 [brand/notice.css](../../apps/tower/public/brand/notice.css), the shared
 identity source. Product-specific state scales and application aliases live
 in [index.css](../../apps/tower/src/index.css). Do not copy color values into
-components. The [UI standards](../14-ui-standards.md#the-notice-identity-d35)
+components. The [UI standards](../14-design.md#the-notice-identity-d35)
 define component reuse, operational meaning and the measured distances
 between the brand blue and every meaning-bearing colour.
 
@@ -59,29 +59,17 @@ The favicon set is the website's: a dark N for light tab bars
 
 ## Color roles
 
-These values document the palette; the CSS source is authoritative.
+The palette is one file, `apps/tower/public/brand/notice.css`: every role
+(canvas, surface, text, the Notice blue and the action tint, recorded success,
+failure, attention, the revenue and expense series) in light and dark, as
+custom properties the Tower reads. Read the values there; this page does not
+repeat them, so it cannot disagree with them.
 
-| Role | Light | Dark |
-| --- | --- | --- |
-| Canvas | `#F6F7FB` | `#0D1019` |
-| Surface | `#FFFFFF` | `#151A26` |
-| Primary text | `#171B2B` | `#F0F3FF` |
-| Supporting text | `#586176` | `#A4AEC3` |
-| Notice blue (`--brand-blue`) | `#2745D4` | `#2745D4` |
-| Action / selected navigation (`--brand-accent`) | `#2745D4` | `#B0B9FF` |
-| Text on action | `#FFFFFF` | `#111526` |
-| Recorded success | `#18794E` | `#69D99A` |
-| Failure | `#C52A3A` | `#FF8491` |
-| Attention | `#8C5A00` | `#F5C06A` |
-| Revenue series | `#087985` | `#69DADE` |
-| Expense series | `#7046B8` | `#B9A0FF` |
-
-The Notice blue is `#2745D4` in both themes: the website's accent on its paper
-surfaces, and the light theme's action colour. On the dark canvas it is too
-dark to read as text (2.9:1), so the dark theme's action colour is the tint
-the website draws its accent in on dark surfaces, `#B0B9FF`. Blue marks
-interaction, selection and focus; it does not mean success, and no severity,
-status or series token may point at it
+The Notice blue is the website's accent on its paper surfaces and the light
+theme's action colour. On the dark canvas it is too dark to read as text, so
+the dark theme's action colour is the tint the website draws its accent in on
+dark surfaces. Blue marks interaction, selection and focus; it does not mean
+success, and no severity, status or series token may point at it
 ([brand-identity.test.ts](../../apps/tower/test/brand-identity.test.ts)).
 Green requires recorded evidence. Failure is red; paused, skipped and unknown
 states use neutral gray with distinct labels. Labels and glyphs carry the

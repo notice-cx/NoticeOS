@@ -1,4 +1,4 @@
-// THE THING THAT ACTUALLY TELLS THE OPERATOR (bead `ro-vu8d.23`, doc 15 flow E,
+// THE THING THAT ACTUALLY TELLS THE OPERATOR (bead `ro-vu8d.23`, doc 14 flow E,
 // doc 11's Discord row).
 //
 // WHAT WAS MISSING. Bead `ro-vu8d.18` gave Discord a provider catalog row, a
@@ -355,7 +355,7 @@ async function recordSends(
  * It leads with what this is, because somebody reading an alert channel sees
  * the first few words before they see anything else — the same rule the
  * connection test's line follows. Past the cap it says how many more there were
- * rather than truncating silently: doc 15's own note is that if more than ten
+ * rather than truncating silently: doc 14's own note is that if more than ten
  * things need attention, the volume IS the finding — and the head already says
  * the whole count, so the last line is the number and nothing else.
  */

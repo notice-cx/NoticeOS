@@ -61,7 +61,7 @@ import { invokedDirectly, runtimeChildEnv, samePath } from './os-runtime.mjs';
 import { readProductEnv } from './product-env.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 // What this file coordinates, one responsibility per module under
-// scripts/runner/ (docs/briefs/2026-09-24-runner-modules.md). CONFIG — the port
+// scripts/runner/ (bead ro-ujb9.22), each with its own test file. CONFIG — the port
 // map and every knob — and where this runner's code and state are live in
 // scripts/runner/config.mjs.
 import {

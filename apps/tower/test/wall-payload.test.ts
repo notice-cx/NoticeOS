@@ -500,7 +500,7 @@ describe("buildWallPayload — populated store", () => {
     const p = await buildWallPayload(ctx.call, OPTIONS);
     // Current July rows: 150 reconciled revenue (superseding the 100 estimate),
     // 20 reconciled cost, and nom's 30 estimated revenue. The old read model
-    // summed all three into one "portfolio total" (doc 19 finding 4).
+    // summed all three into one "portfolio total" (the 2026-07 audit's finding 4).
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
     expect(p.portfolio.forecast).toEqual({ currency: 'USD', revenue: 30, cost: 0, net: 30 });
     // The mixed total the band used to publish (160) appears nowhere.
@@ -638,7 +638,7 @@ describe("buildWallPayload — populated store", () => {
 
   it("PORTFOLIO: sums exact cents, so the headline is provable", async () => {
     // Four figures whose float sum is 758.1999999999999 — the reason db/0018
-    // added amount_minor (doc 19 finding 1).
+    // added amount_minor (the 2026-07 audit's finding 1).
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
       await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
@@ -659,7 +659,7 @@ describe("buildWallPayload — populated store", () => {
     // (ro-jk7): three surfaces reading the same rows must also cut them at the
     // same place. The page rolled every current row into one figure, so before
     // the split it agreed with the headline here only when nothing was
-    // estimated — which is the one case doc 19 finding 4 is not about.
+    // estimated — which is the one case the 2026-07 audit's finding 4 is not about.
     const rows = [
       [30, "revenue", "ads", 574.15],
       [31, "revenue", "ads", 271.2],
@@ -854,7 +854,7 @@ describe("buildWallPayload — populated store", () => {
     expect(ordinaryPage?.scheduledLanes).toBeNull();
   });
 
-  // docs/19 finding 5: the summary used to be counted FROM the pulses table, so
+  // the 2026-07 audit's finding 5: the summary used to be counted FROM the pulses table, so
   // an asset that went quiet could vanish from its own denominator — letting
   // the Tower say "all fresh" over a sender that had stopped. Counted over the
   // asset rows, a stale sender stays in the denominator.
@@ -1454,7 +1454,7 @@ describe("buildWallPayload — populated store", () => {
     expect(pft.netPeriod).toBe("2026-07");
   });
 
-  // --- bead ro-uwo.2: the split doc 19 finding 4 named, one grain down -------
+  // --- bead ro-uwo.2: the split the 2026-07 audit's finding 4 named, one grain down -------
   it("NET: an asset's stated net is its RECONCILED rows, estimates beside it", async () => {
     await seedLedger(ctx);
     // The mixed asset: one reconciled pair already in the seed (150 revenue,
@@ -1574,7 +1574,7 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("NET: a card's money is exact cents, like the headline it rolls into", async () => {
-    // Float dollars sum these four to 758.1999999999999 (doc 19 finding 1). The
+    // Float dollars sum these four to 758.1999999999999 (the 2026-07 audit's finding 1). The
     // card reads the same integer-cents column the portfolio band does.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
       await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
@@ -3465,7 +3465,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
 // ─────────────────────────────────────────────────────────────────────────────
 // THE THREE THINGS /assets' COMPARISON TABLE NEEDS (bead `ro-78qo.35`).
 //
-// Doc 21's Assets row is one table with a sparkline per measurement and a
+// doc 14's Assets row is one table with a sparkline per measurement and a
 // 7 · 28 · 90 range. It shipped with ONE column and a 7d/28d selector because
 // the payload it reads — this one — carried active users, no search clicks, no
 // per-asset monthly net, and twenty-eight days of anything. These pin the three

@@ -14,7 +14,7 @@
  * that the hub must be up — a tutorial written when pasting was the only way to
  * file. D19 made the Tower a task-management surface, so the operator's path is
  * now the row's **File task** button, and the section names it first. The
- * command stays, and stays verbatim (doc 15 principle 10), because the export is
+ * command stays, and stays verbatim (doc 14 principle 10), because the export is
  * the AGENT's path — the registry entry for `TaskComposer` records exactly that,
  * and a deployed build without the write lane has no button at all — but the
  * prose around it is now for a reader outside this repo: no bead, no spoke, no

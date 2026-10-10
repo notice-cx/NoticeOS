@@ -10,7 +10,7 @@ The target data model the sizing applies to is
 
 ## Why measure first
 
-The pilot never recorded how big its store is or how fast it grows, and the
+The OS never recorded how big its store is or how fast it grows, and the
 code alone gives wrong answers in both directions:
 
 - **Raw provider pages are not store growth.** They are gzip objects in the raw
@@ -26,10 +26,9 @@ code alone gives wrong answers in both directions:
   site are ever read: the site page reads the newest, and the Wall's feed
   compares it with the one before (`apps/tower/worker/wall-feed.ts`).
 
-On `postgres-target`, the inventory measures the Postgres operational store
-(`ro-ujb9.76.7.4`). The running pilot stays on D1 until the operator approves
-the switch (`ro-ujb9.76.10`). Neither inventory changes retention or migrates
-the store.
+The inventory measures the Postgres operational store (`ro-ujb9.76.7.4`);
+the store is Postgres since the approved switch (D25, `ro-ujb9.76.10`). The
+inventory changes no retention and migrates nothing.
 
 ## What the inventory measures
 
@@ -68,8 +67,7 @@ workspaces' activity. Raw bucket objects are never downloaded.
 
 A table added by a migration without a `db/postgres/tables.json` row is still
 measured as *undeclared*, with no growth rate; `scripts/postgres-model.test.mjs`
-fails until the row is added. The historical D1 catalog remains in
-`db/tables.json`, proved by `scripts/db-table-catalog.test.mjs`.
+fails until the row is added.
 
 The catalog treats retained insight snapshots as `cache`: each site's two
 newest stay and exported older rows may leave under the approved retention

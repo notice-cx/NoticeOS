@@ -331,7 +331,7 @@ describe("/financials — picking a period", () => {
 
 describe("/financials — saying which month it is showing", () => {
   /**
-   * THE SUBTITLE IS THE PAGE\'S QUESTION, NOT A FACT ABOUT THE QUERY (doc 21).
+   * THE SUBTITLE IS THE PAGE\'S QUESTION, NOT A FACT ABOUT THE QUERY (doc 14).
    *
    * It used to read "latest month with rows" whenever the ledger\'s newest month
    * was not the calendar one — a sentence about how the payload picked a period,
@@ -508,7 +508,7 @@ describe("/financials — what the selector does not touch", () => {
 
     // Both months, in calendar order — the trajectory is the one block that is
     // about the ledger rather than about the chosen period. It is behind the
-    // month panel since doc 21: the chart above answers "is this getting better
+    // month panel since doc 14: the chart above answers "is this getting better
     // or worse", and this table answers "what exactly did July book".
     const months = openPanel("months");
     expect(within(months).getByText("2026-07")).toBeInTheDocument();
@@ -551,7 +551,7 @@ describe("/financials — what the selector does not touch", () => {
 // glyph. Nothing here is decoration — each visual states something the figure
 // beside it cannot.
 
-describe("/financials — the first screen answers the whole question (doc 21)", () => {
+describe("/financials — the first screen answers the whole question (doc 14)", () => {
   const threeMonths = () =>
     payload({
       months: [
@@ -733,7 +733,7 @@ describe("/financials — the first screen answers the whole question (doc 21)",
 
   /** Everything read one cell at a time is a collapsed panel, and closed is the
    * whole point: the audit measures what a reader SEES, and so does the reader
-   * (doc 21 principle 3). */
+   * (doc 14 principle 3). */
   it("keeps the month table, the cost breakdown and the registers closed", () => {
     const { container } = renderPage(threeMonths());
 
@@ -758,7 +758,7 @@ describe("/financials — the first screen answers the whole question (doc 21)",
     ).toBe(true);
   });
 
-  /** Doc 21 principle 3a (bead ro-ujb9.96.6.9): no paragraph anywhere — no
+  /** doc 14 principle 3a (bead ro-ujb9.96.6.9): no paragraph anywhere — no
    * About, no known-gaps panel, no explanation tooltip on the strip or the
    * by-asset table. Each fact is drawn on the figure it qualifies instead. */
   it("carries no About, no known-gaps panel and no explanation tooltips", () => {
@@ -836,7 +836,7 @@ describe("/financials — each asset's slice of the month", () => {
   });
 
   /**
-   * WHICH ASSET IS GETTING BETTER (bead `ro-78qo.29`, doc 21). The share bar
+   * WHICH ASSET IS GETTING BETTER (bead `ro-78qo.29`, doc 14). The share bar
    * beside it answers which one is carrying THIS month, which on a portfolio
    * where one asset is nearly all the revenue is known before the page loads.
    */
@@ -1143,7 +1143,7 @@ const withCosts = (overrides: Partial<FinancialsPayload> = {}) =>
 /** One register's table. Both are on screen, and a column label ("Asset")
  * belongs to both — so nothing below is looked up on the page as a whole. */
 /**
- * Open one of the page's collapsed panels (doc 21, bead `ro-78qo.16`).
+ * Open one of the page's collapsed panels (doc 14, bead `ro-78qo.16`).
  *
  * A panel MOUNTS ITS BODY ONLY WHEN OPEN — the whole reason the rebuilt page
  * measures 1,350px rather than 3,795 — so a case about a register, the month

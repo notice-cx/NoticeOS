@@ -126,7 +126,7 @@ export type ComposerProject = Pick<TaskHubSpoke, "asset" | "prefix">;
  * is about to file, and files only when a person presses the button.
  *
  * THE HANDOFF LABELS AND METADATA ARE LOCKED. They are the join the poller reads
- * and the `HandoffBeadBadge` renders (`docs/playbooks/task-key-chain.md`); an
+ * and the `HandoffBeadBadge` renders (one key from finding to bead); an
  * operator editing `key:` by hand would file a bead that never reappears on the
  * row that raised it. Everything an operator legitimately owns — title, project,
  * type, priority, parent, their own labels, the description, the acceptance

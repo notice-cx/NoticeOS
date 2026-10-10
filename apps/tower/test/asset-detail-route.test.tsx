@@ -83,7 +83,7 @@ const headerStatuses = (heading: HTMLElement) =>
  * "The card this text sits in", as a selector.
  *
  * Three assertions walk up from a heading to the section that holds it, and they
- * did it by the card's RADIUS — which made doc 21's one-card-style change
+ * did it by the card's RADIUS — which made doc 14's one-card-style change
  * (`rounded-xl` → `rounded-[10px]`, bead `ro-78qo.10`) a three-test failure in
  * files about totals, ledgers and panel reviews. Naming it once means the next
  * radius decision is one line, and the escape (`[` and `]` are CSS syntax) is
@@ -94,7 +94,7 @@ const CARD = ".rounded-\\[10px\\]";
 /**
  * OPEN A SOURCE'S ROW ON THE SOURCES TAB.
  *
- * Doc 21 collapsed the twelve lane CARDS into twelve rows (`ro-78qo.5`): a
+ * doc 14 collapsed the twelve lane CARDS into twelve rows (`ro-78qo.5`): a
  * source's register note, its setup steps, its mapping fields and its posture
  * control are inside the row now, revealed when the operator presses it. The
  * tests below are about what those editors DO, not about whether the row opens,
@@ -107,7 +107,7 @@ const CARD = ".rounded-\\[10px\\]";
 /**
  * OPEN ONE OF THE ACTIVITY TAB'S COMPOSERS.
  *
- * Doc 21 put both behind the Timeline panel's one header action (`ro-78qo.5`):
+ * doc 14 put both behind the Timeline panel's one header action (`ro-78qo.5`):
  * "Record →" opens the form, and WHICH form is a segmented choice inside it, so
  * recording an event now takes one press where it took none and a watch takes
  * two. Written once here, because none of these tests is about the disclosure —
@@ -128,7 +128,7 @@ async function openComposer(
 /**
  * OPEN THE `ListPanel` ROW WHOSE TITLE CONTAINS THIS TEXT.
  *
- * Doc 21's row shows a mark, a title, one caption line and one value; the
+ * doc 14's row shows a mark, a title, one caption line and one value; the
  * evidence and the actions are revealed IN PLACE when the operator presses it
  * (`ro-78qo.5`). Three tabs are built from that row — the alert queue, the
  * timeline, the data sources — so the press is written once here. None of the
@@ -692,7 +692,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     stubFetch(200, payload({ flags: { open: [pullFailure], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 1 } }));
     const { container, findByText } = renderRoute("meals.example", "", "alerts");
 
-    // The open queue is the Alerts tab's own panel now (doc 21, `ro-78qo.5`),
+    // The open queue is the Alerts tab's own panel now (doc 14, `ro-78qo.5`),
     // where it used to be the state hero's "Current signals".
     await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     expect(container.textContent).toContain("the fetch credentials may have expired");
@@ -1083,7 +1083,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     stubFetch(200, payload());
     const { container, findByText } = renderRoute("meals.example");
 
-    // Doc 21's Overview: the strip and its chart first, the two lists under it.
+    // doc 14's Overview: the strip and its chart first, the two lists under it.
     const findings = await findByText("What matters");
     const strip = container.querySelector("[data-kpi-strip]")!;
 
@@ -1114,7 +1114,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("keeps the Growth tab's four charts on Growth and its decisions on Search", async () => {
-    // Doc 21 split the 10,139px tab in two (bead `ro-78qo.4`): Growth answers
+    // doc 14 split the 10,139px tab in two (bead `ro-78qo.4`): Growth answers
     // which way the numbers went, Search answers which term and which page moved
     // them. This case pins BOTH halves, because the failure that matters is a
     // section that ends up on neither tab.
@@ -1136,7 +1136,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("stands the state block down on every tab", async () => {
-    // The block is 524px and doc 21 budgets Growth and Search at 1,400 and 1,800
+    // The block is 524px and doc 14 budgets Growth and Search at 1,400 and 1,800
     // for the whole page (bead `ro-78qo.4`); above the other tabs it put every
     // one of their first blocks past the 900px first screen (`ro-78qo.5`). It
     // also answers a question no tab is asking, and the header already carries
@@ -1222,7 +1222,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   it("gives a collapsed decision row one tone encoding, not two", async () => {
-    // Doc 21: one row style. The glyph and the decision label carry the tone;
+    // doc 14: one row style. The glyph and the decision label carry the tone;
     // the coloured left stripe the full table draws was a third rendering of
     // the same fact on a row whose job is to say one thing.
     stubFetch(200, payload());
@@ -1317,7 +1317,7 @@ describe("AssetDetailRoute — executive page identity", () => {
     const tabs = [...bar.querySelectorAll('[role="tab"]')];
     // Tasks sits between Alerts and Activity (bead ro-l1ed.5): what is wrong,
     // what is being done about it, what has already happened. Search sits after
-    // Growth (doc 21, bead ro-78qo.4): which way the numbers went, then which
+    // Growth (doc 14, bead ro-78qo.4): which way the numbers went, then which
     // term, page and domain moved them.
     expect(tabs.map((t) => t.textContent?.replace(/\d+$/, ""))).toEqual([
       "Overview",
@@ -1644,7 +1644,7 @@ describe("AssetDetailRoute — executive page identity", () => {
   });
 
   /** The whole ranked list is one disclosure below the "What matters" panel
-   * now (doc 21, bead `ro-78qo.3`) — the panel shows three rows and this is
+   * now (doc 14, bead `ro-78qo.3`) — the panel shows three rows and this is
    * where "All findings →" goes. Its marks, dismissals and restores are
    * unchanged, so the case scopes itself to the disclosure rather than to a
    * page that also carries the panel's own Dismiss. */
@@ -2004,7 +2004,7 @@ describe("AssetDetailRoute — the setup checklist (bead ro-28ma)", () => {
   });
 
   /**
-   * `#setup` still lands on Overview (doc 21, bead `ro-78qo.3`). What it lands
+   * `#setup` still lands on Overview (doc 14, bead `ro-78qo.3`). What it lands
    * ON is the banner: the four rows are on Sources now, and the one line that
    * says setup is open — with the link that finishes it — is what the Overview
    * keeps. The anchor is unchanged because it is a URL somebody may have saved.
@@ -2058,7 +2058,7 @@ describe("AssetDetailRoute — inbound deep links", () => {
   }
 
   it("brings the query-decision section into view, on the Search tab", async () => {
-    // The anchor did not change when the section moved (doc 21, bead
+    // The anchor did not change when the section moved (doc 14, bead
     // `ro-78qo.4`): every task ever filed from a decision row links at it, so it
     // keeps resolving and simply selects a different tab.
     const scrolled = captureScrollTargets();
@@ -2506,7 +2506,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     stubFetch(200, payload());
     const { findByRole } = renderRoute("meals.example", "", "sources");
 
-    // `ListPanel` draws its own arrow after the label (doc 21's "All →"), so
+    // `ListPanel` draws its own arrow after the label (doc 14's "All →"), so
     // the accessible name carries it too.
     expect(
       await findByRole("link", { name: /^All integrations/u }),
@@ -3678,7 +3678,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
     await findByText("Google Analytics");
     openLane("Google Analytics");
-    // The whole ROW, not the expanded block: doc 21 puts the state chip on the
+    // The whole ROW, not the expanded block: doc 14 puts the state chip on the
     // row itself and the settings inside it (`ro-78qo.5`), so the `<li>` is what
     // holds both halves of "one chip, and it is the observed one".
     const card = container.querySelector('[data-lane-config="ga4"]')!.closest("li")!;
@@ -3778,7 +3778,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
 
     await findByText("Also collected");
-    // Sessions is one of the four charts now (doc 21, bead `ro-78qo.4`), so its
+    // Sessions is one of the four charts now (doc 14, bead `ro-78qo.4`), so its
     // window total is the headline beside its own line rather than a card below.
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(sessions.textContent).toContain("1,400 visits");
@@ -3834,7 +3834,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
 
     await findByText("Also collected");
     // The mark moved onto the chart's own axis when Sessions became one of the
-    // four charts (doc 21, bead `ro-78qo.4`): `HeroChart` draws an annotation as
+    // four charts (doc 14, bead `ro-78qo.4`): `HeroChart` draws an annotation as
     // a dashed line plus a glyph carrying the sentence, and the same two days
     // are marked — the change day and the one before it, derived and never
     // listed.
@@ -4068,7 +4068,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
    *
    * Three cases lived here — the ranked dollar value leading the strip, the
    * top-20 count and the gained/lost pair standing apart, and the backlink
-   * summary saying unavailable rather than printing zeros. Doc 21 moves the
+   * summary saying unavailable rather than printing zeros. doc 14 moves the
    * whole DataForSEO strip off Overview and onto the Search tab, so the
    * assertions belong to the surface that renders it: `ro-78qo.4` builds the
    * strips and carries these three rules over. `ro-78qo.14` holds the handover
@@ -4352,7 +4352,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     stubFetch(200, payload({ hygiene: null }));
     const { container, findByText, queryByRole } = renderRoute("meals.example", "", "sources");
     await findByText("Daily metrics");
-    // The PANEL, not the words: doc 21's `About` names site health in the
+    // The PANEL, not the words: doc 14's `About` names site health in the
     // sentence that says what these numbers are, and that sentence is on the tab
     // whether or not the guard has ever run (`ro-78qo.5`). A panel is a labelled
     // region, so that is what is asserted absent.
@@ -4410,7 +4410,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     const { container, findByText } = renderRoute("meals.example", "", "activity");
 
     await findByText("Bets");
-    // The strip is doc 21's list now (`ro-78qo.5`): the series and its verdict
+    // The strip is doc 14's list now (`ro-78qo.5`): the series and its verdict
     // are the row's title, the date it waits on is the row's value under its own
     // micro label, and the ref and the reading count are the row's evidence —
     // which is one press in, where the old run-on line printed the ref twice.
@@ -4537,7 +4537,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     );
   });
 
-  // `ro-kukv.12`, doc 17 rule 6: the Timeline header's age slot is a labelled
+  // `ro-kukv.12`, doc 14 rule 6: the Timeline header's age slot is a labelled
   // value beside a section title, so an em-dash there reads as a rendering
   // failure rather than as "nothing has been recorded". `formatAge` still
   // returns its dash — the WORD belongs to the component that knows it was
@@ -4627,7 +4627,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
   });
 
   it("states the reconciled net and keeps the estimates out of it", async () => {
-    // The page grain of doc 19 finding 4 (bead ro-jk7): a mixed month whose
+    // The page grain of the 2026-07 audit's finding 4 (bead ro-jk7): a mixed month whose
     // blended net would be $644.20. That number must appear nowhere — the tile
     // states $498.10 booked, with $146.10 below the rule under its own chip.
     stubFetch(200, payload({ ledger: MIXED_LEDGER }));
@@ -4660,7 +4660,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     // under its own word. Its families are deliberately not there: the strip is
     // six cells of one line each, and spelling out a forecast's composition
     // beside a booked one is how the two got read as a single figure in the
-    // first place (doc 19 finding 4). `$644.20` is the number that must appear
+    // first place (the 2026-07 audit's finding 4). `$644.20` is the number that must appear
     // nowhere, and it does not.
     expect(tile.textContent).toContain("ads $498.10");
     expect(tile.textContent).not.toContain("affiliate");
@@ -5695,7 +5695,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(confirm.textContent).toContain("Data collection");
     expect(confirm.textContent).toContain("Alerts");
     expect(confirm.textContent).toContain("Its card on Home and the TV dashboard");
-    // Shown, not yet asked (doc 15 principle 1): nothing has been written.
+    // Shown, not yet asked (doc 14 principle 1): nothing has been written.
     expect(patchBody(fetchMock)).toBeUndefined();
 
     fireEvent.click(getByRole("button", { name: "Archive site" }));
@@ -5900,7 +5900,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     const { container, findByText } = renderRoute("meals.example", "", "settings");
 
     await findByText("Alert rules in force");
-    // The value still belongs on the asset page (doc 15 principle 10)…
+    // The value still belongs on the asset page (doc 14 principle 10)…
     expect(container.textContent).toContain("False-positive rate");
     // …but nothing here writes config/constants.json any more.
     const pointers = [...container.querySelectorAll("a")].map((a) =>
@@ -6296,7 +6296,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     const { container, findByText } = renderRoute("meals.example", "", "settings");
 
     await findByText("Tracked search terms");
-    // ON SETTINGS IT OPENS OPEN (doc 21, bead `ro-78qo.25`). The closed state was
+    // ON SETTINGS IT OPENS OPEN (doc 14, bead `ro-78qo.25`). The closed state was
     // the whole point on a VIEW surface; on the page whose job is the registers,
     // a disclosure over a disclosure is one press for nothing. What the header
     // states is unchanged, and it is the pair that costs money: the panel's own
@@ -6709,7 +6709,7 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
  * THE THREE RULES THE SEARCH-CONTEXT STRIP CARRIES, FOLLOWING IT OFF OVERVIEW
  * (bead `ro-78qo.14`).
  *
- * Doc 21 moved the DataForSEO strip from the asset Overview to the Search tab,
+ * doc 14 moved the DataForSEO strip from the asset Overview to the Search tab,
  * where the queries and pages it is context FOR already live, and the three
  * cases that guarded it were deleted with the surface they addressed. The rules
  * did not stop being true, so they are re-asserted here against the strip's new

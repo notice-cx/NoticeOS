@@ -11,7 +11,7 @@ import { DEMO_READ_ONLY } from '@shared/demo-viewer';
  * or not ready, or a build that cannot write), that is one fact about the
  * DEPLOYMENT, not about each field — yet every editor used to print it under
  * itself: an asset's Settings tab said "Config store unreachable — saves
- * paused" five times on one screen. doc 21 principle 3b: one status per subject
+ * paused" five times on one screen. doc 14 principle 3b: one status per subject
  * per screen. So a page with editors renders this once at its top, its editors
  * pass `statesReadOnly={false}` and show only their lock.
  *

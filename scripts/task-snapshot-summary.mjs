@@ -10,7 +10,8 @@ import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mj
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The Tower handoff join (bead `ro-248`, docs/playbooks/task-key-chain.md).
+// The Tower handoff join (bead `ro-248`): one key carried from the finding to
+// the bead filed for it, so the finding can show its task.
 //
 // A Tower finding or query decision is handed off as a ready-to-run `bd create`
 // (apps/tower/src/lib/task-handoff.ts) that an agent executes in the property's

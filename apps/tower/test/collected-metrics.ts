@@ -1,6 +1,5 @@
 // A TEST'S COLLECTION RUNS AND THE VALUES THEY CHANGED, on Postgres where the
-// collectors write them (bead ro-ujb9.76.5.3; the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md, section 7 step 8).
+// collectors write them (bead ro-ujb9.76.5.3).
 //
 // Written through the application role into the store a test's readers take
 // (`ctx.call`, test/sites.ts), so the sites must be added first:

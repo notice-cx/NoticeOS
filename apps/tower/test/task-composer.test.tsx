@@ -300,7 +300,7 @@ describe("TaskComposer", () => {
 
     expect(field("Title").value).toBe("Expand pages already earning search demand");
     expect(field("Project").value).toBe("meals.example");
-    // The board's own words, never a P-number (doc 17's demo test).
+    // The board's own words, never a P-number (doc 14's demo test).
     expect(field("Priority").value).toBe("2");
     expect(screen.getByRole("option", { name: "normal" })).toBeInTheDocument();
     expect(screen.queryByText("P2")).toBeNull();

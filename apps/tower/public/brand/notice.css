@@ -2,7 +2,7 @@
    www.notice.cx wears. Shared by the product and the standalone design-system
    reference. Brand/action, operational state and chart series have distinct
    roles: nothing here is a severity, a status or a series colour, and no such
-   token may point at the brand blue (docs/14-ui-standards.md § The Notice
+   token may point at the brand blue (docs/14-design.md § The Notice
    identity, apps/tower/test/brand-identity.test.ts).
 
    Dark is the default, and `[data-theme="dark"]` draws one subtree dark inside

@@ -3,7 +3,7 @@ import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { cn } from "@/lib/utils";
 
 /**
- * A SCREEN'S ONE ANSWER, FIRST (D44, doc 21 § Surface kinds and the D44 bar;
+ * A SCREEN'S ONE ANSWER, FIRST (D44, doc 14 § Surface kinds and the D44 bar;
  * Home's greeting line is the first caller). One sentence at the display
  * scale — "1 of 7 sites at risk", "2 open alerts, both warnings", "Nothing
  * waits on you" — a muted line under it, and at most three figures beside it,

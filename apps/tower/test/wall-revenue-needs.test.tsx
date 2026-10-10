@@ -1,4 +1,4 @@
-// D28's revenue and Needs you widgets on the Wall (docs/25-the-wall.md § Revenue
+// D28's revenue and Needs you widgets on the Wall (docs/14-design.md § Revenue
 // and § Needs you, bead `ro-trai.4`), drawn from the synthetic Wall fixture.
 
 import { render, within } from "./render";

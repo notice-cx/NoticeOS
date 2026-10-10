@@ -14,23 +14,21 @@ import { main, needsRuntime, unreadByRuntime } from './ci-scope.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-test('documentation is docs/ outside briefs and templates, and Markdown at the root', () => {
-  for (const file of ['docs/25-the-wall.md', 'docs/artifacts/wall-build-2026-09-23/laptop/shot.png', 'docs/playbooks/task-key-chain.md',
+test('documentation is docs/ and Markdown at the root', () => {
+  for (const file of ['docs/14-design.md', 'docs/artifacts/wall-build-2026-09-23/laptop/shot.png', 'docs/briefs/2026-10-08-home-overview-redesign.md',
     'AGENTS.md', 'README.md', 'CONTRIBUTING.md']) {
     assert.equal(unreadByRuntime(file), true, file);
   }
-  for (const file of ['docs/briefs/2026-09-29-postgres-port-pattern.md', 'docs/templates/project-freeze-register.md',
-    'apps/tower/README.md', 'config/tower.README.md', 'scripts/README.md', 'apps/tower/public/brand/notice-mark.svg',
-    'apps/tower/ux-flows.json', '.github/workflows/ci.yml', 'package.json']) {
+  for (const file of ['apps/tower/README.md', 'config/tower.README.md', 'scripts/README.md', 'apps/tower/public/brand/notice-mark.svg',
+    'apps/tower/e2e/ux-flows.mjs', '.github/workflows/ci.yml', 'package.json']) {
     assert.equal(unreadByRuntime(file), false, file);
   }
 });
 
 test('a change needs the runtime suites unless every file it touches is documentation they never read', () => {
-  assert.equal(needsRuntime(['docs/25-the-wall.md']), false);
-  assert.equal(needsRuntime(['docs/25-the-wall.md', 'AGENTS.md', 'docs/artifacts/x/shot.png']), false);
-  assert.equal(needsRuntime(['docs/25-the-wall.md', 'apps/tower/src/routes/WallRoute.tsx']), true);
-  assert.equal(needsRuntime(['docs/briefs/arrange-wall.md']), true, 'the flow gate reads prior art in docs/briefs');
+  assert.equal(needsRuntime(['docs/14-design.md']), false);
+  assert.equal(needsRuntime(['docs/14-design.md', 'AGENTS.md', 'docs/artifacts/x/shot.png']), false);
+  assert.equal(needsRuntime(['docs/14-design.md', 'apps/tower/src/routes/WallRoute.tsx']), true);
   assert.equal(needsRuntime([]), true, 'a change that lists no file runs everything');
 });
 

@@ -4,7 +4,7 @@ import { pillControlClass } from "@/components/ui/pill";
 import { cn } from "@/lib/utils";
 
 export interface AboutProps {
-  /** The summary line. Defaults to the words doc 21's template prints. */
+  /** The summary line. Defaults to the words doc 14's template prints. */
   title?: string;
   children: ReactNode;
   /** Open on arrival. For the gallery and for a first run where the operator
@@ -14,7 +14,7 @@ export interface AboutProps {
 }
 
 /**
- * THE ONE PLACE PROSE LIVES ON A DESK SURFACE (doc 21 principle 3).
+ * THE ONE PLACE PROSE LIVES ON A DESK SURFACE (doc 14 principle 3).
  *
  * *Registry justification:* nothing here was a disclosure for EXPLANATION.
  * `Drill` opens evidence for one fact, `EvidencePopover` shows where a figure

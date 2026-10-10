@@ -39,12 +39,13 @@ displays is trustworthy.
 
 ## Local runner operability contract
 
-The Phase 0 OS is intentionally hosted by the always-on office Mac. Its normal
+A standalone installation on an always-on macOS host uses this adapter (the
+Compose stack and the hosted path, D39, replace it elsewhere). Its normal
 runtime is the repo-generated launchd user agent (`RunAtLoad` + `KeepAlive`), not
 a terminal somebody must remember to keep open. `pnpm os:install` installs or
 refreshes that service idempotently; `pnpm os:uninstall` is its bounded restore
-path. The beads Dolt hub remains a separate Homebrew service and is never
-started or stopped by this agent.
+path. The beads Dolt hub remains a separate service (Homebrew or Compose) and is
+never started or stopped by this agent.
 
 Agents and operators use one repo-owned interface:
 

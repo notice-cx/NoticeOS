@@ -9,11 +9,10 @@
 // docs-index.test.mjs), and a change to a file a test reads runs that test.
 // A push to main runs everything.
 //
-// Documentation here is what those three jobs never read: docs/, except
-// docs/briefs/ (the flow gate checks each flow's prior art there) and
-// docs/templates/ (the Tower imports its freeze-register template), and a
+// Documentation here is what those three jobs never read: docs/ and a
 // Markdown file at the repository root. scripts/ci-scope.test.mjs refuses a
-// read of any of it from the code those jobs run.
+// read of any of it from the code those jobs run; a folder under docs/ that
+// product code or a runtime suite comes to read is listed in READ_DOCS.
 //
 //   node scripts/ci-scope.mjs     in GitHub Actions: writes runtime=true|false to $GITHUB_OUTPUT
 
@@ -23,7 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /** Folders under docs/ that runtime suites or product code read. */
-export const READ_DOCS = Object.freeze(['docs/briefs/', 'docs/templates/']);
+export const READ_DOCS = Object.freeze([]);
 
 /** Whether `file` (a repository path) is documentation no runtime suite reads. */
 export function unreadByRuntime(file) {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Control an existing Docker Compose installation: status, start, stop and restart of its app only.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

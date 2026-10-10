@@ -20,9 +20,9 @@ an operator can move from a signal to the work it triggered, inspect execution,
 and return to the resulting business evidence.
 
 This positioning was established on September 9, 2026 (`ro-42w8`). It extends
-the closed-loop architecture below. The current single-operator local pilot
-and the future agentic SaaS product must remain distinguishable in release
-claims; [AGENTS.md](../AGENTS.md) carries dated implementation state.
+the closed-loop architecture below. The standalone installation, the
+invitation-only hosted workspaces and the public demo (D39) must remain
+distinguishable in release claims; [AGENTS.md](../AGENTS.md) carries dated implementation state.
 
 ### Workflows as the operating layer
 
@@ -90,7 +90,8 @@ the loop may cite, at what cost — is cataloged in
   this lane the loop optimizes proxies — v1's defining defect.
 - **Provider detail is archived centrally, not re-exported by hand.** Daily
   GA4/GSC/BWT and weekly DataForSEO lanes preserve bounded provider responses
-  in private R2 and index every attempt (plus metered cost) in D1. Live Tower
+  in private R2 and index every attempt (plus metered cost) in the Postgres
+  store. Live Tower
   aggregates remain separate; offline scripts flatten the immutable archive
   for page/query/rank/link/AI/funnel analysis. Assets still never query
   external analytics about themselves.
@@ -172,7 +173,7 @@ served-layer guards — the safety net is downstream of merge, not upstream
 | Concern | Compose | Build (the novel glue) |
 |---|---|---|
 | Dashboard/charts | Grafana or bespoke React | Tower portfolio views, calibration curves, ledger P&L |
-| Pulse/central store | CF Workers + D1/KV/Analytics Engine | The **signal contract** |
+| Pulse/central store | the ingest Worker + Postgres 18 (D25; `db/postgres/`, `packages/postgres/`), R2 for raw archives | The **signal contract** |
 | SEO/traffic data | GSC/GA4 APIs + private R2 archive, DataForSEO, Ahrefs MCP | Revision-aware collection, analysis scripts, attribution discipline + honest booking |
 | Build → PR | Claude Code / coding agents | Orchestration: contract → build → **independent verify** → ship |
 | Budget enforcement | **Cloudflare AI Gateway / LiteLLM-class proxy** (hard caps, fallback-to-cheaper) | Per-change cost attribution to the ledger |

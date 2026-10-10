@@ -66,8 +66,7 @@ import { cn } from "@/lib/utils";
  *
  * A `.ts` and not a `.tsx`, which is what keeps it out of the component
  * registry honestly — `scripts/component-registry.test.mjs` walks `.tsx` files
- * because those render something, and this renders nothing. REGISTRY.md carries
- * its row anyway, beside `fieldClass` and the primitives it dresses.
+ * because those render something, and this renders nothing.
  *
  * `test/pill-chrome.test.ts` fails if the literal reappears anywhere in src/.
  */

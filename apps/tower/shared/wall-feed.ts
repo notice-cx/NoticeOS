@@ -1,5 +1,5 @@
 // The Wall's live feed contract: what `GET /api/wall/feed` returns (bead
-// `ro-trai.6`, docs/25-the-wall.md § Feed). Shared by the Worker that unions
+// `ro-trai.6`, docs/14-design.md § Feed). Shared by the Worker that unions
 // the store's events and the Wall column that draws them, so the shape and the
 // rules the two halves agree on (window, fold gap, cap) are stated once.
 //

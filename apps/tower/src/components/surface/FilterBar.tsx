@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * ON A PHONE, A PAGE'S FILTERS AND SORT ARE ONE PRESS (bead `ro-ujb9.13`,
- * docs/briefs/2026-09-24-mobile-first-screen.md, doc 21's phone first screen).
+ * doc 14's phone first screen).
  *
  * *Registry justification:* three index pages drew their own filter row —
  * Sites' stage select, two chip sets and a sort; Alerts' site, severity and

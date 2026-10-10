@@ -25,7 +25,7 @@ import { useAssetLifecycle } from "@/hooks/useAssetLifecycle";
 /** What stops when an asset is archived — one glyph row each, so the operator
  * reads the consequences BEFORE the button rather than a sentence after it.
  * Archiving stops the collectors and takes the asset off Home and the Wall, so it
- * is the preview-then-commit half of doc 15 principle 5, not the undo half.
+ * is the preview-then-commit half of doc 14 principle 5, not the undo half.
  * Nouns, not clauses (bead `ro-ujb9.96.6.4`): the heading says they stop. */
 const ARCHIVE_STOPS: { key: string; icon: typeof Bell; what: string }[] = [
   { key: "collection", icon: Database, what: "Data collection" },

@@ -1,5 +1,4 @@
-// ONE STORE PER CALL (the Postgres port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md; epic ro-ujb9.76).
+// ONE STORE PER CALL (epic ro-ujb9.76).
 //
 // Every way into this Worker — a request, a scheduled run, an RPC call —
 // runs its work with `withCallStore`: the Worker's own bindings plus `STORE`,

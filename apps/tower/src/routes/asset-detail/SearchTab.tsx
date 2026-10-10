@@ -28,13 +28,13 @@ import { SearchPair } from "@/routes/asset-detail/trend-panels";
 import { useRange } from "@/routes/asset-detail/useRange";
 
 /**
- * THE SEARCH TAB — which term, which page, which domain (doc 21, `ro-78qo.4`).
+ * THE SEARCH TAB — which term, which page, which domain (doc 14, `ro-78qo.4`).
  *
  * WHY IT EXISTS. Until 2026-09-05 all of this was the bottom nine tenths of the
  * Growth tab, which measured 10,139px at 1440 wide with every table open at
  * once. Growth asks *which way did the numbers go*; a tracked result page, a
  * query decision, a page decision, a competitor and a linking domain all answer
- * *which one* — a different question, and doc 21's first principle makes a
+ * *which one* — a different question, and doc 14's first principle makes a
  * different question a tab rather than a section further down.
  *
  * EVERYTHING OPENS COLLAPSED, which is the whole design. The panel shows its
@@ -85,7 +85,7 @@ export function SearchTab({
     <div id="search-evidence" className="flex scroll-mt-4 flex-col gap-5">
       {data.executive ? <AnalysisEvidence snapshot={data.executive} /> : null}
       {panel ? (
-        // The block that IS this tab's answer (`surface:audit`, doc 21): the
+        // The block that IS this tab's answer (`surface:audit`, doc 14): the
         // panel's scoreboard is what "how is search doing" looks like at a
         // glance, and the first screen is measured against its bottom edge.
         //
@@ -138,7 +138,7 @@ export function SearchTab({
       {/* WHAT THE PANEL BUYS IS ON SETTINGS (bead `ro-78qo.25`). `ro-78qo.4`
           parked the two register editors here behind a closed disclosure rather
           than delete them, because hand-editing `config/serp-panel.json` would
-          have been the operator's only remaining control; doc 21 principle 4
+          have been the operator's only remaining control; doc 14 principle 4
           gives a file-owned register a home on Settings, and that is where they
           went, with the spend meter and the monthly-cap sentence. Search keeps
           the BOARD — the evidence — which is what this tab is for. */}
@@ -230,7 +230,7 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
  * These were four bordered groups of labelled statistics on the Overview, under
  * a heading, two badges and a two-sentence caveat — the second thing an operator
  * saw on the page they open most. They belong beside the queries and pages they
- * are context FOR, and they belong as numbers rather than as a section: doc 21's
+ * are context FOR, and they belong as numbers rather than as a section: doc 14's
  * `SmallMultiple` strip is one bordered row of hairline cells, which is what a
  * list of counts actually is.
  *
@@ -315,7 +315,7 @@ function SearchContext({
         />
       </SmallMultipleStrip>
 
-      {/* ONE STRIP VISIBLE, THE REST BEHIND A DOOR (doc 21, bead `ro-78qo.4`).
+      {/* ONE STRIP VISIBLE, THE REST BEHIND A DOOR (doc 14, bead `ro-78qo.4`).
           Four strips of equal-weight numbers is twenty-two figures in one block
           with nothing saying which of them the operator came for — the
           "everything at once, in the same size" the redesign exists to cure. The
@@ -465,7 +465,7 @@ function overlapValue(entry: SerpCompetitor): string {
  *
  * The strips answer "is anything happening"; these answer "what, exactly". They
  * are reference tables — the named linking domains, the anchor distribution, the
- * keyword ideas, the full competitor set — and doc 21's rule for a reference
+ * keyword ideas, the full competitor set — and doc 14's rule for a reference
  * table on a view surface is that it opens closed.
  */
 function SearchContextRows({

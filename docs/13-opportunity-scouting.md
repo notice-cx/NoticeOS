@@ -154,28 +154,14 @@ evaporating at session end. A playbook entry's mature form is a **tool**
 method → documented playbook entry → deterministic script a cheap model
 operates.
 
-**Delta 2026-07-31 — the collection exists.** [`docs/playbooks/`](playbooks/README.md)
-is live with eleven entries, seeded from one site's archaeology: this is
-lane 6's *method*-capital harvest, the companion to the same day's rule harvest
-(seven executive rules, above). Each entry carries `{id, version, origin,
-status}` frontmatter and a fixed body — use-when, preconditions, method,
-if-X-then-Y decision rules, proof-and-abandonment, calibration, dated origin
-evidence — so an agent with no context on that site reaches the decision the origin
-sessions reached. Captured: impression-harvest, triangulate-before-acting,
-serp-authority-gate, market-go-no-go, serp-snippet-standard, kill-thresholds,
-freeze-register, utm-taxonomy, reclamation-pipeline, release-cohort-attribution,
-dead-ends-register. Three properties are deliberate. Numbers that were true of
-one property sit in *Origin evidence* or a calibration line, never in a decision
-rule — the method transfers, the thresholds are re-earned per asset. **Negative
-results are entries too**: the dead-ends register holds what was built, measured
-and written off (an AI-manifest file no answer engine reads; a rich-result
-treatment the engine removed, kept as markup and reframed as content), because a
-documented dead end is capital exactly like a working method. And the seven new
-rules in `scripts/signal-insights.mjs` now carry a provenance block mapping
-`rule: <id>` → playbook file, so a card's evidence row leads to the method
-instead of ending at a threshold. Crystallization runs both directions: a
-captured method becomes a rule, and a rule that fires cites the method that says
-what to do about it.
+**Delta 2026-07-31 — the collection existed, and was retired 2026-10-09.** A
+`docs/playbooks/` library of one site's SEO methods was seeded on 2026-07-31
+and retired on 2026-10-09: the methods that survived live as rules in
+[doc 08](08-seo-geo-signals.md) and in the panel review's own asks
+(`scripts/runner/panel-review.mjs`); the rest was one installation's history
+and belongs in that site's repository. The lesson stands: a method is
+portfolio-generic only when its thresholds are re-earned per asset, negative
+results are method capital, and a method's mature form is a tool.
 
 **Delta 2026-07-31 — the first playbook to get a table.** `reclamation-pipeline`
 crystallized one step further: its step-7 touch log is now

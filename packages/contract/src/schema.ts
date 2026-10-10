@@ -105,7 +105,7 @@ export type FlagDisposition = z.infer<typeof FlagDisposition>;
 
 /**
  * A flag as it lives in the store: a queryable row with disposition fields
- * (docs/02 §glossary, docs/15-E triage loop). `rule_id` is mandatory — every
+ * (docs/02 §glossary, docs/14-design.md § Operator flows triage loop). `rule_id` is mandatory — every
  * fired flag records the rule and (in `rule_inputs`, a JSON string) the actual
  * inputs it saw, so false positives are auditable.
  */
@@ -163,7 +163,7 @@ export function amountToMinorUnits(amount: number, currency = 'USD'): number {
 /**
  * The row's stable identity, namespaced by the source that issued it — the key
  * the store's unique index enforces and the handle a later reconciliation
- * points at (doc 19 finding 1).
+ * points at (the 2026-07 audit's finding 1).
  *
  * A source that issues its own record id supplies `external_id` and the row is
  * keyed by it. A hand-assembled monthly export usually issues nothing, so the

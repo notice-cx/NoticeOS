@@ -702,8 +702,7 @@ function stopOnExit(pgCtl, data, socketDir) {
 // workerd to the connection string it was given: workerd opens no unix
 // socket, and Miniflare refuses a local connection string without a password.
 // So a throwaway cluster can also listen on ONE loopback address and port,
-// for ONE role (bead ro-ujb9.76 port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md):
+// for ONE role (epic ro-ujb9.76):
 //   - the owner still reaches it only on the private socket folder, as in the
 //     socket-only profile;
 //   - over TCP, only noticeos_app, only from 127.0.0.1, only with the password

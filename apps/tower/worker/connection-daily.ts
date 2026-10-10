@@ -2,7 +2,7 @@
 // day (`noticeos.connection_daily_counts`, bead `ro-78qo.30`).
 //
 // WHY IT EXISTS. /health states how many connections are working, degraded and
-// not set up, and doc 21 asks for a series behind each figure plus a step chart
+// not set up, and doc 14 asks for a series behind each figure plus a step chart
 // of freshness by lane. `buildIntegrationsMatrix` computes all of that at RENDER
 // TIME — from `config/integrations.json`, `signal_runs`, open flags and
 // `egress_checks` — and kept none of it, so the two figures that are not a
@@ -262,7 +262,7 @@ export function portfolioSeries(
 }
 
 /**
- * How stale each lane's evidence was, day by day — doc 21's freshness-by-lane
+ * How stale each lane's evidence was, day by day — doc 14's freshness-by-lane
  * step chart, in hours.
  *
  * The age is measured from the instant the day was OBSERVED rather than from

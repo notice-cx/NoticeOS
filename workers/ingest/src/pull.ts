@@ -1,4 +1,4 @@
-// The PULL adapter (docs/02 §"Central signals", docs/06, docs/15-A baselining).
+// The PULL adapter (docs/02 §"Central signals", docs/06, docs/14-design.md § Operator flows baselining).
 //
 // NoticeOS runs local-first: prod assets that cannot reach the OS to *push*
 // their nightly pulse are instead PULLED. A nightly cron fetches each enabled
@@ -38,7 +38,7 @@ import pullConfigJson from '../../../config/pull.json';
 /** rule id stamped on the flag raised when an asset's nightly pull fails. */
 export const PULL_FAILED_RULE_ID = 'asset-pull-failed';
 
-/** How many recent stored pulses feed the computed avg7d baseline (docs/15-A). */
+/** How many recent stored pulses feed the computed avg7d baseline (docs/14-design.md § Operator flows). */
 const AVG7D_WINDOW = 7;
 
 /** Fields common to every pull-mode asset config row (config/pull.json). */
@@ -128,14 +128,14 @@ function extractCounts(samples: PromSample[], counter: string): { last24h: numbe
   return { last24h, total };
 }
 
-// --- avg7d baseline from stored history (docs/15-A) -------------------------
+// --- avg7d baseline from stored history (docs/14-design.md § Operator flows) -------------------------
 
 /**
  * Per-metric avg7d computed from the last {@link AVG7D_WINDOW} stored pulses for
  * the asset (days strictly before today, so a same-day re-pull never skews it).
  * With no stored history a metric falls back to its current last24h — which
  * makes the central drop rule a no-op (observed == baseline) until a real
- * baseline accumulates, exactly the docs/15-A "arm the rules after baselining"
+ * baseline accumulates, exactly the docs/14-design.md § Operator flows "arm the rules after baselining"
  * intent. The source's own point-in-time counts are never trusted as baselines.
  */
 async function computeAvg7d(
@@ -227,7 +227,7 @@ interface ProviderError {
 
 /**
  * A pull failure that carries the provider's own error shape so the operator
- * sees the source's own words in the alert message and `rule_inputs` (doc 15
+ * sees the source's own words in the alert message and `rule_inputs` (doc 14
  * flow C spirit), not just an HTTP status.
  */
 class PullError extends Error {

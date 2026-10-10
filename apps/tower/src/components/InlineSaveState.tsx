@@ -20,8 +20,7 @@ export type InlineSave =
  * *Registry justification:* `KnobEditor` drew "Saved · Undo" inline since bead
  * `ro-ujb9.96.6.3`, and a table cell and a schedule row now save the same way;
  * three private copies of one state would drift into three wordings of it. This
- * is that state, once, after GitLab Pajamas' saving pattern
- * (docs/briefs/2026-09-23-inline-save.md#prior-art): "Saving…" while the write
+ * is that state, once, after GitLab Pajamas' saving pattern: "Saving…" while the write
  * is out, a check with "Saved" and an **Undo** once it landed, and — the part
  * that used to be a corner toast — "Not saved" with the refusal's own words
  * when it did not, so the operator reads the outcome where they made the
@@ -40,7 +39,7 @@ export function InlineSaveState({
   /**
    * The field this outcome is about, e.g. `field:Time zone`. A save's
    * state is a fact about ITS field, so two fields saved on one screen are two
-   * subjects, not one status shown twice (doc 21 principle 3b). Drawn as
+   * subjects, not one status shown twice (doc 14 principle 3b). Drawn as
    * `data-status-for`, the attribute the flow gate reads a status's subject
    * from.
    */

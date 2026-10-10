@@ -1,5 +1,5 @@
 /** WHAT THE OS INTERRUPTS THE OPERATOR ABOUT — declared ONCE, here
- * (bead `ro-vu8d.23`, doc 15 flow E, doc 11's Discord row).
+ * (bead `ro-vu8d.23`, doc 14 flow E, doc 11's Discord row).
  *
  * WHY IT IS A DECLARATION AND NOT A FUNCTION IN THE SENDER. Two runtimes have to
  * agree: `workers/ingest/src/notifier.ts` decides what to send, and the
@@ -10,7 +10,7 @@
  * nothing in the OS sent anything at all.
  *
  * THE LIST IS SHORT ON PURPOSE. Alert fatigue is doc 11's own named failure mode
- * for this channel ("keep channels few"), and doc 15 flow E's whole design is
+ * for this channel ("keep channels few"), and doc 14 flow E's whole design is
  * that a roll-up defers to the action list (D15). A notifier that forwarded
  * every alert would be a second, worse copy of `/alerts` arriving at 3am — so
  * what qualifies is the honest minimum: something the operator would want to
@@ -64,7 +64,7 @@ export const NOTIFIED_CONDITIONS: readonly NotificationRule[] = [
 /**
  * The most lines one message carries.
  *
- * Doc 15 flow E's own rule for this channel, applied to a live notifier rather
+ * doc 14 flow E's own rule for this channel, applied to a live notifier rather
  * than to the digest it was written about: "capped at 10 items — if more than 10
  * things need attention, the digest's own noise is the incident". Past the cap
  * the message says how many more there were, and every one of them is recorded

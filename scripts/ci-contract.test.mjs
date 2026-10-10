@@ -137,11 +137,11 @@ test('job extraction cannot borrow a missing gate from a sibling job', () => {
   assert.throws(() => jobBlock(workflow, 'missing'), /must declare the missing job/u);
 });
 
-test('CI runs the isolated user journeys and the flow gate and keeps their evidence', () => {
+test('CI runs the isolated user journeys and the flow walker and keeps their evidence', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
   for (const [name, step, evidence] of [
     ['browser', 'test:journeys', ['playwright-report', 'test-results']],
-    // The screenshot every flow-gate failure names (bead ro-ujb9.95).
+    // The walker's measurements, and the screenshot a flow that could not finish names.
     ['flow-gate', 'test:ux-flows', ['ux-flows-results']],
   ]) {
     const job = jobBlock(workflow, name);
@@ -155,17 +155,17 @@ test('CI runs the isolated user journeys and the flow gate and keeps their evide
       `${name} sets JOURNEY_WORKERS`);
   }
 
-  // The journeys end with the UX flow gate, so every agent that touches the
-  // Tower and runs the journeys meets it, and so does CI (bead ro-ujb9.95).
-  // The gate runs even when a journey fails, and the step fails if either
-  // does: a red journey once hid the gate's verdict for whole runs (issue #3).
+  // The journeys end with the flow walker, so every agent that touches the
+  // Tower and runs the journeys sees its report, and so does CI. The walker
+  // runs even when a journey fails, and the step fails if either does: a red
+  // journey once hid the walker's result for whole runs (issue #3).
   const manifest = JSON.parse(readFileSync(MANIFEST, 'utf8'));
   assert.equal(manifest.scripts?.['test:journeys'],
     'pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && { pnpm --filter @noticeos/tower run test:journeys; journeys=$?; pnpm --filter @noticeos/tower run test:ux-flows && exit $journeys; }');
   const tower = JSON.parse(readFileSync(path.join(REPO_ROOT, 'apps', 'tower', 'package.json'), 'utf8'));
   assert.equal(tower.scripts?.['test:ux-flows'], 'node e2e/flow-gate.mjs');
   assert.equal(manifest.scripts?.['ux:flows'], 'node apps/tower/e2e/flow-gate.mjs');
-  assert.equal(manifest.scripts?.['ux:flows:baseline'], 'node apps/tower/e2e/flow-gate.mjs --write-baseline');
+  assert.equal(manifest.scripts?.['ux:flows:baseline'], undefined, 'the walker keeps no budget to lower');
 });
 
 test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites on the whole runner', () => {

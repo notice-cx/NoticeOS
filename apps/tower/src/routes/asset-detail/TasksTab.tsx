@@ -22,7 +22,7 @@ import { TasksBoard } from "@/routes/tasks/TasksBoard";
  * WHOLE board, so the audit measured the bottom of the 25-row table and reported
  * the first screen 973px over. Only the board knows where its answer ends, so
  * the board marks it (bead `ro-78qo.32`). The `About` is the board's for the
- * same reason, and doc 21 allows a screen exactly one.
+ * same reason, and doc 14 allows a screen exactly one.
  */
 export function TasksTab({ data }: { data: AssetDetailFor<"tasks"> }) {
   return (

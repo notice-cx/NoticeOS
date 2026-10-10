@@ -1,3 +1,4 @@
+// Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review.
 import fs from "node:fs/promises";
 import net from "node:net";
 import path from "node:path";

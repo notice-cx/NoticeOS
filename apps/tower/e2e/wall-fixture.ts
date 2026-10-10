@@ -154,7 +154,7 @@ const ATTENTION = [{
 }] as AttentionItem[];
 
 /**
- * The Wall at every size the contract budgets for (docs/25-the-wall.md
+ * The Wall at every size the contract budgets for (docs/14-design.md
  * § Density and § Budget, bead ro-trai.12), all from the six sites above:
  *
  *   one, two, three  the first one, two or three sites (the focus and roomier tiers)

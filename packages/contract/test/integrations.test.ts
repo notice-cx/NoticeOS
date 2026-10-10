@@ -413,7 +413,7 @@ describe('the expiry a card counts down', () => {
     expect(far.state).toBe('ok');
     expect(far.daysRemaining).toBe(CREDENTIAL_EXPIRY_WARN_DAYS + 1);
 
-    // Exactly on the horizon is INSIDE it: doc 15 flow C step 4 says flag at
+    // Exactly on the horizon is INSIDE it: doc 14 flow C step 4 says flag at
     // T-14d, and a boundary that waited until 13 days would be flagging late.
     const edge = credentialExpiry(
       metadata({ expiresAt: new Date(NOW + CREDENTIAL_EXPIRY_WARN_DAYS * DAY).toISOString() }),

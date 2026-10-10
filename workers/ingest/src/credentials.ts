@@ -1,7 +1,6 @@
 // The credential store: every provider secret the product holds, encrypted
 // under ONE bootstrap key, and the resolver every provider client goes through
-// (epic `ro-vu8d`, bead `ro-vu8d.1`). On Postgres (the port pattern,
-// docs/briefs/2026-09-29-postgres-port-pattern.md; bead ro-ujb9.76.4.4, under
+// (epic `ro-vu8d`, bead `ro-vu8d.1`). On Postgres (bead ro-ujb9.76.4.4, under
 // the operator's approval on ro-ujb9.76.31): a provider's connection is a row
 // of noticeos.integration_connections, its sealed secret the current version
 // in noticeos.connection_secrets, both through this call's store, `env.STORE`.

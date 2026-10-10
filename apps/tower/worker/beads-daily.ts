@@ -61,7 +61,7 @@ function closedCount(stored: string | null): number | null {
  * days a poller did not measure them and `closed` on the days whose closings
  * were not observable; each of those is a day MISSING from that one series
  * while the other five keep it. Pushing a zero instead would draw a queue that
- * emptied on the day nobody looked (doc 21 principle 8).
+ * emptied on the day nobody looked (doc 14 principle 8).
  */
 export async function loadBeadsDailyHistory(store: WorkspaceStore): Promise<BeadsDailyHistory> {
   const rows = await store.read((tx) =>

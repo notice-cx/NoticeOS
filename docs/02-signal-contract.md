@@ -20,7 +20,7 @@ survives from v1: every asset emits the same **shapes**, so adding a property is
   Milestone-kind flags are always info-severity.) The pulse JSON carries
   flags **in transit**; the central store persists them as their own
   queryable rows with disposition fields (mark-read/ack, snooze, tune,
-  incident, hypothesis + `resolved_at`) — the doc 15-E triage loop and per-rule
+  incident, hypothesis + `resolved_at`) — the doc 14-E triage loop and per-rule
   false-positive rates need flags as a table, not JSON archaeology.
 - **Annotation** — a timeline event: deploy, model-version change, config/
   pricing change, incident, autonomy-tier change. Annotations are first-class
@@ -126,10 +126,10 @@ without a manifest row; where the API does reject the field, the attempt is
 recorded as `ga4_custom_dimension_unregistered`, never as an empty success.
 It also retains six BWT families: rank traffic, top queries, top pages, crawl
 stats, crawl issues, and feeds.
-Migration `0007_signal_dumps.sql` appends one D1 manifest per report attempt;
+The archive manifest (`0007_signal_dumps.sql` in the retired D1 schema; `archive_runs` in Postgres) appends one row per report attempt;
 unchanged re-fetches point at the prior content-addressed object instead of
 duplicating bytes. This makes the deeper data available to offline scripts
-without turning D1 into a document store or making the Tower wait on Google.
+without turning the store into a document store or making the Tower wait on Google.
 Migration `0009_bing_signal_dumps.sql` widens the constrained manifest contract
 for BWT without deleting or rewriting prior evidence.
 The analyzer emits a bounded evidence-bearing executive snapshot, an optional
@@ -225,12 +225,13 @@ table rather than treating any series as truth:
 
 ## Central store
 
-One D1 in the NoticeOS account: `(asset, date)` pulse rows + normalized signal
+One Postgres database (D25; the frozen schema in `db/postgres/`, the helper in
+`packages/postgres/`): `(asset, date)` pulse rows + normalized signal
 tables + raw-object manifests + compact insight snapshots + the ledger +
 annotations + pre-registered watch windows
 (`0012_watch_windows.sql`, [doc 03](03-attribution.md)). The private
 `RAW_SIGNALS` R2 bucket holds gzip provider-response archives; locally it is
-persisted under the same `.wrangler/state` root as D1. Both stores are
+persisted under `.wrangler/state`. Both stores are
 append-only; history is what powers trends, baselines, attribution, and
 calibration. An open flag is the one row whose summary moves: a lane that keeps
 one open flag for a lasting condition (the nightly pull's `asset-pull-failed`)

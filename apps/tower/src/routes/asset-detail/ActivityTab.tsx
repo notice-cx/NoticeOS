@@ -41,7 +41,7 @@ import { WatchComposer, WatchesStrip } from "@/routes/asset-detail/WatchComposer
 
 /**
  * THE ACTIVITY TAB — what has already happened to this asset (`ro-pbzu.4`),
- * restyled to doc 21 under `ro-78qo.5`.
+ * restyled to doc 14 under `ro-78qo.5`.
  *
  * THE TIMELINE IS THE ANSWER, so it is the declared hero and the first thing on
  * the tab. It was buried under two open composer buttons, a watches strip and a
@@ -71,7 +71,7 @@ export function ActivityTab({
     <div className="flex flex-col gap-3.5">
       <TimelineSection data={data} nowMs={nowMs} seed={seed} onSeedDone={onSeedDone} />
       {/* THE WEEKLY PANEL REVIEW'S OBLIGATION, re-homed (`ro-78qo.5`).
-          It rode inside the state block above the tabs, and doc 21's rebuilds
+          It rode inside the state block above the tabs, and doc 14's rebuilds
           stood that block down — which would have left the asset page saying
           nothing about the review again, the exact hole `ro-elf` opened this
           component to fill: an overdue badge on the Wall means "open this page
@@ -87,7 +87,7 @@ export function ActivityTab({
         className="px-1"
       />
       <ReclamationSection reclamation={data.reclamation} />
-      {/* NO "ABOUT THIS HISTORY" (doc 21 principle 3a, bead
+      {/* NO "ABOUT THIS HISTORY" (doc 14 principle 3a, bead
           `ro-ujb9.96.6.6`). The timeline's own Record action says it is written
           by hand; a watch's progress and verdict are drawn on its row; link
           outreach offers no control, which is what read-only looks like. */}
@@ -153,7 +153,7 @@ function TimelineSection({
   // rides in the header beside the count exactly as it did in the old card's
   // right slot — including the WORD it prints when nothing has ever been
   // recorded, because an em dash there reads as a rendering failure rather than
-  // as "never" (`ro-kukv.12`, doc 17 rule 6).
+  // as "never" (`ro-kukv.12`, doc 14 rule 6).
   const count = counted || undefined;
 
   return (
@@ -272,13 +272,13 @@ function TimelineSection({
 
 /** The four tones a change wears. An incident is the one kind of recorded event
  * that is bad news, so it is the one that is not muted; everything else is
- * history, not attention (doc 21: `info` is the row asking for nothing). */
+ * history, not attention (doc 14: `info` is the row asking for nothing). */
 const KIND_TONE: Partial<Record<AnnotationKind, ListRowTone>> = {
   incident: "error",
 };
 
 /**
- * One recorded change, as a doc 21 row.
+ * One recorded change, as a doc 14 row.
  *
  * The glyph is the kind's own — `ANNOTATION_KIND`, the same table the alert
  * surfaces' change chip reads, so a deploy is one glyph and one word everywhere
@@ -300,7 +300,7 @@ function TimelineRow({
   // A lifecycle move (bead `ro-3085`) stores the two stages in its `ref`,
   // because that is the row's identity and the field Restore reads. The ref is
   // MACHINE text, so the row renders the sentence instead of it — one
-  // representation of the move, in words (doc 14, doc 17).
+  // representation of the move, in words (doc 14, doc 14).
   const move = parseLifecycleMoveRef(item.ref);
   const task = item.ref ? (beads ?? []).find((b) => b.beadId === item.ref) : undefined;
   // A move with no note IS the row's headline (below), so it is not repeated
@@ -308,7 +308,7 @@ function TimelineRow({
   const evidence = (item.note ? move : null) ?? task ?? (move ? null : item.ref);
   // THE ROW SAYS THE HEADLINE; THE REST IS INSIDE IT. Recorded notes run long —
   // one site's is a hundred and forty words about two mis-specified bets —
-  // and doc 21 will not leave a paragraph on the page. The first sentence is the
+  // and doc 14 will not leave a paragraph on the page. The first sentence is the
   // change; everything after it is the operator's reasoning, and reasoning is
   // what a row opens to show.
   // A lifecycle move carries no note, and its sentence IS what happened — so
@@ -336,7 +336,7 @@ function TimelineRow({
           rendered richer — id plus filed or shipped — and never a second marker
           beside a mono string. A CLOSED bead here is still not a measured
           outcome: the verdict comes from a watch window carrying the same id
-          (docs/playbooks/task-key-chain.md). */}
+          (the task-key chain). */}
       {evidence ? (
         <span className="flex flex-wrap items-center gap-2">
           {move && item.note ? (
@@ -368,7 +368,7 @@ function firstSentence(note: string): string {
   return note.slice(0, match.index + 1);
 }
 
-/** The six kinds db/0001 admits, in the words doc 17 maps them to. */
+/** The six kinds db/0001 admits, in the words doc 14 maps them to. */
 const ANNOTATION_KIND_OPTIONS: { value: AnnotationKind; label: string }[] = [
   { value: "deploy", label: "Deploy" },
   { value: "config", label: "Config change" },
@@ -395,7 +395,7 @@ const ANNOTATION_KIND_OPTIONS: { value: AnnotationKind; label: string }[] = [
  *
  * Choosing a bead does NOT mean the work is proven. It records what caused the
  * change; the verdict comes from a watch window on the same id, and there is no
- * auto-revert (docs/playbooks/task-key-chain.md).
+ * auto-revert.
  */
 function AnnotationComposer({
   assetId,
@@ -534,7 +534,7 @@ function AnnotationComposer({
 }
 
 /**
- * The link-outreach funnel, in the words doc 17 maps `reclamation_targets` to.
+ * The link-outreach funnel, in the words doc 14 maps `reclamation_targets` to.
  * `won` carries the reserved milestone accent because a reclaimed link is a
  * milestone-kind outcome; every other stage is deliberately quiet, and each one
  * is named in text, so the line never states anything by color alone (doc 14).

@@ -43,8 +43,8 @@ production availability. Customer account hosting remains outside this release.
 ## Qualify a release candidate
 
 Record an immutable source commit and verification receipts. Use the locked
-dependency graph and the declared tool versions. All five
-[CI gates](../CONTRIBUTING.md#run-focused-checks-then-the-release-gates) must pass;
+dependency graph and the declared tool versions. All six
+[CI jobs](../CONTRIBUTING.md#run-focused-checks-then-the-release-gates) must pass;
 the evidence must name skipped tests and separately qualified deployment paths.
 Changes to database, task, backup or hosted behavior need the relevant
 disposable integration and recovery proofs as well.
@@ -74,7 +74,7 @@ The [local deployment adapter](../scripts/README.md#merging-is-not-deploying--pn
 switches runtime copies and checks migration compatibility. App rollback keeps
 the updated database; it does not reverse a migration. Restore and database
 engine upgrades have separate procedures and must not be inferred from an app
-rollback command. The office Mac adapter is not a general hosted upgrade API.
+rollback command. The macOS service adapter is not a general hosted upgrade API.
 
 Hosted activation additionally records the exact server profiles and origin,
 identity/mail/edge bindings, scoped service grants and executable registries,
@@ -83,8 +83,8 @@ remote PostgreSQL connectivity/TLS, task transport and backup/restore for that
 same target before claiming support. The portable demo keeps PostgreSQL inside
 its private Compose network and shares a network namespace for app-to-Dolt
 loopback transport. It does not qualify remote database services. Customer
-hosting and other transports need their own qualification; the office Mac
-deployment adapter is not a remote release mechanism.
+hosting and other transports need their own qualification; the macOS service
+adapter is not a remote release mechanism.
 
 Retain occurrence journals across app changes and rollback. An uncertain
 outside effect remains halted after restart; app rollback does not authorize

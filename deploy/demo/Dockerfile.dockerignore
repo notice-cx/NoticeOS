@@ -19,8 +19,6 @@
 !db/**
 !deploy/
 !deploy/**
-!docs/templates/
-!docs/templates/**
 **/node_modules
 **/.*
 **/test

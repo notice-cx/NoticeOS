@@ -51,7 +51,7 @@ export { ASSET_ID_MAX, DISPLAY_NAME_MAX, ASSET_ID_RE, DOMAIN_RE } from '@noticeo
 // The draft
 // ---------------------------------------------------------------------------
 
-/** How the OS gets this asset's nightly numbers (doc 17: "Data collection"). */
+/** How the OS gets this asset's nightly numbers (doc 14: "Data collection"). */
 export type CollectionMode = "push" | "pull";
 
 /** What a fetched endpoint speaks. `envelope` is doc 02's pulse envelope;
@@ -223,7 +223,7 @@ export function siteDraft(answers: SiteAnswers): AssetDraft {
  * own id so the screen can render it beside that field. */
 export interface FieldIssue {
   field: string;
-  /** A short state, never a paragraph (doc 21 principle 3a). */
+  /** A short state, never a paragraph (doc 14 principle 3a). */
   message: string;
   /** Set when the refusal is "this site is already here": the id of the asset
    * the operator can open instead. */
