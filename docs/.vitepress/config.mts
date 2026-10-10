@@ -5,14 +5,13 @@ import { defineConfig } from 'vitepress';
 import llmstxt, { copyOrDownloadAsMarkdownButtons } from 'vitepress-plugin-llms';
 
 // The documentation site: the guides, screens and operations pages for the
-// person at the desk, and the numbered design library beside them. `DOCS_BASE`
-// sets the path the site is served under (`/NoticeOS/` on GitHub Pages, `/` on
-// a domain of its own).
+// person at the desk, and the numbered design library beside them. It is served
+// at the root of its own domain; `DOCS_BASE` and `DOCS_SITE` serve a copy elsewhere.
 
 const repo = 'https://github.com/notice-cx/NoticeOS';
 const base = process.env.DOCS_BASE ?? '/';
-// Where the site is served, for the sitemap and llms.txt links; GitHub Pages by default.
-const site = process.env.DOCS_SITE ?? 'https://notice-cx.github.io/NoticeOS/';
+// Where the site is served, for the sitemap and llms.txt links.
+const site = process.env.DOCS_SITE ?? 'https://docs.notice.cx/';
 const docsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 // The design library's sidebar is its index table in README.md, so the two cannot disagree.

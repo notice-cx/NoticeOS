@@ -33,8 +33,6 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @noticeos/docs run build
-        env:
-          DOCS_BASE: /NoticeOS/
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
