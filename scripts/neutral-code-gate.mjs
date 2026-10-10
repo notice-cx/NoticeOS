@@ -42,7 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { CONFIG_REGISTERS, escapeRegExp } from './config-registers.mjs';
 import { checkoutRelative, installationDir, installationPath, readablePath } from './installation.mjs';
 import { readJsonFileSync } from './json-file.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 
 export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 

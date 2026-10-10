@@ -13,7 +13,7 @@
 #   - the empty noticeos database, owned by noticeos_owner, which only the
 #     application and maintenance roles may connect to besides its owner;
 #   - query statistics (pg_stat_statements) in it.
-# It never builds the schema: that is the operator's `pnpm postgres:migrate`.
+# It never builds the schema: that is the operator's `pnpm os:migrate`.
 #
 # Executed (the file is executable) or sourced by the entrypoint (a checkout
 # that lost the executable bit), the body runs in a subshell, so its shell

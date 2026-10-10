@@ -25,10 +25,10 @@ You need a backup with a restore path you have tested, and the target release's 
 2. Check for pending database changes. This reads only:
 
    ```sh
-   pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
+   pnpm os:migrate
    ```
 
-   `NOTICEOS_OWNER_URL` is an environment variable holding the owner login's connection string for the target database. The command prints `***` wherever it would repeat a password.
+   It finds the stack's database from `.local/stack.json` and never prints a password.
 
 3. Take a backup with a restore path you have tested. See [Backups and restore](/operate/backups-and-restore).
 4. Read the target release's own instructions.
@@ -82,19 +82,19 @@ Database migrations are **your step, every time**. Do them with the service stop
 1. In the checkout, read the pending migrations:
 
    ```sh
-   pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
+   pnpm os:migrate
    ```
 
 2. Stop the service: `pnpm os:stop` for the macOS service, `pnpm stack:stop` for a Compose stack, or Ctrl-C in a `pnpm start` terminal.
 3. Apply the migrations:
 
    ```sh
-   pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
+   pnpm os:migrate -- --apply
    ```
 
 4. Start the service again: `pnpm os:start`, `pnpm stack:start`, or `pnpm start`.
 
-The apply prints its plan first, needs the database name typed twice, runs in one transaction with a lock, and applies only migrations whose hashes the release froze. A changed or out-of-order migration stops it.
+The apply prints its plan first, asks you to type the database's name, runs in one transaction with a lock, and applies only migrations whose hashes the release froze. A changed or out-of-order migration stops it.
 
 ::: warning Never adopt an existing database through fresh setup
 Do not point `pnpm start` at an existing database to "migrate" it, and never edit a migration that has been applied. Those paths are refused by design.
@@ -113,7 +113,7 @@ The demo has its own updater, `deploy/demo/update.sh`, which builds the target c
 ## Verify
 
 - `pnpm os:status` or `pnpm stack:status` names the new commit and no longer says `main` is ahead.
-- `pnpm postgres:migrate status` lists nothing pending.
+- `pnpm os:migrate` lists nothing pending.
 - The migration apply exits with code 0. The Wall reloads on its next request; desk pages show an update prompt.
 
 ## If it didn't work

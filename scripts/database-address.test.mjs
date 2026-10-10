@@ -149,16 +149,16 @@ test('the check stops a start whose database does not answer, refuses the login,
   const cases = [
     [{}, null],
     [{ migrationsDir: extra, applied: [1, 2, 3] }, null],
-    [{ migrationsDir: extra, applied: [1] }, /is 2 migrations behind this code; pnpm postgres:migrate apply brings it up to date/u],
+    [{ migrationsDir: extra, applied: [1] }, /is 2 migrations behind this code; pnpm os:migrate -- --apply brings it up to date/u],
     [{ migrationsDir: extra, applied: [1, 2] }, /is 1 migration behind this code/u],
-    [{ workspace: async () => { throw named('NoSingleWorkspace'); } }, /has no workspace yet; pnpm postgres:migrate bootstrap creates it/u],
+    [{ workspace: async () => { throw named('NoSingleWorkspace'); } }, /has no workspace yet; pnpm os:migrate -- --bootstrap creates it/u],
     [{ workspace: async () => { throw named('TransactionRefused'); } }, /logs in as another role; NoticeOS logs in as noticeos_app/u],
     [{ workspace: async () => { throw failing({ code: 'ECONNREFUSED' }); } }, /does not answer; start it \(db\/postgres\/host\/README\.md\), then try again/u],
     [{ workspace: async () => { throw failing({}); } }, /could not be checked; see/u],
     [{ workspace: async () => { throw new Error('timeout expired'); } }, /does not answer/u],
     [{ workspace: async () => { throw failing({ code: '28P01' }); } }, /refused its login; check the user and password in DATABASE_URL/u],
     [{ workspace: async () => { throw failing({ code: '3D000' }); } }, /does not exist \(db\/postgres\/host\/README\.md creates it\)/u],
-    [{ workspace: async () => { throw failing({ code: '42883' }); } }, /has no NoticeOS schema its login can read; pnpm postgres:migrate apply creates it/u],
+    [{ workspace: async () => { throw failing({ code: '42883' }); } }, /has no NoticeOS schema its login can read; pnpm os:migrate -- --apply creates it/u],
     [{ ledger: failing({ code: '42501' }) }, /does not let its login read which migrations it has/u],
     [{ workspace: async () => { throw failing({ code: '53300' }); } }, /could not be checked \(53300\)/u],
   ];
@@ -212,7 +212,7 @@ test('the record is read as the application login, only read, with each version,
   assert.equal(store.closed, true);
 
   for (const [given, expected] of [
-    [{ workspace: async () => { throw named('NoSingleWorkspace'); } }, /has no workspace yet; pnpm postgres:migrate bootstrap creates it/u],
+    [{ workspace: async () => { throw named('NoSingleWorkspace'); } }, /has no workspace yet; pnpm os:migrate -- --bootstrap creates it/u],
     [{ workspace: async () => { throw failing({ code: 'ECONNREFUSED' }); } }, /does not answer; start it \(db\/postgres\/host\/README\.md\), then try again/u],
     [{ ledger: failing({ code: '42501' }) }, /does not let its login read which migrations it has/u],
   ]) {

@@ -2,9 +2,9 @@
 // carries, held against what a database's noticeos_migrations.applied records.
 //
 // One derivation, three readers: the development runner's and
-// `pnpm postgres:migrate`'s status (what stops an apply), and `pnpm os:deploy`
+// `pnpm os:migrate`'s status (what stops an apply), and `pnpm os:deploy`
 // (what stops a deploy). So a migration the deploy calls changed is exactly
-// the one `pnpm postgres:migrate status` prints as changed.
+// the one `pnpm os:migrate` prints as changed.
 //
 // Pure: it reads no file and opens no connection. Each caller brings the files
 // (from a folder, or from a commit through git) and the records (read in a READ

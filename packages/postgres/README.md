@@ -9,7 +9,7 @@ and reads and writes every value exactly. The rules are in the header of
 Operational settings, evidence and readers use this helper: a Worker reaches
 Postgres only through its `POSTGRES` Hyperdrive binding, one store per call;
 a script writes the store through the ingest's operator-authed door and never
-holds a database credential. The migration runner (`pnpm postgres:dev`) keeps its own
+holds a database credential. The migration runner (`pnpm db:try-migrations`) keeps its own
 administrative connection and never uses it.
 
 ## Using it

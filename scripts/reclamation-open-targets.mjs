@@ -20,7 +20,7 @@ import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 import { reclamationTargetList } from './signal-insights.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');

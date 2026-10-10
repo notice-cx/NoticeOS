@@ -217,7 +217,7 @@ migration, restore, config apply, deployment, kill switch or measurement-rule
 edit is never caught up by hand.
 
 A restart or local deploy never applies migrations. DB migrations are an
-explicit operator-only sequence: `pnpm os:stop` → `pnpm postgres:migrate apply …`
+explicit operator-only sequence: `pnpm os:stop` → `pnpm os:migrate -- --apply …`
 → `pnpm os:start` ([Postgres maintenance](scripts/README.md#the-postgres-stores-counterpart-postgresmigrate)).
 `os:stop` / `os:start` / `os:install` / `os:uninstall` are operator-directed; an
 agent's verbs are `os:restart` and, after a verified merge, `os:deploy`.

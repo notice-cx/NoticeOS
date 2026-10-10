@@ -18,7 +18,6 @@
 import { realpathSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { TASK_HOST_FILE, readablePath } from './installation.mjs';
 import { stripJsonc } from './jsonc.mjs';
 import { PRODUCT_ENV, readProductEnv } from './product-env.mjs';
@@ -78,19 +77,7 @@ export function resolveHomeRoot(codeRoot, env = process.env) {
   return homeOfRuntimeSlot(codeRoot) ?? codeRoot;
 }
 
-/**
- * Is this module the script node was asked to run? Compared through realpath:
- * launchd runs the runner through the `current` link, and node resolves the
- * link for `import.meta.url` but leaves `process.argv[1]` as typed.
- */
-export function invokedDirectly(argv1, moduleUrl) {
-  if (!argv1) return false;
-  try {
-    return realpathSync(path.resolve(argv1)) === realpathSync(fileURLToPath(moduleUrl));
-  } catch {
-    return false;
-  }
-}
+export { invokedDirectly } from './invoked-directly.mjs';
 
 /** Same place on disk? Compared through realpath, so `/tmp` vs `/private/tmp` agree. */
 export function samePath(a, b) {

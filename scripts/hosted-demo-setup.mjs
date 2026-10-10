@@ -23,7 +23,7 @@ import { openTaskCatalogSetup } from '../packages/postgres/src/task-catalog.mjs'
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { readDemoArtifact } from './hosted-demo-server.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 const require = createRequire(new URL('../packages/postgres/package.json', import.meta.url));
 const { Pool } = require('pg');
 const nativeCommand = runCommand;

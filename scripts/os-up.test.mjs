@@ -166,7 +166,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 test('supervision can never apply an operator-only migration', () => {
   const source = readFileSync(path.join(REPO_ROOT, 'scripts', 'os-up.mjs'), 'utf8');
   assert.doesNotMatch(source, /d1[\s'",]+migrations[\s'",]+apply/u);
-  assert.doesNotMatch(source, /postgres-migrate\.mjs|['"]postgres:migrate['"]/u);
+  assert.doesNotMatch(source, /postgres-migrate\.mjs|['"]os:migrate['"]/u);
   assert.match(source, /Postgres migrations are operator-only — startup applies none/u);
 });
 

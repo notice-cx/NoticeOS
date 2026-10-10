@@ -355,7 +355,7 @@ contents belong in the payload suites.
 
 `wrangler.jsonc` binds `POSTGRES` through Hyperdrive. The application uses
 `packages/postgres`; migrations are explicit operator work through
-`pnpm postgres:migrate`, and neither Worker startup nor deployment applies
+`pnpm os:migrate`, and neither Worker startup nor deployment applies
 them. Remote resource provisioning and deployment require their own approval;
 see [hosting and access](../../README.md#deployment-status) and the
 [Postgres host profile](../../db/postgres/host/README.md).

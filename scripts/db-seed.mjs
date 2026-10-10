@@ -25,7 +25,8 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { DATABASE_URL, checkDatabase, readDatabaseAddress } from './database-address.mjs';
 import { readDevSecretBindings } from './dev-secrets.mjs';
-import { invokedDirectly, samePath } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
+import { samePath } from './os-runtime.mjs';
 import { DEVELOPMENT, PROFILE_SETTING } from './postgres-profile.mjs';
 import { startPlan } from './start.mjs';
 

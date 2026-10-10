@@ -1,7 +1,7 @@
 # Postgres operational store
 
 *Postgres is the supported operational store. Applying migrations to an
-existing installation requires explicit operator approval. `pnpm postgres:migrate` is operator-only
+existing installation requires explicit operator approval. `pnpm os:migrate` is operator-only
 ([Applying it to an installation's own database](#applying-it-to-an-installations-own-database)).
 The approved exception for a provably new, empty installation is
 [`pnpm start`](host/README.md#a-new-installation), using the same helpers.*
@@ -576,18 +576,18 @@ real schema, as the application role unless the case says maintenance:
 
 ## Applying it: the development profile
 
-`pnpm postgres:dev` ([`scripts/postgres-migrate.mjs`](../../scripts/postgres-migrate.mjs))
+`pnpm db:try-migrations` ([`scripts/postgres-migrate.mjs`](../../scripts/postgres-migrate.mjs))
 applies these migrations to a development database and to nothing else. It is
-not the live store's tool (that is the operator-only `pnpm postgres:migrate`,
+not the live store's tool (that is the operator-only `pnpm os:migrate`,
 [below](#applying-it-to-an-installations-own-database)), and nothing runs it
 but this command: no runtime, restart
 or deploy loads it, so a restart never applies schema.
 
 ```sh
-pnpm postgres:dev status --dir /tmp/noticeos-dev   # applied, pending or changed; only reads
-pnpm postgres:dev apply  --dir /tmp/noticeos-dev   # every pending migration, in one transaction
-pnpm postgres:dev bootstrap --dir /tmp/noticeos-dev --slug main --name "My sites"   # the one workspace, once
-pnpm postgres:dev new add_example_table            # the next numbered file, from a template
+pnpm db:try-migrations status --dir /tmp/noticeos-dev   # applied, pending or changed; only reads
+pnpm db:try-migrations apply  --dir /tmp/noticeos-dev   # every pending migration, in one transaction
+pnpm db:try-migrations bootstrap --dir /tmp/noticeos-dev --slug main --name "My sites"   # the one workspace, once
+pnpm db:new-migration add_example_table            # the next numbered file, from a template
 ```
 
 | Target | What happens |
@@ -652,23 +652,29 @@ operator-only forever ([AGENTS.md](../../AGENTS.md)). The approved
 [`pnpm start` exception](host/README.md#a-new-installation) uses the same helpers
 only for a provably new, empty installation; it does not apply to managed startup.*
 
-`pnpm postgres:migrate` ([`scripts/postgres-apply.mjs`](../../scripts/postgres-apply.mjs))
-is the development runner pointed at a real database. It calls the same code,
-so every guarantee of [a run](#applying-it-the-development-profile) holds:
-the lock, one transaction, a hash per file, the refusal of a changed, missing
-or out-of-order migration, and the bootstrap's lock.
+`pnpm os:migrate` ([`scripts/os-migrate.mjs`](../../scripts/os-migrate.mjs), over
+the engine in [`scripts/postgres-apply.mjs`](../../scripts/postgres-apply.mjs))
+is the development runner pointed at the installation's database. It calls the
+same code, so every guarantee of [a run](#applying-it-the-development-profile)
+holds: the lock, one transaction, a hash per file, the refusal of a changed,
+missing or out-of-order migration, and the bootstrap's lock. It finds the
+database from the stack selector `.local/stack.json` (or `--config <file>`):
+the owner's address is `owner.url` in the stack's Postgres secrets folder, or
+in the folder `--secrets <folder>` names.
 
 ```sh
-pnpm postgres:migrate status    --database noticeos                        # only reads
-pnpm postgres:migrate apply     --database noticeos --confirm noticeos     # prints the plan, then applies
-pnpm postgres:migrate bootstrap --database noticeos --confirm noticeos --slug main --name "My sites"
+pnpm os:migrate                                                  # only reads
+pnpm os:migrate -- --apply                                       # prints the plan, asks for the name, applies
+pnpm os:migrate -- --bootstrap --slug main --name "My sites"     # the one workspace, once
 ```
+
+Without a terminal, `--confirm <name>` stands in for the typed name.
 
 | It | How |
 |---|---|
 | Reads before it writes | `status` reads and prints each migration as applied, pending or changed, the workspaces, and what stops an apply. `apply` and `bootstrap` print the same plan first |
-| Needs the database named twice | `--database`, and `--confirm` with the same name. Without it, or with another name, nothing changes |
-| Refuses a development database | A name ending in `_dev`, before connecting; a database marked `noticeos.profile = 'development'`, before any write. It names `pnpm postgres:dev` instead |
+| Needs the database named | At a terminal it asks for the name; otherwise `--confirm` with the database's name. Without it, or with another name, nothing changes |
+| Refuses a development database | A name ending in `_dev`, before connecting; a database marked `noticeos.profile = 'development'`, before any write. It names `pnpm db:try-migrations` instead |
 | Runs as `noticeos_owner` | The session must be the owner's own login. The roles and the database come first, from the Postgres service's first start ([step 2](host/README.md#the-steps)); it never creates a role or a database, and refuses where one is missing or the owner may not create schemas |
 | Applies only frozen migrations | A pending migration [`frozen-migrations.sha256`](frozen-migrations.sha256) does not list stops the run, and so does a frozen file that changed ([below](#changing-the-schema)) |
 
@@ -715,7 +721,7 @@ with, and loads neither this command nor the runner
 `0001_baseline.sql` is frozen:
 [`frozen-migrations.sha256`](frozen-migrations.sha256) records its hash, and
 it never changes again. Every later change is the next numbered migration
-(`pnpm postgres:dev new <name>`), frozen the same way once a kept database
+(`pnpm db:new-migration <name>`), frozen the same way once a kept database
 applies it: whoever applies it first runs, from this folder,
 `shasum -a 256 migrations/<file>.sql >> frozen-migrations.sha256` and commits
 the line. `scripts/postgres-model.test.mjs`
@@ -724,7 +730,7 @@ against the schema the whole set of migrations builds, however many there
 are.
 
 **Before a real database applies a migration, it is frozen.**
-`pnpm postgres:migrate` refuses a pending migration the list does not hold,
+`pnpm os:migrate` refuses a pending migration the list does not hold,
 and prints the line to run. The order is: freeze the pending migration
 (the `shasum` line above), commit and verify it, then explicitly apply. The
 command never writes the list itself: the freeze is a commit, reviewed and tested
@@ -733,7 +739,7 @@ installation's checkout changed.
 
 **A migration keeps every app version eligible for rollback working.** The
 previous code runs on the new
-schema from the apply until the deploy (`pnpm os:stop` → `pnpm postgres:migrate
+schema from the apply until the deploy (`pnpm os:stop` → `pnpm os:migrate
 apply` → `pnpm os:start` → `pnpm os:deploy`), and again after a rollback, which
 `pnpm os:deploy` allows while the database has a migration the commit does not
 carry. So a change that would break it, such as a
@@ -830,7 +836,7 @@ is still there. The sweep above stays the second line.
   child inherits, that no number passes through floating point, that the
   freeze guard catches an edited frozen migration, and that nothing at runtime
   can load it outside the approved new-installation setup; the operator's
-  `pnpm postgres:migrate` remains explicit. The same guard, run on a planted
+  `pnpm os:migrate` remains explicit. The same guard, run on a planted
   checkout, catches each forbidden way in. Every case holds however many
   migrations follow the baseline.
   The segment listing reads alike on macOS and Linux, only a dead server's
@@ -893,11 +899,11 @@ needed:
   `noticeos`, by password. `first-start.sh` refuses a secret that is not a
   verifier before it creates anything. `pnpm postgres:secrets` writes each
   file with the right mode, a verifier that checks its own login's password
-  and no other, URLs that pass `pnpm postgres:migrate`'s own check, prints no
+  and no other, URLs that pass `pnpm os:migrate`'s own check, prints no
   password and never replaces a file.
 - **On a throwaway cluster:** `first-start.sh` builds the roles, logins,
   database and query statistics; the profile's `pg_hba.conf` then decides who
-  gets in and what is refused; `pnpm postgres:migrate` runs with psql alone by
+  gets in and what is refused; `pnpm os:migrate` runs with psql alone by
   the owner's URL; `DATABASE_URL` reaches the one workspace through the
   Workers' store helper; and no password is in the query statistics, their
   text file or the server's log.

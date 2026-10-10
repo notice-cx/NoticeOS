@@ -58,8 +58,9 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `test:scripts` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
 | `test:task-store` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
 | `test:journeys` | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` | — |
-| `postgres:dev` | `scripts/postgres-migrate.mjs` | The Postgres migration runner, development profile only. |
-| `postgres:migrate` | `scripts/postgres-apply.mjs` | The Postgres migrations, applied to an installation's own database. |
+| `db:new-migration` | `scripts/postgres-migrate.mjs new` | Write the next migration, and try the migrations on a throwaway development database. |
+| `db:try-migrations` | `scripts/postgres-migrate.mjs` | Write the next migration, and try the migrations on a throwaway development database. |
+| `os:migrate` | `scripts/os-migrate.mjs` | Bring the installation's database up to date: what is applied, what is pending, and apply it after you confirm. |
 | `postgres:consumers` | `scripts/postgres-docs.mjs --consumers` | Generated Postgres model docs: the revision-rule matrix |
 | `postgres:secrets` | `scripts/postgres-secrets.mjs` | The Postgres service's secret files: `pnpm postgres:secrets`, run once by |
 | `seed:local` | `scripts/db-seed.mjs` | `pnpm seed:local`: a new installation's store filled with invented history. |

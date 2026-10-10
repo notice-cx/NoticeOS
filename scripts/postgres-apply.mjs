@@ -1,19 +1,9 @@
 #!/usr/bin/env node
-// The Postgres migrations, applied to an installation's own database.
-// Existing installations remain operator-only; `pnpm start` reuses this
-// command only for a proven new, empty installation's frozen schema and one
-// workspace (AGENTS.md).
-//
-//   pnpm postgres:migrate status    --database <name> [<connection>] [--json]
-//   pnpm postgres:migrate apply     --database <name> [<connection>] --confirm <name>
-//   pnpm postgres:migrate bootstrap --database <name> [<connection>] --confirm <name> --slug <slug> [--name <display name>]
-//
-//   <connection>  --url-from <VARIABLE>: a host that needs a password, like
-//                 the installation's Compose service (db/postgres/host/); the
-//                 variable, named here, holds the owner's postgresql:// URL
-//                 nothing, or --socket <folder> [--port <n>]: a server on this
-//                 machine, on its local socket, logged in as noticeos_owner
-//                 with no password (a peer login)
+// The Postgres migrations, applied to an installation's own database: the
+// engine behind `pnpm os:migrate` (scripts/os-migrate.mjs), which finds the
+// installation's database and calls `main` here. Existing installations remain
+// operator-only; `pnpm start` reuses this code only for a proven new, empty
+// installation's frozen schema and one workspace (AGENTS.md).
 //
 // It needs psql alone, not the server binaries: the database may run in a
 // container or at a provider. It is the development runner
@@ -59,14 +49,14 @@ import {
   frozenMigrationProblems,
   migrationStatus,
 } from './postgres-migrate.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 
 /** The one login this command runs as. */
 export const OWNER = 'noticeos_owner';
 /** How the operator runs it. */
-export const COMMAND = 'pnpm postgres:migrate';
+export const COMMAND = 'pnpm os:migrate';
 /** The development databases' command, named in every refusal of one. */
-const DEVELOPMENT_COMMAND = 'pnpm postgres:dev';
+const DEVELOPMENT_COMMAND = 'pnpm db:try-migrations';
 /** What the server lists this command's sessions as. */
 const APPLICATION_NAME = 'noticeos-migrate';
 
@@ -76,15 +66,15 @@ const VARIABLE_NAME = /^[A-Z_][A-Z0-9_]{0,63}$/u;
 const URL_PARAMETERS = ['sslmode', 'sslrootcert', 'channel_binding'];
 
 export const USAGE = `usage:
-  ${COMMAND} status    --database <name> [<connection>] [--json]
-  ${COMMAND} apply     --database <name> [<connection>] --confirm <name>
-  ${COMMAND} bootstrap --database <name> [<connection>] --confirm <name> --slug <slug> [--name <display name>]
+  ${COMMAND}                     what is applied and what is pending
+  ${COMMAND} -- --apply          apply what is pending, after you confirm
+  ${COMMAND} -- --bootstrap --slug <slug> [--name <display name>]
+                                     create the installation's one workspace
 
-<connection>  --url-from <VARIABLE>: a host that needs a password, like the
-              Compose service (db/postgres/host/); the variable holds
-              postgresql://noticeos_owner:<password>@<host>:<port>/<name>
-              nothing: psql's own local socket, for a server on this machine
-              --socket <folder> [--port <n>]: another local socket
+It finds the stack's database through .local/stack.json and the Postgres
+secrets folder its env file names. To name them yourself:
+  --config <stack.json>              another stack selector
+  --secrets <folder>                 the folder holding owner.url
 
 An installation's own database only, as ${OWNER}. A development database
 (a name ending in _dev) is ${DEVELOPMENT_COMMAND}'s.`;
@@ -315,6 +305,12 @@ export function installationPlan(db, { dir = MIGRATIONS_DIR, frozen = readFrozen
   };
 }
 
+/** The command that takes the next step, naming the target only when the
+ * operator named it (`flags`). */
+export function nextCommand(step, flags) {
+  return `${COMMAND} -- ${step}${flags ? ` ${flags}` : ''}`;
+}
+
 /** The plan as the operator reads it. `flags` name the target again in the
  * next command, which `next: false` (the plan printed before a write) leaves out. */
 export function describePlan(plan, flags, { next = true } = {}) {
@@ -328,11 +324,11 @@ export function describePlan(plan, flags, { next = true } = {}) {
   if (plan.stops.length) {
     lines.push(`${plan.stops.length} ${plural(plan.stops.length, 'thing stops', 'things stop')} an apply:`, ...plan.stops.map((stop) => `  ✗ ${stop}`));
   } else if (plan.pending.length) {
-    lines.push(`${plan.pending.length} pending.${next ? ` To apply: ${COMMAND} apply ${flags} --confirm ${plan.facts.database}` : ''}`);
+    lines.push(`${plan.pending.length} pending.${next ? ` To apply: ${nextCommand('--apply', flags)}` : ''}`);
   } else {
     lines.push('Up to date.');
     if (next && plan.workspaces === 0) {
-      lines.push(`Next, its one workspace: ${COMMAND} bootstrap ${flags} --confirm ${plan.facts.database} --slug main --name "My sites"`);
+      lines.push(`Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My sites"`);
     }
   }
   return lines.join('\n');
@@ -345,7 +341,7 @@ export function describePlan(plan, flags, { next = true } = {}) {
  * environment, the migrations folder, the frozen list and the tools.
  */
 export function main(argv = process.argv.slice(2), out = process.stdout, err = process.stderr, options = {}) {
-  const { env = process.env, dir = MIGRATIONS_DIR, frozen = null, tools = undefined } = options;
+  const { env = process.env, dir = MIGRATIONS_DIR, frozen = null, tools = undefined, targetFlags = null, planShown = false } = options;
   let hidden = [];
   const say = (stream, text) => stream.write(`${hidden.reduce((shown, secret) => shown.split(secret).join('***'), String(text))}\n`);
   let parsed;
@@ -388,6 +384,9 @@ export function main(argv = process.argv.slice(2), out = process.stdout, err = p
       env,
     );
     hidden = target.hidden;
+    // The target the operator named, repeated in each suggested next command;
+    // a target os:migrate found by itself needs no repeating.
+    const flags = targetFlags ?? target.flags;
     const db = openInstallationDatabase(target, { tools });
     const plan = installationPlan(db, { dir, frozen: frozen ?? readFrozenMarker() });
     if (command === 'status') {
@@ -395,13 +394,13 @@ export function main(argv = process.argv.slice(2), out = process.stdout, err = p
         const { where, facts, migrations, workspaces, stops } = plan;
         say(out, JSON.stringify({ where, version: facts.version, login: facts.login, migrations, workspaces, stops }, null, 2));
       } else {
-        say(out, describePlan(plan, target.flags));
+        say(out, describePlan(plan, flags));
       }
       return plan.stops.length ? 1 : 0;
     }
-    say(out, describePlan(plan, target.flags, { next: false }));
+    if (!planShown) say(out, describePlan(plan, flags, { next: false }));
     if (values.confirm === undefined) {
-      throw new MigrationRefused(`nothing was changed. To go ahead, type the database's name again: --confirm ${target.database}`);
+      throw new MigrationRefused(`nothing was changed. To go ahead, type the database's name again: ${nextCommand(command === 'apply' ? '--apply' : '--bootstrap', flags)} --confirm ${target.database}`);
     }
     if (values.confirm !== target.database) {
       throw new MigrationRefused(`--confirm names ${JSON.stringify(values.confirm)}, not ${target.database}. Nothing was changed.`);
@@ -416,12 +415,12 @@ export function main(argv = process.argv.slice(2), out = process.stdout, err = p
       say(out, result.applied.map((name) => `  applied      ${name}`).join('\n'));
       say(out, `Applied ${result.applied.length} ${plural(result.applied.length, 'migration')} to ${target.where}, in one transaction.`);
       if (plan.workspaces === null || plan.workspaces === 0) {
-        say(out, `Next, its one workspace: ${COMMAND} bootstrap ${target.flags} --confirm ${target.database} --slug main --name "My sites"`);
+        say(out, `Next, its one workspace: ${nextCommand('--bootstrap', flags)} --slug main --name "My sites"`);
       }
       return 0;
     }
     if (plan.pending.length) {
-      throw new MigrationRefused(`apply the migrations first: ${COMMAND} apply ${target.flags} --confirm ${target.database}`);
+      throw new MigrationRefused(`apply the migrations first: ${nextCommand('--apply', flags)}`);
     }
     if (plan.stops.length) throw new MigrationRefused('nothing was changed (above: what stops it)');
     const result = bootstrapWorkspace(db, { slug: values.slug, displayName: values.name ?? values.slug, dir });

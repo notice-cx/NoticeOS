@@ -17,7 +17,7 @@ import { DEFAULT_DIR, FILES, URLS, VERIFIERS, main, writeSecrets } from './postg
 //   - each verifier checks its own login's password and no other, and the
 //     superuser's checks none the operator keeps;
 //   - the owner's and the maintenance role's URLs pass `pnpm
-//     postgres:migrate`'s own check for --url-from, and database.url is
+//     os:migrate`'s own check for --url-from, and database.url is
 //     exactly the DATABASE_URL shape the runner takes (the application role,
 //     127.0.0.1, the port, noticeos, sslmode=disable);
 //   - nothing it prints repeats a password or a connection string;
@@ -78,7 +78,7 @@ test('each verifier checks its own login’s password and no other, and the supe
   }
 });
 
-test('the connection strings: the operator’s two pass pnpm postgres:migrate’s own check, and database.url is the DATABASE_URL the runner takes', () => {
+test('the connection strings: the operator’s two pass pnpm os:migrate’s own check, and database.url is the DATABASE_URL the runner takes', () => {
   const dir = path.join(tempDir(), 'secrets');
   assert.equal(run(['--dir', dir, '--port', '5701']).code, 0);
   const owner = checkTarget({ database: 'noticeos', urlFrom: 'OWNER' }, { OWNER: read(dir, 'owner.url') });

@@ -21,7 +21,8 @@ import { runBackup as backupHost, backupRunOutcome } from './host-backup.mjs';
 import { requestContainerBackup } from './container-backup-channel.mjs';
 import { doorErrorCode, localDoorFetch } from './ingest-door.mjs';
 import { createDeployForwardState, deployLogSource, forwardOsDeploysToStore } from './os-deploy-forward.mjs';
-import { invokedDirectly, runtimeChildEnv, samePath } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
+import { runtimeChildEnv, samePath } from './os-runtime.mjs';
 import { readProductEnv } from './product-env.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 // One responsibility per module under scripts/runner/; the port map and every
@@ -472,7 +473,7 @@ async function supervise({ exposeTowerToLan }) {
 
   log(
     'INFO',
-    'Postgres migrations are operator-only — startup applies none; use pnpm postgres:migrate while the OS is stopped',
+    'Postgres migrations are operator-only — startup applies none; use pnpm os:migrate',
   );
 
   const tower = towerChild({ exposeTowerToLan, database: database.env });

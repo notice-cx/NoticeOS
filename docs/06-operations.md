@@ -90,7 +90,7 @@ live-parent, foreign, or unreadable owner remains untouched.
 
 Managed startup, restart and deploy never apply a migration. Postgres is the
 only supported operational store; its maintenance sequence is operator-only.
-On Postgres it is `pnpm os:stop` → `pnpm postgres:migrate apply …` →
+On Postgres it is `pnpm os:stop` → `pnpm os:migrate -- --apply …` →
 `pnpm os:start`
 ([`db/postgres/README.md`](../db/postgres/README.md#applying-it-to-an-installations-own-database)),
 and `pnpm os:deploy` refuses a commit whose Postgres migrations the database

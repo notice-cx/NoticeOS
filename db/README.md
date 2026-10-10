@@ -12,7 +12,7 @@ is no D1 runtime or alternative ORM.
 - [`postgres/host/README.md`](postgres/host/README.md): Docker Compose and fresh-install setup.
 
 Existing installations apply migrations only through an explicitly approved
-`pnpm postgres:migrate` operation. Managed startup and deployment check schema
+`pnpm os:migrate` operation. Managed startup and deployment check schema
 compatibility without applying changes. The approved automatic setup exception
 is limited to `pnpm start` creating a provably new, empty installation.
 

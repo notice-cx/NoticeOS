@@ -49,8 +49,9 @@
 | `test:scripts` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
 | `test:task-store` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
 | `test:journeys` | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` | — |
-| `postgres:dev` | `scripts/postgres-migrate.mjs` | The Postgres migration runner, development profile only. |
-| `postgres:migrate` | `scripts/postgres-apply.mjs` | The Postgres migrations, applied to an installation's own database. |
+| `db:new-migration` | `scripts/postgres-migrate.mjs new` | Write the next migration, and try the migrations on a throwaway development database. |
+| `db:try-migrations` | `scripts/postgres-migrate.mjs` | Write the next migration, and try the migrations on a throwaway development database. |
+| `os:migrate` | `scripts/os-migrate.mjs` | Bring the installation's database up to date: what is applied, what is pending, and apply it after you confirm. |
 | `postgres:consumers` | `scripts/postgres-docs.mjs --consumers` | Generated Postgres model docs: the revision-rule matrix |
 | `postgres:secrets` | `scripts/postgres-secrets.mjs` | The Postgres service's secret files: `pnpm postgres:secrets`, run once by |
 | `seed:local` | `scripts/db-seed.mjs` | `pnpm seed:local`: a new installation's store filled with invented history. |
@@ -155,7 +156,7 @@ With the address in the secrets file, every start checks it as the application l
 (`scripts/database-address.mts`): the database answers, the login is
 `noticeos_app`, every migration this code has is applied, the one workspace
 exists; anything else stops the start in one sentence naming the fix
-(`pnpm postgres:migrate apply` or `bootstrap`) and never repeats the address,
+(`pnpm os:migrate -- --apply` or `bootstrap`) and never repeats the address,
 which rides only in the Tower's environment
 (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`). Startup creates no
 D1 store and has no `--migrate` flag.
@@ -238,7 +239,7 @@ Background operations → Edit schedule**.
   answers; if so it starts nothing, prints the `lsof` naming the owner, and
   exits 3.
 - **No migrations at managed startup** — supervision, restart, crash recovery
-  and catch-up never invoke `pnpm postgres:migrate`; the fresh-install
+  and catch-up never invoke `pnpm os:migrate`; the fresh-install
   exception belongs only to `pnpm start`.
 - **Starts on its Postgres, or not at all** — it reads `DATABASE_URL` from
   home's secrets file and checks it as the application login, read-only
@@ -667,7 +668,7 @@ the step after a verified merge:
    commit running now (back is `-- --rollback`); both runtime copies are
    clean; both Worker configs declare Postgres without D1 bindings. It refuses
    a `db/postgres/migrations` file the installation's database has not
-   applied, printing `pnpm os:stop` → `pnpm postgres:migrate apply …` →
+   applied, printing `pnpm os:stop` → `pnpm os:migrate -- --apply …` →
       `pnpm os:start`, and one applied with another SHA-256; a migration the
    database has and the commit does not carry is named and allowed. CI
    results are not visible here, so "verified" does not claim them.
@@ -766,24 +767,26 @@ Postgres is the only supported operational database. Legacy D1 migration and
 import commands are retired; the completed transition tools are frozen in the
 private recovery source ([db/postgres/README.md](../db/postgres/README.md)).
 
-## The Postgres store's counterpart (`postgres:migrate`)
+## Bringing the database up to date (`os:migrate`)
 
-`pnpm postgres:migrate` (`scripts/postgres-apply.mjs`) applies
-`db/postgres/migrations/` to an installation's own Postgres database. It is
-operator-only; neither restart nor deploy applies migrations. An approved
-maintenance operation uses this explicit sequence, with `NOTICEOS_OWNER_URL`
-supplied in the protected environment for the approved target:
+`pnpm os:migrate` (`scripts/os-migrate.mjs`, over the engine in
+`scripts/postgres-apply.mjs`) applies `db/postgres/migrations/` to the
+installation's own Postgres database. It finds the database itself: the stack
+selector `.local/stack.json` (or `--config`) names the Compose files, and the
+owner's address is `owner.url` in the stack's Postgres secrets folder (or
+`--secrets <folder>`). It is operator-only; neither restart nor deploy applies
+migrations.
 
 ```sh
-pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL    # only reads
+pnpm os:migrate               # only reads: what is applied, what is pending
 pnpm os:stop
-pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
+pnpm os:migrate -- --apply    # shows the plan, asks for the database's name
 pnpm os:start
 ```
 
-It runs the development runner's own code (`pnpm postgres:dev`, development
+It runs the development runner's own code (`pnpm db:try-migrations`, development
 databases only) with the same lock, single transaction and per-file hashes,
-refuses a development database, needs the name typed twice, runs as
+refuses a development database, asks for the database's name, runs as
 `noticeos_owner` only, and applies only migrations
 `db/postgres/frozen-migrations.sha256` lists; nothing at runtime, restart or
 deploy can load it (`scripts/postgres-migrate.test.mjs`). The rest, with the
@@ -814,7 +817,7 @@ so run the seed again.
 The seed writes every row in one transaction as the application login and
 opens no local store file, so it runs beside a started Tower. It refuses,
 writing nothing: a folder `pnpm start` did not make; a database not marked
-`noticeos.profile = 'development'` (`pnpm postgres:migrate` refuses a marked
+`noticeos.profile = 'development'` (`pnpm os:migrate` refuses a marked
 one: a database is seedable or real, never both); and a store that already
 holds data in `pulses`, `flags`, `ledger_entries`, `counter_readings` or
 `annotations`, or a site on one of the fixture's ids or domains, because a

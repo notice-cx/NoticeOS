@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { openStore } from '../packages/postgres/src/store.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 import { startPlan, planRefusal } from './start.mjs';
 import { prepareFreshPostgres, startPostgresPlan } from './start-postgres.mjs';
 import { ADDRESS_FILE, DATABASE } from './postgres-secrets.mjs';

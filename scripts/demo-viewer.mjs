@@ -14,7 +14,7 @@ import { readDemoViewerInstallation } from './demo-viewer-installation.mjs';
 import { verifyDemoRelease } from './demo-release.mjs';
 import { doltEnvironment } from './dolt-profile.mjs';
 import { WORKER_CONFIGS, relocatedWorkerConfig } from './worker-config-folder.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 import { redactLogText } from './os-log.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
 

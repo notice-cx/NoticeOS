@@ -88,7 +88,7 @@ Apply the migration as your own step, then start again. See [Upgrade](/start/upg
 ## Deploy refusals
 
 **`os:deploy` refuses a migration the database has not applied.**
-Expected. Run the printed sequence: `pnpm os:stop`, `pnpm postgres:migrate apply …`, `pnpm os:start`, then deploy again.
+Expected. Run the printed sequence: `pnpm os:stop`, `pnpm os:migrate -- --apply …`, `pnpm os:start`, then deploy again.
 
 **`os:deploy` refuses: not on main, moves backwards, or a runtime copy is dirty.**
 Deploy only a commit on `main` that is ahead of what runs. To go back, use `-- --rollback`; it moves code only and never restores a database. Clean the runtime copy before deploying.

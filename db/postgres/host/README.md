@@ -9,7 +9,7 @@ roles ([`../roles.sql`](../roles.sql)) with their logins; an empty `noticeos`
 database that sorts text by code point (the builtin `C.UTF-8` locale); query
 statistics on. It stops
 before the schema: the migrations go in with the operator-only
-`pnpm postgres:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
+`pnpm os:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
 or the approved first-run path for a new, empty installation.
 
 ## A new installation
@@ -41,7 +41,7 @@ automatically migrates them on retry. The exact checks are documented in
 | Login | Used by | Its password lives |
 |---|---|---|
 | `noticeos_app` | the Workers and the runner | `secrets/database.url`; from the switch on, **the bootstrap secret `DATABASE_URL`** ([doc 06](../../../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)) |
-| `noticeos_owner` | your `pnpm postgres:migrate` and the import's load | `secrets/owner.url`, readable by your account only |
+| `noticeos_owner` | your `pnpm os:migrate` and the import's load | `secrets/owner.url`, readable by your account only |
 | `noticeos_maint` | the import's reading back, maintenance | `secrets/maint.url`, readable by your account only |
 | `postgres` (the superuser) | the image itself, backup, restore | **none**: it logs in only on the container's own socket |
 
@@ -88,11 +88,11 @@ docker compose -f db/postgres/host/compose.yaml ps
 # Version, sort order, statistics, time zone, data checksums   → 18.6 …|b|C.UTF-8|pg_stat_statements|UTC|on
 docker compose -f db/postgres/host/compose.yaml exec postgres psql -U postgres -d noticeos -Atc "SELECT current_setting('server_version'), datlocprovider, datlocale, current_setting('shared_preload_libraries'), current_setting('TimeZone'), current_setting('data_checksums') FROM pg_database WHERE datname = current_database()"
 # The owner logs in from this machine, with psql alone         → … PostgreSQL 18.6 …, as noticeos_owner; 1 pending
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
+pnpm os:migrate -- --secrets db/postgres/host/secrets
 ```
 
-The `$(cat …)` form hands the password to the command in its environment:
-it is not on the command line, in the shell's history or on the screen.
+`os:migrate` reads the owner's address from the secrets folder itself: the
+password is never on the command line, in the shell's history or on the screen.
 
 ## The schema (the operator's step, not this profile's)
 
@@ -104,11 +104,11 @@ never as the superuser.
 ```sh
 # a. The baseline is already frozen; status checks the committed hashes below.
 # b. Read what would happen                                             → 1 pending
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
-# c. Apply, in one transaction; the database's name is typed twice
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
+pnpm os:migrate -- --secrets db/postgres/host/secrets
+# c. Apply, in one transaction; it shows the plan and asks for the database's name
+pnpm os:migrate -- --apply --secrets db/postgres/host/secrets
 # d. The one workspace, once
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate bootstrap --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos --slug main --name "My sites"
+pnpm os:migrate -- --bootstrap --secrets db/postgres/host/secrets --slug main --name "My sites"
 ```
 
 **e. The application's address.** The one line of
@@ -224,4 +224,4 @@ once nothing outside the project uses it.
   holds the files' guarantees and runs `first-start.sh` and `pg_hba.conf` on
   a throwaway cluster; [`scripts/postgres-secrets.test.mjs`](../../../scripts/postgres-secrets.test.mjs)
   holds the secret files; [`scripts/postgres-apply.test.mjs`](../../../scripts/postgres-apply.test.mjs)
-  runs `pnpm postgres:migrate` with psql alone.
+  runs `pnpm os:migrate` with psql alone.

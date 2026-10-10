@@ -46,7 +46,7 @@ import { startPlan } from './start.mjs';
 //   - LIVE, on a throwaway cluster: first-start.sh builds the roles, their
 //     logins, the database and query statistics as the image runs it, the
 //     profile's pg_hba.conf then decides who gets in, and `pnpm
-//     postgres:migrate` runs with psql alone by the URL
+//     os:migrate` runs with psql alone by the URL
 //     `pnpm postgres:secrets` wrote, then DATABASE_URL reaches the one
 //     workspace through the Workers' store helper. No password is in the
 //     query statistics, their text file or the server's log.
@@ -254,7 +254,7 @@ const FROZEN_REAL = migrationFiles()
   .map((file) => `${createHash('sha256').update(readFileSync(file)).digest('hex')}  migrations/${path.basename(file)}\n`)
   .join('');
 
-test('the first start and pg_hba.conf on a throwaway cluster: the logins, what is refused, pnpm postgres:migrate with psql alone, DATABASE_URL, and no password kept anywhere', async (t) => {
+test('the first start and pg_hba.conf on a throwaway cluster: the logins, what is refused, pnpm os:migrate with psql alone, DATABASE_URL, and no password kept anywhere', async (t) => {
   await live(t, async () => {
     const tools = findPostgres();
     if (!tools) throw new PostgresUnavailable('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');
