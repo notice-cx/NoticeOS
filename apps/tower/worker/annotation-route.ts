@@ -1,19 +1,8 @@
 // POST /api/assets/:id/annotations — the operator's own timeline events.
-//
-// COLLAPSED 2026-07-31. This file used to write the row itself, through the
-// Tower's own store, because the canonical writer — the ingest worker's
-// `POST /api/annotations` — is behind `env.OPERATOR_TOKEN`, and the Tower is
-// served unauthenticated on the trusted LAN: holding the operator bearer here
-// would put every operator-authed ingest lane one LAN request away. The row is
-// now written by ingest, which owns the table, through `createAnnotation()` on
-// its WorkerEntrypoint — the private INGEST Service Binding, the same capability
-// the GA4 realtime read crosses. Hosted receivers independently admit the
-// original request; the binding alone is not customer authority.
-//
-// What is left here is browser-facing only: the same-origin guard, the JSON
-// envelope, and the mapping from ingest's result to this route's error
-// vocabulary. The kind vocabulary, backdating rule, `(asset, at, kind, ref)`
-// identity and field caps live in workers/ingest/src/annotations.ts.
+// Ingest writes the row through `createAnnotation()` over the INGEST binding, so
+// the Tower never holds the operator bearer; hosted receivers still admit the
+// original request. Browser-facing only: the rules live in
+// workers/ingest/src/annotations.ts.
 
 import type {
   CreateAnnotationInput,
@@ -22,12 +11,8 @@ import type {
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
 import type { AnnotationItem } from "../shared/annotations";
 
-/**
- * The one ingest RPC this route calls. `env.INGEST` satisfies it structurally;
- * declaring the surface here rather than importing the binding's type keeps
- * this file free of Workers globals (the test project typechecks it too) and
- * lets a test bind a double without importing Workers globals.
- */
+/** Declared here rather than imported from the binding so this file stays free
+ * of Workers globals (the test project typechecks it). */
 export interface AnnotationWriter {
   createAnnotation(
     input: CreateAnnotationInput,
@@ -36,8 +21,6 @@ export interface AnnotationWriter {
 }
 
 /**
- * Handle one annotation write. `asset` has already been extracted from the path.
- * Error vocabulary matches the flag and decision routes:
  * 403 forbidden · 415 unsupported_media_type · 400 bad_request ·
  * 422 invalid_annotation · 404 asset_not_found · 500 annotation_write_failed.
  */

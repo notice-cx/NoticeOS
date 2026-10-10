@@ -1,36 +1,11 @@
-// POST /api/mcp — the OS's read models, spoken to agents (bead ro-cda6.4).
+// POST /api/mcp — the OS's read models, spoken to agents.
 //
-// WHY THIS EXISTS. The OS holds richer evidence about these properties than any
-// SEO tool the portfolio could buy — the ledger, pre-registered watch windows,
-// measurability tiers, the four decision lanes — and none of it was reachable by
-// an agent without a person pasting it. Every session that reasoned about a
-// property began by re-deriving state the OS already knew, which costs tokens
-// and, worse, works from a stale paste rather than from the read model.
-//
-// FOUR CONSTRAINTS, all load-bearing.
-//
-// 1. READ-ONLY, and enforced rather than intended. Every tool below is a pure
-//    read; there is no dispatch path from here to a write. Collection stays
-//    behind `POST /api/signal-collect` on ingest, where the lane lock and the
-//    budget gate live — a tool that could spend provider money is a different
-//    surface with a different risk profile, and it is not this one.
-//
-// 2. HONEST NULLS. The tri-state discipline (`aio_present` unknown vs false,
-//    "not inside the tracked depth" vs "not ranking") has to survive
-//    serialization. A tool that flattened unknown to false would launder
-//    exactly the dishonesty the collector was built to prevent, and it would do
-//    it at the moment an agent acts on it. The payload builders already carry
-//    nulls correctly, so the rule here is simply: pass their output through, do
-//    not "tidy" it.
-//
-// 3. ONE VOCABULARY. Tool output uses the decision-lane words the Tower already
-//    shows the operator — act / investigate / protect / wait — because the
-//    alternative is an operator and an agent describing one portfolio in two
-//    languages.
-//
-// 4. NO NEW QUERIES. Every tool composes an EXISTING builder. A second query
-//    that answered "what did this property earn" slightly differently would be
-//    a second truth, and the two would diverge silently.
+// 1. Read-only: no dispatch path from here to a write; collection (which spends
+//    money) stays behind ingest's lane lock and budget gate.
+// 2. Honest nulls: unknown is never flattened to false; builder output passes
+//    through untidied.
+// 3. One vocabulary: the decision-lane words the Tower shows the operator.
+// 4. No new queries: every tool composes an existing builder.
 //
 // Hosted requests use fresh evidence.read admission for the selected workspace
 // on Tower and every ingest receiver. The fixed demo exposes stored tools only.
@@ -67,12 +42,7 @@ const INSTRUCTIONS =
 /** The stored-read classifier's own bound (scripts/workspace-operations.mts). */
 const BODY_BYTES = 256 * 1024;
 
-/**
- * The ingest RPC this surface borrows, declared structurally rather than by
- * importing the binding's type, as the annotation route does, so this file
- * stays free of Workers globals and a test can bind a
- * double.
- */
+/** Declared structurally so this file stays free of Workers globals. */
 export interface McpIngest {
   researchLookup(query: {
     provider: "dataforseo";
@@ -103,25 +73,18 @@ export interface McpDeps {
   pullConfig: PullConfigEntry[];
   dashboard: DashboardConfig;
   serpPanel: SerpPanelConfig;
-  /** config/signal-panels.json `assets`, verbatim — carried for the same reason
-   * as `counters`: the asset payload names every config entry that would have to
-   * go with the asset (bead `ro-sk7q`). */
+  /** config/signal-panels.json `assets`, verbatim. */
   signalPanels: SignalPanelsConfig;
   /** config/value-events.json and config/ga4-custom-dimensions.json `assets`,
-   * verbatim — the GA4 declarations the asset payload carries so its Sources
-   * tab can edit them (bead `ro-x5gu.3`). An agent reading `property_report`
-   * sees the same declarations the operator does. */
+   * verbatim, so `property_report` shows the declarations the operator sees. */
   valueEvents: ValueEventsConfig;
   ga4EventParams: Ga4EventParamsConfig;
-  /** config/constants.json `os_time_zone` as SAVED, store first (bead
-   * `ro-ujb9.88`): an agent reading a property's money days reads them on the
-   * operator's clock, exactly as the Wall and the asset page do. */
+  /** config/constants.json `os_time_zone` as saved: money days on the
+   * operator's clock, as the Wall reads them. */
   osTimeZone: string;
-  /** config/constants.json `no_nightly_report` as SAVED (bead `ro-ujb9.96.8`):
-   * an agent is told the same assets owe no report as the Wall is. */
+  /** config/constants.json `no_nightly_report` as saved. */
   noNightlyReport?: readonly string[] | null;
-  /** config/constants.json `schedules` as SAVED (bead `ro-ujb9.96.7.12`): an
-   * agent reads a report's schedule as the runner arms it. */
+  /** config/constants.json `schedules` as saved, as the runner arms them. */
   schedules?: ScheduleOverrides | null;
   /** The private INGEST Service Binding, or null where it is not bound. */
   ingest: McpIngest | null;
@@ -142,7 +105,6 @@ interface ToolDefinition {
   description: string;
   inputSchema: Readonly<Record<string, unknown>>;
   run(
-    /** The call's store: the site list is read on Postgres (bead ro-ujb9.76.4.2). */
     store: WorkspaceStore,
     deps: McpDeps,
     args: Record<string, unknown>,
@@ -172,9 +134,8 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
         worstSeverity: card.worstSeverity,
         openError: card.openError,
         openWarn: card.openWarn,
-        // Reconciled and reported are kept APART, exactly as the card shows
-        // them. Summing them here would hand an agent one number the ledger
-        // never booked — the whole point of the split (ro-uwo.2).
+        // Reconciled and reported stay apart, as the card shows them: their
+        // sum is a number the ledger never booked.
         netPeriod: card.netPeriod,
         booked: card.booked,
         forecast: card.forecast,
@@ -236,8 +197,7 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
     return {
       found: prior !== null,
       prior,
-      // Said explicitly rather than implied by `found`, because the whole
-      // point is that the agent states its choice out loud.
+      // Explicit rather than implied by `found`: the agent states its choice.
       guidance:
         prior === null
           ? "Not bought recently. Buy it, then record the purchase via POST /api/research-log on the ingest worker."

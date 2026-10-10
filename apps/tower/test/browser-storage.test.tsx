@@ -1,6 +1,6 @@
-// A BROWSER THAT USED THE DESK BEFORE THE RENAME KEEPS EVERY CHOICE
-// (bead ro-ujb9.77.4). Its localStorage holds `reindex-os:*` keys; the desk now
-// reads `noticeos:*` and moves an old value over on the first read.
+// A browser that used the desk under the product's old name keeps every
+// choice: its localStorage holds `reindex-os:*` keys; the desk reads
+// `noticeos:*` and moves an old value over on the first read.
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { LEGACY_STORAGE_PREFIX, STORAGE_PREFIX, forgetStored, readStored, storageKey } from "@/lib/browser-storage";
@@ -16,7 +16,7 @@ describe("browser storage under the NoticeOS name", () => {
     expect(THEME_STORAGE_KEY).toBe("noticeos:theme");
   });
 
-  it("reads a value saved before the rename, and moves it to the new key", () => {
+  it("reads a value saved under the old key, and moves it to the new key", () => {
     window.localStorage.setItem("reindex-os:nav-assets", '{"open":true,"seen":4}');
     expect(readStored(window.localStorage, "nav-assets")).toBe('{"open":true,"seen":4}');
     expect(window.localStorage.getItem("noticeos:nav-assets")).toBe('{"open":true,"seen":4}');
@@ -42,7 +42,7 @@ describe("browser storage under the NoticeOS name", () => {
     expect(readStored(null, "theme")).toBeNull();
   });
 
-  it("an operator who chose the light theme before the rename still gets it, and keeps it", () => {
+  it("an operator who chose the light theme under the old key still gets it, and keeps it", () => {
     window.localStorage.setItem("reindex-os:theme", "light");
     const { result } = renderHook(() => useTheme());
     expect(result.current.theme).toBe("light");

@@ -8,8 +8,7 @@ import { mapMediavineSite, writeMediavine } from './money';
 import { loadDailyRevenue, loadPortfolioDailyRevenue } from '../worker/daily-revenue';
 import { revenueWindowDays } from '../shared/daily-revenue';
 
-// Mediavine's daily revenue is read from the call's store (bead
-// ro-ujb9.76.5.5): each test writes its days into its own copy.
+// Each test writes its Mediavine days into its own copy of the store.
 
 const dailyRows = async (store: WorkspaceStore) =>
   (await store.read((tx) => tx.query<{ n: number }>('SELECT count(*)::int AS n FROM noticeos.mediavine_daily')))[0]?.n;
@@ -52,12 +51,10 @@ describe('saved daily earnings', () => {
       expect(await dailyRows(store)).toEqual(before);
     } finally { await raw.close(); }
   });
-  /**
-   * Bead `ro-rd6r`. A site owes a day only from its first report onward: Nosh
-   * joined Mediavine on Aug 10 and then missed Sep 14–16. June must not call it
-   * 0/30, August must not count the nine days before it joined, and September
-   * must still show the real three-day outage.
-   */
+  /** A site owes a day only from its first report onward: a site that joined
+   * Mediavine on Aug 10 and then missed Sep 14–16 must not read 0/30 in June,
+   * must not have the nine days before it joined counted in August, and must
+   * still show the real three-day outage in September. */
   it('owes a source only the days on or after its first report, and still names a later outage', async () => {
     const ctx = await createTestStore();
     const raw = ctx;

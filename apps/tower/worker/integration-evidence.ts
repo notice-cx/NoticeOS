@@ -19,13 +19,9 @@ import {
 import { LANE_MAPPING } from '../shared/config-registers';
 import { everyLabel, type LaneFailureMode, type LaneUsage } from '../shared/lane-facts';
 
-/**
- * Each catalog lane's cost, event trigger, provider limit and failure posture,
- * as facts (`shared/lane-facts`, bead `ro-ujb9.96.6.2`). The reasoning behind
- * every figure — why a limit binds, how a failure degrades — is doc 11's
- * catalog table (docs/11-integrations.md), not screen copy. A scheduled lane's
- * cadence is `collectionCadenceHours`, so it is not repeated here.
- */
+/** Each catalog lane's cost, event trigger, provider limit and failure
+ * posture, as facts (`shared/lane-facts`). A scheduled lane's cadence is
+ * `collectionCadenceHours`, so it is not repeated here. */
 const LANE_FACTS: Record<string, { usage: LaneUsage; onFailure: LaneFailureMode }> = {
   gsc: { usage: { cost: "free", limit: "1,200 queries/min" }, onFailure: "keeps-last-data" },
   ga4: { usage: { cost: "free", limit: "200k tokens/day" }, onFailure: "keeps-last-data" },
@@ -49,23 +45,17 @@ const UNKNOWN_LANE_FACTS: { usage: LaneUsage; onFailure: LaneFailureMode | null 
 };
 
 // ---------------------------------------------------------------------------
-// The first DERIVED lane: the nightly self-report pipeline. It has no cell in
-// config/integrations.json on purpose — a lane the OS already runs should never
-// be able to claim a state the store contradicts, so this row is recomputed from
-// the store (last accepted report per asset) + config/pull.json on every
-// read. Same shape as a catalog row so the register renders it identically.
-//
-// Facts only (bead `ro-ujb9.96.6.2`): working means a report accepted inside
-// the nightly cadence, which the grid's Runs fact and each cell already show,
-// and the per-asset token behind it is doc 06's business, not screen copy.
+// The derived nightly-report lane. It has no cell in config/integrations.json
+// on purpose: a lane the OS already runs must not claim a state the store
+// contradicts, so this row is recomputed from the store and config/pull.json
+// on every read. Same shape as a catalog row so the register renders it alike.
 // ---------------------------------------------------------------------------
 const NIGHTLY_REPORT_LANE: IntegrationCatalogRow = {
   id: NIGHTLY_REPORT_LANE_ID,
   layer: "property",
   label: "Nightly report",
   docRef: "docs/02-signal-contract.md",
-  // The System reports too: asset #0 self-pulses nightly (doc 06), so this lane
-  // is not one the scope rule may blank on the OS row.
+  // Asset #0 self-reports nightly too, so the scope rule may not blank this on the OS row.
   scope: "both",
   usage: { cost: "free" },
   onFailure: "raises-alert",
@@ -73,22 +63,19 @@ const NIGHTLY_REPORT_LANE: IntegrationCatalogRow = {
   derived: true,
 };
 
-
 // The trailing window (in whole months) that counts as "recent" for delivering-
 // revenue evidence. now − 2 months → a 3-month inclusive window.
 const RECENT_MONTHS_BACK = 2;
 
 // ---------------------------------------------------------------------------
-// Store evidence inputs — the two Phase-0 sources the merge is allowed to read.
+// Store evidence inputs
 // ---------------------------------------------------------------------------
 export interface RevenueRow {
   currency: string;
   family: string;
   source: string | null;
   note: string | null;
-  /** Integer cents (`amount_minor`, db/0018) — and since db/0020 the ledger's
-   * only money column. The evidence line states a total over these rows, so it
-   * is added exactly and formatted once. */
+  /** Integer cents (`amount_minor`): added exactly and formatted once. */
   amountMinor: number;
   period: string;
 }
@@ -108,11 +95,10 @@ export interface LatestSignalRun {
   errorMessage: string | null;
 }
 
-/** The nightly R2 archive lane's latest attempt for one asset + provider,
- * rolled up over that provider's report families. This is a SECOND observation
- * of an integration the 15-minute collector already observes, so it rides as an
- * extra evidence line on that lane and never becomes a lane of its own — doc 19
- * item 13: a lane derives health only from its own observations. */
+/** The nightly archive lane's latest attempt for one asset + provider, rolled
+ * up over that provider's report families. A second observation of an
+ * integration the 15-minute collector already observes, so it rides as an
+ * extra evidence line on that lane and never becomes a lane of its own. */
 export interface ArchiveLaneRun {
   asset: string;
   integration: "ga4" | "gsc" | "bing-webmaster";
@@ -124,22 +110,18 @@ export interface ArchiveLaneRun {
   /** Report families with a current attempt, and how many of them failed. */
   reports: number;
   failedReports: number;
-  /** The families whose newest manifest is dated EARLIER than `reportDate`, with
-   * that date, named so a sentence about `reportDate` can exclude them. Under a
-   * per-family cadence — Bing's weekly `queries`/`pages` since ro-93u — a family
-   * trailing the lane by up to six days is what working looks like, so these are
-   * reported, never counted as failures and never a reason to redden the lane. */
+  /** The families whose newest manifest is dated earlier than `reportDate`,
+   * with that date. Under a per-family cadence (Bing's weekly `queries` and
+   * `pages`) a family trailing the lane by days is what working looks like, so
+   * these are reported, never counted as failures. */
   lagging: { report: string; reportDate: string }[];
   errorCode: string | null;
   errorMessage: string | null;
 }
 
-/**
- * A site's newest home-page reading (`hygiene_checks`, check `html-depth`):
- * the OS's own check of whether the site is up (bead `ro-ujb9.165`). The ingest
- * writes it nightly with the served-layer sweep and every hour on its own
- * (workers/ingest/src/hygiene.ts `runUptimeChecks`).
- */
+/** A site's newest home-page reading (`hygiene_checks`, check `html-depth`):
+ * the OS's own check of whether the site is up, written nightly with the
+ * served-layer sweep and hourly by `runUptimeChecks`. */
 export interface HomeCheck {
   observedAt: string;
   status: "ok" | "warn" | "error" | "unreachable";
@@ -148,7 +130,7 @@ export interface HomeCheck {
   /** The OS could not reach the network, so the site was not checked. */
   egressDown: boolean;
   /** GETs that failed in this check: 1 when the page answered only the
-   * confirming retry, 2 when the retry failed too (bead `ro-ujb9.180`). */
+   * confirming retry, 2 when the retry failed too. */
   failedTries?: number;
 }
 
@@ -170,10 +152,8 @@ export interface LaneEvidence {
 /** Effective state for one lane. Collector-backed lanes are observations:
  * fresh success = live, error/stale = degraded, no run = needs-setup. Explicit
  * skipped/not-applicable cells remain operator scope decisions. Other lanes
- * still fall back to their file-backed setup posture until they gain an
- * automated source of health evidence — never another lane's alerts (doc 19
- * item 13; uptime reads its own check, `uptimeState`). Kept separate so cards
- * and the full register use exactly the same truth decision. */
+ * fall back to their file-backed setup posture; a lane's health is only ever
+ * its own observations, never another lane's alerts. */
 export function effectiveLaneState(
   declared: IntegrationState,
   laneId: string,
@@ -204,18 +184,15 @@ export function effectiveLaneState(
 }
 
 // ---------------------------------------------------------------------------
-// The merge — PURE. Collector-backed health comes from the latest run, while
-// explicit scope decisions and evidence-free lanes retain their file-backed
-// posture. Every observed state carries its WHY; rendering never edits config.
+// The merge, pure: collector-backed health from the latest run, scope decisions
+// and evidence-free lanes from the file. Every observed state carries its why.
 // ---------------------------------------------------------------------------
 export function mergeLane(
   declared: IntegrationState,
   laneId: string,
   ev: LaneEvidence,
 ): { effective: IntegrationState; evidence: IntegrationEvidence[] } {
-  // Uptime reads the OS's own home-page check (bead `ro-ujb9.165`), never
-  // another lane's alerts: doc 19 item 13, a lane's health is its own
-  // observations.
+  // Uptime reads the OS's own home-page check, never another lane's alerts.
   if (laneId === UPTIME_LANE_ID && ev.homeCheck !== undefined) return uptimeState(declared, ev.homeCheck);
   const signalRun =
     ev.signalRuns === undefined
@@ -228,9 +205,8 @@ export function mergeLane(
       effective,
       evidence: [
         signalRunEvidence(laneId, signalRun, nowMs),
-        // The nightly archive is the same lane's other collector. It explains
-        // the lane; it does not get a vote on its state, because the 15-minute
-        // run above is the fresher and more direct observation of the same feed.
+        // The nightly archive explains the lane; it does not get a vote on its
+        // state, because the 15-minute run is the fresher observation.
         ...archiveEvidence(laneId, declared, signalRun, ev.archiveRuns, nowMs),
       ],
     };
@@ -243,25 +219,15 @@ export function mergeLane(
 }
 
 /**
- * IS THE SITE UP — the uptime source, read from the OS's own check of the
- * site's home page (bead `ro-ujb9.165`). No account and no connect step: the
- * ingest fetches `https://<domain>/` every hour (`runUptimeChecks`) and nightly
- * with the served-layer sweep, and this reads its newest reading.
- *
- *   • it answered (any reading whose fetch got the page, including one too big
- *     or too binary to word-count — the server said 200) → live: Up, dated,
- *     with proof, so the model ages it against the hourly cadence and a check
- *     that stops running reads Not checked rather than a stale Up; a page that
- *     answered only the ingest's confirming retry adds "1 failed try"
- *     (bead `ro-ujb9.180`);
+ * Is the site up — read from the OS's own hourly check of the home page.
+ *   • it answered (including a page too big or too binary to word-count) →
+ *     live: Up, dated, with proof, so a check that stops running ages into
+ *     Not checked rather than a stale Up; a page that answered only the
+ *     confirming retry adds "1 failed try";
  *   • it did not answer twice in a row, and the OS could reach the network →
  *     degraded: Down, with the HTTP status or "No response";
- *   • the OS could not reach the network → Not checked (live without proof):
- *     the gate's rule, never an accusation;
- *   • never checked yet → the declared state, so a new site's row appears with
- *     its first check (`unusedWithoutConnectPath` keeps an unchecked, undeclared
- *     source off the page, bead `ro-ujb9.133`).
- *
+ *   • the OS could not reach the network → Not checked (live without proof);
+ *   • never checked yet → the declared state.
  * The operator's own decisions — Not using, Doesn't apply — stand.
  */
 export function uptimeState(
@@ -278,8 +244,7 @@ export function uptimeState(
     };
   }
   if (check.httpStatus === 200 || check.status === "ok" || check.status === "warn") {
-    // Up after a failed try (bead `ro-ujb9.180`): the ingest files nothing on
-    // one failure, and the row still says it happened.
+    // The ingest files nothing on one failed try; the row still says it happened.
     const failed = check.failedTries ?? 0;
     return {
       effective: "live",
@@ -325,14 +290,13 @@ export function buildCardDataSources({
   /** The site's newest home-page check, when the caller read it (uptime). */
   homeCheck?: HomeCheck | null;
   isOs?: boolean;
-  /** The operator declared this asset sends no nightly report (ro-ujb9.96.8). */
+  /** The operator declared this asset sends no nightly report. */
   declaredNoReport?: boolean;
 }): CardDataSource[] {
   const sources: CardDataSource[] = [];
   const nightly = nightlyReportState(now.getTime(), latestReportAt, pull, declaredNoReport);
-  // A declared asset's slot stays in the strip as Not using — the operator's
-  // decision, drawn like every other declined source rather than dropped. A
-  // site that has never sent a report has no slot until its first one arrives.
+  // A declared asset's slot stays in the strip as Not using, like every other
+  // declined source. A site that has never sent a report has no slot.
   if (nightly.effective !== "not-applicable") {
     sources.push({
       id: NIGHTLY_REPORT_LANE_ID,
@@ -347,10 +311,8 @@ export function buildCardDataSources({
   const configured = integrations.assets[assetId] ?? {};
   for (const lane of integrations.catalog) {
     if (!PROPERTY_DATA_SOURCE_IDS.has(lane.id)) continue;
-    // The sparse register again (bead `ro-9mx`): the strip reads a cell through
-    // the same resolver the matrix does, so a lane the scope rule answers reads
-    // Doesn't apply on hover with nothing appended — never a description of
-    // what live WOULD mean on a lane that can never be live here.
+    // The strip reads a cell through the same resolver the matrix does, so a
+    // lane the scope rule answers reads Doesn't apply with nothing appended.
     const cell = registerCell(
       configured[lane.id],
       lane.scope ?? "property",
@@ -377,8 +339,7 @@ export function buildCardDataSources({
         ? undefined
         : (signalRuns.find((run) => run.integration === lane.id) ?? null);
     const effective = effectiveLaneState(declared, lane.id, signalRun, now.getTime());
-    // Not set up, and nothing on Integrations connects it: no slot to fill
-    // (`unusedWithoutConnectPath`, bead `ro-ujb9.133`).
+    // Not set up, and nothing on Integrations connects it: no slot to fill.
     if (unusedWithoutConnectPath({ laneId: lane.id, effective })) continue;
     const evidence =
       isCollectedSignalLane(lane.id)
@@ -396,12 +357,10 @@ export function buildCardDataSources({
   return sources;
 }
 
-/** Provider phrases that mean a part of the call WORKED — "Ok." is what
+/** Provider phrases that mean a part of the call worked — "Ok." is what
  * DataForSEO says about every level that succeeded. On an error row such a
- * message is not the reason for anything, and repeating it is how a red lane
- * came to explain itself with "Ok." The collector no longer stores them, but
- * rows written before it stopped are permanent, so the read side refuses them
- * too rather than trusting the write side to have been honest. */
+ * message is not the reason for anything. Old rows may still carry them, so
+ * the read side refuses them too. */
 const PROVIDER_SUCCESS_PHRASES = new Set([
   "ok",
   "success",
@@ -446,12 +405,10 @@ function signalRunEvidence(
             ? "Clarity"
             : "Google";
   if (!run) {
-    // Two facts share this line, and the floor is what makes one sentence honest
-    // about both: a lane that has never collected, and a lane whose last attempt
-    // is older than `SIGNAL_EVIDENCE_FLOOR_DAYS` and so is no longer in the
-    // evidence reads. The second used to be impossible and is now merely
-    // improbable — but it must never render as silence, so the sentence states
-    // the span it looked over instead of claiming nothing ever happened.
+    // Two facts share this line: a lane that has never collected, and a lane
+    // whose last attempt is older than `SIGNAL_EVIDENCE_FLOOR_DAYS`. The
+    // sentence states the span it looked over instead of claiming nothing
+    // ever happened.
     return {
       polarity: "against",
       source: `${label} has no recent run`,
@@ -460,11 +417,8 @@ function signalRunEvidence(
     };
   }
   if (run.status === "error") {
-    // The cap is a decision the OS made, not a provider failure: it stopped
-    // before spending, which is the guardrail working. Saying "DataForSEO
-    // returned budget_exhausted" would blame the provider for our own limit.
-    // The date it resumes is the fact; the cap itself is the Health page's
-    // Data spend meter.
+    // The cap is a decision the OS made, not a provider failure; the date it
+    // resumes is the fact.
     if (run.errorCode === "budget_exhausted") {
       return {
         polarity: "against",
@@ -485,10 +439,8 @@ function signalRunEvidence(
   }
   const cadence = signalCadenceHours(laneId);
   const stale = isAmber(nowMs, run.finishedAt, cadence, AMBER_MULTIPLIER);
-  // FACTS, NOT SENTENCES (bead `ro-ujb9.96.6.2`): what came back, for which
-  // dates — the way a sync log states rows and window — and, while stale, the
-  // cadence the row's age is judged against. The source line already says
-  // whether it worked.
+  // Facts, not sentences: what came back, for which dates, and, while stale,
+  // the cadence the row's age is judged against.
   const provisional = run.provisionalFrom === null ? [] : [`provisional from ${run.provisionalFrom}`];
   const returned =
     laneId === "dataforseo"
@@ -548,14 +500,9 @@ const ARCHIVE_PROVIDER: Record<ArchiveLaneRun["integration"], string> = {
 };
 
 /**
- * The nightly archive's half of a lane's story. Until now the largest collector
- * in the OS wrote manifests nothing in the Tower read, so a silently failing
- * archive looked exactly like a healthy one.
- *
- * Deliberately quiet: no line at all for a lane the operator has scoped out, and
- * no "never archived" line for a lane that has no fast-collector run either —
- * the run evidence above already says that lane is not collecting, and a second
- * sentence saying it again would be noise, not information.
+ * The nightly archive's half of a lane's story. Deliberately quiet: no line
+ * for a lane the operator has scoped out, and no "never archived" line for a
+ * lane that has no fast-collector run either.
  */
 function archiveEvidence(
   laneId: string,
@@ -569,8 +516,8 @@ function archiveEvidence(
   const provider = ARCHIVE_PROVIDER[laneId];
   const run = archiveRuns.find((item) => item.integration === laneId) ?? null;
   if (!run) {
-    // The collector's own row above already says it is running; this row adds
-    // only that the archive is not, over the span it looked.
+    // The collector's own row already says it is running; this adds only that
+    // the archive is not.
     return signalRun
       ? [
           {
@@ -609,19 +556,12 @@ function archiveEvidence(
 }
 
 /**
- * The success line counts only what the date it names actually covers.
- *
- * A lane on one cadence reads exactly as before — every family carries the named
- * date, so the sentence is the plain count. A lane with per-family cadences
- * (Bing, whose `queries` and `pages` are weekly since ro-93u) would otherwise
- * claim six families for today on the six days of seven when two of them were
- * last collected up to a week ago, so those families are subtracted from the
- * count and named with their own date instead.
- *
- * They are NOT a fault: lagging is what a correctly-working weekly family does,
- * so this sentence stays `supporting` and the lane stays green — the DataForSEO
- * roll-up's completeness test, which reddens on exactly this shape, is
- * deliberately not imported here (ro-90a).
+ * The success line counts only what the date it names covers. A lane with
+ * per-family cadences (Bing, whose `queries` and `pages` are weekly) would
+ * otherwise claim every family for today, so the lagging families are
+ * subtracted from the count and named with their own date. Lagging is not a
+ * fault, so the sentence stays `supporting` and the lane stays green; the
+ * DataForSEO roll-up's completeness test is deliberately not applied here.
  */
 function archiveSuccessDetail(run: ArchiveLaneRun): string {
   if (run.lagging.length === 0) return facts([`${run.reports} report families`, run.reportDate]);
@@ -641,11 +581,7 @@ function isCollectedSignalLane(laneId: string): boolean {
     laneId === "gsc" ||
     laneId === "bing-webmaster" ||
     laneId === "dataforseo" ||
-    // Since bead `ro-ghis.1`: its health is the daily archive's own attempts.
     laneId === "posthog" ||
-    // Since bead `ro-at7t`: the 04:30 export's own manifests. Until then they
-    // were written and read by nobody, so a rejected project token left this
-    // slot on whatever the register declared.
     laneId === "clarity"
   );
 }
@@ -654,10 +590,9 @@ function signalCadenceHours(laneId: string): number {
   return collectionCadenceHours(laneId) ?? CADENCE_HOURS.signals;
 }
 
-/** Which register lane a revenue row supports, or null (subs/licensing have no
- * per-asset lane). Affiliate rows disambiguate CJ vs Amazon by source/note;
- * unknown affiliate defaults to CJ (the portfolio-primary network; Amazon is
- * off portfolio-wide — doc 11). */
+/** Which register lane a revenue row supports, or null (subs/licensing have
+ * no per-asset lane). Affiliate rows disambiguate CJ vs Amazon by source/note;
+ * an unknown affiliate defaults to CJ. */
 export function laneForRevenueRow(
   family: string,
   source: string | null,
@@ -693,13 +628,9 @@ function supportingRevenueEvidence(laneId: string, rows: RevenueRow[]): Integrat
 // Cell assembly — one asset's lanes, in catalog order.
 // ---------------------------------------------------------------------------
 /**
- * One asset's lanes, in catalog order.
- *
- * The register is SPARSE since bead `ro-9mx`: a cell the scope rule already
- * answers is not in the file, and `registerCell` generates it here. So this is
- * where "every asset carries every lane" stopped being a file invariant and
- * became a rendering one — the matrix still has no holes, the file no longer
- * has to restate one of two sentences fifteen times to keep it that way.
+ * One asset's lanes, in catalog order. The register is sparse: a cell the
+ * scope rule already answers is not in the file, and `registerCell` generates
+ * it here, so the matrix has no holes.
  */
 export function buildCells(
   assetId: string,
@@ -715,7 +646,7 @@ export function buildCells(
       isOs,
     );
     if (lane.id === 'ad-network' && laneConfig[lane.id]?.mediavineSiteId) {
-      // The one rule the sync itself runs (bead `ro-ujb9.96.7.6`).
+      // The one rule the sync itself runs.
       const on = mediavineSyncOn({ mediavineSiteId: laneConfig[lane.id]?.mediavineSiteId, status: declared });
       const run = ev.mediavineRun;
       const fresh = run?.outcome === 'success' && (ev.nowMs ?? Date.now()) - Date.parse(run.attempted_at) < 36 * 3_600_000;
@@ -743,42 +674,28 @@ export function buildCatalog(rows: IntegrationsConfigCatalogRow[]): IntegrationC
       docRef: r.docRef,
       usage: known.usage,
       onFailure: known.onFailure,
-      // Default to `asset`: most lanes are a content asset's own surface,
-      // and defaulting the other way would silently blank a lane on every
-      // asset the moment someone forgot the field.
+      // Conservative defaults: a lane missing a field claims nothing shared,
+      // and is never blanked on an asset.
       scope: r.scope ?? "property",
-      // Same conservative default: a lane that fell through to this claims
-      // nothing about a shared tier, only about itself. The register's own rows
-      // all declare it, and a payload test holds the file to that.
       layer: r.layer ?? "property",
-      // Default to per-property: never falsely claim a shared credential exists.
       credential: r.credential ?? "per-property",
-      // Everything in the catalog is declared in the register file by definition.
       derived: false,
     };
   });
 }
 
 // ---------------------------------------------------------------------------
-// The derived nightly-report lane — PURE over one asset's store evidence.
-// Each state carries the timestamp it was decided from:
+// The derived nightly-report lane, pure over one asset's store evidence:
 //   • a report accepted inside 2× the nightly cadence  → live
 //   • the last report is older than that               → degraded
-//   • no report has EVER been accepted                 → not-applicable
+//   • no report has ever been accepted                 → not-applicable
 // Staleness uses the same isAmber/CADENCE_HOURS.pulse rule as the Wall's age
-// badges, so "stale" means one thing across the whole Tower.
-//
-// A site that has never sent a report expects none (D29 amended 2026-09-23,
-// `expectsNightlyReport`, bead `ro-ujb9.121`): nobody set up a sender for it,
-// so its lane is not a to-do on Health and its slot leaves the source strip
-// until the first report arrives. A fetch that is set up and failing says so
-// through its own `asset-pull-failed` alert.
-//
-// THE OPERATOR'S DECLARATION (bead `ro-ujb9.96.8`): an asset declared as
-// sending no nightly report owes none, so without a current report its lane is
-// `skipped` — Not using, the operator's decision — never degraded. A report it
-// sends anyway still reads live while it is current (`showsNightlyReport`, the
-// contract's rule, which the Wall slot reads too).
+// badges. A site that has never sent a report expects none
+// (`expectsNightlyReport`); a fetch that is set up and failing says so through
+// its own `asset-pull-failed` alert. An asset declared as sending no nightly
+// report owes none, so without a current report its lane is `skipped`, never
+// degraded; a report it sends anyway still reads live while current
+// (`showsNightlyReport`).
 // ---------------------------------------------------------------------------
 export function nightlyReportState(
   nowMs: number,
@@ -814,8 +731,7 @@ export function nightlyReportState(
     };
   }
 
-  // The row's age says when; the cell's chip says Working or Overdue. A late
-  // report adds the one fact its age is judged against.
+  // A late report adds the one fact its age is judged against.
   const stale = isAmber(nowMs, lastReceivedAt, CADENCE_HOURS.pulse, AMBER_MULTIPLIER);
   return {
     effective: stale ? "degraded" : "live",
@@ -863,20 +779,15 @@ export function buildNightlyReportLane(
   return { catalog: NIGHTLY_REPORT_LANE, cells };
 }
 
-
 export function recentSincePeriod(now: Date, monthsBack: number = RECENT_MONTHS_BACK): string {
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - monthsBack, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-/** Derive a single asset's integrations section from already-gathered evidence
- * (the asset-detail builder has both the wiring flags and the ledger rows). */
 /**
  * One lane's per-asset mapping, read straight out of the register file.
- *
- * `LANE_MAPPING` (beside the `asset-lane` declaration) decides WHICH fields a
- * lane has; this only reads them. A lane with no entry in that table gets an
- * empty list and no card section, which is how most lanes read.
+ * `LANE_MAPPING` decides which fields a lane has; this only reads them. A lane
+ * with no entry there gets an empty list and no card section.
  */
 function laneMapping(
   laneId: string,
@@ -896,25 +807,21 @@ function laneMapping(
       value: typeof value === "string" || typeof value === "number" ? value : null,
     };
   });
-  // Structured list fields (PostHog's funnels, bead `ro-ghis.1`): carried whole
-  // for their own editor, and never counted as "is this lane mapped".
+  // Structured list fields (PostHog's funnels): carried whole for their own
+  // editor, and never counted as "is this lane mapped".
   const mappingLists = (spec.lists ?? []).map((name) => {
     const value = held[name];
     return { name, value: Array.isArray(value) ? (value as unknown[]) : null };
   });
-  // WHICH SOURCE ANSWERS FOR THIS ASSET (bead `ro-vu8d.16`), decided by the same
-  // rule the collectors' resolver uses (`workers/ingest/src/lane-mapping.ts`):
-  // a value here steers the run, and nothing here leaves the lane on its old
-  // source. Any field set is enough, because DataForSEO's two resolve
-  // independently — a market stated without a language is still this asset's
-  // own answer.
+  // Which source answers for this asset, by the same rule the collectors'
+  // resolver uses (`workers/ingest/src/lane-mapping.ts`). Any field set is
+  // enough, because DataForSEO's two resolve independently.
   const mappingSource: LaneMappingSource = mapping.some(
     (field) => field.value !== null && field.value !== "",
   )
     ? "register"
     : "fallback";
-  // The card draws the state, and the lane's fallback from `LANE_MAPPING`
-  // (bead `ro-ujb9.96.6.4`) — no sentence travels in the payload.
+  // The card draws the state and the lane's fallback from `LANE_MAPPING`.
   return { mapping, mappingLists, mappingSource };
 }
 
@@ -928,16 +835,15 @@ export function buildAssetIntegrations(
   const catalog = buildCatalog(integrations.catalog);
   const declaredLanes = integrations.assets[assetId] ?? {};
   // A source nothing on Integrations connects is no row a site must answer
-  // while it is only Not set up (`unusedWithoutConnectPath`, bead `ro-ujb9.133`).
+  // while it is only Not set up (`unusedWithoutConnectPath`).
   const built = buildCells(assetId, declaredLanes, catalog, ev, isOs);
   const shown = catalog
     .map((cat, i) => ({ cat, cell: built[i]! }))
     .filter(({ cell }) => !unusedWithoutConnectPath(cell));
   const cells = shown.map(({ cell }) => cell);
   const lanes: AssetIntegrationLane[] = shown.map(({ cat, cell }) => {
-    // A lane the scope rule answers (`not-applicable` derived, no file entry)
-    // still resolves to no mapping, because `declaredLanes[id]` is undefined —
-    // so the System's card never grows a property-id field to leave blank.
+    // A lane the scope rule answers has no file entry, so it resolves to no
+    // mapping and the System's card never grows a property-id field.
     const { mapping, mappingLists, mappingSource } = laneMapping(
       cat.id,
       declaredLanes[cat.id],
@@ -953,26 +859,13 @@ export function buildAssetIntegrations(
   return { sources, lanes, summary: summarize(cells) };
 }
 
-
-
 /**
- * How far back every latest-attempt read looks — the ONE floor the Tower's
- * evidence queries share, so "the last run" means the same span on the wall, on
- * the integrations matrix, and on an asset page.
- *
- * `signal_runs` gains ~955 rows a day and nothing ever deletes from it (docs/06:
- * append-only, kept indefinitely — it is the calibration corpus). Ranking that
- * whole history to return at most eighteen rows is the growth bead `ro-48p.1`
- * measured, and a query with no lower bound cannot state how much history it
- * meant to read.
- *
- * Four hundred days is deliberately far past every cadence in the system — the
- * fastest lane runs every fifteen minutes and the slowest, DataForSEO, weekly —
- * so a lane that has gone quiet for an entire annual cycle still reports its
- * last-good run, which is what integration health depends on (db/README:235: a
- * new failure degrades the icon without erasing the last-good data). Past that
- * the lane is not stale, it is unwired, and `signalRunEvidence` says so in the
- * floor's own words rather than letting the lane quietly leave the matrix.
+ * How far back every latest-attempt read looks — the one floor the Tower's
+ * evidence queries share. `signal_runs` is append-only and kept indefinitely,
+ * and a query with no lower bound cannot state how much history it meant to
+ * read. Four hundred days is far past every cadence in the system, so a lane
+ * quiet for an annual cycle still reports its last-good run; past that it is
+ * unwired, and `signalRunEvidence` says so in the floor's own words.
  */
 export const SIGNAL_EVIDENCE_FLOOR_DAYS = 400;
 
@@ -983,20 +876,12 @@ export function signalEvidenceFloor(nowMs: number): string {
 
 /**
  * Latest collector attempt per asset + provider, within the evidence floor.
- *
  * Driven from the (asset, lane) pairs that can exist rather than from the run
- * log: one `LIMIT 1` seek per pair down the runs' latest-first index
- * (`signal_runs_latest`: asset, integration, finished_at DESC), so the read
- * costs the same on the first day and the ten-thousandth. Ranking the whole
- * append-only log with ROW_NUMBER() to keep eighteen rows was the shape bead
- * `ro-48p.1` measured as a full index scan. The seek stays deterministic when
- * two runs finish in the same instant: the one written last wins, as on D1.
- *
- * The lane vocabulary is spelled out so each pair is one seek; it is the three
- * the collectors write, and DataForSEO is deliberately absent — that lane's
- * evidence is its report manifests, rolled up below. The runs and the
- * manifests are read on Postgres (`store`, beads ro-ujb9.76.5.3 and
- * ro-ujb9.76.5.4), a site's lanes in that order.
+ * log: one `LIMIT 1` seek per pair down `signal_runs_latest`, so the read
+ * costs the same however long the log grows. Two runs finishing in the same
+ * instant: the one written last wins. The lane vocabulary is spelled out so
+ * each pair is one seek; DataForSEO is deliberately absent — that lane's
+ * evidence is its report manifests, rolled up below.
  */
 export async function loadLatestSignalRuns(
   store: WorkspaceStore,
@@ -1036,9 +921,7 @@ export async function loadLatestSignalRuns(
       ),
     )
   ).map((row) => ({ ...row, finishedAt: javascriptInstant(row.finishedAt) }));
-  // ONE manifest read for every archive-backed lane (DataForSEO; PostHog since
-  // bead `ro-ghis.1`; Clarity since bead `ro-at7t`), split by integration, so a
-  // card read still costs the same two queries it did.
+  // One manifest read for every archive-backed lane, split by integration.
   const dumps = await loadLatestDumpRuns(store, ["dataforseo", "posthog", "clarity"], floor, assetId);
   rows.push(
     ...aggregateDataForSeoRuns(
@@ -1057,10 +940,9 @@ export async function loadLatestSignalRuns(
   return map;
 }
 
-/** Latest archive attempt per asset + provider, for the three lanes the
- * nightly R2 archive cron covers. Same query as the DataForSEO read above —
- * only the integration filter differs — so "latest manifest per report family"
- * means one thing across every archived lane. */
+/** Latest archive attempt per asset + provider, for the lanes the nightly
+ * archive cron covers. Same query as the DataForSEO read, so "latest manifest
+ * per report family" means one thing across every archived lane. */
 export async function loadLatestArchiveRuns(
   store: WorkspaceStore,
   nowMs: number,
@@ -1083,14 +965,10 @@ export async function loadLatestArchiveRuns(
   return map;
 }
 
-/** The lanes whose nightly archive is a SECOND collector beside a faster one,
- * and so rides as an extra evidence line on that lane (`archiveEvidence`).
- *
- * Clarity is deliberately not here (bead `ro-at7t`): its 04:30 export is the
- * lane's ONLY collector, so its manifests decide the lane's state the way
- * DataForSEO's and PostHog's do — `isCollectedSignalLane` and
- * `loadLatestSignalRuns` read them. Listing it here as well would state one
- * attempt twice on the same cell. */
+/** The lanes whose nightly archive is a second collector beside a faster one,
+ * and so rides as an extra evidence line (`archiveEvidence`). Clarity is not
+ * here: its export is the lane's only collector, so its manifests decide the
+ * lane's state, and listing it here too would state one attempt twice. */
 const ARCHIVE_LANE_IDS: ArchiveLaneRun["integration"][] = [
   "ga4",
   "gsc",
@@ -1109,25 +987,15 @@ type LatestDumpReport = {
   errorMessage: string | null;
 };
 
-/** The one latest-manifest-per-(asset, integration, report) read, on Postgres
- * (`noticeos.archive_runs`, bead ro-ujb9.76.5.4). `integrations` is a
- * code-owned constant list, never operator input, so it is inlined as the
- * lanes it walks. `$1` is the floor; `$2`, with `oneAsset`, the site.
- *
- * The report families a lane writes are the collector's business and change with
- * config, so this one cannot be driven by a spelled-out pair list the way
- * `loadLatestSignalRuns` is. Instead it walks the site list and seeks each
- * site's slice of the report runs' (site, lane, report, finish) index
- * (`archive_runs_finished`), which is what keeps the ranking off the whole
- * manifest table, and `floor` states how much of that slice it meant to read.
- *
- * HOW IT WALKS THAT SLICE (bead `ro-ujb9.104`). It finds the report families
- * by skipping through the index (`min(report) … report > $`, one seek per
- * family), and takes each family's newest attempt with one bounded seek down
- * that family's (finish) entries (`LIMIT 1`, a `LATERAL` per family), the one
- * written last of two that finished in the same instant. Rows come back
- * ordered by site, lane and family, byte by byte, the order the aggregators
- * rely on. */
+/** The one latest-manifest-per-(asset, integration, report) read
+ * (`noticeos.archive_runs`). `integrations` is a code-owned constant list,
+ * never operator input, so it is inlined. `$1` is the floor; `$2`, with
+ * `oneAsset`, the site. The report families a lane writes change with
+ * config, so this walks the site list and seeks each site's slice of
+ * `archive_runs_finished`: it finds the families by skipping through the
+ * index (`min(report) … report > $`) and takes each family's newest attempt
+ * with one `LATERAL ... LIMIT 1`. Rows come back ordered by site, lane and
+ * family, byte by byte, the order the aggregators rely on. */
 export function latestDumpRunsSql(integrations: readonly string[], oneAsset: boolean): string {
   const lanes = integrations.map((id) => `('${id}')`).join(", ");
   return `WITH RECURSIVE lanes(integration) AS (VALUES ${lanes}),
@@ -1193,9 +1061,7 @@ function aggregateArchiveRuns(rows: LatestDumpReport[]): ArchiveLaneRun[] {
     const failures = reports.filter((report) => report.status === "error");
     const first = failures[0] ?? null;
     const reportDate = reports.map((report) => report.reportDate).sort().at(-1) ?? "";
-    // Which families the newest date does NOT speak for. Recorded, not judged:
-    // the lane's own health still comes from failures and from the newest
-    // finished_at, both of which a slower-cadence family leaves alone.
+    // Which families the newest date does not speak for. Recorded, not judged.
     const lagging = reports
       .filter((report) => report.reportDate !== reportDate)
       .map((report) => ({ report: report.report, reportDate: report.reportDate }))
@@ -1215,21 +1081,13 @@ function aggregateArchiveRuns(rows: LatestDumpReport[]): ArchiveLaneRun[] {
   });
 }
 
-
 /**
  * How long after the newest family lands an older-dated family still reads as
- * "the sweep has not reached it yet" rather than "this week is torn".
- *
- * The weekly sweep is sequential, and the tracked SERP panel is one provider
- * call per tracked query — ~40 of them, 112 seconds on the 2026-07-31 run — so
- * the panel legitimately still carries LAST week's report_date while the five
- * domain families already carry this one. Judging that window as a torn snapshot
- * turned one asset's lane red every Monday for no reason, which is how an
- * operator learns to stop reading the colour.
- *
- * Fifteen minutes is an order of magnitude above the measured sweep and two
- * orders below the weekly cadence, so a week that genuinely lost a family is red
- * within the same hour rather than never.
+ * "the sweep has not reached it yet" rather than "this week is torn". The
+ * weekly sweep is sequential and the tracked SERP panel is one provider call
+ * per query, so the panel legitimately carries last week's report_date for a
+ * few minutes. Fifteen minutes is well above the sweep and well below the
+ * weekly cadence.
  */
 const DATAFORSEO_SWEEP_GRACE_MS = 15 * 60_000;
 
@@ -1260,22 +1118,15 @@ function aggregateDataForSeoRuns(
     byAsset.set(row.asset, reports);
   }
   return [...byAsset.entries()].map(([asset, stored]) => {
-    // The collector decides per asset — a family whose config does not cover
-    // the asset is not one of its reports at all — so the completeness test
-    // asks the same question. A portfolio constant of 5 meant an asset which
-    // stores 6, was never short of anything and the test could not fire for it.
-    // The snapshot this asset is ON, read from every stored row before any
-    // family filtering, because it is what decides WHICH families were due.
-    // Filtering first would make the two mutually dependent.
+    // The snapshot this asset is on, read from every stored row before any
+    // family filtering, because it decides which families were due.
     const storedSnapshot = stored
       .map((row) => row.reportDate)
       .sort()
       .at(-1);
     // Judged against what was due on that date, not against today's family
-    // list. A family registered last week was never owed by a collection
-    // stored last month, and counting it as `neverAttempted` would turn every
-    // asset's lane amber the day a family is added — accusing the collector
-    // of dropping something nobody had asked it for.
+    // list: a family registered last week was never owed by a collection
+    // stored last month.
     const expected = dataForSeoReportsFor(asset, panelAssets, storedSnapshot);
     const due = expected.length;
     const reports = stored.filter((row) =>
@@ -1286,12 +1137,10 @@ function aggregateDataForSeoRuns(
     const sortedFinished = reports.map((row) => row.finishedAt).sort();
     const snapshot = sortedDates.at(-1) ?? "";
     const finishedAt = sortedFinished.at(-1) ?? "";
-    // A sweep still in progress is not a torn week. An unparseable timestamp is
-    // never in flight: NaN fails the comparison, so an unreadable row is judged.
+    // A sweep still in progress is not a torn week. NaN fails the comparison,
+    // so an unreadable timestamp is judged.
     const sweeping = nowMs - Date.parse(finishedAt) < DATAFORSEO_SWEEP_GRACE_MS;
-    // Families whose newest attempt predates the snapshot the rest of the
-    // asset is on: either the sweep has not reached them yet, or it never
-    // will again.
+    // Families whose newest attempt predates the snapshot the rest of the asset is on.
     const behind = reports
       .filter((row) => row.reportDate !== snapshot)
       .map((row) => row.report)
@@ -1306,16 +1155,13 @@ function aggregateDataForSeoRuns(
       .sort()
       .at(-1);
     const incomplete = !sweeping && (neverAttempted > 0 || behind.length > 0);
-    // The success line names ONE snapshot date, so it may only count what
-    // belongs to it — during the in-flight window that is the families that have
-    // landed, not the one still carrying last week's date.
+    // The success line names one snapshot date, so it may only count what belongs to it.
     const current = reports.filter((row) => row.reportDate === snapshot);
     return {
       asset,
       integration: "dataforseo",
       status: failure || incomplete ? "error" : "success",
-      // The evidence clock belongs to the failure it names. A later successful
-      // family must not make an old failure look as though it happened just now.
+      // The evidence clock belongs to the failure it names.
       finishedAt: failureFinishedAt ?? finishedAt,
       windowStart: snapshot,
       windowEnd: snapshot,
@@ -1334,15 +1180,11 @@ function aggregateDataForSeoRuns(
 }
 
 /**
- * A daily archive whose manifests ARE the lane's collection, rolled up per
- * asset: the newest attempt of each report family. PostHog's six families
- * (bead `ro-ghis.1`) and Clarity's one (bead `ro-at7t`, `url-3d`, one call per
- * project per day at 04:30 UTC). Any family whose newest attempt failed makes
- * the lane's run an error — a budget refusal, a refused key or token, a spent
- * daily cap and a missing project are all things the operator acts on. PostHog's
- * message names every failed family; Clarity has only the one, so its message
- * is the stored reason alone. A family with an older date is not a failure: it
- * may simply be one that is no longer configured (a removed funnel list).
+ * A daily archive whose manifests are the lane's collection, rolled up per
+ * asset: the newest attempt of each report family. Any family whose newest
+ * attempt failed makes the lane's run an error. PostHog's message names every
+ * failed family; Clarity has only the one. A family with an older date is not
+ * a failure: it may simply no longer be configured.
  */
 function aggregateDailyArchiveRuns(
   rows: LatestDumpReport[],
@@ -1397,10 +1239,8 @@ function dataForSeoFailureReason(failures: LatestDumpReport[]): string {
     .join("; ");
 }
 
-/** Why the lane is short, in the terms the operator can act on: a family that
- * has never been collected is a wiring question, and a family missing from THIS
- * snapshot is a collection question — so the fact names it rather than
- * reporting that the dates disagree. */
+/** Why the lane is short: a family never collected is a wiring question, and
+ * a family missing from this snapshot is a collection question. */
 function incompleteReason(
   attempted: number,
   due: number,
@@ -1419,7 +1259,7 @@ function andList(items: string[]): string {
 }
 
 async function loadRecentRevenue(store: WorkspaceStore, cutoffPeriod: string): Promise<Map<string, RevenueRow[]>> {
-  // The ledger's current money entries (`./ledger-history`), on the call's store.
+  // The ledger's current money entries (`./ledger-history`).
   const rows = await store.read((tx) =>
     tx.query<{ asset: string; family: string; source: string | null; note: string | null; currency: string; amountMinor: bigint; period: string }>(
       `SELECT asset_id AS asset, family, source, note, currency, amount_minor AS "amountMinor", to_char(period_month, 'YYYY-MM') AS period
@@ -1441,16 +1281,11 @@ type MediavineRun = { asset: string; attempted_at: string; outcome: string; mess
 
 /**
  * Each asset's latest Mediavine attempt and the last day its daily revenue
- * reaches (beads `ro-ujb9.104`, ro-ujb9.76.5.5).
- *
- * Driven from the site list, each part a seek on the call's store: a site's
- * latest attempt is a LIMIT 1 down `mediavine_runs_asset (workspace, asset,
- * attempted_at)`, the one written last winning a tie, as D1's rowid did; and
- * `reported_through` is the newest `report_date` its daily revenue holds,
- * from `mediavine_daily_latest`. It reads the table rather than
- * `mediavine_current_daily`, and that is the same answer: the view keeps the
- * newest row of every (asset, site, day), so it holds every day the table
- * holds. A site with no attempt has no row.
+ * reaches. Driven from the site list, each part a seek: the latest attempt is
+ * a LIMIT 1 down `mediavine_runs_asset`, the one written last winning a tie;
+ * `reported_through` is the newest `report_date` in `mediavine_daily_latest`,
+ * which holds every day the current-daily view does. A site with no attempt
+ * has no row.
  */
 export const MEDIAVINE_RUNS_SQL = `SELECT a.asset_id AS asset, r.attempted_at, r.outcome, r.message,
          (SELECT MAX(d.report_date) FROM noticeos.mediavine_daily d
@@ -1466,12 +1301,9 @@ export async function loadMediavineRuns(store: WorkspaceStore): Promise<Map<stri
   return new Map(rows.map(row => [row.asset, { ...row, attempted_at: javascriptInstant(row.attempted_at) }]));
 }
 
-/**
- * Each site's newest home-page check — its uptime (bead `ro-ujb9.165`). One
- * LIMIT 1 seek per site down the `(asset, check_id, observed_on)` unique index
- * its readers need; the check writes one row a site a day, and the day's row
- * is its latest hour. On Postgres (bead ro-ujb9.76.5.8).
- */
+/** Each site's newest home-page check — its uptime. One LIMIT 1 seek per site
+ * down the `(asset, check_id, observed_on)` unique index; the check writes one
+ * row a site a day, and the day's row is its latest hour. */
 export function homeChecksSql(oneAsset: boolean): string {
   return `SELECT a.asset_id AS asset, h.observed_at AS "observedAt", h.status, h.detail::text AS "detailJson"
     FROM noticeos.assets a
@@ -1492,8 +1324,7 @@ export async function loadHomeChecks(store: WorkspaceStore, assetId?: string): P
   );
   const checks = new Map<string, HomeCheck>();
   for (const row of rows) {
-    // A status the CHECK constraint does not define means writer and reader
-    // diverged: no reading rather than a guessed one.
+    // An undefined status means writer and reader diverged: no reading.
     if (!HOME_CHECK_STATUSES.has(row.status)) continue;
     let detail: { http_status?: unknown; egress_down?: unknown; failed_tries?: unknown } = {};
     try {
@@ -1517,8 +1348,6 @@ function capitalize(s: string): string {
   return s.length ? s[0]!.toUpperCase() + s.slice(1) : s;
 }
 
-
-
 interface EvidenceRequest {
   now: Date;
   integrations: IntegrationsConfig;
@@ -1539,7 +1368,7 @@ interface AssetEvidenceContext {
   latestReportAt: string | null;
   pull: PullConfigEntry | null;
   isOs?: boolean;
-  /** The operator declared this asset sends no nightly report (ro-ujb9.96.8). */
+  /** The operator declared this asset sends no nightly report. */
   declaredNoReport?: boolean;
 }
 interface CompactEvidenceRead {
@@ -1553,9 +1382,7 @@ interface FullEvidenceRead extends CompactEvidenceRead {
 
 /** Load the evidence needed by a presentation once. A completed query with no
  * rows supplies []; undefined stays reserved for evidence that was not loaded.
- * Compact reads deliberately omit archive, ledger, and revenue-provider reads.
- * All of it is read from the call's store (epic ro-ujb9.76).
- */
+ * Compact reads deliberately omit archive, ledger, and revenue-provider reads. */
 export function loadIntegrationEvidence(store: WorkspaceStore, request: CompactRequest): Promise<CompactEvidenceRead>;
 export function loadIntegrationEvidence(store: WorkspaceStore, request: FullRequest): Promise<FullEvidenceRead>;
 export async function loadIntegrationEvidence(store: WorkspaceStore, request: CompactRequest | FullRequest): Promise<CompactEvidenceRead | FullEvidenceRead> {

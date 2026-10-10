@@ -1,6 +1,6 @@
 // @vitest-environment node
 // The Worker half of the runner lane: what it does once a request is allowed,
-// and — the part that matters — that it still refuses one that is not.
+// and that it still refuses one that is not.
 
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -33,7 +33,6 @@ describe("the runner lane's door check", () => {
     const response = await handleRunnerRequest(new Request(url), url, ingest);
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toEqual({ error: "runner_lane_loopback_only" });
-    // Nothing was fired. That is the whole point of the check.
     expect(ingest.runScheduled).not.toHaveBeenCalled();
   });
 });
@@ -54,8 +53,8 @@ describe("firing a cron", () => {
     expect(ingest.runScheduled).toHaveBeenCalledWith("*/15 * * * *");
   });
 
-  // Bead ro-ujb9.96.7.29: the Tower's own steps of a tick run after the
-  // ingest's and are one run of the job.
+  // The Tower's own steps of a tick run after the ingest's and are one run of
+  // the job.
   it("runs the Tower's steps after the ingest's and records them as one run", async () => {
     const order: string[] = [];
     const ingestStep = { id: "freshness", attempt: 1, startedAt: "2026-09-12T12:00:00.000Z", state: "succeeded" as const };
@@ -86,8 +85,8 @@ describe("firing a cron", () => {
     expect(ingest.runScheduled).not.toHaveBeenCalled();
   });
 
-  // Bead ro-ujb9.217: an expression no scheduled job runs on ran nothing, and
-  // the door turns it away by name instead of answering 200.
+  // An expression no scheduled job runs on ran nothing, and the door turns it
+  // away by name instead of answering 200.
   it("refuses an expression the dispatch refused, by its name, and runs no Tower step", async () => {
     const ingest = stubIngest({
       runScheduled: vi.fn(async () => ({

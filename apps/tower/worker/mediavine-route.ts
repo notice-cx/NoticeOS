@@ -1,8 +1,7 @@
 import type { MediavineResult, MediavineSettings, MediavineStatus, MediavineSync } from '@noticeos/contract';
 import { crossOrigin, isJsonRequest, JSON_HEADERS, jsonError } from './http';
-// The account's sites are listed by the connect panel's own route (GET
-// /api/integrations/mediavine/sites, site-discovery-route.ts, bead
-// `ro-ujb9.96.7.6`); these are the site's revenue settings and sync.
+// A site's revenue settings and sync; the account's site list is
+// site-discovery-route.ts.
 export interface MediavineBinding {
   mediavineStatus(asset: string): Promise<MediavineStatus>;
   saveMediavineSettings(input: MediavineSettings): Promise<MediavineResult<MediavineStatus>>;

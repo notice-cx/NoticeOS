@@ -33,19 +33,13 @@ import {
 } from "@/lib/wall-editor";
 
 /**
- * The editor's grammar, with no DOM anywhere (bead `ro-lzmq.2` acceptance 1).
- *
- * Every arrangement the operator can make is a reducer step, so every one of
- * them is checked here rather than through a rendered widget — the rendered
- * tests beside this file check that a control is wired to the right action, not
- * what the action means.
- *
- * D28's five widgets (bead `ro-trai.11`) are each one of a kind, and the
- * default stacks three of them in a column. The grammar is exercised on FLAT —
- * the same five in two plain rows — and the column on the default itself.
+ * The editor's grammar, with no DOM. Every arrangement is a reducer step, so
+ * every one is checked here; the rendered tests check that a control is wired
+ * to the right action. The grammar is exercised on FLAT (the five widgets in
+ * two plain rows) and the column on the default itself.
  */
 
-/** D28's widgets in two plain rows: the top line, then the rest. */
+/** The widgets in two plain rows: the top line, then the rest. */
 const FLAT: WallLayout = {
   version: 1,
   rows: [
@@ -175,7 +169,7 @@ describe("adding a widget", () => {
   });
 });
 
-/** Bead ro-ujb9.96.6.12: a version saved with no note is named by what changed. */
+/** A version saved with no note is named by what changed. */
 describe("the version's description when there is no note", () => {
   it("names what was added, removed and resized", () => {
     const before = run(start(), { type: "remove", widgetId: "feed" }).layout;
@@ -315,9 +309,8 @@ describe("the site filter", () => {
     expect(drawable(cleared.layout)).toBe(true);
   });
 
-  // An empty list is inferred, not refused (bead `ro-ujb9.96.6.17`): it is the
-  // answer unticking the last box gives, "every site", so the widget simply
-  // carries no filter and the layout stays drawable.
+  // An empty list is inferred, not refused: it is the answer unticking the
+  // last box gives, "every site", so the widget simply carries no filter.
   it("an empty list reads as every site: the widget drops its filter", () => {
     const state = run(start(), {
       type: "settings",
@@ -523,8 +516,8 @@ describe("dirty, discard and save", () => {
   });
 });
 
-// Bead ro-trai.2: a widget goes into a column and comes back out, and a column
-// is a container — it never outlives the last widget in it.
+// A widget goes into a column and comes back out, and a column is a
+// container: it never outlives the last widget in it.
 describe("stacking in a column", () => {
   const columnOf = (layout: WallLayout, rowId: string) => {
     const slot = layout.rows.find((r) => r.id === rowId)?.widgets.find((w) => w.type === "column");

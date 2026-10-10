@@ -1,11 +1,7 @@
-// The Wall draws a layout document (bead `ro-lzmq.1`), and the Wall nobody
-// rearranged is D28's (bead `ro-trai.11`, docs/14-design.md § Regions): the
-// strip on top; below it a column — revenue beside Needs you, then the site
-// rows — beside the full-height live feed.
-//
-// A LAYOUT SAVED BEFORE D28 names widgets the Wall no longer has. It is read,
-// never refused and never blank, as the D28 default; both the contract's read
-// (`parseWallConfig`) and the route's own are proven here.
+// The Wall draws a layout document. The default: the strip on top; below it a
+// column (revenue beside Needs you, then the site rows) beside the full-height
+// live feed. A layout naming retired widgets is read as the default, never
+// refused and never blank, by both `parseWallConfig` and the route's own read.
 
 import { render } from "./render";
 import { MemoryRouter } from "react-router-dom";
@@ -18,7 +14,7 @@ import { WallCanvas } from "@/components/WallCanvas";
 const NOW = Date.parse("2026-09-05T12:05:00.000Z");
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-09-05T12:05:00.000Z") }));
 
-// The feed polls on its own (bead ro-trai.9); here it answered with one row.
+// The feed polls on its own; here it answered with one row.
 vi.mock("@/hooks/useWallFeed", () => ({
   useWallFeed: () => ({
     data: {
@@ -116,7 +112,7 @@ const PAYLOAD: WallPayload = {
     scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: "2026-09-05T11:00:00.000Z" }],
   },
   dashboard: {
-    countdown: { emoji: "🌁", label: "SF Trip", targetAt: "2026-10-01T07:00:00.000Z" },
+    countdown: { emoji: "🌁", label: "Team offsite", targetAt: "2026-10-01T07:00:00.000Z" },
   },
   assets: [asset("meals.example", "Meal Planner"), asset("nosh.example", "Nosh")],
   attention: [
@@ -163,7 +159,7 @@ const PAYLOAD: WallPayload = {
   ledgerRecordedAt: "2026-09-05T12:00:00.000Z",
 };
 
-/** A Wall arranged before D28: nothing but widgets D28 retired. */
+/** A Wall holding nothing but retired widgets. */
 const PRE_D28_SAVE = {
   layout: {
     version: 1,
@@ -207,8 +203,8 @@ function canvas(
 /**
  * A row's column tracks as `<floor>|<weight>` pairs, from the TV template the
  * canvas states inline. `0`, `0rem` and `min(0rem, 100%)` are one floor. A
- * track beside a capped widget also takes the row less the gaps and the caps
- * (bead ro-trai.31): `<floor>+rest-<caps>rem`.
+ * track beside a capped widget also takes the row less the gaps and the caps:
+ * `<floor>+rest-<caps>rem`.
  */
 function tracks(row: Element): string[] {
   const inline = /--wall-row-tracks:\s*([^;]+)/u.exec(row.getAttribute("style") ?? "")?.[1] ?? "";
@@ -219,13 +215,13 @@ function tracks(row: Element): string[] {
   });
 }
 
-/** Every D28 region the canvas drew, in document order. */
+/** Every default region the canvas drew, in document order. */
 function regions(root: Element): string[] {
   return [...root.querySelectorAll("[data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed]")]
     .map((el) => ["strip", "revenue", "needs", "sites", "feed"].find((name) => el.hasAttribute(`data-wall-${name}`))!);
 }
 
-/** Anything the old Wall drew that D28 took off it (docs/25 § What leaves the Wall). */
+/** Marks of the retired widgets. */
 const RETIRED_MARKS = [
   "[data-attention-rail]",
   "[data-system-posture]",
@@ -239,7 +235,7 @@ const RETIRED_MARKS = [
   "[data-widget-shell]",
 ].join(", ");
 
-describe("the Wall nobody rearranged is D28", () => {
+describe("the Wall nobody rearranged is the default", () => {
   it("draws the strip, then the column of revenue beside Needs you over the sites, beside the feed", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     const canvasEl = view.container.querySelector("[data-wall-canvas]")!;
@@ -255,9 +251,8 @@ describe("the Wall nobody rearranged is D28", () => {
   });
 
   // On a portrait tablet or a phone the rows dissolve and the Wall is one
-  // column read in the operator's order (2026-09-23, beads ro-trai.29,
-  // ro-trai.31): the sites before Needs you and the feed, because their
-  // numbers are the state of the business.
+  // column read in the operator's order: the sites before Needs you and the
+  // feed, because their numbers are the state of the business.
   it("stacks below the TV in one order whatever the layout: strip, revenue, sites, Needs you, feed", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     for (const row of view.container.querySelectorAll("[data-wall-row]")) expect(row).toHaveClass("contents", "tv:grid");
@@ -266,7 +261,6 @@ describe("the Wall nobody rearranged is D28", () => {
     const stacked = [...slots].sort((a, b) => Number(a.style.order) - Number(b.style.order));
     expect(stacked.map((slot) => slot.getAttribute("data-wall-slot"))).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
     for (const slot of slots) expect(slot).toHaveClass("tv:contents");
-    // A layout that puts the feed first and the sites last reads the same.
     view.unmount();
     const turned = canvas({
       ...DEFAULT_WALL_LAYOUT,
@@ -289,8 +283,8 @@ describe("the Wall nobody rearranged is D28", () => {
   it("gives the column its 3.1 to the feed's 1, the feed its floor, and revenue its 1.55 beside Needs you", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     expect(tracks(view.container.querySelector("[data-wall-row='strip']")!)).toEqual(["0rem|1fr"]);
-    // The feed's 30 rem cap is a floor on the column beside it (bead
-    // ro-trai.31): past the cap the column takes the rest.
+    // The feed's 30 rem cap is a floor on the column beside it: past the cap
+    // the column takes the rest.
     expect(tracks(view.container.querySelector("[data-wall-row='body']")!)).toEqual(["0rem+rest-30rem|3.1fr", "21rem|1fr"]);
     expect(tracks(view.container.querySelector("[data-wall-row='money']")!)).toEqual(["0rem|1.55fr", "0rem|1fr"]);
     expect(tracks(view.container.querySelector("[data-wall-row='sites']")!)).toEqual(["0rem|1fr"]);
@@ -298,14 +292,14 @@ describe("the Wall nobody rearranged is D28", () => {
 
   it("gives the body the height the strip leaves, and the site rows the height revenue leaves", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
-    // At the TV's width (`tv:`), where the rows are boxes (bead ro-trai.29).
+    // At the TV's width (`tv:`), where the rows are boxes.
     expect(view.container.querySelector("[data-wall-row='body']")).toHaveClass("tv:min-h-0", "tv:flex-1");
     expect(view.container.querySelector("[data-wall-row='sites']")).toHaveClass("tv:min-h-0", "tv:flex-1");
     expect(view.container.querySelector("[data-wall-row='strip']")).not.toHaveClass("tv:flex-1");
     expect(view.container.querySelector("[data-wall-row='money']")).not.toHaveClass("tv:flex-1");
   });
 
-  it("spaces its regions on D28's frame tokens: 20px stacked, 28px side by side", () => {
+  it("spaces its regions on the frame tokens: 20px stacked, 28px side by side", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     expect(view.container.querySelector("[data-wall-canvas]")).toHaveClass("gap-wall-region");
     expect(view.container.querySelector("[data-wall-column]")).toHaveClass("tv:gap-wall-region");
@@ -314,21 +308,20 @@ describe("the Wall nobody rearranged is D28", () => {
     }
   });
 
-  it("draws nothing D28 took off the Wall", () => {
+  it("draws nothing retired from the Wall", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     expect(view.container.querySelector(RETIRED_MARKS)).toBeNull();
     expect(view.container.textContent).not.toMatch(/Monthly net|Local time|All-time totals|Automation enabled|Monitor only|7d avg/);
   });
 });
 
-describe("a layout saved before D28", () => {
-  it("is read as the D28 default and drawn whole — never refused, never blank", () => {
+describe("a layout naming retired widgets", () => {
+  it("is read as the default and drawn whole — never refused, never blank", () => {
     const config = parseWallConfig(PRE_D28_SAVE);
     expect(config.retired?.replaced).toBe(true);
     const view = canvas(config.layout);
     expect(regions(view.container)).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
     expect(view.container.querySelector(RETIRED_MARKS)).toBeNull();
-    // Its old asset filter went with it: the default shows every site.
     expect(view.container.querySelectorAll("[data-site-row]")).toHaveLength(2);
   });
 
@@ -404,8 +397,6 @@ describe("a rearranged layout", () => {
 
     const view = canvas(rearranged);
     expect([...view.container.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"))).toEqual(["nosh.example"]);
-    // Needs you is filtered by the same setting: the error on the site this
-    // Wall does not show is not this Wall's business.
     const needs = view.container.querySelector("[data-wall-needs]")!;
     expect(needs.textContent).not.toMatch(/Meal Planner/u);
   });
@@ -434,16 +425,14 @@ describe("the default's column", () => {
       "business:sites:1:0",
       "-:body:1:1",
     ]);
-    // The wrapper IS the grid cell: the only box between it and the row is the
-    // widget's slot, which is no box at all at the TV's width (bead ro-trai.29).
+    // The wrapper is the grid cell: the only box between it and the row is
+    // the widget's slot, which is no box at all at the TV's width.
     const slot = view.container.querySelector("[data-wall-row='strip']")!.children[0]!;
     expect(slot).toHaveAttribute("data-wall-slot", "strip");
     expect(slot).toHaveClass("tv:contents");
     expect(slot.children[0]!.getAttribute("data-selected")).toBe("-:strip:0:0");
-    // The editor outlines the column so a stack reads as one thing.
     expect(view.container.querySelector("[data-wall-column]")).toHaveClass("outline-dashed");
 
-    // And with no slot, the widget itself is the cell, and the TV draws no chrome.
     view.unmount();
     const tv = canvas(DEFAULT_WALL_LAYOUT);
     expect(tv.container.querySelector("[data-wall-row='strip'] > [data-wall-slot]")!.children[0]!.hasAttribute("data-wall-strip")).toBe(true);
@@ -451,8 +440,8 @@ describe("the default's column", () => {
   });
 });
 
-// Bead ro-trai.3: the strip is a widget like any other, fed from the payload's
-// system slice and countdown and the surface's own calendar poll.
+// The strip is a widget like any other, fed from the payload's system slice
+// and countdown and the surface's own calendar poll.
 describe("the top strip", () => {
   it("draws the time, current meeting and countdown with one Home link and no aggregate status", () => {
     const view = render(
@@ -461,12 +450,12 @@ describe("the top strip", () => {
       </MemoryRouter>,
     );
     const strip = view.container.querySelector("[data-wall-row='strip'] > [data-wall-slot] > [data-wall-strip]")!;
-    // Numerals, and the locale's day period where it has one (bead ro-trai.3).
+    // Numerals, and the locale's day period where it has one.
     expect(strip.querySelector("[data-strip-time]")?.textContent).toMatch(/^\d{1,2}[:.]\d{2}(AM|PM)?$/u);
     expect(strip.querySelector("[data-strip-meeting-cue]")?.textContent).toBe("Now");
     expect(strip.querySelector("[data-strip-meeting-title]")?.textContent).toBe("Standup");
     expect(strip.querySelector("[data-strip-meeting-distance]")?.textContent).toBe("25M left");
-    expect(strip.querySelector("[data-strip-countdown]")?.textContent).toContain("SF Trip");
+    expect(strip.querySelector("[data-strip-countdown]")?.textContent).toContain("Team offsite");
     expect(strip.querySelector("[data-system-state]")).toBeNull();
     expect(strip.querySelector("a[data-strip-home]")).toHaveAttribute("href", "/");
     expect(view.container.querySelectorAll("a")).toHaveLength(1);
@@ -499,7 +488,7 @@ describe("the top strip", () => {
   });
 });
 
-describe("every D28 widget draws its own empty state", () => {
+describe("every default widget draws its own empty state", () => {
   it("keeps every region with no countdown, no calendar, no money and nothing wrong", () => {
     const view = canvas(
       DEFAULT_WALL_LAYOUT,

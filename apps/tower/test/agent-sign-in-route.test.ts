@@ -7,10 +7,9 @@ import type { AgentSignIn, AgentSignInOptions } from '@noticeos/postgres/agent-s
 import type { AuthEntryBindings } from '../worker/auth-route';
 import type { CallContext } from '@noticeos/postgres';
 
-// Agent sign-in's Tower entry (epic ro-cvl9): which paths reach the
-// authorization server, with what, and the 401 an agent gets at /api/mcp
-// before it has signed in. The protocol itself is proved against Postgres by
-// scripts/postgres-agent-sign-in.test.mjs.
+// Agent sign-in's Tower entry: which paths reach the authorization server,
+// with what, and the 401 an agent gets at /api/mcp before it has signed in.
+// The protocol itself is proved by scripts/postgres-agent-sign-in.test.mjs.
 
 const origin = 'https://tower.example.test';
 const env: AuthEntryBindings = {

@@ -6,7 +6,7 @@ const shown = (kind: ConnectionStatus["kind"], sitesFailing = 0): ConnectionStat
   provider: "p", kind, sites: [], sitesFailing, sitesMeasured: 0, sitesOverdue: 0, missing: 0, incomplete: 0,
 });
 
-describe("the Integrations page's one answer (D44)", () => {
+describe("the Integrations page's one answer", () => {
   it("names the one connection that needs you, and says why", () => {
     expect(integrationsAnswer([{ name: "Google", shown: shown("failing") }, { name: "Bing", shown: shown("working") }]))
       .toEqual({ answer: "Google needs you", detail: "Google failing", mark: "problem" });

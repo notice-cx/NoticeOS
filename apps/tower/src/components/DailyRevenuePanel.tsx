@@ -10,11 +10,8 @@ import { formatCalendarDate, formatUsd } from '@/lib/format';
 
 /**
  * Daily observations are estimates; monthly accounting owns booked money.
- *
- * NOTHING HERE IS EXPLAINED IN A SENTENCE (bead `ro-ujb9.96.6.9`). A partial day
- * is an outlined bar the chart keys with its count, the missing source is that
- * day's own readout, and an empty window says what is missing and links to
- * where it is set up — the panel used to carry a paragraph for each.
+ * A partial day is an outlined bar and an empty window links to setup, so the
+ * panel carries no explanatory paragraph.
  */
 export function DailyRevenuePanel({ history, range, title = 'Daily revenue', context, notesByDate, partialDates = [], setupHref, aside, totals = true }: {
   history: DailyRevenueHistory;
@@ -28,8 +25,8 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   partialDates?: readonly string[];
   /** Where ad revenue is connected, offered when nothing has ever reported. */
   setupHref?: string;
-  /** The panel's own three figures. Money's portfolio page states the month
-   * in its answer and passes false, so no total appears twice (D45). */
+  /** The panel's own three figures. A page that states the month elsewhere
+   * passes false, so no total appears twice. */
   totals?: boolean;
 }) {
   const id = useId();
@@ -39,8 +36,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   const latest = history.days.at(-1);
   const currency = (value: number) => formatUsd(value, { cents: true });
   return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
-    {/* Business altitude (doc 14, D45): ad revenue, not the network's name;
-        the reporting day's clock (D42's dated basis) is one press away. */}
+    {/* Ad revenue, not the network's name; the reporting day's clock is one press away. */}
     <SectionLabel id={id} title={title} caption={<>Ad revenue · estimates <InfoTooltip label="About the reporting day">{`Days end at midnight ${MEDIAVINE_REPORTING_CLOCK.label} time`}</InfoTooltip></>} className="px-4 pt-3">{aside}</SectionLabel>
     <p className="px-4 pt-1 text-xs text-muted-foreground">{range === 0 ? 'Reporting has not started for this period.' : <>{formatCalendarDate(history.from)} – {formatCalendarDate(history.to)}</>}</p>
     {context ? <div className="px-4 pt-2 text-xs text-muted-foreground">{context}</div> : null}

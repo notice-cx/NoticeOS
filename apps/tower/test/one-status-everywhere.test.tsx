@@ -1,18 +1,7 @@
-// ONE SOURCE, ONE STATUS, ON EVERY SCREEN (bead `ro-ujb9.96.7.16`).
-//
-// WHAT IS PROTECTED: an operator who sees a source on Integrations, on the
-// asset's Data sources tab, in the asset's header and on its Home row sees the
-// same status for it on all four, and the Wall — which draws no source icons
-// since D28 (bead ro-trai.11) — shows site health and specific Needs you concerns for failing ones. Before this, the header,
-// Home and the Wall read the Tower's latest 15-minute run while Integrations
-// and the Data sources rows read the monitoring model, so a Search Console
-// source whose 15-minute pull succeeded while its report archive was refused
-// read Working on the Wall and Failing on its Data sources row.
-//
-// ONE FIXTURE drives every screen: the payload slots are built by the Worker's
-// own functions over the suite's frozen register (`fixture-config/`), and the
-// credentials and monitoring items reach every screen through the same two
-// hooks (`useIntegrationProviders`, `useIntegrationHealth`).
+// One source, one status, on every screen: Integrations, the asset's Data
+// sources tab, its header and its Home row agree, and the Wall shows site
+// health and specific Needs you concerns. The payloads are built by the
+// Worker's own functions over the suite's frozen register (`fixture-config/`).
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "./render";
@@ -43,8 +32,6 @@ const ago = (ms: number) => new Date(NOW - ms).toISOString();
 const MIN = 60_000;
 const register = registerJson as unknown as IntegrationsConfig;
 
-// --- the one fixture ------------------------------------------------------------
-
 let sequence = 0;
 function item(provider: IntegrationProviderId, capability: string, over: Partial<IntegrationHealthItem>): IntegrationHealthItem {
   const monitor = INTEGRATION_MONITORS[provider as keyof typeof INTEGRATION_MONITORS].find((entry) => entry.id === capability)!;
@@ -57,8 +44,8 @@ function item(provider: IntegrationProviderId, capability: string, over: Partial
 }
 const refused = { state: "failing" as const, lastSuccessAt: null, failure: "access" as const, code: "access" };
 
-/** Every pull works on the 15-minute run; what the monitoring items say differs:
- * Search Console's report archive and Bing's daily pull are refused today. */
+/** Every pull works on the 15-minute run; what the monitoring items say
+ * differs: Search Console's report archive and Bing's daily pull are refused. */
 const HEALTH: IntegrationHealthPayload = {
   generatedAt: new Date(NOW).toISOString(), available: true, events: [],
   items: [
@@ -112,12 +99,9 @@ function assetPayload() {
 }
 
 function wallPayload(): WallPayload {
-  // The Wall fixture's first site stands in for this suite's register site.
   const payload = wallFixturePayload();
   return { ...payload, assets: payload.assets.map((card, index) => index === 0 ? { ...card, id: ASSET, dataSources: SOURCES } : card) };
 }
-
-// --- every screen reads the same two hooks -------------------------------------
 
 const state = vi.hoisted(() => ({ wall: undefined as unknown }));
 vi.mock("@/hooks/useIntegrationProviders", () => ({
@@ -175,13 +159,12 @@ function marks(root: Element): Record<string, string> {
 const LANES = SOURCES.map((source) => source.id);
 const PROVIDER_OF: Record<string, string> = { gsc: "google", ga4: "google", "bing-webmaster": "bing-webmaster", clarity: "clarity", posthog: "posthog", dataforseo: "dataforseo" };
 
-describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
+describe("one source, one status, on every screen", () => {
   it("is seeded with the disagreement: every 15-minute run succeeded", () => {
     expect(SOURCES.filter((source) => source.id in PROVIDER_OF).every((source) => source.state === "live")).toBe(true);
   });
 
   it("shows each source's same status on its Data sources row, the asset header, Home and Integrations, and the Wall marks the failing ones", async () => {
-    // The asset's Data sources tab, header included.
     const asset = renderAt(`/assets/${ASSET}/sources`, <AssetDetailRoute />, "/assets/:id/:tab?");
     await waitFor(() => expect(document.querySelector("#integrations [data-connection]")).not.toBeNull());
     const more = screen.queryByRole("button", { name: /^Show \d+ more$/u });
@@ -191,8 +174,8 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     const header = marks(document.querySelector("[data-page-header]")!);
     asset.unmount();
 
-    // Home (D44): no source marks. A failing source is one of the brief's
-    // Stopped cards, and the site's one health word says Off track.
+    // Home: no source marks. A failing source is one of the brief's Stopped
+    // cards, and the site's one health word says Off track.
     const home = renderAt("/", <HomeRoute />);
     await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull());
     const homeMarks = marks(home.container);
@@ -201,8 +184,8 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     const homeBriefText = brief.textContent ?? "";
     home.unmount();
 
-    // The Wall: no source icons since D28 (bead ro-trai.11); a source Failing
-    // everywhere else is represented by site health and a specific concern.
+    // The Wall: no source icons; a source Failing everywhere else is
+    // represented by site health and a specific concern.
     const wall = renderAt("/wall", <WallRoute />);
     const wallIcons = marks(wall.container);
     const siteHealth = wall.container.querySelector(`[data-site-row="${ASSET}"] [data-site-health]`);
@@ -215,7 +198,6 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
     wall.unmount();
 
-    // Integrations: each provider's own page, this asset's site row.
     const sites: Record<string, string | null> = {};
     for (const provider of ["google", "bing-webmaster", "clarity", "dataforseo"]) {
       const page = renderAt(`/integrations?provider=${provider}`, <IntegrationsRoute />);
@@ -227,31 +209,24 @@ describe("one source, one status, on every screen (ro-ujb9.96.7.16)", () => {
     const posthogRow = list.container.querySelector('[data-integration-tile="posthog"]')?.getAttribute("data-integration-status") ?? null;
     list.unmount();
 
-    // The statuses themselves: the refusals read Failing everywhere, though
-    // every 15-minute run succeeded.
+    // The refusals read Failing everywhere, though every 15-minute run succeeded.
     expect(header).toEqual({
       "nightly-report": "working", gsc: "failing", "bing-webmaster": "failing", ga4: "working",
       clarity: "working", posthog: "not-connected", dataforseo: "working", uptime: rows.uptime,
     });
-    // ...and each source reads the same on every screen. The nightly report is
-    // the one slot with no Data sources row: that tab states it as its Daily
-    // metrics' age, beside the header's own "Nightly report" age.
+    // The nightly report is the one slot with no Data sources row: that tab
+    // states it as its Daily metrics' age.
     expect(Object.entries(rows).filter(([, row]) => row === null).map(([lane]) => lane)).toEqual(["nightly-report"]);
     for (const lane of LANES) {
       expect({ lane, row: rows[lane] ?? header[lane] }).toEqual({ lane, row: header[lane] });
     }
-    // Home agrees in its own words: the two failing sources lead the brief,
-    // and the site reads Off track wherever Home names it.
     expect(homeMarks).toEqual({});
     expect(homeBriefText).toContain("Search Console collection failing");
     expect(homeBriefText).toContain("Bing collection failing");
     if (homeCell) expect(homeCell).toHaveTextContent("Off track");
-    // The Wall agrees without a source icon row: its health bar and specific
-    // concerns above represent the same failures as the desk's source status.
     expect(wallIcons).toEqual({});
-    // Integrations: a provider with one source shows that source's status on
-    // this site's row; Google's site row joins its two sources, so it fails
-    // with Search Console; an unconnected provider reads Not connected.
+    // Google's site row joins its two sources, so it fails with Search
+    // Console; an unconnected provider reads Not connected.
     expect(sites["bing-webmaster"]).toBe(header["bing-webmaster"]);
     expect(sites.clarity).toBe(header.clarity);
     expect(sites.dataforseo).toBe(header.dataforseo);

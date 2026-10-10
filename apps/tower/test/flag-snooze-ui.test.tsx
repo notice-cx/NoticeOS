@@ -7,16 +7,14 @@ import { FlagActions } from "@/components/FlagActions";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { ALERT_HISTORY_KEY } from "@/hooks/useAlertHistory";
 
-// The snooze half of the alert lifecycle in the browser (`ro-c7qq`): the menu
-// under the row, what it writes, and the chip that says when the thing comes
-// back. The store side is `test/flag-actions.test.ts` and the HTTP contract is
-// `test/flag-route.test.ts`; what is asserted here is the part only the
-// browser can get wrong — an operator picking "3 days" and the request carrying
-// something else.
+// The snooze half of the alert lifecycle in the browser: the menu under the
+// row, what it writes, and the chip that says when the thing comes back. The
+// store side is `test/flag-actions.test.ts` and the HTTP contract is
+// `test/flag-route.test.ts`; what is asserted here is an operator picking
+// "3 days" and the request carrying exactly that.
 //
 // Sonner is mocked rather than mounted: the toast's Undo is a callback, and
-// invoking it directly is what proves the inverse write's shape. Through a
-// rendered toast we would be asserting Sonner's DOM instead.
+// invoking it directly is what proves the inverse write's shape.
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
@@ -71,8 +69,6 @@ describe("FlagActions — the snooze menu", () => {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(screen.getByLabelText("Snooze until date")).toBeInTheDocument();
-    // The lifecycle buttons are gone while the horizons are up — one question
-    // at a time under one row.
     expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
 
     fireEvent.keyDown(screen.getByLabelText("Snooze until date"), { key: "Escape" });
@@ -89,7 +85,6 @@ describe("FlagActions — the snooze menu", () => {
     expect(calls[0]!.url).toBe("/api/flags/7");
     expect(calls[0]!.body.action).toBe("snooze");
     const until = Date.parse(calls[0]!.body.until!);
-    // Three days out, give or take the milliseconds the click itself took.
     expect(until - Date.now()).toBeGreaterThan(3 * DAY - 5_000);
     expect(until - Date.now()).toBeLessThan(3 * DAY + 5_000);
   });
@@ -99,9 +94,8 @@ describe("FlagActions — the snooze menu", () => {
     fireEvent.click(screen.getByRole("button", { name: "Snooze alert" }));
     const picker = screen.getByLabelText("Snooze until date") as HTMLInputElement;
 
-    // Tomorrow at the earliest — a snooze ending today is not a snooze — and
-    // never past SNOOZE_MAX_DAYS, so the field cannot offer what the store
-    // would refuse.
+    // Tomorrow at the earliest, and never past SNOOZE_MAX_DAYS, so the field
+    // cannot offer what the store would refuse.
     expect(Date.parse(`${picker.min}T00:00:00.000Z`) - Date.now()).toBeGreaterThan(0);
     expect(picker.max).toBe(
       new Date(Date.now() + SNOOZE_MAX_DAYS * DAY).toISOString().slice(0, 10),
@@ -167,11 +161,7 @@ describe("FlagActions — the snooze menu", () => {
   });
 });
 
-/**
- * Bead `ro-ujb9.195`. The row left the Open list at once, but "Settled · 7d"
- * and History kept their old answer until a reload: the archive is not polled,
- * and these actions refreshed only the Wall and the site page.
- */
+/** The archive is not polled, so every action must re-read it. */
 describe("FlagActions — every outcome re-reads the settled archive", () => {
   async function invalidatedAfter(
     click: (client: QueryClient) => void,
@@ -231,8 +221,6 @@ describe("SnoozeUntil — when a parked alert comes back", () => {
     );
     const chip = container.querySelector("[data-snooze-state]")!;
     expect(chip.getAttribute("data-snooze-state")).toBe("active");
-    // The date AND the time left: "quiet until Sep 7" answers when, "in 3d"
-    // answers whether this is parked or effectively forgotten.
     expect(chip.textContent).toContain("quiet until");
     expect(chip.textContent).toContain("Sep 7, 2026");
     expect(chip.textContent).toContain("in 3d");
@@ -243,9 +231,8 @@ describe("SnoozeUntil — when a parked alert comes back", () => {
       <SnoozeUntil until="2026-09-02T12:00:00.000Z" nowMs={NOW} />,
     );
     const chip = container.querySelector("[data-snooze-state]")!;
-    // An expired snooze is an OPEN alert whose row still records the silence.
-    // Rendering it as "quiet until a date in the past" is the one thing this
-    // chip must never say.
+    // An expired snooze is an open alert whose row still records the silence;
+    // it must never read "quiet until" a date in the past.
     expect(chip.getAttribute("data-snooze-state")).toBe("ended");
     expect(chip.textContent).toContain("back since");
     expect(chip.textContent).toContain("2d ago");

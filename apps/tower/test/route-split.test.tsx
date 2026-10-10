@@ -6,13 +6,10 @@ import { act, fireEvent, render, screen } from "./render";
 import type { RouteObject } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-// THE ROUTE SPLIT (bead `ro-82x`). Until it, `App.tsx` imported every screen,
-// so opening any address downloaded all of them: a single 1.5 MB client file.
-// These pin the three things the split has to keep true — each screen is
-// fetched only when its address is opened, a screen still loading never looks
-// like data, and a screen whose file has gone away recovers instead of going
-// blank — plus the route table itself, so a later static import cannot quietly
-// put every screen back into the first download.
+// Each screen is fetched only when its address is opened, a screen still
+// loading never looks like data, and a screen whose file has gone away
+// recovers instead of going blank; the route table itself is pinned so a
+// later static import cannot put every screen back into the first download.
 
 import { deskRoutes, routes } from "@/App";
 import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
@@ -28,8 +25,6 @@ const CHROMIUM = new TypeError(
 const FIREFOX = new TypeError("error loading dynamically imported module: http://office-mac.local/x.js");
 const WEBKIT = new TypeError("Importing a module script failed.");
 const VITE_CSS = new Error("Unable to preload CSS for /assets/TasksRoute-Dx1.css");
-
-// ── the route table ─────────────────────────────────────────────────────────
 
 describe("each screen is its own file", () => {
   // `path.join` over the file path rather than `new URL(…, import.meta.url)`:
@@ -136,8 +131,6 @@ describe("each screen is its own file", () => {
   });
 });
 
-// ── lazyPage ────────────────────────────────────────────────────────────────
-
 describe("lazyPage", () => {
   function Page() {
     return <p>page</p>;
@@ -170,8 +163,6 @@ describe("lazyPage", () => {
     await expect((route.lazy as () => Promise<RouteObject>)()).rejects.toBe(bug);
   });
 });
-
-// ── prefetchRoute ───────────────────────────────────────────────────────────
 
 describe("prefetchRoute", () => {
   function table() {
@@ -227,8 +218,6 @@ describe("prefetchRoute", () => {
   });
 });
 
-// ── the reload guard ────────────────────────────────────────────────────────
-
 describe("isChunkLoadError", () => {
   it.each([CHROMIUM, FIREFOX, WEBKIT, VITE_CSS])("recognizes %s", (error) => {
     expect(isChunkLoadError(error)).toBe(true);
@@ -246,13 +235,9 @@ describe("isChunkLoadError", () => {
   });
 });
 
-// ── what stands in for a screen ─────────────────────────────────────────────
-
-/**
- * The classes that carry a STATE: severity, health, trend, live movement,
+/** The classes that carry a state: severity, health, trend, live movement,
  * provider and series identity. A loading frame wearing any of them would be
- * claiming something about the portfolio it has not read (doc 14, doc 14).
- */
+ * claiming something about the portfolio it has not read. */
 const STATE_CLASS =
   /(?:^|[\s:-])(?:text|bg|border|fill|stroke|ring)-(?:error|warn|urgent|info|healthy|connected|milestone|trend-positive|trend-negative|live-up|live-down|search-bing|financial-revenue|financial-cost|chart-[a-z-]+|primary)\b/;
 
@@ -271,7 +256,6 @@ describe("RouteLoading", () => {
     expect(status).toHaveAttribute("aria-live", "polite");
     expect(status).toHaveTextContent("Loading this page…");
     expect(status).toHaveAttribute("data-route-loading", "desk");
-    // The page's own column and a full viewport, so its arrival moves nothing.
     expect(status.className).toContain("max-w-[1400px]");
     expect(status.className).toContain("md:min-h-screen");
     expectNothingDataLike(container);
@@ -293,8 +277,6 @@ describe("RouteLoading", () => {
     expect(screen.getByText("Loading this page…")).toHaveClass("route-loading-label");
   });
 });
-
-// ── the recovery screen ─────────────────────────────────────────────────────
 
 describe("RouteLoadFailure", () => {
   beforeEach(() => { vi.useFakeTimers(); });

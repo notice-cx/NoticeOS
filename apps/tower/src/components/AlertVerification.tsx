@@ -43,11 +43,9 @@ export function alertVerificationLabel(verification: SignalVerification | undefi
 }
 
 /**
- * THE STATE IS A GLYPH BEFORE IT IS A WORD (bead `ro-ujb9.96.6.7`). A solid
- * tick is a source that confirmed the condition; a dashed ring is one nobody
- * has confirmed lately — so "is this still true?" reads down a column of rows
- * before a label is read. Neutral ink throughout: verification qualifies the
- * evidence and never competes with the row's severity ring.
+ * The state is a glyph before it is a word, so "is this still true?" reads
+ * down a column. Neutral ink: verification qualifies the evidence and never
+ * competes with the row's severity.
  */
 const STATE_GLYPH: Record<SignalVerification["state"], LucideIcon> = {
   confirmed: CircleCheck,
@@ -57,11 +55,7 @@ const STATE_GLYPH: Record<SignalVerification["state"], LucideIcon> = {
   "not-applicable": CircleDot,
 };
 
-/**
- * What each read-model reason code renders as — a label, never a sentence.
- * The read model ships the code (`shared/signal-liveness.ts`); this is the one
- * place it becomes words, so no surface prints a paragraph about evidence.
- */
+/** Each read-model reason code as a label, never a sentence: the one place it becomes words. */
 export const VERIFICATION_REASON_LABEL: Record<VerificationReason, string> = {
   "recorded-closed": "Closed in the store; recovery not checked",
   "recorded-event": "A recorded event",
@@ -83,14 +77,8 @@ export const VERIFICATION_REASON_LABEL: Record<VerificationReason, string> = {
 };
 
 /**
- * The verification as EVIDENCE ROWS — first seen, last confirmed and by what,
- * last checked, and why it reads as it does — for the one "Why this fired"
- * panel an opened alert row carries (bead `ro-ujb9.96.6.7`).
- *
- * An opened row used to print the verification twice, once in its caption and
- * once as a tooltip trigger under it. The caption keeps the glanceable label;
- * the timestamps behind it join the rule's numbers in the evidence panel, so
- * everything the operator can check sits in one place, one press away.
+ * The verification as evidence rows (first seen, last confirmed and by what,
+ * last checked, and why) for an opened alert's "Why this fired" panel.
  */
 export function verificationEvidence(
   verification: SignalVerification | undefined,

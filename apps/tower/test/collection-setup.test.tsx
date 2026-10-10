@@ -6,10 +6,9 @@ import { countersEntryOp, pullEntryOp } from "@shared/asset-wizard";
 import { validateSchemaAndSafety } from "../../../scripts/config-documents.mjs";
 import { configSaveReply } from "./config-save-reply";
 
-// The defaults Add a site no longer asks, changeable on the asset's Settings
-// tab (bead `ro-ujb9.96.7.5`): an asset that sends its own reports switched to
-// being fetched, and the totals on its card — each written with the very
-// insert the add would have sent.
+// The defaults Add a site does not ask, changeable on the asset's Settings
+// tab: an asset that sends its own reports switched to being fetched, and the
+// totals on its card, each written with the very insert the add would have sent.
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));

@@ -111,13 +111,12 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
     <PageHeader title={system ? 'System health' : 'Workflows'} actions={<span className="flex items-center gap-2 text-xs text-muted-foreground"><Clock className="size-3.5" aria-hidden />Times in {localTimezone()}</span>} />
     {system && <HealthNavigation />}
     <div id={system ? 'health-view-panel' : undefined} role={system ? 'tabpanel' : undefined} aria-labelledby={system ? 'health-view-operations' : undefined} className="space-y-6">
-    {/* A failed first read is the desk's one failure state (bead `ro-ujb9.242`),
-        never the read's own sentence. */}
+    {/* A failed first read is the desk's one failure state, never the read's
+        own sentence. */}
     {!data ? query.isError ? <ReadFailed title={`Couldn't load ${noun}`} subject={`read:${noun}`} error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} /> : <div className="py-12 text-sm text-muted-foreground">Loading workflows…</div> : <>
       <RuntimeNotice data={data} />
-      {/* THE ONE ANSWER (D44) in place of four equal tiles: what needs you,
-          else that nothing does, with the rest counted once in the states'
-          own words. The tab above already names Background operations. */}
+      {/* The one answer: what needs you, else that nothing does, with the
+          rest counted once in the states' own words. */}
       <WorkflowsAnswer states={all.map((row) => row.state)} noun={noun} />
       <Tabs label={system ? 'Operation views' : 'Workflow views'} idBase="workflow-view" panelId="workflow-view-panel" tabs={[{ key: 'overview', to: `${base}${suffix}`, label: 'Activity', end: true }, { key: 'schedule', to: `${base}/schedule${suffix}`, label: 'Schedule', end: true }]} />
       <TabPanel idBase="workflow-view" id="workflow-view-panel" activeKey={tab}>
@@ -205,13 +204,12 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
       <RuntimeNotice data={data} />
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">
         <div className="flex flex-wrap gap-x-10 gap-y-3"><div><p className="mb-1 text-xs text-muted-foreground">Schedule · Local time</p><p className="text-sm font-medium tabular-nums">{saved?.enabled ? scheduleLabel(saved.cron, scheduleTimezone(saved)) : 'Paused'}</p></div><div><p className="mb-1 text-xs text-muted-foreground">Next execution</p><NextRun workflow={definition} data={data} showCadence={false} /></div><div><p className="mb-1 text-xs text-muted-foreground">Category</p><p className="text-sm">{definition.group}</p></div></div>
-        {/* A COLLECTION'S SCHEDULE IS EDITED WITH THE COLLECTION (beads
-            `ro-ujb9.96.7.12`, `ro-ujb9.96.7.28`): on the Manage panel of a
-            connection that feeds it, or in Settings → Data collection for one
-            no connection feeds (`scheduleHref`). This page keeps the runner's
-            view above — saved schedule, next run, a change still pending — and
-            links there; a collection nothing is connected for has no link.
-            Every other job's one editor is still this one. */}
+        {/* A collection's schedule is edited with the collection: on the
+            Manage panel of a connection that feeds it, or in Settings → Data
+            collection for one no connection feeds (`scheduleHref`). This page
+            keeps the runner's view above and links there; a collection
+            nothing is connected for has no link. Every other job's one editor
+            is still this one. */}
         {collection ? (
           scheduleLink ? (
             <Button asChild variant="outline" size="sm">

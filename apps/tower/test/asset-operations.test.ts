@@ -28,8 +28,7 @@ describe('asset operation confirmation and recovery', () => {
   });
 
   // One site per domain: the store names the site that holds it, whose id can
-  // differ from the one just typed (an imported site). The screen offers that
-  // one, never a page for the typed id (bead ro-ujb9.76.4.6).
+  // differ from the one just typed (an imported site).
   it('offers the site the store names as holding the domain, not the id just typed', async () => {
     const writes = ports();
     writes.createAsset.mockRejectedValueOnce(new AssetExistsError(409, 'archived-site', 'retired'))

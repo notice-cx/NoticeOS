@@ -7,19 +7,12 @@ import { formatInt, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 /**
- * WHAT A LINE'S COLOUR IS ALLOWED TO MEAN (doc 14).
- *
- * `neutral` is the default and the honest one: a line's SHAPE is the
- * information, and `--spark` exists precisely so a trend can be drawn without
- * spending a meaning on it. The rest are the three sanctioned systems and
- * nothing else — `primary`/`bing` are PROVIDER IDENTITY (always drawn beside
- * the provider's name in a legend or a toggle, never alone),
- * `revenue`/`cost` are financial series identity, paired with a named key and
- * line pattern by the chart, and `traffic` the Wall's audience series identity
- * (bead `ro-trai.19`); `positive`/`negative` are the scoped comparison scale a
- * `PeriodDelta` earns only while it is `comparable`, and `warn`/`error` are
- * severity. A caller reaching for a colour that is none of these wants
- * `neutral`.
+ * What a line's colour is allowed to mean. `neutral` is the default: the
+ * shape is the information. `primary`/`bing` are provider identity, always
+ * drawn beside the provider's name; `revenue`/`cost`/`traffic` are series
+ * identity; `positive`/`negative` are the comparison scale a `PeriodDelta`
+ * earns only while `comparable`; `warn`/`error` are severity. A caller
+ * reaching for a colour that is none of these wants `neutral`.
  */
 export type SeriesTone =
   | "muted"
@@ -35,17 +28,13 @@ export type SeriesTone =
   | "error";
 
 export const SERIES_TONE_CLASS: Record<SeriesTone, string> = {
-  // doc 14: "a sparkline on a neutral metric is `text-muted-foreground`". The
-  // `--spark` token stays available for a line drawn on its own, away from a
-  // delta that could have given it a tone.
   muted: "text-muted-foreground",
   neutral: "text-spark",
   primary: "text-foreground",
   bing: "text-search-bing",
   revenue: "text-financial-revenue",
   cost: "text-financial-cost",
-  // Traffic series identity (doc 14): the Wall's audience series. Never beside
-  // a `bing` line — the two are one blue family.
+  // Never beside a `bing` line: the two are one blue family.
   traffic: "text-traffic",
   positive: "text-trend-positive",
   negative: "text-trend-negative",
@@ -53,12 +42,8 @@ export const SERIES_TONE_CLASS: Record<SeriesTone, string> = {
   error: "text-error",
 };
 
-/**
- * The three places doc 14 puts a sparkline, at the three sizes it names. A size
- * rather than a width/height pair, so five call sites cannot land on five
- * nearly-equal rectangles — which is exactly how the desk grew four card
- * variants before the registry existed.
- */
+/** A size rather than a width/height pair, so call sites cannot land on
+ * nearly-equal rectangles. */
 export type SparklineSize = "kpi" | "cell" | "wide";
 
 const SIZE: Record<SparklineSize, { width: number | null; height: number }> = {
@@ -68,32 +53,26 @@ const SIZE: Record<SparklineSize, { width: number | null; height: number }> = {
 };
 
 export interface SparklineProps {
-  /** Chronological ascending, in the series' own grain. A point may be a HOLE —
-   * `{ t, v: null }` — for a period nobody reported (bead `ro-78qo.37`): the
-   * line breaks over it rather than joining the readings either side, which is
-   * what a monthly ledger with an empty month needs. */
+  /** Chronological ascending, in the series' own grain. A point may be a hole
+   * (`{ t, v: null }`) for a period nobody reported: the line breaks over it
+   * rather than joining the readings either side. */
   data: readonly SeriesPointOrGap[];
   size?: SparklineSize;
   tone?: SeriesTone;
-  /** Draw the trailing average rather than the raw daily line. doc 14's
-   * sparkline is "28 points, 7-day average" — the raw line at 64×22 is noise
-   * with a shape hidden in it. Off for a series that is already smooth. */
+  /** Draw the trailing average rather than the raw line. Off for a series
+   * that is already smooth. */
   average?: boolean;
   averageWindow?: number;
   /** The input already contains a trailing average over this many calendar
-   * periods. Never smooth it again or present it as a raw daily/monthly count. */
+   * periods. Never smooth it again or present it as a raw count. */
   preAveragedWindow?: number;
-  /** Fill under the line. The `SmallMultiple` form; off inside a `Kpi`, where
-   * six filled shapes in a row become a skyline rather than six trends. */
+  /** Fill under the line. Off inside a `Kpi`, where six filled shapes in a
+   * row become a skyline. */
   area?: boolean;
-  /** The provider has not finished these points; the endpoint cap goes hollow
-   * so the loudest ink on the line does not read as settled (bead `ro-y91`). */
+  /** The provider has not finished these points; the endpoint cap goes hollow. */
   provisionalFrom?: string | null;
   /** Pointer, touch and keyboard readout: the period and the plotted value.
-   * Averaged lines identify their window and show the raw value separately.
-   * doc 14 asks for it on `Kpi` sparklines — a 64px line answers "which way"
-   * on its own, and the reader who wants "how much on which day" gets it
-   * without leaving the strip. */
+   * Averaged lines identify their window and show the raw value separately. */
   readout?: boolean;
   /** Off when a parent button selects an equivalent, accessible hero chart. */
   keyboardReadout?: boolean;
@@ -101,13 +80,10 @@ export interface SparklineProps {
    * chart. Hide this redundant visualization, but retain its visual readout. */
   ariaHidden?: boolean;
   format?: (value: number) => string;
-  /** THE SITE'S NORMAL, drawn behind the line (D44, the Brief's alert card):
-   * a quiet band from `low` to `high` in the series' own units, so "22 a day,
-   * usually 33–45" is a shape before it is a sentence. The band widens the
-   * plotted range; it never colours the line. */
+  /** The site's normal, drawn behind the line as a quiet band in the series'
+   * own units. It widens the plotted range; it never colours the line. */
   band?: { low: number; high: number };
-  /** Why there is no line, for the hover on the empty state's dash. doc 14:
-   * "a missing figure is a dash with a reason on hover". */
+  /** Why there is no line, for the hover on the empty state's dash. */
   emptyReason?: string;
   ariaLabel?: string;
   className?: string;
@@ -118,13 +94,8 @@ export interface SparklineProps {
 
 const PAD = 2;
 
-/**
- * The desk's one small trend line (doc 14). It draws a shape and nothing else:
- * no axis, no grid, no label. Anything that needs those is a `HeroChart`.
- *
- * This is the desk's compact line; the Wall's rows draw their own charts in
- * the same marks (`ChartMarks`).
- */
+/** The desk's one small trend line: a shape and nothing else, no axis, no
+ * grid, no label. Anything that needs those is a `HeroChart`. */
 export function Sparkline({
   data: inputData,
   size = "kpi",
@@ -161,27 +132,11 @@ export function Sparkline({
     .map((point) => point.v)
     .filter((value): value is number => value !== null);
 
-  // A series of nothing but holes has no shape to draw, so it is the same
-  // answer as no series at all — a dash, not an empty box.
+  // A series of nothing but holes is the same answer as no series at all.
   if (values.length === 0) {
-    /**
-     * ONE GLYPH, NOT A PLACARD (bead `ro-78qo.24`).
-     *
-     * This used to be the words "no series" on a tinted pill, and the pill is
-     * 64px wide at the `kpi` size through an INLINE width no call site can
-     * relax — so the label wrapped to two lines inside a 22px box, and /tasks
-     * worked around it by asking for the wider `cell` size, putting a chip a
-     * third wider than the sparkline it stands in for into the strip. doc 14
-     * already says what this state draws: "a missing figure is a dash with a
-     * reason on hover". A dash fits at every size there is.
-     *
-     * AND THE REASON OPENS FROM A KEY OR A TAP, not only a pointer (bead
-     * `ro-ujb9.14`): the dash is the trigger of the desk's one on-demand
-     * explanation (`InfoTooltip`), so a keyboard reaches it with Tab and a
-     * phone with a tap, where a `title` reached neither. Inside a control that
-     * already states the gap (a selectable `Kpi`, `ariaHidden`), it stays a
-     * plain dash: a button may not sit inside a button.
-     */
+    // A dash with its reason behind `InfoTooltip`, so a keyboard and a phone
+    // reach it. Inside a control that already states the gap (`ariaHidden`)
+    // it stays a plain dash: a button may not sit inside a button.
     const label = `${ariaLabel ?? "Trend"}: ${emptyReason}`;
     return (
       <span
@@ -207,17 +162,13 @@ export function Sparkline({
     drawn.length === 1 ? width / 2 : PAD + (index / (drawn.length - 1)) * (width - PAD * 2);
   const yOf = (value: number) => PAD + (1 - (value - min) / span) * plotHeight;
 
-  /** Runs of consecutive readings. A hole ENDS the run it interrupts, so the
-   * stroke breaks over it instead of spanning it — a series with no holes is
-   * exactly one run. Each run is one monotone curve through its readings
-   * (`ChartLine`, bead `ro-trai.19`): smooth, and never above or below the
-   * readings either side. */
+  // A hole ends the run it interrupts, so the stroke breaks over it.
   const runs = readingRuns(drawn.map((point) => point.v));
   const lineRuns = runs.map((one) => one.map((point) => ({ x: xOf(point.index), y: yOf(point.value) })));
 
   const lastIndex = drawn.length - 1;
-  /** The cap goes on the last READING, which is not the last period when the
-   * series ends in a hole. */
+  // The cap goes on the last reading, not the last period, when the series
+  // ends in a hole.
   const capAt = runs.at(-1)!.at(-1)!;
   const provisionalAt = provisionalIndex(drawn, provisionalFrom);
   const endpointIsProvisional = provisionalAt >= 0 && provisionalAt <= capAt.index;
@@ -227,11 +178,7 @@ export function Sparkline({
   const grain = data.some((point) => point.t.length === 7) ? "month" : "day";
   const rawLabel = grain === "month" ? "Monthly value" : "Daily value";
   const averageLabel = `${shownWindow}-${grain} average`;
-  // What the line IS, in a label (bead `ro-ujb9.96.6.12`). How each point was
-  // made is the readout's job — it prints the average, the raw value and, when
-  // a window is short, how many periods it used — so this names the quantity
-  // and stops. A precomputed line has no raw values to offer, which the
-  // readout shows by offering none.
+  // What the line is; how each point was made is the readout's job.
   const semantics = preAveragedWindow !== undefined
     ? `Line: precomputed trailing ${averageLabel}.`
     : average
@@ -294,8 +241,6 @@ export function Sparkline({
         onPointerLeave={(event) => { if (event.pointerType !== "touch") setHoverIndex(-1); }}
       >
         <title>{description}</title>
-        {/* The wash fades to nothing at the box's floor instead of a flat
-            block with a hard right edge (bead `ro-trai.19`). */}
         {band ? (
           <rect
             x={0}
@@ -319,10 +264,8 @@ export function Sparkline({
             vectorEffect="non-scaling-stroke"
           />
         ) : null}
-        {/* A provisional cap is HOLLOW: the loudest ink on the line must not
-            read as settled while the provider is still counting the day. The
-            cap is a round stroke, so the wide size's stretched box no longer
-            draws it as an ellipse. */}
+        {/* A provisional cap is hollow. A round stroke, so the wide size's
+            stretched box cannot draw it as an ellipse. */}
         <ChartDot
           at={{ x: xOf(capAt.index), y: yOf(capAt.value) }}
           size="sm"

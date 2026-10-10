@@ -48,9 +48,8 @@ import { Button } from "@/components/ui/button";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { FileTaskButton } from "@/components/TaskComposer";
-// The lane vocabulary both decision tables draw from (`ro-427`): one set of
-// words and colours for act/investigate/protect/wait, whichever grain is being
-// judged. The RULES stay here — a query is judged on evidence a page is not.
+// The lane vocabulary both decision tables share; the rules stay here, because
+// a query is judged on evidence a page is not.
 import {
   AIO_SURFACE_PHRASE,
   DECISION_TONE_CLASSES,
@@ -79,7 +78,6 @@ import type { WatchSeed } from "@shared/watch-windows";
 
 const DEFAULT_VISIBLE_QUERIES = 8;
 
-/** doc 14's default for any list on a desk surface: three rows, then "All →". */
 const COLLAPSED_VISIBLE_QUERIES = 3;
 
 type DecisionKind =
@@ -108,8 +106,7 @@ interface QueryAssessment {
   kind: DecisionKind;
   /** What the evidence says, in two or three words. */
   label: string;
-  /** What to do about it: one short imperative (bead `ro-ujb9.96.6.5`). The
-   * row's evidence lines are the why; there is no rationale sentence. */
+  /** What to do about it: one short imperative. The evidence lines are the why. */
   action: string;
   priority: number;
   icon: LucideIcon;
@@ -122,19 +119,10 @@ interface QueryDecision {
   validity: RecommendationValidity;
 }
 
-/** One query, one decision row. Provider evidence stays semantically separate:
- * Search Console/Bing impressions are observed exposure, while DataForSEO
- * search volume is modelled market demand.
- *
- * A row somebody has FILED keeps its evidence but stops competing for
- * attention: it carries its bead id and sinks below unfiled rows in its own
- * priority band, so what nobody has picked up is always on top.
- *
- * That marker used to be the operator's own `handed_off` record, written the
- * instant they copied the Markdown (bead `ro-5e8.3`). A copy is an intention: a
- * copy nobody ever ran marked the row as dealt with, and a bead filed by hand
- * left it looking untouched. The register knows which of those happened, so the
- * row asks the register. */
+/** One query, one decision row. Provider evidence stays separate: Search
+ * Console and Bing impressions are observed exposure, DataForSEO volume is
+ * modelled demand. A row the task hub holds a task for keeps its evidence but
+ * sinks below unfiled rows in its priority band. */
 export function QueryVisibilityRankings({
   trends,
   asset,
@@ -145,36 +133,21 @@ export function QueryVisibilityRankings({
 }: {
   trends: SearchQueryTrends | null;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
-  /** What the task hub holds for this asset (payload slice, bead `ro-248`).
-   * `null` means it could not be asked — no snapshot, not a spoke, or a poller
-   * one generation behind — and renders exactly as "nobody filed anything"
-   * does, because a row has nothing honest to say about either. */
+  /** What the task hub holds for this asset. `null` means it could not be
+   * asked, and renders exactly as "nobody filed anything" does. */
   handoffBeads?: HandoffBead[] | null;
-  /** Open the asset page's outcome-check composer, seeded from one row (bead
-   * `ro-5e8.5`). Absent — the gallery, any surface with no composer behind it —
-   * renders no action at all, rather than a button that would do nothing. */
+  /** Open the asset page's outcome-check composer, seeded from one row.
+   * Absent renders no action at all. */
   onWatch?: (seed: WatchSeed) => void;
-  /**
-   * doc 14's shape: three rows, each closed on its own evidence (bead
-   * `ro-78qo.4`).
-   *
-   * The full table is four columns wide and every row carries its provider
-   * evidence, its next step and three action buttons at once — nine hundred
-   * pixels for eight rows before anybody has decided which one they are working
-   * on. Collapsed, a row is a decision, a term and the number the decision is
-   * about; opening it gives back exactly the cells above, in place, with the
-   * same actions. Nothing is removed; neither shape carries an explanatory
-   * paragraph (bead `ro-ujb9.96.6.5`).
-   */
+  /** Three rows, each closed on its own evidence; opening one gives back the
+   * full cells in place with the same actions. */
   collapsed?: boolean;
-  /** The saved analysis's applicability as this screen already states it (the
-   * tab's `AnalysisEvidence` line). The list's own chip is drawn only when it
-   * says something different: one status per subject per screen. */
+  /** The saved analysis's applicability as this screen already states it. The
+   * list's own chip is drawn only when it says something different. */
   statedState?: RecommendationValidity["state"] | null;
 }) {
-  // The register's answer for these same keys. Filtered to `query` because a
-  // finding's key is a rule id, and one that happened to equal a query string
-  // would otherwise lend that query its bead.
+  // Filtered to `query`: a finding's key is a rule id, and one equal to a
+  // query string would otherwise lend that query its task.
   const filed = new Map(
     (handoffBeads ?? [])
       .filter((entry) => entry.kind === "query")
@@ -192,10 +165,8 @@ export function QueryVisibilityRankings({
       })),
     }))
     .sort((left, right) => compareDecisions(left, right, filed));
-  // ONE STATUS PER SUBJECT (doc 14, the rule `PageDecisions` follows): every
-  // row reads the same saved analysis, so the state they share is said once, in
-  // the header — and not even there when the screen already said it. A row
-  // wears its own chip only where it differs (linked work, a dismissal).
+  // The state every row shares is said once in the header, and not even there
+  // when the screen already said it; a row wears its own chip only where it differs.
   const shared = sharedValidity(decisions.map((decision) => decision.validity));
   const sharedState = shared?.state ?? null;
   const visible = featuredDecisions(
@@ -290,12 +261,7 @@ export function QueryVisibilityRankings({
               />
             </details>
           ) : null}
-          {/* Provenance BELONGS TO THE LIST, and says so with a rule rather
-              than a gap (doc 14, bead `ro-78qo.4`). Collapsed, this drawer used
-              to sit in the section gap with nothing above or below tying it to
-              anything — a control floating between two sections. It renders
-              whether or not there is a "Show all", because a short list is still
-              a list somebody may need the sources of. */}
+          {/* Provenance belongs to the list, whether or not there is a "Show all". */}
           {collapsed ? (
             <div className="border-t border-border/60 pt-1">
               <SourceNotes trends={trends} />
@@ -304,18 +270,13 @@ export function QueryVisibilityRankings({
         </>
       )}
 
-      {/* Provenance rides WITH the full list rather than beside the three rows
-          (doc 14, bead `ro-78qo.4`). Collapsed, its own summary was a control
-          floating between two sections answering nothing about either; it is
-          the same content, inside the disclosure whose rows it qualifies. */}
       {trends && !collapsed ? <SourceNotes trends={trends} /> : null}
     </section>
   );
 }
 
-/** Two providers comparing the very same two windows are ONE comparison, said
- * once with both names (bead `ro-ujb9.96.6.5`): the same window printed twice
- * side by side reads as two facts to reconcile. */
+/** Two providers comparing the same two windows are one comparison, said once
+ * with both names. */
 function sameWindows(left: SearchQueryProviderTrend, right: SearchQueryProviderTrend): boolean {
   return (
     left.currentStart === right.currentStart &&
@@ -416,9 +377,8 @@ function DecisionTable({
   sharedState: RecommendationValidity["state"] | null;
   nested?: boolean;
 }) {
-  // Collapsed it is a LIST, not a table: there are no columns to head, and a
-  // `role="table"` over rows that carry one line each would promise a grid a
-  // screen reader could navigate and then not have one.
+  // Collapsed it is a list, not a table: a `role="table"` over one-line rows
+  // would promise a grid a screen reader could navigate and not have one.
   if (collapsed) {
     return (
       <ul
@@ -493,13 +453,12 @@ function DecisionRow({
   decision: QueryDecision;
   trends: SearchQueryTrends;
   asset: Pick<AssetInfo, "id" | "displayName" | "domain">;
-  /** The bead filed from this row's handoff, or null — which renders nothing. */
+  /** The task filed from this row's handoff, or null, which renders nothing. */
   bead: HandoffBead | null;
   onWatch?: (seed: WatchSeed) => void;
   /** The row's applicability differs from its list's, so it wears its own chip. */
   ownState: boolean;
-  /** doc 14's row: a decision, a term and a number, closed over the same
-   * evidence and the same actions. */
+  /** A decision, a term and a number, closed over the same evidence and actions. */
   collapsed?: boolean;
 }) {
   const demoReadonly = useDemoReadonly();
@@ -524,18 +483,14 @@ function DecisionRow({
       );
       flashCopied();
       toast.success(`Copied “${row.query}” as Markdown`);
-      // The copy records NOTHING (bead `ro-5e8.3`). What stops this row arriving
-      // identical tomorrow is somebody running the `bd create` the Markdown
-      // carries; until then nothing has happened, and the row says so by saying
-      // nothing.
+      // The copy records nothing: only a task filed in the hub marks the row.
     } catch {
       toast.error("Copy failed — copy the row details manually");
     }
   }
 
-  // WHAT THE EVIDENCE SAYS, THEN WHAT TO DO (bead `ro-ujb9.96.6.5`): one line
-  // the operator acts on without opening the row, in the words `PageDecisions`
-  // uses. The numbers behind it are the evidence, one press away.
+  // What the evidence says, then what to do: one line the operator acts on
+  // without opening the row.
   const verdict = (
     <span className="block text-xs leading-snug" data-query-decision-verdict>
       <span className={cn("font-medium", colors.text)}>{assessment.label}</span>
@@ -545,9 +500,7 @@ function DecisionRow({
     </span>
   );
 
-  // The row's actions, built once and rendered by whichever shape is asked for.
-  // Two copies of three buttons is how a collapsed row quietly loses the one
-  // that files the task.
+  // Built once and rendered by whichever shape is asked for.
   const actions = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Button
@@ -562,10 +515,8 @@ function DecisionRow({
         {copied ? <Check aria-hidden /> : <ClipboardCopy aria-hidden />}
         {copied ? "Copied" : "Copy Markdown"}
       </Button>
-      {/* The operator's path to the same task (D19, bead `ro-l1ed.4`): the
-          create command at the bottom of the copied Markdown, as a button, from
-          the same `queryTaskHandoff`. Ghost-quiet under Copy Markdown for the
-          reason Watch the outcome is — the row's job is the decision. */}
+      {/* The create command at the bottom of the copied Markdown, as a button,
+          from the same `queryTaskHandoff`. */}
       {prefill ? (
         <FileTaskButton
           prefill={prefill}
@@ -573,12 +524,7 @@ function DecisionRow({
           className="h-7 px-2 text-xs text-muted-foreground"
         />
       ) : null}
-      {/* The other half of the loop (bead `ro-5e8.5`). Copying hands the work
-          off; this pre-registers how it will be judged, BEFORE the numbers
-          exist, which is the one honesty mechanism docs/03 leans on hardest.
-          Quiet and secondary: the row's job is still the decision and the next
-          step, and a second primary button here would compete with the one that
-          hands the work over. */}
+      {/* Pre-registers how the work will be judged, before the numbers exist. */}
       {onWatch && !demoReadonly ? (
         <Button
           type="button"
@@ -590,10 +536,7 @@ function DecisionRow({
               subject: `“${row.query}” — ${assessment.label.toLocaleLowerCase("en-US")}`,
               series: watchSeriesForDecision(assessment.kind),
               query: row.query,
-              // The task somebody filed from this row, when there is one: the
-              // window's ref becomes the task that caused it, so the chain from
-              // task filed to outcome measured joins without anybody
-              // remembering to paste an id (bead `ro-4ko`).
+              // The window's ref becomes the task that caused it.
               beadId: bead?.beadId ?? null,
             })
           }
@@ -610,10 +553,7 @@ function DecisionRow({
   if (collapsed) {
     return (
       <details
-        // NO TONE STRIPE (doc 14: one row style). The glyph and the decision
-        // label already carry the tone, and a coloured left edge on top of them
-        // is the same fact in a third encoding — three renderings of "recover"
-        // on a row whose job is to say one thing.
+        // No tone stripe: the glyph and the decision label already carry the tone.
         className="group"
         data-decision-kind={assessment.kind}
         data-decision-tone={tone}
@@ -627,10 +567,7 @@ function DecisionRow({
               <span className="truncate text-[13px] font-semibold text-foreground">
                 {row.query}
               </span>
-              {/* The two fast marks stay on the closed row: what the tracked
-                  panel saw on this term's result page, and whether somebody has
-                  already picked the work up. Both change whether the operator
-                  opens the row at all. */}
+              {/* The two marks that decide whether the row is opened at all. */}
               <AiOverviewGlyphs
                 readings={row.dataforseo?.aioDevices ?? []}
                 unknownSurface="omit"
@@ -680,22 +617,12 @@ function DecisionRow({
               <Badge variant="outline" className={colors.chip}>
                 {laneLabel(assessment.lane)}
               </Badge>
-              {/* What the tracked panel saw on this query's result page, one
-                  mark per surface — the registry's `AiOverviewGlyphs`, the same
-                  component `SerpPanelBoard` renders from the same readings on
-                  this same page (bead `ro-glf`). An unchecked surface draws
-                  NOTHING here: this pair sits inline beside the decision chip
-                  with no column to align to, so a held slot would be a mark the
-                  reader has to account for — and the evidence line below spells
-                  the unchecked surface in words. */}
+              {/* An unchecked surface draws nothing here: the pair sits inline
+                  with no column to align to, and the evidence line spells it. */}
               <AiOverviewGlyphs
                 readings={row.dataforseo?.aioDevices ?? []}
                 unknownSurface="omit"
               />
-              {/* The ONLY filing marker this row carries. The self-reported
-                  glyph that used to sit beside it is gone rather than hidden:
-                  two markers for one question is two answers, and the operator
-                  would have to know which one was about the work. */}
               <HandoffBeadBadge bead={bead} />
               {ownState ? <RecommendationReview validity={validity} subject={`query:${row.key}`} passive /> : null}
             </div>
@@ -711,9 +638,7 @@ function DecisionRow({
         <div className="text-sm font-semibold leading-snug text-foreground">
           {row.query}
           {row.dataforseo?.intent ? (
-            // What the searcher wants, in the provider's own one-word
-            // vocabulary. Lowercase and unboxed on purpose: it qualifies the
-            // query, and a chip here would compete with the decision chip.
+            // Lowercase and unboxed: a chip here would compete with the decision chip.
             <span
               className="ml-1.5 text-[10px] font-normal lowercase tracking-wide text-muted-foreground"
               title={`DataForSEO classifies this search as ${row.dataforseo.intent} intent`}
@@ -754,15 +679,8 @@ function DecisionRow({
 
 }
 
-/**
- * The number a collapsed row is about, right-aligned with its micro label
- * (doc 14's `ListPanel` row).
- *
- * Google's observed impressions where there is a like-for-like pair, because
- * that is exposure this asset actually measured; otherwise the modelled organic
- * position, which is the only standing this row has. Never both — a closed row
- * carries one number or it is a table again.
- */
+/** The one number a collapsed row is about: observed impressions where there
+ * is a pair, otherwise the modelled organic position. Never both. */
 function QueryRowValue({ row }: { row: UnifiedQueryRow }) {
   const observed = row.google ?? row.bing;
   if (observed) {
@@ -793,20 +711,9 @@ function QueryRowValue({ row }: { row: UnifiedQueryRow }) {
 }
 
 /**
- * The number a row's decision is actually about (bead `ro-5e8.5`).
- *
- * Every lane is either a claim about WHERE THE ASSET RANKS for this query —
- * push it into the top three, into page one, it is already top three, protect it
- * — or a claim about THE TRAFFIC that ranking does or does not produce: a
- * decline to recover, an overview consuming the click, growth to keep. The
- * series follows the claim, so the composer opens on the number the row was
- * arguing about rather than on whatever the asset's first live lane happens
- * to be.
- *
- * Google's, in both cases. Bing evidence sharpens some of these calls but no
- * lane is ever ABOUT Bing — the decision text names Google organic position and
- * Google clicks — and a composer that opened on a Bing series would pre-register
- * a check on a number the operator was not reading.
+ * The series a row's decision is about: Google position for a claim about
+ * where the asset ranks, Google clicks for a claim about the traffic that
+ * ranking produces. Never Bing: no lane is ever about Bing.
  */
 function watchSeriesForDecision(kind: DecisionKind): WatchSeries {
   const rankLanes = new Set<DecisionKind>([
@@ -849,9 +756,7 @@ function QueryEvidence({ row }: { row: UnifiedQueryRow }) {
             {row.dataforseo.keywordDifficulty !== null
               ? ` · difficulty ${formatInt(row.dataforseo.keywordDifficulty)}`
               : ""}
-            {/* What the current position is estimated to be worth in visits —
-                the size of the prize, beside the size of the market. Modelled
-                by the provider, so it never joins the observed impressions. */}
+            {/* Modelled by the provider, so it never joins the observed impressions. */}
             {row.dataforseo.estimatedVisits !== null ? (
               <>
                 {" · "}
@@ -873,15 +778,9 @@ function QueryEvidence({ row }: { row: UnifiedQueryRow }) {
   );
 }
 
-/** One AI Overview line, never two. Where the tracked panel pulled a live result
- * page for this exact term it is the better evidence and it says so; where it
- * did not, the weekly ranking inventory's view stands unchanged.
- *
- * Where the surfaces DISAGREE the line names both (bead `ro-e46.2`) — a term
- * walled on the phone and clear on the desktop is two facts, and either half
- * alone describes a page the reader is not looking at. Where they agree, the
- * wording is the single-surface wording it has always been: a device column
- * that never varies is noise. */
+/** One AI Overview line: the tracked panel's live result page where it read
+ * this term, otherwise the weekly inventory's view. Where the surfaces
+ * disagree the line names both. */
 function AiOverviewEvidenceLine({ row }: { row: DataForSeoQueryVisibilityRow }) {
   const states = row.aioDevices.map((reading) => ({
     device: reading.device,
@@ -991,12 +890,9 @@ function decisionTone(kind: DecisionKind): DecisionTone {
   return "wait";
 }
 
-/** The act-lane decisions that ask for copy work on the result page — a sharper
- * title, a more direct opening answer. These are the ones an AI Overview turns
- * into churn without reach. `recover` is
- * deliberately absent: it asks the operator to find out what changed *before*
- * editing, and a real visibility loss must not be quieted because an overview
- * happens to sit on the query. */
+/** The act-lane decisions that ask for copy work, which an AI Overview turns
+ * into churn without reach. `recover` is deliberately absent: a real
+ * visibility loss must not be quieted because an overview sits on the query. */
 const COPY_SURGERY_KINDS: ReadonlySet<DecisionKind> = new Set<DecisionKind>([
   "near-win",
   "ranking-opportunity",
@@ -1004,35 +900,29 @@ const COPY_SURGERY_KINDS: ReadonlySet<DecisionKind> = new Set<DecisionKind>([
 ]);
 
 /**
- * The tracked panel's two rules, layered over the nine positional ones.
- *
- * Both read `=== true` / `!== true` rather than truthiness, so an untracked
- * query — or one whose overview did not load — behaves exactly as it did before
- * the panel existed. The panel is additive evidence; unknown changes nothing.
+ * The tracked panel's two rules, layered over the positional ones. Both read
+ * `=== true` rather than truthiness: the panel is additive evidence, and an
+ * unknown changes nothing.
  */
 function assessQuery(row: UnifiedQueryRow): QueryAssessment {
   const data = row.dataforseo;
-  // ANY surface the panel read (`foldSerpPanelAio`, bead `ro-14d.1`). A citation
-  // on the phone is a citation to protect, and an overview on the phone is an
-  // overview that consumes the click there — neither is undone by a clear
-  // result page on the other device.
+  // Any surface the panel read: a citation on the phone is a citation to
+  // protect, whatever the desktop showed.
   const aio = data ? foldSerpPanelAio(data.aioDevices) : null;
   if (aio?.aioCitesUs === true) return aioChampion(row);
   const base = baseAssessment(row);
-  // Reached only when the query is NOT cited, the champion rule above having
-  // already returned: an overview that fires and leaves us out of it.
+  // An overview that fires and leaves us out of it.
   if (aio?.aioPresent === true && COPY_SURGERY_KINDS.has(base.kind)) {
     return aioWalled();
   }
   return base;
 }
 
-/** Being cited is the outcome the copy work was chasing, so the query leaves the
- * act lane whichever way its position is moving: the one change that reliably
- * loses a citation is rewriting the passage that earned it. */
+/** Being cited is the outcome the copy work was chasing, so the query leaves
+ * the act lane: the one change that reliably loses a citation is rewriting
+ * the passage that earned it. */
 function aioChampion(row: UnifiedQueryRow): QueryAssessment {
-  // A citation under a sliding position is the one to defend first; the slide
-  // itself is on the row's evidence lines.
+  // A citation under a sliding position is the one to defend first.
   const slipping = observedMovers(row).find(
     ({ mover }) =>
       mover.impressionDeltaPercent <= -20 || mover.positionImprovement <= -1,
@@ -1049,10 +939,8 @@ function aioChampion(row: UnifiedQueryRow): QueryAssessment {
   };
 }
 
-/** The impression-harvest gate, applied automatically: an overview consumes the
- * click, so a sharper title buys churn and no reach. The query keeps its
- * evidence and moves to investigate, where the honest next move is a citation
- * play, not more copy. */
+/** An overview consumes the click, so a sharper title buys churn and no reach;
+ * the honest next move is a citation play. */
 function aioWalled(): QueryAssessment {
   return {
     lane: "investigate",
@@ -1236,13 +1124,9 @@ function targetPage(row: UnifiedQueryRow): string {
   return page && page !== "(not set)" ? page : "the ranking page";
 }
 
-/** Priority band first, then unfiled before filed: within one band, work that is
- * already in the register must never sit above work nobody has picked up.
- * Everything below that is the existing magnitude ordering.
- *
- * OPEN and CLOSED beads sink alike. Closure records a decision, not proof, so
- * it does not retire the row — but somebody has demonstrably been here, and the
- * top of this table is for the queries nobody has. */
+/** Priority band first, then unfiled before filed, then magnitude. Open and
+ * closed tasks sink alike: closure records a decision, not proof, but somebody
+ * has demonstrably been here. */
 function compareDecisions(
   left: QueryDecision,
   right: QueryDecision,
@@ -1272,10 +1156,8 @@ const PREFERRED_KINDS: DecisionKind[] = [
   "watch",
 ];
 
-/** The unfolded set: one exemplar per decision kind, then the strongest rows
- * remaining. A filed row counts as picked up, so a kind whose only unfiled
- * example is further down the list still shows that unfiled example — the fold
- * exists to surface outstanding work, not to re-show dispatched work. */
+/** One exemplar per decision kind (an unfiled one where there is one), then
+ * the strongest rows remaining. */
 function featuredDecisions(
   decisions: QueryDecision[],
   limit: number,
@@ -1350,10 +1232,8 @@ interface SourceNote {
   label: string;
   source: string;
   caveat: string;
-  /** What the lane states about its own series before ranking it. See
-   * `SearchQueryProviderTrend.evidence`: a row PRESENT AT ZERO proves the check
-   * ran, an empty list means the lane ran no such check, and collapsing the two
-   * would let an unaudited lane read as a clean one. */
+  /** A row present at zero proves the check ran; an empty list means the lane
+   * ran no such check. The two must not collapse. */
   evidence: ExecutiveEvidence[];
 }
 
@@ -1383,8 +1263,7 @@ function sourceNotes(trends: SearchQueryTrends): SourceNote[] {
           label: "DataForSEO",
           source: trends.dataforseo.source,
           caveat: trends.dataforseo.caveat,
-          // The DataForSEO snapshot is a market-demand baseline, not a series
-          // anything is excluded from; it states no pre-ranking check.
+          // A market-demand baseline states no pre-ranking check.
           evidence: [],
         }
       : null,
@@ -1392,16 +1271,9 @@ function sourceNotes(trends: SearchQueryTrends): SourceNote[] {
 }
 
 /**
- * Provenance for the lanes feeding this section — and the one place their proof
- * rows land. Provenance is disclosure, not headline (doc 14: lead with the
- * decision, disclose implementation detail), so this stays the quiet
- * "Sources and limits" drawer the section already had; the summary counts the
- * checks so a reader knows there is a proof inside rather than only caveats.
- *
- * A zero row RENDERS. `Grounding queries excluded · 0` with its
- * "No quoted-literal queries in this window" detail is the check reporting
- * clean, and hiding it would rebuild the exact defect the row was added to
- * prevent: a decontaminated-looking lane that never says whether anyone looked.
+ * Provenance for the lanes feeding this section, and the one place their
+ * proof rows land. A zero row renders: it is the check reporting clean, and
+ * hiding it would leave a lane that never says whether anyone looked.
  */
 function SourceNotes({ trends }: { trends: SearchQueryTrends }) {
   const notes = sourceNotes(trends);
@@ -1409,9 +1281,6 @@ function SourceNotes({ trends }: { trends: SearchQueryTrends }) {
   const checks = notes.reduce((total, note) => total + note.evidence.length, 0);
   return (
     <details className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-      {/* `min-h-11`: a disclosure summary is a control a thumb hits, and doc
-          21's acceptance applies the 44px floor (`ro-md80`) to every one of them
-          rather than only to buttons. */}
       <summary className="flex min-h-11 cursor-pointer items-center font-medium text-muted-foreground hover:text-foreground">
         Sources and limits
         {checks > 0

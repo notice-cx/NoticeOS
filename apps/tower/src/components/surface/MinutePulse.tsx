@@ -1,31 +1,18 @@
 import { GA4_PULSE_RECENT_MINUTES } from "@noticeos/contract/ga4-realtime";
 import { cn } from "@/lib/utils";
 
-// THE MINUTE PULSE (bead `ro-trai.27`, docs/14-design.md § Site rows): a
-// site's live users minute by minute over the last 30 minutes, one bar a
-// minute, oldest on the left — the pattern of Google Analytics' realtime card
-// ("users per minute" under "users in the last 30 minutes"). The newest five
-// bars are bright, the 5-minute window; the 25 before them are muted, so
-// momentum reads from the shape: a bright end taller than the rest is a site
-// picking up.
+// A site's live users minute by minute over the last 30 minutes, oldest on
+// the left. The newest five bars are bright and the rest muted, so momentum
+// reads from the shape.
 //
 // Three kinds of minute, never confused: a count is a bar scaled to the
 // busiest minute; a minute nobody was active is a short tick on the floor; a
 // minute the reading did not cover (`null`) is nothing at all, so an unread
 // minute never passes for a quiet one.
 //
-// Drawn in the charts' one language (`ChartMarks`, bead `ro-trai.19`): colour
-// from the caller's `currentColor` (the `traffic` identity on the Wall), paths
-// that ease to a new height when a reading changes (`chart-morph`, none under
-// reduced motion). Unlike the lines, bars are drawn at their natural pixel
-// size — a 1:1 viewBox, butt-capped strokes on whole pixels — so thirty bars two
-// pixels wide stay crisp instead of smearing across fractional columns.
-//
-// Registry justification: `ChartLine`/`ChartArea`/`ChartDot` draw lines and
-// points and nothing draws bars; `VisitorsChart`'s bars are HTML columns that
-// fill a tile and carry a hatched day and a money line; `DailyBars` is a whole
-// desk chart with axes and bands. Nothing drew a row-height strip of minutes
-// with a bright end.
+// Colour comes from the caller's `currentColor`. Unlike the `ChartMarks`
+// lines, bars use a 1:1 viewBox with butt-capped strokes on whole pixels, so
+// two-pixel bars stay crisp instead of smearing across fractional columns.
 
 export type MinutePulseSize = "row" | "roomy" | "focus";
 

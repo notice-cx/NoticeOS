@@ -10,16 +10,11 @@ import { type FieldUndoOutcome, useConfigSave, useFieldConfigSave } from "@/hook
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { cn } from "@/lib/utils";
 
-// ONE LIST OF ORDERED LISTS, SAVED AS ONE VALUE (bead `ro-ghis.1`).
-//
-// A PostHog funnel is a name and 2-10 ordered steps, each an event name that
-// may be pinned to one page path. The registry had nothing that edits rows
-// which each hold their OWN ordered sub-list: `CollectionEditor` edits flat
-// register rows cell by cell, and `KnobEditor` edits one scalar. So this is
-// the third editor, deliberately narrow: it buffers a draft of the whole list,
-// judges it with the register field's own rule (the same function the store
-// save runs), and writes it as ONE `file-json-set` — so an asset's funnels are
-// never half-saved, and the toast's Undo restores the whole list.
+// Edits a list whose rows each hold their own ordered sub-list: a PostHog
+// funnel is a name and 2-10 ordered steps, each an event optionally pinned to
+// a page path. It buffers the whole list, judges it with the register field's
+// own rule, and writes it as one `file-json-set`, so funnels are never
+// half-saved and Undo restores the whole list.
 
 interface DraftStep {
   event: string;
@@ -50,11 +45,9 @@ export interface FunnelListEditorProps {
   /** Write somewhere else — the component gallery passes a fake. */
   onSave?: (op: SettingOp) => Promise<void>;
   /**
-   * The project's saved funnels, read from the connected account (bead
-   * `ro-ujb9.96.7.24`). Given, the list is PICKED rather than typed: a funnel
-   * is added by choosing one of these and removed with its own press, and each
-   * change is saved at once, "Saved · Undo" beside the list. Absent — the
-   * account cannot be read — the typed editor is the way in.
+   * The project's saved funnels, read from the connected account. Given, the
+   * list is picked rather than typed and each change saves at once with Undo.
+   * Absent (the account cannot be read), the typed editor is the way in.
    */
   saved?: readonly PosthogFunnel[];
 }
@@ -190,9 +183,7 @@ export function FunnelListEditor({
         {explain ? <span className="text-xs leading-snug text-muted-foreground">{explain}</span> : null}
       </div>
 
-      {/* The empty list as the state it causes — the daily archive skips the
-          funnels report — with Add funnel below as the way out (bead
-          `ro-ujb9.96.6.1`), never a sentence explaining the archive. */}
+      {/* The empty list as the state it causes, with Add funnel below as the way out. */}
       {draft.length === 0 ? (
         <p className="flex items-center gap-2" data-funnel-empty>
           <StateChip tone="na" label="No funnels · report skipped" subject={`field:funnels:${assetId ?? ""}`} />
@@ -388,13 +379,10 @@ function stepLine(funnel: PosthogFunnel): string {
 }
 
 /**
- * THE FUNNELS PICKED FROM THE PROJECT'S SAVED ONES (bead `ro-ujb9.96.7.24`) —
- * PostHog's own "Add to dashboard" and Grafana's "Use library panel":
- * what is defined once
- * in PostHog is chosen here, never retyped. Each change is the same one write
- * of the whole list the typed editor makes, saved at once with Undo beside it.
- * A funnel on the list that the project no longer holds stays listed and
- * removable; the picker offers only what is not on the list yet.
+ * The funnels picked from the project's saved ones: defined once in PostHog,
+ * chosen here, never retyped. Each change is one write of the whole list. A
+ * funnel the project no longer holds stays listed and removable; the picker
+ * offers only what is not on the list yet.
  */
 function PickedFunnels({
   headingId,

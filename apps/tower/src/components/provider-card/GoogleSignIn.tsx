@@ -9,14 +9,9 @@ import { messageOf } from "./errors";
 import { GoogleStartPress } from './GoogleStartPress';
 
 /**
- * The sign-in half of the Google card (bead `ro-vu8d.3`). Absent on every other
- * provider — Google is the only one with two ways in.
- *
- * It is a PROP rather than a second card component because everything around it
- * is identical: the same state chip, the same verdict slot, the same served
- * assets, the same one-confirmation Disconnect. What differs is one section, and a
- * rival `GoogleProviderCard` would be five hundred lines of duplication to hold
- * it (doc 14's registry rule — a near-duplicate is a rejected completion).
+ * The sign-in half of the Google card, passed as a prop because everything
+ * around it is the same card. Absent on every other provider; Google is the
+ * only one with two ways in.
  */
 export interface ProviderOAuthPanel {
   /** Which of the four sign-in states this browser is looking at. */
@@ -30,32 +25,20 @@ export interface ProviderOAuthPanel {
   onStart?: () => void;
   starting?: boolean;
   onSaveApp: (fields: Record<string, string>) => Promise<void>;
-  /** List what the connected account can see. Read-only here; `ro-vu8d.4` turns
-   * the same payload into the per-asset picker. */
+  /** List what the connected account can see. Read-only here; the asset's
+   * Sources tab turns the same payload into the per-asset picker. */
   onDiscover: () => Promise<GooglePropertyDiscovery>;
 }
 
 // --- signing in to Google --------------------------------------------------
 
 /**
- * The Google card's second half: sign in instead of pasting a robot's key
- * (bead `ro-vu8d.3`, doc 14 flow C).
- *
- * FOUR STATES, AND THE ORDER IS THE ARGUMENT. Before anything can be signed
- * into, Google has to know this OS exists — so a card with no client id shows
- * the console steps and the form, and nothing else. Once it does, the address
- * Google will return to has to be one Google accepts, which on this OS is the
- * case worth designing for: `os:up` binds the LAN by default, and Google
- * refuses every plain-http address that is not loopback. Only then is there a
- * button. And once there is a grant, the card stops offering the setup and
- * starts reporting the connection — whose account, what it covers, what it can
- * see.
- *
- * THE REDIRECT ADDRESS IS SHOWN, NOT DESCRIBED. It is one string that has to
- * match exactly on both sides, and a mismatch is the single most common way an
- * OAuth setup fails — so it is rendered verbatim with a Copy beside it, derived
- * from the address this browser is actually on rather than from a config value
- * that could be stale.
+ * Sign in instead of pasting a service-account key. Four states in order: no
+ * client id (console steps and the form), a redirect address Google refuses
+ * (Google accepts plain http only on loopback, and the OS binds the LAN by
+ * default), ready (the button), and connected (whose account, what it covers,
+ * what it can see). The redirect address is rendered verbatim with Copy,
+ * derived from the address this browser is on rather than a config value.
  */
 export function GoogleSignIn({
   panel,
@@ -65,8 +48,7 @@ export function GoogleSignIn({
   panel: ProviderOAuthPanel;
   canConnect: boolean;
   /** The stored credential's last use did not work. On a grant that means
-   * Google has stopped accepting the sign-in, and the fix is one button (bead
-   * `ro-vu8d.14`). */
+   * Google has stopped accepting the sign-in, and the fix is one button. */
   failing: boolean;
 }) {
   const { card } = panel;
@@ -123,9 +105,8 @@ export function GoogleSignIn({
             </>
           ) : null}
 
-          {/* GOOGLE REFUSES THIS ADDRESS, and the fix is one press: the same
-              Tower on loopback, which every Google client accepts. The state
-              and the press, never the rule behind them (bead `ro-ujb9.96.6.1`). */}
+          {/* Google refuses this address; the fix is the same Tower on
+              loopback, which every Google client accepts. */}
           {card.state === "redirect-unusable" ? (
             <p
               className="flex flex-wrap items-center gap-2 text-xs text-warn"
@@ -148,8 +129,8 @@ export function GoogleSignIn({
               <RedirectUri value={card.redirectUri} />
               <div className="flex flex-wrap items-center gap-2">
                 <Button asChild size="sm" data-oauth-start>
-                  {/* A LINK, not a fetch: the whole point is a full-page trip to
-                      Google's consent screen and back to /integrations. */}
+                  {/* A link, not a fetch: a full-page trip to Google's consent
+                      screen and back to /integrations. */}
                   <GoogleStartPress href={panel.startHref} onStart={panel.onStart} starting={panel.starting} rel="noreferrer">
                     <LogIn className="size-3.5" aria-hidden />
                     Sign in with Google
@@ -170,8 +151,7 @@ export function GoogleSignIn({
  *
  * The scopes are listed because they are the answer to "what did I just give
  * this thing" — the question a careful operator asks after every consent
- * screen, and one Google's own account page answers three clicks away. They are
- * rendered in words rather than as scope URLs (doc 14 rule 8).
+ * screen. They are rendered in words rather than as scope URLs.
  */
 function ConnectedGrant({
   panel,
@@ -189,13 +169,9 @@ function ConnectedGrant({
     <>
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <span className="flex items-center gap-2 text-sm text-foreground">
-          {/* A GRANT GOOGLE HAS STOPPED ACCEPTING IS NOT A GREEN TICK (bead
-              `ro-vu8d.14`). The row said "Signed in as ops@example.com" with a
-              tick beside it for as long as the operator left it, while the
-              nightly pull failed underneath. The identity is still worth
-              printing — it is what tells them WHICH account to sign back in as
-              — but it wears the failure, and the verdict slot above carries the
-              sentence saying Testing-mode grants last seven days. */}
+          {/* A grant Google stopped accepting is not a green tick. The account
+              still prints, since it says which one to sign back in as, but it
+              wears the failure. */}
           {failing ? (
             <TriangleAlert className="size-4 shrink-0 text-error" aria-hidden />
           ) : (
@@ -211,10 +187,8 @@ function ConnectedGrant({
                 : "Signed in with Google"}
           </span>
         </span>
-        {/* THE FIX IS THE LOUDEST CONTROL WHEN IT IS NEEDED. A muted "Sign in
-            again" link is right beside a working grant — it is a thing you
-            rarely do — and wrong beside a dead one, where it is the only thing
-            to do. Same href, same flow; the weight is what changes. */}
+        {/* The same sign-in, muted beside a working grant and the primary
+            button beside a dead one. */}
         {failing ? (
           <Button asChild size="sm" data-oauth-restart>
             <GoogleStartPress href={panel.startHref} onStart={panel.onStart} starting={panel.starting} rel="noreferrer">
@@ -245,10 +219,8 @@ function ConnectedGrant({
               className="flex items-center gap-1.5 text-xs text-muted-foreground"
               title={granted.scope}
             >
-              {/* What the grant COVERED is still worth reading once Google has
-                  stopped accepting it — it is what the operator has to grant
-                  again — but a green tick would be claiming access that no
-                  longer exists, so the mark goes neutral with the grant. */}
+              {/* A dead grant's scopes still list (they are what to grant
+                  again), with a neutral mark instead of a tick. */}
               {failing ? (
                 <span
                   aria-hidden
@@ -310,13 +282,9 @@ function ConnectedGrant({
 }
 
 /**
- * What the account can see — a READ-ONLY list, deliberately.
- *
- * Which asset each property belongs to is the operator's answer and gets its
- * own surface on the asset's Sources tab (`ro-vu8d.4`). What this list is for is
- * the question a sign-in raises immediately: *did I use the right Google
- * account*. Four properties an operator recognizes answers it in a glance; a
- * picker here would answer a question nobody asked yet.
+ * What the account can see, read-only: it answers "did I sign in with the
+ * right account". Mapping properties to assets happens on the asset's Sources
+ * tab.
  */
 function DiscoveredProperties({
   discovery,
@@ -410,13 +378,8 @@ function RedirectUri({ value }: { value: string }) {
 }
 
 /**
- * The Google Cloud console steps, in place (doc 14 principle 9: a field says
- * where its value comes from, where it is being asked for).
- *
- * They are numbered because they are a sequence in somebody else's UI that has
- * to be followed in order, and the redirect URI sits INSIDE the step that needs
- * it rather than below the list — a value pasted into the wrong box is the
- * failure this whole section exists to prevent.
+ * The Google Cloud console steps, in place and numbered. The redirect URI sits
+ * inside the step that needs it, so it is not pasted into the wrong box.
  */
 function ConsoleSteps({ redirectUri, finish }: { redirectUri: string; finish: ReactNode }) {
   return (

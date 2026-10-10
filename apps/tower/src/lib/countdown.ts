@@ -91,18 +91,9 @@ const IMMINENT: CountdownBand = {
 };
 
 /**
- * Past the target. Not a step on the ramp — the ramp measures how soon the
- * operator has to act, and an event that already happened asks for nothing —
- * so it sits outside COUNTDOWN_BANDS and is selected by the clock, never by a
- * `minDays` scan. It takes no tinted field: red here is a standing alarm nobody
- * can answer, and the wall it lives on is read from across a room for days at a
- * time (bead ro-cpcy).
- *
- * It also goes QUIETER than `far`, which is the ramp's own floor. The word sits
- * in 4xl/5xl bold caps — geometry the live measures need and a finished one does
- * not — so at full `--muted-foreground` it still read as a headline from the
- * couch. Half the token on true black lands near oklch 0.5: legible when looked
- * at, invisible when scanning past (bead ro-rdzd).
+ * Past the target. Outside COUNTDOWN_BANDS and selected by the clock: an event
+ * that already happened asks for nothing, so no tint and quieter than `far`
+ * (half the muted token), legible when looked at and invisible when scanning.
  */
 const REACHED: CountdownBand = {
   id: "reached",
@@ -118,14 +109,9 @@ const REACHED: CountdownBand = {
  * widest-first; a target belongs to the first band whose `minDays` it still
  * clears, so 30d reads far and 14d reads approaching.
  *
- * The colors are the existing attention tokens (doc 14) — muted → default
- * foreground → warn → urgent → error — so the ramp escalates inside the system
- * instead of introducing a rival scale. Only `--urgent` is new, because five
- * distinguishable steps need one color between amber and red.
- *
- * The last two bands add a quiet tinted field behind the primary value. The
- * token carries the step, so the surface says "this is now" without per-unit
- * card chrome or a second bespoke scale.
+ * The colors are the attention tokens (muted, foreground, warn, urgent, error);
+ * only `--urgent` is the ramp's own, the step between amber and red. The last
+ * two bands add a tinted field behind the value.
  */
 export const COUNTDOWN_BANDS: readonly CountdownBand[] = [
   {

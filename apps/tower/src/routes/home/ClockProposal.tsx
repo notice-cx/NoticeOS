@@ -10,23 +10,16 @@ import { type FieldUndoOutcome, useFieldConfigSave } from "@/hooks/useConfigSave
 import { useSettings } from "@/hooks/useSettings";
 import { formatZoneName } from "@/lib/format";
 
-/** The same field Settings → General → Time zone saves, so a save here and there
- * is one subject (doc 14 principle 3b). */
+/** The same field Settings → General → Time zone saves, so a save here and
+ * there is one subject. */
 const SUBJECT = "field:Time zone";
 
 /**
- * THE CLOCK, PROPOSED FROM THE BROWSER (bead `ro-ujb9.134`).
- *
- * A new installation runs on the product's UTC, and "yesterday's revenue",
- * "today" and "this month" all follow that clock. While nobody has chosen one
- * (`clock.chosen`) and the browser reads another zone, the first-run screen
- * shows the clock in effect and one press to use the browser's — the zone is
- * a low-risk choice, so the press is the save and Undo sits beside it, as on
- * Settings. Nothing is saved
- * on a page view: the operator presses, or the clock stays as it is.
- *
- * Once pressed, the row stays for the visit — with the zone that landed and
- * its Undo — even though the saved choice now hides the proposal.
+ * The clock, proposed from the browser: while nobody has chosen one
+ * (`clock.chosen`) and the browser reads another zone, one press saves the
+ * browser's, with Undo beside it. Nothing is saved on a page view. Once
+ * pressed, the row stays for the visit even though the saved choice now hides
+ * the proposal.
  */
 export function ClockProposal() {
   const { data } = useSettings();

@@ -10,10 +10,9 @@ import {
 import type { SettingsPayload } from "@shared/settings";
 import { configSaveReply } from "./config-save-reply";
 
-// A COLLECTION'S SCHEDULE IS CHANGED ON ITS SOURCE'S MANAGE PANEL (bead
-// ro-ujb9.96.7.28, operator decision 2026-09-24). Settings keeps
-// only the collections no connection feeds; the traffic and search archives,
-// fed by Google and Bing, show the job's one schedule on both panels.
+// A collection's schedule is changed on its source's Manage panel. Settings
+// keeps only the collections no connection feeds; the traffic and search
+// archives, fed by Google and Bing, show the job's one schedule on both panels.
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
@@ -111,7 +110,7 @@ describe("where each collection's schedule is changed", () => {
     for (const job of collections) expect(onPanels.has(job.id) !== inSettings.has(job.id), job.id).toBe(true);
     // Every connection a job names is one the catalog ships.
     for (const job of collections) for (const provider of job.connections ?? []) expect(providers).toContain(provider);
-    // The operator's split (2026-09-24): what no connection feeds stays in Settings.
+    // What no connection feeds stays in Settings.
     expect([...inSettings]).toEqual(["pull", "counters", "panel-refresh"]);
     expect(connectionCollections("google").map((job) => job.id)).toEqual(["signal-dumps"]);
     expect(connectionCollections("bing-webmaster").map((job) => job.id)).toEqual(["signal-dumps"]);

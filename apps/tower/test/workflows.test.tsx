@@ -12,8 +12,8 @@ import path from 'node:path';
 import os from 'node:os';
 
 vi.mock('@/hooks/useConfigWritable', () => ({ useConfigWritable: () => ({ writable: true, reason: null }) }));
-// Which sources are connected decides where a collection's schedule link goes
-// (bead ro-ujb9.96.7.28). None, unless a test connects one.
+// Which sources are connected decides where a collection's schedule link
+// goes. None, unless a test connects one.
 const connections = vi.hoisted(() => ({ connected: [] as string[] }));
 vi.mock('@/hooks/useConnections', () => ({
   useConnections: () => ({
@@ -77,14 +77,14 @@ describe('workflow operating surface', () => {
     expect(screen.getByRole('link', { name: '10 minutes ago' })).toHaveAttribute('title', 'Wed, Sep 9, 16:15 UTC');
     fireEvent.change(screen.getByRole('combobox', { name: 'Sort operations' }), { target: { value: 'attention' } });
     expect(screen.getAllByRole('link', { name: /Backups|Live traffic and counters/ })[0]).toHaveTextContent('Backups');
-    // No row or group needs a description (bead ro-ujb9.96.9): the label, the
-    // provider where the label does not name it, and the row's state are the answer.
+    // No row or group needs a description: the label, the provider where the
+    // label does not name it, and the row's state are the answer.
     expect(screen.getByRole('link', { name: 'Search accessibility checks' }).parentElement).toHaveTextContent(/^Search accessibility checks$/);
     expect(screen.getByRole('link', { name: 'Product analytics archives' }).parentElement).toHaveTextContent(/^Product analytics archivesPostHog$/);
     expect(screen.getByRole('heading', { name: /^Business signals/ }).parentElement?.querySelector('p')).toBeNull();
   });
-  // Split from the case above (bead ro-ujb9.106): one mount and seven re-renders
-  // of the whole list took 5.7 s on a busy machine, past vitest's 5 s limit.
+  // Split from the case above: one mount and seven re-renders of the whole
+  // list can pass vitest's 5 s limit on a busy machine.
   it('filters by provider search and by state, including inactive workflows', async () => {
     mount();
     fireEvent.change(await screen.findByPlaceholderText('Search operations…'), { target: { value: 'posthog' } });
@@ -127,8 +127,8 @@ describe('workflow operating surface', () => {
     expect(screen.getAllByText('Unknown')).toHaveLength(15);
   });
   it('lists only the ingest’s jobs for an installation whose runner runs no host lanes', async () => {
-    // An installation `pnpm start` runs (bead ro-ujb9.156): no task hub, push
-    // state or offsite backup, so none of them is listed or counted unconfirmed.
+    // An installation `pnpm start` runs: no task hub, push state or offsite
+    // backup, so none of them is listed or counted unconfirmed.
     const ingest = WORKFLOW_DEFINITIONS.filter((w) => !w.local);
     data.runtime = { ...data.runtime!, hostLanes: false, jobs: data.runtime!.jobs.filter((job) => ingest.some((w) => w.id === job.id)) };
     mount();
@@ -161,7 +161,7 @@ describe('workflow operating surface', () => {
   });
   it('lists a host lane such an installation has set up, and no other', async () => {
     // A started installation with a task project saved runs its task board
-    // refresh (bead ro-ujb9.174); with no offsite folder named it runs no backup.
+    // refresh; with no offsite folder named it runs no backup.
     const listed = WORKFLOW_DEFINITIONS.filter((w) => !w.local || w.id === 'beads-snapshot');
     data.runtime = { ...data.runtime!, hostLanes: false, jobs: data.runtime!.jobs.filter((job) => listed.some((w) => w.id === job.id)) };
     mount();
@@ -196,8 +196,8 @@ describe('workflow operating surface', () => {
     expect(screen.getByText('Version 1')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Load collection settings/ }));
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Load collection settings');
-    // A collection's schedule has ONE editor, in Settings → Data collection
-    // (bead ro-ujb9.96.7.12): this page keeps the runner's view and links there.
+    // A collection's schedule has one editor, in Settings → Data collection:
+    // this page keeps the runner's view and links there.
     expect(screen.getByRole('link', { name: 'Edit in Settings' })).toHaveAttribute('href', '/settings#data-collection');
     expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
     expect(screen.queryByRole('form', { name: 'Live traffic and counters schedule' })).toBeNull();
@@ -215,9 +215,8 @@ describe('workflow operating surface', () => {
     if (kind === 'current hosted') expect(screen.getByText('One collection failed.')).toBeInTheDocument();
     else expect(screen.getAllByText('Not observed').length).toBeGreaterThan(0);
   });
-  // Bead ro-ujb9.96.7.28: a collection a connection feeds is changed on that
-  // connection's Manage panel, so its page links there — to a connected
-  // source's panel, or nowhere while none of its sources is connected.
+  // A collection a connection feeds is changed on that connection's Manage
+  // panel, so its page links there, or nowhere while none of its sources is connected.
   it("links a connection-fed collection to its source's Manage panel, and nowhere with nothing connected", async () => {
     connections.connected = ['bing-webmaster'];
     const first = mount('/health/operations/signal-dumps');
@@ -240,7 +239,6 @@ describe('workflow operating surface', () => {
   });
   it('marks legacy stage detail unavailable and does not manufacture green nodes', () => {
     render(<WorkflowStages definition={WORKFLOW_DEFINITIONS.find((w) => w.id === 'backup')!} run={{ ...trace, workflowId: 'backup', state: 'succeeded', steps: null }} />);
-    // Every stage says it for itself — no paragraph above the diagram.
     expect(screen.queryByText(/Step details unavailable/)).toBeNull();
     expect(screen.getAllByText('Not observed')).toHaveLength(2);
     expect(screen.queryByText('Succeeded')).toBeNull();
@@ -332,9 +330,9 @@ describe('workflow history evidence', () => {
     } finally { await rm(dir, { recursive: true, force: true }); }
   });
 
-  // Bead ro-ujb9.96.7.19: the connect panel's Start collecting runs the pull
-  // job's Bing step inside the ingest, which records it in job_runs marked
-  // manual; this is that record as GET /api/job-runs?trigger=manual answers it.
+  // The connect panel's Start collecting runs the pull job's Bing step inside
+  // the ingest, which records it in job_runs marked manual; this is that
+  // record as GET /api/job-runs?trigger=manual answers it.
   const pressed = { job: 'cron 30 2 * * *', startedAt: '2026-09-09T15:00:00.000Z', finishedAt: '2026-09-09T15:00:02.000Z', outcome: 'ran' };
   it("lists a Start collecting press once in its job's run history, marked manual, beside the scheduler's runs", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), 'workflow-reader-'));

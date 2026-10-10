@@ -1,9 +1,7 @@
 import { cn } from "@/lib/utils";
 
-/** The Notice mark (D35): the N cut by a square notch, as www.notice.cx draws
- * it. Drawn in the current ink, so it is dark on light surfaces and light on
- * dark ones, and crisp at every size from the phone header to the TV. The
- * same shape ships as a file at public/brand/notice-mark.svg. */
+/** The Notice mark, drawn in the current ink so it reads on light and dark
+ * surfaces. The same shape ships as public/brand/notice-mark.svg. */
 export function NoticeMark({ className }: { className?: string }) {
   return (
     <svg
@@ -21,8 +19,7 @@ export function NoticeMark({ className }: { className?: string }) {
   );
 }
 
-/** The NoticeOS lockup: the Notice mark and the wordmark set in Stack Sans
- * Notch. One identity for desk navigation, the phone's header and the TV. */
+/** The mark and the wordmark: one identity for the desk, the phone and the TV. */
 export function BrandLockup({
   size = "default",
   className,

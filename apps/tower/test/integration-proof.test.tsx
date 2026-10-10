@@ -37,10 +37,8 @@ const success: IntegrationEvidence = {
   verification: { kind: "collection-success", laneId: "gsc" },
 };
 
-// A source's proof of access is a dated success of its own collector — nothing
-// else. It is what `connectionHealthState` reads (the matrix's Working vs Not
-// checked); the Data sources row's setup checklist that once restated it is
-// gone (bead ro-ujb9.96.7.4), so the rules are asserted on the proof itself.
+// A source's proof of access is a dated success of its own collector and
+// nothing else; `connectionHealthState` reads it.
 describe("collection proof requires an explicit dated collector success", () => {
   it.each([
     ["configuration only", cell()],

@@ -1,11 +1,8 @@
 import { moneyFigure, minorToMajorUnits, moneyCurrency } from '@noticeos/contract/money';
 import { loadIntegrationEvidence, serpPanelAssets } from './integration-evidence';
-// Wall payload assembly — the one read the Tower makes over the central store.
-// Every band's data is derived here from the Phase-0 tables (assets, pulses,
-// flags, ledger). Pure over the call's Postgres store; tests exercise this
-// exact SQL against isolated real Postgres. Ledger reconciliation semantics (db/README):
-// a row is CURRENT when nothing supersedes it; net = revenue − cost over the
-// current rows for a period.
+// Wall payload assembly — the one read the Tower makes over the central
+// store. A ledger row is current when nothing supersedes it; net = revenue −
+// cost over the current rows for a period.
 
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
@@ -63,9 +60,8 @@ import {
 
 /** The tunables the SYSTEM band needs, sourced from config/constants.json. */
 export interface WallConstants {
-  /** monthly_caps.data_usd — the portfolio's only monthly ceiling since the
-   * inference cap was withdrawn (D6, bead `ro-uj7x`). The strip's "over the
-   * daily data pace" reads the day's share of it. */
+  /** monthly_caps.data_usd — the portfolio's only monthly ceiling. The strip's
+   * "over the daily data pace" reads the day's share of it. */
   dataUsd: number;
 }
 
@@ -78,20 +74,17 @@ export interface BuildOptions {
   pullConfig: PullConfigEntry[];
   /** config/tower.json, injected into the Worker at build time. */
   dashboard: DashboardConfig;
-  /** config/serp-panel.json — which assets have a tracked SERP panel at
-   * all. The Tower reads only the key set: the queries are the collector's
-   * business, but an asset absent from this file owes no panel review, and
-   * its card must therefore say nothing rather than nothing-yet. */
+  /** config/serp-panel.json — which assets have a tracked SERP panel. The
+   * Tower reads only the key set. */
   serpPanel: SerpPanelConfig;
-  /** The operator's clock: config/constants.json `os_time_zone` as SAVED,
-   * resolved store first (bead `ro-ujb9.88`). It decides the open month, each
-   * card's "yesterday" and the projection's month, so none of them may keep
-   * the zone of the last build after a Settings save. */
+  /** The operator's clock: config/constants.json `os_time_zone` as saved. It
+   * decides the open month, each card's "yesterday" and the projection's
+   * month. */
   osTimeZone: string;
-  /** config/constants.json `no_nightly_report` as SAVED (bead `ro-ujb9.96.8`):
-   * the assets declared as sending no nightly report. None is owed, so each is
-   * outside the SYSTEM card's denominator, carries no freshness alert, and its
-   * card shows "No report". Absent or null declares none. */
+  /** config/constants.json `no_nightly_report` as saved: the assets declared
+   * as sending no nightly report. None is owed, so each is outside the system
+   * card's denominator and carries no freshness alert. Absent or null declares
+   * none. */
   noNightlyReport?: readonly string[] | null;
   counters?: CountersConfig;
   schedules?: ScheduleOverrides | null;
@@ -100,7 +93,7 @@ export interface BuildOptions {
 const MS_PER_DAY = 86_400_000;
 
 /** One (asset, booking state) money total for the shown period, in integer
- * cents — the single row shape both the PORTFOLIO headline and every asset
+ * cents — the single row shape both the portfolio headline and every asset
  * card are derived from. */
 interface LedgerStateRow {
   currency: string;
@@ -132,15 +125,15 @@ type SnoozedRow = AttentionRow & {
 };
 
 /** The alert columns the Wall reads from `noticeos.current_flags` joined with
- * its site (bead ro-ujb9.76.5.2): the workspace's number, the day's report
- * number, the newest reading. */
+ * its site: the workspace's number, the day's report number, the newest
+ * reading. */
 const ATTENTION_COLUMNS = `f.flag_number::int AS id, f.pulse_day_number::int AS "pulseId", f.asset_id AS asset,
                 a.display_name AS "assetDisplayName", (CASE WHEN a.is_os THEN 1 ELSE 0 END) AS "assetIsOs",
                 f.severity, f.kind, f.message, f.fired_at AS "firedAt", f.metric,
                 f.rule_id AS "ruleId", f.rule_inputs::text AS "ruleInputs"`;
 
 /** A flag row with its asset named the way every surface names it: the OS's
- * own row by the product (bead `ro-ujb9.77.10`). */
+ * own row by the product. */
 function namedFlagRow<T extends AttentionRow>(row: T): T {
   return { ...row, assetDisplayName: assetDisplayName(row.assetIsOs, row.assetDisplayName) };
 }
@@ -181,12 +174,10 @@ function safeParse(json: string): Record<string, unknown> | null {
 }
 
 /**
- * The changes filed in a window, every site's, newest first. On Postgres (bead
- * ro-ujb9.76.5.7): one bounded seek per site down its (site, time) index, as
- * the feed reads (`OFFSET 0` keeps each site's read its own, where Postgres
- * would flatten it into one pass over every site's changes); a change is known
- * by its workspace's number, and two at one instant come newest-filed first,
- * as D1's index gave them.
+ * The changes filed in a window, every site's, newest first: one bounded seek
+ * per site down its (site, time) index (`OFFSET 0` keeps each site's read its
+ * own, where Postgres would flatten it into one pass over every site's
+ * changes). Two changes at one instant come newest-filed first.
  */
 export const WALL_CHANGES_SQL = `SELECT n.annotation_number::int AS id, a.asset_id AS asset, n.at, n.kind, n.ref, n.note
   FROM noticeos.assets a
@@ -225,29 +216,13 @@ async function readChangesForAlerts(
 }
 
 /**
- * Each asset's open work, keyed by asset id — the Sites table's Tasks column —
- * from one photograph of the hub, so the payload takes the queue counts and
- * the panel-review beads off the same row: two reads could land either side of
- * a poller write and put a site's work and its review obligation in different
- * minutes.
- *
- * It is the same newest snapshot the Tasks page reads (`./beads-snapshot`),
- * and answers for an asset only when that snapshot can honestly answer:
- *
- *   - a project the poller could not read (`ok: false`) is ABSENT, not zeroed,
- *     because "we could not look" and "there is nothing to do" are different
- *     facts and only one of them is good news;
- *   - an asset with no entry at all (no beads project in config/beads.json)
- *     simply never lands in the map.
- *
- * Both become `work: null` on the card, which renders as a quiet "no work data"
- * line. There is no path here that produces a zero the store did not observe.
- *
- * A count the poller did not measure travels as null and is dropped one chip at
- * a time rather than costing the asset its whole widget — a snapshot written
- * by a poller one generation behind still knows how much is open, and saying
- * nothing about all of it because one field is missing would be its own kind of
- * dishonesty (see the skew rule in workers/ingest/src/beads-snapshots.ts).
+ * Each asset's open work, keyed by asset id, from the same newest snapshot the
+ * Tasks page reads (`./beads-snapshot`). A project the poller could not read
+ * (`ok: false`) is absent, not zeroed, and an asset with no entry never lands
+ * in the map; both become `work: null` on the card. There is no path here
+ * that produces a zero the store did not observe. A count the poller did not
+ * measure travels as null and is dropped one chip at a time rather than
+ * costing the asset its whole widget.
  */
 export function cardWorkOf(snapshot: BeadsSnapshot | null): Map<string, WorkSummary> {
   const out = new Map<string, WorkSummary>();
@@ -285,22 +260,17 @@ export async function buildWallPayload(
   }: BuildOptions,
 ): Promise<WallPayload> {
   const nowMs = now.getTime();
-  /** Who owes no nightly report — one set, read by the coverage, the alert
-   * list and every card below, so they cannot disagree about one asset. */
+  /** Who owes no nightly report — one set for the coverage, the alert list
+   * and every card below. */
   const declaredNoReport = new Set(noNightlyReport ?? []);
-  /** The one instant every flag query below binds. "Open" depends on the clock
-   * since snooze arrived (`worker/flag-scope.ts`), and a payload that read it
-   * twice could count a condition in the open list and in the snoozed one. */
+  /** The one instant every flag query below binds: "open" depends on the clock
+   * (`worker/flag-scope.ts`), and a payload that read it twice could count a
+   * condition in the open list and in the snoozed one. */
   const nowIso = now.toISOString();
-  /** The calendar month the operator is standing in — what "still open" means
-   * anywhere below. The money blocks pick their own period (see `ro-bdkp`
-   * further down); this is the one that follows the clock.
-   *
-   * THE OPERATOR'S clock, not UTC's (bead `ro-ujb9.88`). It was the UTC month,
-   * so for the last hours of every month west of Greenwich the money card
-   * already stood in the next month while the ledger and /financials (which
-   * read the operator's zone) still stood in this one. Provider reports and
-   * their projection keep the provider's separate clock (D42). */
+  /** The calendar month the operator is standing in, on the operator's clock,
+   * not UTC's — what "still open" means anywhere below. The money blocks pick
+   * their own period. Provider reports and their projection keep the
+   * provider's separate clock. */
   const operatorToday = revenueCalendarDate(now, osTimeZone);
   const revenueToday = revenueCalendarDate(now, MEDIAVINE_REPORTING_CLOCK.timeZone);
   const currentPeriod = operatorToday.slice(0, 7);
@@ -317,38 +287,16 @@ export async function buildWallPayload(
   const osAsset = assetRows.find((a) => a.isOs === 1) ?? null;
   const cardAssets = assetRows.filter((a) => a.isOs !== 1);
 
-  // --- PORTFOLIO + per-asset P&L: reconciled and estimated kept APART --------
-  // ONE grouped read for both grains (bead `ro-uwo.2`). The headline is the sum
-  // of exactly the rows the cards state, so the two surfaces cannot disagree:
-  // there is a single query, a single filter, and a single split. The per-asset
-  // net used to come from a second query with no booking_state at all, which is
-  // how the Wall came to sit booked money above asset nets full of estimates
-  // — the 2026-07 audit's finding 4, one grain down.
-  //
-  // Summed in `amount_minor` (integer cents, db/0018) and divided once, at the
-  // end, per figure. Adding REAL dollars — or dividing per asset and adding the
-  // quotients — leaves a headline nobody can prove to the cent.
-  //
-  // WHICH MONTH THEY DESCRIBE (bead `ro-bdkp`). Both grains used to read the
-  // current calendar month and nothing else. Every row in this ledger arrives by
-  // import or by hand, so the first days of a month hold none — on 2026-09-04
-  // the store held June–August and nothing for September, `portfolioHasData`
-  // went false, and the surface D13 says must LEAD WITH MONEY led with nothing
-  // for four days. That repeats every month, forever, until something books.
-  //
-  // The rule is one line: the latest period, not in the future, that has any
-  // current row. The current month wins the moment it has one, so the other 26
-  // days of the month are byte-identical to before; with no rows at all it
-  // stays the current month and the band still hides itself. Booking state is
-  // deliberately not part of the test — D13's headline is cost-led, so a month
-  // holding only cost rows is money and still leads.
-  //
-  // ONE choice, fed to BOTH the band and the cards, so `ro-uwo.2`'s invariant
-  // (the cards add up to the headline) survives the fallback. And the shift is
-  // never silent: `periodIsCurrent` ships beside it and the card names the
-  // month, so a September glance can never be read as September's money.
-  // The ledger is on Postgres (bead ro-ujb9.76.6.1): every money read below is
-  // of the view that holds only current entries (`./ledger-history`).
+  // --- portfolio + per-asset P&L: reconciled and estimated kept apart --------
+  // One grouped read for both grains: the headline is the sum of exactly the
+  // rows the cards state. Summed in `amount_minor` (integer cents) and divided
+  // once, at the end, per figure. The period is the latest, not in the future,
+  // that has any current row: the current month wins the moment it has one,
+  // and with no rows at all the band hides itself. Booking state is not part
+  // of the test, so a month holding only cost rows is money and still leads.
+  // One choice, fed to both the band and the cards, with `periodIsCurrent`
+  // beside it. Every money read below is of the view that holds only current
+  // entries (`./ledger-history`).
   const latestLedgerPeriod =
     (
       await store.read((tx) =>
@@ -385,19 +333,11 @@ export async function buildWallPayload(
     moneyFigure(ledgerRows.filter(row => row.asset === asset && row.bookingState === bookingState),
       moneyCurrency(ledgerRows.filter(row => row.asset === asset).map(row => moneyFigure([row]))) ?? 'USD');
   /**
-   * The headline minus the cards, in cents (bead `ro-t0z`).
-   *
-   * The headline spans EVERY asset; the cards below it exclude asset #0. So a
-   * ledger row recorded against the OS itself sits inside the figure and on no
-   * card, and the cards stop adding up to the number above them — the invariant
-   * `ro-uwo.2` established. Nothing writes such a row today and
-   * `workers/ingest/src/routes/revenue.ts` has no is_os guard, so one POST is
-   * all it takes.
-   *
-   * Defined as the SUBTRACTION rather than as "asset #0's rows", because that is
-   * what the operator's arithmetic actually leaves over: `cardAssets` is the one
-   * list the cards are built from, so any future reason to omit an asset is
-   * carried here automatically instead of silently reopening the gap.
+   * The headline minus the cards, in cents. The headline spans every asset and
+   * the cards exclude asset #0, so a ledger row recorded against the OS itself
+   * sits inside the figure and on no card. Defined as the subtraction rather
+   * than as "asset #0's rows", so any reason to omit an asset from the cards
+   * is carried here automatically.
    */
   const cardAssetIds = new Set(cardAssets.map((a) => a.id));
   const residueFigure = (bookingState: string): LedgerFigure =>
@@ -410,10 +350,9 @@ export async function buildWallPayload(
     forecast: residueFigure("estimated"),
   };
 
-  // The BOOKED trend: reconciled rows only, so the line under the headline
-  // charts the same money the headline states (ledger grain is monthly).
-  // Kept in MINOR units here; the delta below subtracts before anything is
-  // divided, and the series divides once on the way out.
+  // The booked trend: reconciled rows only, so the line under the headline
+  // charts the same money the headline states. Kept in minor units; the delta
+  // below subtracts before anything is divided.
   const netByPeriodMinor = (
     await store.read((tx) =>
       tx.query<{ t: string; v: bigint; currency: string }>(
@@ -433,13 +372,8 @@ export async function buildWallPayload(
   const netTrend = netTrendCurrency === null ? [] : netByPeriodMinor
     .map(row => ({ t: row.t, v: minorToMajorUnits(row.v, row.currency) })).slice(-12);
 
-  // The SHAPE of the portfolio, every current row regardless of booking state.
-  // The reconciled trend above is the one the headline may be charted against;
-  // this one exists because a portfolio whose months are all still estimates has
-  // no reconciled trend at all, and "no data" is a worse answer than an honestly
-  // labelled one. It is drawn as the card's BACKGROUND — ambient shape, never a
-  // figure — so it can include estimates without ever sharing a number with the
-  // booked headline.
+  // The shape of the portfolio, every current row regardless of booking state,
+  // drawn as the card's background and never as a figure.
   const netTrendAllRows = (
     await store.read((tx) =>
       tx.query<{ t: string; v: bigint; currency: string }>(
@@ -456,20 +390,10 @@ export async function buildWallPayload(
   const netTrendAll = netTrendAllCurrency === null ? [] : netTrendAllRows
     .map(row => ({ t: row.t, v: minorToMajorUnits(row.v, row.currency) })).slice(-12);
 
-  // The delta the band is allowed to state (bead `ro-7yv`). It used to be the
-  // last two points of the trend above — and the last point is `period`, the
-  // month still being lived in, so on the 3rd of a month the chip reported a
-  // collapse that was only the calendar. doc 10 forbids exactly that pairing.
-  //
-  // Every month strictly BEFORE the current period is closed, so the newest two
-  // of them are the like-for-like pair this grain can support; a month-to-date
-  // figure for a prior month is not derivable from 'YYYY-MM' rows at all. Fewer
-  // than two closed months is no delta — not a zero, not a dash: nothing.
-  //
-  // Read against `currentPeriod`, never against the chosen `period` (bead
-  // `ro-bdkp`): "closed" is a fact about the calendar, so a headline that fell
-  // back to August must not thereby declare August unclosed and drop it from
-  // its own comparison.
+  // The delta the band is allowed to state: the newest two months strictly
+  // before the current period, the like-for-like pair this grain supports.
+  // Fewer than two closed months is no delta. Read against `currentPeriod`,
+  // never the chosen `period`: "closed" is a fact about the calendar.
   const closedPeriods = [...new Set(netByPeriodMinor.filter(row => row.t < currentPeriod).map(row => row.t))];
   const closedMonths = closedPeriods.map(period => {
     const rows = netByPeriodMinor.filter(row => row.t === period);
@@ -492,10 +416,8 @@ export async function buildWallPayload(
         }
       : null;
 
-  // First-run state: portfolio stays in the empty state until a reconciled row
-  // exists (doc 10). Estimated rows do not "book" P&L — and now that they ride
-  // their own field, the first-run card can show them as forecast instead of
-  // hiding what has been reported.
+  // First-run state: the portfolio stays in the empty state until a reconciled
+  // row exists. Estimated rows do not book P&L; they show as forecast.
   const [reconciled] = await store.read((tx) =>
     tx.query<{ x: number }>(
       `SELECT 1 AS x FROM noticeos.financial_ledger WHERE booking_state = 'reconciled' LIMIT 1`,
@@ -503,7 +425,7 @@ export async function buildWallPayload(
   );
   const firstRun = !reconciled;
 
-  // The earlier of the first money entry and the first site (both on Postgres).
+  // The earlier of the first money entry and the first site.
   const [earliest] = await store.read((tx) =>
     tx.query<{ ts: string | null }>(
       `SELECT LEAST((SELECT MIN(recorded_at) FROM noticeos.financial_ledger),
@@ -536,8 +458,8 @@ export async function buildWallPayload(
   };
 
   // --- per-asset latest pulse (freshness map + ingest coverage) --------------
-  // Index seeks per asset, not a pass over every stored night (`ro-ujb9.63`,
-  // `./pulse-history`). The asset page reads the same statement for one asset.
+  // Index seeks per asset, not a pass over every stored night
+  // (`./pulse-history`). The asset page reads the same statement for one asset.
   const pulseCoverage = await readPulseCoverage(store, nowIso);
   const latestPulse = new Map([...pulseCoverage].map(([asset, c]) => [asset, c.latest]));
   // Setup reads actual coverage as well as arrival time, from this same query.
@@ -548,11 +470,10 @@ export async function buildWallPayload(
   ]);
   const counterCadence = countersCadenceHours(schedules ?? null);
 
-  // Counted over the ASSET rows, never over the pulses map (the 2026-07 audit's finding 5),
-  // by the rule the ingest freshness cron counts with (`owesNightlyReport`): a
-  // site that has never sent a report (D29 amended, `ro-ujb9.121`) or was
-  // declared as sending none owes nothing and sits outside the denominator, so
-  // "N/M nightly reports fresh" counts only the reports somebody is owed.
+  // Counted over the asset rows, never over the pulses map, by the rule the
+  // ingest freshness cron counts with (`owesNightlyReport`): a site that has
+  // never sent a report or was declared as sending none owes nothing and sits
+  // outside the denominator.
   const ingest = summarizeReporting(
     assetRows.map((a) =>
       reportingState(
@@ -565,45 +486,26 @@ export async function buildWallPayload(
     ),
   );
 
-  // One task-hub photograph feeds every site's work, its panel review and the
-  // task source's one reading (`./task-source`, D32): whether a source is
-  // connected, and the Needs you counts, come off the same row.
+  // One task-hub snapshot feeds every site's work, its panel review and the
+  // task source's one reading (`./task-source`).
   const beadsSnapshot = await loadLatestBeadsSnapshot(store);
   const tasks = beadsReading(store, beadsSnapshot);
   const workByAsset = cardWorkOf(beadsSnapshot);
 
-  // --- SYSTEM: what the strip's one state and Home's System tile read -------
-  // The metered data cap alone. It used to be that plus a $100/mo inference
-  // ceiling nothing measured, so the pace this meter drew was partly against a
-  // budget the OS could not spend (D6 amended 2026-09-05, bead `ro-uj7x`).
+  // --- system: what the strip's one state and Home's System tile read -------
+  // The metered data cap alone.
   const dailyCapUsd = constants.dataUsd / daysInMonthUTC(now);
 
-  // TODAY'S METERED DATA SPEND — counted, not reported (bead `ro-sq42`).
-  //
-  // This used to be read out of asset #0's report envelope, from four candidate
-  // metric names, and nothing in this repo ever wrote one: the row was absent on
-  // every real Wall while `/integrations` was already summing the same money out
-  // of the store beside it. The store is the honest door. The report runs are
-  // the OS's own record of every metered call it made, so the figure is
-  // arithmetic over evidence already held rather than a report nobody sends —
-  // and the reader is `loadDataForSeoSpend`, the SAME function the Health page's
-  // spend summary and `/settings`' budget meter call, windowed to today. A day's
-  // figure here and a month's there, one sum.
-  //
-  // WHY THE PAYLOAD AND NOT THE ENVELOPE: the self-report is written once a day
-  // and this payload is polled every minute, so a spend that arrived by envelope
-  // would be up to a day stale on a meter whose whole job is pace.
-  //
-  // UTC days, matching `daysInMonthUTC` above: the denominator is a UTC month's
-  // share, so a numerator counted on another calendar would be a ratio of two
-  // different clocks.
+  // Today's metered data spend, counted from the report runs by
+  // `loadDataForSeoSpend` — the same function the Health page's spend summary
+  // and `/settings`' budget meter call, windowed to today. UTC days, matching
+  // `daysInMonthUTC` above, so numerator and denominator share one calendar.
   const { spentUsd: spendTodayUsd } = await loadDataForSeoSpend(store, now, "day");
 
   const system: SystemBand = {
     assetId: osAsset?.id ?? null,
     // Has the OS's own row ever reported? The coverage read above already
-    // holds every asset's latest arrival, the OS's included, so this costs no
-    // query of its own (bead `ro-trai.44`).
+    // holds every asset's latest arrival.
     hasPulse: osAsset ? latestPulse.has(osAsset.id) : false,
     spendTodayUsd,
     dailyCapUsd,
@@ -635,28 +537,16 @@ export async function buildWallPayload(
     isAttentionEligible(condition.liveness)
     && ["error", "warn"].includes(condition.latest.severity));
 
-  // NO REPORT ENVELOPE IS READ HERE (bead `ro-trai.44`). The old card's
-  // activity sparkline and its all-time totals were the last things on this
-  // payload that parsed one; D28 moved both off the Wall, and a site's
-  // Overview reads its own totals from the asset page's read. What a report's
-  // ARRIVAL says — first, latest, days covered — is the coverage read above.
+  // No report envelope is read here: what a report's arrival says — first,
+  // latest, days covered — is the coverage read above.
   const panelAssetIds = serpPanelAssets(serpPanel);
   const integrationEvidence = await loadIntegrationEvidence(store, {
     now, integrations, serpPanel, presentation: 'compact',
   });
-  // THE SEARCH LANE COMES BACK (bead `ro-78qo.35`). It was switched off on
-  // 2026-08-01 because the asset CARD charts no search history — the work
-  // widget took that space (doc 10) — and reading a lane nothing draws is cost
-  // a television pays every sixty seconds for nothing.
-  //
-  // What changed is not the card: /assets reads this same payload, and doc 14's
-  // comparison table asks each row for search clicks beside its users. So the
-  // lane is read again, and the two providers are merged into ONE card field
-  // rather than shipped as a pair — the card still draws none of it, and the
-  // Wall's own cost is one more query against an index it already had.
-  //
-  // Secondary series stay off: impressions, sessions, page views, events, CTR
-  // and position are the asset page's, and no desk table asks a row for them.
+  // /assets reads this same payload and its comparison table asks each row
+  // for search clicks beside its users, so the search lane is read and the
+  // two providers merged into one card field. Secondary series stay off: no
+  // desk table asks a row for them.
   const signalTrendsByAsset = await loadSignalTrends(store, WALL_SIGNAL_CHART_DAYS, {
     includeWebSearch: true,
     nowMs,
@@ -672,34 +562,23 @@ export async function buildWallPayload(
     rows.push({ date: day.date, amountMinor: cents(day.amountMinor) });
     revenueByAsset.set(day.asset, rows);
   }
-  // No provider reads on a Wall refresh. Skip the longer traffic read until a
-  // daily revenue source has actually supplied history, and read it only for
-  // the assets that have (bead `ro-ujb9.102`): `projectRevenue` answers "no
-  // revenue" before it looks at traffic, so every other asset's sessions were
-  // read and never used.
+  // Skip the longer traffic read until a daily revenue source has supplied
+  // history, and read it only for the assets that have: `projectRevenue`
+  // answers "no revenue" before it looks at traffic.
   const revenueTraffic = revenueByAsset.size ? await loadSignalTrends(store, REVENUE_HISTORY_DAYS, { includeWebSearch: false, includeSessions: true, assets: [...revenueByAsset.keys()], nowMs }) : new Map<string, SignalTrendSet>();
-  // The desk's per-asset ledger history, from the SAME grouping /financials'
-  // by-asset table is built from (`./ledger-history`) — one derivation, two
-  // payloads, so the Wall and the accounting page cannot disagree about a
-  // asset's month.
+  // The desk's per-asset ledger history, from the same grouping /financials'
+  // by-asset table is built from (`./ledger-history`).
   const ledgerMonthsByAsset = await loadAssetMonths(store);
-  /**
-   * The month the store is standing in, for `netByMonth`'s provisional tail.
-   *
-   * The CLOCK's month, not the ledger's newest — a card whose last row is
-   * August is not drawing a provisional point in September, and a reader
-   * standing in September is not looking at a settled month. Null when no asset
-   * has a ledger month at all, because a boundary on an empty series is a claim
-   * about nothing.
-   */
+  /** The month the store is standing in, for `netByMonth`'s provisional tail:
+   * the clock's month, not the ledger's newest. Null when no asset has a
+   * ledger month at all. */
   const openLedgerPeriod = [...ledgerMonthsByAsset.values()].some(
     (entry) => entry.months.length > 0,
   )
     ? currentPeriod
     : null;
-  // The operator and review slices come from the same photograph as each
-  // site's work above.
-  // Tasks is core; an unread hub produces unknown counts, never an exact zero.
+  // From the same snapshot as each site's work above. An unread hub produces
+  // unknown counts, never an exact zero.
   const operator = tasks.needsYou();
   const panelReviewByAsset = cardPanelReviewsOf(
     beadsSnapshot,
@@ -715,18 +594,11 @@ export async function buildWallPayload(
     const f = flagsByAsset.get(a.id);
     const senseOnly = a.senseOnly === 1;
     const signalTrends = signalTrendsByAsset.get(a.id) ?? emptySignalTrendSet();
-    // The marker follows the REVIEW, and the review follows the COLLECTION —
-    // never the panel config (`ro-1tu`). Since `ro-478` the runner files a
-    // review for every asset whose weekly DataForSEO collection lands, panel
-    // or no panel, so gating on config/serp-panel.json left three assets
-    // holding open, due-dated reviews no Tower surface rendered.
-    //
-    // The staleness the old gate existed for still has an answer, and it is a
-    // better one: a landing inside `PANEL_LANDING_WINDOW_DAYS` is what makes the
-    // marker appear, so an asset whose collection STOPPED sheds its marker
-    // instead of haunting the Wall with an obligation nobody can discharge.
-    // An asset merely removed from the panel file keeps collecting its other
-    // families, keeps landing, and keeps owing the read — which is the point.
+    // The marker follows the review, and the review follows the collection —
+    // never the panel config: the runner files a review for every asset whose
+    // weekly DataForSEO collection lands, panel or no panel. A landing inside
+    // `PANEL_LANDING_WINDOW_DAYS` is what makes the marker appear, so an asset
+    // whose collection stopped sheds its marker.
     const latestPanelDate = panelLandingByAsset.get(a.id) ?? null;
     return {
       id: a.id,
@@ -736,8 +608,7 @@ export async function buildWallPayload(
       worstSeverity: f ? severityFromRank(toNum(f.worst) ?? 0) : null,
       openError: f ? (toNum(f.err) ?? 0) : 0,
       openWarn: f ? (toNum(f.warn) ?? 0) : 0,
-      // The very rows the headline above these cards is made of, split by the
-      // same rule — so the cards add up to it.
+      // The very rows the headline above these cards is made of, so the cards add up to it.
       booked: assetFigure(a.id, "reconciled"),
       forecast: assetFigure(a.id, "estimated"),
       netPeriod: period,
@@ -757,16 +628,13 @@ export async function buildWallPayload(
       // Holidays for the year the projected month is in, on the same clock.
       revenueProjection: projectRevenue(now, MEDIAVINE_REPORTING_CLOCK, revenueByAsset.get(a.id) ?? [], revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
         revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar, Number(revenueToday.slice(0, 4)))),
-      // Two providers, one measurement, one column (bead `ro-78qo.35`). The
-      // merge is `shared/wall.ts`'s so the worker and the asset page run the
-      // same rule rather than two copies of it.
+      // Two providers, one measurement, one column; the merge is `shared/wall.ts`'s.
       searchClicks: mergeSignalTrends([
         signalTrends.webSearchClicks.google,
         signalTrends.webSearchClicks.bing,
       ]),
-      // The asset's own month axis, holes and all (bead `ro-78qo.37`): a month
-      // it booked nothing in is `null`, so the line breaks there instead of
-      // joining two months that are not neighbours.
+      // The asset's own month axis, holes and all: a month it booked nothing
+      // in is `null`, so the line breaks there.
       netByMonthCurrency: moneyCurrency((ledgerMonthsByAsset.get(a.id)?.months ?? [])
         .flatMap(month => month.figure === null ? [] : [month.figure])),
       netByMonth: (() => {
@@ -777,48 +645,29 @@ export async function buildWallPayload(
       })(),
       netByMonthProvisionalFrom: openLedgerPeriod,
       work: workByAsset.get(a.id) ?? null,
-      // The payload boundary is where the snapshot's three-valued answer
-      // collapses to two. "The poller did not look" and "it looked and found no
-      // review bead" are different measurements, and `SnapshotProject` keeps
-      // them apart — but the CARD's answer to both is the same nothing, and a
-      // fifth visual state for an absence nobody can act on would be noise on
-      // every surface it appeared.
+      // The snapshot's three-valued answer collapses to two here: the card's
+      // answer to "did not look" and "looked and found no review" is the same
+      // nothing.
       panelReview: latestPanelDate ? (panelReviewByAsset.get(a.id) ?? null) : null,
       latestPanelDate,
     };
   });
 
-  // --- ATTENTION: open error/warn flags, severity then recency ---------------
-  // The row ships FACTS, not the sentence: rule_id + rule_inputs travel with it
-  // so the client's one translator (shared/alert-language) renders the same
-  // headline the asset page renders. The store is never asked for prose.
-  // Recent changes that might explain those alerts. One bounded query for the
-  // whole band — the correlation window is the same for every row, so the
-  // earliest alert's window start bounds the read, and the per-row pairing
-  // happens in JS. Skipped entirely when nothing is open.
+  // --- attention: open error/warn flags, severity then recency ---------------
+  // The row ships facts, not the sentence: rule_id + rule_inputs travel with
+  // it so the client's one translator (shared/alert-language) renders the same
+  // headline the asset page renders. Recent changes that might explain those
+  // alerts: one bounded query for the whole band, paired per row in JS.
   const changesByAsset = await readChangesForAlerts(
     store,
     attentionConditions.flatMap((condition) => condition.firings.map((r) => r.firedAt)),
   );
 
-  // ONE ROW PER CONDITION, not per firing (ro-kukv.1). Only rules declared in
-  // RECURRING_CONDITION_RULES collapse; everything else keeps a row each,
-  // because merging two firings that ask for two decisions hides one of them.
-  //
-  // The grouping itself lives in `shared/wall` because the ASSET PAGE has to
-  // reach the identical answer over the identical store (ro-kukv.5). Two copies
-  // of this loop is exactly how one surface came to render one asset's condition
-  // as a single row reading "16x in 26d" while the other rendered sixteen.
-  //
-  // Grouped in JS rather than SQL: the rows are already ordered severity-then-
-  // recency, so the first member of each group IS its representative — the
-  // CURRENT reading, the numbers an operator would act on — while the oldest
-  // dates the onset. The correlation read above is one bounded query for the
-  // whole band either way.
-  //
-  // Each row's stored readings ride with it (db/0040, bead `ro-ujb9.220`), so
-  // its Evidence lists the nights behind a refreshed summary. Empty on a store
-  // without the table.
+  // One row per condition, not per firing; the grouping lives in `shared/wall`
+  // because the asset page has to reach the identical answer. Grouped in JS:
+  // the rows are already ordered severity-then-recency, so the first member of
+  // each group is its representative while the oldest dates the onset. Each
+  // row's stored readings ride with it; empty on a store without the table.
   const attentionReadings = await readFlagReadings(store, attentionConditions.map(({ latest }) => latest.id));
   const attention: AttentionItem[] = attentionConditions.map(
       ({ latest: newest, firings, occurrences, firstFiredAt, verification }) => ({
@@ -844,26 +693,11 @@ export async function buildWallPayload(
       }),
     );
 
-  // --- SNOOZED: the same conditions, parked until a date (`ro-c7qq`) ---------
-  //
-  // A snooze that produced no visible row would be a mute with a nicer name, so
-  // `/alerts` renders these under their own heading with an Unsnooze on each.
-  // Ordered by WHEN THEY COME BACK rather than by severity: the question this
-  // list answers is "what have I put off, and for how long", and the row about
-  // to return is the one worth seeing first.
-  //
-  // WIDER than the band above, deliberately (`ro-w13s`). The open attention
-  // table is error/warn, because that is what the portfolio owes the operator
-  // an answer about. But Snooze is offered on EVERY open row of the asset
-  // page's state hero, info and milestone included, and a parked row nobody can
-  // find is exactly the silent hide this section exists to prevent — the only
-  // other place it showed was that one asset's alert history, which is the page
-  // an operator would have to already suspect. So the ledger lists every parked
-  // row. It stays short by construction: it holds only what somebody chose to
-  // park, and it is a ledger, not a queue — no count above it changes.
-  //
-  // Same grouping as the band, so a condition that reads "16x in 26d" open
-  // reads as one parked row rather than sixteen.
+  // --- snoozed: the same conditions, parked until a date --------------------
+  // Ordered by when they come back rather than by severity. Wider than the
+  // band above: Snooze is offered on every open row of the asset page, info
+  // and milestone included, so this ledger lists every parked row. No count
+  // above it changes. Same grouping as the band.
   const snoozedRows = (
     await store.read((tx) =>
       tx.query<SnoozedRow>(
@@ -891,8 +725,7 @@ export async function buildWallPayload(
       metric: newest.metric ?? null,
       ruleId: newest.ruleId,
       ruleInputs: newest.ruleInputs ? safeParse(newest.ruleInputs) : null,
-      // No correlated changes: what landed before a condition STARTED is the
-      // drill-down's question, and this list is about when it comes back.
+      // No correlated changes: this list is about when a condition comes back.
       correlatedChanges: [],
       occurrences,
       firstFiredAt,
@@ -906,8 +739,7 @@ export async function buildWallPayload(
   ).sort((left, right) => left.snoozeUntil.localeCompare(right.snoozeUntil)
     || right.firedAt.localeCompare(left.firedAt));
 
-  // Over current entries only, matching every money query above: a superseded
-  // estimate is not part of the portfolio's ledger and cannot set its age.
+  // Over current entries only: a superseded estimate cannot set the ledger's age.
   const [ledger] = await store.read((tx) =>
     tx.query<{ ts: string | null }>(`SELECT MAX(recorded_at) AS ts FROM noticeos.financial_ledger`),
   );

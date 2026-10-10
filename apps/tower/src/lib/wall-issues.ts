@@ -1,26 +1,16 @@
-// What is broken, once, for the two Wall widgets that say so (docs/14-design.md
-// § Needs you and § Site rows; beads `ro-trai.4`, `ro-trai.5`).
+// What is broken, once, for the two Wall widgets that say so. "Needs you"
+// states each problem as a sentence with its site and age; a site row states
+// the same problems as one mark of at most three words with "+N" for the
+// rest. Both read the list this module builds, so a row can never be marked
+// for something Needs you does not name.
 //
-// ONE LIST, TWO SIZES. "Needs you" states each problem as a sentence with its
-// site and age; a site row states the same problems as one mark of at most
-// three words ("Home page down", "GA4 failing", "Report late") with "+N" for the
-// rest. Both read the list this module builds, so a row can never be marked for
-// something Needs you does not name, or the other way round.
+// What counts (all of it material state, `shared/materiality.ts`): open
+// error/warn alerts as the payload grouped them; a source whose collection is
+// failing, one row per source kind (`failingSources`); a nightly report past
+// twice its cadence, unless an open alert already says so, and never for a
+// site that declared it sends none; a weekly review past its due date.
 //
-// WHAT COUNTS (all of it already material state, `shared/materiality.ts`):
-//   - open error/warn alerts, exactly as the payload grouped them — a
-//     condition firing nightly is one row;
-//   - a source whose collection is failing (the status Integrations and the
-//     asset's Data sources show, `sourceReadings`), one row per source kind
-//     (`failingSources`, which the strip's count reads too);
-//   - a nightly report past twice its cadence, unless an open alert already
-//     says so, and never for a site that declared it sends none (D29);
-//   - a weekly review past its due date (`panelReviewState`).
-// Rollback failures are alerts (`watch-window-closed`, `kill_confirmed`).
-//
-// THE MARK IS NAMED FROM THE RULE, NOT CUT FROM THE SENTENCE. Each alert rule
-// and each source kind has its own short label below; an alert sentence is
-// never truncated into one, because "Plans saved well" is not a label.
+// The mark is named from the rule, never truncated from the alert sentence.
 
 import { owesNightlyReport } from "@noticeos/contract/reporting";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
@@ -70,8 +60,8 @@ const SOURCE_SHORT: Readonly<Record<string, string>> = {
   uptime: "Uptime",
 };
 
-/** The nightly report's slot. Its lateness is the "Report late" rule below,
- * which knows about D29; its source reading would say the same thing twice. */
+/** The nightly report's slot. Its lateness is the "Report late" rule below;
+ * its source reading would say the same thing twice. */
 const NIGHTLY_SLOT = "nightly-report";
 
 const HOUR_MS = 3_600_000;
@@ -128,14 +118,11 @@ export interface FailingSource {
 }
 
 /**
- * The failing sources, ONE ENTRY PER SOURCE KIND (bead `ro-trai.17`): a
- * provider failing on five sites is one thing to fix, not five. The nightly
- * report's slot is left out — its lateness is "Report late" here and the
- * strip's "reports stale", which know about D29.
- *
- * The one derivation for the fact: Needs you lists one row per entry, and the
- * strip's "N sources failing" is the number of entries
- * (`failingSourceCount`), so the two can never disagree on one screen.
+ * The failing sources, one entry per source kind: a provider failing on five
+ * sites is one thing to fix, not five. The nightly report's slot is left out;
+ * its lateness is "Report late" and the strip's "reports stale". Needs you
+ * lists one row per entry and the strip's "N sources failing" is the number
+ * of entries (`failingSourceCount`), so the two can never disagree.
  */
 export function failingSources(
   assets: readonly AssetCard[],
@@ -192,8 +179,8 @@ export function wallIssues({ assets, attention, connections, calendarState, nowM
     const members = item.members && item.members.length > 1 ? item.members : null;
     let ids = members ? members.map((member) => member.asset) : [item.asset];
     let names = members ? members.map((member) => member.assetDisplayName) : [item.assetDisplayName];
-    // D29: a site that declared it sends no nightly report is never marked for
-    // a missing one, even by an alert that fired before the declaration.
+    // A site that declared it sends no nightly report is never marked for a
+    // missing one, even by an alert that fired before the declaration.
     if (item.ruleId === "ingest-freshness") {
       const kept = ids.map((id, index) => ({ id, name: names[index]! })).filter(({ id }) => !declared(id));
       if (kept.length === 0) continue;

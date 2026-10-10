@@ -1,6 +1,6 @@
-// The Wall's one top strip (bead ro-trai.3, docs/14-design.md § Strip): the
-// local time/date, the next meeting and a recognizable countdown. System
-// problems live in Needs you rather than as an aggregate header badge.
+// The Wall's one top strip: the local time/date, the next meeting and a
+// recognizable countdown. System problems live in Needs you rather than as
+// an aggregate header badge.
 
 import { render } from "./render";
 import { describe, expect, it, vi } from "vitest";
@@ -23,8 +23,8 @@ const MINUTE = 60_000;
 const DAY = 86_400_000;
 const iso = (offsetMs: number) => new Date(NOW + offsetMs).toISOString();
 
-/** A fresh OS report exactly as the self-report sends it: no agents, no queue
- * (bead ro-trai.1), the backup ran three hours ago, spend under the pace. */
+/** A fresh OS report exactly as the self-report sends it: no agents, no
+ * queue, the backup ran three hours ago, spend under the pace. */
 const HEALTHY: SystemBand = {
   assetId: "os",
   hasPulse: true,
@@ -115,8 +115,8 @@ describe("the one system state", () => {
   });
 
   it("is never amber by construction: no recorded firing yet, a lane that stood down, a site not yet reporting", () => {
-    // An installation with no OS row owes no OS report (bead ro-ujb9.132): a
-    // subject nobody set up is calm, not red.
+    // An installation with no OS row owes no OS report: a subject nobody set
+    // up is calm, not red.
     expect(state({ ...HEALTHY, assetId: null, hasPulse: false })).toMatchObject({ kind: "healthy", severity: null });
     expect(state({ ...HEALTHY, scheduledLanes: [] }).kind).toBe("healthy");
     expect(state({ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "skipped", startedAt: iso(-HOUR) }] }).kind).toBe("healthy");
@@ -125,14 +125,14 @@ describe("the one system state", () => {
 
   it("counts failing source kinds the way every other screen reads each source", () => {
     expect(failingSourceCount([site("a.example"), site("b.example")], NO_READS, NOW)).toBe(0);
-    // One kind failing on two sites is one source to fix (bead ro-trai.17).
+    // One kind failing on two sites is one source to fix.
     expect(failingSourceCount([site("a.example", "degraded"), site("b.example", "degraded")], NO_READS, NOW)).toBe(1);
     // A source the operator marked Not using is never failing.
     expect(failingSourceCount([site("a.example", "skipped")], NO_READS, NOW)).toBe(0);
   });
 
-  // Bead ro-trai.17: the strip and Needs you read ONE derivation
-  // (`failingSources`), so one screen never states two counts of one fact.
+  // The strip and Needs you read one derivation (`failingSources`), so one
+  // screen never states two counts of one fact.
   it("agrees with Needs you when one provider fails on two sites", () => {
     const card = (id: string, uptime: "live" | "degraded" = "live"): AssetCard =>
       ({ ...site(id, uptime), status: "live", pulseReceivedAt: null, panelReview: null, latestPanelDate: null }) as AssetCard;
@@ -226,7 +226,7 @@ describe("the strip", () => {
       <WallStrip
         system={HEALTHY}
         assets={[site("a.example"), site("b.example")]}
-        countdown={{ emoji: "🌁", label: "SF Trip", targetAt: iso(12 * DAY) }}
+        countdown={{ emoji: "🌁", label: "Team offsite", targetAt: iso(12 * DAY) }}
         meetings={withMeetingIn(2.5 * HOUR)}
         nowMs={NOW}
         {...overrides}
@@ -272,7 +272,7 @@ describe("the strip", () => {
     expect(el.querySelector("[data-strip-meeting-title]")?.textContent).toBe("Partner sync");
     expect(el.querySelector("[data-strip-countdown-value]")?.textContent).toBe("12");
     expect(el.querySelector("[data-strip-countdown-unit]")?.textContent).toBe("days remaining");
-    expect(el.querySelector("[data-strip-countdown-label]")?.textContent).toBe("SF Trip");
+    expect(el.querySelector("[data-strip-countdown-label]")?.textContent).toBe("Team offsite");
     expect(el.querySelectorAll("a")).toHaveLength(1);
     expect(el.querySelector("[data-strip-home]")).toHaveAttribute("href", "/");
     expect(el.querySelector("[data-system-state]")).toBeNull();
@@ -386,9 +386,9 @@ describe("the strip", () => {
     expect(tile.getAttribute("aria-hidden")).toBe("true");
     view.unmount();
     for (const emoji of ["", "  "]) {
-      const bare = strip({ countdown: { emoji, label: "SF Trip", targetAt: iso(12 * DAY) } });
+      const bare = strip({ countdown: { emoji, label: "Team offsite", targetAt: iso(12 * DAY) } });
       expect(bare.container.querySelector("[data-strip-countdown-emoji]")).toBeNull();
-      expect(bare.container.querySelector("[data-strip-countdown-label]")?.textContent).toBe("SF Trip");
+      expect(bare.container.querySelector("[data-strip-countdown-label]")?.textContent).toBe("Team offsite");
       expect(bare.container.querySelector("[data-strip-countdown-days]")?.textContent).toBe("12 days");
       bare.unmount();
     }

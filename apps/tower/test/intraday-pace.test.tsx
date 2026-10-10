@@ -1,11 +1,7 @@
-// Today's pace stays silent until its hours can carry a verdict, names the
-// hours it compares, and the chart's now point waits at the clock while the
-// provider's data lags (bead ro-trai.43).
-//
-// The numbers are the operator's report of 2026-09-24: at 07:25 on the OS
-// clock GA4's hourly series for the first site held hours 0–2 only —
-// [hour, today, last week] = [0, 30, 50], [1, 22, 50], [2, 5, 44] — and the
-// Wall printed "↓48%" in red for hours 0–1 (52 vs 100 users).
+// Today's pace stays silent until its hours can carry a verdict, and the chart's
+// now point waits at the clock while the provider's data lags. The fixture: at
+// 07:25 GA4's hourly series held hours 0–2 only, [hour, today, last week] =
+// [0, 30, 50], [1, 22, 50], [2, 5, 44].
 
 import { render } from "./render";
 import { describe, expect, it } from "vitest";

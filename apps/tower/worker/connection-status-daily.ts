@@ -1,27 +1,9 @@
 // System health's four connection counts, once a day
-// (`noticeos.connection_status_daily_counts`, bead
-// `ro-ujb9.96.7.26`).
-//
-// WHY THE RECORDER IS IN THE TOWER. The Connections strip states Sites
-// failing, Sites overdue, Reports missing and Sites working from the connection
-// model (`providerStatuses` + `connectionCounts`, shared/connection-status.ts)
-// over two reads: the ingest's health read and the stored credentials. The
-// recorder makes the same two reads and counts with the same two functions the
-// strip calls, so the line drawn under a number can never count something
-// else. The ingest is a separate build that cannot import that model, which is
-// why this is a Tower step and not an ingest lane.
-//
-// WRITTEN BY THE HOURLY TICK, NOT BY A PAGE LOAD (bead `ro-ujb9.96.7.29`).
-// `recordTodaysConnectionCounts` is a step of the hourly Data freshness checks
-// job (worker/tower-cron.ts), so a day the OS ran has a point whether or not
-// anyone opened System health, and GET /api/integrations/health only reads.
-// Each hour upserts the day's row; the day keeps its newest observation, as
-// the other daily rollups do (alert_daily_counts, db/0032).
-//
-// ON POSTGRES (`noticeos.connection_status_daily_counts`, bead
-// ro-ujb9.76.5.6), in the call's store. A migrated store has the table, so the
-// step records and the read answers; the strip says "No daily record of these
-// counts yet" until the first hour has.
+// (`noticeos.connection_status_daily_counts`). The recorder makes the same two
+// reads and counts with the same functions the strip calls
+// (shared/connection-status.ts), so the line under a number counts the same
+// thing. Written by the hourly tick (worker/tower-cron.ts); each hour upserts
+// the day's row and the day keeps its newest observation.
 
 import { type WorkspaceStore } from "@noticeos/postgres";
 import {
@@ -133,7 +115,7 @@ export type ConnectionCountsRun =
   | { outcome: "skipped"; reason: "unavailable" | "not-current" };
 
 /**
- * THE HOURLY STEP (bead `ro-ujb9.96.7.29`): read what System health reads,
+ * The hourly step: read what System health reads,
  * count it as the strip counts it, and upsert today's row. Nothing is recorded
  * when monitoring cannot answer or its read is not current — the strip would
  * state nothing then either.

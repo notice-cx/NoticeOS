@@ -20,9 +20,9 @@ import { buildWorkPayload } from "../worker/work-payload";
 import { createTestStore, type TestStore } from "./postgres-store";
 import { seedSnapshot, workCounts, workProject } from "./panel-fixtures";
 
-// THE TASK SOURCE SEAM (decision D32, bead ro-ujb9.143). "Connected" is derived
-// from the source's own reading, never stored; the beads hub is the first
-// adapter and wraps the runner's snapshot unchanged. Example names only.
+// The task source seam: "Connected" is derived from the source's own reading,
+// never stored; the Beads hub is the first adapter and wraps the runner's
+// snapshot unchanged.
 
 const CAPTURED = "2026-09-06T11:59:30.000Z";
 const NOW = new Date("2026-09-06T12:00:00.000Z");
@@ -97,14 +97,12 @@ describe("the beads adapter wraps today's snapshot unchanged", () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const reading = await beadsTaskSource.read({ store: ctx.call });
     expect(reading.status.connected).toBe(true);
-    // The board is exactly what `/api/work` built before the seam existed.
     expect(await reading.board(NOW)).toEqual(await buildWorkPayload(ctx.call, { now: NOW }));
     expect(reading.needsYou()).toEqual({
       waiting: 2, urgent: 1, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: CAPTURED,
     });
     expect(reading.inbox("example.com")).toMatchObject({ capturedAt: CAPTURED, waiting: 2, urgent: 1 });
     expect(reading.inbox("example.com").items.map((item) => item.id)).toEqual(["ex-g1", "ex-h1"]);
-    // A site with no task project is still "not measured", exactly as before.
     expect(reading.inbox("other.example.com")).toEqual({ capturedAt: CAPTURED, waiting: null, urgent: null, items: [] });
   });
 

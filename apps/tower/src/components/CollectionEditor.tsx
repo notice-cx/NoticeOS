@@ -53,149 +53,36 @@ import { CONFIG_READ_ONLY_FALLBACK, useConfigWritable } from "@/hooks/useConfigW
 import { cn } from "@/lib/utils";
 
 /**
- * ONE LIST-SHAPED CONFIG REGISTER, EDITABLE (bead `ro-x5gu.1`).
+ * An editable table over one list-shaped config register. Everything it draws
+ * comes from the register's declaration (`scripts/config-registers.mts`): the
+ * columns, the control per field type, the Add form and the refusal wording.
+ * It never fetches; rows arrive as a prop from the page's own payload.
  *
- * KnobEditor made a single setting two-way (D18); this is its plural. Epic
- * `ro-x5gu` puts a CRUD surface on every register at once — the recurring costs
- * and domain orders on /financials, an asset's GA4 value events and tracked
- * queries on its own tabs, the task-hub map and the data-source catalog on
- * /settings — and without one primitive each of those five surfaces would have
- * invented its own table, its own Add form, its own confirm and its own idea of
- * what a valid row is.
- *
- * IT KNOWS NOTHING ABOUT ANY REGISTER. Everything it renders comes from the
- * declaration in `scripts/config-registers.mjs` — the columns are the declared
- * fields in declared order, the control is chosen by the field's TYPE, the Add
- * form is built from the same list, and a refusal is the same sentence the write
- * lane would have answered with. So a register gains a column by gaining a
- * field, and no component changes.
- *
- * IT BORROWS KNOBEDITOR'S SEMANTICS RATHER THAN INVENTING ANY (doc 14): a cell
- * buffers a draft and commits it with Save (or Enter) — or, with
- * `commit="auto"`, as it is left or picked — an invalid draft never becomes a
- * request and says why under the input in `error` ink with an `error` border,
- * the outcome and its Undo are said under the cell (`InlineSaveState`, bead
- * `ro-ujb9.96.7.12`) rather than a confirm before the fact, and an unavailable
- * configuration store renders the whole table read-only with the lane's own
- * sentence. The one thing it adds is REMOVE, which is not invertible in place —
- * so it, alone, asks first, and its Undo rides the toast because the row it
- * was beside is gone.
- *
- * ONE ACTION, ONE GUARDED WRITE. Every Save goes through `useCollectionSave`, which
- * builds the op and its exact inverse from the same row — and the inverse of a
- * removal puts the row back WHERE IT WAS (bead `ro-asj9`), because a delete
- * splices and an undo that could only append would leave the neighbours in an
- * order nothing had asked for.
- *
- * ABSENCE AND EMPTINESS ARE DIFFERENT STATES of a per-asset list, and the first
- * Add is where that shows. `rows` arriving as `null`/`undefined` means the file
- * has no entry for this asset at all — the common case in every per-asset
- * register, since absence is "not declared" by design — and a pointer never
- * creates structure, so the first row files the asset's whole ENTRY through the
- * holder register beside the list (`holderOf`). An entry that exists and holds
- * an empty array appends normally. Both are one op, and both undo exactly.
- *
- * WHICH IS WHY LOADING IS A THIRD STATE, and offers nothing (bead `ro-x5gu.9`).
- * A page still fetching also has no rows, and the two are indistinguishable from
- * here — so an Add pressed during the fetch would file an asset's whole entry
- * against a file that may already hold one. It fails safely (the lane refuses an
- * insert at a key that exists) but the refusal is the operator meeting a race
- * rather than a rule, so the skeleton owns the whole surface: no Add below it,
- * no rows to Remove, and an Add form already open closes if a refetch starts.
- *
- * FOR SOME FILES THERE IS NO EMPTY STATE, and then the mirror is true too (bead
- * `ro-x5gu.4`): a register declaring `emptyIsAbsent` says an entry holding an
- * empty list is a CONFIG ERROR there rather than a declaration of nothing —
- * `config/serp-panel.json` refuses `queries: []` and skips an absent asset
- * silently — so the LAST row out takes the entry with it (`unseed`), exactly as
- * the first row in filed it. Which files those are is the declaration's to say,
- * not this component's; a register without the flag removes rows and leaves an
- * empty list behind, which is the right answer for a list that CAN be empty.
- *
- * IT DOES NOT FETCH. Rows arrive as a prop, from whatever payload the page
- * already reads, so this component never becomes a second reader of a file the
- * page is already showing. `fieldOptions` is the same rule for the values a
- * field may take when the DECLARATION cannot know them (the assets this OS has
- * live in the store): the page supplies the list, and this offers it as a
- * picker. WHETHER IT ALSO REFUSES EVERYTHING ELSE IS THE FIELD'S TO SAY (bead
- * `ro-g318`) — the two were one job until the tracked-query Bet column needed
- * the picker without the rule. A field's domain is CLOSED by default (an asset
- * id: the OS either has it or does not), and one declaring
- * `candidates: 'suggest'` is open — the values are what is already in use, and
- * naming a new one is a legitimate edit. The refusal itself is
- * `candidateRefusal`, in the declaration beside `fieldRefusal` — the apply
- * pipeline asks it the same question with the roster file's own keys (bead
- * `ro-x5gu.10`), so a typo cannot be refused here in one wording and there in
- * another.
- *
- * A FIELD MAY BE SET WHEN THE ROW IS CREATED AND NOT AFTERWARDS (bead
- * `ro-xhy5`). Three declared fields are join keys whose rename breaks something
- * no table can show — the data-source catalog's `id`, a recurring cost's `id`,
- * a domain order's `domain` — and each of them already carried that warning in
- * its `describe`, which is a tooltip on a control that still offers the edit. A
- * field declaring `readOnly` renders as the stored value under a lock, its
- * state ("Fixed once added", `fixedFieldLabel`) on it, and no Save to press;
- * the Add form still asks for it, because a new row must set its key, and marks
- * it with the same lock before it is typed (bead `ro-ujb9.96.6.17`). The write
- * lane refuses the same set, so this is a rule rather than a suggestion a
- * hand-written changeset can walk past.
- *
- * A LONG REGISTER NARROWS ITSELF, AND THE ADDRESS TRAVELS WITH THE ROW (bead
- * `ro-x5gu.11`). Every op addresses a row by its POSITION in the file's array,
- * which is why no page could hand over a filtered or sorted list — `/costs/0`
- * would have meant whichever row was first on screen, and /financials showed all
- * 22 domain orders flat because of it. Doing it HERE is what makes it safe:
- * `collectionRows` still reads the file's own array, so a row keeps the token it
- * had there, and the filter box and the sortable headers only choose which of
- * those rows to draw and in what order. Nothing about an op changes. Both appear
- * only past `NARROWS_FROM` rows, because a filter over five is chrome.
- *
- * ON A PHONE THAT SAME REGISTER FOLDS (bead `ro-c59x`). The `ro-md80` reflow
- * turns each row into a labelled card, which made every field reachable at 390px
- * and paid for it in height: 22 domain orders × 6 fields is 132 labelled lines,
- * and /financials measured 28,244px at 390×844. So past the same threshold a row
- * is ONE line — its key, its second column, a chevron — until it is opened, and
- * opening it gives back the whole card with every control at the 44px thumb
- * floor. Nothing is hidden that the wide table shows: the fold measures its
- * own box through `@max-[40rem]` in `ui/table.tsx`, beside the reflow. A wide
- * table does not fold, even when its screen holds another narrow table; the
- * filter above is the other half of the answer — finding a row is a search.
- *
- * AND A COLUMN MAY BE COMPUTED (the same bead). `derived` is a column the PAGE
- * works out from a row — a domain order's amortized monthly share — drawn beside
- * the declared ones and carrying no control, which is how a reader tells what the
- * file holds from what the page worked out. It is not a field: nothing stores it,
- * nothing addresses it, and a file holding a derived value is a file that can
- * disagree with itself.
- *
- * AND IT SAYS WHEN A ROW IS NOT THE WHOLE JOB. `onAdded` fires after an add
- * lands, because some registers leave work outside the file — a task-hub project
- * still needs its database created and its repo pointed at the hub — and only
- * the page knows which steps those are (bead `ro-x5gu.5`).
+ * Invariants it relies on:
+ * - Every op addresses a row by its position in the file's array, so filtering
+ *   and sorting happen here over `collectionRows`' own tokens, never in a page.
+ * - `rows` absent (`null`/`undefined`) means the file has no entry for this
+ *   asset; the first Add files the whole entry through `holderOf`. An entry
+ *   holding an empty array appends. Loading also presents as absent rows, so
+ *   nothing may be added or removed while `loading`.
+ * - On a register declaring `emptyIsAbsent`, an empty list is a config error,
+ *   so the last row out removes the entry (`unseed`), mirroring `seed`.
  */
 
-/** One computed column. `name` is a key for React and for the stacked card's
- * label; nothing addresses it in a pointer, because nothing stores it. */
+/** One computed column. Nothing stores or addresses it. */
 export interface DerivedColumn {
   name: string;
   label: string;
-  /** One line, on the header the way a declared field's `describe` is. */
   describe?: string;
   render: (row: CollectionRow) => ReactNode;
 }
 
-/**
- * From how many rows a table offers to NARROW itself (bead `ro-x5gu.11`).
- *
- * Under this, a filter box is chrome above a list somebody can already read in
- * one glance. Over it, /financials' 22 domain orders are a flat list with no way
- * to ask "what does this asset cost me", and /settings' catalog is fourteen.
- * Eight is where a register stops being a paragraph and starts being a table.
- */
+/** From this many rows the table offers a filter, sortable headers and the
+ * one-line fold on a phone. */
 const NARROWS_FROM = 8;
 
 export interface CollectionEditorProps {
-  /** Which register — the key in `CONFIG_REGISTERS`. */
+  /** The key in `CONFIG_REGISTERS`. */
   register: ConfigRegisterKey;
   /** The asset a per-asset register is scoped to (`{asset}` in its container). */
   params?: RegisterParams;
@@ -204,120 +91,58 @@ export interface CollectionEditorProps {
   rows: CollectionSource;
   /** A shared per-asset holder already exists, but this list may not yet. */
   holderExists?: boolean;
-  /**
-   * The page is still fetching. Renders the table's own skeleton, never a
-   * spinner — and offers NO Add and no Remove until the rows arrive (bead
-   * `ro-x5gu.9`), because loading and "this asset has no entry" both present as
-   * absent rows and they are different writes.
-   */
+  /** Renders the skeleton and offers no Add or Remove until rows arrive. */
   loading?: boolean;
   /** Overrides the register's own label as the section heading. */
   title?: ReactNode;
   /** Overrides the register's own one-line `describe`. */
   describe?: ReactNode;
-  /** What an empty list means HERE — absence is a fact, and only the page knows
-   * which one (nothing declared yet, or nothing to declare). */
+  /** What an empty list means here: nothing declared yet, or nothing to declare. */
   emptyHint?: ReactNode;
   /** A subset of the declared fields, in this order. Defaults to all of them. */
   columns?: string[];
-  /** Fields offered when creating a row. Defaults to all declared fields;
-   * legacy metadata may be retained in existing rows without a new input. */
+  /** Fields offered when creating a row. Defaults to all declared fields. */
   addFields?: string[];
   /**
-   * The values a field may take that the DECLARATION cannot know — the assets
-   * this OS actually has, which live in the store rather than in
-   * `scripts/config-registers.mjs`. Offered as a picker beside the input.
-   *
-   * WHETHER A VALUE OUTSIDE THE LIST IS ALSO REFUSED is the field's own
-   * declaration to say (bead `ro-g318`): a closed domain refuses one naming the
-   * field, and a field declaring `candidates: 'suggest'` refuses nothing,
-   * because the list is what is already in use rather than everything allowed.
-   * The page hands over the same thing either way.
-   *
-   * An EMPTY or absent list is "the page does not know", never "nothing is
-   * allowed": a page whose own source has not answered yet refuses nothing.
+   * Values a field may take that the declaration cannot know (they live in the
+   * store), offered as a picker. Whether a value outside the list is refused is
+   * the field's own declaration to say (`candidates`); an empty or absent list
+   * means "the page does not know" and refuses nothing.
    */
   fieldOptions?: Readonly<Record<string, readonly string[]>>;
-  /** A row landed. Some registers leave work OUTSIDE the file — a database to
-   * create, a repo to point somewhere — and only the page knows what it is, so
-   * this is where the surface says the rest out loud. */
+  /** Fires after an add lands, for registers that leave work outside the file. */
   onAdded?: (row: Record<string, JsonValue>) => void;
-  /** The row's own identity glyph, drawn beside the FIRST column (the key
-   * field). An asset id is a domain and reads faster with its favicon than
-   * without it (doc 14) — and a glyph is the one thing a generic table cannot
-   * derive, because only the page knows what its keys ARE. */
+  /** The row's identity glyph, drawn beside the first (key) column. */
   rowGlyph?: (row: CollectionRow) => ReactNode;
   /** The changeset slug, and the commit subject. */
   slug?: string;
   /**
-   * This surface shows ONE row, in a file where membership is an invariant
-   * rather than the operator's to grow.
-   *
-   * Add is offered only while the row is MISSING — which repairs a gap
-   * (`config/signal-panels.README.md`: an asset with no roster row is an
-   * undocumented gap, an asset with `enabled: false` is a decision) — and Remove
-   * is never offered at all, because a roster row leaves with its asset, through
-   * the Settings tab's Delete, and nowhere else.
+   * This surface shows one row in a file where membership is an invariant:
+   * Add is offered only while the row is missing, and Remove never.
    */
   oneRow?: boolean;
-  /** A rule about the LIST that no single row can express, checked before an Add
-   * becomes a request — the same place `duplicateIssue` is checked, for the same
-   * reason. The panel's query ceiling is one: the collector refuses a whole
-   * panel past it, so the 32nd term must be refused here rather than land in a
-   * file and fail silently next Monday. */
+  /** A rule about the list that no single row can express, checked before an
+   * Add becomes a request. */
   refuseAdd?: (rows: CollectionRow[]) => string | null;
-  /**
-   * `refuseAdd`'s per-FIELD equivalent: a rule the declaration states but cannot
-   * check here, because the fact it turns on lives in a file this component
-   * never opens (bead `ro-uko8`). The panel-refresh roster's `enabled` is one —
-   * turning it on asserts the asset has a live search lane in
-   * `config/integrations.json`, which the page already holds.
-   *
-   * Checked wherever a value becomes a request: a cell's Save and the Add form's
-   * submit. The RULE belongs to the declaration; the page only hands it the
-   * facts, exactly as it does for `fieldOptions`.
-   */
+  /** A per-field rule whose fact lives in a file this component never opens.
+   * Checked wherever a value becomes a request: a cell's Save and the Add form. */
   refuseField?: (field: RegisterField, value: JsonValue) => string | null;
-  /**
-   * Columns the page COMPUTES from a row, drawn after the declared ones and
-   * never editable (bead `ro-x5gu.11`).
-   *
-   * A register's fields are what the file STORES, and some of what an operator
-   * reads about a row is arithmetic over them — a domain order's amortized
-   * monthly share, the months a subscription still has to run. Those are not
-   * fields (nothing writes them, and a file holding a derived value is a file
-   * that can disagree with itself), and before this the only place to put them
-   * was a second read-only table beside the editable one, which is the same rows
-   * rendered twice.
-   *
-   * The renderer takes the whole row, so the page decides; this only gives it a
-   * cell. A derived column carries no control and no Save, which is what keeps
-   * "editable" and "computed" apart on sight.
-   */
+  /** Columns the page computes from a row, drawn after the declared ones and
+   * never editable. */
   derived?: readonly DerivedColumn[];
   /** Forces the read-only rendering. Defaults to what the deployment answers. */
   readOnly?: boolean;
-  /** Whether this editor also STATES the read-only reason under itself. A
-   * surface stacking several editors under one heading says it once above them
-   * and passes `false` — the same sentence twice is the same fact twice. */
+  /** Whether this editor also states the read-only reason under itself. A
+   * surface stacking several editors says it once above them and passes `false`. */
   statesReadOnly?: boolean;
   /**
-   * WHEN a cell edit is committed (bead `ro-ujb9.96.7.12`). Where its outcome is
-   * said is not a choice: every cell says "Saved · Undo" — or "Not saved" and
-   * why — under its own control (`InlineSaveState`), the one inline pattern
-   * every setting uses (D30), after GitLab Pajamas' saving pattern.
-   *
-   * `save` (the default) keeps a Save beside each cell, Enter included —
-   * Pajamas' manual save, and what money registers keep (never autosave
-   * financial data). `auto` has no Save button at all: a choice saves the
-   * moment it is picked, a typed value when the cell is left (Enter, Tab or a
-   * click elsewhere), the spreadsheet model every table editor shares; Escape
-   * puts the stored value back. Same op, same inverse, same write either way.
-   * Add and Remove are row moves, not cell edits, and keep their own controls.
+   * When a cell edit is committed. `save` (the default) keeps a Save beside
+   * each cell, Enter included; money registers keep it. `auto` has no Save: a
+   * choice saves when picked, a typed value when the cell is left, and Escape
+   * restores the stored value. Add and Remove keep their own controls either way.
    */
   commit?: "save" | "auto";
-  /** Write the op somewhere else. The component gallery passes a fake, so the
-   * demos are real controls that never touch the operator's repo. */
+  /** Write the op somewhere else; the component gallery passes a fake. */
   onSave?: (ops: FileOp[]) => Promise<void>;
   className?: string;
 }
@@ -356,14 +181,10 @@ export function CollectionEditor({
   const [adding, setAdding] = useState(false);
   const [pending, setPending] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<string | null>(null);
-  /** What the operator typed into the filter box, and which column the table is
-   * ordered by — both browser-only, both reset by a reload. Neither reaches an
-   * op (see `shown` below). */
+  // Filter and order are browser-only and never reach an op.
   const [narrow, setNarrow] = useState("");
   const [order, setOrder] = useState<{ field: string; descending: boolean } | null>(null);
-  /** Which rows are open in a narrow table box (bead `ro-c59x`). A box at least
-   * 40rem wide ignores this state and draws every cell: the fold uses
-   * `@max-[40rem]`, independent of the viewport. */
+  // Which rows are open in a folded (narrower than 40rem) table box.
   const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
 
   const declared = collectionColumns(register);
@@ -376,28 +197,8 @@ export function CollectionEditor({
   const rows = collectionRows(register, source);
   const stored = register.shape === "array" && Array.isArray(source) ? source : [];
 
-  /**
-   * WHY A FIXED COLUMN CANNOT BE EDITED, SAID ONCE FOR THE TABLE (bead
-   * `ro-x5gu.12`).
-   *
-   * The cell renders the value, a lock, the reason in `title` and the same
-   * reason `sr-only`. A desk pointer reaches the first; a screen reader reaches
-   * the second; a sighted operator on a phone reaches NEITHER, and got a value,
-   * a lock and no Save with nothing on screen saying why or what to do instead.
-   * That is worse for that one reader than the `describe`-line warning
-   * `ro-xhy5` replaced, which is the opposite of what that bead was for.
-   *
-   * Once per TABLE rather than once per row: every row of a register shares
-   * this reason, so a line under each of 22 domain orders would be the same
-   * sentence 22 times (doc 14, one fact one representation) on the surface
-   * `ro-c59x` just spent a fold saving height on. Below `sm` only, because
-   * above it the hover is already there and the desk owes no new prose.
-   *
-   * A KEY, NOT A SENTENCE (bead `ro-ujb9.96.6.17`): the lock and its state —
-   * "Fixed once added" — the way a chart key names a mark. Why each key is
-   * fixed is the declaration's comment; what to do instead is the row's own
-   * Remove and the table's Add, both on screen.
-   */
+  // Why a fixed column cannot be edited, said once per table below `sm`: a
+  // phone reaches neither the cell's hover title nor its sr-only text.
   const fixedReasons = [
     ...new Set(
       fields
@@ -406,54 +207,23 @@ export function CollectionEditor({
     ),
   ];
 
-  /**
-   * THE ROWS ON SCREEN, WHICH ARE NOT THE ROWS IN THE FILE (bead `ro-x5gu.11`).
-   *
-   * A register's rows were unfilterable and unsortable for one reason: every op
-   * addresses a row by its POSITION in the array (`collectionRows`:
-   * `token = String(index)`), so a page handing over a filtered or reordered
-   * list would have made `/costs/0` mean whichever row happened to be first on
-   * screen. /financials showed all 22 domain orders as one flat list because of
-   * it.
-   *
-   * Narrowing HERE rather than in the page is what makes it safe, and it is the
-   * whole design: `collectionRows` still reads the file's own array, so every
-   * row carries the token it had there, and filtering and sorting only choose
-   * which of those rows to draw and in what order. A row's address travels with
-   * the row. Nothing about an op changes, and no page has to be trusted with an
-   * index.
-   */
+  // Rows keep the token `collectionRows` gave them from the file's own array;
+  // filtering and sorting only choose which to draw and in what order.
   const narrowable = rows.length >= NARROWS_FROM;
   const matching = narrowable ? rows.filter((row) => matches(row, fields, narrow)) : rows;
   const shown = order === null ? matching : sortRows(matching, fields, order);
-  /** No entry for this asset in the file at all — so the first row files one. */
+  // No entry for this asset in the file at all, so the first row files one.
   const unfiled = (source === null || source === undefined) && holderOf(register) !== null;
 
-  /**
-   * A REFETCH CLOSES AN OPEN ADD FORM (bead `ro-x5gu.9`).
-   *
-   * Add cannot be opened while `loading`, so this only fires when a page starts
-   * loading with a form already open. The form has to go with it for the same
-   * reason it cannot be opened: the seed-vs-append decision reads `rows`, and
-   * loading presents as absent rows. Written as a render-phase reset — the
-   * pattern `Cell` uses to re-seed a draft when the value moves underneath —
-   * because the affordance follows reality rather than an effect a click can
-   * outrun.
-   */
+  // A refetch closes an open Add form: the seed-vs-append decision reads
+  // `rows`, and loading presents as absent rows. A render-phase reset, so the
+  // affordance cannot be outrun by a click the way an effect can.
   if (loading && adding) setAdding(false);
 
   /**
-   * The declared rules that need the LIST rather than the row (bead `ro-cnsj`).
-   *
-   * Unlike `refuseField`, nothing outside these rows decides this one, so the
-   * page is not asked for anything: a register naming a `clusterField` says that
-   * grouping downstream is an exact string match, and two spellings of one
-   * cluster are two groups in the readout and one in the operator's head. This
-   * component still learns no register's name — the same way it reads
-   * `emptyIsAbsent` and `scalarField`.
-   *
-   * `token` is the row being edited, whose own spelling cannot clash with
-   * itself; `null` from the Add form, where every row belongs to somebody else.
+   * The declared rules that need the list rather than the row. `token` is the
+   * row being edited, whose own spelling cannot clash with itself; `null` from
+   * the Add form.
    */
   function listRefusal(field: RegisterField, value: JsonValue, token: string | null) {
     return (
@@ -464,15 +234,10 @@ export function CollectionEditor({
   }
 
   /**
-   * One cell, one changeset.
-   *
-   * A row stored as an OBJECT edits the field's own pointer, guarded by that
-   * field's own previous value — the tightest guard available, so two operators
-   * editing different columns of the same row do not collide. Two cases cannot
-   * take that pointer and set the WHOLE row instead, guarded by the whole
-   * previous row: a row stored as a bare scalar (a string list, an unlabelled
-   * tracked query) has nothing below it to address, and CLEARING an optional
-   * field has to remove the key rather than write `null` into a config file.
+   * An object row edits the field's own pointer, guarded by that field's
+   * previous value. A scalar row has nothing below it to address, and clearing
+   * an optional field must remove the key rather than write `null`, so both
+   * set the whole row guarded by the whole previous row.
    */
   function editChange(row: CollectionRow, field: RegisterField, value: JsonValue) {
     const scalarRow = storedIsScalar(row.stored);
@@ -487,7 +252,6 @@ export function CollectionEditor({
     };
   }
 
-  /** One cell, one changeset — its outcome handed back to the cell. */
   async function commitEdit(
     row: CollectionRow,
     field: RegisterField,
@@ -530,16 +294,8 @@ export function CollectionEditor({
     }
   }
 
-  /**
-   * Remove a row — or, when it is the LAST one of a list its file has no empty
-   * state for, remove the asset's whole ENTRY.
-   *
-   * `unseed` is `seed`'s exact mirror and exists for the same reason: on a
-   * register declaring `emptyIsAbsent`, `{ queries: [] }` is a config error the
-   * collector refuses, so leaving one behind would turn "this asset stopped
-   * buying a panel" into "this asset's panel fails every Monday". Still one op,
-   * still exactly invertible — the undo files the entry back.
-   */
+  /** Remove a row, or, when it is the last one of an `emptyIsAbsent` register,
+   * the asset's whole entry. */
   async function commitRemove(row: CollectionRow) {
     const unseeding = register.emptyIsAbsent === true && rows.length === 1;
     setPending(row.token);
@@ -571,8 +327,7 @@ export function CollectionEditor({
           <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
             {title ?? register.label}
             {locked && !statesReadOnly ? (
-              // The page says why once (`SavesPaused`, bead `ro-p8qq`); the
-              // table shows the state as a lock, and says it to a screen reader.
+              // The page says why once; the table shows the state as a lock.
               <span className="inline-flex items-center text-muted-foreground" data-collection-locked>
                 <Lock aria-hidden className="size-3.5" />
                 <span className="sr-only">Saves paused</span>
@@ -598,12 +353,6 @@ export function CollectionEditor({
       {loading ? (
         <SkeletonTable fields={fields} />
       ) : rows.length === 0 && !adding ? (
-        // THE LIST'S STATE, NOT A SENTENCE ABOUT IT (bead `ro-ujb9.96.6.22`):
-        // the heading above already names the list and its describe line says
-        // what it holds, so the empty state is the value "None yet" — "Nothing
-        // in registered event parameters yet" was a six-word sentence, and the
-        // describe line repeated here said the same thing twice. A page adds
-        // `emptyHint` only for what the empty list DOES (a report it skips).
         <EmptyState size="sm" title="None yet" hint={emptyHint} />
       ) : (
         <div className="flex flex-col gap-2">
@@ -622,13 +371,6 @@ export function CollectionEditor({
             </p>
           ) : (
         <>
-          {/* `stacked` (bead `ro-md80`): a register is as wide as it has fields,
-              and /settings' widest ran 1361px past a 390px screen — three
-              squeezed inputs visible and everything else, Remove included, off
-              the right edge. In a box narrower than 40rem — a phone, or a
-              site's Settings card on a tablet (bead `ro-ujb9.169`) — each row
-              is a labelled card of its own fields, which is also the shape the
-              Add form below already has; the table scrolls in its own box. */}
           <Table stacked>
             <TableHeader>
               <TableRow>
@@ -660,10 +402,6 @@ export function CollectionEditor({
                   row={row}
                   fields={fields}
                   derived={derived}
-                  // A long register FOLDS its rows on a phone (bead `ro-c59x`),
-                  // for the same reason it offers a filter: past eight rows the
-                  // reflow's one-card-per-row spends more height than a thumb
-                  // can scroll. Nothing folds on the desk.
                   folds={narrowable}
                   open={opened.has(row.token)}
                   onToggle={() =>
@@ -708,10 +446,8 @@ export function CollectionEditor({
           saving={pending === "+"}
           duplicate={(draft) => duplicateIssue(register, stored, storedRow(register, draft))}
           refuse={(draft) => {
-            // The LIST's own rule first: when there is no room, no row an
-            // operator could type would be accepted, and saying which field is
-            // missing would send them back to fix the wrong thing. It is about
-            // no one field, so it outlines none.
+            // The list's own rule first: when there is no room, naming a
+            // missing field would send the operator to fix the wrong thing.
             const full = refuseAdd?.(rows) ?? null;
             return full !== null ? { field: null, message: full } : rowIssue(register, storedRow(register, draft));
           }}
@@ -756,7 +492,7 @@ function Row({
   row: CollectionRow;
   fields: RegisterField[];
   derived?: readonly DerivedColumn[];
-  /** Below `sm`, this row is one summary line until it is opened (`ro-c59x`). */
+  /** In a narrow box, this row is one summary line until it is opened. */
   folds?: boolean;
   open?: boolean;
   onToggle?: () => void;
@@ -764,15 +500,12 @@ function Row({
   refuseField?: (field: RegisterField, value: JsonValue) => string | null;
   glyph?: ReactNode;
   locked: boolean;
-  /** False where a row is not the operator's to take out here (`oneRow`). */
   removable: boolean;
   saving: boolean;
   confirming: boolean;
   onConfirm: () => void;
   onCancelConfirm: () => void;
-  /** When a cell commits: its own Save, or on pick / on leaving it. */
   commit: "save" | "auto";
-  /** The cell's edit, its outcome handed back so the cell can say it. */
   onEdit: (field: RegisterField, value: JsonValue) => Promise<FieldSaveOutcome>;
   onRemove: () => Promise<boolean>;
 }) {
@@ -789,8 +522,6 @@ function Row({
           className="p-0"
           data-collection-summary={row.key}
         >
-          {/* The identity line the desk's header row and first column already
-              give a reader. 44px is the thumb floor ro-md80 set. */}
           <button
             type="button"
             onClick={onToggle}
@@ -835,8 +566,6 @@ function Row({
           </div>
         </TableCell>
       ))}
-      {/* Computed, so it carries no control and no Save — which is how a reader
-          tells what the file holds from what the page worked out (ro-x5gu.11). */}
       {(derived ?? []).map((column) => (
         <TableCell
           key={column.name}
@@ -895,16 +624,8 @@ function Row({
 
 // --- narrowing a long register ---------------------------------------------
 
-/**
- * The filter box (bead `ro-x5gu.11`).
- *
- * One control, matching across every column the table draws, because a register
- * has no privileged column to search: /financials' domain orders are looked up
- * by asset AND by name, and /settings' catalog by id AND by label. It says how
- * many rows it is drawing out of how many the file holds, so a narrowed table
- * never looks like a shrunken one — the count is the difference between "this
- * asset owns three domains" and "somebody deleted nineteen".
- */
+/** The filter box. It says how many rows it draws out of how many the file
+ * holds, so a narrowed table never looks like a shrunken one. */
 function NarrowBox({
   label,
   value,
@@ -931,8 +652,6 @@ function NarrowBox({
           aria-label={`Filter ${label.toLowerCase()}`}
           placeholder={`Filter ${label.toLowerCase()}`}
           onChange={(e) => onChange(e.target.value)}
-          // Only the LEFT inset moves: the base already sets px-2, and the
-          // search glyph displaces nothing on the right.
           className={cn(fieldClass, "w-full pl-7")}
         />
       </div>
@@ -943,9 +662,7 @@ function NarrowBox({
   );
 }
 
-/** A column heading that also orders the table by itself: file order → up →
- * down → file order. File order is a state worth being able to get back to, so
- * it is a third press rather than a control nobody can undo. */
+/** A column heading that orders the table: file order → up → down → file order. */
 function SortButton({
   label,
   order,
@@ -971,7 +688,6 @@ function SortButton({
   );
 }
 
-/** file order → ascending → descending → file order, on the pressed column. */
 function nextOrder(
   order: { field: string; descending: boolean } | null,
   field: string,
@@ -988,10 +704,8 @@ function ariaSort(
   return order.descending ? "descending" : "ascending";
 }
 
-/** Does this row answer the filter? Every column the table draws is searched —
- * the declared values, and the row's own key, which is what an operator types
- * first. A derived column is not: it is the page's arithmetic, and a filter that
- * matched it would depend on how the page chose to format a number. */
+/** Searches the key and every declared column; a derived column is not
+ * searched, because matching it would depend on the page's formatting. */
 function matches(row: CollectionRow, fields: RegisterField[], query: string): boolean {
   const text = query.trim().toLowerCase();
   if (text === "") return true;
@@ -1003,10 +717,8 @@ function matches(row: CollectionRow, fields: RegisterField[], query: string): bo
   );
 }
 
-/** Sort by one column, by its declared TYPE — a number sorts as a number, and
- * everything else compares as the text the cell shows, so `2026-09` and `2026-10`
- * order the way the calendar does. A row missing the value sorts last in both
- * directions: absence is not a small value. */
+/** A number sorts as a number, everything else as the text the cell shows. A
+ * row missing the value sorts last in both directions. */
 function sortRows(
   rows: CollectionRow[],
   fields: RegisterField[],
@@ -1031,7 +743,7 @@ function sortRows(
 
 // --- one editable cell -----------------------------------------------------
 
-/** A cell: the stored value under a lock where it cannot be edited (a locked
+/** The stored value under a lock where it cannot be edited (a locked
  * deployment, or a field the declaration fixes), otherwise `InlineCell`. */
 function Cell({
   rowKey,
@@ -1043,7 +755,6 @@ function Cell({
   commit,
   onCommit,
 }: {
-  /** The row's key — with the field, the subject a save's state is about. */
   rowKey: string;
   field: RegisterField;
   value: JsonValue;
@@ -1057,16 +768,7 @@ function Cell({
     return <span className="text-sm text-foreground">{displayValue(field, value)}</span>;
   }
 
-  /**
-   * A FIELD THE DECLARATION MARKS `readOnly` (bead `ro-xhy5`).
-   *
-   * The declared keys whose rename breaks something this table cannot show
-   * once carried the warning in a sentence — a tooltip on a control that still
-   * offered the edit. This is the control that does not: the stored value as
-   * text, a lock, its state ("Fixed once added") on hover and to a screen
-   * reader, and no Save to press. The Add form below still asks for it,
-   * because a new row must set its key.
-   */
+  // A key the declaration fixes: the Add form still asks for it, a row never offers it.
   if (field.readOnly === true) {
     const why = fixedFieldLabel(field) ?? undefined;
     return (
@@ -1096,23 +798,10 @@ function Cell({
 }
 
 /**
- * ONE EDITABLE CELL, ITS OUTCOME UNDER IT (bead `ro-ujb9.96.7.12`).
- *
- * `commit="save"`: the cell buffers a draft and commits it with its Save (or
- * Enter) — KnobEditor's model. `commit="auto"`: no Save button; a choice (an
- * enum, a yes/no) saves the moment it is picked, and a typed value when the
- * operator leaves the cell — Enter, Tab or a click elsewhere — the way every
- * spreadsheet and table editor commits a cell. Escape puts the stored value
- * back without writing. Either way the outcome is said under the control
- * (`InlineSaveState`): "Saved · Undo", or "Not saved" with the refusal's own
- * words, and a refused pick goes back to the stored value rather than showing a
- * choice nothing holds.
- *
- * WHAT LANDED STAYS ON SCREEN until the page's read catches up: without it a
- * cell would flick back to the old value for the second a refresh takes, and a
- * blur in that second would send the same edit again against a stale guard.
- * Validation is unchanged and still runs first — a value the declaration
- * refuses never becomes a request, and says why in `error` ink.
+ * One editable cell, its outcome said under it. What landed stays on screen
+ * until the page's read catches up: otherwise the cell would flick back to the
+ * old value for the second a refresh takes, and a blur in that second would
+ * send the same edit again against a stale guard.
  */
 function InlineCell({
   rowKey,
@@ -1178,8 +867,8 @@ function InlineCell({
       const result = await onCommit(parsed);
       if (!result.saved) {
         setOutcome({ kind: "refused", refusal: result.refusal });
-        // A refused PICK (auto) goes back to what is stored; a refused draft
-        // stays, so the operator can correct it rather than retype it.
+        // A refused pick goes back to what is stored; a refused draft stays
+        // so it can be corrected.
         if (choice && auto) setDraft(effective);
         return;
       }
@@ -1282,8 +971,6 @@ function InlineCell({
         </>
       )}
       {auto ? null : (
-        // Manual save (Pajamas' default, and money's rule): the cell's own
-        // Save, dead until there is something to write.
         <Button
           type="button"
           variant="outline"
@@ -1291,7 +978,6 @@ function InlineCell({
           disabled={committing || undoing || !dirty}
           onClick={() => void commit(draft)}
         >
-          {/* "Saving…" is said once, by the state under the cell. */}
           Save
         </Button>
       )}
@@ -1304,10 +990,8 @@ function InlineCell({
 
 // --- the Add form ----------------------------------------------------------
 
-/** Built from the same field list the columns are: nothing here knows which
- * register it is filling in. Refuses inline — the row-level rule (a required
- * field, a key already in the list) beside the form, the field-level rule under
- * its own input — so an invalid row never becomes a request. */
+/** Built from the same field list the columns are. Refuses inline, so an
+ * invalid row never becomes a request. */
 function AddRow({
   fields,
   fieldOptions,
@@ -1334,19 +1018,14 @@ function AddRow({
   const [draft, setDraft] = useState<Record<string, string>>(() =>
     Object.fromEntries(fields.map((f) => [f.name, fieldToDraft(blank[f.name] ?? null)])),
   );
-  /** The `defaultFrom` fields still following their source. A field leaves this
-   * set the moment it is typed into: a default the operator has overruled must
-   * not come back on the next keystroke somewhere else. */
+  // The `defaultFrom` fields still following their source. A field leaves this
+  // set the moment it is typed into, so an overruled default never comes back.
   const [mirroring, setMirroring] = useState<ReadonlySet<string>>(
     () => new Set(fields.filter((f) => f.defaultFrom !== undefined).map((f) => f.name)),
   );
-  /** The refusal under the form and the one field it names (bead
-   * `ro-ujb9.184`): only that input is outlined and marked invalid, so the red
-   * says where to look; a refusal about the whole row or list outlines none. */
+  // The refusal under the form; only the one field it names is outlined.
   const [error, setError] = useState<RowIssue | null>(null);
 
-  /** One field changed — plus every field defaulting from it that is still
-   * following along. */
   function type(field: RegisterField, value: string) {
     const next = { ...draft, [field.name]: value };
     for (const other of fields) {
@@ -1386,8 +1065,6 @@ function AddRow({
     void onAdd(row);
   }
 
-  /** Is this the one control the refusal names? Only it is outlined, marked
-   * invalid and pointed at the sentence that says why. */
   function refused(field: RegisterField): boolean {
     return error !== null && error.field === field.name;
   }
@@ -1409,9 +1086,6 @@ function AddRow({
               {field.required ? null : (
                 <span className="ml-1 font-normal text-muted-foreground">optional</span>
               )}
-              {/* A key the table will lock says so BEFORE it is typed, as the
-                  same lock and state the row will wear (bead
-                  `ro-ujb9.96.6.17`). */}
               {field.readOnly === true ? (
                 <span
                   className="ml-1.5 inline-flex items-center gap-1 whitespace-nowrap font-normal text-muted-foreground"
@@ -1493,8 +1167,6 @@ function AddRow({
 
 // --- the loading state -----------------------------------------------------
 
-/** The table's own shape, greyed — never a spinner (doc 14 principle 2): the
- * columns are already known, so the wait shows what is arriving. */
 function SkeletonTable({ fields }: { fields: RegisterField[] }) {
   return (
     <div data-collection-loading>
@@ -1524,11 +1196,8 @@ function SkeletonTable({ fields }: { fields: RegisterField[] }) {
 
 // --- the values only the page knows ----------------------------------------
 
-/** The picker beside an input whose value domain is runtime, not declared. A
- * native `datalist` rather than a `select` in both cases: where the domain is
- * closed, the refusal below still has to work on a value somebody typed or
- * pasted; where the field declares `candidates: 'suggest'`, typing past the
- * list is the whole point (bead `ro-g318`). */
+/** A `datalist` rather than a `select`: a closed domain still has to refuse a
+ * pasted value, and an open one is meant to be typed past. */
 function OptionList({ id, options }: { id: string; options?: readonly string[] }) {
   if (options === undefined || options.length === 0) return null;
   return (
@@ -1540,17 +1209,9 @@ function OptionList({ id, options }: { id: string; options?: readonly string[] }
   );
 }
 
-// --- draft <-> value -------------------------------------------------------
-//
-// NEITHER direction lives here any more. Turning what an operator TYPED back
-// into a typed value is `fieldFromDraft`, beside the `fieldRefusal` that judges
-// the result (bead `ro-7mef`); rendering a stored value as the text an input
-// seeds with is `fieldToDraft`, beside the parse it inverts (bead `ro-hem5`).
-// This component held both privately, and half of a pair kept where its other
-// half cannot reach it is the second representation doc 14 exists to prevent:
-// `KnobEditor` seeded with `String()` for four beads because the inverse was in
-// here. What is below chooses a CONTROL for a field, which is this component's
-// own business and nothing else's.
+// --- a control for a field -------------------------------------------------
+// Draft <-> value conversion is `fieldFromDraft` / `fieldToDraft` in the
+// declaration, beside the refusal that judges the result.
 
 function inputType(field: RegisterField): string {
   if (field.type === "number" || field.type === "integer") return "number";
@@ -1565,8 +1226,6 @@ function displayValue(field: RegisterField, value: JsonValue): string {
   return typeof value === "string" ? optionLabel(field, value) : fieldToDraft(value);
 }
 
-/** An enum value as it reads on screen (`valueLabels`, bead `ro-ujb9.135`):
- * the stored key only where the declaration names nothing plainer. */
 function optionLabel(field: RegisterField, value: string): string {
   return field.valueLabels?.[value] ?? value;
 }

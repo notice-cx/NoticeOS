@@ -8,8 +8,8 @@ const CHUNK_FAILURE_MESSAGES = [
 
 /**
  * Is this the "the code for this screen is gone" failure, as opposed to a bug
- * in the screen? Only this one is fixed by reloading; anything else is left to
- * fail exactly as it did before the split.
+ * in the screen? Only this one is fixed by reloading; anything else fails as
+ * it would.
  */
 export function isChunkLoadError(error: unknown): boolean {
   if (typeof error !== "object" || error === null) return false;

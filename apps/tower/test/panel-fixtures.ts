@@ -2,11 +2,10 @@ import { dataForSeoReportsFor } from "@noticeos/contract";
 import type { TestStore } from "./postgres-store";
 import { writeArchiveRun, writeArchiveRuns, type TestArchiveRun } from "./provider-reports";
 
-// The two store shapes behind an asset's serp-panel review obligation, written
-// exactly as their writers write them. Shared by the Wall's card tests and the
-// asset page's, because both surfaces are fed by the SAME two readers
-// (`cardPanelReviewsOf` + `loadLatestPanelLandings`) and a fixture that drifted
-// on one side would test a store the other never sees (bead `ro-elf`).
+// The two store shapes behind an asset's serp-panel review obligation,
+// written exactly as their writers write them. Shared by the Wall's card tests
+// and the asset page's, because both surfaces are fed by the same two readers
+// (`cardPanelReviewsOf` + `loadLatestPanelLandings`).
 
 /** The counts shape a current poller writes. */
 export function workCounts(overrides: Record<string, number> = {}) {
@@ -21,10 +20,8 @@ export function workCounts(overrides: Record<string, number> = {}) {
   };
 }
 
-/** One project inside a beads snapshot. Note what is NOT here by default:
- * `panelReview`. A snapshot written before the field existed omits the key
- * entirely, which is the ordinary state of the store until the operator
- * restarts the poller — so that is what the default fixture reproduces. */
+/** One project inside a task-hub snapshot. `panelReview` is absent by default,
+ * as an older poller's snapshot omits the key. */
 export function workProject(overrides: Record<string, unknown> = {}) {
   return {
     asset: "meals.example",
@@ -40,7 +37,7 @@ export function workProject(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** An open review bead on meals's panel, due a week after the landing. */
+/** An open review task on meals's panel, due a week after the landing. */
 export function panelReviewBead(overrides: Record<string, unknown> = {}) {
   return {
     beadId: "mp-4a2",
@@ -51,9 +48,8 @@ export function panelReviewBead(overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** One task-hub photograph, in the test's own Postgres copy of its sites
- * (on Postgres since bead ro-ujb9.76.4.3; test/sites.ts): written only by the
- * tests that read it. */
+/** One task-hub photograph, in the test's own Postgres copy of its sites:
+ * written only by the tests that read it. */
 export async function seedSnapshot(
   of: TestStore | TestStore,
   capturedAt: string,
@@ -67,11 +63,10 @@ export async function seedSnapshot(
   );
 }
 
-/** One report run for a tracked-SERP panel collection, in the test's own
- * Postgres copy of its sites (on Postgres since bead ro-ujb9.76.5.4). `report_date`
- * is the PANEL DAY — the fact the review is matched against — and `finished_at`
- * is only when the archive was written, which is why the two are separate
- * arguments and why a backfill can make them disagree. */
+/** One report run for a tracked-SERP panel collection. `report_date` is the
+ * panel day, the fact the review is matched against, and `finished_at` is
+ * only when the archive was written, which is why a backfill can make them
+ * disagree. */
 export async function insertPanelRun(
   raw: TestStore,
   asset: string,

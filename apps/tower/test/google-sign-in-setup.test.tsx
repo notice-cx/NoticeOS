@@ -1,11 +1,9 @@
-// Google, connected by signing in, in the connect panel (bead
-// `ro-ujb9.96.7.7`).
-//
-// WHAT IS PROTECTED: the dropped `client_secret.json` is read for a web
-// client's two values and nothing else — a desktop or service-account file is
-// refused and nothing is stored; a client that does not list this Tower's
-// redirect address says so; hosted, the panel is one button and never shows the
-// console steps; and Continue with Google stays disabled until a client exists.
+// Google, connected by signing in, in the connect panel: the dropped
+// `client_secret.json` is read for a web client's two values and nothing
+// else (a desktop or service-account file is refused and nothing is stored);
+// a client that does not list this Tower's redirect address says so; hosted,
+// the panel is one button and never shows the console steps; and Continue
+// with Google stays disabled until a client exists.
 
 import { act, fireEvent, render, screen, within } from "./render";
 import { MemoryRouter } from "react-router-dom";

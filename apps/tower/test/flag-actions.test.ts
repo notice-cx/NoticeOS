@@ -22,7 +22,7 @@ beforeEach(async () => {
   await addSites(testDb, [{ id: "meals.example", domain: null, displayName: "Meal Planner", status: "live", senseOnly: 0, createdAt: NOW }]);
 });
 
-/** The test's alerts, on Postgres (bead ro-ujb9.76.5.2), holding its sites. */
+/** The test's alerts, holding its sites. */
 async function store(): Promise<WorkspaceStore> {
   return testDb.call;
 }
@@ -56,8 +56,7 @@ describe("flag actions", () => {
       asset: "meals.example",
       action: "acknowledge",
       changedAt: NOW,
-      // Only a snooze carries a return date; the other three say so explicitly
-      // rather than leaving the field off and making callers guess.
+      // Only a snooze carries a return date; the other three say so explicitly.
       snoozeUntil: null,
     });
 
@@ -87,11 +86,8 @@ describe("flag actions", () => {
   });
 });
 
-/**
- * ro-kukv.1. The band shows one row per CONDITION, so the button under that row
- * has to mean what the row says. Resolving nosh.example's sixteen-firing condition
- * must not clear one row and leave fifteen identical ones behind.
- */
+/** The band shows one row per condition, so the button under that row has to
+ * mean what the row says. */
 describe("flag actions act on the condition, not the firing", () => {
   async function insertFlag(
     ruleId: string,
@@ -124,12 +120,8 @@ describe("flag actions act on the condition, not the firing", () => {
     expect(await openIds()).toEqual([]);
   });
 
-  /**
-   * The counter-example that decided the design. `watch-window-closed` fires
-   * twice on one asset with one metric, but each firing carries its own
-   * watchWindowId and asks a different question. Collapsing those would answer
-   * a question the operator never read — strictly worse than the noise.
-   */
+  /** `watch-window-closed` fires twice on one asset with one metric, but each
+   * firing carries its own watchWindowId and asks a different question. */
   it("leaves a sibling event alone when the rule is not declared recurring", async () => {
     const first = await insertFlag("watch-window-closed", "position", "2026-08-21T02:00:00.000Z",
       JSON.stringify({ watchWindowId: "aaa" }));
@@ -147,16 +139,11 @@ describe("flag actions act on the condition, not the firing", () => {
     const otherAsset = await insertFlag("asset-declared", "apiRequests", "2026-08-20T02:00:00.000Z", "{}", "nosh.example");
 
     await applyFlagAction(await store(), clicked, "resolve", NOW);
-    // A different metric is a different condition; a different asset
-    // certainly is.
     expect(await openIds()).toEqual([otherMetric, otherAsset]);
   });
 
-  /**
-   * NULL never equals NULL in SQL. Without an IS NULL arm this grouped rule
-   * would match nothing and disposition only the clicked row — the exact bug the
-   * grouping exists to prevent, reintroduced by a comparison operator.
-   */
+  /** NULL never equals NULL in SQL: without an IS NULL arm this grouped rule
+   * would match nothing and disposition only the clicked row. */
   it("groups a recurring rule that stores no metric at all", async () => {
     await insertFlag("asset-declared", null, "2026-08-20T02:00:00.000Z");
     const clicked = await insertFlag("asset-declared", null, "2026-08-21T02:00:00.000Z");
@@ -172,11 +159,8 @@ describe("flag actions act on the condition, not the firing", () => {
   });
 });
 
-/**
- * `ro-c7qq`. Snooze is the only disposition that EXPIRES, so the store has to
- * hand the SAME condition back on its own — not a fresh row the operator has to
- * recognize as the one they parked, and not silence that outlives its date.
- */
+/** Snooze is the only disposition that expires, so the store has to hand the
+ * same condition back on its own. */
 describe("snooze parks a condition until a date and gives it back", () => {
   const IN_THREE_DAYS = "2026-08-01T22:00:00.000Z";
 
@@ -207,14 +191,13 @@ describe("snooze parks a condition until a date and gives it back", () => {
       disposition_note: "Snoozed by operator",
       snooze_until: IN_THREE_DAYS,
       resolved_at: null,
-      // The evidence is untouched: this is the same event, made quiet.
       message: "drop",
     });
 
     expect(await openIds(NOW)).toEqual([]);
     expect(await snoozedIds(NOW)).toEqual([id]);
 
-    // One second past the date and the SAME row is open again — same id, no
+    // One second past the date and the same row is open again: same id, no
     // second firing, and nothing had to run for it to happen.
     const after = "2026-08-01T22:00:01.000Z";
     expect(await openIds(after)).toEqual([id]);
@@ -239,7 +222,6 @@ describe("snooze parks a condition until a date and gives it back", () => {
     });
     expect(await openIds(back)).toEqual([id]);
     expect(await snoozedIds(back)).toEqual([]);
-    // Not erased — the row still says it was quiet, and until when.
     expect(await columns(id, ["disposition", "disposition_note"])).toEqual({
       disposition: "snooze",
       disposition_note: "Snooze ended by operator",
@@ -267,7 +249,7 @@ describe("snooze parks a condition until a date and gives it back", () => {
     }
     await applyFlagAction(await store(), ids[3]!, "snooze", NOW, IN_THREE_DAYS);
     // All four, or the row that reads "4x" would go quiet and leave three
-    // identical ones behind it — the failure the grouping exists to end.
+    // identical ones behind it.
     expect(await snoozedIds(NOW)).toEqual(ids);
   });
 
@@ -283,13 +265,9 @@ describe("snooze parks a condition until a date and gives it back", () => {
   });
 });
 
-/**
- * `ro-van6`. The sixth disposition is the one that carries its own reason — and
- * the only one that does NOT settle the row. Tuning the detector is not
- * resolving the firing, so the alert stays in the queue with the record of what
- * was changed on it; that record is what makes a rule's false-positive rate
- * measurable at all.
- */
+/** The tune disposition carries its own reason and is the only one that does
+ * not settle the row: the alert stays in the queue with the record of what
+ * was changed on it, which is what makes a rule's false-positive rate measurable. */
 describe("tuning a rule records the tune on the alert it was tuned from", () => {
   const TUNED = { setting: "alpha", from: 0.01, to: 0.05 };
 
@@ -314,12 +292,11 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     expect(await row(id)).toMatchObject({
       disposition: "tune",
       disposition_at: NOW,
-      // The words the field itself wears, from `shared/tune` — never free text
+      // The words the field itself wears, from `shared/tune`, never free text
       // sent by the browser.
       disposition_note: "Anomaly sensitivity (alpha) 0.01 → 0.05",
       snooze_until: null,
       resolved_at: null,
-      // The evidence is untouched: the rule changed, this firing did not.
       message: "drop",
     });
   });
@@ -371,8 +348,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     await applyFlagAction(await store(), id, "tune", NOW, null, TUNED);
     const later = "2026-07-30T09:00:00.000Z";
     await applyFlagAction(await store(), id, "resolve", later);
-    // Resolve writes `resolved_at` and never touches the disposition, so the
-    // settled row still says which setting was changed on it.
+    // Resolve writes `resolved_at` and never touches the disposition.
     expect(await row(id)).toMatchObject({
       disposition: "tune",
       disposition_note: "Anomaly sensitivity (alpha) 0.01 → 0.05",
@@ -396,8 +372,7 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
       }));
     }
     await applyFlagAction(await store(), ids[2]!, "tune", NOW, null, TUNED);
-    // The row the operator tuned from says "3x"; the condition is what was
-    // tuned, so all three carry the record — and all three stay open.
+    // The condition is what was tuned, so all three carry the record and stay open.
     for (const id of ids) {
       expect(await row(id)).toMatchObject({ disposition: "tune" });
     }
@@ -405,15 +380,9 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
   });
 });
 
-/**
- * `ro-bkcl`. `flags.disposition` holds ONE decision and a tuned alert stays
- * OPEN, so Mark read and Snooze were both landing on tuned rows and erasing the
- * only evidence a rule had been noisy enough to change — and erasing it for the
- * operator who did BOTH halves of the job. Migrations are operator-only here,
- * so the tune is carried in the note the row already has, and the
- * false-positive rate asks "was this ever tuned" rather than "does it say tune
- * right now".
- */
+/** `flags.disposition` holds one decision and a tuned alert stays open, so a
+ * later Mark read or Snooze must not erase the tune: it is carried in the
+ * note, and the false-positive rate asks "was this ever tuned". */
 describe("a decision landing on a tuned alert keeps the tune", () => {
   const TUNED = { setting: "alpha", from: 0.01, to: 0.05 };
   const TUNE_NOTE = "Anomaly sensitivity (alpha) 0.01 → 0.05";
@@ -427,8 +396,7 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
 
   it("inlines a mark that carries no quote, because two modules put it in SQL", () => {
     // `worker/flag-scope.ts` and `worker/flag-actions.ts` both write this
-    // constant into statement text. It is never operator input, and this is
-    // what keeps that true if somebody rewrites the words.
+    // constant into statement text, so it may hold no quote or backslash.
     expect(TUNE_CARRIED_MARK).not.toMatch(/['"\\]/);
   });
 
@@ -437,12 +405,11 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
     await applyFlagAction(await store(), id, "tune", NOW, null, TUNED);
     await applyFlagAction(await store(), id, "acknowledge", NOW);
 
-    // The disposition slot still holds the decision about the EVENT, as it
-    // always has; the rule change rides behind the mark.
+    // The disposition slot still holds the decision about the event; the rule
+    // change rides behind the mark.
     expect(await columns(id, ["disposition"])).toEqual({ disposition: "ack" });
     expect(await note(id)).toBe(`Marked read by operator · rule tuned: ${TUNE_NOTE}`);
     expect(await everTuned()).toEqual([id]);
-    // And the two halves come back apart for the surfaces that render them.
     expect(wasTuned({ disposition: "ack", dispositionNote: await note(id) })).toBe(true);
     expect(
       tunedSettingNote({ disposition: "ack", dispositionNote: await note(id) }),
@@ -475,12 +442,9 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
     expect(await everTuned()).toEqual([]);
   });
 
-  /**
-   * Why the note is composed in SQL per row rather than in TypeScript from the
-   * clicked one. A recurring condition dispositions every open firing at once,
-   * and a firing inserted after the tune was never tuned — stamping it would
-   * inflate the very rate this change exists to make honest.
-   */
+  /** The note is composed in SQL per row: a recurring condition dispositions
+   * every open firing at once, and a firing inserted after the tune was never
+   * tuned, so stamping it would inflate the rate. */
   it("does not stamp an untuned sibling in the same recurring condition", async () => {
     const declared = async (firedAt: string): Promise<number> =>
       storeAlert(await store(), {
@@ -495,9 +459,7 @@ describe("a decision landing on a tuned alert keeps the tune", () => {
       });
     const first = await declared("2026-07-04T02:00:00.000Z");
     const second = await declared("2026-07-10T02:00:00.000Z");
-    // Only the first two exist when the tune lands, so both carry it…
     await applyFlagAction(await store(), first, "tune", NOW, null, TUNED);
-    // …then tonight's report adds a third firing of the same condition.
     const third = await declared("2026-07-29T02:00:00.000Z");
 
     await applyFlagAction(await store(), third, "acknowledge", NOW);

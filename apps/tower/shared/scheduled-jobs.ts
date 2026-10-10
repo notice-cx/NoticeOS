@@ -11,11 +11,9 @@ export interface ScheduledJobsPayload {
 export const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /**
- * The jobs that COLLECT — and so whose schedule is changed with the collection
- * rather than in System health (bead `ro-ujb9.96.7.12`). One group, named once:
- * `WORKFLOW_GROUPS`' "Business signals" is exactly the jobs that bring revenue,
- * traffic, search and product data in. Every other job keeps its one editor
- * where it runs (System health or Workflows).
+ * The jobs that collect, whose schedule is changed with the collection rather
+ * than in System health: `WORKFLOW_GROUPS`' "Business signals". Every other job
+ * keeps its editor where it runs (System health or Workflows).
  */
 export const COLLECTION_GROUP = 'Business signals';
 export function isCollectionJob(job: { group: string }): boolean {
@@ -23,12 +21,9 @@ export function isCollectionJob(job: { group: string }): boolean {
 }
 
 /**
- * WHERE A COLLECTION'S SCHEDULE IS CHANGED (bead `ro-ujb9.96.7.28`, operator
- * decision 2026-09-24): on the Manage panel of each connection that feeds it —
- * the sync frequency on the connection, as Fivetran and Airbyte place it —
- * and, for a
- * collection no connection feeds, in Settings → Data collection. The job's
- * declared `connections` decides it; nothing else does.
+ * The collections a connection's Manage panel schedules. A collection no
+ * connection feeds is scheduled in Settings → Data collection; the job's
+ * declared `connections` decides which.
  */
 export function connectionCollections(provider: string): ScheduledJob[] {
   return SCHEDULED_JOBS.filter((job) => isCollectionJob(job) && (job.connections ?? []).includes(provider));
@@ -53,15 +48,8 @@ export function scheduleHref(job: ScheduledJob, connected: (provider: string) =>
   return provider === undefined ? null : `/integrations?connect=${encodeURIComponent(provider)}`;
 }
 
-/**
- * One `Intl.DateTimeFormat` per option set, reused (bead `ro-ujb9.106`).
- *
- * Building a formatter costs ~20µs; using one costs ~0.5µs. The operations
- * list draws 24 hourly buckets per row, each formatting its hour several times,
- * and re-renders every 5 s: constructing a fresh formatter per call spent
- * ~12 constructions a bucket — about 90 ms of main thread per render for 15
- * rows, and the reason its page test timed out on a busy machine.
- */
+/** One `Intl.DateTimeFormat` per option set, reused: building one costs ~40x
+ * using one, and the operations list formats hundreds of times per render. */
 const FORMATTERS = new Map<string, Intl.DateTimeFormat>();
 function formatter(options: Intl.DateTimeFormatOptions): Intl.DateTimeFormat {
   const key = JSON.stringify(options);

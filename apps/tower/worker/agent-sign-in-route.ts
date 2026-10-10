@@ -1,4 +1,4 @@
-// Agent sign-in's authorization server (epic ro-cvl9): the discovery
+// Agent sign-in's authorization server: the discovery
 // documents, the maintained OAuth provider's fixed routes and the agent access
 // page's two calls. Hosted only; the rate limits key on the Cloudflare edge
 // peer, as email-code sign-in does. The protocol lives in

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /** "Revenue · Needs you", "Sites · 1 column" — what a row line holds, named
- * as the library names each widget, so a row is found by what is on it (D44). */
+ * as the library names each widget, so a row is found by what is on it. */
 function slotCount(slots: WallSlot[]): string {
   const columns = slots.filter(isWallColumn).length;
   const names = slots.filter((slot): slot is WallWidget => !isWallColumn(slot)).map((widget) => WALL_WIDGET_LIBRARY[widget.type]?.label ?? widget.type);
@@ -30,19 +30,11 @@ export interface WallRowsPanelProps {
 }
 
 /**
- * The Wall's rows, as rows (bead `ro-lzmq.2`).
- *
- * WHY IT IS NOT IN THE PREVIEW. The preview's editing slot wraps WIDGETS — that
- * is the whole of `WallCanvas`'s contract with the editor, and deliberately so:
- * the renderer must not learn what a row control is. Row facts therefore need a
- * surface of their own, and this is the smallest one that carries all four — the
- * order, which row stretches, adding one, and taking an empty one away.
- *
- * IT LISTS NO WIDGETS. It could, and the temptation is obvious, but then the
- * arrangement of widgets would exist twice on one screen and the operator would
- * have to work out which of the two they were changing. What it does take is a
- * DROP: an empty row draws nothing in the preview, so without a target here a
- * freshly added row could only be filled by adding a widget from the library.
+ * The Wall's rows: order, which row stretches, adding one and removing an
+ * empty one. It lives outside the preview because `WallCanvas`'s editing slot
+ * wraps widgets only. It lists no widgets, so the arrangement exists once on
+ * screen, but it takes a drop, because an empty row draws nothing in the
+ * preview to drop on.
  */
 export function WallRowsPanel({
   layout,
@@ -118,10 +110,8 @@ export function WallRowsPanel({
                   disabled={disabled}
                   onClick={() => onFillRow(row.id)}
                 >
-                  {/* The pressed state is a MARK as well as a fill: doc 14
-                      refuses a state carried by tone alone, and one row of
-                      four looking slightly darker than the rest is exactly the
-                      difference nobody sees. */}
+                  {/* The pressed state is a mark as well as a fill, never
+                      tone alone. */}
                   {row.height === "fill" ? <Check className="size-4" /> : null}
                   Remaining height
                 </Button>
@@ -161,8 +151,8 @@ export function WallRowsPanel({
                 </Button>
               </div>
             </li>
-            {/* A column's rows, under the row that holds it (bead
-                `ro-trai.2`): a drop joins that column row, and one of them
+            {/* A column's rows, under the row that holds it: a drop joins
+                that column row, and one of them
                 can take the column's remaining height. An emptied column row
                 goes by itself, so there is nothing to remove here. */}
             {row.widgets.filter(isWallColumn).flatMap((column) =>

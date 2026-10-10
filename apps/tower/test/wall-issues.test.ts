@@ -1,7 +1,6 @@
 // @vitest-environment node
-// What the Wall lists as broken (docs/14-design.md § Needs you and § Site
-// rows; beads `ro-trai.4`, `ro-trai.5`): one ordered list that Needs you states
-// as sentences and a site row as one short mark.
+// What the Wall lists as broken: one ordered list that Needs you states as
+// sentences and a site row as one short mark.
 
 import { describe, expect, it } from "vitest";
 import type { CredentialSummary, IntegrationHealthItem } from "@noticeos/contract";
@@ -144,7 +143,7 @@ describe("the Wall's issue list", () => {
     expect(flagged[0]?.key.startsWith("alert-")).toBe(true);
   });
 
-  it("never marks a site that declared it sends no nightly report for a missing one (D29)", () => {
+  it("never marks a site that declared it sends no nightly report for a missing one", () => {
     const declared = asset("areas.example", "Area Lookup", { noNightlyReport: true, pulseReceivedAt: ago(9 * 24 * HOUR) });
     const issues = wallIssues({
       assets: [asset("nosh.example", "Nosh"), declared],

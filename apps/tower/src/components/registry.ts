@@ -1,4 +1,4 @@
-// The Tower's component index (doc 14). Before adding a component, check this
+// The Tower's component index. Before adding a component, check this
 // list and the /dev/kitchen-sink route, which renders every entry: prefer
 // reusing or extending an entry, and when a better component replaces an old
 // one, replace the entry rather than adding a second. One or two sentences per
@@ -25,21 +25,21 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PageAnswer",
     file: "components/surface/PageAnswer.tsx",
     purpose:
-      "A screen's one answer, first (D44): one sentence at the display scale, a muted line under it and at most three figures (an eyebrow over a number) beside it. Every index page opens with one.",
+      "A screen's one answer, first: one sentence at the display scale, a muted line under it and at most three figures (an eyebrow over a number) beside it. Every index page opens with one.",
     variants: ["sentence only", "with detail", "with figures", "with a verdict mark"],
   },
   {
     name: "FinishLine",
     file: "components/surface/FinishLine.tsx",
     purpose:
-      "The end of a list the eye can finish (D44): one line saying the list is done and how old the reading is. On an empty queue it is the whole list, so empty and finished read the same.",
+      "The end of a list the eye can finish: one line saying the list is done and how old the reading is. On an empty queue it is the whole list, so empty and finished read the same.",
     variants: ["finished", "quiet (empty from the start)", "without an age"],
   },
   {
     name: "HighlightCard",
     file: "components/HighlightCard.tsx",
     purpose:
-      "One thing that changed since you last looked (D44, doc 14 § Home): one kind, one sentence, one shape (a line, a line over its normal band, or a display figure) and at most one action. The card's tint is its kind; severity rides the dot and the word.",
+      "One thing that changed since you last looked: one kind, one sentence, one shape (a line, a line over its normal band, or a display figure) and at most one action. The card's tint is its kind; severity rides the dot and the word.",
     variants: ["alert (big)", "money", "people", "shipped", "win", "milestone (figure)", "bet"],
   },
   {
@@ -59,19 +59,19 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "IntegrationLogo",
     file: "components/IntegrationLogo.tsx",
-    purpose: "Locally served, original provider artwork beside a visible name, shared by catalog and setup views. Calendar feeds use CalendarDays and the beads task source the Tasks glyph (ListTodo); unknown or unavailable artwork uses Plug. Vendor colors are identity, never connection status.",
+    purpose: "Locally served, original provider artwork beside a visible name, shared by catalog and setup views. Calendar feeds use CalendarDays and the task source the Tasks glyph (ListTodo); unknown or unavailable artwork uses Plug. Vendor colors are identity, never connection status.",
     variants: ["provider logos", "calendar", "fallback", "small", "default", "large"],
   },
   {
     name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable",
     file: "components/TaskSourceSection.tsx",
-    purpose: "Core task database health beside Settings → Task projects (D32, bead ro-ujb9.246.3). TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",
+    purpose: "Core task database health beside Settings → Task projects. TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",
     variants: ["checking", "no projects", "waiting for first read", "available", "partial failure", "stale", "unavailable", "project-management door", "host steps"],
   },
   {
     name: "BrandLockup",
     file: "components/BrandLockup.tsx",
-    purpose: "The Notice mark (NoticeMark, drawn in the current ink) and the live NoticeOS wordmark in Stack Sans Notch (D35), shared by desktop navigation, the mobile header and TV. Product identity only; operational states use their own semantic tokens.",
+    purpose: "The Notice mark (NoticeMark, drawn in the current ink) and the live NoticeOS wordmark in Stack Sans Notch, shared by desktop navigation, the mobile header and TV. Product identity only; operational states use their own semantic tokens.",
     variants: ["default", "compact", "text"],
   },
   {
@@ -85,7 +85,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "CountdownWidget / CountdownEditor",
     file: "components/DashboardWidgets.tsx",
     purpose:
-      "The desk's configurable countdown: CountdownFace plus a Configure button and the countdown's one settings form (emoji, words, moment; one Save, one changeset, D18). CountdownEditor is exported for the Wall editor's widget panel, which renders this same form rather than a second one.",
+      "The desk's configurable countdown: CountdownFace plus a Configure button and the countdown's one settings form (emoji, words, moment; one Save, one changeset). CountdownEditor is exported for the Wall editor's widget panel, which renders this same form rather than a second one.",
     variants: ["read-only face", "Configure open (the form)", "no countdown yet (the form makes the first)", "saves paused"],
   },
   {
@@ -93,13 +93,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/WallCanvas.tsx",
     purpose:
       "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. It owns no widget of its own; the five widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
-    variants: ["D28 default", "a pre-D28 save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column"],
+    variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column"],
   },
   {
     name: "WallFeed / WallFeedWidget",
     file: "components/wall/WallFeed.tsx",
     purpose:
-      "The Wall's live feed column (docs/25 § Feed): stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, the kind and site, one sentence, a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
+      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, the kind and site, one sentence, a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
     variants: ["live rows (every tone)", "aged rows muted", "reconnecting (last rows kept)", "empty window", "arrival and whole-row fit (component test and journey)"],
   },
   {
@@ -162,7 +162,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PanelReviewLine",
     file: "components/PanelReviewLine.tsx",
     purpose:
-      "The asset page's statement of the obligation PanelReviewBadge marks on the Wall: which panel day is owed, when triage was due and the bead to close. It composes the badge and inherits its absence exactly.",
+      "The asset page's statement of the obligation PanelReviewBadge marks on the Wall: which panel day is owed, when triage was due and the task to close. It composes the badge and inherits its absence exactly.",
     variants: [
       "pending",
       "overdue (error-tinted row)",
@@ -228,7 +228,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "HandoffBeadBadge",
     file: "components/HandoffBeadBadge.tsx",
     purpose:
-      "Whether a finding has already been filed as work in the asset's own repo, joined by the handoff's `noticeos_key`: the glyph carries open or closed, the visible text is the bead id linking to /tasks/<id>, and both faces stay muted beside the finding's severity. Nothing filed renders nothing.",
+      "Whether a finding has already been filed as work in the asset's own repo, joined by the handoff's `noticeos_key`: the glyph carries open or closed, the visible text is the task id linking to /tasks/<id>, and both faces stay muted beside the finding's severity. Nothing filed renders nothing.",
     variants: ["open", "closed", "closed undated", "not filed (renders nothing)"],
   },
   {
@@ -242,7 +242,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ReportFreshness",
     file: "components/ReportFreshness.tsx",
     purpose:
-      "How old a site's nightly report is, one age amber past twice its cadence, or the neutral No report mark when none is expected (D29 amended). Home's assets table reads it in its Reported column.",
+      "How old a site's nightly report is, one age amber past twice its cadence, or the neutral No report mark when none is expected. Home's assets table reads it in its Reported column.",
     variants: ["fresh", "stale (amber)", "no report expected", "declared none", "without the Updated word"],
   },
   {
@@ -292,7 +292,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "EmptyState",
     file: "components/EmptyState.tsx",
-    purpose: "Designed empty tile (never blank, never a spinner). `sm` is a list's own empty value under its heading — CollectionEditor's \"None yet\" (bead ro-ujb9.96.6.22) — at the heading's size, never louder than the heading it answers.",
+    purpose: "Designed empty tile (never blank, never a spinner). `sm` is a list's own empty value under its heading — CollectionEditor's \"None yet\" — at the heading's size, never louder than the heading it answers.",
     variants: ["title", "title+hint", "sm (a list's empty value)"],
   },
   {
@@ -306,7 +306,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RouteLoading / RouteLoadFailure",
     file: "components/RouteLoading.tsx",
     purpose:
-      "What stands in for a screen while its code is fetched, and what a screen whose code can no longer be fetched becomes. RouteLoading says only 'Loading' in the space the screen will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette); RouteLoadFailure offers an explicit Open app in new tab action and never reloads by itself (D41).",
+      "What stands in for a screen while its code is fetched, and what a screen whose code can no longer be fetched becomes. RouteLoading says only 'Loading' in the space the screen will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette); RouteLoadFailure offers an explicit Open app in new tab action and never reloads by itself.",
     variants: [
       "desk loading",
       "Wall loading (true black)",
@@ -351,7 +351,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/ExecutiveInsightRow.tsx",
     purpose:
       "ADHD-focused saved-finding accordion. Its compact face keeps kind, rank, title, magnitude, original analysis confidence, applicability review and recorded task state visible. The expanded row exposes the original suggestion, exact evidence and handoff controls. Copied and filed briefs retain the same recheck caveat; closure, marking and collection never imply a verified outcome.",
-    variants: ["compact", "focused open", "warning/error", "recommendation/warn", "discovery/info", "insight/neutral", "marked", "dismissed", "filed (open bead)", "filed (closed bead)", "secure copy", "HTTP LAN fallback", "copy failed"],
+    variants: ["compact", "focused open", "warning/error", "recommendation/warn", "discovery/info", "insight/neutral", "marked", "dismissed", "filed (open task)", "filed (closed task)", "secure copy", "HTTP LAN fallback", "copy failed"],
     demo:
       "Copy states depend on the clipboard context and are exercised in test/components.test.tsx.",
   },
@@ -405,14 +405,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Stepper",
     file: "components/Stepper.tsx",
     purpose:
-      "Horizontal lifecycle stepper (monochrome; progress isn't severity). `lifecycleStepper()` maps assets.status. Registry had no progress/step component.",
+      "Horizontal lifecycle stepper (monochrome; progress isn't severity). `lifecycleStepper()` maps assets.status.",
     variants: ["pre-launch", "onboarding", "baselining", "live", "retired (terminal)"],
   },
   {
     name: "OwnerChip",
     file: "components/OwnerChip.tsx",
     purpose:
-      "Monospace path chip pointing at the file/table that OWNS a fact (doc 14 principle 10); LAN-safe click-to-copy. Badge is neutral chrome, not a copyable path affordance. An optional `hint` retargets the hover sentence at a reference to READ (the doc section a not-set-up source's setup steps live in) instead of an owner to edit.",
+      "Monospace path chip pointing at the file/table that owns a fact; LAN-safe click-to-copy. Badge is neutral chrome, not a copyable path affordance. An optional `hint` retargets the hover sentence at a reference to read (the doc section a not-set-up source's setup steps live in) instead of an owner to edit.",
     variants: ["idle", "copied", "copy failed", "doc reference"],
     demo:
       "The phone target is the viewport, not a prop; pinned in test/components.test.tsx.",
@@ -421,35 +421,35 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "KnobRow",
     file: "components/KnobRow.tsx",
     purpose:
-      "One setting made legible: plain-language label + jargon, effective value, explainer, OwnerChip. The configuration/rules fact row. Nothing composed label+value+owner before.",
+      "One setting made legible: plain-language label + jargon, effective value, explainer, OwnerChip. The configuration/rules fact row.",
     variants: ["value-only", "with-explain", "with-owner", "with-scope"],
   },
   {
     name: "Timeline",
     file: "components/Timeline.tsx",
     purpose:
-      "Annotation timeline (deploy, model change, config, incident, autonomy, external), relative time with the absolute on hover. An event whose ref resolves to a bead in the asset's snapshot renders HandoffBeadBadge; an unresolved ref stays the mono string.",
-    variants: ["events", "empty", "bead ref (open)", "bead ref (shipped)", "unresolved ref (mono)", "no ref"],
+      "Annotation timeline (deploy, model change, config, incident, autonomy, external), relative time with the absolute on hover. An event whose ref resolves to a task in the asset's snapshot renders HandoffBeadBadge; an unresolved ref stays the mono string.",
+    variants: ["events", "empty", "task ref (open)", "task ref (shipped)", "unresolved ref (mono)", "no ref"],
   },
   {
     name: "StateChip",
     file: "components/StateChip.tsx",
     purpose:
-      "A boolean/enum STATE as a dot glyph + label, colored by meaning (doc 14 'state is visual, never prose'). SeverityDot is severity-only; Badge has no meaning-color. `dot=hollow` = the operator-declined notch; `attention` = a soft halo for an unresolved state. `glyph` replaces the dot where the state's own vocabulary already owns a shape — the task lifecycle on /tasks/:id, from the one status face the Tasks board shares (routes/tasks/task-face.tsx, bead ro-ujb9.202) — since a dot there would say the tone twice and the state not at all. STATE_TONE[tone].text is the chip's ink for the same state drawn compact (glyph + word in a table cell).",
+      "A boolean/enum state as a dot glyph + label, colored by meaning. SeverityDot is severity-only; Badge has no meaning-color. `dot=hollow` = the operator-declined notch; `attention` = a soft halo for an unresolved state. `glyph` replaces the dot where the state's own vocabulary already owns a shape — the task lifecycle on /tasks/:id, from the one status face the Tasks board shares (routes/tasks/task-face.tsx) — since a dot there would say the tone twice and the state not at all. STATE_TONE[tone].text is the chip's ink for the same state drawn compact (glyph + word in a table cell).",
     variants: ["connected", "affirmative", "caution", "critical", "declined", "na", "neutral", "hollow dot", "attention halo", "lifecycle glyph"],
   },
   {
     name: "UnknownPriceCount",
     file: "components/UnknownPriceCount.tsx",
     purpose:
-      "Unknown provider prices beside known spend, composed from StateChip. The registry has no shared unknown-price count: this wrapper owns its question glyph, accessible label and zero-count omission across the budget displays (ro-ujb9.75.1).",
+      "Unknown provider prices beside known spend, composed from StateChip: this wrapper owns its question glyph, accessible label and zero-count omission across the budget displays.",
     variants: ["unknown prices", "all priced (renders nothing)"],
   },
   {
     name: "IntegrationStateChip",
     file: "components/IntegrationStateChip.tsx",
     purpose:
-      "THE ONE RENDERER OF A CONNECTION'S STATUS (bead ro-ujb9.96.7.3), composed from StateChip over shared/connection-status: Not connected, Not checked, an accepted connection named for what was given (Key accepted, Signed in, URL accepted — `accepted`, from the contract's acceptedAs, bead ro-ujb9.96.7.25), Collecting, Working, Overdue, Failing, Not using, Unknown, and Doesn't apply for a register cell. Glyph plus word, connectivity green only with proof. A register cell's recorded state is read in the same vocabulary. ConnectionFacts beside it draws the compact facts as chips, never sentences.",
+      "The one renderer of a connection's status, composed from StateChip over shared/connection-status: Not connected, Not checked, an accepted connection named for what was given (Key accepted, Signed in, URL accepted — `accepted`, from the contract's acceptedAs), Collecting, Working, Overdue, Failing, Not using, Unknown, and Doesn't apply for a register cell. Glyph plus word, connectivity green only with proof. A register cell's recorded state is read in the same vocabulary. ConnectionFacts beside it draws the compact facts as chips, never sentences.",
     variants: ["every status", "signed in", "register state", "with count", "facts"],
   },
   {
@@ -463,21 +463,21 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "EvidencePopover",
     file: "components/EvidencePopover.tsx",
     purpose:
-      "The 'why this state' affordance on a lane whose effective state was adjusted by store evidence (doc 11 observed-evidence): a glyph → portalled plain-language panel (never clipped by the matrix scroll). Amber glyph for against-evidence, slate for supporting. Built on the ui Popover (bead ro-ujb9.219): opening moves focus into the panel, Escape or a press outside gives it back to the trigger, and a scroll keeps it open on its trigger. Not a tooltip — it is a dialog.",
+      "The 'why this state' affordance on a lane whose effective state was adjusted by store evidence: a glyph → portalled plain-language panel (never clipped by the matrix scroll). Amber glyph for against-evidence, slate for supporting. Built on the ui Popover: opening moves focus into the panel, Escape or a press outside gives it back to the trigger, and a scroll keeps it open on its trigger. Not a tooltip — it is a dialog.",
     variants: ["against (amber)", "supporting (slate)", "closed"],
   },
   {
     name: "ChangeChip",
     file: "components/ChangeChip.tsx",
     purpose:
-      "The 'something changed just before this' chip on an alert: the asset's timeline events inside the correlation window, named with Timeline's own glyph+word and dated against the alert ('deploy 14h before'). The glyph+word table is its own module, components/annotation-kind.ts, since bead ro-ujb9.85: the chip rides the TV's alert rail, and importing it from Timeline.tsx sent the desk timeline and HandoffBeadBadge to /wall. Renders NOTHING when nothing correlates. Neutral by design — StateChip colors a state, this is context, and the severity dot already owns how-bad.",
+      "The 'something changed just before this' chip on an alert: the asset's timeline events inside the correlation window, named with Timeline's own glyph+word and dated against the alert ('deploy 14h before'). The glyph+word table is its own module, components/annotation-kind.ts, so the TV's alert rail does not import Timeline.tsx. Renders nothing when nothing correlates. Neutral by design — StateChip colors a state, this is context, and the severity dot already owns how-bad.",
     variants: ["single (dated)", "same kind (counted)", "mixed kinds", "none (silent)", "linked / plain"],
   },
   {
     name: "IntegrationSummaryStrip",
     file: "components/IntegrationSummaryStrip.tsx",
     purpose:
-      "The register's totals above the audit grid in the connection vocabulary (bead ro-ujb9.96.7.3): one IntegrationStateChip with a count per status, problems first, plus one line of reusable credentials still to add. Counts, never sentences.",
+      "The register's totals above the audit grid in the connection vocabulary: one IntegrationStateChip with a count per status, problems first, plus one line of reusable credentials still to add. Counts, never sentences.",
     variants: ["mixed", "all clear", "shared-credential line"],
   },
   {
@@ -560,20 +560,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "ProviderCredentialForm / ProviderLink",
     file: "components/provider-card/ProviderCredentialForm.tsx",
-    purpose: "ProviderCard's existing schema-driven credential form and provider deep link, extracted without changing validation, blank omission, uploads or callbacks (ro-ujb9.65). Its private field renderers stay together. ConnectPanel owns the separate save-and-test flow; this form retains the reference card's save callback. ProviderLink also serves the card's expiry row.",
+    purpose: "ProviderCard's schema-driven credential form and provider deep link. Its private field renderers stay together. ConnectPanel owns the separate save-and-test flow; this form retains the reference card's save callback. ProviderLink also serves the card's expiry row.",
     variants: ["text and password", "json paste or upload", "url-list", "asset-map", "field refusal", "saving"],
   },
   {
     name: "GoogleSignIn / StepNumber",
     file: "components/provider-card/GoogleSignIn.tsx",
-    purpose: "ProviderCard's existing Google reference view, extracted intact (ro-ujb9.65): typed OAuth app setup, redirect address, connected grant and GA4 and Search Console discovery. GoogleSignInSetup remains ConnectPanel's distinct upload flow. StepNumber also serves the card's legacy-import steps. Existing ProviderCard gallery states exercise this view, with no duplicate demo.",
+    purpose: "ProviderCard's Google reference view: typed OAuth app setup, redirect address, connected grant and GA4 and Search Console discovery. GoogleSignInSetup remains ConnectPanel's distinct upload flow. StepNumber also serves the card's legacy-import steps. Existing ProviderCard gallery states exercise this view, with no duplicate demo.",
     variants: ["app missing", "ready", "redirect unusable", "connected", "revoked", "discovery pending or refused"],
   },
   {
     name: "ProviderCard",
     file: "components/ProviderCard.tsx",
     purpose:
-      "One provider's credential and its connection evidence (doc 14 flow C): the header in the shared ConnectionStatus and IntegrationStateChip vocabulary, credential source kept separate from connection status, and guided mode (Connect, Choose sites, Verify, Settings) sharing the reference card's forms and evidence. Replace opens empty inputs, secrets are never echoed, and Disconnect goes through ConnectionActions.",
+      "One provider's credential and its connection evidence: the header in the shared ConnectionStatus and IntegrationStateChip vocabulary, credential source kept separate from connection status, and guided mode (Connect, Choose sites, Verify, Settings) sharing the reference card's forms and evidence. Replace opens empty inputs, secrets are never echoed, and Disconnect goes through ConnectionActions.",
     variants: [
       "guided setup: connect, assets, verify, settings",
       "shared connection status (accepted, working, overdue, failing or unknown)",
@@ -611,7 +611,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "AlertRow",
     file: "components/AlertRow.tsx",
     purpose:
-      "One alert as doc 14's ListRow on every surface that shows one whole (an asset's Current signals and Alert history, /alerts/history): a severity ring, a mark, the translated headline and one caption, with evidence, dated facts and verbs revealed in place when opened. `history` drops the actions and draws the open span; `asset` adds the asset's favicon and link on a portfolio surface. It also exports Recurrence, AttentionAllClear and AlertList.",
+      "One alert as a ListRow on every surface that shows one whole (an asset's Current signals and Alert history, /alerts/history): a severity ring, a mark, the translated headline and one caption, with evidence, dated facts and verbs revealed in place when opened. `history` drops the actions and draws the open span; `asset` adds the asset's favicon and link on a portfolio surface. It also exports Recurrence, AttentionAllClear and AlertList.",
     variants: [
       "open (actions attached)",
       "open and tuned (chip among the actions)",
@@ -664,7 +664,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RuleTunePanel / TuneRuleAction",
     file: "components/RuleTune.tsx",
     purpose:
-      "Tune this rule from the alert it is noisy on (docs/15 flow E): the trigger renders nothing for a rule a pulse replay cannot honestly serve, and opens a portalled panel holding TuneRate, the BacktestStrip and the three portfolio alert-rule settings as KnobEditors, the preview recomputing as a field changes. RuleTunePanel is the presentational half, reviewable without a store.",
+      "Tune this rule from the alert it is noisy on: the trigger renders nothing for a rule a pulse replay cannot honestly serve, and opens a portalled panel holding TuneRate, the BacktestStrip and the three portfolio alert-rule settings as KnobEditors, the preview recomputing as a field changes. RuleTunePanel is the presentational half, reviewable without a store.",
     variants: [
       "trigger (rule-driven alert)",
       "no trigger (rule with no replay)",
@@ -674,7 +674,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "value the detector refuses",
       "replay refused",
       "read-only deployment (Save disabled, preview intact)",
-      "with the rule's tune record (bead ro-ayxy)",
+      "with the rule's tune record",
     ],
     demo:
       "The gallery renders the panel over a fake writer, not the fixed-position trigger; the trigger is pinned in test/rule-tune.test.tsx.",
@@ -683,7 +683,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "KnobEditor",
     file: "components/KnobEditor.tsx",
     purpose:
-      "An editable setting: KnobRow's fact layout plus a validated control and a Save that writes it (D18), through the local config write lane for a file-owned knob or the Worker for a store-owned column. The way back is the Undo beside the field (InlineSaveState); `onDraft` reports the buffered draft for a caller that previews before the Save; optional help is an InfoTooltip beside the label.",
+      "An editable setting: KnobRow's fact layout plus a validated control and a Save that writes it, through the local config write lane for a file-owned knob or the Worker for a store-owned column. The way back is the Undo beside the field (InlineSaveState); `onDraft` reports the buffered draft for a caller that previews before the Save; optional help is an InfoTooltip beside the label.",
     variants: [
       "text",
       "number",
@@ -695,10 +695,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "refused (stale)",
       "read-only deployment",
       "watched draft (onDraft)",
-      "Saved · Undo beside the field — the only confirmation (bead ro-ujb9.96.7.12; no toast mode)",
+      "Saved · Undo beside the field — the only confirmation (no toast mode)",
       "pick-to-save select (autosave)",
-      "inline refusal: Not saved and why beside the field, no toast (bead ro-ujb9.96.7.12)",
-      "paused saves: a lock only, the reason said once by the page (statesReadOnly=false, bead ro-p8qq)",
+      "inline refusal: Not saved and why beside the field, no toast",
+      "paused saves: a lock only, the reason said once by the page (statesReadOnly=false)",
     ],
   },
   {
@@ -727,7 +727,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "refused (the rule under the list)",
       "empty",
       "read-only",
-      "picked from the project's saved funnels (bead ro-ujb9.96.7.24)",
+      "picked from the project's saved funnels",
     ],
   },
   {
@@ -762,9 +762,9 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "unfiled asset (the first row files the entry)",
       "read-only deployment",
       "read-only said once by the page",
-      "outcome under every cell — Saved · Undo / Not saved (bead ro-ujb9.96.7.12)",
+      "outcome under every cell — Saved · Undo / Not saved",
       "commit=auto: no Save, saved on pick or on leaving the cell; commit=save (default, money): the cell's own Save",
-      "paused saves: a lock by the title, the reason said once by the page (statesReadOnly=false, bead ro-p8qq)",
+      "paused saves: a lock by the title, the reason said once by the page (statesReadOnly=false)",
     ],
     demo:
       "The phone fold is the viewport, not a prop; pinned in test/components.test.tsx.",
@@ -773,7 +773,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "TaskComposer / FileTaskButton",
     file: "components/TaskComposer.tsx",
     purpose:
-      "File a task with a button (D19): a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied `bd create` command is rendered from. Title, project and priority first with Enter filing; type, parent, labels, description and acceptance criteria under More; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
+      "File a task with a button: a slide-over opened prefilled from `taskHandoffPrefill`, the same computation the copied `bd create` command is rendered from. Title, project and priority first with Enter filing; type, parent, labels, description and acceptance criteria under More; the handoff labels and `noticeos_*` metadata locked. Filing lands on /tasks/<id>; a deployed build disables the trigger with the reason on hover.",
     variants: [
       "handoff prefill (locked labels, linked line)",
       "new task (nothing prefilled)",
@@ -810,7 +810,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallLibraryPanel",
     file: "components/wall/WallLibraryPanel.tsx",
     purpose:
-      "The fixed widget library (docs/15 flow D): every type the contract knows, always listed, with a refused Add dark on its row and the validator's own sentence as the reason.",
+      "The fixed widget library: every type the contract knows, always listed, with a refused Add dark on its row and the validator's own sentence as the reason.",
     variants: [
       "every type offered",
       "a unique type already placed (refused with the reason)",
@@ -855,7 +855,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallStrip",
     file: "components/wall/WallStrip.tsx",
     purpose:
-      "The Wall's grouped header (docs/25 § Strip): brand and local clock/date, next meeting today, and a prominent days-left countdown in one sans family, scaled labels keeping an 11px floor and portrait screens wrapping whole groups. A failed Wall poll keeps the values and adds their age; concrete OS, scheduler and spend problems belong to NeedsYou.",
+      "The Wall's grouped header: brand and local clock/date, next meeting today, and a prominent days-left countdown in one sans family, scaled labels keeping an 11px floor and portrait screens wrapping whole groups. A failed Wall poll keeps the values and adds their age; concrete OS, scheduler and spend problems belong to NeedsYou.",
     variants: ["meeting today", "clear day", "countdown remaining", "countdown reached", "no countdown", "held payload", "TV and wrapping phone groups"],
   },
   {
@@ -875,7 +875,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RevenueHero",
     file: "components/wall/RevenueHero.tsx",
     purpose:
-      "The Wall's revenue widget (D28, docs/25 § Revenue): the month's revenue so far as the largest type on the screen, 'on pace for $X' from the sites' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
+      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the sites' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
     variants: [
       "on pace to pass last month",
       "passed last month",
@@ -890,7 +890,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SiteRows",
     file: "components/wall/SiteRows.tsx",
     purpose:
-      "The Wall's asset region (docs/25 § Site rows and Density): site name and favicon with four-bar health, LiveUsers over the minute pulse, today's comparable-hours chart and pace, the four-week trend, and selected pulse totals on a second line. The rows fill the region: four or more assets keep figures beside charts, two or three put larger figures above them, one asset uses up to three focus tiles.",
+      "The Wall's asset region: site name and favicon with four-bar health, LiveUsers over the minute pulse, today's comparable-hours chart and pace, the four-week trend, and selected pulse totals on a second line. The rows fill the region: four or more assets keep figures beside charts, two or three put larger figures above them, one asset uses up to three focus tiles.",
     variants: ["default pulse totals", "per-asset selection", "explicit none", "missing/zero/stale totals", "healthy/warn/error/unknown health bars", "fresh/stale live reading", "no data", "four or more filling rows", "two or three larger rows", "one site focus tiles"],
   },
   {
@@ -904,7 +904,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "NeedsYou / IssueGlyph",
     file: "components/wall/NeedsYou.tsx",
     purpose:
-      "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § Needs you). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. D29 sites never receive missing-nightly-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
+      "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § Needs you). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Sites that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
     variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs you"],
   },
   {
@@ -936,14 +936,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "CommandPalette",
     file: "components/CommandPalette.tsx",
     purpose:
-      "Go-to-anything for the desk: ⌘K / Ctrl+K inside the shell, or the sidebar's Search button, scoped to navigation only. Three groups (Pages, Assets, Open task for a bead-shaped query), recent selections remembered in localStorage and lifted to the top while the query is empty; mounted by AppShell on every desk page and fetched on first open.",
+      "Go-to-anything for the desk: ⌘K / Ctrl+K inside the shell, or the sidebar's Search button, scoped to navigation only. Three groups (Pages, Assets, Open task for a task-id-shaped query), recent selections remembered in localStorage and lifted to the top while the query is empty; mounted by AppShell on every desk page and fetched on first open.",
     variants: [
       "closed",
       "open (pages + assets)",
       "recent first (empty query)",
       "filtered",
       "asset with open severity",
-      "bead id → Open task",
+      "task id → Open task",
       "no match",
       "inline (gallery)",
     ],
@@ -966,7 +966,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Button",
     file: "components/ui/button.tsx",
     purpose:
-      "shadcn button (Radix Slot). Every size carries a 44px floor below `sm` (bead ro-md80): the three sizes were set for a pointer (36/32/36px) and the verbs the desk is opened on a phone for — Mark read, Snooze, Resolve — are all `sm`. `max-sm:` only, so desk density is untouched.",
+      "shadcn button (Radix Slot). Every size carries a 44px floor below `sm`: the three sizes were set for a pointer (36/32/36px) and the verbs the desk is opened on a phone for — Mark read, Snooze, Resolve — are all `sm`. `max-sm:` only, so desk density is untouched.",
     variants: ["default", "outline", "ghost", "sm/default/icon", "phone touch floor"],
     demo:
       "The phone touch floor is the viewport, not a prop; pinned in test/components.test.tsx.",
@@ -981,7 +981,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "Card",
     file: "components/ui/card.tsx",
     purpose: "shadcn card + header/title/content/footer parts.",
-    variants: ["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter", "kind: money · alert · win · neutral (D44)"],
+    variants: ["Card", "CardHeader", "CardTitle", "CardContent", "CardFooter", "kind: money · alert · win · neutral"],
   },
   {
     name: "Sheet",
@@ -1011,7 +1011,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "TableCell",
       "stacked (labelled cards below sm)",
       "dropWhenStacked cell",
-      "row that opens (pointer; the stacked card draws the › disclosure chevron — bead ro-ujb9.13)",
+      "row that opens (pointer; the stacked card draws the › disclosure chevron)",
     ],
     demo:
       "The stacked reflow is the viewport, not a prop; the classes are pinned in test/components.test.tsx.",
@@ -1052,8 +1052,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "QueryVisibilityRankings",
     file: "components/QueryVisibilityRankings.tsx",
     purpose:
-      "Asset-only 90-day search charts plus a responsive query-decision table: each normalized query gets one act/investigate/protect/wait verdict line, its source evidence (Google and Bing observed impressions and movement kept distinct from DataForSEO modelled demand, rank, difficulty, intent and the per-surface AI Overview marks), a Copy Markdown handoff, the HandoffBeadBadge of any bead filed from it, and an outcome-check composer that pre-registers how the decision will be judged. Applicability is said once in the header and on a row only where it differs.",
-    variants: ["recover", "near win", "ranking opportunity", "organic gap", "mixed", "weak", "strong", "growing", "wait", "intent token", "estimated visits", "secure copy", "HTTP LAN fallback", "copy failed", "three sources", "one source", "first DataForSEO baseline", "historical rank movement", "AI cited", "AI result shown", "AIO phone-vs-desktop split", "AIO surface never checked", "insufficient windows", "desktop", "mobile", "daily", "weekly", "irregular", "provisional Google tail", "filed (open bead)", "filed (closed bead)", "unfiled", "register not asked", "lane proof row", "lane proof row at zero", "lane ran no check (no row)", "watch the outcome (rank lane -> position)", "watch the outcome (traffic lane -> clicks)", "no composer behind it (renders no action)"],
+      "Asset-only 90-day search charts plus a responsive query-decision table: each normalized query gets one act/investigate/protect/wait verdict line, its source evidence (Google and Bing observed impressions and movement kept distinct from DataForSEO modelled demand, rank, difficulty, intent and the per-surface AI Overview marks), a Copy Markdown handoff, the HandoffBeadBadge of any task filed from it, and an outcome-check composer that pre-registers how the decision will be judged. Applicability is said once in the header and on a row only where it differs.",
+    variants: ["recover", "near win", "ranking opportunity", "organic gap", "mixed", "weak", "strong", "growing", "wait", "intent token", "estimated visits", "secure copy", "HTTP LAN fallback", "copy failed", "three sources", "one source", "first DataForSEO baseline", "historical rank movement", "AI cited", "AI result shown", "AIO phone-vs-desktop split", "AIO surface never checked", "insufficient windows", "desktop", "mobile", "daily", "weekly", "irregular", "provisional Google tail", "filed (open task)", "filed (closed task)", "unfiled", "register not asked", "lane proof row", "lane proof row at zero", "lane ran no check (no row)", "watch the outcome (rank lane -> position)", "watch the outcome (traffic lane -> clicks)", "no composer behind it (renders no action)"],
     demo:
       "Copy states depend on the clipboard context, and the demo passes no onWatch because the composer lives on an asset page.",
   },
@@ -1069,7 +1069,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/PageDecisions.tsx",
     purpose:
       "The query table's four lanes on the grain an operator actually edits: one row per page present in both seven-date Search Console windows, eight rules each a label and one short action with the evidence one press away, a click move naming its likely cause, and the two tracked-panel rules applied through the page's leading query. It shares the query table's lane words, tones and cell primitives through `decision-lanes` and none of its rules; its handoff is keyed on the absolute page URL.",
-    variants: ["lost clicks", "gaining clicks", "shown rarely clicked", "walled by AI Overview", "AI Overview cites this page", "shown more taken no more", "position slipping", "no real change", "likely cause tagged", "release in window", "shared state in header", "AIO surface split", "AIO surface never checked (no line)", "leading query unknown", "fold (more than eight pages)", "filed (open bead)", "filed (closed bead)", "unfiled", "register not asked", "secure copy", "HTTP LAN fallback", "copy failed", "no two complete weeks (stated absence)"],
+    variants: ["lost clicks", "gaining clicks", "shown rarely clicked", "walled by AI Overview", "AI Overview cites this page", "shown more taken no more", "position slipping", "no real change", "likely cause tagged", "release in window", "shared state in header", "AIO surface split", "AIO surface never checked (no line)", "leading query unknown", "fold (more than eight pages)", "filed (open task)", "filed (closed task)", "unfiled", "register not asked", "secure copy", "HTTP LAN fallback", "copy failed", "no two complete weeks (stated absence)"],
     demo:
       "Copy states depend on the clipboard context; register-unavailable is payload state with no visible fallback.",
   },
@@ -1084,14 +1084,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RangeSelector",
     file: "components/surface/RangeSelector.tsx",
     purpose:
-      "The page's one range, 7d / 28d / 90d with 28 the default (D24), sitting in the page header and driving every delta, sparkline and chart below it. A row of `pillChoice` toggles rather than a select.",
+      "The page's one range, 7d / 28d / 90d with 28 the default, sitting in the page header and driving every delta, sparkline and chart below it. A row of `pillChoice` toggles rather than a select.",
     variants: ["7d", "28d selected (the default)", "90d", "custom options", "phone (44px floor)"],
   },
   {
     name: "SectionLabel",
     file: "components/surface/SectionLabel.tsx",
     purpose:
-      "The eyebrow every doc 14 section opens with: an 11px tracked uppercase title, one quiet caption of at most a sentence and one link at the right that takes the question elsewhere. `eyebrowClass` is exported for an eyebrow that is a label inside a control, and ListPanel composes this one as its header.",
+      "The eyebrow every section opens with: an 11px tracked uppercase title, one quiet caption of at most a sentence and one link at the right that takes the question elsewhere. `eyebrowClass` is exported for an eyebrow that is a label inside a control, and ListPanel composes this one as its header.",
     variants: ["title only", "with a caption", "with a link action", "with an owner chip (node slot)", "inside a summary", "as a panel header (Home's assets)", "inside ListPanel", "phone (44px floor claimed)"],
   },
   {
@@ -1099,12 +1099,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/surface/KpiStrip.tsx",
     purpose:
       "Desk headline metrics in one hairline-divided strip: label, value, comparable delta (DeltaChip's like-for-like verdict, withheld for incomparable periods) and an optional metric-specific spark, with the Not comparable and History unavailable verdicts visible. One InfoTooltip combines the exact dates and explanations; a selectable KPI and its info button are sibling controls, never nested.",
-    variants: ["selected/static", "comparable delta", "not comparable (percentage withheld)", "no previous period", "visible history-unavailable verdict", "raw daily/monthly spark", "trailing/precomputed average", "compact method caption", "combined explanation tooltip", "separate selection/info controls", "provisional endpoint", "value tone (healthy / warn / error)", "footer slot", "phone: two KPIs side by side", "phone: three KPIs in one row of three (bead ro-ujb9.13)", "phone: four or more KPIs in one swiping row, the selected one brought into view (bead ro-ujb9.13)"],
+    variants: ["selected/static", "comparable delta", "not comparable (percentage withheld)", "no previous period", "visible history-unavailable verdict", "raw daily/monthly spark", "trailing/precomputed average", "compact method caption", "combined explanation tooltip", "separate selection/info controls", "provisional endpoint", "value tone (healthy / warn / error)", "footer slot", "phone: two KPIs side by side", "phone: three KPIs in one row of three", "phone: four or more KPIs in one swiping row, the selected one brought into view"],
   },
   {
     name: "DailyRevenuePanel",
     file: "components/DailyRevenuePanel.tsx",
-    purpose: "Saved daily revenue estimates with reporting coverage, exact dollar values and calendar gaps. Composes HeroChart bars and KpiStrip; the registry has no existing composition that owns daily earnings coverage and estimate context.",
+    purpose: "Saved daily revenue estimates with reporting coverage, exact dollar values and calendar gaps. Composes HeroChart bars and KpiStrip.",
     variants: ["reported earnings", "partial subtotals and missing assets", "zero", "missing dates", "no reports", "keyboard and date table", "mobile"],
   },
   {
@@ -1125,7 +1125,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ChartLine / ChartArea / ChartDot",
     file: "components/surface/ChartMarks.tsx",
     purpose:
-      "The charts' one language (doc 14 § Charts): ChartLine, a monotone-smoothed line with `ghost` and `projection` forms and an optional casing over bars; ChartArea, the wash under a line with an optional feathered end; ChartDot, a round point with hollow, halo and pulse forms. All three take their colour from currentColor and ease to a new shape when a poll changes it.",
+      "The charts' one language: ChartLine, a monotone-smoothed line with `ghost` and `projection` forms and an optional casing over bars; ChartArea, the wash under a line with an optional feathered end; ChartDot, a round point with hollow, halo and pulse forms. All three take their colour from currentColor and ease to a new shape when a poll changes it.",
     variants: ["solid line", "ghost comparison", "projection", "cased line over bars", "wash", "wash feathered at now", "dot sm/md/lg", "hollow dot", "halo", "pulse (live)"],
   },
   {
@@ -1146,28 +1146,28 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "SmallMultiple / SmallMultipleStrip",
     file: "components/surface/SmallMultiple.tsx",
     purpose:
-      "A row of comparable measures in one bordered strip (doc 14): label, figure, what the figure is against ('avg 122 / day') and a full-width filled sparkline behind it. The strip is the boundary and the cells are hairlines.",
+      "A row of comparable measures in one bordered strip: label, figure, what the figure is against ('avg 122 / day') and a full-width filled sparkline behind it. The strip is the boundary and the cells are hairlines.",
     variants: ["five across", "six across", "two columns on a phone", "no series (figure only)", "headline unit", "comparison below headline", "explicit raw history", "dated chart caption", "secondary line", "hover readout"],
   },
   {
     name: "ListPanel / ListRow",
     file: "components/surface/ListPanel.tsx",
     purpose:
-      "The desk's one list of things that need something (doc 14): a SectionLabel header with a quiet count and one 'All' link, three rows by default with the rest disclosed behind an expander, and a row that expands in place to its evidence and actions. A row's mark is a ring plus a glyph, `marks` forwards data attributes onto its <li>, and `rowActions` puts a row's one decision beside its value with `below` holding the answer box it opens.",
-    variants: ["three rows", "more behind the expander", "row expanded with evidence and actions (chevron)", "navigation via to with optional returnTo (the › disclosure chevron, bead ro-ujb9.13)", "static row (no affordance, no hover)", "two-line title", "captionWrap retains essential dates/status in a closed row", "error / warn / info / ok marks", "custom glyph", "value including zero with a micro label", "no value", "header link", "empty", "grouped by subject (first row of each of the first three groups; the expander opens every row in place)", "decision on the row (rowActions: Approve, Answer / Dismiss, File task, a source's Connect in place of its value, kept on the row's line on a phone with rowActionsInline — bead ro-ujb9.96.7.5)", "answer box under the row (below)"],
+      "The desk's one list of things that need something: a SectionLabel header with a quiet count and one 'All' link, three rows by default with the rest disclosed behind an expander, and a row that expands in place to its evidence and actions. A row's mark is a ring plus a glyph, `marks` forwards data attributes onto its <li>, and `rowActions` puts a row's one decision beside its value with `below` holding the answer box it opens.",
+    variants: ["three rows", "more behind the expander", "row expanded with evidence and actions (chevron)", "navigation via to with optional returnTo (the › disclosure chevron)", "static row (no affordance, no hover)", "two-line title", "captionWrap retains essential dates/status in a closed row", "error / warn / info / ok marks", "custom glyph", "value including zero with a micro label", "no value", "header link", "empty", "grouped by subject (first row of each of the first three groups; the expander opens every row in place)", "decision on the row (rowActions: Approve, Answer / Dismiss, File task, a source's Connect in place of its value, kept on the row's line on a phone with rowActionsInline)", "answer box under the row (below)"],
   },
   {
     name: "StatusBanner",
     file: "components/surface/StatusBanner.tsx",
     purpose:
-      "One line at the top of a surface for exactly as long as its state is open (doc 14): a ProgressRing or a SeverityDot, a bold lead, one sentence, one link; `open={false}` renders nothing. AppUpdateNotice composes it for a changed or unavailable app release (D41).",
+      "One line at the top of a surface for exactly as long as its state is open: a ProgressRing or a SeverityDot, a bold lead, one sentence, one link; `open={false}` renders nothing. AppUpdateNotice composes it for a changed or unavailable app release.",
     variants: ["setup ring (n of m)", "severity dot", "no action", "link action", "button action", "closed (renders nothing)"],
   },
   {
     name: "About",
     file: "components/surface/About.tsx",
     purpose:
-      "The one disclosure per screen that holds the prose (doc 14 principle 3): what the numbers are, where they come from, what provisional means. A native `<details>`, closed by default; `defaultOpen` exists for the gallery and a first run.",
+      "The one disclosure per screen that holds the prose: what the numbers are, where they come from, what provisional means. A native `<details>`, closed by default; `defaultOpen` exists for the gallery and a first run.",
     variants: ["closed (the default)", "open", "custom summary"],
   },
 ];

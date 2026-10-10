@@ -26,7 +26,7 @@ export interface WallWidgetPanelProps {
   assets: AssetCard[];
   /** For the widget whose own configuration lives at `/countdown`. */
   countdown?: CountdownConfig;
-  /** A saved countdown the Tower refused (bead `ro-trai.45`): the form saves
+  /** A saved countdown the Tower refused: the form saves
    * over it, guarded by the value as stored. The save bar names it. */
   countdownRefused?: DashboardRefusal | null;
   nowMs: number;
@@ -35,7 +35,7 @@ export interface WallWidgetPanelProps {
   onWidth: (widgetId: string, width: number) => void;
   onSettings: (widgetId: string, settings: WallWidgetSettings | undefined) => void;
   onNudge: (widgetId: string, direction: WallNudge) => void;
-  /** Stack the widget in a column, or take it out of one (bead `ro-trai.2`). */
+  /** Stack the widget in a column, or take it out of one. */
   onStack: (widgetId: string) => void;
   onRemove: (widgetId: string) => void;
   disabled?: boolean;
@@ -50,21 +50,10 @@ const NUDGES: { direction: WallNudge; label: string; icon: typeof ArrowLeft }[] 
 ];
 
 /**
- * The selected widget's settings (bead `ro-lzmq.2`).
- *
- * ONE REPRESENTATION PER FACT, twice over. The countdown's emoji, words and
- * target are not widget settings — they live at `/countdown`, where Home, the
- * Wall and `/settings` already read them — so the panel for that widget renders
- * `CountdownEditor`, the very form the Settings page shows, rather than a second
- * set of fields that could disagree with it. And a widget setting only appears
- * here when the RENDERER applies it: the contract's `spec.settings` decides,
- * which today means the asset filter on the two widgets whose content is per
- * asset.
- *
- * THE BUTTONS ARE THE KEYBOARD'S HALF OF THE DRAG. Arranging by dragging the
- * preview is the fast way and the only way a mouse wants; move left / right /
- * up / down is the same move for somebody who is not holding one, and a
- * direction with nowhere to go is disabled rather than silently inert.
+ * The selected widget's settings. The countdown widget renders
+ * `CountdownEditor`, the same form Settings shows, because the countdown lives
+ * at `/countdown`. A setting appears only when the renderer applies it
+ * (`spec.settings`). The move buttons are the keyboard's half of the drag.
  */
 export function WallWidgetPanel({
   layout,
@@ -85,10 +74,8 @@ export function WallWidgetPanel({
   const at = selectedId ? wallWidgetAt(layout, selectedId) : null;
 
   if (!at) {
-    // NOTHING SELECTED IS A STATE, NOT AN INSTRUCTION (bead `ro-trai.15`): the
-    // widgets on the Wall are the choice, one press each, the same selection a
-    // click in the preview makes. With nothing placed there is nothing to pick,
-    // and the library's Add is the next action.
+    // Nothing selected offers the placed widgets as the choice, one press
+    // each, the same selection a click in the preview makes.
     return (
       <div className={cn("flex flex-col gap-2", className)} data-wall-widget-panel="none">
         <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -150,10 +137,8 @@ export function WallWidgetPanel({
           </Button>
         </div>
 
-        {/* WIDTH. The share is what the operator reads — a weight means
-            nothing until you know what it is a weight OF — and the slider moves
-            the weight behind it. The renderer's minimum width is the preview's
-            to show, not a sentence's to explain (bead `ro-ujb9.96.6.12`). */}
+        {/* The share is what the operator reads; the slider moves the
+            weight behind it. */}
         <div className="flex flex-col gap-1.5">
           <div className="flex items-baseline justify-between gap-2">
             <label className="text-xs text-muted-foreground" htmlFor={`wall-width-${widget.id}`}>
@@ -200,7 +185,7 @@ export function WallWidgetPanel({
           </div>
         </div>
 
-        {/* ARRANGE. The same moves as the drag, for a keyboard. */}
+        {/* The same moves as the drag, for a keyboard. */}
         <div className="flex flex-col gap-1.5">
           <span className="text-xs text-muted-foreground">Move</span>
           <div className="flex flex-wrap gap-1.5">
@@ -217,8 +202,8 @@ export function WallWidgetPanel({
                 <Icon className="size-4" />
               </Button>
             ))}
-            {/* A COLUMN stacks widgets beside a full-height one (bead
-                `ro-trai.2`). One press puts this widget in its row's column,
+            {/* A column stacks widgets beside a full-height one. One press
+                puts this widget in its row's column,
                 or takes it back out; a drop on a column row does the rest. */}
             <Button
               type="button"
@@ -258,9 +243,7 @@ export function WallWidgetPanel({
             <div className="flex items-center justify-between gap-2">
               <span className="inline-flex items-center gap-2 text-xs font-medium text-foreground">
                 {spec.label} settings
-                {/* Nothing to count down to is a STATE, and the form below is
-                    where it is set — no detour to Settings (bead
-                    `ro-ujb9.96.6.12`). */}
+                {/* Nothing to count down to is a state; the form below sets it. */}
                 {countdown || countdownRefused ? null : (
                   <span data-wall-countdown-absent>
                     <StateChip label="Not set" tone="na" subject="wall:countdown" />
@@ -269,11 +252,8 @@ export function WallWidgetPanel({
               </span>
               <OwnerChip path="config/tower.json" />
             </div>
-            {/* `embedded`: the heading and the chip above are this panel's, for
-                ANY widget configured elsewhere. The form drawing its own copy of
-                both put the pair on screen twice, one line apart (bead
-                `ro-mgqo`). With no countdown yet, the same form makes the first
-                one. */}
+            {/* `embedded`: the heading and chip above are this panel's, so the
+                form does not draw its own. */}
             <CountdownEditor config={countdown} refused={countdownRefused} nowMs={nowMs} embedded />
           </div>
         ) : null}
@@ -285,11 +265,9 @@ export function WallWidgetPanel({
 /**
  * Which assets a per-asset widget shows.
  *
- * NOTHING TICKED MEANS EVERY ASSET, and the panel says so rather than
- * pre-ticking the lot: a filter that starts full would put a list in the file
- * that has to be maintained every time an asset is added, and the Wall's job is
- * to show the portfolio unless told otherwise. Un-ticking the last one restores
- * that state, because an empty list is the one thing the contract refuses.
+ * Nothing ticked means every asset, so a new asset needs no edit here.
+ * Un-ticking the last one restores that state, because the contract refuses
+ * an empty list.
  */
 function AssetFilter({
   assets,

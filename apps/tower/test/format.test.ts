@@ -8,7 +8,7 @@ import {
   formatTimestamp,
 } from "@/lib/format";
 
-describe("formatAxisCount (bead ro-oag5)", () => {
+describe("formatAxisCount", () => {
   it("fits every tick in the count axis' four characters", () => {
     // The midpoint of an odd peak is a half; it keeps its decimal only while
     // that still fits.

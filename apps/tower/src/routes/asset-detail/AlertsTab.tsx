@@ -1,7 +1,7 @@
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { AssetDetailPayload } from "@shared/asset-detail";
-// The alert row is the registry's, and since bead `ro-78qo.17` it IS doc 14's
-// `ListRow` — so this tab composes it rather than drawing a second one.
+// The alert row is the registry's `ListRow`, so this tab composes it rather
+// than drawing a second one.
 import { AlertRow } from "@/components/AlertRow";
 import { ListPanel } from "@/components/surface/ListPanel";
 import { Hero } from "@/routes/asset-detail/shared";
@@ -10,28 +10,11 @@ import { PageAnswer } from "@/components/surface/PageAnswer";
 import { alertsLine } from "@/lib/alerts-line";
 
 /**
- * THE ALERTS TAB — every alert this asset has ever raised, open first
- * (`ro-pbzu.4`, restyled to doc 14 under `ro-78qo.5`).
- *
- * TWO PANELS, NOT SEVEN CARDS. It was one `SectionCard` of settled alerts with a
- * paragraph under its heading, and each alert a bordered box of its own carrying
- * a severity dot, a headline, four dated facts, a chip row and an action row —
- * fifteen boxes stacked at the same weight, which is the "scattered rectangles"
- * the operator named. doc 14's answer is a list: a mark, what it is, how long it
- * has been open, and the evidence and the verbs revealed IN PLACE when the row
- * is opened.
- *
- * THE OPEN PANEL IS THE ANSWER, so it is the declared hero and it shows five
- * rows rather than three: alerts are what this tab is for, and a queue of six
- * that shows three has hidden half of itself. History opens at NONE — the count
- * in its header says how much is there, and a settled alert is evidence you go
- * looking for, never something that needs you today.
- *
- * The open queue used to be somewhere else entirely — the state hero above every
- * tab — and this tab held only the history, which is why it opened on alerts
- * that were already dealt with. That hero stood down on the rebuilt tabs
- * (`ro-78qo.5`), so the queue is here, where the verbs are and where an operator
- * pressing "Alerts" expects to find it.
+ * The Alerts tab: every alert this asset has ever raised, open first, as a
+ * list whose rows reveal their evidence and verbs in place. The open panel is
+ * the hero and shows five rows rather than three: a queue of six that shows
+ * three has hidden half of itself. History opens at none; the count in its
+ * header says how much is there.
  */
 export function AlertsTab({
   data,
@@ -44,9 +27,9 @@ export function AlertsTab({
   const assetId = data.asset.id;
   return (
     <div className="flex flex-col gap-3.5">
-      {/* ONE ANSWER FIRST (D45), in /alerts' own words (`alertsLine`). With
-          nothing open the answer is the whole of it: no empty Open panel and
-          no empty History panel saying "nothing" twice more. */}
+      {/* One answer first, in /alerts' own words (`alertsLine`). With nothing
+          open the answer is the whole of it: no empty panels saying "nothing"
+          twice more. */}
       <PageAnswer
         answer={alertsLine(flags.open)}
         detail={flags.history.length > 0 ? `${flags.history.length} settled` : undefined}
@@ -68,9 +51,9 @@ export function AlertsTab({
         )}
       </Hero>
 
-      {/* PARKED, under Open and never in History (bead `ro-ujb9.194`): a snooze
-          is put off, not settled, and comes back on its date. The same panel
-          `/alerts` draws, absent when nothing is parked. */}
+      {/* Parked, under Open and never in History: a snooze is put off, not
+          settled, and comes back on its date. The same panel `/alerts` draws,
+          absent when nothing is parked. */}
       {flags.snoozed.length > 0 ? (
         <ListPanel
           title="Snoozed"
@@ -99,9 +82,8 @@ export function AlertsTab({
           <ListPanel
             title="History"
             count={historyCount(flags.history.length)}
-            // Collapsed to nothing (doc 14): the header states the size of the
-            // history and the rows are one press away. A settled alert has no
-            // claim on a screen the operator opened to see what is wrong now.
+            // Collapsed to nothing: the header states the size of the history
+            // and the rows are one press away.
             limit={0}
           >
             {flags.history.map((flag) => (
@@ -110,12 +92,9 @@ export function AlertsTab({
           </ListPanel>
         ) : null}
       </div>
-      {/* NO ABOUT (bead `ro-ujb9.96.6.7`). Its three paragraphs defined
-          Confirmed and Last known, said what First seen does not prove, and
-          listed what the verbs do. Each of those is now on the thing itself: the
-          verification wears a glyph (a solid tick or a dashed ring) and its
-          checks are rows in the Evidence panel, a repeating condition carries
-          its "4× in 4d" chip, and the verbs are the buttons in the opened row. */}
+      {/* No About panel: the verification wears a glyph and its checks are
+          rows in the Evidence panel, a repeating condition carries its "4× in
+          4d" chip, and the verbs are the buttons in the opened row. */}
     </div>
   );
 }

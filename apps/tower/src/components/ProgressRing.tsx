@@ -5,11 +5,8 @@ export interface ProgressRingProps {
   done: number;
   /** How many segments the ring is divided into. One per countable thing. */
   total: number;
-  /**
-   * The whole sentence behind the shape — what it counts and what is left.
-   * REQUIRED: a ring with nothing named is the decoration doc 14's 2026-09-04
-   * rule rejects, and it is also the only thing a screen reader gets.
-   */
+  /** The whole sentence behind the shape — what it counts and what is left.
+   * Required: it is also the only thing a screen reader gets. */
   title: string;
   /** `sm` (16px) sits in a card header or a table cell and carries no text.
    * `md` (28px) leads a panel and prints the done count in its middle. */
@@ -28,32 +25,9 @@ const RADIUS = 14;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 /**
- * A SEGMENTED COMPLETION RING — n of m discrete things done (bead `ro-28ma`).
- *
- * Registry justification: nothing here counted DISCRETE STEPS in a badge-sized
- * footprint. `Meter` is one value against a CAP and turns amber over it — a
- * setup checklist has no cap and going "over" is impossible. `SegmentBar` is how
- * a total DIVIDES into named parts, which is a different question from how much
- * of it is finished. `Stepper` is the lifecycle PATH, read-only and full width.
- * `Wizard`'s summary rail is form layout — a vertical list of steps with a
- * solid/hollow spine, which cannot sit beside an asset's name. All four are
- * LINEAR and full width; at the ~16px this has to live in (an asset card's
- * identity cluster, a table cell beside the lifecycle word) a linear bar is
- * three pixels tall and reads as a rule, not a quantity. A ring holds its area
- * at that size, and its segments stay countable.
- *
- * SEGMENTS, NOT A SWEPT ARC. The fact is a COUNT (2 of 4 done), and a count is
- * read by counting — a continuous 50% arc asks the operator to estimate an angle
- * and hides that the whole is four things. Each segment is one item, separated by
- * a real gap so two adjacent filled segments cannot merge into one longer one.
- *
- * MONOCHROME, on purpose. Progress is not severity (the same rule `Stepper`
- * follows): a half-finished setup is not a warning, and spending amber on it
- * would put a fifth alarm colour on a surface whose real alerts have to win. The
- * filled arcs are foreground ink, the unfilled ones are the muted track, so the
- * encoding is INK vs GROUND and survives greyscale, a colour-blind reader and a
- * screenshot. Nothing here reads a token of its own; the two classes are the
- * same pair `Meter` uses for its fill and its track.
+ * n of m discrete things done, in a badge-sized footprint where a linear bar
+ * would read as a rule. One gapped segment per item so the count can be read
+ * by counting. Monochrome: progress is not severity.
  */
 export function ProgressRing({
   done,

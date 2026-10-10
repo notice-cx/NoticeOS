@@ -1,12 +1,10 @@
 // @vitest-environment node
-// A CHART'S LINES AND KEYS ARE READABLE IN BOTH THEMES (bead ro-ujb9.12).
-// Every colour a desk chart draws a series in must clear WCAG 2.2's 3:1 for
-// graphics against the card it sits on (1.4.11), and every word of its key
-// 4.5:1 (1.4.3). The financial trio — revenue, cost, net — must also stay
-// apart from one another to the eye and under colour-blind simulation, with
-// their line patterns as the second, colourless cue. Measured from the two
-// stylesheets, so a token change that breaks a chart fails here first; the
-// numbers are recorded in docs/14-design.md § Tokens.
+// A chart's lines and keys are readable in both themes. Every colour a desk
+// chart draws a series in must clear WCAG 2.2's 3:1 for graphics against the
+// card it sits on (1.4.11), and every word of its key 4.5:1 (1.4.3). The
+// financial trio (revenue, cost, net) must also stay apart from one another
+// to the eye and under colour-blind simulation, with their line patterns as
+// the second, colourless cue. Measured from the two stylesheets.
 import { describe, expect, it } from "vitest";
 import { SERIES_TONE_CLASS } from "@/components/surface/Sparkline";
 import { contrastRatio, distance, over, simulate, themeColours, type Theme } from "./palette";
@@ -63,8 +61,8 @@ describe("chart series ink on the desk card", () => {
             distance(simulate(x, "deutan"), simulate(y, "deutan"))) * 10) / 10,
         };
       });
-      // The validator's floors: 15 apart to the eye for series that meet on one
-      // chart, and 6 colour-blind — legal because solid, dashed and dotted
+      // The validator's floors: 15 apart to the eye for series that meet on
+      // one chart, and 6 colour-blind, legal because solid, dashed and dotted
       // carry the same distinction without colour.
       expect(measured.filter((one) => one.normal < 15 || one.colourBlind < 6)).toEqual([]);
     });

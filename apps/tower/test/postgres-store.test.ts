@@ -1,16 +1,10 @@
 // @vitest-environment node
 //
-// THE TOWER SUITE REACHES POSTGRES THE WAY THE TOWER WORKER WILL (epic
-// ro-ujb9.76): through the one helper
-// (@noticeos/postgres), as noticeos_app over loopback TCP, in the store's one
-// workspace — each test on its own copy of a new installation's store
-// (test/postgres-store.ts). Skipped, naming why, where no Postgres can start
-// here; required in CI (NOTICEOS_REQUIRE_POSTGRES=1).
-//
-// Each test's two copies are made before it and dropped after it (bead
-// ro-ujb9.76.47): on a machine other runs keep busy, making a copy can take
-// seconds, and that is the run's cluster at work, not what these tests prove.
-// A test's own time is its transactions.
+// The Tower suite reaches Postgres the way the Tower Worker does: through
+// @noticeos/postgres, as noticeos_app over loopback TCP, each test on its own
+// copy of a new installation's store (test/postgres-store.ts). Copies are made
+// before each test and dropped after, so a slow copy is not counted as the
+// test's time.
 
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { createTestStore, postgresUnavailable, type TestStore } from "./postgres-store";

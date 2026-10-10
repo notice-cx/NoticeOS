@@ -1,21 +1,15 @@
-// ONE THROWAWAY POSTGRES FOR THE TOWER SUITE'S RUN (epic ro-ujb9.76).
+// One throwaway Postgres for the Tower suite's run, started once in Vitest's own
+// process with the template every test's store is copied from
+// (scripts/postgres-test-cluster.mts). Only this process holds the owner's way
+// in; test processes get the app role's connection string and the copy
+// service's address through `provide`, in memory, never in a file.
 //
-// Started once, before any test file, in Vitest's own process, with the
-// template every test's store is copied from (scripts/postgres-test-cluster.mts).
-// This process alone holds the owner's way in; the test processes get the
-// handle through `provide` — the application role's connection string and the
-// address of this process's copy service — in memory, never in a file, and
-// ask for their copies with scripts/postgres-test-copies.mts
-// (test/postgres-store.ts). Stopped when the run ends.
+// Plain JavaScript because the cluster module compiles against the Postgres
+// runner's JavaScript, which only the Node-only project reads
+// (tsconfig.config-contract.node.json, allowJs).
 //
-// Plain JavaScript on purpose: the cluster module compiles against the
-// Postgres runner's own JavaScript, which only the Node-only generation
-// project reads (tsconfig.config-contract.node.json, allowJs), so no Tower
-// TypeScript imports it. What the test processes see is typed in
-// test/postgres-store.ts.
-//
-// Where no Postgres can start here, the tests that need it skip and say why;
-// NOTICEOS_REQUIRE_POSTGRES=1 (CI) makes that a failure instead.
+// Where no Postgres can start, the tests that need it skip and say why;
+// NOTICEOS_REQUIRE_POSTGRES=1 (CI) makes that a failure.
 
 import { postgresRequired, startTestCluster, unavailableReason } from "../../../scripts/postgres-test-cluster.mjs";
 

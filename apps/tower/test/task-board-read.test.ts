@@ -185,8 +185,7 @@ describe("task board read", () => {
     const tasks = [liveTask({ id: "mp-ask", ready: true, labels: ["human"], priority: 0 }), liveTask({ id: "mp-gate", issueType: "gate", awaitType: "human" }), liveTask({ id: "mp-timer", issueType: "gate", awaitType: "timer" }), liveTask({ id: "mp-epic", issueType: "epic" }), liveTask({ id: "mp-working", status: "in_progress", assignee: "agent" })];
     const view = read({ scope: "meals.example", snapshot: payload({ projects: [project(), project({ asset: "nosh.example" })] }), reads: new Map([["meals.example", success(board(tasks))]]), filters: { ...filters, project: "nosh.example", label: "human" } });
     expect(view.spokes).toHaveLength(1);
-    // The ask matches, and it is listed once: in the inbox, not again in the
-    // table below it (bead ro-ujb9.96.7.11).
+    // The ask is listed once: in the inbox, not again in the table below it.
     expect(view.rows.map(row => row.id)).toEqual([]);
     expect(view.allTasks).toHaveLength(3);
     expect(view.totals.waiting).toBe(2);
@@ -196,8 +195,8 @@ describe("task board read", () => {
   });
 });
 
-// The one rule the board's Waiting on you and a task's own page both read
-// (bead ro-ujb9.243): what the operator's inbox asks of a task.
+// The one rule the board's Waiting on you and a task's own page both read:
+// what the operator's inbox asks of a task.
 describe("what the inbox asks of a task", () => {
   it("approves a human gate, answers a ready human ask, and asks nothing of anything else", () => {
     expect(inboxAsk(liveTask({ issueType: "gate", awaitType: "human" }))).toBe("approve");

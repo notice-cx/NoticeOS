@@ -1,26 +1,9 @@
-// The Integrations page's wire types, and the three derivations the page and
-// its tests must agree on: what stands between this deployment and storing a
+// The Integrations page's wire types, and the derivations the page and its
+// tests must agree on: what stands between this deployment and storing a
 // credential, what state one is in, and how a typed field becomes the string
-// the API stores (bead `ro-vu8d.2`).
-//
-// THE WIRE TYPES ARE RE-EXPORTED, NEVER RE-DECLARED. `packages/contract` is
-// where the provider field schemas live, because three runtimes have to agree
-// on them — the Tower renders the form, the ingest validates the submitted body,
-// and `scripts/dev-secrets.mjs` imports the operator's existing secrets against
-// the same list. This module was a hand-written MIRROR of them while
-// `ro-vu8d.1` landed in parallel; it is a re-export since `ro-vu8d.6`, so a
-// field added to a provider in the contract reaches the form with no edit here,
-// and a shape that drifts fails typecheck instead of quietly rendering a
-// missing input.
-//
-// It stays a module rather than every consumer importing the contract directly
-// because the DERIVATIONS below are the Tower's own — the contract states what a
-// credential IS, these state what the page does with it — and importing both
-// from one place is what keeps a rule and the shape it reads in step.
-//
-// WHAT NEVER CROSSES THIS BOUNDARY: a credential VALUE. The payload carries
-// field NAMES and timestamps only, so the browser cannot echo a secret back and
-// a screenshot of this page cannot leak one.
+// the API stores. The wire types are re-exported from `packages/contract`,
+// never re-declared. A credential value never crosses this boundary: the
+// payload carries field names and timestamps only.
 
 export type {
   CredentialAssetRow,
@@ -96,16 +79,9 @@ export {
 // --- what stands between this deployment and storing anything --------------
 
 /**
- * The encryption key's bootstrap state.
- *
- * It is a fact about the DEPLOYMENT rather than about any provider, which is
- * why the page states them once above the cards instead of on each one — and
- * why they are derived here, so the banner and every card's Connect cannot
- * disagree about whether storing anything is possible.
- *
- * A STATE AND ONE COMMAND (bead `ro-ujb9.96.6.19`): the ingest answers codes,
- * and each is drawn as its lead and the command that clears it — never the
- * ingest's sentence.
+ * The encryption key's bootstrap state: a fact about the deployment rather
+ * than any provider, stated once above the cards. The ingest answers codes,
+ * and each is drawn as its lead and the command that clears it.
  */
 export interface ConnectBlocker {
   kind: CredentialBlocker;
@@ -132,32 +108,18 @@ export function connectBlockers(
 // --- the state a card leads with -------------------------------------------
 
 /**
- * The four states a provider card can be in — RE-EXPORTED, not declared here
- * (moved to `packages/contract` by bead `ro-vu8d.23`).
- *
- * They are NOT the five lane states in `shared/integrations.ts`
- * (`live`/`degraded`/`needs-setup`/`skipped`/`not-applicable`). Those are about
- * one asset × one lane and are derived from collector evidence; these are about
- * one CREDENTIAL and are derived from the store. A lane can be Working while
- * its credential is still Legacy env, and that difference is the whole point of
- * epic `ro-vu8d`.
- *
- * The rule moved because a SECOND runtime now asks it: the notifier interrupts
- * the operator when a data source turns *Failing*, and "failing" has to mean on
- * the wire exactly what it means on the card. Two derivations of one state is
- * what `ro-vu8d.22` had just finished removing next door.
+ * The four states a provider card can be in, re-exported from
+ * `packages/contract` because the notifier reads the same rule. They are not
+ * the five lane states in `shared/integrations.ts`: those are about one asset
+ * × one lane and derived from collector evidence; these are about one
+ * credential and derived from the store. A lane can be Working while its
+ * credential is still Legacy env.
  */
 export type { ConnectionState, NotificationRule } from "@noticeos/contract";
 export { connectionState } from "@noticeos/contract/integrations";
 
-/**
- * What the OS sends to the operator's notification channel, and which catalog
- * data source that channel IS (bead `ro-vu8d.23`).
- *
- * Re-exported like every other contract fact on this page, so the card and the
- * ingest's notifier read one declaration: a card promising more than the sender
- * delivers is the defect that bead was filed against.
- */
+/** What the OS sends to the operator's notification channel, re-exported so
+ * the card and the ingest's notifier read one declaration. */
 export { NOTIFIED_CONDITIONS } from "@noticeos/contract/notifications";
 
 /** The `config/integrations.json` data source the notification channel powers —
@@ -166,17 +128,10 @@ export { NOTIFIED_CONDITIONS } from "@noticeos/contract/notifications";
 export const NOTIFICATION_LANE = "discord-webhooks";
 
 /**
- * Which providers still resolve their credential from the environment file
- * (bead `ro-vu8d.5`).
- *
- * Both /integrations and /health read it — one page to fix it on, one page an
- * operator opens when something is off — so the rule lives here rather than in
- * either of them. Provider ids, in catalog order: this is the answer to *how
- * much of D21 is done on this install*, and a list of names is the whole of it.
- *
- * Deliberately NOT a lane state. `/health` speaks in asset × lane and a lane can
- * be Working while its credential is Legacy env; folding this into that
- * vocabulary would erase the gap epic `ro-vu8d` exists to close.
+ * Which providers still resolve their credential from the environment file,
+ * as provider ids in catalog order. Both /integrations and /health read it.
+ * Deliberately not a lane state: a lane can be Working while its credential is
+ * Legacy env.
  */
 export function legacyEnvProviders(
   payload: Pick<IntegrationCredentialsPayload, "providers"> | undefined,
@@ -189,48 +144,14 @@ export function legacyEnvProviders(
 // --- an expiry the operator has not opened the page to see -----------------
 
 /**
- * The worst expiry across every provider, and who it belongs to (bead
- * `ro-vu8d.8`).
- *
- * WHY THIS IS THE SURFACE, and why the warning does NOT join the attention band
- * through the flag lane. `flags.asset` is `NOT NULL REFERENCES assets(id)`
- * (db/0001): every flag is a statement about ONE asset, and each credential
- * here is portfolio-shared — pinning "the DataForSEO password expires in nine
- * days" onto any one site would be false, and pinning it onto asset #0 would
- * file a credential's lifecycle into the OS self-pulse lane, which counts
- * pulses, ledger rows and cron runs and RESOLVES ON A PULSE. An expiry does not
- * resolve on a pulse; it resolves when the operator reconnects.
- *
- * D15 settles the rest: where a roll-up and an action list describe one fact,
- * the ACTION LIST owns it. The action list here is the provider card — Reconnect
- * is on it — so the card carries the countdown and the sidebar carries a dot
- * pointing at the card. A sentence in the Alerts band would be the same fact in
- * a second vocabulary, in the one place where nothing can be done about it.
- *
- * AND THAT IS THE CEILING — decided 2026-09-05, bead `ro-vu8d.19`, after the
- * question was asked again: `/wall` shows nothing and Home's Alerts list shows
- * nothing, so should either carry it? No, and for four reasons that all point
- * the same way.
- *
- *  1. D15, again. The Wall's attention rail and Home's Alerts list are BOTH
- *     roll-ups of the action list that owns this fact. The rule does not stop
- *     applying because the roll-up is on a different page.
- *  2. Nobody can act from the Wall. It is a television; Reconnect is a desk
- *     action. `shared/materiality.ts`'s inventory already refuses the TV's
- *     scarcest space to a row nobody is being asked to act on — that is written
- *     down for `snoozed`, and an expiry countdown is exactly that row.
- *  3. The Wall already tells the truth when it matters. A credential that
- *     actually expires stops its collector, and a stopped collector is a
- *     `degraded` source on the asset cards and a gap in reporting coverage —
- *     OBSERVED, rather than a prediction the TV would have to carry for
- *     fourteen days to be right once.
- *  4. Home is a desk page, so the sidebar's dot is already on it. A second mark
- *     in its Alerts list would be D15's duplication exactly.
- *
- * THE ONE HOLE THE DECISION LEFT was the small screen, where the sidebar is
- * behind a Menu button: a ceiling the operator cannot see on their phone is not
- * a ceiling. The bar that hides the sidebar wears the same dot, from
+ * The worst expiry across every provider, and who it belongs to. It does not
+ * join the attention band through the flag lane: every flag is a statement
+ * about one asset, and a credential here is portfolio-shared. The provider
+ * card carries the countdown (Reconnect is on it), and the sidebar and the
+ * small-screen bar carry a dot pointing at the card, from
  * {@link expiringCredentialSeverity} and {@link expiringCredentialSummary}.
+ * The Wall and Home's Alerts list carry nothing: a credential that actually
+ * expires stops its collector, and that is observed on the cards.
  *
  * Ordering is worst-first: expired beats expiring, and among expiring the one
  * that dies soonest wins the dot. `null` means nothing is worth a mark.
@@ -260,10 +181,9 @@ export function expiringCredentials(
   );
 }
 
-/** What the sidebar's Integrations entry should wear: `error` once something has
- * expired, `warn` inside the T-14d window, nothing otherwise. Deliberately the
- * severity scale rather than a scale of its own — an expiring credential IS an
- * ordinary warning, and a rival color for it would be a fourth severity. */
+/** What the sidebar's Integrations entry should wear: `error` once something
+ * has expired, `warn` inside the T-14d window, nothing otherwise. The severity
+ * scale, not a scale of its own. */
 export function expiringCredentialSeverity(
   rows: readonly ExpiringCredential[],
 ): "warn" | "error" | null {
@@ -271,18 +191,8 @@ export function expiringCredentialSeverity(
   return rows.length > 0 ? "warn" : null;
 }
 
-/**
- * What that dot SAYS — one sentence, wherever the dot appears (bead
- * `ro-vu8d.19`).
- *
- * A dot is a pointer and the sentence is the whole of what it carries, so the
- * sidebar entry and the small-screen bar that replaces it read it from here
- * rather than each composing their own. Two spellings of one fact is doc 14's
- * rule broken in the least visible place: nobody compares two hovers.
- *
- * `null` exactly when {@link expiringCredentialSeverity} is null — no dot, no
- * sentence.
- */
+/** What that dot says — one sentence, wherever the dot appears. `null`
+ * exactly when {@link expiringCredentialSeverity} is null. */
 export function expiringCredentialSummary(
   rows: readonly ExpiringCredential[],
 ): string | null {
@@ -300,14 +210,8 @@ export type FieldParse =
   | { ok: true; value: string }
   | { ok: false; error: string };
 
-/**
- * Validate one field's typed text into the string the PUT carries.
- *
- * Every kind sends a STRING, so this is about refusing what the provider would
- * refuse anyway — locally, before a secret leaves the browser. A service-account
- * JSON that does not parse is a paste that lost its last brace, and finding that
- * out from a 422 three seconds later is worse than finding it out on the field.
- */
+/** Validate one field's typed text into the string the PUT carries: refusing
+ * what the provider would refuse anyway, before a secret leaves the browser. */
 export function parseFieldValue(
   kind: IntegrationFieldKind,
   raw: string,
@@ -321,16 +225,9 @@ export function parseFieldValue(
   return { ok: true, value };
 }
 
-/**
- * One address that is itself the credential — a Discord webhook (bead
- * `ro-vu8d.18`).
- *
- * The commonest way to get this wrong is to paste the webhook's ID out of the
- * Discord UI instead of the URL behind **Copy Webhook URL**, so the refusal
- * names what a URL looks like rather than saying "invalid". The ingest re-checks
- * the same rule; this is the copy that arrives before a secret leaves the
- * browser.
- */
+/** One address that is itself the credential — a Discord webhook. The
+ * commonest mistake is pasting the webhook's ID instead of its URL, so the
+ * refusal names what a URL looks like. The ingest re-checks the same rule. */
 function parseUrl(raw: string): FieldParse {
   const value = raw.trim();
   if (value.length === 0) return { ok: false, error: "This field is empty." };
@@ -349,15 +246,9 @@ function parseUrl(raw: string): FieldParse {
   return { ok: true, value };
 }
 
-/**
- * A per-asset credential's map, as the sub-editor already serialized it (bead
- * `ro-vu8d.9`).
- *
- * The form draws ONE INPUT PER ASSET and hands this the JSON it built, so what
- * is checked here is the thing the ingest will check: a non-empty object of
- * asset id → a key with something in it. An operator never types a brace, and
- * the message never names a key.
- */
+/** A per-asset credential's map, as the sub-editor serialized it: a non-empty
+ * object of asset id → a key with something in it. An operator never types a
+ * brace, and the message never names a key. */
 function parseAssetMap(raw: string): FieldParse {
   const text = raw.trim();
   if (text.length === 0) {
@@ -398,22 +289,12 @@ function parseJsonField(raw: string): FieldParse {
   if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
     return { ok: false, error: "Expected a JSON object, like { … }." };
   }
-  // Re-serialized rather than passed through: what is stored is then exactly
-  // what was parsed, with no trailing prose a text field would have carried.
+  // Re-serialized rather than passed through, so what is stored is exactly what was parsed.
   return { ok: true, value: JSON.stringify(parsed) };
 }
 
-/**
- * One feed per line, `name = https://…`, into the `{ name: url }` object the
- * store holds.
- *
- * A LINE-BASED editor rather than a JSON one because these are calendar
- * subscription URLs the operator copies out of a calendar app one at a time,
- * and asking them to hand-write JSON braces around a pasted URL is asking them
- * to make a syntax error. A line with no `=` is still a feed — it gets a
- * positional name — because a single-feed setup should not have to invent a
- * label before it works.
- */
+/** One feed per line, `name = https://…`, into the `{ name: url }` object the
+ * store holds. A line with no `=` is still a feed and gets a positional name. */
 export function parseUrlList(raw: string): FieldParse {
   const lines = raw
     .split("\n")
@@ -443,16 +324,9 @@ export function parseUrlList(raw: string): FieldParse {
 
 // --- signing in to Google ---------------------------------------------------
 
-/**
- * Which of four things the Google card's sign-in half should be showing (bead
- * `ro-vu8d.3`).
- *
- * DERIVED, not stored, and derived HERE rather than inside the component,
- * because the same three facts decide the card, the kitchen-sink gallery and
- * every test: is the OAuth app entered, will Google return to this address, and
- * is there a grant. A component working this out inline would be a fourth copy
- * of the rule that only a browser could run.
- */
+/** Which of four things the Google card's sign-in half should be showing,
+ * derived from three facts: is the OAuth app entered, will Google return to
+ * this address, and is there a grant. */
 export type GoogleOAuthState =
   /** The console app has not been entered, so there is nothing to sign in to. */
   | "app-missing"
@@ -469,8 +343,8 @@ export interface GoogleOAuthCardState {
    * address this browser has the Tower open at. */
   redirectUri: string;
   /** Where the same Tower answers on loopback, the address Google accepts —
-   * what the card links to when this one is refused (bead `ro-ujb9.96.6.1`).
-   * Null when Google accepts this address, or it is not one. */
+   * what the card links to when this one is refused. Null when Google accepts
+   * this address, or it is not one. */
   loopbackUrl: string | null;
   /** Whose account is connected. Null until it is. */
   account: string | null;
@@ -480,14 +354,9 @@ export interface GoogleOAuthCardState {
   connectedAt: string | null;
 }
 
-/**
- * What the Google card knows about its two halves.
- *
- * `app` is the `google-oauth-app` credential — a separate row that never gets a
- * card of its own (`companionOf` in the contract), because a client id and
- * secret configure HOW you connect Google rather than being a second thing to
- * connect.
- */
+/** What the Google card knows about its two halves. `app` is the
+ * `google-oauth-app` credential, a row that never gets a card of its own
+ * (`companionOf` in the contract). */
 export function googleOAuthCardState(
   google: IntegrationProviderStatus,
   app: IntegrationProviderStatus | null,
@@ -504,11 +373,8 @@ export function googleOAuthCardState(
     scopes: grantedScopes(metadata?.scopes ?? []),
     connectedAt: metadata?.connectedAt ?? null,
   };
-  // ORDER IS THE ARGUMENT, and `connected` is checked FIRST on purpose: a
-  // credential that already works must keep saying so even from a browser
-  // Google would refuse to return to. An operator connects once at the loopback
-  // address and then reads the card from the LAN like every other page — being
-  // told the connection is impossible at that point would simply be false.
+  // `connected` is checked first: a credential that already works must keep
+  // saying so even from a browser Google would refuse to return to.
   if (connected) return { ...base, state: "connected" };
   if (app === null || app.credential.source === "none") {
     return { ...base, state: "app-missing" };
@@ -523,15 +389,9 @@ export interface GrantedScope {
   label: string;
 }
 
-/**
- * The scope URLs in plain English (doc 14 rule 8: a string an operator would
- * have to be told is a string that fails).
- *
- * An unrecognized scope keeps its URL rather than being dropped: a grant
- * carrying something this build has not heard of is exactly the thing worth
- * showing, and hiding it would make the card claim less access than the account
- * actually gave.
- */
+/** The scope URLs in plain English. An unrecognized scope keeps its URL
+ * rather than being dropped, so the card never claims less access than the
+ * account gave. */
 const SCOPE_LABELS: Record<string, string> = {
   openid: "Confirm who you are",
   email: "Your email address",
@@ -544,13 +404,12 @@ export function grantedScopes(scopes: readonly string[]): GrantedScope[] {
 }
 
 /** Google's connect panel — where the sign-in returns, and where a loopback
- * link lands (bead ro-ujb9.96.7.7). */
+ * link lands. */
 const GOOGLE_PROVIDER_PAGE = "/integrations?connect=google";
 
-/** What to say when the browser comes back from Google: what happened, and —
- * where the fix is one press somewhere else — that press (bead
- * `ro-ujb9.96.6.1`). The toast carries the action as its button, so the
- * message never has to spell the fix out. */
+/** What to say when the browser comes back from Google: what happened, and,
+ * where the fix is one press somewhere else, that press as the toast's
+ * button. */
 export interface GoogleOAuthNotice {
   tone: "ok" | "bad";
   message: string;
@@ -565,12 +424,10 @@ export interface GoogleOAuthNoticeAction {
   external: boolean;
 }
 
-/**
- * The callback carries a CODE, never a sentence (`GoogleOAuthFailure` in the
- * contract), and this page owns the wording — so nothing Google or the network
- * said can be reflected into the page through a query parameter. An
- * unrecognized value gets the generic sentence rather than being printed.
- */
+/** The callback carries a code, never a sentence, and this page owns the
+ * wording, so nothing Google or the network said can be reflected into the
+ * page through a query parameter. An unrecognized value gets the generic
+ * sentence. */
 const OAUTH_FAILURE_MESSAGES: Record<GoogleOAuthFailure | Extract<GoogleOAuthStart, { ok: false }>["error"], string> = {
   denied: "You cancelled the Google sign-in, so nothing changed.",
   state_invalid:

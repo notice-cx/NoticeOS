@@ -29,16 +29,13 @@ export interface FlagActionsProps {
    * and a site's Alerts tab — are the only callers; an open row never passes it.
    */
   snoozed?: boolean;
-  /** `flags.rule_id`. Given, a rule the detector's own settings steer offers
-   * Tune beside the lifecycle actions; every other rule renders nothing extra,
-   * which is `TuneRuleAction`'s own decision, not this row's (bead `ro-u072`). */
+  /** `flags.rule_id`. Given, `TuneRuleAction` decides whether this rule offers Tune. */
   ruleId?: string;
   /** `flags.metric`, so the preview follows the alert being looked at. */
   metric?: string | null;
   /**
-   * Which verbs this placement draws (D45, the D44 bar's "verbs in the row").
-   * A closed alert row carries Snooze and Resolve, the two that take it out of
-   * the queue; the opened row carries Mark read and Tune. Absent, all four.
+   * Which verbs this placement draws: a closed alert row carries Snooze and
+   * Resolve, the opened row Mark read and Tune. Absent, all four.
    */
   only?: readonly FlagVerb[];
 }
@@ -54,40 +51,15 @@ function toastFor(action: FlagAction, until: string | null): string {
 }
 
 /**
- * The alert lifecycle, under the row it acts on (docs/15 flow E).
+ * The alert lifecycle, under the row it acts on. Snooze expands in place
+ * rather than floating, since a positioned panel would be clipped by the
+ * alerts table's horizontal scroll; Escape puts the buttons back. A snooze
+ * commits at once and the toast carries its real inverse.
  *
- * SNOOZE IS HERE AND NOT ON THE PAGE because both surfaces that render an open
- * alert already render this component — the `/alerts` table and the asset
- * page's state hero — so the verb arrives on both from one place, saying one
- * thing. It was the missing verb every alerting product has: `ro-kukv.6` found
- * four identical month-old rows the operator had not acted on in four weeks,
- * which is not a triage failure, it is a queue with no "not now" in it.
- *
- * THE MENU EXPANDS IN PLACE rather than floating. Three presets and a date do
- * not justify a popover primitive the registry does not have, and an absolutely
- * positioned panel inside the alerts table would be clipped by its own
- * horizontal scroll container. Clicking Snooze swaps the button row for the
- * horizons; picking one or pressing Escape puts it back.
- *
- * UNDO, NOT CONFIRM (docs/15 principle 5). A snooze is reversible and local, so
- * it commits immediately and the toast carries its inverse — which is a real
- * inverse and not a second write with a different name: unsnooze ends the
- * snooze now, and the row returns as the same condition.
- *
- * TUNE IS THE FOURTH VERB, and it is a different KIND of verb (bead `ro-u072`).
- * Mark read, Snooze and Resolve all say what the operator did with this EVENT;
- * Tune changes what would produce it. It arrives as its own component, so this
- * row never has to learn which rules a pulse replay can honestly serve, and it
- * appears only on the OPEN row — the parked branch below is deliberately the one
- * action that row has, and the picker branch is a decision already in progress.
- *
- * IT IS ALSO THE ONE VERB THAT LEAVES THE ROW WHERE IT IS (bead `ro-van6`). A
- * save from its panel records `disposition='tune'` on THIS flag, with the
- * setting and its two values as the note, and the row stays in the queue wearing
- * a "tuned" chip: the rule got quieter, the drop that fired did not go away.
- * That record is what makes each rule's false-positive rate measurable at all —
- * without it, a rule the operator quietened by hand is indistinguishable in the
- * store from one nobody ever complained about.
+ * Tune changes what would produce the alert, not what the operator did with
+ * it, and appears only on an open row. A save records `disposition='tune'` on
+ * this flag with the setting's two values and the row stays open, which is
+ * what makes a rule's false-positive rate measurable.
  */
 export function FlagActions({
   flagId,
@@ -119,9 +91,8 @@ export function FlagActions({
             ? { label: "Undo", onClick: () => void act("unsnooze") }
             : undefined,
       });
-      // Everything that counts this alert re-reads: the open list, the site's
-      // page, and the settled archive — "Settled · 7d" and History move the
-      // moment the row leaves Open, not after a reload (bead `ro-ujb9.195`).
+      // Everything that counts this alert re-reads, so the open list, the
+      // site's page and the settled archive move without a reload.
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["wall"] }),
         queryClient.invalidateQueries({ queryKey: ["asset-detail", assetId] }),
@@ -263,15 +234,13 @@ export function FlagActions({
       >
         Resolve
       </Button> : null}
-      {/* The fourth verb — see the note above. It decides for itself whether
-          this rule has an honest replay, so the row stays one line. */}
+      {/* Tune decides for itself whether this rule has an honest replay. */}
       {ruleId && shows("tune") ? (
         <TuneRuleAction
           asset={assetId}
           ruleId={ruleId}
           metric={metric ?? null}
-          // Which alert the change is recorded ON (bead `ro-van6`): a save from
-          // the panel dispositions THIS row `tune`, and the row stays open,
+          // The flag a save from the panel dispositions `tune`; it stays open,
           // because tuning the detector is not resolving the firing.
           flagId={flagId}
         />

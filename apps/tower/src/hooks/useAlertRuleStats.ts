@@ -4,15 +4,15 @@ import type { AlertRuleStatsPayload } from "@shared/alert-rules";
 
 
 /**
- * What each alert rule has cost over the last quarter (bead `ro-ayxy`).
+ * What each alert rule has cost over the last quarter.
  *
- * NOT POLLED, for the same reason `useAlertHistory` is not: this is a record of
+ * Not polled, for the same reason `useAlertHistory` is not: this is a record of
  * what already happened, over ninety days, and a count that moves once a week
  * does not repay a sixty-second poll on a page the operator is typing into.
  * `useConfigSave` already invalidates what a save changes; a tune recorded from
  * the panel invalidates this key the same way.
  *
- * ONE QUERY KEY FOR BOTH SURFACES. `/settings#alert-rules` and every open Tune
+ * One query key for both surfaces. `/settings#alert-rules` and every open Tune
  * panel read the same cached payload, so the figure cannot differ between the
  * page that edits the rule and the alert the rule fired on.
  */

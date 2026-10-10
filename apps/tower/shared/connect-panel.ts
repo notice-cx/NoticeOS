@@ -1,7 +1,6 @@
-// The connect panel's vocabulary (bead `ro-ujb9.96.7.1`, epic `ro-ujb9.96.7`).
-// The status a connection wears everywhere, the panel's answer included, is
-// `connection-status.ts` (bead `ro-ujb9.96.7.3`); Checking lives in the panel
-// alone, because it lasts one call.
+// The connect panel's vocabulary. The status a connection wears everywhere is
+// `connection-status.ts`; Checking lives in the panel alone, because it lasts
+// one call.
 
 import type { ConnectVerdict, IntegrationProvider } from "@noticeos/contract";
 import { acceptedAs, integrationProvider } from "@noticeos/contract/integrations";
@@ -11,10 +10,9 @@ export function connectsInPanel(provider: Pick<IntegrationProvider, "connect">):
   return provider.connect !== undefined;
 }
 
-/** Where a site's source whose provider is not connected gets connected: the
- * one panel, opened for this site — which leads its site list (bead
- * `ro-ujb9.96.7.2`) — for a provider that connects there; the provider's own
- * page otherwise. */
+/** Where a site's unconnected source gets connected: the one panel, opened for
+ * this site, for a provider that connects there; the provider's own page
+ * otherwise. */
 export function connectHref(provider: string, asset: string): string {
   const spec = integrationProvider(provider);
   return spec && connectsInPanel(spec)
@@ -29,13 +27,9 @@ export function connectable(reading: { kind: string; provider: string | null }):
 }
 
 /**
- * THE SOURCE A SITE CONNECTS FIRST: the first connectable one, free before
- * paid, then by name. It is the row a site's Data sources give the page's one
- * primary Connect, and the step Home's first-run guide opens (bead
- * `ro-ujb9.123`) — one rule, so the two never point a stranger at different
- * sources. A source that spends money on every collection (a portfolio-month
- * meter, DataForSEO's) is never the page's first, filled Connect (D45): the
- * alphabet made it so on a site with every source open.
+ * The source a site connects first: the first connectable one, free before
+ * paid, then by name. Both the Data sources primary Connect and Home's
+ * first-run guide use it, so the two never point at different sources.
  */
 export function firstToConnect<T extends { kind: string; provider: string | null; label: string }>(
   readings: readonly T[],
@@ -50,10 +44,9 @@ export function providerName(provider: Pick<IntegrationProvider, "label">): stri
 }
 
 /**
- * What this connection's secret is called, in the words its own form uses
- * (bead `ro-ujb9.96.7.10`): the one typed field — "API key", "webhook URL" —
- * or "login" where the provider issues two values (a login and its password).
- * Null for a provider nothing is typed for.
+ * What this connection's secret is called, in the words its own form uses: the
+ * one typed field ("API key", "webhook URL"), or "login" where the provider
+ * issues two values. Null for a provider nothing is typed for.
  */
 export function secretNoun(provider: Pick<IntegrationProvider, "fields"> & Partial<Pick<IntegrationProvider, "connect">>): string | null {
   const typed = provider.fields.filter((field) => field.managed !== true);
@@ -75,7 +68,7 @@ export function replaceLabel(provider: Pick<IntegrationProvider, "fields"> & Par
   return noun === null ? null : `Replace ${noun}`;
 }
 
-// --- a list of named feeds (calendar feeds, bead `ro-ujb9.96.7.14`) ----------
+// --- a list of named feeds (calendar feeds) -----------------------------------
 
 /** One feed as the panel's rows hold it: its name (optional) and its URL. */
 export interface FeedRow {
@@ -127,7 +120,6 @@ export function refusalLine(
   const name = providerName(provider);
   if (verdict === "unreachable") return `${name} did not answer`;
   const typed = provider.fields.filter((field) => field.managed !== true).length;
-  // Named for what was given, as the accepted chip is (`acceptedAs`, bead
-  // ro-ujb9.96.7.25): an address is not called a key.
+  // Named for what was given, as the accepted chip is: an address is not a key.
   return `${name} refused ${typed > 1 ? "these details" : acceptedAs(provider) === "url" ? "this URL" : "this key"}`;
 }

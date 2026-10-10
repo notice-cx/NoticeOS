@@ -23,8 +23,7 @@ describe("recommendation source read model against the real schema", () => {
   });
   afterEach(() => fixture.close());
 
-  /** Search Console report runs, on Postgres where the collector writes them
-   * (bead ro-ujb9.76.5.4), in the order given. */
+  /** Search Console report runs, in the order given. */
   async function insert(...runs: [id: string, report: string, date: string, at: string, status?: TestArchiveRun["status"], asset?: string][]) {
     await writeArchiveRuns(fixture.call, runs.map(([id, report, date, at, status = "success", asset = "nosh.example"]) => ({
       id, asset, integration: "gsc", report, credential_ref: "fixture-account-reference", property_ref: "fixture-property",

@@ -3,20 +3,10 @@ import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { cn } from "@/lib/utils";
 
 /**
- * A SCREEN'S ONE ANSWER, FIRST (D44, doc 14 § Surface kinds and the D44 bar;
- * Home's greeting line is the first caller). One sentence at the display
- * scale — "1 of 7 sites at risk", "2 open alerts, both warnings", "Nothing
- * waits on you" — a muted line under it, and at most three figures beside it,
- * each an eyebrow over a number. It replaces a strip of equal boxes: the
- * hierarchy is scale, not borders, and the eye lands on the answer before any
- * table or grid.
- *
- * A screen has one. The sentence is under twelve words (the UX gate measures
- * it); a figure is a label and a number, never a sentence.
- *
- * *Registry justification:* `KpiStrip` is a row of equal cells, each fused to
- * a series; `StatusBanner` is a setup ring with one action; `SectionLabel`
- * names a section. None is a screen's opening sentence over its key figures.
+ * A screen's one answer, first: one sentence at the display scale ("1 of 7
+ * sites at risk"), a muted line under it, and at most three figures beside it,
+ * each an eyebrow over a number. The sentence stays under twelve words (the UX
+ * gate measures it).
  */
 export interface AnswerFigure {
   label: string;

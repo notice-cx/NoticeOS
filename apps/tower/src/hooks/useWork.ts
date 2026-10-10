@@ -11,7 +11,7 @@ import type { WorkPayload } from "@shared/work";
  * kept on a failed poll, so the board ages its age chip rather than blanking.
  *
  * `enabled: false` where the surface asking draws nothing without a task source
- * connected (D32), so an installation with none never polls for a board.
+ * connected, so an installation with none never polls for a board.
  */
 export function useWork({ enabled = true }: { enabled?: boolean } = {}) {
   const { fetchWork } = useTowerApi();

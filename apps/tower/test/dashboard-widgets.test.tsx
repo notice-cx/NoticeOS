@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { CountdownWidget } from "@/components/DashboardWidgets";
 
-/** The countdown's editor saves through the config lane, so it reads and writes
- * through TanStack Query. Nothing here stubs `fetch`: the writability question
- * failing is exactly the state a browser is in before the answer arrives, and
- * the field stays live for it (useConfigWritable's optimistic default). */
+/** The countdown's editor saves through the config lane, so it reads and
+ * writes through TanStack Query. Nothing here stubs `fetch`: the writability
+ * question failing is the state a browser is in before the answer arrives,
+ * and the field stays live for it (useConfigWritable's optimistic default). */
 function withClient(node: ReactNode) {
   return (
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
@@ -121,11 +121,9 @@ describe("the desk countdown", () => {
     expect(container.querySelectorAll("[data-countdown-unit]")).toHaveLength(2);
   });
 
-  // The three values are ONE setting with ONE Save (D18, bead ro-pbzu.5): the
-  // emoji, the words and the moment are read as a single landmark, so they are
-  // written as a single changeset or not at all. Until the save lands the widget
-  // above keeps showing what is CONFIGURED — an edit in progress is not a state
-  // the Wall should be able to read off Home.
+  // The three values are one setting with one Save: the emoji, the words and
+  // the moment are one landmark, written as a single changeset or not at all.
+  // Until the save lands the widget keeps showing what is configured.
   it("edits its three values as one form with one Save, and previews nothing", () => {
     render(
       withClient(
@@ -138,20 +136,16 @@ describe("the desk countdown", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Configure" }));
-    // Nothing to write yet, so there is nothing to press.
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Countdown emoji"), { target: { value: "🌁" } });
-    fireEvent.change(screen.getByLabelText("Countdown label"), { target: { value: "SF Trip" } });
+    fireEvent.change(screen.getByLabelText("Countdown label"), { target: { value: "Team offsite" } });
 
     expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
-    // One Save for all three — never one per field.
     expect(screen.getAllByRole("button", { name: "Save" })).toHaveLength(1);
-    // The widget still reads the configured values, not the drafts.
     expect(screen.getByRole("img", { name: "Countdown symbol: 🚀" })).toBeInTheDocument();
     expect(screen.getByText("Launch")).toBeInTheDocument();
-    expect(screen.queryByText("SF Trip")).not.toBeInTheDocument();
-    // Nothing is staged anywhere any more, so nothing says so.
+    expect(screen.queryByText("Team offsite")).not.toBeInTheDocument();
     expect(screen.queryByText(/only staged/u)).not.toBeInTheDocument();
     expect(screen.queryByText("Review changes")).not.toBeInTheDocument();
 
@@ -206,11 +200,10 @@ describe("the desk countdown", () => {
       />,
     );
     const reached = view.container.querySelector("[data-countdown-reached]")!;
-    // Below the ramp's own muted floor: this word is set in the live measures'
-    // 4xl/5xl bold caps, which a finished countdown has not earned.
+    // Below the ramp's own muted floor: this word is set in the live
+    // measures' 4xl/5xl bold caps, which a finished countdown has not earned.
     expect(reached).toHaveClass("text-muted-foreground/50");
     expect(reached).not.toHaveClass("text-error");
-    // The red FIELD nags as loudly as the red text does.
     expect(reached).not.toHaveClass("bg-error-soft");
     expect(
       view.container.querySelector("[data-proximity]"),

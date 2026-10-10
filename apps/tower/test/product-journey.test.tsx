@@ -16,9 +16,8 @@ import { parseProductSnapshot } from "@shared/product-snapshot";
 import { ProductJourney } from "@/components/ProductJourney";
 import posthogProductJson from "@/routes/kitchen-sink/posthog-product.json";
 
-// The Growth tab's Product section (beads ro-ghis.2 / ro-ghis.3), rendered from
-// the block `scripts/signal-insights.mjs` really emits for the PostHog
-// acceptance read (meals.example, 2026-09-08 → 09-22).
+// The Growth tab's Product section, rendered from the block
+// `scripts/signal-insights.mjs` really emits for the PostHog acceptance read.
 
 const PRODUCT: ProductSnapshot = parseProductSnapshot(posthogProductJson)!;
 
@@ -48,28 +47,22 @@ describe("shared/product — the section's arithmetic", () => {
     const issues = productIssues(PRODUCT);
     expect(issues.slice(0, 4).map((issue) => issue.kind)).toEqual(["speed", "rage", "error", "once"]);
     expect(issues.at(-1)?.kind).toBe("noise");
-    // Chrome OS (INP poor) is an error-tone row; Windows (INP needs improvement) warns.
     const speed = issues.filter((issue) => issue.kind === "speed");
     expect(speed.map((issue) => issue.severity)).toEqual(["error", "warn", "warn"]);
-    // Good segments are not breakage.
     expect(speed).toHaveLength(3);
   });
 
   it("groups findings by page, worst group first, an unplaced error under the whole site and noise last", () => {
     const groups = productIssueGroups(PRODUCT);
     expect(groups.map((group) => group.key)).toEqual(["page:/calculator", "page:/", "site", "page:/my", "third-party"]);
-    // The worst finding ranks the group and leads it.
     expect(groups[0]!.severity).toBe("error");
     expect(groups[0]!.issues[0]!.severity).toBe("error");
-    // Every finding is in exactly one group.
     expect(groups.flatMap((group) => group.issues)).toHaveLength(productIssues(PRODUCT).length);
-    // An error PostHog could not place joins the whole-site group, never a page.
     const unplaced = productIssueGroups({
       ...PRODUCT,
       exceptions: { ...PRODUCT.exceptions!, top: PRODUCT.exceptions!.top.map((row) => ({ ...row, topPath: null })) },
     });
     const site = unplaced.find((group) => group.key === "site")!;
-    // Equal severity keeps the ranked list's order.
     expect(site.issues.map((issue) => issue.kind)).toEqual(["error", "once", "error", "error"]);
     expect(unplaced.at(-1)!.key).toBe("third-party");
   });
@@ -99,35 +92,30 @@ describe("ProductJourney", () => {
     const { container } = renderJourney(PRODUCT);
     const section = container.querySelector("[data-product-journey]")!;
     expect(within(section as HTMLElement).getByRole("heading", { name: "Product" })).toBeInTheDocument();
-    // The daily window is stated once, in the caption over the strip it dates.
     expect(section.textContent).toContain("PostHog · daily Aug 26–Sep 22, 2026");
 
-    // The strip: people a day is an AVERAGE, page views and sessions totals.
     expect(section.textContent).toContain("People a day");
     expect(section.textContent).toContain("daily average, 28 days");
     expect(section.textContent.match(/Aug 26–Sep 22, 2026/g)).toHaveLength(1);
-    // Every daily figure rides its series.
     for (const name of ["People a day trend", "Page views trend", "Sessions trend"]) {
       expect(within(section as HTMLElement).getByRole("img", { name })).toBeInTheDocument();
     }
 
-    // The funnel: four steps as bars against the first, the drop marked in words.
     const funnel = container.querySelector('[data-product-funnel="calculator"]')!;
     expect(funnel.querySelectorAll("[data-funnel-step]")).toHaveLength(4);
     expect(funnel.querySelectorAll('[role="progressbar"]')).toHaveLength(4);
     expect(funnel.querySelector("[data-funnel-conversion]")!.textContent).toBe("6.5% finish · 8.2% the week before");
     const drop = funnel.querySelector("[data-largest-drop]")!;
-    // The marker rides the step's NAME; its percentage stays a plain share, so
-    // "▼ 8%" can never read as "down 8%".
+    // The marker rides the step's name; its percentage stays a plain share,
+    // so "▼ 8%" can never read as "down 8%".
     expect(drop.textContent).toContain("▼ plan_saved");
     expect(drop.textContent).toContain("8%");
     expect(drop.textContent).not.toContain("▼ 8%");
     expect(funnel.textContent).toContain("Largest drop: 14,162 people stop before plan_saved");
     expect(funnel.textContent).toContain("vs the week before");
 
-    // Where it breaks, GROUPED BY PAGE (bead ro-ujb9.96.6.5): closed, the
-    // worst finding of each of the three worst places — still three rows, and
-    // still a spread of places rather than three rows about one page.
+    // Where it breaks, grouped by page: closed, the worst finding of each of
+    // the three worst places.
     const list = screen.getByRole("region", { name: "Where it breaks" });
     const groupsOf = () =>
       Array.from(list.querySelectorAll("[data-list-group]")).map((group) => ({
@@ -140,7 +128,6 @@ describe("ProductJourney", () => {
       { place: "/", heading: "/ 2 found", rows: ["error"] },
       { place: "site", heading: "Whole site 1 found", rows: ["once"] },
     ]);
-    // The page is said once, in the heading; the row keeps only what differs.
     expect(list.textContent).toContain("Chrome OS Desktop");
     expect(list.textContent).not.toContain("/calculator · Chrome OS Desktop");
     expect(list.textContent).toContain("744 ms");
@@ -149,8 +136,6 @@ describe("ProductJourney", () => {
     expect(list.textContent).toContain(`${issues} found · Sep 8–22, 2026`);
     fireEvent.click(within(list).getByRole("button", { name: `Show ${issues - 3} more` }));
     expect(list.querySelectorAll("[data-product-issue]")).toHaveLength(issues);
-    // Open: every finding in its page's group, most severe first; the groups
-    // ranked by their worst finding, and probable third-party noise last.
     expect(groupsOf()).toEqual([
       { place: "/calculator", heading: "/calculator 6 found", rows: ["speed", "rage", "speed", "rage", "error", "rage"] },
       { place: "/", heading: "/ 2 found", rows: ["error", "speed"] },
@@ -163,9 +148,7 @@ describe("ProductJourney", () => {
     expect(list.textContent).toContain("40,975 of 48,640 errors");
     expect(list.textContent).toContain("first_meal_logged fires 3.0× per person");
 
-    // Every rule fired, so there is no checks line.
     expect(container.querySelector("[data-product-checks]")).toBeNull();
-    // Metrics align: every value slot is tabular.
     expect(section.querySelectorAll(".tabular-nums").length).toBeGreaterThan(10);
   });
 
@@ -185,15 +168,13 @@ describe("ProductJourney", () => {
     expect(list.textContent).toContain("LCP 3,844 ms · Needs improvement");
     expect(list.textContent).toContain("INP 744 ms · Poor");
     expect(list.textContent).toContain("CLS 0.02 · Good");
-    // Google's two lines are the chip's own hover, not a paragraph elsewhere.
     expect(within(list).getByText(/INP 744 ms/).closest("[title]")!.getAttribute("title")).toBe(
       "INP p75 · good ≤ 200 ms · poor > 500 ms",
     );
-    // How many measurements back it is on the row, once.
     expect(list.textContent!.match(/22,298 measurements/g)).toHaveLength(1);
   });
 
-  it("opens a row onto labelled facts and a state, never a paragraph (ro-ujb9.96.6.5)", () => {
+  it("opens a row onto labelled facts and a state, never a paragraph", () => {
     renderJourney(PRODUCT);
     const list = screen.getByRole("region", { name: "Where it breaks" });
     fireEvent.click(within(list).getByRole("button", { name: "Show 8 more" }));
@@ -216,7 +197,6 @@ describe("ProductJourney", () => {
     fireEvent.click(within(list).getByRole("button", { name: /Load failed/ }));
     const noise = list.querySelector('[data-product-issue="noise"]')!;
     expect(noise.querySelector("[data-error-origin]")!.getAttribute("data-error-origin")).toBe("none");
-    // No opened row carries a sentence: every text run is a few words.
     for (const node of list.querySelectorAll("[data-list-row-body] *")) {
       const own = [...node.childNodes].filter((child) => child.nodeType === 3).map((child) => child.textContent).join("");
       expect(own.split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(12);
@@ -265,12 +245,10 @@ describe("ProductJourney", () => {
     expect(say("off")).toContain("Product data is not collected for this site.");
   });
 
-  it("needs no explainer: no About and no header tooltip (ro-ujb9.96.6.5)", () => {
+  it("needs no explainer: no About and no header tooltip", () => {
     const { container } = renderJourney(PRODUCT);
     const section = container.querySelector("[data-product-journey]")!;
     expect(section.querySelector("[data-about]")).toBeNull();
-    // The header is title, source and window; the read date appears only when
-    // it differs from the window's last day (here it does not).
     const header = within(section as HTMLElement).getByRole("heading", { name: "Product" }).parentElement!;
     expect(header.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(section.textContent).not.toContain("read Sep 22");

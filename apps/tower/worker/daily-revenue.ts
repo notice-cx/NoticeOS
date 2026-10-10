@@ -5,8 +5,7 @@ import { shiftRevenueDate } from '../shared/revenue-projection';
 import type { RevenueDay } from '../shared/revenue-projection';
 import { cents } from './ledger-history';
 
-/** One site's daily revenue from `from` to `to`, on the call's store (bead
- * ro-ujb9.76.5.5): the newest figure Mediavine gave for each day. */
+/** The newest figure Mediavine gave for each day. */
 export async function loadDailyRevenue(
   store: WorkspaceStore, asset: string, from: string, to: string,
 ): Promise<DailyRevenueHistory> {
@@ -24,14 +23,9 @@ export async function loadDailyRevenue(
 }
 
 /** A reported subtotal, with explicit coverage against mapped/reporting sources.
- * The window ends at the last completed Mediavine reporting day (D42).
- *
- * A source owes a day only from its FIRST report onward (bead `ro-rd6r`):
- * `mediavine_sites` carries no mapping date, so the earliest current report is
- * the day the site started reporting. Counting the days before it as missing
- * called a site that joined in August "0/30" for June and buried a real
- * three-day outage among days nobody could have reported. A site that has
- * never reported owes nothing yet; its lane's own health says so. */
+ * The window ends at the last completed Mediavine reporting day. A source owes
+ * a day only from its first report onward (`mediavine_sites` carries no mapping
+ * date); a site that has never reported owes nothing yet. */
 export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: string, now: Date): Promise<PortfolioDailyRevenue> {
   const from = `${period}-01`;
   const nextMonth = new Date(`${from}T12:00:00Z`);
@@ -39,7 +33,7 @@ export async function loadPortfolioDailyRevenue(store: WorkspaceStore, period: s
   const monthEnd = shiftRevenueDate(nextMonth.toISOString().slice(0, 10), -1);
   const yesterday = yesterdayRevenue(now, MEDIAVINE_REPORTING_CLOCK.timeZone, []).date;
   const to = monthEnd < yesterday ? monthEnd : yesterday;
-  // Text is ordered byte for byte, as D1 ordered it.
+  // Text is ordered byte for byte.
   const { rows, sourceRows } = await store.read(async (tx) => ({
     rows: await tx.query<{ asset: string; date: string; amountMinor: bigint }>(
       `SELECT asset_id AS asset, report_date AS date, amount_minor AS "amountMinor"

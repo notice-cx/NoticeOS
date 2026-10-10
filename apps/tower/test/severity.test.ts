@@ -1,7 +1,6 @@
 // @vitest-environment node
 // Reporting coverage → the attention system (lib/severity). Home's reporting
-// tile reads it; it lived beside the pre-D28 Wall's System card, whose tests
-// pinned it, until that card left the Tower (bead ro-trai.20).
+// tile reads it.
 
 import { describe, expect, it } from "vitest";
 import { coverageSeverity } from "@/lib/severity";

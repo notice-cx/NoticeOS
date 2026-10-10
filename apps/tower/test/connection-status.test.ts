@@ -1,12 +1,10 @@
 // @vitest-environment node
-// The one status model for a connection (bead `ro-ujb9.96.7.3`).
-//
-// WHAT IS PROTECTED: a connection's status says whether it works NOW. Report
-// dates that failed during an outage and were never retried are counted as
-// missing reports on their site, never as a failing connection; one site that
-// fails is that site's status and a fact on the provider; a refused credential
-// or most sites failing is Failing; an incomplete report is a data fact; and
-// nothing is Working before a stored success — a stale read is Unknown.
+// The one status model for a connection: its status says whether it works
+// now. Report dates that failed during an outage and were never retried are
+// counted as missing reports on their site, never as a failing connection;
+// one site that fails is that site's status and a fact on the provider; a
+// refused credential or most sites failing is Failing; an incomplete report
+// is a data fact; and nothing is Working before a stored success.
 
 import { describe, expect, it } from "vitest";
 import type { CredentialSummary, IntegrationHealthItem, IntegrationHealthPayload } from "@noticeos/contract";
@@ -73,9 +71,9 @@ describe("a connection's one status", () => {
     expect(needsOperator(status)).toBe(0);
   });
 
-  // Bead ro-ujb9.96.7.17: the report and its day are the item's own fields.
-  // Display text reworded to say the same thing on every row can neither merge
-  // two reports into one work nor lose a missing date.
+  // The report and its day are the item's own fields: display text reworded
+  // to say the same thing on every row can neither merge two reports into one
+  // nor lose a missing date.
   it("reads each report and its day from the item's fields, never its display text", () => {
     const reworded = (entry: IntegrationHealthItem): IntegrationHealthItem => ({ ...entry, detail: "Search Console report" });
     const items = [

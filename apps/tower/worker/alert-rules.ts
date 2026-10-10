@@ -1,22 +1,6 @@
-// GET /api/alerts/rules — what each alert rule has actually cost, per rule_id
-// over the last quarter (bead `ro-ayxy`, docs/15 flow E).
-//
-// WHY IT IS ITS OWN READ AND NOT A FIELD ON `/api/settings`. The settings
-// payload is a PURE builder over the injected config and says so at the top of
-// its own file: nothing on that page is evidence, so an empty database — or a
-// down one — must not be able to blank the page an operator opens to fix
-// things. Folding a store read into it would trade that guarantee for one
-// section's figures. It would also be the wrong shape for the second consumer:
-// the Tune panel opens from an alert row on the Wall and the asset page, where
-// `/settings` is not loaded, and it needs ONE rule's figure rather than the
-// whole portfolio-wide settings payload.
-//
-// SO THE SPLIT IS: config on `/api/settings`, evidence here, and the settings
-// page reads both. A section that cannot reach this read still renders its
-// editable fields, which is the behaviour the pure builder was protecting.
-//
-// READ-ONLY, like every other `/api/alerts/*` read. Dispositions are written by
-// `flag-actions.ts` and stay there.
+// GET /api/alerts/rules — what each alert rule has actually cost over the last
+// quarter. Read-only, and separate from `/api/settings` so a down store cannot
+// blank the settings page, and so the Tune panel can ask for one rule.
 
 import {
   ALERT_RULE_WINDOW_DAYS,
@@ -28,55 +12,27 @@ import { everTunedSql, settledFlagsSql } from "./flag-scope";
 import { loadFlagTuneCounts } from "./flag-tunes";
 import { JSON_HEADERS, jsonError } from "./http";
 
-/**
- * SETTLED, composed from the one module that defines the three alert states
- * (`@noticeos/contract`'s `flag-open.ts`) rather than spelled out again here.
- *
- * It matters more here than anywhere: this read is the denominator of a number
- * the OS will eventually propose rule changes from, and a second hand-written
- * opinion about what "finished with" means would put the false-positive rate and
- * the alert queue on different books. A snoozed alert is not in it (bead
- * `ro-ujb9.194`): nobody has answered it yet, only put it off.
- */
+/** Settled, from the one module that defines the alert states, so the
+ * false-positive rate and the alert queue agree. A snoozed alert is not
+ * settled. */
 const SETTLED = settledFlagsSql();
 
 /**
- * THE NUMERATOR IS "was ever tuned", not "says tune right now" (bead
- * `ro-bkcl`).
- *
- * `disposition` is one slot, so an alert the operator tuned AND then marked
- * read used to count as read and nothing else — the tune vanished from the very
- * measurement it exists to feed, and it vanished specifically for the operator
- * who did both halves of the job. The record now survives in the note behind
- * `shared/tune.ts`'s mark, and this is the predicate that reads it, composed
- * from `worker/flag-scope.ts` so the count and the row's chip cannot disagree.
- *
- * ONE CONSEQUENCE, ON PURPOSE: `tuned` and `acknowledged` no longer partition
- * the settled rows. A row that was tuned and then marked read is in both, and
- * has to be — it is one alert that carries two true facts. Nothing sums these
- * four fields, and `tuneShare` divides `tuned` by `settled`, never by a total
- * of the buckets.
+ * The numerator is "was ever tuned", not "says tune right now". So `tuned` and
+ * `acknowledged` do not partition the settled rows: a row tuned then marked
+ * read is in both. Nothing sums the buckets; `tuneShare` divides `tuned` by
+ * `settled`.
  */
 const EVER_TUNED = everTunedSql();
 
 const DAY_MS = 86_400_000;
 
 /**
- * The counts, in ONE round trip.
- *
- * The settled predicate is evaluated ONCE in a subquery and reduced to a 1/0
- * column the outer aggregate reads five different ways. Repeating it in each
- * `SUM(CASE …)` would be five copies of the same clause to keep in step.
- *
- * One bind: the window's start. Settled needs no clock — no date moves an
- * alert into or out of it (`flag-open.ts`). On Postgres (bead ro-ujb9.76.5.2),
- * over `current_flags`: an alert a same-day report retry replaced is none, as
- * D1 had deleted it.
- *
- * The window is on `fired_at` — WHEN THE RULE FIRED, not when the alert was
- * closed. A rule judged on the alerts it produced this quarter is the question;
- * an alert from six months ago that the operator only got round to yesterday
- * would otherwise land in a quarter it says nothing about.
+ * The counts in one round trip; the settled predicate is evaluated once and
+ * reduced to a 1/0 column. One bind, the window's start: settled needs no
+ * clock. Over `current_flags`, so an alert a same-day report retry replaced is
+ * not counted. The window is on `fired_at`: a rule is judged on the alerts it
+ * produced this quarter, not on when they were closed.
  */
 const COUNTS_SQL = `
   SELECT rule_id AS "ruleId",
@@ -120,12 +76,9 @@ export async function buildAlertRuleStatsPayload(
 
   const rows = await store.read((tx) => tx.query<CountsRow>(COUNTS_SQL, [since]));
 
-  // HOW MANY TIMES, from its own table (bead `ro-6d1t`). Separate from the
-  // counts above because it is a different question over different rows: those
-  // count ALERTS this rule produced inside the window, this counts DECISIONS the
-  // operator made about the rule inside it. `null` is the store saying it cannot
-  // answer — `flag_tunes` is an operator-applied migration — and it travels as
-  // null all the way to the surface rather than collapsing into a zero.
+  // Tune decisions, from their own table: those above count alerts, these
+  // count decisions. `null` means the store cannot answer and stays null to the
+  // surface rather than becoming a zero.
   const tunes = await loadFlagTuneCounts(store, since);
 
   return {
@@ -154,11 +107,7 @@ function count(value: number | null | undefined): number {
   return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
-/**
- * The route. GET only, and unauthenticated for the same reason every other
- * `/api/*` read here is: identical evidence, one trust boundary
- * (`worker/index.ts`).
- */
+/** GET only; admitted like every other `/api/*` read (`worker/index.ts`). */
 export async function handleAlertRuleStatsRequest(
   request: Request,
   store: WorkspaceStore,

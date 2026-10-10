@@ -24,19 +24,13 @@ import { cn } from "@/lib/utils";
 import { metricWindow, type Aggregate } from "@/routes/asset-detail/overview-metrics";
 
 /**
- * THE GROWTH TAB'S CHART PANELS, shared (bead `ro-ujb9.136`).
- *
- * Growth draws its audience and search pairs from these; the Search tab draws
- * the same search pair when the site has search numbers but tracks no terms
- * yet, so a site's clicks are one rendering on both tabs. Moved verbatim from
- * GrowthTab.tsx.
+ * The Growth tab's chart panels, shared: the Search tab draws the same search
+ * pair when the site has search numbers but tracks no terms yet, so a site's
+ * clicks are one rendering on both tabs.
  */
 
-/**
- * THE SEARCH PAIR: clicks and impressions, Google and Bing added, one line
- * each — Growth's Search section, and the Search tab's lead until the site
- * tracks terms.
- */
+/** The search pair: clicks and impressions, Google and Bing added, one line
+ * each. */
 export function SearchPair({
   performance,
   days,
@@ -63,9 +57,9 @@ export function SearchPair({
           <SectionCaption
             label="About search charts"
             text="Google and Bing added, one line each"
-            // ONE statement for the pair: a reporting timezone moves for a
+            // One statement for the pair: a reporting timezone moves for a
             // whole property, so a Search Console change lands on clicks and
-            // impressions at once (doc 14, bead `ro-jkp2`).
+            // impressions at once.
             caveat={sectionCaveat(search, days)}
           />
         }
@@ -120,31 +114,17 @@ export interface TrendInput {
 
 // --- what happened on a day, as marks on the axis --------------------------
 
-/**
- * THE TWO THINGS A CHART OWES ITS OWN X AXIS (doc 14 principle 8).
- *
- * A reporting-timezone change and a recorded deploy are both "something happened
- * on this day", and both change how a reader should judge the shape around them.
- * `HeroChart` draws either as a dashed mark, so neither needs a paragraph.
- *
- * PER CHART, because a reporting timezone belongs to ONE provider's property: a
- * Search Console move is not evidence about a Google Analytics day
- * (`ro-kukv.8`), so a chart is marked from its own series' changes and from the
- * asset's timeline, which is everybody's.
- *
- * A MOVE MARKS TWO DAYS, because moving a day boundary by N hours moves N hours
- * from one day to its neighbour: the change day and the one before it are both
- * wrong by the move alone.
- *
- * The timeline half is `timelineAnnotations` — the Overview's derivation, shared
- * rather than re-typed, so the same deploy is labelled the same sentence
- * wherever it is marked, and never with the row's KIND (bead `ro-78qo.4`).
- */
 /** The mark a reporting-timezone day wears, so a caption can tell the two kinds
  * apart: one changes how the numbers may be read, the other says what happened.
  */
 const TIMEZONE_GLYPH = "\u26a0";
 
+/**
+ * A chart's x-axis marks: reporting-timezone changes and recorded deploys.
+ * Per chart, because a reporting timezone belongs to one provider's property.
+ * A move marks two days: shifting a day boundary by N hours moves N hours from
+ * one day to its neighbour.
+ */
 export function chartAnnotations(
   /** Structural rather than `SignalTrend`, so a merged pair of providers can
    * ask the same question of its own union of changes. */
@@ -171,19 +151,12 @@ export function chartAnnotations(
 // --- the chart pairs -------------------------------------------------------
 
 /**
- * One 180px chart with its headline: what the window totals, which way it moved,
- * and the shape that produced both.
- *
- * ONE OR MORE PROVIDERS, one measurement. The figure comes from `metricWindow`
- * — the asset page's single derivation, the same one the Overview's KPI strip
- * reads — so "search clicks" is one number on this asset whichever tab states
- * it. Before that function existed this panel read Google alone while the strip
- * read Google and Bing added together, and the page printed 16,905 in one place
- * and 25,452 in the other (bead `ro-78qo.4`).
- *
- * The CHART still draws each provider as its own line with its own colour and
- * its own toggle: two providers are one measurement to add up and two lines to
- * look at, and a single merged line would hide which of them moved.
+ * One 180px chart with its headline: what the window totals, which way it
+ * moved, and the shape that produced both. The figure comes from
+ * `metricWindow`, the same derivation the Overview's KPI strip reads, so
+ * "search clicks" is one number on this asset whichever tab states it. The
+ * chart still draws each provider as its own line with its own toggle, because
+ * a single merged line would hide which of them moved.
  */
 export function TrendPanel({
   title,
@@ -257,11 +230,9 @@ export function TrendPanel({
         className="mt-2.5"
         emptyLabel="No reports in this window yet"
         ariaLabel={`${asset} ${title.toLocaleLowerCase("en-US")} over the last ${days} days`}
-        // WHAT EACH PROVIDER ADDED TO THE HEADLINE, as counts (bead
-        // `ro-ujb9.96.6.5`). The headline's period and its day count are
-        // printed above the chart, and a missing provider day is a gap on the
-        // line; the one fact not already on screen is how many of the headline
-        // days each provider reported.
+        // What each provider added to the headline, as counts: the one fact
+        // not already on screen is how many of the headline days each provider
+        // reported.
         footnote={completedWindow && trends.length > 1 ? (
           <span data-provider-coverage>
             {trends.map((one) => (
@@ -278,13 +249,9 @@ export function TrendPanel({
 
 /**
  * The period-over-period move, withheld wherever the two windows cannot be
- * compared honestly (doc 14, bead `ro-ujb9.40`).
- *
- * NO ⚠ HERE. A reporting timezone moves for a whole property, so one Search
- * Console change lands on the clicks chart AND the impressions chart beside it;
- * a glyph per headline would be one fact wearing two. The withdrawal is per
- * chip, the STATEMENT of it is per section (`sectionCaveat` below), which is
- * doc 14's own rule.
+ * compared honestly. No ⚠ here: a reporting timezone moves for a whole
+ * property, so the withdrawal is per chip and the statement of it is per
+ * section (`sectionCaveat` below).
  */
 export function Movement({ delta }: { delta: PeriodDelta | null }) {
   if (delta === null || (delta.comparable && delta.percent === null)) return null;
@@ -328,7 +295,7 @@ export function sectionCaveat(
       trend.provisionalFrom,
     );
     if (delta === null) continue;
-    // THE WHOLE SPAN THE COMPARISON COVERS, both sides — a change on the prior
+    // The whole span the comparison covers, both sides — a change on the prior
     // window's days distorts the comparison exactly as much as one on this
     // window's. `TimeZoneCaveat` asks the same predicate of the same span, so
     // the glyph and this decision can never disagree.

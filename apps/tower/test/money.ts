@@ -1,22 +1,15 @@
-// THE MONEY A TEST SEEDS, ON POSTGRES (beads ro-ujb9.76.6.1, ro-ujb9.76.5.5).
+// The money a test seeds, written through the application role into the
+// call's store (`ctx.call`, test/sites.ts), whose sites must exist first. Write
+// in the tests that read money, never in a shared seed: each test would get its
+// own Postgres copy and the suite queues on them.
 //
-// The ledger and Mediavine's daily revenue are read from the call's store, so a
-// test writes them there, through the application role, into the store its
-// reader takes (`ctx.call`, test/sites.ts): its sites must be there
-// first, since every row names one. A test that writes gets that copy to
-// itself, so write in the tests that read money, never in a seed every test in
-// a file runs: a shared seed that writes Postgres gives every test its own
-// copy, and the suite queues on them.
-//
-// A fixture names its entries by D1-style ids (`id: 1`, `supersedes_id: 1`).
-// Those are the fixture's own names: the store hands out each entry's identity
-// and its workspace number, and a correction's link is resolved from the name
-// to the identity the store gave the entry it names. An estimate's coverage is
-// read from its note by the one rule the importer and the ledger route apply.
+// Fixtures name entries by small integer ids (`id: 1`, `supersedes_id: 1`); the
+// store assigns the real identity and workspace number, and a correction's link
+// is resolved through those names.
 import { mediavineCoverage } from "@noticeos/contract/ledger-coverage";
 import type { WorkspaceStore } from "@noticeos/postgres";
 
-/** One ledger row as a D1 fixture wrote it: a 'YYYY-MM' period, integer cents. */
+/** One ledger row as a fixture writes it: a 'YYYY-MM' period, integer cents. */
 export interface LedgerRow {
   /** The fixture's name for this entry, for a later row's `supersedes_id`. */
   id?: number;

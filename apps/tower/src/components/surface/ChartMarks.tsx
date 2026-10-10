@@ -2,10 +2,8 @@ import { useId, type CSSProperties } from "react";
 import { areaPath, dotPath, monotonePath, type ChartPoint } from "@/lib/chart-path";
 import { cn } from "@/lib/utils";
 
-// THE CHARTS' ONE LANGUAGE (bead `ro-trai.19`, doc 14 § Charts). Every small
-// chart in the Tower — the Wall's month, today by hour, 30 days, visitors and
-// money, search clicks, and the desk's `Sparkline` — is drawn from these three
-// marks, so a line, the wash under it and its newest point look the same
+// The charts' one language. Every small chart in the Tower is drawn from these
+// three marks, so a line, the wash under it and its newest point look the same
 // wherever they appear:
 //
 //   ChartLine  a monotone-smoothed line (it passes through every reading and
@@ -24,11 +22,6 @@ import { cn } from "@/lib/utils";
 // `text-traffic`, `text-financial-revenue`) is the one place a series' colour
 // is decided. Strokes are non-scaling: a 1000×100 viewBox stretched to any box
 // keeps its line widths and its dots round.
-//
-// Registry justification: `Spark`, `DailyBars` and `HeroChart` are whole
-// charts with their own axes, bands and readouts; nothing drew the marks
-// themselves, which is why the Wall's four charts and `Sparkline` had grown
-// four different polylines, three flat fills and two kinds of dot.
 
 type DataAttributes = { [key: `data-${string}`]: string | number | boolean | undefined };
 
@@ -57,7 +50,7 @@ export interface ChartLineProps extends DataAttributes {
 }
 
 /**
- * Dashes are stated as the length a reader SEES: a round cap adds half the
+ * Dashes are stated as the length a reader sees: a round cap adds half the
  * stroke to each end of every dash, so the pattern is corrected for it — a
  * 2px ghost and a 4px one look like the same line at two weights.
  */
@@ -172,7 +165,7 @@ export interface ChartDotProps extends DataAttributes {
   at: ChartPoint;
   size?: ChartDotSize;
   /** Not settled yet: a ring of ink around the surface instead of a solid dot
-   * (the desk's provisional cap, bead `ro-y91`). */
+   * (the desk's provisional cap). */
   hollow?: boolean;
   /** Off for a marker that is not a series' newest reading. */
   halo?: boolean;

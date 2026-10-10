@@ -26,7 +26,7 @@ function days(count: number, value: (index: number) => number): SeriesPoint[] {
 }
 
 const RISING = days(56, (index) => 10 + index);
-/** Twenty-eight days of one value, then twenty-eight of another — a movement
+/** Twenty-eight days of one value, then twenty-eight of another: a movement
  * whose size is what is under test. */
 const days28 = (value: number) => days(56, () => value).slice(0, 28);
 const daysAfter28 = (value: number) => days(56, () => value).slice(28);
@@ -36,11 +36,8 @@ function inRouter(node: React.ReactNode) {
   return render(<MemoryRouter>{node}</MemoryRouter>);
 }
 
-/**
- * Bead `ro-ujb9.13`: at 390×844 Alerts and Tasks spent two rows of selects
- * above their first alert or task. The fold is shared: one press on a phone,
- * the page's own row on a desk. jsdom has no layout, so the rule is asserted.
- */
+/** The fold is shared: one press on a phone, the page's own row on a desk.
+ * jsdom has no layout, so the rule is asserted. */
 describe("FilterBar", () => {
   function bar(active: number) {
     return render(
@@ -60,7 +57,6 @@ describe("FilterBar", () => {
     const { container } = bar(0);
     const row = container.querySelector("[data-demo-filters]")!;
     const toggle = within(row as HTMLElement).getByRole("button", { name: "Filters" });
-    // The button is a phone's only: the desk has the row itself.
     expect(toggle).toHaveClass("sm:hidden");
     const controls = row.querySelector("[data-filter-controls]")!;
     expect(controls).toHaveAttribute("data-filter-controls", "folded");
@@ -73,7 +69,6 @@ describe("FilterBar", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "true");
     expect(controls).toHaveAttribute("data-filter-controls", "open");
     expect(controls).not.toHaveClass("max-sm:hidden");
-    // The controls are still the page's own flex items (`contents`).
     expect(within(controls as HTMLElement).getAllByRole("combobox")).toHaveLength(2);
   });
 
@@ -119,7 +114,7 @@ describe("RangeSelector", () => {
     expect(onChange).toHaveBeenCalledWith(90);
   });
 
-  it("keeps every control at the phone thumb floor (bead ro-md80)", () => {
+  it("keeps every control at the phone thumb floor", () => {
     render(<RangeSelector value={28} onChange={() => undefined} />);
     for (const button of screen.getAllByRole("button")) {
       expect(button.className).toContain("max-sm:min-h-11");
@@ -139,8 +134,8 @@ describe("Kpi", () => {
       "positive-strong",
     );
 
-    // The reported headline remains, but an incomparable percentage must not
-    // look like a measured change merely because its color is neutral.
+    // An incomparable percentage must not look like a measured change merely
+    // because its color is neutral.
     rerender(
       <KpiStrip columns={1}>
         <Kpi
@@ -175,13 +170,9 @@ describe("Kpi", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("90 vs 2 days reported");
   });
 
-  /**
-   * Bead `ro-ujb9.13`. Two columns stacked a six-KPI strip three rows deep on a
-   * phone — 380px of Alerts' first screen before its first alert — and three
-   * KPIs left a hole in a fourth cell. The phone strip is now ONE row: three
-   * side by side, four or more scrolling sideways with a cell peeking in, and
-   * the desk grid is unchanged. jsdom has no layout, so the rule is asserted.
-   */
+  /** The phone strip is one row: three side by side, four or more scrolling
+   * sideways with a cell peeking in; the desk grid is unchanged. jsdom has no
+   * layout, so the rule is asserted. */
   it("is one swipeable row on a phone from four KPIs, and a grid everywhere else", () => {
     const { container } = render(
       <KpiStrip columns={6}>
@@ -199,7 +190,6 @@ describe("Kpi", () => {
     }
     // A 44% floor makes the row swipe; intrinsic words may widen each cell.
     expect(classes).toContain("max-sm:auto-cols-[minmax(44%,max-content)]");
-    // The desk keeps its grid: nothing unprefixed scrolls or flows by column.
     expect(classes).toContain("lg:grid-cols-6");
     expect(classes.filter((name) => /^(grid-flow-col|overflow-x-auto|snap-x)$/.test(name))).toEqual([]);
   });
@@ -254,7 +244,6 @@ describe("Kpi", () => {
       <Kpi key={label} label={label} value="1" selected={label === selected} onSelect={() => {}} />
     ));
     rerender(<KpiStrip columns={4}>{rows("Impressions")}</KpiStrip>);
-    // The cell before it too, so the row still peeks on the right.
     expect(strip.scrollLeft).toBe(344);
     // A reader's own swipe back is not pulled forward again by a re-render.
     strip.scrollLeft = 0;
@@ -278,7 +267,7 @@ describe("Kpi", () => {
   });
 
   it("colours by what is GOOD for the metric, not by which way it moved", () => {
-    // Open alerts falling is the good direction (doc 14).
+    // Open alerts falling is the good direction.
     render(
       <Kpi
         label="Open alerts"
@@ -307,15 +296,9 @@ describe("Kpi", () => {
     expect(screen.getByLabelText("Signups trend")).toBeInTheDocument();
   });
 
-  /**
-   * A MONTHLY series is not smoothed over seven of anything (bead `ro-78qo.18`).
-   * Seven periods of a monthly series is seven MONTHS, and Home's Net KPI —
-   * six months of portfolio ledger — came out as a near-straight line with the
-   * one month worth seeing averaged away. The switch draws the periods
-   * themselves, and the provisional mark comes with it: the caller with a reason
-   * to turn averaging off is drawing raw periods, the last of which is the one
-   * still being lived in.
-   */
+  /** Seven periods of a monthly series is seven months, which averages away
+   * the one month worth seeing. Unsmoothed, the provisional mark comes with
+   * it: the last period is the one still being lived in. */
   it("can draw a monthly spark unsmoothed, with the open period hollow", () => {
     const months = [
       { t: "2026-06", v: 40 },
@@ -326,8 +309,7 @@ describe("Kpi", () => {
       <Kpi label="Net" value="$80" improvement="none" spark={months} />,
     );
     const path = () => container.querySelector("[data-chart-line]")!.getAttribute("d")!;
-    // Averaged, the spike is a step nobody can see the shape of: three points
-    // whose values are 40, 320 and 240 rather than 40, 600 and 80.
+    // Averaged, the spike is a step: 40, 320 and 240 rather than 40, 600 and 80.
     const smoothed = path();
 
     rerender(
@@ -341,17 +323,12 @@ describe("Kpi", () => {
       />,
     );
     expect(path()).not.toBe(smoothed);
-    // The month still being lived in is not a settled reading.
     expect(container.querySelector("[data-chart-dot]")).toHaveAttribute("data-chart-dot", "hollow");
   });
 
-  /**
-   * The third answer beside a series and a composition: the series does not
-   * exist YET (bead `ro-78qo.6`). Six KPIs each printing a grey "no series"
-   * placard is six identical pills saying nothing, so the honest treatment is
-   * to draw nothing and declare the gap where a reader and the surface audit
-   * can both find it.
-   */
+  /** Six KPIs each printing a grey "no series" placard is six identical pills
+   * saying nothing, so the treatment is to draw nothing and declare the gap
+   * where a reader and the surface audit can both find it. */
   it("declares a series that does not exist yet, and draws nothing in its place", () => {
     const { container } = render(
       <Kpi
@@ -365,8 +342,6 @@ describe("Kpi", () => {
     expect(kpi.getAttribute("data-series-reason")).toBe(
       "the queue keeps 7 days of snapshots",
     );
-    // The absence IS the missing line (bead ro-ujb9.96.6.15): nothing is
-    // printed under the number, and the reason is one tap away.
     expect(kpi.textContent).not.toContain("History unavailable");
     expect(kpi.textContent).not.toContain("the queue keeps 7 days of snapshots");
     fireEvent.click(screen.getByRole("button", { name: "About Ready" }));
@@ -427,7 +402,6 @@ describe("HeroChart", () => {
     fireEvent.click(bing);
     expect(bing).toHaveAttribute("aria-pressed", "false");
 
-    // An empty plot is not a view of the data.
     fireEvent.click(google);
     expect(google).toHaveAttribute("aria-pressed", "true");
   });
@@ -436,7 +410,6 @@ describe("HeroChart", () => {
     render(<HeroChart series={[{ name: "GA4", points: RISING }]} range={28} />);
     expect(screen.queryByRole("group", { name: "Chart series" })).toBeNull();
     expect(screen.queryByRole("button", { name: "GA4" })).toBeNull();
-    // The legend keys the one line and its average; nothing needs an info icon.
     expect(screen.getByRole("list")).toHaveTextContent("GA4");
     expect(screen.getByRole("list")).toHaveTextContent("7-day average");
     expect(screen.queryByRole("button", { name: "About this chart" })).toBeNull();
@@ -497,10 +470,9 @@ describe("HeroChart", () => {
     return [...gutter.querySelectorAll("span")].map((span) => span.textContent ?? "");
   }
 
-  it("gives the y labels a gutter wide enough to print them whole (bead ro-78qo.15)", () => {
-    // 5,000 read as "000" on the full-width hero: the label column was `auto`
-    // over absolutely positioned spans, so it measured nothing and the card
-    // clipped the overflow.
+  it("gives the y labels a gutter wide enough to print them whole", () => {
+    // A label column that is `auto` over absolutely positioned spans measures
+    // nothing, and the card clips the overflow.
     const { container } = render(
       <HeroChart series={[{ name: "GA4", points: days(28, () => 5_000) }]} range={28} />,
     );
@@ -522,12 +494,10 @@ describe("HeroChart", () => {
 
     const last = screen.getByText("Sep 5");
     expect(last.className).toContain("whitespace-nowrap");
-    // End-anchored, so there is no width to its right for it to wrap into.
     expect(last.className).toContain("end-0");
     expect(last.style.left).toBe("");
-    // One text node, not "Sep" over "5".
     expect(last.childNodes).toHaveLength(1);
-    // And a right gutter, so the provisional cap on the final point survives.
+    // A right gutter, so the provisional cap on the final point survives.
     const grid = container.querySelector("[data-hero-gutter]")!.parentElement as HTMLElement;
     expect(Number.parseFloat(grid.style.paddingInlineEnd)).toBeGreaterThan(0);
   });
@@ -546,11 +516,8 @@ describe("HeroChart", () => {
     expect(new Set(labels).size).toBe(labels.length);
   });
 
-  /**
-   * A SIGNED DOMAIN (bead `ro-78qo.28`). meals.example's ledger runs June at
-   * −$224 and August in the black; a zero-based scale can only draw that by
-   * dropping the loss-making months off the floor of the plot.
-   */
+  /** A zero-based scale can only draw a loss-making month by dropping it off
+   * the floor of the plot. */
   describe("a series that crosses zero", () => {
     const NET = [
       { t: "2026-06", v: -224.42 },
@@ -588,7 +555,6 @@ describe("HeroChart", () => {
         expect(y).toBeGreaterThanOrEqual(10);
         expect(y).toBeLessThanOrEqual(234);
       }
-      // And the two losing months are BELOW the zero line, the two earners above.
       const zero = container.querySelector("[data-hero-zero]")!;
       const zeroY = Number(zero.getAttribute("y1"));
       expect(Math.min(...ys)).toBeLessThan(zeroY);
@@ -599,7 +565,6 @@ describe("HeroChart", () => {
       const { container } = signed();
       const area = container.querySelector("path.fill-current")!.getAttribute("d")!;
       const zeroY = Number(container.querySelector("[data-hero-zero]")!.getAttribute("y1"));
-      // The area closes on the baseline twice — once at each end of the run.
       const closing = [...area.matchAll(/L[\d.]+ ([\d.]+)/g)].map((one) => Number(one[1]));
       expect(closing.filter((y) => Math.abs(y - zeroY) < 0.01).length).toBe(2);
       expect(zeroY).toBeLessThan(234);
@@ -618,13 +583,11 @@ describe("HeroChart", () => {
       const mark = [...container.querySelectorAll("line")].find(
         (line) => line.getAttribute("stroke-dasharray") === "3 3",
       )!;
-      // Not stopped at the zero line half-way down the box.
       expect(Number(mark.getAttribute("y2"))).toBeCloseTo(234, 5);
     });
 
     it("leaves a positive-only series on the scale it always had", () => {
-      // Zero-based, four gaps of 1,000 — the axis before this bead, asserted by
-      // its labels rather than by a snapshot.
+      // Zero-based, four gaps of 1,000, asserted by labels rather than a snapshot.
       const { container } = render(
         <HeroChart series={[{ name: "GA4", points: days(28, (index) => index * 100) }]} range={28} />,
       );
@@ -648,7 +611,6 @@ describe("HeroChart", () => {
       );
       const path = container.querySelector("[data-hero-line]")!.getAttribute("d")!;
       const ys = [...path.matchAll(/[ML]\s*[\d.]+\s+([\d.]+)/g)].map((one) => Number(one[1]));
-      // 224px of plot between PAD_TOP and the floor; the week's swing uses half.
       expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(100);
     });
 
@@ -680,11 +642,9 @@ describe("HeroChart", () => {
     expect(screen.getByRole("button", { name: "Bing" }).querySelector("line")).toHaveAttribute("stroke-dasharray", "8 5");
   });
 
-  it("keys every drawn mark at the weight it is drawn, in one row (ro-ujb9.12)", () => {
+  it("keys every drawn mark at the weight it is drawn, in one row", () => {
     const { container } = render(<HeroChart series={twoProviders} range={28} provisionalFrom={LAST_DAY} />);
     const key = screen.getByRole("list", { name: "Chart key" });
-    // Two averaged series: each key is its lead line, and the method pair
-    // names the bold average and the faint daily line once for both.
     expect(key).toHaveTextContent(/^Google\s*Bing\s*7-day average\s*Daily\s*Provisional$/);
     const leadWidth = container.querySelector('[data-hero-line="Google"]')!.getAttribute("stroke-width");
     expect(leadWidth).toBe("2.5");
@@ -693,9 +653,7 @@ describe("HeroChart", () => {
     const rawKey = key.querySelector('[data-hero-key-method="raw"] line')!;
     expect(rawKey.getAttribute("stroke-width")).toBe(raw.getAttribute("stroke-width"));
     expect(rawKey.getAttribute("stroke-opacity")).toBe(raw.getAttribute("stroke-opacity"));
-    // The series keys are words in ink, never the brand accent.
     expect(screen.getByRole("button", { name: "Google" }).className).not.toMatch(/text-primary|bg-accent-soft/);
-    // The hollow end is keyed, and the key is where its explanation opens.
     const provisional = within(key).getByRole("button", { name: "About this chart" });
     expect(provisional).toHaveTextContent("Provisional");
     expect(provisional.querySelector("circle")).not.toBeNull();
@@ -706,7 +664,6 @@ describe("HeroChart", () => {
     const key = screen.getByRole("list", { name: "Chart key" });
     expect(key).toHaveTextContent(/^Bing · 7-day average\s*Daily$/);
     expect(key.querySelector('[data-hero-key-method="average"]')).toBeNull();
-    // The daily key wears the series' own ink.
     expect(key.querySelector('[data-hero-key-method="raw"] svg')).toHaveClass("text-search-bing");
   });
 
@@ -722,7 +679,6 @@ describe("HeroChart", () => {
     expect(reference.parentElement).toHaveClass("text-spark");
     expect(container.querySelector('[data-hero-raw="Same day last week"]')).toBeNull();
     expect(container.querySelector('[data-hero-line="GA4"]')).toHaveAttribute("stroke-width", "2.5");
-    // Only the lead is averaged, so its own key names the average.
     expect(screen.getByRole("button", { name: "GA4 · 7-day average" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Same day last week" }).querySelector("line")).toHaveAttribute("stroke-width", "1.5");
   });
@@ -776,7 +732,7 @@ describe("HeroChart", () => {
     render(<HeroChart series={twoProviders} range={28} />);
     const plot = screen.getByRole("group", { name: /Explore Google/ });
     fireEvent.pointerDown(plot, { pointerType: "touch", clientX: 0 });
-    // Pointer press focuses the plot; focus must preserve the tapped date.
+    // Focus must preserve the tapped date.
     fireEvent.focus(plot);
     expect(screen.getByRole("status")).toHaveTextContent("Google");
     expect(screen.getByRole("status")).toHaveTextContent("Bing");
@@ -785,11 +741,8 @@ describe("HeroChart", () => {
 });
 
 describe("Sparkline", () => {
-  /**
-   * The empty state is ONE GLYPH (bead `ro-78qo.24`). The words "no series" on
-   * a pill wrapped to two lines inside the 64×22 box the `kpi` size fixes with
-   * an inline width, which no call site could widen.
-   */
+  /** The words "no series" on a pill wrapped to two lines inside the 64×22
+   * box the `kpi` size fixes with an inline width. */
   it("draws a dash whose reason opens from a key or a tap, rather than a label that wraps", () => {
     const { container } = render(
       <Sparkline
@@ -800,14 +753,13 @@ describe("Sparkline", () => {
       />,
     );
     const box = container.querySelector<HTMLElement>("[data-spark]")!;
-    // One glyph, at caption size, on one line at 64px — no words to break.
     expect(box.textContent).toBe("—");
     expect(box.className).toContain("whitespace-nowrap");
     expect(box.className).toContain("text-xs");
     expect(box.className).not.toContain("bg-muted");
     expect(box.style.width).toBe("64px");
-    // The reason is not a hover-only title (ro-ujb9.14): the dash is a control
-    // a keyboard reaches and a tap opens, named with the reason.
+    // The reason is not a hover-only title: the dash is a control a keyboard
+    // reaches and a tap opens.
     expect(container.querySelector("[title]")).toBeNull();
     const dash = screen.getByRole("button", { name: "Active users trend: GA4 has reported nothing for this asset yet" });
     fireEvent.focus(dash);
@@ -839,12 +791,11 @@ describe("Sparkline", () => {
     expect(boxes).toEqual([
       { width: "64px", height: "22px", text: "—" },
       { width: "96px", height: "24px", text: "—" },
-      // The wide form has no declared width — it takes its cell's.
       { width: "", height: "30px", text: "—" },
     ]);
   });
 
-  it("caps a provisional endpoint hollow and a settled one solid (bead ro-y91)", () => {
+  it("caps a provisional endpoint hollow and a settled one solid", () => {
     const { container, rerender } = render(
       <Sparkline data={days(28, (index) => index)} provisionalFrom={LAST_DAY} />,
     );
@@ -854,11 +805,8 @@ describe("Sparkline", () => {
     expect(container.querySelector("[data-chart-dot]")).toHaveAttribute("data-chart-dot", "solid");
   });
 
-  /**
-   * HOLES (bead `ro-78qo.37`). A ledger month nobody booked is missing from the
-   * payload, and a line that simply joins the months it was handed draws March
-   * beside July as though they were consecutive.
-   */
+  /** A ledger month nobody booked is missing from the payload, and a line
+   * that simply joins the months it was handed draws March beside July. */
   describe("a series with holes in it", () => {
     const FOUR = [
       { t: "2026-09-02", v: 0 },
@@ -870,10 +818,9 @@ describe("Sparkline", () => {
       [...container.querySelectorAll("[data-chart-area], [data-chart-line]")].map((path) => path.getAttribute("d"));
 
     it("draws a series with no holes as one smooth run through every reading", () => {
-      // The geometry spelled out rather than snapshotted: 64×22, four points,
-      // 20px apart, over a domain of 0 to 3. The line is a monotone curve
-      // (bead ro-trai.19) through each reading; on a straight run its control
-      // points lie on the line, so it draws exactly the straight line it did.
+      // 64×22, four points, 20px apart, over a domain of 0 to 3. The line is
+      // a monotone curve through each reading; on a straight run its control
+      // points lie on the line.
       const { container } = render(<Sparkline data={FOUR} average={false} area />);
       const line = "M2 20 C8.67 18 15.33 16 22 14 C28.67 12 35.33 10 42 8 C48.67 6 55.33 4 62 2";
       expect(paths(container)).toEqual([`${line} L62 22 L2 22 Z`, line]);
@@ -884,7 +831,6 @@ describe("Sparkline", () => {
       const { container } = render(<Sparkline data={withHole} average={false} />);
       const [line] = paths(container);
 
-      // Two subpaths, and no segment from the 3rd to the 4th period.
       expect(line).toBe("M2 20 L22 14 M62 2");
     });
 
@@ -962,7 +908,6 @@ describe("SectionLabel", () => {
     );
 
     const eyebrow = screen.getByRole("heading", { level: 2, name: "Search" });
-    // doc 14's eyebrow: 11px, tracked 0.08em, uppercase, muted.
     expect(eyebrow.className).toContain("text-[11px]");
     expect(eyebrow.className).toContain("tracking-[0.08em]");
     expect(eyebrow.className).toContain("uppercase");
@@ -980,12 +925,8 @@ describe("SectionLabel", () => {
     expect(screen.queryByRole("link")).toBeNull();
   });
 
-  /**
-   * The header a DISCLOSURE opens with (bead `ro-78qo.39`). `SectionLabel`
-   * never renders a `<summary>`: the press target, its focus ring and its
-   * marker belong to the caller, so the two concerns stay where they are and
-   * the type is still drawn in one place.
-   */
+  /** `SectionLabel` never renders a `<summary>`: the press target, its focus
+   * ring and its marker belong to the caller. */
   it("renders no control of its own, so a summary can wrap it", () => {
     const { container } = inRouter(<SectionLabel title="Tracked queries" caption="29" />);
     expect(container.querySelector("summary")).toBeNull();
@@ -993,8 +934,6 @@ describe("SectionLabel", () => {
     expect(container.querySelector("button")).toBeNull();
   });
 
-  /** doc 14 keeps owner chips to Settings and Sources — and that is where the
-   * end of an eyebrow row holds something that is not a link. */
   it("takes a node at the end of the row for what is not a link", () => {
     inRouter(
       <SectionLabel title="Identity">
@@ -1010,9 +949,8 @@ describe("SectionLabel", () => {
   });
 
   it("claims the phone's 44px target rather than adding it to the row", () => {
-    // A 44px eyebrow row on the DESK is the page cost bead `ro-9smi` went to
-    // lengths to avoid: the floor is a phone rule, and the height comes back to
-    // the layout through the negative margin.
+    // The floor is a phone rule; the height comes back to the layout through
+    // the negative margin.
     inRouter(<SectionLabel title="Assets" action={{ to: "/assets", label: "All assets →" }} />);
     const link = screen.getByRole("link", { name: "All assets →" });
     expect(link.className).toContain("max-sm:min-h-11");
@@ -1036,7 +974,6 @@ describe("SmallMultiple", () => {
     );
     expect(screen.getByText("avg 122 / day")).toBeInTheDocument();
     expect(screen.getByLabelText("Signups trend")).toBeInTheDocument();
-    // A cell with no series draws none, rather than an empty box.
     expect(screen.queryByLabelText("Top 3 trend")).toBeNull();
   });
 });
@@ -1079,7 +1016,6 @@ describe("ListPanel", () => {
         ]}
       />,
     );
-    // The subject is a heading, said once, with its count read as words.
     expect(screen.getByRole("heading", { name: "/calculator 3 found" })).toBeInTheDocument();
     expect(screen.getByText("Chrome OS")).toBeInTheDocument();
     expect(screen.queryByText("age input")).toBeNull();
@@ -1088,8 +1024,6 @@ describe("ListPanel", () => {
     expect(screen.queryByRole("heading", { name: /Whole site/ })).toBeNull();
     expect(container.querySelectorAll("[data-list-group]")).toHaveLength(3);
 
-    // The expander names every row the closed panel did not show, and opens
-    // them in place, inside their groups.
     fireEvent.click(screen.getByRole("button", { name: "Show 3 more" }));
     expect(screen.getByText("age input")).toBeInTheDocument();
     expect(screen.getByText("fires twice")).toBeInTheDocument();
@@ -1098,13 +1032,9 @@ describe("ListPanel", () => {
     expect(screen.queryByText("age input")).toBeNull();
   });
 
-  /**
-   * Bead `ro-ujb9.13`. On a phone there is no hover to find out by, so a row's
-   * last mark is the only way to know what a press does: › opens a page (the
-   * disclosure indicator; it was an ↗, which reads as "leaves the product"),
-   * ⌄ opens the row in place, and a row that does nothing has neither mark and
-   * no hover ground.
-   */
+  /** On a phone there is no hover, so a row's last mark is the only way to
+   * know what a press does: › opens a page, ⌄ opens the row in place, and a
+   * row that does nothing has neither mark. */
   it("says what a press does with its last mark, and a static row says nothing", () => {
     const { container } = inRouter(
       <ListPanel title="Waiting on you">
@@ -1134,15 +1064,11 @@ describe("ListPanel", () => {
     fireEvent.click(withEvidence);
     expect(screen.getByText("The evidence for the fifth row.")).toBeInTheDocument();
 
-    // A row with nothing behind it is not a button at all.
     expect(screen.queryByRole("button", { name: /First/ })).toBeNull();
   });
 
-  /**
-   * Bead `ro-78qo.40`. A mark that describes the ROW has to sit on the row: on a
-   * child it claims a smaller subtree than it means, and the materiality suite
-   * and `pnpm surface:audit` both read these by selector.
-   */
+  /** A mark that describes the row has to sit on the row: the materiality
+   * suite and `pnpm surface:audit` both read these by selector. */
   it("spreads a caller's data marks onto the row itself", () => {
     const { container } = inRouter(
       <ListPanel title="Needs you">
@@ -1158,7 +1084,6 @@ describe("ListPanel", () => {
 
     const row = container.querySelector("li[data-flag-severity='error']");
     expect(row).not.toBeNull();
-    // The whole row, not the line inside it.
     expect(row!.tagName).toBe("LI");
     expect(row!.textContent).toContain("Marked");
     // A space-separated condition list still matches the `~=` the materiality
@@ -1168,12 +1093,7 @@ describe("ListPanel", () => {
     ).toBe(row);
   });
 
-  /**
-   * Beads `ro-ujb9.96.7.11` and `ro-ujb9.96.7.5`. A row's one decision sits on
-   * the row — an inbox Approve, a source's Connect — BESIDE the row's own
-   * press, never inside it, so pressing it neither opens the row nor is lost
-   * inside another control.
-   */
+  /** A row's one decision sits beside the row's own press, never inside it. */
   it("puts the row's one action beside its press, never inside it", () => {
     const connect = vi.fn();
     const { container } = inRouter(
@@ -1195,11 +1115,8 @@ describe("ListPanel", () => {
     expect(container.querySelector("[data-list-row-body]")?.textContent).toContain("The row's own settings.");
   });
 
-  /**
-   * Bead `ro-ujb9.79`. The opened body was an implicit grid column, which sizes
-   * to its widest child's min-content: one unbreakable doc reference stretched
-   * every paragraph in the row and pushed a 390px Sources tab 285px wide.
-   */
+  /** An implicit grid column sizes to its widest child's min-content, so one
+   * unbreakable reference would stretch every paragraph in the row. */
   it("holds an opened row's evidence to the row's own width", () => {
     const { container } = panel();
     fireEvent.click(screen.getByRole("button", { name: "Show 2 more" }));
@@ -1208,21 +1125,16 @@ describe("ListPanel", () => {
     const body = container.querySelector("[data-list-row-body]")!;
     expect(body.textContent).toContain("The evidence for the fifth row.");
     expect(body.className).toContain("grid-cols-[minmax(0,1fr)]");
-    // Phone only: a desk-width row keeps its exact layout.
     expect(body.className.split(" ")).toContain("max-sm:wrap-anywhere");
   });
 
-  it("carries the mark in a glyph as well as a colour (doc 14)", () => {
+  it("carries the mark in a glyph as well as a colour", () => {
     panel();
     const first = screen.getByText("First").closest("li")!;
     expect(within(first).getByText("!")).toBeInTheDocument();
   });
 
-  /**
-   * ONE EYEBROW IN THE PRODUCT (bead `ro-78qo.33`). The panel's header used to
-   * draw the same title, count and link that `SectionLabel` draws — so the test
-   * is that the two are now the same markup, not that they look alike.
-   */
+  /** The panel's header is `SectionLabel`'s markup, not a lookalike. */
   it("draws its header through SectionLabel", () => {
     const panel = inRouter(
       <ListPanel title="Needs you" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }} />,
@@ -1255,7 +1167,7 @@ describe("StatusBanner", () => {
       </StatusBanner>,
     );
     expect(screen.getByRole("status")).toHaveTextContent("Setting up");
-    // The subject it is about, for the flow gate's one status per subject (bead ro-ujb9.96.10).
+    // The subject it is about, for the flow gate's one status per subject.
     expect(screen.getByRole("status")).toHaveAttribute("data-status-for", "asset-setup:example.com");
 
     rerender(
@@ -1327,8 +1239,7 @@ describe("the audit contract", () => {
   });
 
   it("names the KPI in its own mark, so an offence can be reported by metric", () => {
-    // Before bead ro-78qo.1 the mark was empty and the audit could only quote
-    // the element's text — value, delta and caption — back at the operator.
+    // With an empty mark the audit could only quote the element's text back.
     const { container } = everySurface();
     const marks = [...container.querySelectorAll("[data-kpi]")].map((node) =>
       node.getAttribute("data-kpi"),
@@ -1336,12 +1247,8 @@ describe("the audit contract", () => {
     expect(marks).toEqual(["Active users", "Impressions"]);
   });
 
-  /**
-   * The chip-on-a-view-surface rule is the one offence whose report is useless
-   * without the value (bead `ro-78qo.21`): a failure that says only "a chip is
-   * on this page" leaves the operator hunting by eye across the eighteen on
-   * /settings.
-   */
+  /** A chip-on-a-view-surface report is useless without the value: it would
+   * leave the operator hunting by eye across every chip on the page. */
   it("names the owning path in the chip's own mark", () => {
     const { container } = everySurface();
     expect(container.querySelector("[data-owner-chip]")!.getAttribute("data-owner-chip")).toBe(
@@ -1349,7 +1256,7 @@ describe("the audit contract", () => {
     );
   });
 
-  it("keeps every pressable control at the phone thumb floor (bead ro-md80)", () => {
+  it("keeps every pressable control at the phone thumb floor", () => {
     const { container } = everySurface();
     const pressable = [...container.querySelectorAll("button, summary, a[href]")];
     expect(pressable.length).toBeGreaterThan(6);

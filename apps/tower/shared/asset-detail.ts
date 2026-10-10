@@ -1,13 +1,10 @@
 import type { DailyRevenueHistory } from "./daily-revenue";
 import type { Liveness, SignalVerification } from "./signal-liveness";
 
-// Shared AssetDetail contract: the single payload GET /api/assets/:id returns.
-// Same discipline as wall.ts — pure types + plain constants, no runtime deps, so
-// it is safe in workerd AND imported by the client for rendering. The page is the
-// reference implementation of doc-15 principle 10 ("every knob is visible where it
-// acts"): every fact carries its EFFECTIVE value plus an OWNER pointer to the file
-// (or store table, per doc 06) that changes it. The Tower points at owners; it
-// never edits them.
+// The AssetDetail contract: the payload GET /api/assets/:id returns. Pure types
+// and plain constants only, so it loads in workerd and in the browser. Every
+// fact carries its effective value plus an owner pointer to the file or store
+// table that changes it; the Tower points at owners, it never edits them.
 
 import type {
   CounterCard,
@@ -29,12 +26,10 @@ import type { WorkItem } from "./work";
 import type { WatchScopeInput } from "@noticeos/contract/create-watch-window";
 import type { SearchMarket } from "@noticeos/contract/dataforseo";
 
-// The annotation vocabulary lives in its own module (both payload contracts need
-// it now) but is re-exported here, where the timeline it describes is assembled.
 export type { AnnotationItem, AnnotationKind, AnnotationTimeline };
 
-/** Onboarding lifecycle, db/0001 assets.status CHECK. `retired` is off the
- * happy path (rendered distinctly by the stepper). */
+/** Onboarding lifecycle, the assets.status CHECK. `retired` is off the happy
+ * path and the stepper renders it distinctly. */
 export type AssetStatus =
   | "pre-launch"
   | "onboarding"
@@ -42,11 +37,8 @@ export type AssetStatus =
   | "live"
   | "retired";
 
-/** The lifecycle word an operator reads. It lives beside the type rather than
- * inside one route because three surfaces state it now: the asset page's status
- * control, that page's staged-edit preview, and Home's assets table (bead
- * `ro-pbzu.3`). One map means one spelling — two pages naming the same
- * lifecycle stage differently is the drift the registry exists to prevent. */
+/** The lifecycle word an operator reads, shared so every surface spells it
+ * the same way. */
 export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
   "pre-launch": "Pre-launch",
   onboarding: "Onboarding",
@@ -56,14 +48,9 @@ export const ASSET_STATUS_LABEL: Record<AssetStatus, string> = {
 };
 
 /**
- * The same word for a status that arrived as a bare string.
- *
- * The Wall payload types `AssetCard.status` as `string`, not this union: what
- * guarantees the value is the store's own CHECK constraint, and a read model
- * that crashed on a status a migration added would be a worse failure than one
- * that shows it. So an unrecognized value is HUMANIZED rather than dropped or
- * blanked — a lifecycle stage the Tower has never seen is still a fact about
- * the asset.
+ * The same word for a status that arrived as a bare string. The Wall types
+ * `AssetCard.status` as `string`; an unrecognized value is humanized rather
+ * than dropped, because a stage the Tower has never seen is still a fact.
  */
 export function assetStatusLabel(status: string): string {
   return (
@@ -73,26 +60,15 @@ export function assetStatusLabel(status: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// A stage move is an EVENT on the asset (bead `ro-3085`)
+// Lifecycle moves
 // ---------------------------------------------------------------------------
 
 /**
- * A lifecycle move recorded as a timeline row, because `assets.status` holds
- * only where an asset IS and never where it has been.
- *
- * WHY AN ANNOTATION AND NOT A COLUMN. Restore used to return an asset to the
- * stage it remembered in React state, and to `live` once that memory was gone —
- * so an asset archived out of `baselining` and restored the next day silently
- * became live and armed its alert rules early. The store carried no answer to
- * "what stage did it leave", and giving it one would mean a migration, which is
- * operator-only (AGENTS.md). The timeline is where changes to an asset already
- * live, it is already read by this payload, and the Activity tab renders it — so
- * the move is written there and Restore READS the answer instead of guessing.
- *
- * WHY `kind: "config"` AND NOT A NEW KIND. `annotations.kind` is a CHECK
- * constraint in db/0001 — widening the vocabulary is a migration. `config` is
- * the closest existing member and an honest one: a stage is a stored setting on
- * the asset, edited from the Settings tab under the `db · assets row` owner.
+ * A lifecycle move is recorded as a timeline row because `assets.status` holds
+ * only where an asset is, never where it has been; Restore reads the previous
+ * stage from the timeline instead of guessing. It uses the existing `config`
+ * kind: a stage is a stored setting on the asset, and `annotations.kind` is a
+ * CHECK constraint.
  */
 export const LIFECYCLE_ANNOTATION_KIND: AnnotationKind = "config";
 
@@ -107,11 +83,9 @@ export interface LifecycleMove {
 }
 
 /**
- * The `ref` a stage move is stored under — `lifecycle:baselining>retired`:
- * machine readable, ASCII, and part of the row's `(asset, at, kind, ref)`
- * identity, so
- * two different moves recorded in the same second stay two rows and a retried
- * write collapses into one.
+ * The `ref` a stage move is stored under (`lifecycle:baselining>retired`). It
+ * is part of the row's `(asset, at, kind, ref)` identity, so two moves in the
+ * same second stay two rows and a retried write collapses into one.
  */
 export function lifecycleMoveRef(move: LifecycleMove): string {
   return `${LIFECYCLE_REF_PREFIX}${move.from}>${move.to}`;
@@ -138,12 +112,8 @@ export function lifecycleMoveSentence(move: LifecycleMove): string {
 
 /**
  * The stage this asset was in when it was last archived — what Restore returns
- * it to.
- *
- * `items` is the detail payload's timeline, newest first, so the FIRST recorded
- * move into `retired` is the archiving this restore undoes. `null` means no such
- * move is on record (an asset archived before this was written, or one whose
- * archiving has fallen off the end of the read) — and a caller that then shows
+ * it to. `items` is newest first, so the first move into `retired` is the one
+ * being undone. `null` means no move is on record; a caller that then shows
  * `live` must say it is a default rather than a fact.
  */
 export function stageBeforeRetire(
@@ -162,47 +132,30 @@ export function stageBeforeRetire(
  * config/pull.json (the OS scrapes it); `push` otherwise (the asset POSTs). */
 export type SenseMode = "pull" | "push";
 
-/** Kept as a re-export for callers that consume the asset-detail contract. The
- * canonical vocabulary lives in wall.ts because both portfolio attention and
- * asset detail render the same flags. */
+/** Re-exported for callers of this contract; the vocabulary lives in wall.ts. */
 export type { FlagKind } from "./wall";
 
-/** db/0001 flags.disposition — the only sanctioned flag mutation (doc 14-E). */
+/** flags.disposition — the only sanctioned flag mutation. */
 export type Disposition = "ack" | "snooze" | "tune" | "incident" | "hypothesis";
 
 export type BookingState = "estimated" | "reconciled";
 
-/** db/0013 decisions.kind — which surface the operator decided to mark or
- * dismiss. Page rows are handoffs only and deliberately never enter this
- * store-backed vocabulary. */
+/** decisions.kind — which surface the operator marked or dismissed. Page rows
+ * are handoffs only and never enter this store-backed vocabulary. */
 export type DecisionKind = "query" | "finding";
 
-/** Tower surfaces that can file work into an asset's task register. This is
- * wider than `DecisionKind`: a page decision and an alert can each file a bead,
- * but neither has an operator display-state row in `decisions` and neither needs
- * a migration to get one — an alert's disposition already lives on the flag.
- *
- * The same four values are `BEADS_HANDOFF_KINDS`
- * (workers/ingest/src/beads-snapshots.ts) and the poller's `HANDOFF_KINDS`
- * (scripts/runner/task-snapshot.mjs). Since `ro-05hb` a kind one of them has not heard of costs
- * its own marker rather than the whole board. */
+/** Tower surfaces that can file work into an asset's task register. Wider than
+ * `DecisionKind`: a page decision and an alert can each file a task, but neither
+ * has a display-state row in `decisions`. The same four values are
+ * `BEADS_HANDOFF_KINDS` (workers/ingest/src/beads-snapshots.ts) and the poller's
+ * `HANDOFF_KINDS` (scripts/runner/task-snapshot.mjs). */
 export type HandoffKind = DecisionKind | "page" | "alert";
 
 /**
- * db/0021 decisions.status — what the operator wants DISPLAYED, and nothing
- * else. There is no `open`: an untouched item has no row at all, and clearing a
- * decision deletes it (doc 10 "absence means untouched").
- *
- * `handed_off` was a third value and is RETIRED (bead `ro-5e8.3`). It recorded
- * that the operator had COPIED a query's Markdown, which is a claim about
- * intent and not about work: a copy nobody ever ran filed nothing while the row
- * claimed otherwise, and a bead filed by hand left no row at all. `handoffBeads`
- * answers that same question from the register, so the query row reads THAT and
- * this vocabulary shrinks to the two states that really are display state.
- *
- * The store agrees since `db/0021` (bead `ro-5e8.4`), which deleted the rows an
- * older Tower had written and narrowed the CHECK to these two values. This type
- * and that constraint are now the same vocabulary, stated twice.
+ * decisions.status — what the operator wants displayed, and nothing else. There
+ * is no `open`: an untouched item has no row at all, and clearing a decision
+ * deletes it. Whether a task was filed is answered by `handoffBeads`, never by
+ * this vocabulary.
  */
 export type DecisionStatus = "marked" | "dismissed";
 
@@ -218,49 +171,37 @@ export interface AssetDecision {
 }
 
 /**
- * A bead somebody filed FROM this asset's Tower handoff — the register's
- * answer to a finding, joined back to it (bead `ro-248`).
- *
- * The join is the handoff's own metadata grammar, not a foreign key the OS
- * owns: `apps/tower/src/lib/task-handoff.ts` writes `noticeos_key` /
- * `noticeos_kind` / `noticeos_asset` into the `bd create` an agent runs, the
- * poller reads them back off the asset's spoke, and `key` here is that
- * `noticeos_key` byte for byte. Nothing in the OS creates these beads; the
- * analyzer deliberately never writes to the register (design decision
- * 2026-08-01), so this is a photograph of what a person filed, and a finding
- * with no bead simply has none.
+ * A task somebody filed from this asset's Tower handoff, joined back to it by
+ * the handoff's own metadata: `apps/tower/src/lib/task-handoff.ts` writes
+ * `noticeos_key` / `noticeos_kind` / `noticeos_asset` into the `bd create`, the
+ * poller reads them back, and `key` here is that `noticeos_key` byte for byte.
+ * Nothing in the OS creates these tasks; a finding with no task simply has none.
  *
  * `key` is the rendered row's own stable key — the normalized query for kind
- * `query`, the card key for kind `finding`, the absolute URL for kind `page`,
- * and the flag id for kind `alert` — so every surface matches by key alone,
- * with no second join in the payload.
+ * `query`, the card key for `finding`, the absolute URL for `page`, the flag id
+ * for `alert` — so every surface matches by key alone.
  */
 export interface HandoffBead {
   kind: HandoffKind;
   /** `noticeos_key` verbatim. Byte-exact, because a query may contain a comma
-   * and `bd` splits LABEL values on commas — the `key:` label carries a lossy
-   * slug and only the metadata field can be matched against a rendered key. */
+   * and `bd` splits label values on commas, so the `key:` label is a lossy slug. */
   key: string;
-  /** The bead in the asset's own spoke (`mp-1w2`) — the thing to go and
-   * read, and the ref the commit, annotation, and watch window all quote. */
+  /** The task id in the asset's own project — the ref the commit, annotation
+   * and watch window all quote. */
   beadId: string;
   /**
-   * `bd`'s richer statuses collapse to two: in_progress, blocked, and deferred
-   * are all ways of the work not having landed yet.
-   *
-   * `closed` records a task decision, not proof of shipment or outcome. A task
-   * may have been declined. Nothing rendering this may treat a closed bead as
-   * a resolved finding without separate change and outcome evidence.
+   * `bd`'s richer statuses collapse to two: in_progress, blocked and deferred
+   * are all ways of the work not having landed yet. `closed` records a task
+   * decision, not proof of shipment or outcome; nothing rendering this may
+   * treat a closed task as a resolved finding.
    */
   status: "open" | "closed";
-  /** When it was closed. Null on an open bead, and on a closed one whose
+  /** When it was closed. Null on an open task, and on a closed one whose
    * timestamp the poller could not read. */
   closedAt: string | null;
 }
 
-/** An owner pointer: the repo file (doc 06 config-is-files) or store table where
- * a fact is CHANGED. Rendered as a monospace path chip with a copy affordance —
- * the Tower points precisely at what it does not itself edit. */
+/** An owner pointer: the repo file or store table where a fact is changed. */
 export type OwnerPath = string;
 
 /** Canonical owner pointers, single-sourced so copy never drifts. */
@@ -272,10 +213,8 @@ export const OWNER = {
   ingestSecrets: "workers/ingest/.dev.vars",
 } as const;
 
-/** How a site's nightly report is authenticated, as a site's Settings shows it
- * (bead `ro-ujb9.166`): the site's own bearer token, never shown. It used to be
- * the environment binding's expression (`ASSET_TOKENS['<site>']`) printed to a
- * stranger on a new site; that binding is doc 06's to name, not a screen's. */
+/** How a site's nightly report is authenticated, as its Settings shows it: the
+ * site's own bearer token, never shown. */
 export const SITE_TOKEN = "Site token";
 
 // ---------------------------------------------------------------------------
@@ -295,11 +234,10 @@ export interface AssetInfo {
   /** Distinct pulse dates in the last 28 completed UTC days. Older payloads
    * omit it; readers must then show coverage as unknown. */
   reportDays?: number | null;
-  /** The operator declared that this asset sends no nightly report (bead
-   * `ro-ujb9.96.8`). Whether a report is expected is
-   * `expectsNightlyReport(noNightlyReport, freshness.pulseReceivedAt)`: never
-   * while declared, and otherwise only once one has arrived (D29 amended, bead
-   * `ro-ujb9.121`). Absent on an older payload, which means not declared. */
+  /** The operator declared that this asset sends no nightly report. Whether a
+   * report is expected is `expectsNightlyReport(noNightlyReport,
+   * freshness.pulseReceivedAt)`: never while declared, and otherwise only once
+   * one has arrived. Absent on an older payload, which means not declared. */
   noNightlyReport?: boolean;
   /** Worst severity among OPEN flags. The header renders a dot only for
    * actionable warning/error states; healthy identity is the favicon. */
@@ -309,7 +247,7 @@ export interface AssetInfo {
 }
 
 // ---------------------------------------------------------------------------
-// Wiring panel (doc 14 principle 10 — secondary, operator-expandable config)
+// Wiring panel
 // ---------------------------------------------------------------------------
 /** One open wiring-health flag surfaced on the sense-mode card (read-only). */
 export interface WiringFlag {
@@ -361,14 +299,10 @@ export interface Wiring {
   /** Expected cadence in plain words ("nightly"). */
   cadence: string;
   /**
-   * The job that produces this asset's nightly report and its schedule AS
-   * SAVED (bead `ro-ujb9.96.7.12`) — the OS's pull (`pull`) or its own
-   * self-report (`asset-zero`); null for a pushing asset, which sends on its
-   * own clock. It used to be a clock time typed into the payload builder
-   * ("02:30"), a second answer to what Settings → Data collection edits, which
-   * would have gone on saying 02:30 after the operator moved the job. Now it
-   * is `scheduleFor(job, saved)`, the one derivation the runner arms from, and
-   * the Settings tab links it to where it is changed.
+   * The job that produces this asset's nightly report and its schedule as
+   * saved — the OS's pull (`pull`) or its own self-report (`asset-zero`); null
+   * for a pushing asset, which sends on its own clock. Derived by
+   * `scheduleFor(job, saved)`, the same derivation the runner arms from.
    */
   schedule: WiringSchedule | null;
   cadenceOwner: OwnerPath;
@@ -382,18 +316,18 @@ export interface Wiring {
   pullFailure: WiringFlag | null;
   /** Open `ingest-freshness` flag for this asset, else null. */
   ingestFreshness: WiringFlag | null;
-  /** Every asset declared as sending no nightly report, as SAVED
-   * (config/constants.json `no_nightly_report`), or null while none has ever
-   * been declared. The whole list, because the Settings switch writes it back
-   * whole and guards the write with exactly what it read (ro-ujb9.96.8). */
+  /** Every asset declared as sending no nightly report, as saved
+   * (config/constants.json `no_nightly_report`), or null while none has been
+   * declared. The whole list, because the Settings switch writes it back whole
+   * and guards the write with what it read. */
   noReportDeclarations?: string[] | null;
 }
 
 // ---------------------------------------------------------------------------
 // Rules in force (anomaly config)
 // ---------------------------------------------------------------------------
-/** One anomaly-rule knob: plain-language label + jargon, effective value, a
- * one-line explainer (doc 14 principle 9), and its owner file. */
+/** One anomaly-rule knob: label, jargon, effective value, one-line explainer
+ * and owner file. */
 export interface KnobFact {
   key: string;
   label: string;
@@ -410,9 +344,7 @@ export interface KnobFact {
 }
 
 export interface RulesInForce {
-  /** Phase 0 has no per-asset overrides — the portfolio default always applies.
-   * `scope` and `hasOverride` ARE that fact; no note restates it as a sentence
-   * (bead `ro-ujb9.96.6.3`). */
+  /** No per-asset overrides exist; the portfolio default always applies. */
   scope: "portfolio-default";
   hasOverride: false;
   knobs: KnobFact[];
@@ -421,11 +353,9 @@ export interface RulesInForce {
 // ---------------------------------------------------------------------------
 // Portfolio-wide spend & rate (config/constants.json) — editable, portfolio-wide
 // ---------------------------------------------------------------------------
-/** One portfolio-wide constant surfaced for editing on every asset page. Each
- * carries the pointer + raw value the Tower needs to stage a changeset op, and a
- * unit so the editor formats/validates it (docs/15 principle 10, made two-way).
- * No explainer: the page owns its label-length unit line and shows the state
- * (bead `ro-ujb9.96.6.3`). */
+/** One portfolio-wide constant surfaced for editing on every asset page, with
+ * the pointer and raw value needed to stage a changeset op and a unit so the
+ * editor formats and validates it. */
 export interface PortfolioKnob {
   key: string;
   pointer: string;
@@ -470,13 +400,10 @@ export interface FlagRecord {
    * which turns rule_id + these numbers into the operator's headline and the
    * evidence behind it — the same translation the attention band applies. */
   ruleInputs: Record<string, unknown> | null;
-  /** Timeline events on this asset in the 48h BEFORE the condition STARTED
-   * (`firstFiredAt`); [] when none.
-   *
-   * Anchored to the onset rather than to `firedAt` for the same reason the
-   * Wall's row is (`ro-kukv.1`): a month-old condition's newest firing is a
-   * routine nightly re-evaluation, and searching the two days before THAT
-   * reliably finds nothing at all. */
+  /** Timeline events on this asset in the 48h before the condition started
+   * (`firstFiredAt`); [] when none. Anchored to the onset, not `firedAt`: a
+   * month-old condition's newest firing is a routine re-evaluation, and the two
+   * days before it reliably hold nothing. */
   correlatedChanges: AnnotationItem[];
   disposition: Disposition | null;
   dispositionAt: string | null;
@@ -484,26 +411,14 @@ export interface FlagRecord {
   snoozeUntil: string | null;
   ackExpiry: string | null;
   resolvedAt: string | null;
-  /**
-   * What this flag's own source of truth says about it RIGHT NOW (`ro-wlq5`).
-   *
-   * `resolved_at IS NULL` only ever meant "nobody clicked Resolve", so a
-   * surface that renders open rows as current is making a claim the store
-   * cannot support. This field is that claim, derived at read time and stated
-   * per row rather than assumed for the list.
-   */
+  /** What this flag's own source of truth says about it right now, derived at
+   * read time. `resolved_at IS NULL` only means nobody clicked Resolve. */
   liveness: Liveness;
   /** Missing on older payloads: unknown, never confirmed. */
   verification?: SignalVerification;
-  /**
-   * How many OPEN firings this row stands for — 1 for an ordinary event, and
-   * always 1 in `history`, where a row stands for itself (`ro-kukv.5`).
-   *
-   * The same number the Wall's `AttentionItem.occurrences` carries for the same
-   * condition, from the same `groupConditionFirings` call: the two surfaces read
-   * different payloads, and a count each derived for itself is a count that
-   * drifts.
-   */
+  /** How many open firings this row stands for — 1 for an ordinary event, and
+   * always 1 in `history`. The same number the Wall's
+   * `AttentionItem.occurrences` carries, from the same `groupConditionFirings`. */
   occurrences: number;
   /** When this condition FIRST fired. Equals `firedAt` when `occurrences` is 1,
    * and is what the row AGES from — a condition is as old as it has been true,
@@ -511,60 +426,36 @@ export interface FlagRecord {
   firstFiredAt: string;
   /**
    * When the OS told the operator about this alert on its notification channel,
-   * or null (bead `ro-vu8d.23`).
-   *
-   * A row in `notifications` (db/0031) means a message ACTUALLY LANDED — the
-   * notifier records nothing for a delivery that failed — so this is evidence
-   * rather than intent. Null covers three cases that are all "they were not
-   * told": the alert did not qualify, the delivery failed, or the table is not
-   * applied on this install and the notifier is standing down.
-   *
-   * Optional because the Wall does not carry it: nobody can act from a
-   * television, and D15 gives the fact to the action list.
+   * or null. A row in `notifications` means a message actually landed, so this
+   * is evidence rather than intent; null covers "did not qualify", "delivery
+   * failed" and "table not applied" alike. Optional because the Wall does not
+   * carry it.
    */
   notifiedAt?: string | null;
-  /** This condition's stored readings, newest first (`flag_evidence`, db/0040,
-   * bead `ro-ujb9.220`); absent when it has none or the store predates them. */
+  /** This condition's stored readings, newest first (`flag_evidence`); absent
+   * when it has none or the store predates them. */
   readings?: FlagReading[];
 }
 
 export interface FlagsSection {
-  /** Unresolved and attention-eligible, ONE ROW PER CONDITION. Includes
-   * last-known conditions with unverified evidence. Worst severity first.
-   *
-   * The grouping is the Wall's, verbatim (`shared/wall`'s
-   * `groupConditionFirings`), so a condition that reads "16× in 26d" on the Wall
-   * is one row saying the same thing here; and it is the scope `applyFlagAction`
-   * re-derives in SQL, so the Mark read / Resolve pair under a row acts on
-   * exactly what the row claims to be. */
+  /** Unresolved and attention-eligible, one row per condition, worst severity
+   * first. Includes last-known conditions with unverified evidence. The grouping
+   * is `groupConditionFirings` (shared/wall), and the scope `applyFlagAction`
+   * re-derives in SQL, so Mark read / Resolve act on what the row claims. */
   open: FlagRecord[];
-  /**
-   * Open in the store but NOT current: milestones (events, never conditions)
-   * and anything whose source of truth no longer carries it.
-   *
-   * Kept rather than dropped. These rows are real evidence and remain
-   * reachable; what they lose is a heading that calls them live and a Resolve
-   * button that implies they are actionable.
-   */
+  /** Open in the store but not current: milestones (events, never conditions)
+   * and anything whose source of truth no longer carries it. Kept as evidence,
+   * without a heading that calls them live or a Resolve button. */
   notCurrent: FlagRecord[];
-  /**
-   * Snoozed with time still on the clock, ONE ROW PER CONDITION, soonest back
-   * first — the site's share of `/alerts`' Snoozed panel (bead `ro-ujb9.194`).
-   * Not settled and not open: each comes back on its `snoozeUntil`.
-   */
+  /** Snoozed with time still on the clock, one row per condition, soonest back
+   * first. Neither settled nor open: each comes back on its `snoozeUntil`. */
   snoozed: FlagRecord[];
-  /** SETTLED — resolved, or given a decision that does not expire
-   * (`flag-open.ts`) — most-recent activity first (last ~20). ONE ROW
-   * PER FIRING: this is the audit trail, ordered by when each row was closed,
-   * and a group whose members were dispositioned on different days is not one
-   * event. Every row here carries `occurrences: 1` by construction. */
+  /** Settled — resolved, or given a decision that does not expire
+   * (`flag-open.ts`) — most recent first (last ~20). One row per firing: this
+   * is the audit trail, and every row carries `occurrences: 1`. */
   history: FlagRecord[];
-  /**
-   * Attention-eligible error/warn CONDITIONS, matching the Wall asset card and
-   * the actionable rows. Repeated firings stay in each row's `occurrences`,
-   * not in these badges. Unverified unresolved conditions remain included;
-   * historical events and conditions ended by newer source evidence do not.
-   */
+  /** Attention-eligible error/warn conditions, matching the Wall asset card.
+   * Repeated firings stay in each row's `occurrences`, not in these badges. */
   openError: number;
   openWarn: number;
 }
@@ -579,27 +470,18 @@ export interface LedgerFamilyAmount {
 }
 
 /** One side of one period's P&L: the figure, and the families it is made of.
- *
- * The breakdown travels WITH the figure rather than beside it because the two
- * are the same claim at two resolutions — a family list summed over both booking
- * states, sitting under a reconciled net, is the blended total this split exists
- * to remove, just spelled out per family (bead `ro-jk7`). */
+ * The breakdown travels with the figure so a family list can never be summed
+ * over both booking states under a reconciled net. */
 export interface LedgerRollup {
   figure: LedgerFigure;
   revenueByFamily: LedgerFamilyAmount[];
   costByFamily: LedgerFamilyAmount[];
 }
 
-/** One accounting month on the asset page, in the SAME two halves the
- * portfolio headline and every asset card state (beads `ro-qes`,
- * `ro-uwo.2`, `ro-jk7`).
- *
- * This period used to carry ONE revenue/cost/net rolled up over every current
- * row regardless of `booking_state`, so the page quoted a booked-P&L number over
- * money nobody had confirmed — the 2026-07 audit's finding 4, one surface further down than
- * the Wall. The two sides are separate fields precisely so nothing can add them:
- * `figureHasMoney` (shared/wall) decides which of them renders, and the stated
- * net is `booked` and only `booked`. */
+/** One accounting month in the same two halves the portfolio headline and every
+ * asset card state. The sides are separate fields so nothing can add them:
+ * `figureHasMoney` (shared/wall) decides which renders, and the stated net is
+ * `booked` only. */
 export interface LedgerPeriod {
   period: string;
   /** RECONCILED current rows for `period` — the figure the page states. */
@@ -609,8 +491,8 @@ export interface LedgerPeriod {
   forecast: LedgerRollup;
 }
 
-/** A raw CURRENT ledger row — booking_state is visible because estimated-vs-
- * reconciled is an honesty fact the operator must see (doc 00 / doc 02). */
+/** A raw current ledger row; booking_state is visible because estimated versus
+ * reconciled is a fact the operator must see. */
 export interface LedgerRawRow {
   currency: string;
   id: number;
@@ -635,19 +517,19 @@ export interface LedgerSlice {
 }
 
 // ---------------------------------------------------------------------------
-// Watch windows (db/0012) — READ-ONLY here
+// Watch windows — read-only here
 // ---------------------------------------------------------------------------
-/** db/0012 watch_windows.outcome — the evaluator's verdict, never the Tower's. */
+/** watch_windows.outcome — the evaluator's verdict, never the Tower's. */
 export type WatchOutcome =
   | "ship_confirmed"
   | "kill_confirmed"
   | "inconclusive"
   | "unmeasurable";
 
-/** One pre-registered outcome check (docs/03): the comparison was chosen before
- * the numbers existed, and the 03:30 cron reads it back out. The Tower only
- * SELECTs — registration lives in the ingest worker's operator API, and the
- * evaluator owns every field that changes after registration. */
+/** One pre-registered outcome check: the comparison was chosen before the
+ * numbers existed, and the evaluator reads it back. The Tower only selects;
+ * registration lives in the ingest worker's operator API, and the evaluator
+ * owns every field that changes after registration. */
 export interface WatchWindowItem {
   id: string;
   /** The measured series, in the `signal_observations` vocabulary: a metric
@@ -685,32 +567,20 @@ export interface WatchSlice {
   /** Recently closed, most recently closed first (last few). */
   closed: WatchWindowItem[];
   /**
-   * This asset's OWN recent daily values for every measurable series it
-   * actually reports, so a registration's threshold can be calibrated from what
-   * this asset does when nothing is shipped rather than from the README's
-   * example (bead `ro-5e8.2`).
-   *
-   * The raw series travels rather than a pre-computed number because the floor
-   * depends on the window length the operator picks, and the baseline is
-   * editable in the composer — a figure derived server-side at 28 days would
-   * quietly describe the wrong comparison the moment they widened it.
-   * `watchCalibration` (shared/watch-windows.ts) is the one derivation over it.
-   *
-   * A series this asset has never reported is ABSENT, not an empty history:
-   * the composer's fallback sentence turns on "no usable history", and an empty
-   * array and a missing entry must not be two ways of saying it.
+   * This asset's own recent daily values for every measurable series it
+   * reports, so a registration's threshold can be calibrated from what this
+   * asset does when nothing is shipped. The raw series travels because the
+   * floor depends on the window length the operator picks; `watchCalibration`
+   * (shared/watch-windows.ts) is the one derivation over it. A series this
+   * asset has never reported is absent, not an empty history: the composer's
+   * fallback sentence turns on "no usable history".
    */
   history: WatchSeriesHistory[];
 }
 
-/** The operator actions the task hub currently attributes to this asset.
- *
- * The two counts are deliberately nullable together. `waitingUrgent` was added
- * when the inbox was narrowed to blocker-aware ready-human work plus open human
- * gates; its presence is therefore the version proof that `waiting` and
- * `items` carry the same meaning the Wall does now. A snapshot from an older
- * long-running poller is UNKNOWN here, never a plausible-looking legacy list.
- */
+/** The operator actions the task hub attributes to this asset. The two counts
+ * are nullable together: a snapshot from an older poller is unknown here, never
+ * a plausible-looking list. */
 export interface AssetOperatorPosture {
   /** When the local runner photographed the hub. Survives an unknown project so
    * the page can distinguish a stale photograph from no photograph. */
@@ -726,11 +596,10 @@ export interface AssetOperatorPosture {
 }
 
 // ---------------------------------------------------------------------------
-// Link outreach / reclamation pipeline (db/0015) — READ-ONLY here
+// Link outreach / reclamation pipeline — read-only here
 // ---------------------------------------------------------------------------
-/** db/0015 reclamation_targets.status. The first six are the funnel in order;
- * `skip` (never pitch) and `dead` (the broken link is gone from the page) are
- * terminal exits from it, not stages. */
+/** reclamation_targets.status. The first six are the funnel in order; `skip`
+ * (never pitch) and `dead` (the broken link is gone) are terminal exits. */
 export type ReclamationStatus =
   | "queued"
   | "sent"
@@ -766,22 +635,19 @@ export interface ReclamationSlice {
 }
 
 // ---------------------------------------------------------------------------
-// Nightly site-health history (db/0014 hygiene_checks) — READ-ONLY here
+// Nightly site-health history (hygiene_checks) — read-only here
 // ---------------------------------------------------------------------------
-/** The served-layer guards docs/08 §S5 defines, ids verbatim from the
- * `hygiene_checks.check_id` CHECK constraint (db/0014, widened by db/0026). */
+/** The served-layer guards, ids verbatim from the `hygiene_checks.check_id`
+ * CHECK constraint. */
 export type HygieneCheckId =
   | "html-depth"
   | "robots-ai-access"
   | "sitemap"
   | "page-structure";
 
-/** The four states one night's fetch can record, verbatim from db/0014.
- *
- * `error` and `unreachable` are deliberately apart at rest and stay apart here:
- * "the server told us no" and "we never reached the server" are different facts
- * and only the first is evidence about the asset. Folding them into one
- * "failed" would delete the difference on the only surface that reads them. */
+/** The four states one night's fetch can record. `error` ("the server told us
+ * no") and `unreachable` ("we never reached the server") are different facts;
+ * only the first is evidence about the asset. */
 export type HygieneStatus = "ok" | "warn" | "error" | "unreachable";
 
 /** One night's reading of one check. */
@@ -794,15 +660,10 @@ export interface HygieneReading {
   observedAt: string;
   status: HygieneStatus;
   /** The check's headline number: words of served text (html-depth), `<loc>`
-   * URLs (sitemap), or pages read (page-structure). **null is "not measured",
-   * never zero** — it is every robots-ai-access row and every failed fetch, and
-   * reading it as zero is the exact mistake that would turn an outage into a
-   * reported collapse.
-   *
-   * `page-structure` is the one check that stores a REAL zero: "the roster was
-   * empty, so nothing was sampled". It is told apart from null by the status
-   * beside it, which is `unreachable` rather than `ok` — a check that measured
-   * nothing has not found nothing wrong. */
+   * URLs (sitemap), or pages read (page-structure). null is "not measured",
+   * never zero: every robots-ai-access row and every failed fetch.
+   * `page-structure` stores a real zero when the roster was empty; its status
+   * is then `unreachable` rather than `ok`. */
   value: number | null;
 }
 
@@ -824,19 +685,9 @@ export interface HygieneBotAccess {
 }
 
 /**
- * The nightly site-health history the OS has been collecting since 2026-07-31
- * and nothing read back (bead `ro-gct`).
- *
- * The hygiene guard writes one row per (asset, check, day), and until now the
- * only way any of it reached a human was a rule firing. That is precisely wrong
- * for this family: all three founding cases are SLOW declines nobody noticed —
- * a home page that served 88 words for months, an AI crawler quietly disallowed,
- * a sitemap shrinking week by week. A rule fires on a step change; the history
- * is what shows a slope.
- *
- * `null` on the payload when the asset has no readings at all, which is every
- * asset until the guard's first night: a section with no data and no way to
- * add any is a dead end, not an invitation (the WatchesStrip rule).
+ * The nightly site-health history. A rule fires on a step change; the history
+ * is what shows a slope. `null` on the payload when the asset has no readings
+ * at all: a section with no data and no way to add any is a dead end.
  */
 export interface HygieneHistory {
   htmlDepth: HygieneCheckHistory;
@@ -865,11 +716,9 @@ export interface FreshnessLanes {
 // ---------------------------------------------------------------------------
 // Executive performance + evidence-derived interpretation
 // ---------------------------------------------------------------------------
-/** Every provider series this page charts: the three headline trends plus the
- * supporting GA4 volume and Search Console rate series. 90 visible dates each,
- * plus the optional calculation-only pre-roll each SignalTrend carries. The
- * shape is single-sourced with the Wall's loader (shared/wall `SignalTrendSet`)
- * so one query can serve both surfaces without either shape drifting. */
+/** Every provider series this page charts: 90 visible dates each, plus the
+ * optional calculation-only pre-roll each SignalTrend carries. The shape is
+ * the Wall's `SignalTrendSet` so one query serves both surfaces. */
 export type PropertyPerformance = SignalTrendSet;
 
 export type ExecutiveInsightKind =
@@ -939,19 +788,11 @@ export interface SearchQueryProviderTrend {
   daysPerWindow: number;
   movers: SearchQueryMover[];
   /**
-   * What this lane states about its own series BEFORE ranking it — today, the
-   * `Grounding queries excluded` row both movers lanes carry. Same
-   * `{label, value, detail}` shape the cards use, and read the same way:
-   *
-   * A PRESENT ROW AT ZERO IS THE POINT. The row exists to prove the check ran,
-   * so it is emitted even when nothing was excluded ("No quoted-literal queries
-   * in this window"). An EMPTY array is the different fact — this lane makes no
-   * such statement — and the two must stay distinguishable on the surface, or a
-   * lane nobody audited reads exactly like a lane that came back clean.
-   *
-   * Snapshots written before the field existed carry no `evidence` key at all;
-   * the parser normalizes that absence to `[]`, which is honest: a producer
-   * that predates the check did not run it.
+   * What this lane states about its own series before ranking it (the
+   * `Grounding queries excluded` row). A present row at zero proves the check
+   * ran and is emitted even when nothing was excluded; an empty array means the
+   * lane makes no such statement, and the two must stay distinguishable.
+   * Snapshots written before the field existed normalize to `[]`.
    */
   evidence: ExecutiveEvidence[];
   source: string;
@@ -978,20 +819,13 @@ export interface DataForSeoQueryVisibilityRow {
   aiOverview: DataForSeoAiOverviewState;
   aiCitationPosition: number | null;
   /**
-   * Tracked-query SERP panel evidence (`dataforseo/serp-panel`, doc 08 §S1b),
-   * ONE READING PER DEVICE (bead `ro-14d.1`): whether the live result page for
-   * this exact term carried an AI Overview on that surface, and whether it
-   * cited this asset there.
-   *
-   * An EMPTY LIST means unknown — the query is not on the asset's panel.
-   * A reading whose fields are null means the panel covered the term and could
-   * not answer (the asynchronous overview never loaded). Neither ever means "no
-   * overview". Rules that read this must leave an empty list behaving exactly
-   * as it did before the panel existed.
-   *
-   * Snapshots written before the split carry a flat `aioPresent`/`aioCitesUs`
-   * pair instead; the payload parser turns those into a single desktop reading,
-   * because desktop is what the collector could only have been reading then.
+   * Tracked-query SERP panel evidence (`dataforseo/serp-panel`), one reading
+   * per device: whether the live result page for this term carried an AI
+   * Overview on that surface, and whether it cited this asset. An empty list
+   * means unknown (the query is not on the panel); a reading whose fields are
+   * null means the panel covered the term and could not answer. Neither ever
+   * means "no overview". A snapshot carrying a flat `aioPresent`/`aioCitesUs`
+   * pair is parsed into a single desktop reading.
    */
   aioDevices: SerpPanelAioReading[];
 }
@@ -1034,8 +868,7 @@ export interface ProductUseSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// Product: what people do once they arrive, and where it breaks (PostHog,
-// beads ro-ghis.2 / ro-ghis.3)
+// Product: what people do once they arrive, and where it breaks (PostHog)
 // ---------------------------------------------------------------------------
 
 /** Google's Core Web Vitals verdict for one 75th percentile. `null` when that
@@ -1244,22 +1077,18 @@ export interface SearchIntelligenceSnapshot {
     newReferringDomains: number;
     lostReferringDomains: number;
   } | null;
-  /** Null when DataForSEO's platform row stated no figure, or the family was
-   * never collected (bead `ro-8s5`): unknown, never zero. */
+  /** Null when the provider stated no figure or the family was never
+   * collected: unknown, never zero. */
   ai: {
     googleMentions: number | null;
     googleSearchVolume: number | null;
     chatgptMentions: number | null;
     chatgptSearchVolume: number | null;
   };
-  /**
-   * The NAMES behind the backlink counts (`ro-kukv.2`). `backlinks` above says
-   * how many referring domains exist; this says which, so "we lost 12 referring
-   * domains" can become a reclamation target instead of a number.
-   */
+  /** The names behind the backlink counts, so a lost referring domain can
+   * become a reclamation target instead of a number. */
   referringDomains: ReferringDomain[];
-  /** The inbound anchor distribution — a risk read and, per docs/08, an
-   * AI-visibility input: brand mentions out-predict raw link counts ~3x. */
+  /** The inbound anchor distribution — a risk read and an AI-visibility input. */
   anchors: AnchorProfile | null;
   /** Net-new demand the asset does not already rank for. */
   keywordIdeas: KeywordIdea[];
@@ -1310,22 +1139,17 @@ export interface SerpCompetitor {
   /** The competitor's own keyword count, the denominator below. */
   competitorKeywords: number;
   /**
-   * `intersections / competitorKeywords`, 0–1 (operator decision 2026-08-31).
-   *
-   * Raw intersections rank the general web first — YouTube, Facebook, Reddit
-   * overlap us on thousands of keywords because they rank for everything, which
-   * is true and useless. Share asks how much of THEIR footprint is ours: a
-   * focused nutrition site overlapping on 2,000 of its 5,000 keywords is a
-   * competitor; YouTube at 3,606 of millions is not. The giants sink on their
-   * own, with no denylist to keep true.
+   * `intersections / competitorKeywords`, 0–1. Raw intersections rank the
+   * general web first, because sites that rank for everything overlap on
+   * thousands of keywords; share asks how much of their footprint is ours, so
+   * the giants sink without a denylist.
    */
   overlapShare: number;
   avgPosition: number;
 }
 
-/** Above this, an anchor is spam rather than editorial. DataForSEO scores 0–100
- * and the observed PBN anchors on one asset scored 65 while genuine ones sat
- * at 0–15, so the threshold sits well clear of both. */
+/** Above this, an anchor is spam rather than editorial. DataForSEO scores
+ * 0–100; observed PBN anchors scored around 65 and genuine ones 0–15. */
 export const ANCHOR_SPAM_THRESHOLD = 40;
 
 /** One rolling export, with each number's actual page/bucket scope. No daily
@@ -1349,20 +1173,17 @@ export interface ExecutiveSnapshot {
   windowEnd: string | null;
   sourceArchiveCount: number;
   items: ExecutiveInsight[];
-  /** The cards the eight-card display cut dropped, named rather than discarded:
-   * the OS may decide not to *show* a finding, never not to *mention* it
-   * (`scripts/signal-insights.mjs`, the honesty rule beside INSIGHT_CARD_LIMIT).
-   * Only the identity of each — a suppressed card carries no evidence, and it is
-   * a mention, not a row to act on. Snapshots written before the producer
-   * emitted the list are normalized to `[]` by the payload parser, which is why
-   * an empty array here never means "the cut dropped nothing it could name". */
+  /** The cards the eight-card display cut dropped, named rather than discarded
+   * (`scripts/signal-insights.mjs`, INSIGHT_CARD_LIMIT). Identity only, never
+   * evidence, so a suppressed card cannot be mistaken for a rendered one. Older
+   * snapshots normalize to `[]`. */
   suppressedItems: SuppressedInsight[];
   /** Compact query movement derived from the same immutable archives. Older
    * snapshots are normalized to null by the payload parser. */
   searchQueries: SearchQueryTrends | null;
-  /** The same comparison at PAGE grain (`ro-427`) — the evidence the page
-   * decision table is built on. Null on every snapshot written before the
-   * producer emitted it, and on any asset without two complete weeks. */
+  /** The same comparison at page grain — the evidence the page decision table
+   * is built on. Null on older snapshots and on any asset without two complete
+   * weeks. */
   searchPages: SearchPageTrends | null;
   /** Exact rolling product-use aggregates when the asset declares a
    * deterministic event map. Older snapshots normalize to null. */
@@ -1374,10 +1195,8 @@ export interface ExecutiveSnapshot {
    * ABSENT means no panel — including on every snapshot written before the
    * block existed, which is the same nothing. Never an empty scoreboard. */
   serpPanel: SerpPanelSnapshot | null;
-  /** What people do once they arrive, and where it breaks — PostHog's product
-   * families (beads ro-ghis.2 / ro-ghis.3). null when no family was collected
-   * for this asset; absent on snapshots written before the block existed,
-   * which means the same thing. */
+  /** What people do once they arrive, and where it breaks (PostHog). null when
+   * no family was collected; absent on older snapshots, which means the same. */
   product?: ProductSnapshot | null;
   /** Latest Clarity 72-hour observation; older snapshots normalize to null. */
   clarity?: ClaritySnapshot | null;
@@ -1385,17 +1204,13 @@ export interface ExecutiveSnapshot {
 }
 
 // ---------------------------------------------------------------------------
-// The tracked-query SERP panel (bead `ro-282.3`)
+// The tracked-query SERP panel
 // ---------------------------------------------------------------------------
 
-/** One device's AI-Overview reading of one tracked result page (bead
- * `ro-14d.1`).
- *
- * The panel reads every term on the phone AND the desktop, and a phone result
- * page is not a narrower desktop one: an overview can consume the click on one
- * surface and not the other. So the reading is per device and is never folded
- * into a single verdict at rest — every fold in this file is a named,
- * documented derivation a surface asked for. */
+/** One device's AI-Overview reading of one tracked result page. A phone result
+ * page is not a narrower desktop one — an overview can consume the click on one
+ * surface and not the other — so readings are per device and never folded at
+ * rest. */
 export interface SerpPanelAioReading {
   /** The surface, as the archive recorded it: `mobile` or `desktop` in
    * practice. An unrecognized literal rides through rather than being dropped —
@@ -1405,9 +1220,8 @@ export interface SerpPanelAioReading {
   aioCitesUs: boolean | null;
 }
 
-/** The order every device-keyed surface states the devices in. The phone leads
- * because that is where most of this demand searches (the reason `ro-o1n`
- * bought the second device), and the first column is the one that gets read. */
+/** The order every device-keyed surface states the devices in: the phone
+ * leads because that is where most of this demand searches. */
 export const SERP_PANEL_DEVICE_ORDER = ["mobile", "desktop"];
 
 /** Device order, with anything unrecognized sorted after both alphabetically. */
@@ -1419,29 +1233,22 @@ export function bySerpPanelDevice(left: string, right: string): number {
   return rank(left) - rank(right) || left.localeCompare(right);
 }
 
-/** The surface as the OPERATOR names it (doc 14: the collection mechanism is
- * never the asset page's vocabulary, and neither is the lane's `mobile`).
- * One implementation, because two surfaces on the same page calling the same
- * device different things is two devices to the reader. */
+/** The surface as the operator names it; the lane's `mobile` is never the
+ * page's vocabulary. */
 export function serpPanelDeviceNoun(device: string): string {
   if (device === "mobile") return "Phone";
   if (device === "desktop") return "Desktop";
   return device.charAt(0).toUpperCase() + device.slice(1);
 }
 
-/** The three AI-Overview states the ✧ glyph has weights for, plus the fourth
- * that has none: `unknown` draws no mark at all, which is why the
- * checked-and-clear case gets its own ghosted one (doc 14). */
+/** The three AI-Overview states the glyph has weights for, plus `unknown`,
+ * which draws no mark at all. */
 export type AiOverviewGlyphState = "cited" | "uncited" | "absent" | "unknown";
 
 /**
- * One device's reading as the glyph reads it.
- *
- * `null` presence is UNKNOWN and must never harden into `absent` — the overview
- * loads asynchronously and a pull that missed it recorded nothing. A present
- * overview whose citation did not parse reads `uncited`, which is the same call
- * both glyphs already made off the raw booleans: it is the weaker claim, and
- * the strong one ("cites this asset") is the one that must be earned.
+ * One device's reading as the glyph reads it. `null` presence is unknown and
+ * must never harden into `absent`. A present overview whose citation did not
+ * parse reads `uncited`, the weaker claim.
  */
 export function aiOverviewGlyphState(
   reading: SerpPanelAioReading,
@@ -1453,18 +1260,10 @@ export function aiOverviewGlyphState(
 
 /**
  * The panel's AI-Overview answer for one term across every device it was read
- * on — a DERIVATION for surfaces that count terms, never a stored fact.
- *
- * ANY SURFACE, not all. An overview that fires on the phone is an overview a
- * real person hit, and a clear desktop page does not give that click back; the
- * fold that required both surfaces to agree would let the quieter one veto the
- * evidence, which is the single-device defect rebuilt with extra steps. False
- * only survives when a device answered and none saw an overview, so the
- * three-state discipline holds: unknown stays unknown, never `false`.
- *
- * For a one-device panel — every collection before 2026-08-04, and every
- * asset that tracks one surface — this returns exactly the pair the row
- * carried before the split.
+ * on — a derivation for surfaces that count terms, never a stored fact. Any
+ * surface, not all: an overview on the phone is one a real person hit, and a
+ * clear desktop page does not give that click back. False only when a device
+ * answered and none saw an overview; unknown stays unknown, never `false`.
  */
 export function foldSerpPanelAio(readings: SerpPanelAioReading[]): {
   aioPresent: boolean | null;
@@ -1481,59 +1280,37 @@ export function foldSerpPanelAio(readings: SerpPanelAioReading[]): {
   };
 }
 
-/** One tracked query on one device, as that live result page, in the site's
- * search market, showed it.
- *
- * This is the panel's OWN row set — every query the operator pays to track —
- * not the subset the broad ranked-keywords inventory happens to also carry. The
- * difference is the whole point of a scoreboard: "ranks on 12 of 20" is only
- * true if the 20 is the panel's, and the inventory cannot supply it. Since
- * `ro-14d.1` the 20 is a count of TERMS while this array holds one row per term
- * per device; `serpPanelTerms()` below is the only sanctioned way back, so no
- * denominator on the page can be multiplied by a device split. */
+/** One tracked query on one device, as that live result page showed it. This
+ * is the panel's own row set — every query the operator pays to track — so
+ * "ranks on 12 of 20" means the panel's 20. The 20 counts terms while this
+ * array holds one row per term per device; `serpPanelTerms()` is the only
+ * sanctioned way back. */
 export interface SerpPanelQuery {
   query: string;
-  /** The surface this row was read on. A snapshot written before the split
-   * carries none, and the parser reads that absence as `desktop` — which it was
-   * by construction, since the collector had one device literal in it until
-   * 2026-08-04. */
+  /** The surface this row was read on. A snapshot written before the collector
+   * read two devices carries none, and the parser reads that absence as
+   * `desktop`. */
   device: string;
   /**
-   * The cluster this query measures — the BET, not the term (bead `ro-282.5`).
-   *
-   * A panel of twenty terms can be six bets (a calculator seam, an item head, a
-   * category head, ...), and "which of them
-   * is moving" is the operator's actual question. `null` is normal input in two
-   * ways that must both keep working: a panel may label nothing at all, and
-   * collections made before labels existed have empty cells because `ro-282.2` chose no
-   * backfill.
-   *
-   * It is the ARCHIVED label, never today's config. A cluster rename applies
-   * from the next collection forward and does not relabel history, so nothing
-   * that renders this may look it up in config/serp-panel.json.
+   * The cluster this query measures — the bet, not the term. `null` is normal:
+   * a panel may label nothing, and older collections have empty cells. It is
+   * the archived label, never today's config: a rename applies from the next
+   * collection forward, so nothing rendering this may look it up in
+   * config/serp-panel.json.
    */
   label: string | null;
   /**
-   * Best organic rank this asset holds on the page, or `null`.
-   *
-   * `null` means NO RESULT INSIDE THE TRACKED DEPTH — not "does not rank". The
-   * panel is a fixed-depth pull of this term on this device (`trackedDepth`,
-   * 20 in practice), so
-   * rank 24 and rank 900 and genuinely absent are one observation to it, and
-   * every one of them is a term worth working. A surface that printed "not
-   * ranking" here would invent a fact the collection never bought.
+   * Best organic rank this asset holds on the page. `null` means no result
+   * inside the tracked depth — not "does not rank": to a fixed-depth pull,
+   * rank 24, rank 900 and genuinely absent are one observation.
    */
   bestRank: number | null;
   /** The URL holding `bestRank`, null when nothing ranked inside the depth. */
   bestUrl: string | null;
   /**
-   * Whether an AI Overview fired on that result page, and whether it cited this
-   * asset.
-   *
-   * `null` is UNKNOWN and never "no": the overview loads asynchronously and a
-   * pull that did not catch it recorded nothing. A count that folded unknown
-   * into no would report an asset clear of an AI Overview it has never been
-   * checked against, which is the one wrong answer that reads as good news.
+   * Whether an AI Overview fired on that result page, and whether it cited
+   * this asset. `null` is unknown and never "no": the overview loads
+   * asynchronously and a pull that missed it recorded nothing.
    */
   aioPresent: boolean | null;
   aioCitesUs: boolean | null;
@@ -1549,11 +1326,9 @@ export interface SerpPanelQuery {
   providerAttempts?: number;
 }
 
-/** What surrounded the asset on one readable tracked result page.
- *
- * This is CURRENT COMPOSITION ONLY. The insight snapshot retains one panel
- * collection, so none of these fields may be read as movement or a takeover;
- * that needs a second retained collection. */
+/** What surrounded the asset on one readable tracked result page. Current
+ * composition only: the snapshot retains one collection, so none of these
+ * fields may be read as movement. */
 export interface SerpPanelComposition {
   /** Domains in organic positions 1–3, in result order. Fewer than three is a
    * readable short list, not three unknown placeholders. */
@@ -1574,45 +1349,31 @@ export interface SerpPanelSnapshot {
   /** The collection day (`report_date`) these rows are about. */
   reportDate: string;
   /**
-   * How deep the pull looked, from the archive's own `tracked_depth`.
-   *
-   * `null` on a legacy row that never recorded it — unstated, and deliberately
-   * NOT defaulted to 20: assuming a depth would silently turn "no rank
-   * recorded" into "outside the top 20", which is a claim about a page nobody
-   * read that far down. A surface with a null depth says "inside tracked depth"
-   * without a number rather than naming one it does not have.
+   * How deep the pull looked, from the archive's own `tracked_depth`. `null` on
+   * a legacy row that never recorded it, deliberately not defaulted to 20: a
+   * surface with a null depth says "inside tracked depth" without a number.
    */
   trackedDepth: number | null;
-  /**
-   * The search market the site saved, the one the panel is asked in (bead
-   * `ro-ujb9.230`). `null` when the site saved none, or on a snapshot written
-   * before the block carried it: the caption then names no market rather than
-   * a default the site never chose.
-   */
+  /** The search market the site saved, the one the panel is asked in. `null`
+   * when the site saved none or the snapshot predates it: the caption then
+   * names no market. */
   market: SearchMarket | null;
   queries: SerpPanelQuery[];
 }
 
-/** The line a human reads first: how the panel is doing, before what each row
- * is (bead `ro-282.3`, the altitude nom's markdown reports opened with).
- *
- * Every field is a COUNT OF QUERIES, and the two AI-Overview denominators are
- * deliberately different from `tracked`: `aioKnown` counts only the rows the
- * panel could answer the question for at all. Dividing by `tracked` instead
- * would spend every unknown as a "no". */
+/** The line a human reads first. Every field is a count of terms; the two
+ * AI-Overview figures use `aioKnown` as their denominator, because dividing by
+ * `tracked` would spend every unknown as a "no". */
 export interface SerpPanelScoreboard {
-  /** TERMS on the panel — the denominator for the three rank tiers, and a
-   * count of terms rather than of rows, so reading each term on two devices
-   * does not double it. */
+  /** Terms on the panel — the denominator for the rank tiers; terms, not rows,
+   * so two devices do not double it. */
   tracked: number;
   /** Terms holding any rank inside `trackedDepth`, on any device read. */
   ranking: number;
   top10: number;
   top3: number;
-  /** Terms whose AI-Overview presence was actually observed on at least one
-   * device (true OR false). Below `tracked` means the rest are unknown, and the
-   * surface says so by quoting this as the denominator rather than hiding the
-   * gap. A term unknown on BOTH devices is one unknown, not two. */
+  /** Terms whose AI-Overview presence was observed on at least one device. A
+   * term unknown on both devices is one unknown, not two. */
   aioKnown: number;
   /** Terms whose result page carried an AI Overview on any device read. */
   aioPresent: number;
@@ -1621,25 +1382,19 @@ export interface SerpPanelScoreboard {
 }
 
 /**
- * One tracked TERM and every device the panel read it on (bead `ro-14d.1`).
- *
- * The rows arrive one per (term, device); every count and every list on the
- * asset page is about terms. The folded fields exist so the scoreboard and
- * the row summary share ONE derivation — they are never stored, and a surface
- * that wants the split reads `devices` instead.
+ * One tracked term and every device the panel read it on. The folded fields
+ * exist so the scoreboard and the row summary share one derivation; a surface
+ * that wants the split reads `devices`.
  */
 export interface SerpPanelTerm {
   query: string;
-  /** The cluster the term's rows recorded, or null where none did. Its rows
-   * agree — the label rides on the query, not the surface — so the first
-   * non-null wins and a mid-cutover pair keeps the bet it was placed on. */
+  /** The cluster the term's rows recorded, or null. The label rides on the
+   * query, not the surface, so the first non-null wins. */
   label: string | null;
   /** Its rows, one per device, in `SERP_PANEL_DEVICE_ORDER`. */
   devices: SerpPanelQuery[];
-  /** BEST rank across the surfaces the term was read on, null when no device
-   * found a result inside the tracked depth. Best, because the question the
-   * tiers answer is whether this asset holds the position anywhere the panel
-   * looked; a term ranked 3 on the phone is a term ranked 3. */
+  /** Best rank across the surfaces the term was read on; null when no device
+   * found a result inside the tracked depth. */
   bestRank: number | null;
   /** The URL holding `bestRank`, from whichever device holds it. */
   bestUrl: string | null;
@@ -1649,13 +1404,10 @@ export interface SerpPanelTerm {
 }
 
 /**
- * The panel's rows grouped back into the terms the operator bought.
- *
- * THE ONLY sanctioned way from rows to terms, because a device split must not
- * multiply a denominator: "ranks on 12 of 20" has to keep meaning twenty terms
- * after the panel starts reading each of them twice, and one unknown term must
- * stay one unknown rather than becoming two. Terms come out in first-seen
- * order — the panel's own config order — so the caller decides the sort.
+ * The panel's rows grouped back into the terms the operator bought — the only
+ * sanctioned way from rows to terms, so a device split cannot multiply a
+ * denominator or turn one unknown term into two. Terms come out in first-seen
+ * order; the caller decides the sort.
  */
 export function serpPanelTerms(panel: SerpPanelSnapshot): SerpPanelTerm[] {
   const byTerm = new Map<string, SerpPanelQuery[]>();
@@ -1682,21 +1434,9 @@ export function serpPanelTerms(panel: SerpPanelSnapshot): SerpPanelTerm[] {
 }
 
 /**
- * The scoreboard, from the panel's own rows.
- *
- * A shared derivation rather than a loop inside the component, for the reason
- * every count on this page is shared: the asset page states these six
- * numbers and the test asserts them, and two implementations of "top 10" is
- * exactly how a surface starts disagreeing with its own evidence.
- *
- * EVERY FIGURE COUNTS TERMS, never rows (`serpPanelTerms`). A panel read on two
- * devices is the same twenty terms, so the split changes what the page can SAY
- * and not one denominator it says it against — and a term nobody could answer
- * the AI question for stays one unknown instead of turning into two.
- *
- * The rank tiers require `bestRank !== null` before comparing, so a query with
- * no result inside the tracked depth is counted in `tracked` and in nothing
- * else — never as a rank-0 or a rank-999.
+ * The scoreboard, from the panel's own rows. Every figure counts terms, never
+ * rows. The rank tiers require `bestRank !== null`, so a term with no result
+ * inside the tracked depth is counted in `tracked` and nothing else.
  */
 export function serpPanelScoreboard(panel: SerpPanelSnapshot): SerpPanelScoreboard {
   const terms = serpPanelTerms(panel);
@@ -1723,21 +1463,11 @@ export function serpPanelScoreboard(panel: SerpPanelSnapshot): SerpPanelScoreboa
 }
 
 /**
- * The two GA4 declarations this asset owns, as config holds them right now
- * (bead `ro-x5gu.3`) — the rows its Sources tab edits inside the GA4 lane's
- * card.
- *
- * **`null` is not an empty list, and the difference is the whole point of both
- * files.** `null` means the asset has NO entry: nothing is declared, the
- * value-event check stays silent and the js-errors archive skips the asset
- * without a request. `[]` means an entry exists and declares nothing, which
- * behaves the same downstream but is a different write — a first row lands in
- * an existing entry rather than creating one (`CollectionChange` `seed`).
- *
- * They ride here rather than being read in the browser for the reason every
- * config slice does: a browser cannot open a file, and `CollectionEditor` takes
- * its rows from the payload the page already fetches rather than becoming a
- * second reader of one.
+ * The two GA4 declarations this asset owns, as config holds them — the rows
+ * its Sources tab edits. `null` means the asset has no entry; `[]` means an
+ * entry exists and declares nothing. Both behave the same downstream but are
+ * different writes: a first row lands in an existing entry rather than
+ * creating one (`CollectionChange` `seed`).
  */
 export interface AssetGa4Config {
   /** `config/value-events.json` → `/assets/<id>/valueEvents`. */
@@ -1750,30 +1480,20 @@ export interface AssetGa4Config {
 }
 
 /**
- * The two tracked-panel registers as they hold THIS asset (bead `ro-x5gu.4`) —
- * what its Growth tab edits under the board that reads the panel back.
+ * The two tracked-panel registers as they hold this asset — what its Growth
+ * tab edits. Same `null`-is-not-`[]` rule as `AssetGa4Config`:
  *
- * Same `null`-is-not-`[]` rule as `AssetGa4Config` above, and here the two ends
- * of it are further apart than anywhere else in the config:
+ *   - `trackedQueries: null` is an asset that buys no tracked panel at all;
+ *     the first term files the asset's whole entry (`seed`) rather than
+ *     appending.
+ *   - `trackedQueries: []` is an entry listing no terms, which the panel config
+ *     treats as an error, so the register declares `emptyIsAbsent` and the
+ *     last term out takes the entry with it (`unseed`).
+ *   - `roster: null` is a gap, because `config/signal-panels.json` makes
+ *     membership an invariant.
  *
- *   - `trackedQueries: null` is an asset that buys **no tracked panel at all** —
- *     `config/serp-panel.README.md` skips an absent asset silently, no call and
- *     no manifest row, and the add-asset wizard deliberately writes nothing
- *     there because a panel is a weekly bill plus a weekly review obligation. It
- *     is also what decides the write: the first term files the asset's whole
- *     entry (`CollectionChange` `seed`) rather than appending.
- *   - `trackedQueries: []` is an entry listing no terms, which that README calls
- *     a **config error** — which is why the register declares `emptyIsAbsent`
- *     and the last term out takes the entry with it (`unseed`). The payload
- *     still reports `[]` honestly if it ever finds one; the surface does not
- *     create one.
- *   - `roster: null` is an **undocumented gap**, because
- *     `config/signal-panels.README.md` makes membership an invariant — every
- *     asset has a row, including the ones that are off.
- *
- * A tracked term is a bare string OR `{query, label}`, in any mix, so the list
- * is `JsonValue[]` rather than `string[]`: repairing it to one shape here would
- * throw away the cluster the panel groups its bets by.
+ * A tracked term is a bare string or `{query, label}`, in any mix, so the list
+ * is `JsonValue[]`: repairing it to one shape would throw away the cluster.
  */
 export interface AssetPanelConfig {
   /** `config/serp-panel.json` → `/assets/<id>/queries`. */
@@ -1798,9 +1518,8 @@ export interface SiteCounters {
   cards: CounterCard[];
 }
 
-/** One failed nightly-report fetch on a site's Data sources tab (bead
- * `ro-ujb9.220`): the stored reading, and whether its alert is still open —
- * this outage's nights, or a past one's. */
+/** One failed nightly-report fetch on a site's Data sources tab: the stored
+ * reading, and whether its alert is still open. */
 export interface FetchFailure extends FlagReading {
   ongoing: boolean;
 }
@@ -1816,9 +1535,7 @@ export interface AssetDetailPayload {
    * its removal on. `null` when the site declares no totals. */
   countersConfig: JsonValue | null;
   /** The asset's own rows in the two tracked-panel registers, which its Growth
-   * tab edits. Read here rather than fetched separately: the Worker already
-   * holds both files, so a second reader would only be a second chance for
-   * them to disagree. */
+   * tab edits. */
   panelConfig: AssetPanelConfig;
   rules: RulesInForce;
   /** Portfolio-wide spend caps + operator rate (config/constants.json), editable. */
@@ -1837,85 +1554,61 @@ export interface AssetDetailPayload {
    * `counters` below, resolved to their freshest lane. */
   metrics: PulseMetric[];
   /** This site's all-time totals and catalog counts (config/counters.json),
-   * drawn on its Overview since the Wall's asset card left (bead
-   * `ro-trai.21`, docs/14-design.md § What leaves the Wall). Null: the site
-   * configures none, and the Overview draws nothing. */
+   * drawn on its Overview. Null: the site configures none. */
   counters: SiteCounters | null;
   flags: FlagsSection;
   ledger: LedgerSlice;
   dailyRevenue?: DailyRevenueHistory;
   /** The operator's clock the Worker read days in: config/constants.json
-   * `os_time_zone` as SAVED, store first (bead `ro-ujb9.88`). The page's own
-   * date math uses this, since the browser has no store to read it from. */
+   * `os_time_zone` as saved. The page's own date math uses this. */
   osTimeZone: string;
-  /** Every operator decision recorded for this asset (db/0013). An item with
-   * no row here is untouched; the client matches rows to queries/findings by
-   * `key` alone, so no join travels with them. */
+  /** Every operator decision recorded for this asset. An item with no row is
+   * untouched; the client matches rows by `key` alone. */
   decisions: AssetDecision[];
   /**
-   * The beads filed from this asset's handoffs, as the newest beads snapshot
-   * saw them — matched to a query/finding by `key`, exactly like `decisions`.
-   *
-   * **null is not an empty list.** `[]` means the poller looked at this
-   * asset's spoke and nobody has filed anything; `null` means it could not
-   * look at all — no snapshot has ever been filed, the asset is not a spoke
-   * in `config/beads.json`, `bd` failed for it, or the snapshot predates this
-   * field (the poller is a plain node process and only picks the field up when
-   * the operator restarts `os:up`). Both render nothing, but only one of them
-   * is a measurement, and a card must never turn "we could not ask the
-   * register" into "no work was ever filed for this".
+   * The tasks filed from this asset's handoffs, as the newest task snapshot
+   * saw them, matched by `key` like `decisions`. null is not an empty list:
+   * `[]` means the poller looked and nobody has filed anything; `null` means
+   * it could not look (no snapshot, the asset is not a project in
+   * `config/beads.json`, `bd` failed, or the snapshot predates the field). A
+   * card must never turn "could not ask the register" into "nothing filed".
    */
   handoffBeads: HandoffBead[] | null;
-  /** The asset's exact human-action posture from the same beads photograph
-   * that supplied `handoffBeads` and `panelReview`. Tasks remain coordination
-   * state, not asset signals; this slice never participates in health or growth
-   * derivations. */
+  /** The asset's human-action posture from the same task snapshot that
+   * supplied `handoffBeads` and `panelReview`. Tasks are coordination state,
+   * not asset signals; this slice never feeds health or growth derivations. */
   operator: AssetOperatorPosture;
-  /** What changed on this asset, newest first, plus a count of any older rows
-   * the read did not carry. NOT a bare array: a capped timeline that does not
-   * say it is capped reads as the asset's whole history (ro-5e8.1). */
+  /** What changed on this asset, newest first, plus a count of older rows the
+   * read did not carry: a capped timeline that does not say it is capped
+   * reads as the whole history. */
   annotations: AnnotationTimeline;
-  /** Pre-registered outcome checks for this asset (db/0012). The strip that
-   * renders them stays read-only — a registered comparison is the one thing
-   * that must survive learning the answer, and evaluation belongs to the 03:30
-   * job — but since bead `ro-71r` the Timeline section can OPEN one, through
-   * ingest's `createWatchWindow()` RPC. Both lists are empty when nothing has
-   * been registered, and the strip still renders nothing then: the action lives
-   * in the section header, so an empty list would only be three lines saying
-   * "none yet" on every asset that never opened one. */
+  /** Pre-registered outcome checks for this asset. The strip is read-only — a
+   * registered comparison must survive learning the answer, and evaluation
+   * belongs to the scheduled job — but the Timeline section can open one
+   * through ingest's `createWatchWindow()` RPC. The strip renders nothing when
+   * both lists are empty; the action lives in the section header. */
   watches: WatchSlice;
-  /** This asset's link-outreach pipeline (db/0015), read-only. **null when the
-   * table holds no rows for it** — most assets never run a reclamation
-   * campaign, and the Tower has no write UI for one, so an empty section would
-   * be a dead end rather than an invitation (same rule as the Watches strip). */
+  /** This asset's link-outreach pipeline, read-only. null when the table holds
+   * no rows for it: the Tower has no write UI for one, so an empty section
+   * would be a dead end. */
   reclamation: ReclamationSlice | null;
-  /** The nightly served-layer history (db/0014), read-only. **null until the
-   * hygiene guard's first night for this asset** — same rule as the two
-   * strips above: nothing collected is nothing to render. */
+  /** The nightly served-layer history, read-only. null until the hygiene
+   * guard's first night for this asset. */
   hygiene: HygieneHistory | null;
   /** This site's most recent failed nightly-report fetches, newest first: the
-   * readings of its `asset-pull-failed` alerts (`noticeos.flag_evidence`, bead
-   * `ro-ujb9.220`). [] when none is recorded. */
+   * readings of its `asset-pull-failed` alerts (`flag_evidence`). [] when none. */
   fetchFailures: FetchFailure[];
   /** This asset's integration lanes: file-backed scope/setup plus store-derived
    * effective health and evidence. Health is displayed, never manually edited. */
   integrations: AssetIntegrations;
   /** The GA4 lane's two operator declarations, editable on the Sources tab. */
   ga4Config: AssetGa4Config;
-  /** This asset's serp-panel review obligation, or null — the SAME two
-   * fields the Wall's cards carry, derived by the same functions over the same
-   * two reads (bead `ro-elf`).
-   *
-   * The card is a drill-down TARGET: an overdue badge on the Wall is an
-   * instruction to open this page, which until now said nothing whatsoever
-   * about the panel review. So the one surface you would go to in order to do
-   * the triage was the one surface that did not mention it.
-   *
-   * Same three absences collapse to null as on the card (no collection landed
-   * inside the window, nothing filed yet, a snapshot predating the field), and
-   * the page's answer to all three is the same nothing. An asset with no
-   * `config/serp-panel.json` entry is not an absence — it owes the same read and
-   * states it in its own noun (`panelReviewNouns`, bead `ro-z0g`). */
+  /** This asset's serp-panel review obligation, or null — the same two fields
+   * the Wall's cards carry, derived by the same functions over the same reads,
+   * so the page a Wall badge points at states the obligation. The same three
+   * absences collapse to null as on the card. An asset with no
+   * `config/serp-panel.json` entry is not an absence; it states the read in its
+   * own noun (`panelReviewNouns`). */
   panelReview: PanelReview | null;
   /** The newest panel DAY collected for this asset ('YYYY-MM-DD') — the day
    * a finished review has to be about for it to still count. */
@@ -1924,17 +1617,13 @@ export interface AssetDetailPayload {
 }
 
 // ---------------------------------------------------------------------------
-// Page-grain decisions (`ro-427`)
+// Page-grain decisions
 // ---------------------------------------------------------------------------
 
 /** The page's largest query by impressions in the current window, off the
- * grounding-decontaminated page/query series — what Google is showing this page
- * FOR, which is not the same question as what it earns clicks on.
- *
- * `aioDevices` follows `DataForSeoQueryVisibilityRow.aioDevices` exactly: one
- * reading per device, an EMPTY list meaning the term is not on this asset's
- * panel (unknown), and a reading whose fields are null meaning the panel covered
- * it and could not answer. Neither ever means "no overview". */
+ * grounding-decontaminated page/query series — what Google shows this page
+ * for, not what it earns clicks on. `aioDevices` reads exactly like
+ * `DataForSeoQueryVisibilityRow.aioDevices`. */
 export interface SearchPageLeadingQuery {
   query: string;
   impressions: number;
@@ -1985,12 +1674,9 @@ export interface SearchPageTrends {
   previousEnd: string;
   daysPerWindow: number;
   pages: SearchPageMover[];
-  /** What this lane states about its own series before ranking it — read
-   * exactly like `SearchQueryProviderTrend.evidence`, including the rule that a
-   * present row at zero proves the check ran. The one row here is labelled for
-   * the LEADING-QUERY JOIN rather than for the totals, because a page row
-   * carries no query to classify and the totals therefore cannot be
-   * decontaminated. */
+  /** Read exactly like `SearchQueryProviderTrend.evidence`. The one row here
+   * is labelled for the leading-query join rather than the totals, because a
+   * page row carries no query to classify. */
   evidence: ExecutiveEvidence[];
   source: string;
   caveat: string;

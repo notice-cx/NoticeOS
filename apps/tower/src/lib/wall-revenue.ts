@@ -1,30 +1,20 @@
-// The month's revenue as the Wall's revenue widget states it (docs/14-design.md
-// § Revenue, bead `ro-trai.4`).
+// The month's revenue as the Wall's revenue widget states it.
 //
-// THE FIGURE IS THE LEDGER'S, THE PACE IS THE PROJECTIONS'. The large number is
-// the selected ledger side's revenue when revenue rows exist. A cost-only side
-// establishes no revenue amount, so another recorded revenue side or the sources'
-// reported days lead instead. Missing current reports are not a reported zero. The pace is the sum of every site's `revenueProjection` that is
-// `ready` for that month (`shared/revenue-projection.ts`, which owns the
-// arithmetic: weekday-weighted traffic times the median earning rate, one
-// settling GA4 day accepted since `ro-eqda`), plus whatever revenue no
-// projection covers — a source with no daily report still earned its money.
+// The figure is the ledger's, the pace is the projections'. The large number
+// is the selected ledger side's revenue when revenue rows exist; a cost-only
+// side establishes no revenue amount, and missing current reports are not a
+// reported zero. The pace is the sum of every site's `revenueProjection` that
+// is `ready` for that month (`shared/revenue-projection.ts` owns the
+// arithmetic), plus whatever revenue no projection covers.
 //
-// THE SHAPE AND THE COMPARISON ARE LIKE FOR LIKE. Revenue no projection covers
-// has no days, so it cannot be drawn by day, and it has no last-month total to
-// be compared with. The month chart and the "vs last month" change are
-// therefore over the covered sites only: the same sites, both months. In the
-// ordinary case every revenue source has a projection and the two agree.
+// The shape and the comparison are like for like: revenue no projection
+// covers has no days and no last-month total, so the month chart and the "vs
+// last month" change are over the covered sites only. Nothing here re-derives
+// a projection; it only adds up the ones the Worker built, day by day.
 //
-// Nothing here re-derives a projection; it only adds up the ones the Worker
-// built, day by day.
-//
-// YESTERDAY IS THE PROVIDERS' OWN ESTIMATE, SUMMED (bead `ro-trai.32`). Each
-// site's `dailyRevenue` is yesterday's saved report on the provider's clock;
-// `yesterdayTotal` adds up the ones that are in, over the sites that have a
-// revenue source at all, and counts the ones that are not. Missing is never
-// zero: a site whose report has not arrived is left out of the sum and counted
-// as not reported, while a recorded $0 is a report like any other.
+// Yesterday is the providers' own estimate, summed: a site whose report has
+// not arrived is left out of the sum and counted as not reported, while a
+// recorded $0 is a report like any other.
 
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import type { RevenueProjection } from "@shared/revenue-projection";
@@ -71,7 +61,7 @@ export interface MonthPace {
 export interface MonthRevenue {
   /** 'YYYY-MM' the figure is about. */
   period: string;
-  /** False when the ledger's latest month is not the current one (`ro-bdkp`). */
+  /** False when the ledger's latest month is not the current one. */
   periodIsCurrent: boolean;
   /** The month's revenue so far, in dollars; null while no revenue source has
    * reported a complete day this month and the ledger has no revenue row for it. */
@@ -104,11 +94,10 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 
 /**
  * The widget's whole read model. `null` means there is nothing to state: no
- * ledger row this month and no site with a revenue source (`hasRevenueSource`)
- * — the widget then says "No revenue source" in one line. A site whose source
- * reports but has no pace yet (a new installation's first three weeks, bead
- * `ro-trai.33`) is something to state: the month so far from its reported
- * days, and why there is no pace.
+ * ledger row this month and no site with a revenue source
+ * (`hasRevenueSource`). A site whose source reports but has no pace yet is
+ * something to state: the month so far from its reported days, and why there
+ * is no pace.
  */
 export function monthRevenue(
   portfolio: PortfolioBand,
@@ -235,7 +224,7 @@ export interface YesterdayTotal {
   reported: number;
   /** Sites with a revenue source: the ones that owe yesterday a report. */
   sites: number;
-  /** One common provider day/clock, never an assumed operator or Pacific day. */
+  /** One common provider day/clock, never an assumed operator or provider day. */
   basis: { date: string; timeZone: string } | null;
   /** Received reports use incompatible dates/clocks, so no total is valid. */
   mixedBasis?: true;
@@ -243,13 +232,11 @@ export interface YesterdayTotal {
 
 /**
  * Yesterday's revenue across the sites, or `null` when no site has a revenue
- * source (the Wall then says nothing about yesterday).
- *
- * A summary counts only while it still describes yesterday. The Worker dates it
- * on its provider's reporting clock (`DailyRevenueSummary.timeZone`, D42),
- * and a last-good payload the Wall is still holding can cross
- * midnight, so "yesterday" is asked again at `nowMs` on that same clock: the day
- * before yesterday's figure is never shown as yesterday's.
+ * source. A summary counts only while it still describes yesterday: the
+ * Worker dates it on its provider's reporting clock
+ * (`DailyRevenueSummary.timeZone`), and a last-good payload the Wall is still
+ * holding can cross midnight, so "yesterday" is asked again at `nowMs` on
+ * that same clock.
  */
 export function yesterdayTotal(
   assets: readonly Pick<AssetCard, "revenueProjection" | "dailyRevenue">[],

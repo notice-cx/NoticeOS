@@ -52,41 +52,17 @@ function percent(value: number, digits = 1): string {
 }
 
 /**
- * THE PRODUCT SECTION — what people do once they arrive, and where it breaks
- * (beads `ro-ghis.2`, `ro-ghis.3`; doc 14).
- *
- * *Registry justification:* nothing drew PostHog's product families. The
- * Growth tab's `ProductUse` strip is GA4 event totals with no series, no funnel
- * and no breakage; `ExecutiveFindingsList` renders findings, not the funnel
- * shape or the speed ratings a finding is picked from. This section composes
- * the vocabulary — a `SmallMultipleStrip` of daily use with sparklines, the
- * funnel as `Meter` bars, a three-row `ListPanel` of where it breaks with the
- * ratings as `StateChip`s — and adds no new primitive. PostHog's caveats (bots,
- * consent, blocked browsers) are documented in docs/20-signal-panels.md, not
- * restated on the screen (bead `ro-ujb9.96.6.5`).
- *
- * ONE QUESTION, TWO HALVES, READ LEFT TO RIGHT: the strip says how many people
- * use the site and how many make it through the main journey; the funnel says
- * where they stop; the list says what is broken where they stop. Each part
- * prints its own window, because the families measure different spans (28, 14
- * and 7 days) and a single caption would claim one period for all of them.
- *
- * NOTHING IS A ZERO. A part PostHog did not collect is a dash with its reason; a
- * rule with too little data says so in the checks line, rather than the list
- * reading as a clean bill of health.
+ * What people do once they arrive, and where it breaks: daily use, the funnel,
+ * then what is broken where they stop. Each part prints its own window because
+ * the families measure different spans. A part not collected is a dash with its
+ * reason, never a zero.
  */
 export function ProductJourney({ product, connection, className }: ProductJourneyProps) {
   const daily = product?.webDaily ?? null;
   return (
     <section id="product" data-product-journey className={cn("scroll-mt-4 flex flex-col gap-2", className)}>
-      {/* The caption carries the DAILY window, once: it is what the strip
-          directly under it measures. The funnel and the list state their own,
-          shorter windows where they are drawn (doc 14, time belongs to the fact
-          it qualifies). */}
-      {/* NO EXPLAINER (bead `ro-ujb9.96.6.5`): the section's title, source and
-          dates are its whole description. The read date is stated only where
-          it differs from the daily window's last day: the same date twice is
-          one too many (doc 14). */}
+      {/* The caption carries the daily window; the read date only when it
+          differs from the window's last day. */}
       <SectionLabel
         title="Product"
         caption={[
@@ -129,10 +105,8 @@ function breakageWindow(product: ProductSnapshot): string | null {
 }
 
 function ProductBody({ product }: { product: ProductSnapshot }) {
-  // GROUPED BY PAGE (bead `ro-ujb9.96.6.5`): the page is said once, as the
-  // group's heading, and each finding keeps its one line and its number.
   // Closed, the panel shows the worst finding of each of the three worst
-  // places; the expander opens every finding in place.
+  // pages; the expander opens every finding in place.
   const groups = productIssueGroups(product);
   const found = groups.reduce((total, group) => total + group.issues.length, 0);
   const quietChecks = product.checks.filter((check) => check.state !== "fired");
@@ -168,11 +142,8 @@ function ProductBody({ product }: { product: ProductSnapshot }) {
 
 // --- daily use and the main journey, as one strip ---------------------------
 
-/**
- * Daily use as three measures and their lines. The lines are the ACTUAL days —
- * a seven-day average would open on a warm-up dip no visitor produced — and the
- * window is the section caption's, stated once rather than under each cell.
- */
+/** Daily use as three measures and their lines, drawn from actual days: a
+ * seven-day average would open on a warm-up dip no visitor produced. */
 function UseStrip({ product }: { product: ProductSnapshot }) {
   const days = product.webDaily?.days ?? [];
   const series = (pick: (day: (typeof days)[number]) => number | null): SeriesPointOrGap[] =>
@@ -297,7 +268,7 @@ function FunnelBlock({ funnel }: { funnel: ProductFunnel }) {
           return (
             <li
               key={step.step}
-              // A FIXED number column: every row is its own grid, and an `auto`
+              // A fixed number column: every row is its own grid, and an `auto`
               // column would end each bar at a different x — bars that do not
               // share a right edge cannot be compared by length.
               className="grid grid-cols-[minmax(0,1fr)_7.5rem] items-center gap-x-3 gap-y-1 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)_7.5rem]"
@@ -371,7 +342,7 @@ const RATING_GLYPH: Record<WebVitalRating, string> = {
 
 /**
  * One Core Web Vitals reading against Google's lines: the value, the verdict in
- * words and a glyph, in the attention tone the verdict earns (doc 14). A metric
+ * words and a glyph, in the attention tone the verdict earns. A metric
  * with no measurements says so rather than borrowing "good".
  */
 function VitalReading({
@@ -559,7 +530,7 @@ const CHECK_WORDS: Record<ProductCheck["state"], string> = {
 };
 
 /**
- * The rules that did NOT find anything, and why — so a short list reads as
+ * The rules that did not find anything, and why — so a short list reads as
  * "checked, clear" or "too thin to judge" rather than as silence. Words and a
  * glyph carry the state; the reasons are one tooltip away.
  */
@@ -587,13 +558,7 @@ function ChecksLine({ checks }: { checks: ProductCheck[] }) {
 
 // --- an opened row's evidence, as facts --------------------------------------
 
-/**
- * AN OPENED ROW STATES FACTS, NOT A PARAGRAPH (bead `ro-ujb9.96.6.5`). The
- * rows used to open onto a sentence each — "1,493 people, 62% of them on
- * desktop, against the 18,826 who viewed…" — which the reader had to parse to
- * find the three numbers in it. PostHog's own issue pages lead with the same
- * figures as labelled counts. The window is the list header's, stated once.
- */
+/** An opened row's evidence as labelled counts, not a sentence. */
 function Facts({ facts }: { facts: ReadonlyArray<readonly [string, string]> }) {
   return (
     <dl className="m-0 grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-x-4 gap-y-1.5" data-product-facts>

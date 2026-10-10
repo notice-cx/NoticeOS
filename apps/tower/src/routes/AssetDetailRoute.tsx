@@ -21,8 +21,8 @@ import {
   tabPath,
   type AssetTab,
 } from "@/routes/asset-detail/AssetTabs";
-// Each tab's code arrives when the tab is opened (bead `ro-ujb9.84`); these are
-// the lazy stand-ins, not the tab modules. See `asset-detail/lazy-tabs.ts`.
+// Each tab's code arrives when the tab is opened; these are the lazy
+// stand-ins, not the tab modules. See `asset-detail/lazy-tabs.ts`.
 import {
   ActivityTab,
   AlertsTab,
@@ -58,17 +58,13 @@ export function AssetDetailRoute() {
   // The tab this page is about to show. A hash that names a tab is where the
   // page is going, not the segment it is leaving.
   const showing = hashTab ?? tab;
-  // ONE READ PER TAB (bead `ro-ujb9.64`): the poll asks for the view of the tab
-  // on screen, and a pointer resting on another tab starts that tab's read.
+  // One read per tab: the poll asks for the view of the tab on screen, and a
+  // pointer resting on another tab starts that tab's read.
   const { data, isFetching, error, refetch } = useAssetDetail(id, showing);
   const prefetchView = usePrefetchAssetDetail(id);
 
-  // A check some OTHER section asked to open (bead `ro-5e8.5`). It lives at the
-  // route because the composer lives in the Timeline section and the surfaces
-  // that raise one are pages away from it — one seed at a time, since two
-  // half-designed comparisons is the same defect as two open composers. The
-  // route is ONE component across every tab (App.tsx's optional `:tab`
-  // segment), which is what lets the seed survive the switch to Activity.
+  // A check some other section asked to open. It lives at the route, the one
+  // component across every tab, so the seed survives the switch to Activity.
   const [watchSeed, setWatchSeed] = useState<WatchSeed | null>(null);
 
   /** A query row lives on Search and a finding on Overview; the composer lives
@@ -80,8 +76,8 @@ export function AssetDetailRoute() {
   }
 
   const notFound = error instanceof ApiError && error.status === 404;
-  // A failed poll keeps the last-good payload (TanStack Query); the header's age
-  // badge says so rather than letting a held page look current (doc 10 principle 2).
+  // A failed poll keeps the last-good payload (TanStack Query); the header's
+  // age badge says so rather than letting a held page look current.
   const lastGood = Boolean(error) && Boolean(data);
 
   useEffect(() => {
@@ -89,15 +85,9 @@ export function AssetDetailRoute() {
     navigate(`${tabPath(id, hashTab, search)}${hash}`, { replace: true });
   }, [hashTab, tab, id, hash, search, navigate]);
 
-  // A segment nobody built renders Overview — but `Tabs` matches the active tab
-  // on the PATH, so `/assets/:id/nonsense` left alone shows Overview under a bar
-  // with nothing selected, and a panel whose `aria-labelledby` names a tab that
-  // is not selected (bead `ro-02rn`). Canonicalise instead: the URL becomes the
-  // tab it is already showing, keeping the query string and the hash, because a
-  // mistyped tab is still the asset the operator asked for. `replace`, because a
-  // typo is not a step in the operator's history. A mapped hash outranks this —
-  // that redirect names a real tab, this one only corrects a segment — so this
-  // stands down while the hash still has a tab to select.
+  // `Tabs` matches on the path, so `/assets/:id/nonsense` would show Overview
+  // with no tab selected: canonicalise the URL (keeping query and hash) with
+  // `replace`. A mapped hash outranks this while it still has a tab to select.
   const canonical =
     tabParam !== undefined &&
     tabParam !== tab &&
@@ -108,10 +98,9 @@ export function AssetDetailRoute() {
   }, [canonical, hash, id, navigate, search, tab]);
 
   // Start fetching the code of the tab this page is about to show while the
-  // asset's report is still on its way (bead `ro-ujb9.84`), so the two arrive
-  // side by side rather than one after the other. Until the redirect above has
-  // moved the URL to a hash's tab, the panel holds its neutral frame rather
-  // than drawing (and so downloading) a tab nobody asked to see.
+  // asset's report is still on its way. Until the redirect above has moved the
+  // URL to a hash's tab, the panel holds its neutral frame rather than
+  // downloading a tab nobody asked to see.
   const leaving = showing !== tab;
   useEffect(() => {
     void preloadAssetTab(showing);
@@ -150,12 +139,10 @@ export function AssetDetailRoute() {
             }}
           />
           <TabPanel id={TAB_PANEL_ID} idBase={TAB_IDS} activeKey={tab}>
-            {/* ONE boundary for every tab, and never keyed by tab (bead
-                `ro-ujb9.84`). Switching tabs is a router transition, and React
-                keeps an already-drawn boundary on screen through one, so the
-                tab being left stays until the next tab's code is here; the
-                neutral frame is only ever seen on a first load whose tab code
-                is slower than the asset's report. */}
+            {/* One boundary for every tab, and never keyed by tab: switching
+                tabs is a router transition, and React keeps an already-drawn
+                boundary on screen through one, so the tab being left stays
+                until the next tab's code is here. */}
             <Suspense fallback={<RouteLoading surface="panel" />}>
               {leaving ? (
                 <RouteLoading surface="panel" />
@@ -186,14 +173,11 @@ export function AssetDetailRoute() {
 
 /**
  * …then bring a deep link's section into view, once its tab has drawn it. SPA
- * navigation doesn't auto-scroll to a hash.
- *
- * It rides INSIDE the tab panel's `<Suspense>`, beside the tab (bead
- * `ro-ujb9.84`): React commits a boundary's children together, so this effect
- * runs only once the tab's code has arrived and the section exists. As a plain
- * effect on the page it ran when the report arrived — before a lazily fetched
- * tab had drawn anything — found no section, and never looked again. It re-runs
- * on a new report exactly as it did before the split.
+ * navigation doesn't auto-scroll to a hash. It rides inside the tab panel's
+ * `<Suspense>`, beside the tab: React commits a boundary's children together,
+ * so this effect runs only once the tab's code has arrived and the section
+ * exists. As a plain effect on the page it would run before a lazily fetched
+ * tab had drawn anything, find no section, and never look again.
  */
 function ScrollToSection({
   data,
@@ -225,13 +209,11 @@ interface TabHandlers {
 }
 
 /**
- * The tab, drawn from a read that carries its sections — or null when the read
- * on screen does not (bead `ro-ujb9.64`). Each branch asks `viewCovers` for its
- * OWN tab, so every tab is typed on exactly the read it may use.
- *
- * The three tabs that show recommendations get the recommendation-evidence
- * provider around them. It sits inside the panel's one `<Suspense>`, so the
- * boundary above stays the same element whichever tab is open (`ro-ujb9.84`).
+ * The tab, drawn from a read that carries its sections, or null when the read
+ * on screen does not. Each branch asks `viewCovers` for its own tab, so every
+ * tab is typed on exactly the read it may use. The recommendation-evidence
+ * provider sits inside the panel's one `<Suspense>`, so the boundary above
+ * stays the same element whichever tab is open.
  */
 function tabContent(tab: AssetTab, data: AssetDetailResponse, handlers: TabHandlers): ReactNode | null {
   const { nowMs, onWatch, watchSeed, onSeedDone } = handlers;

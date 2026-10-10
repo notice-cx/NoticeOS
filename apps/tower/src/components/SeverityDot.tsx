@@ -18,10 +18,8 @@ const GLYPH_SIZE: Record<"sm" | "md" | "lg", string> = {
 };
 
 /**
- * THE SEVERITY AS A SHAPE, NOT ONLY A COLOUR (doc 14, bead `ro-ujb9.14`): a
- * circle for an error, a triangle for a warning — the shapes the Wall's
- * `IssueGlyph` draws for the same two states, read from here so the desk and
- * the TV cannot drift apart.
+ * Severity as a shape, not only a colour. The Wall's `IssueGlyph` reads these
+ * shapes from here so the desk and the TV cannot drift apart.
  */
 export const SEVERITY_SHAPE: Record<"error" | "warn", LucideIcon> = {
   error: CircleAlert,
@@ -33,26 +31,20 @@ export interface SeverityDotProps {
   severity: Severity | null;
   /** Current reports exist and there are no open error/warn flags. */
   healthy?: boolean;
-  /** Milestone KIND overrides severity → the reserved emerald accent. */
+  /** Milestone kind overrides severity → the reserved emerald accent. */
   milestone?: boolean;
   size?: "sm" | "md" | "lg";
   className?: string;
   /** What this mark stands for here ("2 open error alerts"), as its accessible
-   * name. The SHAPE already says error, warning or healthy without it. */
+   * name. The shape already says error, warning or healthy without it. */
   title?: string;
 }
 
 /**
  * Error/warn take precedence; an evidenced all-clear is green, while no health
  * evidence stays neutral. Milestone-kind retains its reserved event accent.
- *
- * DECODABLE WITHOUT A POINTER (bead `ro-ujb9.14`). An 8 px red or amber dot
- * said "error" or "warning" only in colour, and what it counted only in a
- * hover title a keyboard and a phone never reach. Error, warning and healthy
- * are now drawn as shapes — a circle with a bar, a triangle, a check — in their
- * own ink, so the state reads at a glance in either theme and to colour-blind
- * vision; the neutral states (info, unknown) and the milestone accent stay
- * dots. The count stays the accessible name and the pointer's hover.
+ * Error, warning and healthy are shapes so they read without colour; info,
+ * unknown and milestone stay dots.
  */
 export function SeverityDot({
   severity,

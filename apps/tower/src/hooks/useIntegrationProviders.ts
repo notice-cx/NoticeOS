@@ -8,9 +8,9 @@ import type { IntegrationCredentialsPayload } from "@shared/integrations-page";
 export const INTEGRATION_PROVIDERS_KEY = ["integration-providers"] as const;
 
 /**
- * The provider credential read behind `/integrations` (bead `ro-vu8d.2`).
+ * The provider credential read behind `/integrations`.
  *
- * SLOWER THAN THE 60s DESK CADENCE ON PURPOSE. This payload is operator-entered
+ * Slower than the 60s desk cadence on purpose. This payload is operator-entered
  * configuration, not a signal: it changes when somebody presses Save on this
  * page, and every one of those writes invalidates the key itself. What a poll
  * would add is the `lastUsedAt` / `lastOkAt` / `lastError` fields a collector

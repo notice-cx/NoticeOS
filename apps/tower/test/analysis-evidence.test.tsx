@@ -9,15 +9,14 @@ const snapshot = { generatedAt: "2026-08-05T00:00:00Z", windowStart: "2026-07-08
 describe("saved analysis evidence clock", () => {
   it("shows the analysis age and actual evidence dates without claiming live validity", () => {
     render(<AnalysisEvidence snapshot={snapshot} nowMs={nowMs} />);
-    // Nothing is known against the analysis, so its line is its age alone
-    // (bead ro-ujb9.135); the state is the first fact inside.
+    // Nothing is known against the analysis, so its line is its age alone;
+    // the state is the first fact inside.
     expect(screen.getByRole("button", { name: "About this saved analysis" })).toHaveTextContent(/^Analysis 32d ago$/);
     expect(screen.queryByText(/Analysis saved Aug 5/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "About this saved analysis" }));
     const tooltip = screen.getByRole("tooltip");
     expect(tooltip).toHaveTextContent("Saved Aug 5, 2026");
     expect(tooltip).toHaveTextContent("Evidence Jul 8–Aug 4, 2026");
-    // The state is a chip, never a disclaimer sentence (bead `ro-ujb9.96.6.8`).
     expect(tooltip).toHaveTextContent("Not rechecked");
     expect(tooltip).not.toHaveTextContent("Refreshing this page");
   });

@@ -2,9 +2,6 @@ import { useDemoReadonly } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-// The lifecycle words moved to the contract when Home's assets table began
-// stating them too (bead `ro-pbzu.3`); the local name is kept so the five call
-// sites below read as they always did.
 import { ASSET_STATUS_LABEL as STATUS_LABEL } from "@shared/asset-detail";
 import type {
   AssetInfo,
@@ -93,18 +90,10 @@ function modeChip(mode: "pull" | "push", assetId: string): ReactNode {
 
 // --- configuration panel (secondary; collapsed until the operator needs it) -
 /**
- * THE SETTINGS TAB: managing the asset, not reading about it (bead `ro-pbzu.4`,
- * D17's "property management with state-of-the-art SaaS semantics").
- *
- * This was `WiringPanel` — a `<details>` collapsed at the bottom of a 3,600-line
- * scroll, holding four sub-cards, two of which edited PORTFOLIO-wide numbers
- * (anomaly-rule defaults, spend caps, the operator's hourly rate) from a page
- * about one asset. Those now live on `/settings`, and this page points at them in
- * one line each rather than offering six editors that quietly change every asset.
- *
- * What is left is only what belongs to THIS asset: what it is called, where it is
- * in its lifecycle, whether the OS may act on it, how its data is collected — and
- * how to retire it.
+ * The Settings tab: only what belongs to this asset. What it is called, where
+ * it is in its lifecycle, whether the OS may act on it, how its data is
+ * collected, and how to retire it. Portfolio-wide numbers live on `/settings`,
+ * and this page points at them in one line each.
  */
 export function AssetSettingsPanel({
   data,
@@ -116,8 +105,7 @@ export function AssetSettingsPanel({
   const { wiring, rules, asset } = data;
   return (
     <div id="configuration" className="flex scroll-mt-4 flex-col gap-3.5">
-      {/* WHEN SAVES ARE PAUSED THE TAB SAYS SO ONCE (bead `ro-p8qq`) — it used
-          to be the same sentence under five editors. Each editor below shows
+      {/* When saves are paused the tab says so once; each editor below shows
           only its lock. */}
       <SavesPaused />
       {/* Identity is the hero: it is what the operator came to change nine
@@ -142,9 +130,8 @@ export function AssetSettingsPanel({
   );
 }
 
-/** A value that cannot change here: the value, a lock, and the state in words
- * — the same "Fixed once added" a register's locked column wears (bead
- * `ro-ujb9.96.6.4`), in place of a sentence explaining why. */
+/** A value that cannot change here: the value, a lock, and the state in words,
+ * the same "Fixed once added" a register's locked column wears. */
 function FixedValue({ field, children }: { field: string; children: ReactNode }) {
   // Each lock is a fact about ITS field, so the status names that field as its
   // subject: two locks on one card are two facts, not one repeated state.
@@ -165,10 +152,8 @@ function FixedValue({ field, children }: { field: string; children: ReactNode })
 }
 
 /** Which secret authenticates, and that it is never shown: its name, a lock
- * and the state in two words (bead `ro-ujb9.96.13`), the shape `FixedValue`
- * uses, in place of a sentence saying so. The name is a plain word ("Site
- * token", bead `ro-ujb9.166`), never the environment binding's expression,
- * which pushed a 768-wide page 24px sideways and meant nothing to a stranger. */
+ * and the state in two words. The name is a plain word ("Site token"), never
+ * the environment binding's expression. */
 function SecretPointer({ children }: { children: ReactNode }) {
   return (
     <span
@@ -182,26 +167,9 @@ function SecretPointer({ children }: { children: ReactNode }) {
 }
 
 /**
- * Identity: two editable fields and two that cannot move (bead `ro-z349.2`).
- *
- * The display name is a STORE column, so its Save works in every deployment and
- * the way back is the Undo in its toast (D18) — no confirm, because a name is
- * not a destructive change. The write invalidates the wall and asset-detail
- * reads, which is how the sidebar, Home's assets table and this page's own
- * header catch up without a reload.
- *
- * The owning entity joined it on 2026-09-05 (bead `ro-aodz`): it is a fact about
- * this asset, and it lived in the ad-network source's note, which meant the
- * answer to "who owns this asset" was two tabs away inside a revenue source.
- *
- * The other two are read-only, and say so as a state — a lock and "Fixed once
- * added" (bead `ro-ujb9.96.6.4`) — rather than a sentence each: the domain is
- * the host every observation was collected against, and the id is the key the
- * store files history under, so a different one is a different asset.
- *
- * The OS's own row has no name field (bead `ro-ujb9.77.10`): it is the product,
- * always called NoticeOS, so its name is not a setting. The rest of the card
- * is its own.
+ * Identity: the display name is editable (a store column, so it saves in every
+ * deployment); the domain and id cannot move, because every observation and
+ * all history are filed under them. The OS's own row has no name field.
  */
 function IdentityCard({ asset }: { asset: AssetInfo }) {
   return (
@@ -245,25 +213,10 @@ function IdentityCard({ asset }: { asset: AssetInfo }) {
 }
 
 /**
- * WHICH ENTITY OWNS THIS ASSET (bead `ro-aodz`).
- *
- * It decides which accounts this asset's earnings are reported under (D5) and
- * whose paperwork covers it — a fact about the asset, which until today was the
- * first sentence of the ad-network source's note on the Sources tab. Useful
- * where it sat, and unfindable: an operator asking who owns an asset has no
- * reason to open a revenue source.
- *
- * ONE REPRESENTATION, AND THE OTHER SIDE OF IT. The fact is stored once, as this
- * asset's id on that entity's own list in `config/entities.json`
- * (`shared/entities.ts` says why that direction). So this picker is not a second
- * copy of it: choosing an entity MOVES the id, in one change that takes it off
- * the entity that had it and puts it on the one that now does, guarded on both
- * lists. The Undo in the toast reverses both.
- *
- * IT SHOWS WHAT IT CANNOT OFFER. Before any entity is declared there is nothing
- * to pick, so this is a plain row saying so and pointing at the page that
- * declares one — rather than an empty picker, which would read as an asset whose
- * owner had been deleted.
+ * Which entity owns this asset. Stored once, as this asset's id on the
+ * entity's list in `config/entities.json`, so a change moves the id between
+ * two lists in one guarded write. With no entity declared it points at the
+ * page that declares one rather than showing an empty picker.
  */
 function OwningEntity({ asset }: { asset: AssetInfo }) {
   const { data: settings } = useSettings();
@@ -273,9 +226,8 @@ function OwningEntity({ asset }: { asset: AssetInfo }) {
   // Settings tab with it.
   const rows = settings?.entities?.rows ?? [];
 
-  // No entity declared yet: the row's value IS the way to declare one — a
-  // link to Settings' Ownership list — never a sentence saying where that
-  // is (bead `ro-ujb9.96.6.4`). While the list is still being read, a dash.
+  // No entity declared yet: the row's value is the way to declare one, a link
+  // to Settings' Ownership list. While the list is still being read, a dash.
   if (settings === undefined || rows.length === 0) {
     return (
       <KnobRow
@@ -328,9 +280,8 @@ function LifecycleCard({ asset }: { asset: AssetInfo }) {
   const spec = lifecycleStepper(asset.status);
   return (
     <Panel title="Manual lifecycle stage">
-      {/* The stepper is the ONE display of the current stage (doc 14 "one
-          representation per fact"); the editor below is a "change stage…" action
-          that never restates the current value. */}
+      {/* The stepper is the one display of the current stage; the editor below
+          is a "change stage…" action that never restates the current value. */}
       <Stepper steps={spec.steps} activeIndex={spec.activeIndex} terminal={spec.terminal} />
       <div className="mt-3">
         <LifecycleStageEditor asset={asset} />
@@ -363,14 +314,11 @@ function AutomationCard({ asset }: { asset: AssetInfo }) {
   );
 }
 
-/** The lifecycle edit affordance (doc 14): a "change stage…" picker that names
- * a TARGET without restating the current stage (the stepper owns that), and a
- * Save that moves the row.
- *
- * The stage lives in the store, not in a file, so this writes through the
- * Worker and works in every deployment (D18). `expect` is the stage the stepper
- * was drawn from: a page left open while the row moved elsewhere is refused
- * rather than winning. The way back is the toast's Undo. */
+/** The lifecycle edit affordance: a "change stage…" picker that names a target
+ * without restating the current stage, and a Save that moves the row. The
+ * stage lives in the store, so this writes through the Worker and works in
+ * every deployment. `expect` is the stage the stepper was drawn from: a page
+ * left open while the row moved elsewhere is refused rather than winning. */
 function LifecycleStageEditor({ asset }: { asset: AssetInfo }) {
   const demoReadonly = useDemoReadonly();
   const moveStage = useAssetLifecycle(asset.id);
@@ -489,8 +437,7 @@ function DataCollectionCard({ wiring, asset, nowMs }: { wiring: Wiring; asset: A
           ) : null}
           {wiring.mode === "push" && !asset.isOs ? <FetchEndpointEditor asset={asset.id} /> : null}
 
-          {/* The schedule AS SAVED, and the way to change it from where its
-              effect is read (bead `ro-ujb9.96.7.12`, D30): the job's row in
+          {/* The schedule as saved, and the way to change it: the job's row in
               Settings → Data collection is one pick away. A pushing asset
               sends on its own clock and has no job to move. */}
           <KnobRow
@@ -571,7 +518,6 @@ function WiringHealth({ wiring, nowMs }: { wiring: Wiring; nowMs: number }) {
   if (!pullFailure && !ingestFreshness) {
     // Before the first report there is nothing to be late: Last report above
     // already reads "None received yet", so this says nothing a second time.
-    // After it, the calm state is a value, not a sentence (bead `ro-ujb9.96.6.4`).
     if (!lastPulseReceivedAt) return null;
     return (
       <KnobRow
@@ -615,24 +561,14 @@ function WiringHealth({ wiring, nowMs }: { wiring: Wiring; nowMs: number }) {
   );
 }
 
-/**
- * WHICH ALERT RULES ARE IN FORCE HERE — read-only, and one line saying where
- * they are changed.
- *
- * Until 2026-09-04 these were six editable number fields on an asset page, every
- * one of them PORTFOLIO-wide: typing a new `alpha` here re-tuned the anomaly
- * detector for every asset in the portfolio, and the only thing saying so was a
- * small "Applies to every asset" line under the label. The values still belong on
- * this page (doc 14 principle 10: every knob is visible where it acts), but the
- * EDITOR belongs where the scope is obvious.
- */
+/** Which alert rules are in force here: read-only, because they are
+ * portfolio-wide, and one line saying where they are changed. */
 function AlertRulesCard({ rules }: { rules: RulesInForce }) {
   return (
     <Panel
       title="Alert rules in force"
       count={rules.hasOverride ? "per-site override" : "no per-site override"}
-      // Where every site's rules change — the header's "All →" slot (doc 14),
-      // in place of two sentences pointing at Settings.
+      // Where every site's rules change: the header's "All →" slot.
       action={
         <Link
           to="/settings#alert-rules"
@@ -643,10 +579,8 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
       }
     >
       <div>
-        {/* No `explain` here (doc 14, `ro-78qo.5`; bead `ro-ujb9.96.6.4`):
-            the VALUES stay — doc 14 principle 10 wants a setting visible where
-            it acts — and the EDITORS, with their one-line effects, live on
-            Settings, where the scope is obvious. */}
+        {/* No `explain` here: the values stay visible where they act, and the
+            editors, with their one-line effects, live on Settings. */}
         {rules.knobs.map((k) => (
           <KnobRow
             key={k.key}
@@ -660,37 +594,14 @@ function AlertRulesCard({ rules }: { rules: RulesInForce }) {
 }
 // --- what the panel buys, editable -----------------------------------------
 
-/**
- * WHICH TERMS THIS ASSET BUYS, AND WHETHER ITS LOCAL DIRECTORY IS KEPT CURRENT
- * (bead `ro-x5gu.4`, carried through `ro-78qo.4` to here by `ro-78qo.25`).
- *
- * IT MOVED HERE FROM THE SEARCH TAB (bead `ro-78qo.25`). doc 14 principle 4:
- * a file-owned register belongs on Settings and Sources, never on a view
- * surface. `ro-78qo.4` parked it on Search behind a closed disclosure rather
- * than delete it — hand-editing `config/serp-panel.json` would have been the
- * operator's only remaining control, and a redesign that removes that is not a
- * redesign — and this is the move that disclosure was waiting for. Search keeps
- * the panel BOARD, which is the evidence the tab is for.
- *
- * It arrives open, like every other card here: on a view surface the closed
- * state was the whole point, and on the page whose job IS the registers, a
- * disclosure over a disclosure is one press for nothing.
- *
- * THE SPEND IS STATED WHERE THE SPEND IS DECIDED. Adding a term is not a
- * setting, it is a standing weekly bill plus a standing weekly review, and the
- * facts beside the meter say so — weekly, per device, against a cap. The guard
- * is the one that already exists — the portfolio's monthly data cap on
- * Settings, which the collector reserves against before every family and fails
- * closed under.
- *
- * WHY THE PRICE IS NOT A COLUMN: every term costs exactly the same two calls, so
- * a per-row price would be twenty-eight identical cells — one fact rendered
- * twenty-eight times (doc 14). The figure that does vary is the panel's own, so
- * the panel carries it, as a meter against the ceiling.
- */
 /** The sources a panel refresh reads (`SEARCH_LANES`, scripts/config-registers.mts). */
 const SEARCH_LANE_IDS: ReadonlySet<string> = new Set(["gsc", "ga4", "bing-webmaster"]);
 
+/**
+ * Which terms this asset buys, and whether its local directory is kept
+ * current. The spend is stated where it is decided: a term is a standing
+ * weekly bill and review, guarded by the portfolio's monthly data cap.
+ */
 function PanelSettings({
   assetId,
   panelConfig,
@@ -703,10 +614,9 @@ function PanelSettings({
   integrations: AssetIntegrations;
 }) {
   const queries = panelConfig.trackedQueries;
-  // The FACT the roster rule turns on, in the shape the declaration judges: each
-  // data source's status AS THE FILE HOLDS IT (`declared`), never the health the
-  // Tower derives. The rule is config/signal-panels.README.md's own, and its
-  // validation snippet reads `status` out of config/integrations.json.
+  // The fact the roster rule turns on, in the shape the declaration judges:
+  // each data source's status as the file holds it (`declared`), never the
+  // health the Tower derives (config/signal-panels.README.md).
   const laneStatuses = Object.fromEntries(
     integrations.lanes.map((lane) => [lane.catalog.id, lane.cell.declared]),
   );
@@ -715,10 +625,8 @@ function PanelSettings({
     portfolio.knobs.find((knob) => knob.key === "monthly_caps.data_usd")?.value ??
     null;
 
-  // NOTHING TO SET UNTIL THERE IS SEARCH (D44: an empty state leads to the
-  // next action). With no live search source and nothing tracked, the meter,
-  // the bill and the refresh table were three empty controls; the one next
-  // step is the source.
+  // Nothing to set until there is search: with no live search source and
+  // nothing tracked, the one next step is the source.
   const searchLive = integrations.lanes.some((lane) => SEARCH_LANE_IDS.has(lane.catalog.id) && lane.cell.declared === "live");
   const refreshOn = typeof panelConfig.roster === "object" && panelConfig.roster !== null && !Array.isArray(panelConfig.roster) && panelConfig.roster.enabled === true;
   if (!searchLive && tracked === 0 && !refreshOn) {
@@ -755,10 +663,10 @@ function PanelSettings({
               max={SERP_PANEL_QUERY_LIMIT}
               ariaLabel={`${tracked} tracked terms against the ${SERP_PANEL_QUERY_LIMIT}-term panel ceiling`}
             />
-            {/* THE BILL AS FACTS, NOT A SENTENCE (bead `ro-ujb9.96.6.4`): when
-                a term is bought, on how many devices, and the cap it is bought
-                against — a link to where that cap is edited. The weekly total
-                is the header's count; the meter is the room left. */}
+            {/* The bill as facts: when a term is bought, on how many devices,
+                and the cap it is bought against, as a link to where that cap
+                is edited. The weekly total is the header's count; the meter
+                is the room left. */}
             <span className="flex flex-wrap items-center gap-1.5" data-panel-bill>
               <StateChip tone="neutral" label="Weekly · Mondays" subject={`serp-panel:${assetId}`} />
               <StateChip tone="neutral" label={`${SERP_PANEL_DEVICES.length} devices`} subject={`serp-panel:${assetId}`} />
@@ -771,20 +679,15 @@ function PanelSettings({
             </span>
           </div>
 
-          {/* THE 29 ROWS GO BEHIND ONE PRESS (doc 14 progressive disclosure).
-              Each tracked term is two inputs and two Save buttons, so the full
-              list is ~1,400px of form on a tab whose other six cards are one
-              screen between them — and it is the tail nobody edits daily: the
-              decision that costs money is ADDING a term, and the meter and the
-              bill chips above state that whether or not the list is open. The
-              count is in the summary, so the size of the panel is visible
-              without the panel. */}
+          {/* The rows go behind one press: each tracked term is two inputs and
+              two Save buttons, and the decision that costs money is adding a
+              term, which the meter and the bill chips above state whether or
+              not the list is open. The count is in the summary. */}
           <details className="group">
-            {/* THE DISCLOSURE OWNS THE CONTROL, THE EYEBROW OWNS THE TYPE
-                (bead `ro-78qo.39`). `SectionLabel` never renders a `<summary>`
-                — the press target, its ring and its marker belong to the
-                caller — so the summary keeps the control chrome and the header
-                inside it is the vocabulary's, drawn once. */}
+            {/* The disclosure owns the control, the eyebrow owns the type:
+                `SectionLabel` never renders a `<summary>`, so the summary
+                keeps the control chrome and the header inside it is the
+                vocabulary's. */}
             <summary className="inline-flex min-h-11 cursor-pointer list-none items-center gap-1.5 text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
               <ChevronRight
                 aria-hidden
@@ -797,11 +700,10 @@ function PanelSettings({
               register="serp-panel-queries"
               params={{ asset: assetId }}
               rows={queries}
-              // THE BETS THIS PANEL ALREADY NAMES, AS A PICKER (bead `ro-g318`).
-              // Grouping is an exact string match, so the refusal beside this one
-              // catches a near miss — but a refusal an operator can only satisfy by
-              // retyping a string they cannot see is the friction the picker
-              // removes.
+              // The bets this panel already names, as a picker: grouping is an
+              // exact string match, and a refusal an operator can only satisfy
+              // by retyping a string they cannot see is the friction the
+              // picker removes.
               fieldOptions={panelClusters(queries)}
               refuseAdd={(rows) =>
                 rows.length >= SERP_PANEL_QUERY_LIMIT
@@ -819,21 +721,19 @@ function PanelSettings({
           params={{ asset: assetId }}
           rows={panelConfig.roster === null ? {} : { [assetId]: panelConfig.roster }}
           oneRow
-          // Turning this row ON is a claim about ANOTHER file, and the rule is
-          // that file's README's, not this page's (bead `ro-uko8`): an asset is
-          // on the roster when at least one of its Search Console / Analytics /
-          // Bing Webmaster data sources is live in config/integrations.json. A
-          // refresh pass over an asset with none writes an EMPTY panel
-          // directory, which doc 20 says is indistinguishable on disk from a
-          // collapsed one — the exact ambiguity the roster exists to prevent.
+          // Turning this row on is a claim about another file, and the rule is
+          // that file's README's: an asset is on the roster when at least one
+          // of its Search Console / Analytics / Bing Webmaster data sources is
+          // live in config/integrations.json. A refresh pass over an asset with
+          // none writes an empty panel directory, indistinguishable on disk
+          // from a collapsed one.
           refuseField={(field, value) =>
             liveSearchLaneRefusal(field, laneStatuses, value)
           }
           slug="panel-refresh-roster"
           // Low risk and free (a refresh pass makes no provider call), so the
-          // row saves as it is picked, with Undo under the cell (bead
-          // `ro-ujb9.96.7.12`). The tracked terms above cost money per week
-          // and keep their Save.
+          // row saves as it is picked, with Undo under the cell. The tracked
+          // terms above cost money per week and keep their Save.
           commit="auto"
           title="Panel refresh"
           describe="Rebuilt daily"
@@ -844,14 +744,9 @@ function PanelSettings({
   );
 }
 
-/**
- * The cluster labels this panel's own terms already carry, in file order and
- * without repeats (bead `ro-g318`).
- *
- * The whole friction is that the operator has to spell a label they cannot see
- * while typing, and the list that fixes it is the one on screen. The catalog
- * decides what the list MEANS; this only gathers it.
- */
+/** The cluster labels this panel's own terms already carry, in file order and
+ * without repeats. The catalog decides what the list means; this only gathers
+ * it. */
 function panelClusters(
   queries: JsonValue[] | null,
 ): Record<string, string[]> | undefined {

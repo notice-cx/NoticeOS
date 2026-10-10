@@ -27,9 +27,7 @@ export function WorkflowStateLabel({ state, label, className }: { state: Workflo
   </span>;
 }
 
-/** A run a person started, not the schedule — the connect panel's Start
- * collecting (bead `ro-ujb9.96.7.19`). A glyph and one word beside the run's
- * state; a scheduled run carries nothing, which is what most runs are. */
+/** Marks a run a person started; a scheduled run carries nothing. */
 export function WorkflowRunTrigger({ run }: { run: Pick<WorkflowRun, 'trigger'> }) {
   if (run.trigger?.kind !== 'manual') return null;
   return <span className="inline-flex items-center gap-1 text-xs text-muted-foreground whitespace-nowrap" data-run-trigger="manual">

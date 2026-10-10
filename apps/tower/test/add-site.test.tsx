@@ -7,18 +7,14 @@ import type { SettingsPayload, SourceSetting } from "@shared/settings";
 import { validateSchemaAndSafety } from "../../../scripts/config-documents.mjs";
 import { SITE_ROW_FIELDS, fieldRefusal } from "../../../scripts/config-registers.mjs";
 
-// Add a site — one screen, the domain its only question (bead
-// `ro-ujb9.96.7.5`; the five-step wizard of bead `ro-qsoo` before it).
+// Add a site, one screen, the domain its only question: the name is read off
+// the domain before anything answers and replaced by the site's own when it
+// does, a refusal lands beside the field, and Add makes the store row and
+// then one changeset, in that order, then lands on the new asset's Data
+// sources. The state that is neither success nor failure (the row landed, the
+// setup did not) keeps its guarded retry.
 //
-// What is asserted here is the screen's promise: the name is read off the
-// domain before anything answers and replaced by the site's own when it does,
-// a refusal lands beside the field as a short state, and Add makes the store
-// row and then ONE changeset — the same two writes, in that order, with the
-// bodies the wizard sent from its defaults — then lands on the new asset's
-// Data sources. The one state that is neither success nor failure (the row
-// landed, the setup did not) keeps its guarded retry.
-//
-// `fetch` is stubbed rather than `@/lib/api`, because the ORDER and the BODIES
+// `fetch` is stubbed rather than `@/lib/api`, because the order and the bodies
 // of the two writes are the subject.
 
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn(), warning: vi.fn() }));
@@ -182,8 +178,7 @@ describe("one question: the domain", () => {
   });
 
   // Archive is the one way out of the site list, so an archived site is the
-  // one a person most often adds again: its link lands on Restore (bead
-  // ro-ujb9.76.4.5).
+  // one a person most often adds again: its link lands on Restore.
   it("opens an archived site it already has where Restore is", () => {
     state.assets = [{ id: "shop.example.com", status: "retired" }];
     stubFetch([]);
@@ -198,13 +193,10 @@ describe("one question: the domain", () => {
     renderSheet();
     typeDomain("shop");
     expect(screen.queryByText(/Not a domain/)).toBeNull();
-    // Add is offered, never silently unavailable: pressing it says why not.
     add();
     expect(screen.getByText("Not a domain — like example.com")).toBeInTheDocument();
-    // Once said, the refusal follows the field as it is corrected.
     typeDomain("shop.example.com");
     expect(screen.queryByText(/Not a domain/)).toBeNull();
-    // Enter submits the one field, as Add does.
     typeDomain("shop");
     fireEvent.submit(screen.getByLabelText("Domain").closest("form")!);
     expect(screen.getByText("Not a domain — like example.com")).toBeInTheDocument();
@@ -219,7 +211,6 @@ describe("one question: the domain", () => {
     const view = renderSheet();
     typeDomain("shop.example.com");
     add();
-    // Not dropped, and not written without the catalog: Adding, nothing sent.
     expect(screen.getByRole("button", { name: "Adding" })).toBeDisabled();
     expect(calls).toHaveLength(0);
     state.settingsReady = true;
@@ -232,7 +223,6 @@ describe("one question: the domain", () => {
       </QueryClientProvider>,
     );
     await waitFor(() => expect(calls).toHaveLength(2));
-    // The catalog's data sources, written the moment it arrived.
     expect(calls[1]?.body).toMatchObject({ ops: [{ file: "config/integrations.json", value: { gsc: {}, "ad-network": {} } }, {}] });
   });
 
@@ -275,7 +265,6 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     });
     expect(() => validateSchemaAndSafety({ version: 1, createdAt: "2026-09-06T12:00:00Z", ...(calls[1]!.body as Record<string, unknown>) })).not.toThrow();
     await waitFor(() => expect(path).toBe("/assets/shop.example.com/sources"));
-    // The asset's own page is the confirmation: no toast over its Connect.
     expect(toasts.success).not.toHaveBeenCalled();
   });
 
@@ -305,8 +294,7 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
   });
 
   // One site per domain: the store's 409 names the site holding the domain,
-  // whose id is not the one typed when the site was imported under another
-  // (bead ro-ujb9.76.4.6). The link opens that site, at Restore when archived.
+  // whose id may not be the one typed. The link opens that site.
   it("opens the site the store says holds the domain, not a page for the id typed", async () => {
     state.assets = [{ id: "shop", status: "retired" }];
     const calls = stubFetch([{ status: 409, body: { error: "asset_exists", id: "shop" } }]);
@@ -349,9 +337,8 @@ describe("Add writes the row, then one changeset — the wizard's writes", () =>
     expect(calls).toHaveLength(1);
   });
 
-  // The store's refusal names the field by the label beside the input and says
-  // site (bead `ro-ujb9.183`): the sentence is the store's own — `fieldRefusal`
-  // over the site row's declared Domain — never "domain must …" or "property".
+  // The store's refusal names the field by the label beside the input: the
+  // sentence is the store's own (`fieldRefusal` over the site row's declared Domain).
   it("puts a 422 beside the field, named by the label beside it", async () => {
     const detail = fieldRefusal(SITE_ROW_FIELDS.domain, "https://shop.example.com/x");
     expect(detail).toBe("Domain must be a hostname such as example.com");

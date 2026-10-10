@@ -43,15 +43,10 @@ const COMPACT_WHOLE = new Intl.NumberFormat("en-US", {
 });
 
 /**
- * A count-axis tick in at most four characters (bead `ro-oag5`).
- *
- * The Wall's count axis is a fixed 2rem column, and the midpoint of an odd
- * maximum is a half: a peak of 1,861 put "930.5" there, five characters that
- * painted 5px outside the column on every card whose chart reached it. The
- * tick keeps one decimal while that still fits ("59.5", "1.9K") and drops it
- * when it does not ("931", "12K"). A tick is already a rounded reading — the
- * top one says "1.9K" for 1,861 — and every bar's exact value is on its own
- * hover, so nothing is lost that the axis ever promised.
+ * A count-axis tick in at most four characters: the Wall's count axis is a
+ * fixed 2rem column. The tick keeps one decimal while that still fits
+ * ("59.5", "1.9K") and drops it when it does not ("931", "12K"); every bar's
+ * exact value is on its own hover.
  */
 export function formatAxisCount(n: number): string {
   const precise = COMPACT.format(n);
@@ -69,13 +64,11 @@ export function formatPercent(n: number): string {
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
- * A series label — a day (`YYYY-MM-DD`) or an accounting month (`YYYY-MM`) — as
- * the compact axis label a chart prints beside it: "Sep 5", "Sep '26".
- *
- * It lived in `Spark.tsx` until doc 14 split that component in two, which put a
- * second copy of the MONTHS table above it in a file that draws lines. Series
- * labels are calendar FACTS rather than instants, so it parses by hand: routing
- * one through `Date` would let the viewer's timezone move a provider's day.
+ * A series label, a day (`YYYY-MM-DD`) or an accounting month (`YYYY-MM`), as
+ * the compact axis label a chart prints beside it: "Sep 5", "Sep '26". Series
+ * labels are calendar facts rather than instants, so it parses by hand:
+ * routing one through `Date` would let the viewer's timezone move a
+ * provider's day.
  */
 export function formatSeriesDate(value: string): string {
   const match = /^(\d{4})-(\d{2})(?:-(\d{2}))?$/.exec(value);
@@ -105,10 +98,9 @@ export function formatPeriodMonthLong(period: string): string {
   return MONTHS_LONG[Number(period.slice(5, 7)) - 1] ?? period;
 }
 
-/** An accounting period with its year ("August 2026") — for the one case where
- * a figure is NOT about the month the reader is standing in, and an abbreviated
- * month beside a current-month layout would be read as this month's (bead
- * `ro-bdkp`). Same hand parse, same timezone-free promise. */
+/** An accounting period with its year ("August 2026"), for the one case where
+ * a figure is not about the month the reader is standing in. Same hand parse,
+ * same timezone-free promise. */
 export function formatPeriodMonthYear(period: string): string {
   const month = MONTHS_LONG[Number(period.slice(5, 7)) - 1];
   const year = period.slice(0, 4);

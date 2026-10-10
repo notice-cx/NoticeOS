@@ -10,8 +10,8 @@ describe('daily revenue bars', () => {
     ] }} partialDates={['2026-09-09']} notesByDate={{ '2026-09-09': '1 of 2 daily sources reported · Missing: Nosh' }} />);
     expect(container.querySelectorAll('[data-hero-bar][data-partial]')).toHaveLength(1);
     expect(screen.getByText('Reported subtotal')).toBeInTheDocument();
-    // Business altitude (D45): ad revenue, not the network; the reporting
-    // clock is one press away rather than in the caption.
+    // Ad revenue, not the network; the reporting clock is one press away
+    // rather than in the caption.
     expect(screen.getByText(/^Ad revenue · estimates/)).toBeInTheDocument();
     expect(screen.queryByText(/Mediavine/)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'About the reporting day' }));

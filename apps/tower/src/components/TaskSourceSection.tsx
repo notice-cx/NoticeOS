@@ -20,8 +20,8 @@ import { useTaskSource } from "@/hooks/useTaskSource";
 import { copyText } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
-// Core task hub status and project management (D32). Hub availability never
-// controls whether Tasks exists; reads and writes retain their own failures.
+// Hub availability never controls whether Tasks exists; reads and writes
+// keep their own failures.
 
 export function TaskSourceRows({ payload, nowMs, anchor = "task-source-status" }: {
   payload: TaskSourcePayload;
@@ -78,17 +78,8 @@ export function taskProjectInitCommand(spoke: Pick<TaskHubSpoke, "prefix" | "dat
 /**
  * What is left to do on the host once a task project is saved —
  * `config/beads.README.md`'s own onboarding steps, filled in with the project.
- * Drawn after an Add on Settings → Task projects.
- *
- * It is the one place a project's setup uses the machinery's own words (doc
- * 14): a command has to be copied verbatim into a terminal, so its flags are
- * quoted exactly and every block says what it is and where it runs.
- *
- * TITLES AND THE TEXT TO PASTE, NOTHING ELSE (bead `ro-ujb9.96.6.3`). The text
- * to paste already does the right thing: the command carries `--external`, the
- * legacy config edit is drawn as a diff; the host helper performs that edit
- * itself. Repository preparation preserves existing instructions; the host
- * entry comes from the row.
+ * Drawn after an Add on Settings → Task projects. Titles and the text to paste,
+ * nothing else; commands are quoted exactly because they are copied verbatim.
  */
 export function TaskProjectSteps({
   spoke,

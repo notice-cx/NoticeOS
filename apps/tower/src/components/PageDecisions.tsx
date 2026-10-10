@@ -60,13 +60,10 @@ import { cn } from "@/lib/utils";
 
 const DEFAULT_VISIBLE_PAGES = 8;
 
-/** doc 14's default for any list on a desk surface: three rows, then "All →". */
 const COLLAPSED_VISIBLE_PAGES = 3;
 
-/** The page-grain decision vocabulary (`ro-427`). Deliberately its own list
- * rather than the query table's: a page is judged on movement in its own
- * clicks, impressions and average position, and reusing `near-win` here would
- * claim the two grains were assessed the same way. */
+/** Deliberately its own list rather than the query table's: a page is judged
+ * on movement in its own clicks, impressions and position. */
 type PageDecisionKind =
   | "recover"
   | "harvest"
@@ -77,14 +74,9 @@ type PageDecisionKind =
   | "growing"
   | "watch";
 
-/**
- * What most likely moved a page's clicks, inferred from the evidence the row
- * already carries rather than left as homework (bead `ro-ujb9.96.6.8`): a
- * release recorded inside the comparison window, a ranking move of a full
- * position, a demand move of a fifth, or — with exposure and ranking both
- * steady — the result page itself. It points at the evidence line to read; it
- * proves nothing, which is why the row says "likely".
- */
+/** What most likely moved a page's clicks, inferred from the evidence the row
+ * carries. It points at the evidence line to read and proves nothing, which
+ * is why the row says "likely". */
 type PageCause = PageDecisionCause;
 
 interface PageRelease {
@@ -113,17 +105,11 @@ interface PageDecision {
 }
 
 /**
- * One page, one decision row — the analogue of the query decision table, on the
- * grain an operator actually edits (`ro-427`).
- *
- * The evidence is `executive.searchPages`: the same two seven-date windows the
- * query movers compare, at page grain, plus the page's leading query and
- * whatever the tracked SERP panel saw on that term.
- *
- * A row somebody has FILED keeps its evidence and carries the shared bead
- * marker, but sinks below unfiled work in its priority band. The join is the
- * absolute page URL carried as `noticeos_key`, never the display path: two
- * assets can share `/recipes`, while they cannot share the same URL.
+ * One page, one decision row: the query decision table's analogue on the
+ * grain an operator edits. The evidence is `executive.searchPages` plus the
+ * page's leading query and what the tracked SERP panel saw on it. The task
+ * hub join is the absolute page URL, never the display path: two assets can
+ * share `/recipes`, not a URL.
  */
 export function PageDecisions({
   pages,
@@ -141,13 +127,11 @@ export function PageDecisions({
   /** The asset's change timeline: a release inside the comparison window is
    * the first likely cause of a click move. `null` names no release. */
   annotations?: AnnotationTimeline | null;
-  /** doc 14's shape: the three biggest movers, each closed on its own evidence,
-   * with the rest one click away in place (bead `ro-78qo.4`). Same rows, same
-   * actions, same order — only the default openness changes. */
+  /** The three biggest movers, each closed on its own evidence, with the rest
+   * one click away in place. */
   collapsed?: boolean;
-  /** The saved analysis's applicability as this screen already states it (the
-   * tab's `AnalysisEvidence` line). The list's chip is drawn only when it says
-   * something different (bead `ro-ujb9.96.6.5`). */
+  /** The saved analysis's applicability as this screen already states it. The
+   * list's chip is drawn only when it says something different. */
   statedState?: RecommendationValidity["state"] | null;
 }) {
   const assess = useRecommendationAssessor();
@@ -180,9 +164,8 @@ export function PageDecisions({
   const limit = collapsed ? COLLAPSED_VISIBLE_PAGES : DEFAULT_VISIBLE_PAGES;
   const visible = decisions.slice(0, limit);
   const remaining = decisions.slice(limit);
-  // ONE STATUS PER SUBJECT (doc 14): every row reads the same page report, so
-  // the state they share belongs to the list and is said once, in its header.
-  // A row carries a chip only where its own state differs (linked work).
+  // The state every row shares is said once in the header; a row carries a
+  // chip only where its own state differs.
   const shared = sharedValidity(decisions.map((decision) => decision.validity));
 
   return (
@@ -283,9 +266,7 @@ export function PageDecisions({
               />
             </details>
           ) : null}
-          {/* Provenance BELONGS TO THE LIST, and says so with a rule rather than
-              a gap (doc 14, bead `ro-78qo.4`): collapsed, this drawer sat in the
-              section gap with nothing tying it to anything. */}
+          {/* Provenance belongs to the list. */}
           {collapsed ? (
             <div className="border-t border-border/60 pt-1">
               <PageSourceNote pages={pages} />
@@ -319,8 +300,7 @@ function PageDecisionTable({
   collapsed?: boolean;
   nested?: boolean;
 }) {
-  // Collapsed it is a LIST: no columns to head, so no `role="table"` promising
-  // a grid that is not there.
+  // Collapsed it is a list: no `role="table"` promising a grid that is not there.
   if (collapsed) {
     return (
       <ul
@@ -412,17 +392,14 @@ function PageDecisionRow({
       );
       flashCopied();
       toast.success(`Copied ${row.path} as Markdown`);
-      // The copy records nothing, for the reason the query row's does not
-      // (`ro-5e8.3`): a copy is an intention, and only the bead somebody files
-      // is evidence that the work was picked up.
+      // The copy records nothing: only a task filed in the hub marks the row.
     } catch {
       toast.error("Copy failed — copy the row details manually");
     }
   }
 
-  // WHAT HAPPENED, THEN WHAT TO DO (bead `ro-ujb9.96.6.8`): one line the
-  // operator can act on without opening the row. The numbers behind it are the
-  // evidence, one press away.
+  // What happened, then what to do: one line the operator acts on without
+  // opening the row.
   const verdict = (
     <span className="block text-xs leading-snug" data-page-decision-verdict>
       <span className={cn("font-medium", colors.text)}>{assessment.label}</span>
@@ -432,8 +409,7 @@ function PageDecisionRow({
     </span>
   );
 
-  // Built once and rendered by whichever shape asked for it: two copies of the
-  // actions is how a collapsed row quietly loses the one that files the task.
+  // Built once and rendered by whichever shape asked for it.
   const actions = (
     <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
       <Button
@@ -448,10 +424,9 @@ function PageDecisionRow({
         {copied ? <Check aria-hidden /> : <ClipboardCopy aria-hidden />}
         {copied ? "Copied" : "Copy Markdown"}
       </Button>
-      {/* The same task, filed rather than pasted (D19, bead `ro-l1ed.4`). Built
-          from `pageTaskHandoff` — the very function the copied Markdown's create
-          command is rendered from — so the row cannot offer two different tasks
-          for one decision. */}
+      {/* Built from `pageTaskHandoff`, the function the copied Markdown's
+          create command is rendered from, so the row cannot offer two
+          different tasks for one decision. */}
       {prefill ? (
         <FileTaskButton
           prefill={prefill}
@@ -466,9 +441,7 @@ function PageDecisionRow({
   if (collapsed) {
     return (
       <details
-        // NO TONE STRIPE (doc 14: one row style). The glyph and the decision
-        // label carry the tone; a coloured left edge as well is the same fact in
-        // a third encoding.
+        // No tone stripe: the glyph and the decision label already carry the tone.
         className="group"
         data-page-decision-kind={assessment.kind}
         data-page-decision-tone={tone}
@@ -647,8 +620,7 @@ function PageEvidence({
           {formatPercent(row.currentCtr * 100)}%
         </span>{" "}
         · {formatPercent(row.previousCtr * 100)}% the week before
-        {/* The benchmark the harvest rule compared against, beside the number
-            it judged — doc 08's CTR at a cited, visible position. */}
+        {/* The benchmark the harvest rule compared against, beside the number it judged. */}
         {assessment.kind === "harvest" || assessment.kind === "aio-walled"
           ? ` · typical ${formatPercent(PAGE_HARVEST_MAX_CTR * 100)}%`
           : ""}
@@ -703,18 +675,9 @@ function PageEvidence({
   );
 }
 
-/**
- * What the data source states about its own series before ranking it, and the
- * limits of the grain. Both render, because a source that quietly drops either
- * is a source nobody can audit.
- *
- * A DRAWER, not a paragraph (doc 14, bead `ro-78qo.4`). Provenance is
- * disclosure rather than headline — doc 14's "lead with the decision, disclose
- * implementation detail" — and these two caveats are four sentences of it
- * sitting under three rows the operator came here to read. The query list beside
- * this one has carried the same content behind a "Sources and limits" summary
- * since it was written; this is that shape, on the grain it belongs to.
- */
+/** What the data source states about its own series before ranking it, and
+ * the limits of the grain. Both render: a source that quietly drops either is
+ * a source nobody can audit. */
 function PageSourceNote({ pages }: { pages: SearchPageTrends }) {
   return (
     <details className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
@@ -749,29 +712,25 @@ function pageDecisionTone(kind: PageDecisionKind): DecisionTone {
   return "wait";
 }
 
-// The evidence floors, each carrying the finding it came from.
+// The evidence floors.
 //
-// Ten clicks across a week is the page-mover rule's own floor
-// (`PAGE_MOVER_MIN_CLICK_DELTA`, scripts/signal-insights.mjs): below it, page
-// click movement is weather at this portfolio's volumes.
+// The page-mover rule's own floor (`PAGE_MOVER_MIN_CLICK_DELTA`,
+// scripts/signal-insights.mjs); below it, click movement is weather.
 const PAGE_MIN_CLICK_MOVE = 10;
-// A fifth of the week's clicks. The same magnitude the query lane treats as a
-// real slide before it will call a cited query's ground "sliding".
+// A fifth of the week's clicks, the same magnitude the query lane treats as real.
 const PAGE_MATERIAL_DROP_PERCENT = -20;
 const PAGE_MATERIAL_RISE_PERCENT = 20;
 // The striking-distance impression floor at a seven-date window
-// (`Math.max(100, days * 25)`), so a page is not sent for copy work on evidence
-// the query rule would refuse.
+// (`Math.max(100, days * 25)`), so a page is not sent for copy work on
+// evidence the query rule would refuse.
 const PAGE_HARVEST_MIN_IMPRESSIONS = 175;
-// Doc 08's 2026 CTR-vs-position benchmarks: ~3.3% with no AI Overview, ~2.1%
-// when the overview cites you, ~0.9% when it does not. A page holding a visible
-// position and clicking below the CITED benchmark is under-converting its own
-// exposure — which is a copy question before it is a ranking one.
+// The CTR benchmark at a visible position when the AI Overview cites you. A
+// page clicking below it is under-converting its own exposure, which is a
+// copy question before it is a ranking one.
 const PAGE_HARVEST_MAX_CTR = 0.021;
 const PAGE_HARVEST_MIN_POSITION = 4;
 const PAGE_HARVEST_MAX_POSITION = 12;
-// Worse by a full position on a page with real exposure. Below one position the
-// weekly average moves with the query mix, not with the page.
+// Below one position the weekly average moves with the query mix, not the page.
 const PAGE_SLIP_POSITIONS = -1;
 
 /** The deploys recorded inside the current comparison window, newest first.
@@ -837,14 +796,9 @@ const GAIN_ACTION: Record<PageCause["kind"], (cause: PageCause) => string> = {
 };
 
 /**
- * The panel's two rules, layered over the page's own movement — the same two
- * the query table applies, for the same reason (`ro-gyu`, the impression-harvest
- * gate).
- *
- * Both read `=== true` / `!== true` rather than truthiness, so a page whose
- * leading query nobody tracked, or whose overview did not load, is assessed
- * exactly as it would have been before the panel existed. The panel is additive
- * evidence; unknown changes nothing.
+ * The panel's two rules, layered over the page's own movement, as the query
+ * table applies them. Both read `=== true` rather than truthiness: the panel
+ * is additive evidence, and an unknown changes nothing.
  */
 function assessPage(
   row: SearchPageMover,

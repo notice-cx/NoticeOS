@@ -1,13 +1,8 @@
-// Shared CHANGESET contract — the exact document both entry points apply: the
-// Tower's own write lane (apps/tower/vite/config-write-lane.ts) and the
-// operator's `pnpm config:apply` (scripts/config-apply.mjs). Pure types + a tiny
-// RFC-6901 resolver + a serializer; no runtime deps, so it is safe anywhere —
-// browser, Worker, and the dev server's Node process.
-//
-// This module MINTS the document; it never applies one. Applying is the shared
-// pipeline in scripts/config-apply-core.mjs, which owns the safety allowlist,
-// the `expect` guard, the file write and the archive. The format's prose spec is
-// config/changesets/README.md — keep them in lockstep.
+// The changeset contract — the exact document both entry points apply: the
+// Tower's write lane (apps/tower/vite/config-write-lane.ts) and
+// `pnpm config:apply` (scripts/config-apply.mjs). This module mints the
+// document; applying is scripts/config-apply-core.mjs. The format's prose
+// spec is config/changesets/README.md — keep them in lockstep.
 
 import type * as Configuration from '@noticeos/contract/configuration';
 import type { JsonValue, StoreColumn } from '@noticeos/contract/configuration';
@@ -23,24 +18,12 @@ export type EditableFile =
   | "config/integrations.json"
   | "config/tower.json";
 
-/** The files whose per-asset register may GROW or SHRINK by one entry — a
+/** The files whose per-asset register may grow or shrink by one entry — a
  * narrower permission than editing a value, and a separate allowlist for it
- * (`ADDABLE_CONTAINERS`). The last three are here and NOT above: adding an
- * asset's counter block, panel-roster row or tracked-query panel is allowed,
- * rewriting one is not.
- *
- * `config/signal-panels.json` and `config/serp-panel.json` joined in bead
- * `ro-sk7q`. Both key by asset id, and while they were missing a delete removed
- * neither and the confirmation never named them — an asset could leave its id
- * behind in a file nothing would ever mention.
- *
- * `config/value-events.json` and `config/ga4-custom-dimensions.json` joined in
- * bead `ro-vyer` for the same reason, once the Sources tab could file an entry
- * in either with a click rather than a hand edit. An asset's own GA4
- * declarations are part of what the asset IS, so they leave with it — the
- * deliberate answer to the question `ro-sk7q`'s pinned key-set test exists to
- * force. Neither is written on Create: the wizard has nothing to declare yet,
- * and an entry holding `[]` is a claim nobody has made. */
+ * (`ADDABLE_CONTAINERS`). Adding an asset's counter block, panel-roster row
+ * or tracked-query panel is allowed; rewriting one is not. An asset's own
+ * GA4 declarations are part of what the asset is, so they leave with it;
+ * neither is written on Create. */
 export type AssetRegisterFile =
   | "config/integrations.json"
   | "config/counters.json"
@@ -51,47 +34,25 @@ export type AssetRegisterFile =
   | "config/ga4-custom-dimensions.json";
 
 /**
- * Every file holding a declared REGISTER — a container whose rows may be added
- * and removed, and whose declared fields may be set (bead `ro-x5gu.1`).
- *
- * It is the seven WHOLE-ASSET registers above plus the list-shaped ones epic
- * `ro-x5gu` put a CRUD surface on. The two sets overlap heavily now:
- * `serp-panel.json`, `signal-panels.json`, `value-events.json` and
- * `ga4-custom-dimensions.json` are all both — an asset is born into or deleted
- * out of the whole entry (`ro-sk7q`, `ro-vyer`), and its Growth or Sources tab
- * edits the rows inside.
- *
- * The declaration itself — container, shape, key and per-field rules — is
- * `scripts/config-registers.mjs`, read by this app through
- * `shared/config-registers.ts` and by the write lane and the CLI directly; this
- * union is only the file names, kept here because it is what an op's `file`
- * field may say.
+ * Every file holding a declared register — a container whose rows may be
+ * added and removed, and whose declared fields may be set. The declaration
+ * itself is `scripts/config-registers.mjs`, read by this app through
+ * `shared/config-registers.ts`; this union is only the file names.
  */
 export type RegisterFile =
   | AssetRegisterFile
   | "config/domain-costs.json"
   | "config/recurring-costs.json"
   | "config/beads.json"
-  // The portfolio's legal entities and the assets each one owns (bead
-  // `ro-aodz`). Not an `AssetRegisterFile`: an asset is not BORN into it — the
-  // wizard adds the new id to the entity the operator picked, which is a set on
-  // a row that is already there, and an entity outlives every asset it owns.
-  // DELETING an asset takes its id back off that list for the same reason it was
-  // never an entry: not through `ADDABLE_CONTAINERS`, but as one guarded set
-  // beside the register deletes, in the delete's own changeset (bead `ro-xzxg`).
+  // Not an `AssetRegisterFile`: an asset is not born into it. The add adds
+  // the new id to the entity's own list, a set on a row already there, and a
+  // delete takes it back off as one guarded set in the delete's changeset.
   | "config/entities.json";
 
-/**
- * The files holding a declared DOCUMENT — one whole optional block, at one exact
- * pointer, that may be ADDED and REMOVED but never grown into (bead `ro-fqag`,
- * `ADDABLE_DOCUMENTS` in `scripts/config-documents.mjs`).
- *
- * A register is the wrong shape for these: a register is a list of rows keyed by
- * an asset, and these are one document at one pointer — the Wall's saved layout
- * at `/wall`, and the countdown at `/countdown`. Both exist because "we never
- * create structure" is the oldest rule here and a fresh install has neither, so
- * without this permission the product could edit a countdown it could never make.
- */
+/** The files holding a declared document — one whole optional block, at one
+ * exact pointer, that may be added and removed but never grown into
+ * (`ADDABLE_DOCUMENTS` in `scripts/config-documents.mjs`): the Wall's saved
+ * layout at `/wall`, and the countdown at `/countdown`. */
 export type DocumentFile = "config/tower.json" | "config/constants.json";
 
 // UI permissions narrow the portable operation vocabulary to declared files.
@@ -112,21 +73,12 @@ export type ChangesetOp =
 export type FileOp = FileJsonSetOp | FileJsonInsertOp | FileJsonDeleteOp;
 
 /**
- * The ops a SETTING save is made of — every one of them invertible, which is
- * what makes the Undo in the toast honest (docs/15 principle 5).
- *
- * Two of them invert by swapping `expect` and `value`. The other two invert into
- * EACH OTHER (bead `ro-pkpz`): a first write puts a key there that was not
- * there, and the way back is taking that key away, which is a
- * {@link FileJsonDeleteOp} at the field's own pointer — and the way back from
- * THAT is the first write again. Until the pipeline licensed a delete at a
- * declared optional field there was no such op, so a first save carried no Undo
- * at all and a mapping was a one-way door.
- *
- * Adding or removing an asset's whole ENTRY is still structural rather than a
- * setting — its inverse is a different op kind at a pointer that has moved — so
- * `useConfigSave` does not take those, and the add-asset flow owns its own way
- * back (deleting the asset it just made).
+ * The ops a setting save is made of — every one of them invertible, which is
+ * what makes the Undo in the toast honest. Two invert by swapping `expect`
+ * and `value`; a first write and a {@link FileJsonDeleteOp} at the field's
+ * own pointer invert into each other. Adding or removing an asset's whole
+ * entry is structural rather than a setting, so `useConfigSave` does not take
+ * those.
  */
 export type SettingOp = FileJsonSetOp | FileJsonDeleteOp | StoreAssetSetOp;
 
@@ -183,20 +135,12 @@ export interface BuildChangesetOptions {
 }
 
 /**
- * A slug the pipeline will accept, built out of words the surface already has
- * (bead `ro-6ygn`).
- *
- * `validateSchemaAndSafety` requires kebab-case — `^[a-z0-9]+(?:-[a-z0-9]+)*$`
- * — and the words a per-asset surface has to hand are neither: an asset id is
- * domain-shaped (`example.com`) and a declared field is camelCase
- * (`propertyId`). Interpolating them straight into a slug refused every Save on
- * an asset's Sources tab with `422 invalid_changeset` and a sentence about a
- * slug the operator never typed — in front of the guard, so it refused the
- * mapping, the reason and the posture alike.
- *
- * It stays READABLE rather than hashed, because a slug is the archived
- * changeset's filename and the commit subject: the repo history shows
- * `myplate-food-ga4-property-id`, which still says what was saved and where.
+ * A slug the pipeline will accept, built out of words the surface already
+ * has. `validateSchemaAndSafety` requires kebab-case, and an asset id is
+ * domain-shaped while a declared field is camelCase. Readable rather than
+ * hashed, because a slug is the archived changeset's filename and the commit
+ * subject (`example-com-ga4-property-id` still says what was saved and
+ * where).
  */
 export function changesetSlug(...parts: (string | number)[]): string {
   const slug = parts
@@ -204,9 +148,8 @@ export function changesetSlug(...parts: (string | number)[]): string {
     .join("-")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-  // A caller whose parts were all punctuation gets the write lane's own default
-  // rather than a slug the pipeline would refuse — a Save must not fail over its
-  // filename.
+  // Parts that were all punctuation get the write lane's own default rather
+  // than a slug the pipeline would refuse.
   return slug === "" ? "config-change" : slug;
 }
 

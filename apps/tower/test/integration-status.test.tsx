@@ -66,9 +66,9 @@ it('groups connections by provider, then site: one row per provider with its one
   // Each provider is named once; its operations never repeat its name.
   expect(screen.getAllByText('Bing Webmaster Tools')).toHaveLength(1);
 });
-// Bead ro-ujb9.96.7.15: the strip's four numbers are the connection model's
-// one derivation (`connectionCounts`), which is what a daily record of them
-// must use; until one exists each declares its series missing, and why.
+// The strip's four numbers are the connection model's one derivation
+// (`connectionCounts`), which is what a daily record of them must use; until
+// one exists each declares its series missing, and why.
 it('states the four connection counts from the one derivation, and declares their history missing', () => {
   const data = payload([
     ...['a', 'b', 'c'].map((asset) => healthy({ id: asset, asset })),

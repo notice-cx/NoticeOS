@@ -10,21 +10,16 @@ import {
   type AssetColumnWriter,
 } from "../worker/asset-column-route";
 
-// PATCH /api/assets/:id — the two settings that live in the STORE rather
-// than in a file: an asset's lifecycle stage and its automation mode. They save
-// in every deployment, which is the whole reason they do not go through the
-// local config write lane (D18, bead ro-pbzu.5).
-//
-// The Tower does not write the row: it proxies to `writeAssetColumn()` on the
-// ingest WorkerEntrypoint over the private INGEST Service Binding. So what is
-// asserted here is the boundary — what crosses it, the expect guard, and how
-// each answer ingest can give is rendered for the browser. The column
-// allowlist, the lifecycle enum and the 0/1 rule are asserted against real D1 in
-// workers/ingest/test/asset-state.test.ts, which is their only home.
+// PATCH /api/assets/:id: the settings that live in the store rather than in a
+// file, which save in every deployment. The Tower does not write the row: it
+// proxies to `writeAssetColumn()` on the ingest WorkerEntrypoint over the
+// private INGEST Service Binding, so what is asserted is the boundary: what
+// crosses it, the expect guard, and how each answer is rendered for the
+// browser. The column allowlist, the lifecycle enum and the 0/1 rule are
+// asserted in workers/ingest/test/asset-state.test.ts.
 //
 // The binding is stubbed rather than bound: this project's Vitest runs in
-// node/jsdom with no workerd (vitest.config.ts). The stub is typed by the shared
-// contract, so a change to either RPC's shape breaks these tests at compile time.
+// node/jsdom with no workerd. The stub is typed by the shared contract.
 
 const REQUEST_URL = new URL("https://tower.local/api/assets/meals.example");
 
@@ -122,9 +117,8 @@ describe("PATCH /api/assets/:id", () => {
     expect(writes).toEqual([{ asset: "meals.example", column: "sense_only", value: 0, expect: 1 }]);
   });
 
-  // The guard is what makes a Save safe to press on a page that has been open a
-  // while: two browsers, or a `config:apply` in a terminal, and the second save
-  // hears what is actually there instead of silently winning.
+  // Two browsers, or a `config:apply` in a terminal: the second save hears
+  // what is actually there instead of silently winning.
   it("refuses a save whose expect no longer matches the row, and names what is there", async () => {
     const { ingest, writes } = stubIngest(state({ columns: { status: "live", sense_only: 1, display_name: "Meal Planner" } }));
     const res = await handle(
@@ -176,25 +170,24 @@ describe("PATCH /api/assets/:id", () => {
     expect(writes).toEqual([]);
   });
 
-  // The third sanctioned column, joined 2026-09-04 (bead ro-z349.1) so an asset
-  // created from the wizard can be renamed once the typo is spotted. The guard
-  // is the same: the name the page rendered has to still be the name in the row.
+  // The third sanctioned column, so an asset can be renamed once a typo is
+  // spotted. The guard is the same.
   it("renames an asset through the same guarded lane", async () => {
     const { ingest, writes } = stubIngest(state(), {
       ok: true,
       asset: "meals.example",
       column: "display_name",
-      value: "My Plate",
+      value: "Menu Plate",
       updatedAt: "2026-09-04T12:00:00.000Z",
     });
     const res = await handle(
-      patch({ column: "display_name", value: "My Plate", expect: "Meal Planner" }),
+      patch({ column: "display_name", value: "Menu Plate", expect: "Meal Planner" }),
       ingest,
     );
 
     expect(res.status).toBe(200);
     expect(writes).toEqual([
-      { asset: "meals.example", column: "display_name", value: "My Plate", expect: "Meal Planner" },
+      { asset: "meals.example", column: "display_name", value: "Menu Plate", expect: "Meal Planner" },
     ]);
   });
 
@@ -203,7 +196,7 @@ describe("PATCH /api/assets/:id", () => {
       state({ columns: { status: "onboarding", sense_only: 1, display_name: "Renamed" } }),
     );
     const res = await handle(
-      patch({ column: "display_name", value: "My Plate", expect: "Meal Planner" }),
+      patch({ column: "display_name", value: "Menu Plate", expect: "Meal Planner" }),
       ingest,
     );
 

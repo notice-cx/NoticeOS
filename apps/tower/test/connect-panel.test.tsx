@@ -1,10 +1,7 @@
-// The connect panel and the Integrations row's one status (bead
-// `ro-ujb9.96.7.1`).
-//
-// WHAT IS PROTECTED: a connection is never shown as working ahead of the
-// provider's answer; the answer is drawn (Checking → Key accepted, or the
-// refusal in plain words); a secret is never shown back; and the row derives
-// one status in the order the audit set.
+// The connect panel and the Integrations row's one status: a connection is
+// never shown as working ahead of the provider's answer; the answer is drawn
+// (Checking → Key accepted, or the refusal in plain words); a secret is never
+// shown back; and the row derives one status in a fixed order.
 
 import { act, fireEvent, render, screen, within } from "./render";
 import { describe, expect, it, vi } from "vitest";
@@ -57,7 +54,6 @@ describe("the row's one status", () => {
   });
 
   it("never calls a saved key accepted before the provider answered a test of it", () => {
-    // A PUT clears the verdict, so a freshly saved key has no lastOkAt.
     expect(row(stored(), [])).toBe("not-checked");
     expect(row(stored(), [op("never-run")])).toBe("collecting");
     expect(row(stored({ lastOkAt: AT, lastUsedAt: AT }), [])).toBe("key-accepted");
@@ -78,9 +74,8 @@ describe("the row's one status", () => {
   it("opens the panel only for providers that declare a connect kind", () => {
     expect(connectsInPanel(BING)).toBe(true);
     expect(connectsInPanel(DATAFORSEO)).toBe(true);
-    // Google signs in in the panel (bead ro-ujb9.96.7.7), and Discord and the
-    // calendar feeds connect there too (bead ro-ujb9.96.7.14); nothing keeps
-    // its own setup page by default.
+    // Google signs in in the panel, and Discord and the calendar feeds connect
+    // there too; nothing keeps its own setup page by default.
     expect(connectsInPanel(integrationProvider("google")!)).toBe(true);
     expect(connectsInPanel(integrationProvider("discord")!)).toBe(true);
     expect(connectsInPanel(integrationProvider("calendar")!)).toBe(true);
@@ -113,7 +108,6 @@ describe("the connect panel", () => {
     expect(key).toHaveFocus();
     expect(within(dialog).getByRole("link", { name: "Get a key" })).toHaveAttribute("href", "https://www.bing.com/webmasters/settings/api");
     expect(within(dialog).getByRole("button", { name: "Connect" })).toBeDisabled();
-    // Nothing is claimed before an answer: no chip at all.
     expect(within(dialog).queryByText(/accepted|Connected/)).toBeNull();
   });
 
@@ -190,15 +184,14 @@ describe("the connect panel", () => {
     expect(dialog.querySelector('[data-connect-state="failed"]')).toHaveTextContent("Not saved · try again");
   });
 
-  // Bead ro-ujb9.96.7.8: PostHog asks for the account's one key, and the
-  // region is part of the answer — found, never a field.
+  // PostHog asks for the account's one key, and the region is part of the
+  // answer: found, never a field.
   it("connects PostHog with the one key it shows, and names the region that accepted it", async () => {
     const POSTHOG = integrationProvider("posthog")!;
     const answer = deferred<ConnectVerdict>();
     const onConnect = vi.fn(() => answer.promise);
     renderPanel(POSTHOG, onConnect);
     const dialog = screen.getByRole("dialog");
-    // One field: the older per-site map is never asked for.
     expect(dialog.querySelectorAll("input")).toHaveLength(1);
     expect(within(dialog).queryByRole("combobox")).toBeNull();
     expect(within(dialog).getByRole("list", { name: "Personal API key access" })).toHaveTextContent("Project: read");
@@ -214,9 +207,8 @@ describe("the connect panel", () => {
     expect(dialog.textContent).not.toContain(SECRET);
   });
 
-  // Bead ro-ujb9.96.7.25: an accepted connection is named for what was given,
-  // from the provider's declared credential — never "Key accepted" for an
-  // email and a password.
+  // An accepted connection is named for what was given, from the provider's
+  // declared credential: never "Key accepted" for an email and a password.
   it("says Signed in after an email-and-password sign-in, and Key accepted only for a key", async () => {
     const MEDIAVINE = integrationProvider("mediavine")!;
     const onConnect = vi.fn(async () => ({ verdict: "accepted", checkedAt: AT, facts: {} }) as ConnectVerdict);
@@ -236,8 +228,8 @@ describe("the connect panel", () => {
     expect(await within(dialog).findByText("Key accepted")).toBeInTheDocument();
   });
 
-  // Bead ro-ujb9.96.7.14: Discord's one field, unmasked, and the message its
-  // proof posts named before the press; no site list after the answer.
+  // Discord's one field, unmasked, and the message its proof posts named
+  // before the press; no site list after the answer.
   it("connects Discord with its webhook URL, saying before the press that it posts a test message", async () => {
     const DISCORD = integrationProvider("discord")!;
     const answer = deferred<ConnectVerdict>();

@@ -95,14 +95,12 @@ export interface ExecutiveInsightRowProps {
   insight: ExecutiveInsight;
   asset?: string;
   rank?: number;
-  /** The bead somebody filed from this finding's handoff, or null when none
-   * has been filed — or when the register could not be asked at all. Both
-   * render nothing: the row's job is to show work that exists, never to assert
-   * that none does. */
+  /** The task filed from this finding's handoff, or null when none has been
+   * filed or the register could not be asked. Both render nothing: the row
+   * shows work that exists, never asserts that none does. */
   bead?: HandoffBead | null;
-  /** Open the asset page's outcome-check composer, seeded from this finding
-   * (bead `ro-5e8.5`). Absent renders no action: a button with no composer
-   * behind it is worse than none. */
+  /** Open the asset page's outcome-check composer, seeded from this finding.
+   * Absent renders no action. */
   onWatch?: (seed: WatchSeed) => void;
   marked?: boolean;
   dismissed?: boolean;
@@ -115,18 +113,15 @@ export interface ExecutiveInsightRowProps {
   /** Native `<details name>` groups the list into one open decision at a time,
    * without a second accordion primitive or custom keyboard behavior. */
   disclosureGroup?: string;
-  /** The row sits under a heading that already names its kind (or "Marked"),
-   * so the eyebrow does not say it again (doc 14, one representation per
-   * fact). The kind glyph and rail still carry it. */
+  /** The row sits under a heading that already names its kind, so the eyebrow
+   * omits it; the kind glyph and rail still carry it. */
   grouped?: boolean;
   className?: string;
 }
 
-/** A decision-facing interpretation with the exact evidence and limitation
- * attached. The closed face answers the glance questions — what kind, which
- * priority, what happened, how large, and whether work exists — while one
- * expanded row answers why and what next. Eight findings therefore scan as a
- * queue instead of eight always-open reports. */
+/** A decision-facing interpretation with its evidence and limitation. The
+ * closed face answers the glance questions (kind, priority, what happened, how
+ * large, whether work exists); one expanded row answers why and what next. */
 export function ExecutiveInsightRow({
   insight,
   asset,
@@ -153,11 +148,8 @@ export function ExecutiveInsightRow({
   const prefill = taskHandoffPrefill(
     findingTaskHandoff(insight, asset, validity, asset ? findingEvidenceUrl(asset) : undefined),
   );
-  // THE FINDING'S ONE DECISION, ON ITS ROW (bead `ro-ujb9.96.7.11`): until it
-  // is filed, File task sits beside the figure, so filing is two presses from
-  // any row, open or not. Once filed the row carries the task's badge there
-  // instead (PagerDuty's issue link on the incident), and a follow-up task is
-  // still one press inside the opened row.
+  // Until filed, File task sits beside the figure, two presses from any row;
+  // once filed the row carries the task's badge there instead.
   const fileOnRow = prefill !== null && bead === null;
 
   async function copyMarkdown() {
@@ -244,9 +236,9 @@ export function ExecutiveInsightRow({
             </span>
             <HandoffBeadBadge bead={bead} />
             {fileOnRow ? (
-              // Pressing it must not also open or close the row around it.
-              // (A click inside the composer's portal bubbles here through React
-              // too; only this button's own DOM is held back.)
+              // Pressing it must not also toggle the row. A click inside the
+              // composer's portal bubbles here through React too; only this
+              // button's own DOM is held back.
               <span
                 className="contents"
                 onClickCapture={(event) => {
@@ -305,11 +297,9 @@ export function ExecutiveInsightRow({
               {copied ? <Check aria-hidden /> : <ClipboardCopy aria-hidden />}
               {copied ? "Copied" : "Copy Markdown"}
             </Button>
-            {/* The operator's half of the same handoff (D19, bead `ro-l1ed.4`).
-                Copy Markdown hands the whole evidence brief to an AGENT; this
-                files the bead that brief's last section describes, from the same
-                prefill, without a terminal. Ghost-quiet beneath it, like Watch
-                outcome: the row's loudest thing is still the finding. */}
+            {/* Files the task the Markdown brief describes, from the same
+                prefill, without a terminal. Ghost-quiet so the finding stays
+                the row's loudest thing. */}
             {prefill && !fileOnRow ? (
               <FileTaskButton
                 prefill={prefill}
@@ -513,27 +503,15 @@ export function executiveInsightMarkdown(
 }
 
 /**
- * The bead this finding becomes, in the asset's own repo — the ONE description
- * of it (bead `ro-l1ed.4`).
+ * The task this finding becomes, in the asset's own repo: the one description
+ * both the copied Markdown (as a `bd create`) and the File task composer read.
+ * `null` when the row cannot name a real repo or key (an older snapshot, or the
+ * gallery), so neither surface files against nothing.
  *
- * Both paths read this: the copied Markdown renders it as a `bd create` an
- * agent runs, and the row's **File task** button opens the composer on it. They
- * were one inline object literal inside the Markdown builder before, which made
- * the composer's prefill a second implementation of the same grammar and left
- * the two free to drift the moment either was edited.
- *
- * `null` when the row cannot name a real repo or a real key — a snapshot
- * vintage predating `ExecutiveInsight.key`, or the gallery, where no asset is
- * passed. Both surfaces then offer nothing rather than filing against nothing.
- *
- * BUILT FROM THE FINDING'S FIELDS, NEVER ITS PROSE (bead `ro-ujb9.96.7.11`).
- * The title is the finding's subject; the description is what it measured —
- * the primary figure and the evidence rows, labelled as the row labels them —
- * then its window and sources, then the page it lives on. The producer's
- * `summary` and `whyItMatters` paragraphs stay in the copied Markdown's own
- * sections, where they are the analysis; a task body quoting them would be a
- * recommendation restated as a commitment. The operator edits any of it in
- * the composer before filing.
+ * Built from the finding's fields, never its prose: the subject, the primary
+ * figure and evidence rows, the window and sources, then the page. The
+ * producer's `summary` and `whyItMatters` stay in the Markdown, since a task
+ * body quoting them would restate a recommendation as a commitment.
  */
 export function findingTaskHandoff(
   insight: ExecutiveInsight,

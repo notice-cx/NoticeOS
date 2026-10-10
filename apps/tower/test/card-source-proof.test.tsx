@@ -7,10 +7,10 @@ import { AMBER_MULTIPLIER, type CardDataSource } from "@shared/wall";
 import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { buildCardDataSources, type LatestSignalRun } from "../worker/integrations-payload";
 
-// A source mark is never ahead of its proof (beads `ro-ujb9.96.7.3`,
-// `ro-ujb9.96.7.16`). A provider's source reads the monitoring model; a
-// source no provider collects (the nightly report) reads its register cell's
-// typed collection proof, which a timestamp alone never satisfies.
+// A source mark is never ahead of its proof. A provider's source reads the
+// monitoring model; a source no provider collects (the nightly report) reads
+// its register cell's typed collection proof, which a timestamp alone never
+// satisfies.
 
 const NOW = Date.parse("2026-09-06T12:00:00Z");
 const ASSET = "example.test";
@@ -138,7 +138,7 @@ describe("compact read-model evidence names actual successful outcomes", () => {
 });
 
 
-it("source states and recorded times open by focus and tap in one compact control (ro-ujb9.241)", () => {
+it("source states and recorded times open by focus and tap in one compact control", () => {
   render(<DataSourceIcons sources={[read(nightly), { id: "uptime", label: "Uptime", kind: "not-checked",
     site: null, provider: null, detail: "Not checked yet", observedAt: null }]} />);
   const trigger = screen.getByRole("button", { name: "About data source states" });

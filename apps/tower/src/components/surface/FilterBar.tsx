@@ -4,25 +4,11 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 /**
- * ON A PHONE, A PAGE'S FILTERS AND SORT ARE ONE PRESS (bead `ro-ujb9.13`,
- * doc 14's phone first screen).
- *
- * *Registry justification:* three index pages drew their own filter row —
- * Sites' stage select, two chip sets and a sort; Alerts' site, severity and
- * kind; Tasks' project, status, priority, assignee and label — and only Sites
- * folded its row on a phone, by hand. At 390×844 the other two spent two rows
- * of selects above the first alert or task. This is the fold, once: below
- * `sm` the controls wait behind one "Filters" button that carries how many are
- * narrowing the page (Plausible folds its filter pills into one button with a
- * +N badge; Linear keeps grouping, ordering and properties behind one Display
- * options button); from `sm` up the button is not drawn and the controls lay
- * out exactly where they always did. What the page SAYS about its narrowing —
- * "2 of 8 open", "3 sites · sorted by net", Clear — stays on the page, outside
- * the fold, because it is the answer's own caption, not a control.
- *
- * A PERIOD IS NOT A FILTER. A range (7d · 28d · 90d) changes what every number
- * on the page means, so it stays in view beside the button, the way Plausible
- * and Vercel keep their period picker in the top bar on a phone.
+ * On a phone, a page's filters and sort are one press: below `sm` the
+ * controls wait behind one "Filters" button carrying how many are narrowing
+ * the page; from `sm` up the button is not drawn. What the page says about its
+ * narrowing ("2 of 8 open", Clear) stays outside the fold. A period is not a
+ * filter: it changes what every number means, so it stays in view.
  *
  * Two shapes. `FilterBar` is the usual one — button and controls in one row,
  * with an `aside` that stays visible beside the button (a freshness badge).
@@ -112,7 +98,7 @@ export function FilterControls({ children, className, marks }: FilterControlsPro
 }
 
 export interface FilterBarProps extends FilterFoldProps {
-  /** The row's classes — on a desk the controls lay out in it exactly as before. */
+  /** The row's classes; on a desk the controls lay out in it. */
   className?: string;
   /** Beside the button on a phone and after the controls on a desk, never
    * folded: a fact about the list (its freshness, where in an archive). */
@@ -130,8 +116,8 @@ export function FilterBar({ active, label, children, className, aside, marks }: 
       <div className={cn(className, "max-sm:flex-wrap")} data-filter-bar {...marks}>
         <FilterToggle />
         <FilterRow>{children}</FilterRow>
-        {/* Placed by the page, as it was before the fold: a node that should
-            sit at the row's end carries its own `ms-auto`. */}
+        {/* Placed by the page: a node that should sit at the row's end
+            carries its own `ms-auto`. */}
         {aside}
       </div>
     </FilterFold>
@@ -139,7 +125,7 @@ export function FilterBar({ active, label, children, className, aside, marks }: 
 }
 
 /** Inside `FilterBar` the controls join the row itself (`contents`), so a desk
- * lays them out as the page's own flex items, as it did before the fold. */
+ * lays them out as the page's own flex items. */
 function FilterRow({ children }: { children: ReactNode }) {
   const { open, id } = useFold();
   return (

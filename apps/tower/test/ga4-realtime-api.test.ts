@@ -45,7 +45,7 @@ describe("GA4 realtime browser contract", () => {
     if (hasReason) await expect(fetchGa4Realtime()).resolves.toMatchObject({ assets: [{ activeUsers5m: 7, hourlyActiveUsers: null }] });
     else await expect(fetchGa4Realtime()).rejects.toThrow('invalid payload');
   });
-  // Bead ro-trai.27: the minute pulse's thirty buckets.
+  // The minute pulse's thirty buckets.
   const pulse = [...Array.from({ length: 28 }, (_, minute) => minute % 4), 3, null];
   const live = (fields: Record<string, unknown>) =>
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(Response.json({ generatedAt: '2026-09-11T00:00:00Z', assets: [{

@@ -8,8 +8,8 @@ export function coverageSeverity(coverage: ReportingCoverage): "warn" | null {
   return null;
 }
 
-/** doc 10 principle 3: severity owns attention color. These maps are the single
- * place severity → token class is decided; components never inline it. */
+/** Severity owns attention color. These maps are the single place severity →
+ * token class is decided; components never inline it. */
 
 export const SEVERITY_RANK: Record<Severity, number> = {
   error: 3,
@@ -56,8 +56,7 @@ export const severityLabel: Record<Severity, string> = {
 };
 
 /**
- * What a site's alert dot says it is (bead `ro-32ry`): its OPEN ALERTS,
- * counted — "1 open error alert", "2 open warning alerts", both joined — so
+ * What a site's alert dot says it is: its open alerts, counted — "1 open error alert", "2 open warning alerts", both joined — so
  * the dot beside a site's name is never read as a data source's status, which
  * has its own marks (`DataSourceIcons`). The dot's hover and accessible name;
  * no visible words.

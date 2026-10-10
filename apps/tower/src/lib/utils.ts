@@ -5,8 +5,8 @@ import { extendTailwindMerge } from "tailwind-merge";
  * The type steps `index.css` adds to Tailwind's theme (`--text-*`): the TV's
  * ramp and its display steps, and the degraded mark's glyph. tailwind-merge
  * does not read the CSS theme, so a name it has never heard of — `text-wall-body`
- * — would be taken for a text COLOUR and dropped beside `text-muted-foreground`
- * (bead ro-trai.23). Listed here, each is a font SIZE, which conflicts only
+ * — would be taken for a text colour and dropped beside `text-muted-foreground`.
+ * Listed here, each is a font size, which conflicts only
  * with other sizes. `test/class-merge.test.ts` fails when `index.css` gains a
  * step this list does not name.
  */

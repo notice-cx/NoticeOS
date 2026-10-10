@@ -1,48 +1,38 @@
 @import "tailwindcss";
 
 /*
-  Identity tokens live in public/brand/notice.css (the Notice identity, D35),
-  shared with the design-system reference. Application aliases and specialized
-  scales live here. The brand accent feeds brand roles only — primary actions,
-  selection, focus — and no severity, status or series token points at it
-  (apps/tower/test/brand-identity.test.ts).
-  Components consume tokens via utilities; color literals stay out of components.
+  Identity tokens live in public/brand/notice.css, shared with the
+  design-system reference. Application aliases and specialized scales live
+  here. The brand accent feeds brand roles only (primary actions, selection,
+  focus) and no severity, status or series token points at it
+  (apps/tower/test/brand-identity.test.ts). Components consume tokens via
+  utilities; color literals stay out of components.
 
-  Dark is the DEFAULT theme (the Wall theme). `.light` flips the same variables;
-  every utility that reads a --color-* token re-resolves automatically because
-  @theme inline keeps the var reference live. The approved palette uses explicit sRGB values; specialized measurement
-  and TV scales retain their own perceptual colors.
+  Dark is the default theme (the Wall theme). `.light` flips the same
+  variables; every utility that reads a --color-* token re-resolves because
+  @theme inline keeps the var reference live.
 
   Severity is the attention color system: error / warn / info, plus the
-  reserved emerald for milestone-KIND items. Asset health and integration
+  reserved emerald for milestone-kind items. Asset health and integration
   connectivity are scoped state systems: --healthy means a reporting asset
   has no open error/warn; --connected means the OS can consume a source end to
   end. --trend-positive / --trend-negative are the scoped, non-severity
   diverging scale for a completed value versus its like-for-like baseline.
-  --chart-week-band gives alternating calendar weeks enough contrast to remain
-  legible on the dark Wall. --chart-distorted is its
-  sibling for a day a reporting-timezone change moved hours into or out of
-  (ro-kukv.8): the band is a tinted week band and the ink draws the day's
-  bracket and pin. They are a caveat about the MEASUREMENT, not a severity —
-  nothing is wrong with the asset, the day is simply not comparable — but they
-  sit in the warn hue because the ⚠ that already states this fact in prose is
-  warn, and one fact must not wear two colors. Lower chroma than --warn so two
-  marked columns never outshout a real alert dot on the same card.
-  --search-bing is provider identity, never status or
-  severity, and is always paired with a text label.
-  Sparklines otherwise use --spark.
-  --urgent is the one deliberate step between warn amber and error red, so a
-  ramp that has to read as five distinguishable steps at 3 meters — the
-  countdown's proximity bands (doc 10) — does not have to invent its own scale.
-  It is NOT a fourth severity: doc 02's info/warn/error enum is unchanged and no
-  flag may map to it. Hue, chroma, and lightness interpolate between --warn and
-  --error so the ramp escalates monotonically in both themes.
+  --chart-week-band gives alternating calendar weeks enough contrast on the
+  dark Wall. --chart-distorted is its sibling for a day a reporting-timezone
+  change moved hours into or out of: a caveat about the measurement, not a
+  severity, in the warn hue because the ⚠ that states the same fact in prose
+  is warn, at lower chroma than --warn so two marked columns never outshout a
+  real alert dot. --search-bing is provider identity, never status, and is
+  always paired with a text label. Sparklines otherwise use --spark. --urgent
+  is the one deliberate step between warn amber and error red for the
+  countdown's proximity bands; it is not a fourth severity and no flag may map
+  to it.
 
-  THE TV IS DARK ON A LIGHT DESK TOO (bead ro-c0l3). `[data-theme="dark"]`
-  re-declares the dark set on one subtree, so a light desk's `.light` stops at
-  its edge: the TV layout editor's preview (`WallPreview`) carries it and draws
-  the television as the television draws itself. The brand palette under these
-  names takes the same switch (public/brand/notice.css).
+  The TV is dark on a light desk too: `[data-theme="dark"]` re-declares the
+  dark set on one subtree, so a light desk's `.light` stops at its edge; the
+  TV layout editor's preview (`WallPreview`) carries it. The brand palette
+  under these names takes the same switch (public/brand/notice.css).
 */
 
 [data-theme="dark"],
@@ -60,7 +50,7 @@
   --wall-stat-size: 1.875rem;
   --wall-stat-line: 2.375rem;
   /* The header's shared sans hierarchy: supporting labels, meeting titles,
-     the local clock and the countdown value (ro-trai.49). */
+     the local clock and the countdown value. */
   --wall-strip-size: 1.125rem;
   --wall-strip-line: 1.5rem;
   --wall-strip-label-size: 0.75rem;
@@ -100,34 +90,26 @@
      patterns carry the same distinction without color. */
   --financial-revenue: var(--brand-cyan);
   --financial-cost: var(--brand-violet);
-  /* Traffic series IDENTITY (bead ro-trai.19, doc 14 § Tokens): the Wall's
-     audience series — daily visitors, the 30-day trend, search clicks — beside
-     money's cyan, never a verdict on them. A saturated azure, 258°, chosen by
-     measurement against its neighbours (OKLab ΔE ×100 on the TV's black):
-     money cyan 22, the `info` slate 16, pace green 24. It shares the blue family
-     with --search-bing (ΔE 7), so the two never draw on one chart: Bing's blue
-     stays on the desk beside the word "Bing", and the Wall reads search as one
-     audience series. */
+  /* Traffic series identity: the Wall's audience series beside money's cyan,
+     never a verdict on them. A saturated azure chosen by measurement against
+     its neighbours (OKLab ΔE ×100 on the TV's black): money cyan 22, the
+     `info` slate 16, pace green 24. It shares the blue family with
+     --search-bing (ΔE 7), so the two never draw on one chart. */
   --traffic: oklch(0.66 0.17 258);
-  /* Today's PACE against the same hours last week (operator 2026-09-23, bead
-     ro-trai.19, doc 14 § Tokens): on pace, a little behind, far behind. A
-     scoped COMPARISON scale made of existing hues, never an alert — "a little
-     behind" is the warn hue used as a step of this scale, not a warning, and
-     the arrow and % always ride beside it. Aliases, so the one place a pace's
-     colours are chosen is here (`paceTone` in DeltaChip picks the step). */
+  /* Today's pace against the same hours last week: on pace, a little behind,
+     far behind. A scoped comparison scale made of existing hues, never an
+     alert; the arrow and % always ride beside it. Aliases, so the one place a
+     pace's colours are chosen is here (`paceTone` in DeltaChip picks the step). */
   --pace-on: var(--trend-positive);
   --pace-behind: var(--warn);
   --pace-far-behind: var(--trend-negative);
 
   --spark: oklch(0.64 0.025 250);
   --error-soft: var(--brand-danger-soft);
-  /* SURFACE KINDS (D44, accent system 3; docs/21 § Surface kinds, doc 14 §
-     Tokens): a card's SUBJECT as a low-chroma tint on its top edge — money in
-     the revenue cyan's family, an alert in the danger family, a win in the
-     success family, neutral the raised surface — with one inner highlight
-     line and, for chrome only, a translucent glass. A tint is never a verdict:
-     severity rides the ring, the glyph and the word. None points at the brand
-     accent (apps/tower/test/brand-identity.test.ts). */
+  /* Surface kinds: a card's subject as a low-chroma tint on its top edge,
+     with one inner highlight line and, for chrome only, a translucent glass.
+     A tint is never a verdict: severity rides the ring, the glyph and the
+     word. None points at the brand accent (apps/tower/test/brand-identity.test.ts). */
   --surface-money: oklch(0.25 0.035 200);
   --surface-money-line: oklch(0.42 0.06 200);
   --surface-alert: oklch(0.24 0.04 12);
@@ -149,24 +131,14 @@
   --accent-soft: var(--brand-accent-soft);
 }
 
-/* THE TELEVISION IS A BOX, NOT A VIEWPORT (bead `ro-lzmq.5`).
-   `.wall-root` is drawn at 1920×1080 twice: as the whole viewport on the TV,
-   and as a 1920×1080 box scaled into a pane by the editor's preview at
-   `/wall/edit`. Everything inside it — this file's type ramp below, and every
-   widget's own `sm:` / `md:` / `lg:` / `xl:` / `2xl:` rule — used to key on the
-   VIEWPORT, so on a 1440 desk the preview drew desk type and on a phone it drew
-   the phone's arrangement: three rows became a column, the assets grid stacked,
-   and the fit check measured 2,315px about a layout that fits the television
-   perfectly. The preview was showing a Wall that does not exist.
-
-   The fix is to key both on the BOX. `.wall-root` declares a query container
-   named `wall`, and the five breakpoint variants are redefined to fire on the
-   viewport OR on that container — so nothing outside the Wall changes (no
-   ancestor is named `wall`, and the container half never matches), and inside
-   it every widget draws the arrangement the television draws at any desk width.
-   The numbers still live once, in the theme; `@slot` twice is what lets one
-   variant carry two queries, which is the thing plain CSS could not express and
-   why this gap was left open in `ro-lzmq.2`. */
+/* The television is a box, not a viewport. `.wall-root` is drawn at
+   1920×1080 twice: as the whole viewport on the TV, and as a box scaled into
+   a pane by the editor's preview at `/wall/edit`. It declares a query
+   container named `wall`, and the five breakpoint variants fire on the
+   viewport or on that container, so nothing outside the Wall changes (no
+   ancestor is named `wall`) and inside it every widget draws the arrangement
+   the television draws at any desk width. `@slot` twice is what lets one
+   variant carry two queries. */
 @custom-variant sm {
   @media (width >= theme(--breakpoint-sm)) {
     @slot;
@@ -236,16 +208,16 @@
   --wall-axis-line: 0.875rem;
   --wall-stat-size: 2rem;
   --wall-stat-line: 2.5rem;
-  /* D28's revenue figure (docs/14-design.md): the largest type on the
-     screen, one step above the hero, 7.5rem on the TV. Its line is 1.2× the
-     size — the font's own ascent and descent — so the glyphs never paint
-     outside their box (`pnpm wall:fit --strict`). */
+  /* The Wall's revenue figure: the largest type on the screen, one step
+     above the hero, 7.5rem on the TV. Its line is 1.2× the size, the font's
+     own ascent and descent, so the glyphs never paint outside their box
+     (`pnpm wall:fit --strict`). */
   --wall-display-size: 5.5rem;
   --wall-display-line: 6.625rem;
   --background: oklch(0 0 0);
   --card: oklch(0 0 0);
 
-  /* The floors of the scaled TV layout (§ THE TV LAYOUT, SCALED, below): each
+  /* The floors of the scaled TV layout (§ The TV layout, scaled, below): each
      small step's boost, max(1, its floor ÷ (its TV size × the scale)). On the
      TV and off the scaled layout `--wall-scale` is unset, so every boost is 1. */
   --wall-boost-axis: max(1, 11 / 13 / var(--wall-scale, 1));
@@ -256,48 +228,40 @@
   --wall-boost-base: max(1, 14 / 20 / var(--wall-scale, 1));
   --wall-boost-lg: max(1, 14 / 22 / var(--wall-scale, 1));
   /* The gap between regions side by side, for the row tracks that compute a
-     widget's share of its row (`wallRowTracks`, bead ro-trai.31). */
+     widget's share of its row (`wallRowTracks`). */
   --wall-region-gap-x: --theme(--spacing-wall-region-x);
 }
 
-/* THE TV LAYOUT, SCALED (docs/14-design.md § The Wall). A landscape screen at least 1024 px
-   wide — a laptop, a landscape tablet, a desk monitor — draws the TV's layout,
-   the whole Wall zoomed by ONE number, `--wall-scale`: min(width ÷ 1920,
-   height ÷ 1080), set by the route from `wallScreen` (lib/wall-screen.ts).
-   A 13-inch MacBook Air's 1470 × 830 is the TV at 77 %.
+/* The TV layout, scaled. A landscape screen at least 1024 px wide draws the
+   TV's layout, the whole Wall zoomed by one number, `--wall-scale`:
+   min(width ÷ 1920, height ÷ 1080), set by the route from `wallScreen`
+   (lib/wall-screen.ts).
 
-   ZOOM, NOT A TRANSFORM. Layout happens at the scaled size: in its own pixels
-   the Wall is always at least 1920 × 1080, so every `tv:` rule and the TV's
-   type ramp fire exactly as on the TV, text is drawn sharp at its final size,
-   and a screen of another shape (16:10, 4:3) gives its extra height to the
-   fill row — the site rows. The TV's scale is 1 and the editor's preview sets
-   none, so neither changes.
+   Zoom, not a transform: layout happens at the scaled size, so in its own
+   pixels the Wall is always at least 1920 × 1080, every `tv:` rule and the
+   TV's type ramp fire exactly as on the TV, and a screen of another shape
+   gives its extra height to the fill row. The TV's scale is 1 and the
+   editor's preview sets none.
 
-   READABLE FLOORS. Scaled, the small type would shrink with everything else —
-   the TV's 13 px axis words to 7 px on a landscape tablet. Each small step is
-   drawn at max(its TV size × the scale, its floor), by multiplying its size
-   and its line by its boost (declared on `.wall-root` above):
+   Readable floors: each small step is drawn at max(its TV size × the scale,
+   its floor), by multiplying its size and its line by its boost (declared on
+   `.wall-root` above):
      axis 13 px, micro 14 px (a list's label and meta)  → 11 px
      detail 16 px (text-xs), label 16 px                → 12 px
      body 18 px (a list's main line, text-sm)          → 13 px
      text-base 20 px, text-lg 22 px (a site's name)    → 14 px
-   The larger steps stay proportional, and every box keeps its TV size in the
-   Wall's own pixels, so the floored words sit in the rows the TV budgets. More
-   site rows than the region holds scroll inside it (SiteRows) — the Wall never
-   falls back to one column for them. */
+   Every box keeps its TV size in the Wall's own pixels; more site rows than
+   the region holds scroll inside it (SiteRows). */
 .wall-root[data-wall-scaled] {
   zoom: var(--wall-scale);
   min-height: calc(100vh / var(--wall-scale));
 }
 
-/* THE TV'S LAYOUT (docs/14-design.md § The Wall). Saved rows describe the TV's
-   composition, and `tv:` is where it is drawn: the Wall 1,776 px wide and up
-   in its own pixels (the 1800 px kiosk less its 0.75rem padding each side) —
-   the TV itself, the editor's 1920 preview box, and every landscape screen at
-   least 1024 px wide, which draws the TV's box scaled (§ THE TV LAYOUT,
-   SCALED). Everything else — a portrait tablet, a phone — is `stack:`, one
-   column of whole widgets in a fixed reading order (`WallCanvas`): one rule,
-   by the screen's shape, rather than one per device. */
+/* The TV's layout. Saved rows describe the TV's composition, and `tv:` is
+   where it is drawn: the Wall 1,776 px wide and up in its own pixels (the
+   1800 px kiosk less its 0.75rem padding each side). Everything else is
+   `stack:`, one column of whole widgets in a fixed reading order
+   (`WallCanvas`): one rule, by the screen's shape, rather than one per device. */
 @custom-variant tv {
   @container wall (width >= calc(1800px - 1.5rem)) {
     @slot;
@@ -310,16 +274,11 @@
   }
 }
 
-/* THE SITE REGION IS ITS OWN BOX (bead `ro-trai.18`). The site table switches
-   to its columns on the region's OWN width, not the Wall's: in D28's
-   arrangement the region is one track of a column beside the feed, about 1,380
-   px of a 1920 TV — and it was about 670 px of a 1440 window (until
-   ro-trai.29 stacked that window and ro-trai.31 drew it the TV's layout,
-   scaled), where the Wall-wide `xl:` still fired and the table's ~950 px of
-   columns ran over each other and under the feed. `sites:` is where the table
-   fits (64rem); `sites-wide:` where the TV's larger charts and gaps fit
-   (80rem) — true of the region in D28's arrangement, on the TV and scaled.
-   Below `sites:` (a portrait tablet, a phone) each row stacks on two columns. */
+/* The site region is its own box: the site table switches to its columns on
+   the region's own width, not the Wall's, because in the default arrangement
+   the region is one track of a column beside the feed. `sites:` is where the
+   table fits (64rem); `sites-wide:` where the TV's larger charts and gaps fit
+   (80rem). Below `sites:` each row stacks on two columns. */
 [data-wall-sites] {
   container: wall-sites / inline-size;
 }
@@ -336,15 +295,14 @@
   }
 }
 
-/* The TV's layout drawn smaller than the TV (§ THE TV LAYOUT, SCALED): a
+/* The TV's layout drawn smaller than the TV (§ The TV layout, scaled): a
    laptop or a landscape tablet, never the TV itself, whose scale is 1. Where
-   the floored small type needs room the TV's boxes do not give it — a site's
-   issue mark on a 1024-wide tablet (bead ro-trai.36) — the scaled layout
-   makes it here, and the TV stays exactly as it is. */
+   the floored small type needs room the TV's boxes do not give it, the scaled
+   layout makes it here, and the TV stays exactly as it is. */
 @custom-variant scaled (&:where([data-wall-scaled] *));
 
-/* The strip's words on a one-column Wall wider than a phone — a portrait
-   tablet — between the phone's rows and the TV's line (bead ro-trai.24). */
+/* The strip's words on a one-column Wall wider than a phone, a portrait
+   tablet, between the phone's rows and the TV's line. */
 @container wall (width >= 40rem) {
   .wall-root * {
     --wall-strip-size: 1.25rem;
@@ -360,27 +318,17 @@
 }
 
 
-/* The production Wall is a 4K DietPi kiosk rendered at 2× scaling: Chrome
-   exposes a 1920×1080 CSS viewport while the operator reads it from across the
-   room. At that geometry, reclaim the remaining vertical slack for type rather
-   than carrying desktop-size labels into large, mostly empty TV containers.
+/* A 4K kiosk at 2× scaling exposes a 1920×1080 CSS viewport read from across
+   the room, so at that geometry the remaining vertical slack goes to type.
    The two-class selectors intentionally outrank Tailwind's one-class desktop
    utilities, while the gate keeps narrow responsive views unchanged.
 
-   THE GATE IS THE BOX, NOT THE VIEWPORT (bead `ro-lzmq.5`). This ramp is what
-   makes TV type TV-sized, and a preview drawn without it is a preview a fit
-   check reads as roomier than the television. `@container wall` is true of the
-   1920 viewport the kiosk has AND of the 1920 box `/wall/edit` scales into its
-   pane, so the ramp is declared once and both surfaces get it — which is the
-   fix `ro-lzmq.2` could not write, because a media query cannot ask about a box.
-   The height half of the old gate went with the kiosk clip below, where it
-   belongs: a container cannot style itself, and how tall the screen is has
-   nothing to do with how big the type should be.
-
-   The properties land on `.wall-root *` rather than on `.wall-root`: a query
+   The gate is the box, not the viewport: `@container wall` is true of the
+   1920 viewport the kiosk has and of the 1920 box `/wall/edit` scales into
+   its pane, so the ramp is declared once and both surfaces get it. The
+   properties land on `.wall-root *` rather than on `.wall-root`: a query
    container's own declarations cannot be conditioned on its own size, so the
-   ramp is handed to every descendant instead. They inherit the same values they
-   used to inherit from the root, and nothing on the root itself reads them. */
+   ramp is handed to every descendant instead. */
 @container wall (width >= 1800px) {
   .wall-root * {
     --wall-label-size: 1rem;
@@ -409,7 +357,7 @@
     --wall-strip-countdown-line: 3.125rem;
   }
 
-  /* Each with its floor on a scaled Wall (§ THE TV LAYOUT, SCALED). */
+  /* Each with its floor on a scaled Wall (§ The TV layout, scaled). */
   .wall-root .text-xs {
     font-size: calc(var(--wall-detail-size) * var(--wall-boost-detail));
     line-height: calc(var(--wall-detail-line) * var(--wall-boost-detail));
@@ -436,8 +384,7 @@
   }
 
   /* A line 1.25× the size, above the font's own ascent and descent (1.21×),
-     so the glyphs never paint below their box (bead ro-trai.37: "on pace
-     for $1,695" hung 1 px under a 36 px line). */
+     so the glyphs never paint below their box. */
   .wall-root .text-2xl {
     font-size: 2rem;
     line-height: 2.5rem;
@@ -445,21 +392,11 @@
 }
 
 /* A kiosk with scrollbars is a broken poster, and nobody is standing at the TV
-   to scroll it. Content is supposed to FIT this geometry, but the fit contract
-   has now broken twice on data growth alone (bead ro-wb5d: one asset's
-   new card stacked column 5 to 1096px, and DailyBars' nowrap axis labels paint
-   7px past the viewport) — so when it breaks, the TV clips instead of growing
-   bars. The operator accepted losing the bottom of an overflowing card over
-   seeing scrollbars (2026-08-10). Gated to this TV VIEWPORT on purpose: the
-   phone and desk wall views must keep scrolling, and so must the editor's
-   preview, which is a box on a page and not a screen of its own.
-
-   Since bead `ro-pimj` the content FITS again and this clip is a backstop
-   rather than the thing holding the kiosk together — `pnpm wall:fit` says so
-   and is the only thing that can, because jsdom has no layout and this rule
-   hides the failure from anyone looking at the page. It stays because the next
-   fact the Wall gains will exceed the budget again, and a clipped card is still
-   better than a scrollbar nobody is there to move. */
+   to scroll it: when the content exceeds the budget, the TV clips instead of
+   growing bars. Gated to this TV viewport on purpose: the phone and desk wall
+   views must keep scrolling, and so must the editor's preview, which is a box
+   on a page. This clip hides an overflow from anyone looking at the page, so
+   `pnpm wall:fit` is the only thing that reports one. */
 @media (min-width: 1800px) and (min-height: 900px) {
   .wall-root {
     /* A scaled Wall (a desk window a little shorter than the TV) is zoomed,
@@ -498,11 +435,9 @@
   --search-bing: oklch(0.53 0.16 245);
   --financial-revenue: var(--brand-cyan);
   --financial-cost: var(--brand-violet);
-  /* Light theme's audience azure (bead ro-ujb9.77.3): the old deep blue sat
-     ΔE 3 from the Notice blue accent, the same colour to the eye. This one is
-     the dark theme's family, ΔE 11 from the accent (8 under colour-blind
-     simulation), at least 11.6 from every light severity and series colour,
-     and still reads as text on the canvas (4.6:1). */
+  /* Light theme's audience azure: the dark theme's family, ΔE 11 from the
+     accent (8 under colour-blind simulation), at least 11.6 from every light
+     severity and series colour, and still reads as text on the canvas (4.6:1). */
   --traffic: oklch(0.55 0.15 256);
   --pace-on: var(--trend-positive);
   --pace-behind: var(--warn);
@@ -590,9 +525,9 @@
   --color-glass: var(--glass);
   --color-glass-line: var(--glass-line);
 
-  /* TV type scale — tokens, not per-component choices (doc 14). The small
-     steps carry their floor on a scaled Wall (bead ro-trai.31, § THE TV
-     LAYOUT, SCALED); the boost is 1 everywhere else. */
+  /* TV type scale: tokens, not per-component choices. The small steps carry
+     their floor on a scaled Wall (§ The TV layout, scaled); the boost is 1
+     everywhere else. */
   --text-wall-label: calc(var(--wall-label-size) * var(--wall-boost-label, 1));
   --text-wall-label--line-height: calc(var(--wall-label-line) * var(--wall-boost-label, 1));
   --text-wall-body: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
@@ -607,9 +542,7 @@
   --text-wall-stat--line-height: var(--wall-stat-line);
   --text-wall-display: var(--wall-display-size);
   --text-wall-display--line-height: var(--wall-display-line);
-  /* The Wall's large live figure (its site rows' live users). The 4rem hero
-     and 2.25rem steps of the old ramp left with `Stat`, their only reader
-     (bead `ro-trai.25`). */
+  /* The Wall's large live figure (its site rows' live users). */
   --text-wall-hero-sm: 3rem;
   --text-wall-hero-sm--line-height: 3.25rem;
   /* The header's four type steps share the interface sans family. */
@@ -623,24 +556,22 @@
   --text-wall-strip-time--line-height: var(--wall-strip-time-line);
   --text-wall-strip-brand: var(--wall-strip-brand-size);
   --text-wall-strip-brand--line-height: var(--wall-strip-time-line);
-  /* The countdown's emoji (bead `ro-trai.3`): the old countdown panel's
-     picture, kept as a picture on its tile — sized from the strip's words, so
-     it grows with them. The tile is at least one em and grows to the glyph:
-     a platform's emoji face can be wider and taller than its em (Linux's is
-     about 1.25 em), and a fixed tile let that glyph paint outside it. */
+  /* The countdown's emoji, sized from the strip's words so it grows with
+     them. The tile is at least one em and grows to the glyph: a platform's
+     emoji face can be wider and taller than its em (Linux's is about 1.25 em),
+     and a fixed tile would let that glyph paint outside it. */
   --text-wall-strip-emoji: 1em;
   --text-wall-strip-emoji--line-height: normal;
   /* The strip's marks — the brand's icon and the countdown's tile, two
      capitals tall; the system state's glyph, whose drawn stroke is about one
      capital tall in its box — each centred on the capitals of the strip's one
-     baseline (bead `ro-trai.24`). In `cap`, so they follow the words' size. */
+     baseline. In `cap`, so they follow the words' size. */
   --spacing-wall-strip-mark: 1em;
   --spacing-wall-strip-glyph: 1.5cap;
-  /* THE WALL'S LIST RAMP (bead `ro-trai.23`, docs/14-design.md § Type): a
-     row of a Wall list — Needs you and the Live feed alike — is a label, a
-     main line and a meta, and the two lists draw them at the same three steps,
-     so neither reads louder than the other. Urgency is weight and colour,
-     never a larger size. */
+  /* The Wall's list ramp: a row of a Wall list, Needs you and the Live feed
+     alike, is a label, a main line and a meta, drawn at the same three steps
+     so neither list reads louder than the other. Urgency is weight and
+     colour, never a larger size. */
   --text-wall-list-label: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
   --text-wall-list-label--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
   --text-wall-list-line: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
@@ -652,11 +583,9 @@
   --spacing-wall-band: 21rem;
   --spacing-wall-site-row-min: 3.5rem;
 
-  /* D28'S FRAME (docs/14-design.md § Budget, bead `ro-trai.11`): the page
-     inset (24px top and bottom, 32px sides), 20px between stacked regions —
-     the strip and the body, the revenue band and the site rows — and 28px
-     between regions side by side: revenue and Needs you, the column and the
-     feed. 24 + 96 + 20 + 916 + 24 is the TV's 1080. */
+  /* The Wall's frame: the page inset (24px top and bottom, 32px sides), 20px
+     between stacked regions and 28px between regions side by side.
+     24 + 96 + 20 + 916 + 24 is the TV's 1080. */
   --spacing-wall-inset-x: 2rem;
   --spacing-wall-inset-y: 1.5rem;
   --spacing-wall-region: 1.25rem;
@@ -685,11 +614,11 @@
     font-family: var(--brand-font);
     -webkit-font-smoothing: antialiased;
   }
-  /* A subtree drawn dark inside a light page (the TV preview, bead ro-c0l3)
-     re-resolves what this layer reads as well. Tailwind declares the
-     `--color-*` names once, on :root, so under a light desk they hold the
-     light values; and text with no colour class inherits `color` as the value
-     body resolved — dark ink, on the TV's black. */
+  /* A subtree drawn dark inside a light page (the TV preview) re-resolves
+     what this layer reads as well. Tailwind declares the `--color-*` names
+     once, on :root, so under a light desk they hold the light values; and
+     text with no colour class inherits `color` as the value body resolved,
+     dark ink on the TV's black. */
   [data-theme="dark"] {
     --color-border: var(--border);
     --color-foreground: var(--foreground);
@@ -697,11 +626,10 @@
   }
 }
 
-/* THE NOTICEOS LOCKUP (D35, bead ro-ujb9.77.3): the Notice mark in the
-   current ink and the wordmark set in Stack Sans Notch, as www.notice.cx sets
-   it — "Notice" at 600 with the website's tight tracking, "OS" lighter and in
-   the muted ink. The mark is drawn in capitals of the surrounding words
-   (1.4 of them, the website's proportion), so it follows every size. */
+/* The NoticeOS lockup: the Notice mark in the current ink and the wordmark
+   set in Stack Sans Notch, "Notice" at 600 with tight tracking, "OS" lighter
+   and in the muted ink. The mark is drawn in capitals of the surrounding
+   words (1.4 of them), so it follows every size. */
 .brand-lockup {
   display: inline-flex;
   align-items: center;
@@ -729,10 +657,10 @@
 .brand-lockup--compact {
   font-size: 1.125rem;
 }
-/* SET IN A LINE OF TEXT (the Wall's strip, bead ro-trai.24): the lockup flows
-   as words do — its name at the line's own size, on the line's baseline, and
-   its mark with its middle on the capitals' middle, which for a mark 1.4
-   capitals tall is lowering it by 0.2 of one. */
+/* Set in a line of text (the Wall's strip): the lockup flows as words do,
+   its name at the line's own size, on the line's baseline, and its mark with
+   its middle on the capitals' middle, which for a mark 1.4 capitals tall is
+   lowering it by 0.2 of one. */
 .brand-lockup--text {
   display: inline-block;
   font-size: 1em;
@@ -873,9 +801,9 @@
   height: 55%;
 }
 
-/* The Wall feed's arrival (docs/14-design.md § The Wall): a new row opens its
-   own height at the top, so the rows below slide down rather than jump, and
-   keeps a tint of its tone that fades over two minutes. */
+/* The Wall feed's arrival: a new row opens its own height at the top, so the
+   rows below slide down rather than jump, and keeps a tint of its tone that
+   fades over two minutes. */
 @keyframes wall-feed-arrive {
   from {
     grid-template-rows: 0fr;
@@ -906,8 +834,7 @@
   animation: wall-feed-tint 120s linear forwards;
 }
 
-/* THE CHARTS' MOTION (bead ro-trai.19, doc 14 § Charts). A live series' newest
-   point breathes: a ring of its own ink grows out of the dot and fades, once
+/* The charts' motion. A live series' newest point breathes: a ring of its own ink grows out of the dot and fades, once
    every 2.4 s — enough to say "this is still being counted" from across a
    room, never enough to pull the eye from a real alert. The ring's start and
    end widths are the point's own (`ChartPoint` sets them). A line or area whose
@@ -934,7 +861,7 @@
 
 /* A day still being counted, drawn as a bar: diagonal hatching in the bar's
    own ink over a faint wash of it, so an unfinished day never reads as a low
-   one (doc 14: only the partial calendar day is provisional). */
+   one. */
 .chart-bar-provisional {
   background-image: repeating-linear-gradient(
     135deg,
@@ -944,7 +871,7 @@
 }
 
 /* A screen's code usually arrives before anyone could read the word "Loading",
-   so `RouteLoading`'s line waits before it appears (bead ro-82x): a word that
+   so `RouteLoading`'s line waits before it appears: a word that
    flashes on every page load is noise. `both` holds it invisible through the
    delay. Screen readers are not delayed — opacity leaves the text in the
    accessibility tree, and its status region announces it at once. */

@@ -15,14 +15,10 @@ export function declaresNoReport(asset: Pick<AssetInfo, "id">, wiring: Pick<Wiri
 }
 
 /**
- * THE DATA COLLECTION CARD'S ONE STATE (bead `ro-ujb9.96.13`).
- *
- * The switch leads the card. While "No report" is saved it is the card's only
- * state: the rows under it — how the report arrives, its endpoint, auth,
- * schedule, last report and freshness — describe an obligation the operator
- * declared away, and a card that said "No report" above "The asset sends it"
- * would be two statuses for one subject (doc 14). Switching back to Expected
- * brings them back unchanged.
+ * The data collection card's one state. The switch leads the card. While "No
+ * report" is saved it is the card's only state: the rows under it describe an
+ * obligation the operator declared away. Switching back to Expected brings
+ * them back unchanged.
  */
 export function NightlyReportScope({
   asset,
@@ -32,7 +28,7 @@ export function NightlyReportScope({
 }: {
   asset: AssetInfo;
   wiring: Wiring;
-  /** `false` where the page says once that saves are paused (bead `ro-p8qq`). */
+  /** `false` where the page says once that saves are paused. */
   statesReadOnly?: boolean;
   children: ReactNode;
 }) {
@@ -45,26 +41,11 @@ export function NightlyReportScope({
 }
 
 /**
- * WHETHER THIS ASSET SENDS A NIGHTLY REPORT AT ALL (bead `ro-ujb9.96.8`).
- *
- * Some assets never will — a content site with nothing of its own to count —
- * and until this switch existed the only honest answer the OS had for them was
- * a permanent red "never reported". Declaring "No report" moves the asset out
- * of the obligation everywhere it is counted (`owesNightlyReport` in the
- * contract): no freshness alert, out of the SYSTEM card's denominator, and a
- * neutral "No report" in its nightly slot.
- *
- * THE OTHER SIDE FOLLOWS THE REPORT (D29 amended, bead `ro-ujb9.121`). Left
- * undeclared, a site expects its report once it has sent one
- * (`expectsNightlyReport`), so the side reads "Expected" only then; before the
- * first report it reads "Not set up", neutral, and the switch is still there to
- * declare "No report".
- *
- * ONE LIST, WRITTEN WHOLE: config/constants.json `no_nightly_report`. The
- * switch writes the list it read with this asset added or taken out, guarded
- * by exactly what it read, so two tabs cannot silently undo each other. The
- * list is absent until the first asset declares, so that first save CREATES it
- * (`expectAbsent`), and its Undo removes it again — the toast's usual way back.
+ * Whether this asset sends a nightly report at all (`owesNightlyReport` in the
+ * contract). One list, written whole: config/constants.json
+ * `no_nightly_report`, guarded by exactly what the switch read so two tabs
+ * cannot silently undo each other. The list is absent until the first asset
+ * declares, so that save creates it (`expectAbsent`) and its Undo removes it.
  */
 export function NightlyReportSwitch({
   asset,

@@ -1,24 +1,9 @@
 import { moneyFigure } from '@noticeos/contract/money';
-// The financial ledger's shared read primitives and the per-asset month
-// history built from them.
-//
-// /financials (`financials-payload.ts`) and the Wall's asset cards
-// (`wall-payload.ts`, `netByMonth`) both need every asset's net month by month,
-// and they must not answer it two ways (beads `ro-78qo.29`, `ro-78qo.35`). So
-// the one grouping lives here, beside what every ledger read in those builders
-// shares: the minor-unit figure (subtract in cents, divide once) and the exact
-// read of a cents total the store sums.
-//
-// EVERY MONEY READ IS OF `noticeos.financial_ledger` ALONE (the Postgres
-// store, bead ro-ujb9.76.6.1). That view holds only current money entries: no
-// entry another replaces (bead `ro-ujb9.69`), no change entry (D36), and a month
-// of Mediavine daily estimates standing in for the estimate they cover
-// (0001_baseline.sql). D1's readers added a current-row guard to every read
-// (`CURRENT`, beads `ro-ujb9.69`, `ro-ujb9.101`); on Postgres it can keep no
-// row the view does not already keep, because a correction names a stored
-// entry (a positive identity) and the view's daily months carry negative ones,
-// so it is gone. `apps/tower/test/ledger-current-guard.test.ts` holds the old
-// guard as the specification and proves the view keeps exactly its rows.
+// The financial ledger's shared read primitives and the one per-asset month
+// history /financials and the Wall both read, so they cannot answer it two
+// ways. Every money read is of `noticeos.financial_ledger` alone: the view
+// holds only current entries (nothing replaced, no change entries, a month of
+// Mediavine daily estimates in place of the estimate they cover).
 
 import { assetDisplayName } from "@noticeos/contract/asset-name";
 import type { WorkspaceStore } from "@noticeos/postgres";
@@ -55,32 +40,12 @@ export interface AssetLedgerHistory {
 }
 
 /**
- * EVERY ASSET'S NET, MONTH BY MONTH — the desk's ONE per-asset ledger
- * derivation (beads `ro-78qo.29`, `ro-78qo.35`).
- *
- * Three surfaces ask this question and they must not answer it three ways:
- * /financials' by-asset table prints one month of it as figures and the rest as
- * a sparkline, and /assets' comparison table draws it per row off the wall
- * payload. So it is one grouping, run once, handed to whoever asked.
- *
- * WHAT THE ARITHMETIC IS. Revenue minus this asset's DIRECT cost, in minor
- * units divided once on the way out; superseded rows excluded by the one view
- * every other money query in this worker reads; portfolio overhead
- * left on asset #0 and allocated to nobody, which is the two-tier read
- * /financials exists to carry. Asset #0 is in the map like any other asset —
- * nothing here is special-cased on `is_os`, and the callers decide what to do
- * with the overhead line.
- *
- * THE JOIN IS INNER on purpose: a ledger row naming an asset the assets table
- * has never heard of has no display name and no page, and no by-asset read has
- * ever listed one.
- *
- * A MONTH AN ASSET HOLDS NO ROW FOR GETS NO ENTRY — never a zero. /financials
- * spends a whole section on the difference between "zero" and "not measured",
- * and a manufactured run of zeroes would draw a cliff the ledger never
- * recorded. Ordered by month, then by asset id byte for byte, the order D1's
- * grouping returned them in, so each list is ascending and the assets reach
- * the map in the order they always did.
+ * Every asset's net, month by month: revenue minus the asset's direct cost, in
+ * minor units divided once. Portfolio overhead stays on asset #0, which is in
+ * the map like any other; callers decide what to do with it. The join is inner:
+ * a ledger row for an unknown asset has no page to list it on. A month with no
+ * row gets no entry here, never a zero (holes are filled later, as null).
+ * Ordered by month, then asset id byte for byte.
  */
 export async function loadAssetMonths(
   store: WorkspaceStore,
@@ -127,10 +92,8 @@ export async function loadAssetMonths(
     });
     history.set(row.asset, entry);
   }
-  // THE HOLES ARE FILLED IN LAST, and only between an asset's own first and
-  // last row (bead `ro-78qo.37`). The axis is the ASSET's: a asset registered
-  // in July has no June, and prefixing one would invent a month it did not
-  // exist in — a different mistake from the gap this closes.
+  // Holes are filled only between an asset's own first and last row: an asset
+  // registered in July has no June.
   for (const entry of history.values()) {
     entry.months = onMonthAxis(entry.months);
   }
@@ -143,8 +106,8 @@ export async function loadAssetMonths(
  * The input is already ascending (`ORDER BY period ASC`) and holds only real
  * rows; what comes back is the same list with the calendar between its ends
  * filled in. A hole is `figure: null` — not a zero, which would be a figure
- * nobody booked, and not an omission, which is what made a sparkline draw three
- * months a year apart as three consecutive ones.
+ * nobody booked, and not an omission, which would draw distant months as
+ * consecutive ones.
  */
 function onMonthAxis(months: FinancialPropertyMonth[]): FinancialPropertyMonth[] {
   const first = months[0]?.period;

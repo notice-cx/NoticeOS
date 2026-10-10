@@ -1,33 +1,19 @@
-// Importing the legacy env credentials — the one path, and the one vocabulary
-// (bead `ro-vu8d.7`).
-//
-// Three runtimes have to agree about this route and none of them can import the
-// others: the Vite lane that ANSWERS it (a Node process with the repo beside
-// it), the Worker that answers it honestly everywhere else, and the browser that
-// calls it. `shared/` is the only place all three already reach — the vite
-// config cannot import `@noticeos/contract` at all (see the note at the top of
-// vite.config.ts), so this is where the path and the result shape live.
-//
-// NOTHING HERE CARRIES A VALUE. The result names providers and field NAMES,
-// which is the same thing the CLI prints and the same thing the credential
-// summaries already show.
+// Importing the legacy env credentials: the path and result shape shared by the
+// Vite lane that answers it locally, the Worker, and the browser. It lives in
+// `shared/` because vite.config.ts cannot import `@noticeos/contract`. Nothing
+// here carries a secret value, only provider and field names.
 
 /** The one path. Written once, matched by the lane, the Worker and the client. */
 export const ENV_IMPORT_PATH = "/api/integrations/import-env";
 
 /**
- * Why the import cannot run from here, as a code the card draws (bead
- * `ro-ujb9.96.6.1`), never a sentence it prints:
+ * Why the import cannot run from here, as a code the card draws:
  *
- * `elsewhere` — a deployed Worker has no filesystem and no secrets file; the
- * import runs on the machine that runs the OS, so the card labels the command
- * with where it runs.
- * `no-file` — this machine has no `workers/ingest/.dev.secrets.json` yet. The
- * operator never migrated, so there is only a hand-written `.dev.vars`, and the
- * card shows the migrate command before the import one. (Importing a generated
- * `.dev.vars` would store Google's routing map with its service-account
- * POINTERS and no key, which the store would then rank above a working
- * binding — so migrate, not import, comes first.)
+ * `elsewhere`: a deployed Worker has no filesystem; the import runs on the
+ * machine that runs the OS.
+ * `no-file`: no `workers/ingest/.dev.secrets.json` yet, so the card shows the
+ * migrate command first. Importing a raw `.dev.vars` would store Google's
+ * service-account pointers without the key, outranking a working binding.
  */
 export type EnvImportBlock = "elsewhere" | "no-file";
 

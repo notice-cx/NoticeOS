@@ -1,5 +1,5 @@
 // The Integrations page's write surface: connect, test and disconnect one
-// provider (epic `ro-vu8d`, bead `ro-vu8d.1`).
+// provider.
 //
 //   GET    /api/integrations/providers           — every provider's state
 //   PUT    /api/integrations/:provider/credential — store one credential (204)
@@ -8,20 +8,16 @@
 //   POST   /api/integrations/:provider/connect    — the connect panel's save and
 //                                                   test: the provider is asked
 //                                                   first, stored only if it
-//                                                   accepts (ro-ujb9.96.7.1)
+//                                                   accepts
 //   GET    /api/integrations/import-env           — can the legacy env
-//                                                   credentials be imported HERE
+//                                                   credentials be imported here
 //
-// NOT `/api/integrations`, which already answers with the portfolio lane matrix
-// the Health page renders (integrations-payload.ts). Two different questions —
-// "is this lane producing data for this asset" and "does the OS hold a working
-// credential for this provider" — so two payloads and two paths.
-//
-// The explicit standalone path preserves the LAN operator door. Hosted entries
-// verify the original request and reload workspace admission at Tower and ingest
-// before opening the scoped store. The private binding transports the call; it
-// does not grant authority. Responses contain summaries rather than credential
-// values; successful writes answer 204.
+// Not `/api/integrations`, which answers with the lane matrix the Health page
+// renders (integrations-payload.ts): a different question. Hosted entries
+// verify the original request and reload workspace admission at Tower and
+// ingest before opening the scoped store; the private binding transports the
+// call and does not grant authority. Responses contain summaries, never
+// credential values; successful writes answer 204.
 
 import type {
   ConnectCredentialResult,
@@ -48,13 +44,9 @@ import type { IntegrationsConfig } from "../shared/integrations";
 import { ENV_IMPORT_ELSEWHERE_DETAIL, type EnvImportAvailability } from "../shared/env-import";
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
 
-/**
- * The four ingest RPCs these routes call. `env.INGEST` satisfies it
- * structurally; declaring the surface here rather than importing the binding's
- * type keeps this file free of Workers globals (the test project typechecks it
- * too) and lets a test bind a double — the same trick `AssetColumnWriter` and
- * `AssetLifecycleWriter` use next door.
- */
+/** The ingest RPCs these routes call. `env.INGEST` satisfies it structurally;
+ * declaring the surface here keeps this file free of Workers globals and lets
+ * a test bind a double. */
 export interface IntegrationCredentialWriter {
   listCredentialSummaries(originalProof?: Request): Promise<CredentialStoreState>;
   putCredential(input: PutCredentialInput, originalProof?: Request): Promise<PutCredentialResult>;
@@ -74,16 +66,9 @@ export const INTEGRATIONS_API_PREFIX = "/api/integrations";
 /** Where the provider list lives. Exported so a client and a test name it once. */
 export const INTEGRATION_PROVIDERS_PATH = "/api/integrations/providers";
 
-/**
- * Which assets are counting on each provider, straight out of
- * `config/integrations.json`.
- *
- * A lane the register marks `not-applicable` for an asset is excluded — the
- * point of the list is "what breaks if this credential is wrong", and a lane
- * that never applied to an asset breaks nothing there. Everything else counts,
- * including `needs-setup`: an asset waiting on this very credential is the most
- * relevant row on the card.
- */
+/** Which assets are counting on each provider, out of
+ * `config/integrations.json`. A lane marked `not-applicable` for an asset is
+ * excluded; everything else counts, including `needs-setup`. */
 export function assetsUsingProvider(
   config: IntegrationsConfig,
   lanes: readonly string[],
@@ -99,42 +84,19 @@ export function assetsUsingProvider(
 }
 
 /**
- * `GET /api/integrations/providers`.
- *
- * ALWAYS a fully-formed payload: every provider in catalog order, connected or
- * not, plus the two reasons a Save could fail before it is attempted (no
- * `CREDENTIALS_KEY`, or the migration not applied yet). A page an operator
- * opens to FIX something must never be able to go blank, and it must never
- * offer a form that cannot save.
- */
-/**
- * What a metered provider has spent of its ceiling — the reader the route asks
- * for a provider that declares a meter (beads `ro-vu8d.25`, `ro-qpas`).
- *
- * IT TAKES THE METER, not a data-source id: the two metered providers have two
- * different windows (Clarity's calls per asset per day, DataForSEO's dollars
- * per calendar month) and the declaration is what says which reading to
- * produce. Passing a bare id would put that decision in the caller, where a
- * third provider would arrive as a second `if` nobody updated.
- *
- * A FUNCTION rather than the database, for the reason `IntegrationCredentialWriter`
- * is an interface: this file stays free of Workers globals and a test can hand
- * it a stub. The one implementation is `loadProviderMeter` in
- * metered-spend.ts, over the same report runs (`noticeos.archive_runs`) the
- * metered spend summary reads.
+ * What a metered provider has spent of its ceiling — the reader the route
+ * asks for a provider that declares a meter. It takes the meter, not a
+ * data-source id, because the declaration says which reading to produce. The
+ * one implementation is `loadProviderMeter` in metered-spend.ts.
  */
 export type ProviderMeterReader = (
   meter: IntegrationMeter,
   now: Date,
 ) => Promise<ProviderMeterReading>;
 
-/**
- * The catalog entry as THIS installation reads it (bead `ro-ujb9.118`): an
- * older single-asset binding carries the asset it serves here —
- * `legacyBindingAsset` over the installation's own register — so the env
- * importer folds the token into the right map entry and the catalog itself
- * names no site. Every other provider passes through untouched.
- */
+/** The catalog entry as this installation reads it: an older single-asset
+ * binding carries the asset it serves (`legacyBindingAsset` over the
+ * installation's own register), so the catalog itself names no site. */
 function providerForInstallation(
   provider: IntegrationProvider,
   config: IntegrationsConfig,
@@ -181,9 +143,7 @@ export async function handleIntegrationProvidersRequest(
       provider: providerForInstallation(provider, config),
       credential,
       assets: assetsUsingProvider(config, provider.lanes),
-      // A meter is read only where the provider declares one, and a store that
-      // cannot answer costs this one block rather than the page: a card that
-      // invented a budget would be worse than one that shows none.
+      // A store that cannot answer costs this one block rather than the page.
       meter:
         provider.meter === undefined || meterReader === undefined
           ? null
@@ -201,17 +161,14 @@ export async function handleIntegrationProvidersRequest(
 }
 
 /**
- * `PUT` and `DELETE /api/integrations/:provider/credential`.
+ * `PUT` and `DELETE /api/integrations/:provider/credential`. 204 on both, with
+ * no body: an echoed credential could only leak. The page re-reads
+ * `GET /api/integrations/providers` for the new state.
  *
- * 204 on both, with no body. There is nothing to describe after a successful
- * save that would not be a copy of what the caller just sent, and the only
- * thing a caller could do with an echoed credential is leak it. The page
- * re-reads `GET /api/integrations/providers` for the new state.
- *
- * Error vocabulary matches the other write routes: 405 · 403 forbidden ·
- * 415 unsupported_media_type · 400 bad_request · 404 provider_not_found ·
- * 422 invalid_credential {field, detail} · 503 credentials_key_missing /
- * credential_store_unavailable {detail} · 500 credential_write_failed.
+ * Errors: 405 · 403 forbidden · 415 unsupported_media_type · 400 bad_request
+ * · 404 provider_not_found · 422 invalid_credential {field, detail} · 503
+ * credentials_key_missing / credential_store_unavailable {detail} · 500
+ * credential_write_failed.
  */
 export async function handleIntegrationCredentialRequest(
   request: Request,
@@ -225,8 +182,7 @@ export async function handleIntegrationCredentialRequest(
   if (crossOrigin(request, url)) {
     return jsonError("forbidden", 403);
   }
-  // The catalog is shared with ingest, so a 404 here and a refusal there can
-  // never disagree — this one just arrives before the binding is called.
+  // The catalog is shared with ingest; this 404 just arrives before the binding is called.
   if (integrationProvider(provider) === null) {
     return jsonError("provider_not_found", 404, { provider });
   }
@@ -266,15 +222,13 @@ export async function handleIntegrationCredentialRequest(
 
   let result: PutCredentialResult;
   try {
-    // A CLAIM, not a check: ingest is the validator, and a second copy of the
-    // field rules in this file would be a second answer.
+    // Ingest is the validator; the field rules live there only.
     result = await ingest.putCredential({
       provider,
       fields: fields as Record<string, string>,
     });
   } catch {
-    // Keep the service boundary opaque: the browser gets a code, not ingest's
-    // internals, and treats it as "the credential was not saved".
+    // The browser gets a code, not ingest's internals.
     return jsonError("credential_write_failed", 500);
   }
 
@@ -283,8 +237,7 @@ export async function handleIntegrationCredentialRequest(
       return jsonError("provider_not_found", 404, { provider });
     }
     if (result.error === "key_missing") {
-      // 503, not 500: nothing is wrong with the request. The install is missing
-      // one env secret, and the detail is the sentence that fixes it.
+      // 503, not 500: nothing is wrong with the request.
       return jsonError("credentials_key_missing", 503, { detail: result.message });
     }
     if (result.error === "store_unavailable") {
@@ -300,24 +253,16 @@ export async function handleIntegrationCredentialRequest(
 }
 
 /**
- * `PUT /api/integrations/:provider/expiry` — when this credential stops working
- * (bead `ro-vu8d.8`).
+ * `PUT /api/integrations/:provider/expiry` — when this credential stops
+ * working. 204, like the credential write beside it. This body carries no
+ * secret, so it is the one write an operator can make with the encryption key
+ * missing. `{ "expiresAt": null }` means this does not expire, and sticks
+ * through the next sign-in.
  *
- * 204, like the credential write beside it, and for the same reason: the page
- * re-reads the providers payload for the new state rather than trusting an
- * echo. What is different is that this body carries NO SECRET at all — an
- * expiry is a public fact — so the route is the one write on this page an
- * operator could safely make with the encryption key missing, and the ingest
- * lets it through on exactly that basis.
- *
- * `{ "expiresAt": null }` is a legitimate body and means *this does not
- * expire*: it is how a published Google app switches off the Testing-mode
- * countdown, and it sticks through the next sign-in.
- *
- * Error vocabulary: 405 · 403 forbidden · 415 unsupported_media_type ·
- * 400 bad_request · 404 provider_not_found · 409 credential_not_expirable /
- * credential_not_stored · 422 invalid_credential {field, detail} ·
- * 500 credential_write_failed.
+ * Errors: 405 · 403 forbidden · 415 unsupported_media_type · 400 bad_request
+ * · 404 provider_not_found · 409 credential_not_expirable /
+ * credential_not_stored · 422 invalid_credential {field, detail} · 500
+ * credential_write_failed.
  */
 export async function handleIntegrationExpiryRequest(
   request: Request,
@@ -347,8 +292,8 @@ export async function handleIntegrationExpiryRequest(
     return jsonError("invalid_credential", 422, { field: "body" });
   }
   const raw = (body as { expiresAt?: unknown }).expiresAt;
-  // `undefined` is a body that forgot to say anything, which is different from
-  // `null` — the deliberate "there is no expiry". Only the second is an answer.
+  // `undefined` is a body that forgot to say anything; `null` is the
+  // deliberate "there is no expiry".
   if (raw !== null && typeof raw !== "string") {
     return jsonError("invalid_credential", 422, { field: "expiresAt", expected: "iso-instant-or-null" });
   }
@@ -377,14 +322,9 @@ export async function handleIntegrationExpiryRequest(
   return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
 }
 
-/**
- * `POST /api/integrations/:provider/test`.
- *
- * 200 with `{ ok, message, checkedAt }` whichever way the probe went: "the key
- * is wrong" is the ANSWER to the question the button asked, not a transport
- * failure, and a page that renders a red glyph plus a sentence needs the
- * sentence more than it needs a status code.
- */
+/** `POST /api/integrations/:provider/test`. 200 with `{ ok, message,
+ * checkedAt }` whichever way the probe went: "the key is wrong" is the answer
+ * to the question, not a transport failure. */
 export async function handleIntegrationTestRequest(
   request: Request,
   url: URL,
@@ -410,22 +350,16 @@ export async function handleIntegrationTestRequest(
 }
 
 /**
- * `POST /api/integrations/:provider/connect` — the connect panel's one press
- * (bead `ro-ujb9.96.7.1`).
+ * `POST /api/integrations/:provider/connect` — the connect panel's one press.
+ * The ingest asks the provider first and stores the credential only when it
+ * accepts: 200 with `{ verdict: "accepted", checkedAt, facts }`, or
+ * `{ verdict: "refused" | "unreachable", checkedAt }`. Facts are counts and
+ * figures, never a value that was sent.
  *
- * The ingest asks the provider FIRST and stores the credential only when it
- * accepts, so this answers the panel's question directly: 200 with
- * `{ verdict: "accepted", checkedAt, facts }`, or `{ verdict: "refused" |
- * "unreachable", checkedAt }` — a no is an answer, exactly as it is for the
- * Test button, and a panel that draws a state needs the verdict more than a
- * status code. Facts are counts and figures (Bing's verified sites,
- * DataForSEO's credit), never a value that was sent.
- *
- * Error vocabulary matches the credential PUT beside it: 405 · 403 forbidden ·
- * 415 · 400 bad_request · 404 provider_not_found · 409 connect_not_supported
- * (the provider keeps its own setup page) · 422 invalid_credential {field} ·
- * 503 credentials_key_missing / credential_store_unavailable ·
- * 500 credential_connect_failed.
+ * Errors: 405 · 403 forbidden · 415 · 400 bad_request · 404
+ * provider_not_found · 409 connect_not_supported · 422 invalid_credential
+ * {field} · 503 credentials_key_missing / credential_store_unavailable · 500
+ * credential_connect_failed.
  */
 export async function handleIntegrationConnectRequest(
   request: Request,
@@ -464,7 +398,6 @@ export async function handleIntegrationConnectRequest(
 
   let result: ConnectCredentialResult;
   try {
-    // Validation is the ingest's, as it is for the PUT: one set of field rules.
     result = await ingest.connectCredential({ provider, fields: fields as Record<string, string> });
   } catch {
     return jsonError("credential_connect_failed", 500);
@@ -486,16 +419,13 @@ export async function handleIntegrationConnectRequest(
 }
 
 /**
- * `PUT /api/integrations/:provider/site-token` — one site's token, saved on its
- * own row of the connect panel (Clarity, bead `ro-ujb9.96.7.9`).
+ * `PUT /api/integrations/:provider/site-token` — one site's token, saved on
+ * its own row of the connect panel (Clarity). Body `{ asset, token }`; the
+ * ingest merges it into the provider's per-site map, so a paste never
+ * replaces another site's token. 204 with no body.
  *
- * Body `{ asset, token }`. The ingest merges it into the provider's per-site
- * map — the only place that map can be opened — so a paste never replaces
- * another site's token. 204 with no body, like the credential PUT beside it:
- * the page re-reads the providers payload rather than trusting an echo.
- *
- * Error vocabulary: 405 · 403 forbidden · 415 · 400 bad_request ·
- * 404 provider_not_found · 409 site_tokens_not_supported · 422
+ * Errors: 405 · 403 forbidden · 415 · 400 bad_request · 404
+ * provider_not_found · 409 site_tokens_not_supported · 422
  * invalid_credential {field} · 503 credentials_key_missing /
  * credential_store_unavailable · 500 credential_write_failed.
  */
@@ -536,18 +466,10 @@ export async function handleIntegrationSiteTokenRequest(
 }
 
 /**
- * `GET` and `POST /api/integrations/import-env` — the DEPLOYED answer (bead
- * `ro-vu8d.7`).
- *
- * In the local `os:up` dev server this path never reaches the Worker: the import
- * lane answers it first, in the Node process that has the operator's
- * `.dev.secrets.json` beside it (apps/tower/vite/env-import-lane.ts,
- * `enforce: "pre"`), and the Legacy env card gets a button.
- *
- * What is left here is the truth everywhere else. A deployed Worker has no
- * filesystem and no secrets file, so the card keeps showing the command, labelled
- * with where it runs — the same shape `/api/config` takes, and for the same
- * reason: an affordance that cannot work is worse than an honest explanation.
+ * `GET` and `POST /api/integrations/import-env` — the deployed answer. In the
+ * local dev server the import lane answers first
+ * (apps/tower/vite/env-import-lane.ts); a deployed Worker has no secrets
+ * file, so the card keeps showing the command.
  */
 export function handleEnvImportRequest(request: Request): Response {
   if (request.method === "GET") {

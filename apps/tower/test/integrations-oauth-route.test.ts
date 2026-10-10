@@ -12,26 +12,11 @@ import {
   handleGooglePropertiesRequest,
 } from "../worker/integrations-oauth-route";
 
-// Signing in to Google — the Tower's half (bead `ro-vu8d.3`, epic `ro-vu8d`).
-//
-// WHAT THESE ASSERTIONS PROTECT, and each is a different threat:
-//
-//   • START is same-site. A link on another page must not be able to steer this
-//     browser into starting a sign-in — that is login CSRF, and it is how an
-//     attacker gets THEIR Google account connected to somebody else's OS. A
-//     typed address (`Sec-Fetch-Site: none`) still works, because that is a
-//     person deciding rather than a page deciding for them.
-//   • CALLBACK is cross-site by definition — it arrives from Google — so it
-//     cannot be origin-checked at all, and a test that let an origin guard creep
-//     in here would be a test protecting a broken flow.
-//   • Every outcome is a REDIRECT carrying a CODE, never a sentence: nothing
-//     Google or the network said can be reflected into the operator's page
-//     through a query parameter, and the authorization code never appears in a
-//     URL this Worker writes.
-//
-// The binding is stubbed rather than bound: this project's Vitest runs in
-// node/jsdom with no workerd, and the stub is typed by the shared contract, so
-// a change to any RPC's shape breaks these at compile time.
+// Signing in to Google, the Tower's half. Start is same-site (a link on another
+// page must not start a sign-in; a typed address still works). Callback is
+// cross-site by definition, so it cannot be origin-checked. Every outcome is a
+// redirect carrying a code, and the authorization code never appears in a URL
+// this Worker writes. The binding is stubbed: Vitest here runs without workerd.
 
 const START_URL = new URL(
   "http://127.0.0.1:5173/api/integrations/google/oauth/start",
@@ -116,8 +101,8 @@ describe("GET /api/integrations/google/oauth/start", () => {
     // referrer may carry it onward.
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("referrer-policy")).toBe("no-referrer");
-    // The redirect URI is derived from THIS request's origin — the only place
-    // it can be right — so what crosses the binding is an origin.
+    // The redirect URI is derived from this request's origin, so what crosses
+    // the binding is an origin.
     expect(stub.starts).toEqual([{ origin: "http://127.0.0.1:5173" }]);
   });
 
@@ -211,13 +196,11 @@ describe("GET /api/integrations/google/oauth/callback", () => {
     );
     expect(landed.pathname).toBe("/integrations");
     expect(landed.searchParams.get("google")).toBe("connected");
-    // Back on the connect panel, which lists the account's sites (bead
-    // ro-ujb9.96.7.7).
     expect(landed.searchParams.get("connect")).toBe("google");
 
-    // The redirect URI is RE-DERIVED from this request rather than taken from
-    // the state, so the two have to agree — that agreement is what binds a
-    // state to the origin it was minted for.
+    // The redirect URI is re-derived from this request rather than taken from
+    // the state, so the two have to agree: that binds a state to the origin it
+    // was minted for.
     expect(stub.completions).toEqual([
       { code: CODE, state: "abc", redirectUri: CALLBACK },
     ]);
@@ -235,8 +218,8 @@ describe("GET /api/integrations/google/oauth/callback", () => {
   });
 
   it("works when the browser says the navigation is cross-site — it IS", async () => {
-    // The signed, expiring, redirect-bound state stands in for the origin check
-    // here. An origin guard on this route would break every real sign-in.
+    // The signed, expiring, redirect-bound state stands in for the origin
+    // check here; an origin guard on this route would break every real sign-in.
     const stub = stubIngest();
     const url = new URL(`${CALLBACK}?code=${CODE}&state=abc`);
     const response = await handleGoogleOAuthCallbackRequest(
@@ -259,7 +242,6 @@ describe("GET /api/integrations/google/oauth/callback", () => {
       ),
     );
     expect(landed.searchParams.get("google")).toBe("denied");
-    // Nothing to exchange: the operator said no.
     expect(stub.completions).toEqual([]);
   });
 
@@ -292,8 +274,8 @@ describe("GET /api/integrations/google/oauth/callback", () => {
       ),
     );
     expect(landed.searchParams.get("google")).toBe("scope_incomplete");
-    // The PAGE owns the wording. Nothing the provider said is reflected into
-    // this URL, so a query parameter can never become a message on the screen.
+    // Nothing the provider said is reflected into this URL, so a query
+    // parameter can never become a message on the screen.
     expect(landed.search).not.toContain("Search Console");
   });
 
@@ -336,9 +318,8 @@ describe("GET /api/integrations/google/properties", () => {
   });
 
   it("answers 200 with the reason when Google would not answer", async () => {
-    // The same stance as the connection test beside it: "Search Console would
-    // not answer" is the ANSWER to the question the button asked, not a
-    // transport failure.
+    // "Search Console would not answer" is the answer to the question the
+    // button asked, not a transport failure.
     const stub = stubIngest({
       discover: {
         ok: false,

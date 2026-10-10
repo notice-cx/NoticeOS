@@ -68,10 +68,6 @@ type Phase =
   | { phase: "started"; assets: string[]; declined: string[]; result: CollectNowResult | null };
 
 /**
- * THE ACCOUNT'S SITES, MATCHED, AND ONE PRESS (bead `ro-ujb9.96.7.2`; mockup
- * frames a3, a3-dataforseo, a4 and d-matched in
- * docs/artifacts/ux-audit-2026-09-23/integration-setup-mockup.html).
- *
  * The connect panel's second screen. Every portfolio asset is a row: ticked
  * where the account holds a site on its own domain (a suggestion — nothing is
  * written before Start), with what the account holds for it, or why it cannot
@@ -84,17 +80,11 @@ type Phase =
  * A metered provider (DataForSEO) states its spend before the press: the
  * typical week from the OS's own cost records, and this month against the cap.
  *
- * AN UNTICKED BOX IS NOT A DECISION (bead `ro-ujb9.96.7.18`). Unticking a row
- * the scheduled job collects anyway — Bing's domain match, a mapped site, a
- * DataForSEO candidate — opens the Not using reason chips on that row, and
- * the row wears "Still collected" until one is picked: the job will collect
- * (and, for DataForSEO, bill) it on schedule, and an unticked box would read
- * as the opposite. A reason picked there is saved in the same Start press as
- * the Data sources row's own Not using (`declineOps`), and the collectors
- * skip it from then on. No reason is preselected — the operator picks one or
- * the row stays collected and says so; that is the fewest presses that never
- * records a reason nobody gave (untick, then one chip). The spend preview
- * counts every site the weekly job will bill, undecided ones included.
+ * An unticked box is not a decision. Unticking a row the scheduled job
+ * collects anyway opens the Not using reason chips, and the row reads "Still
+ * collected" until one is picked; the reason is saved with Start
+ * (`declineOps`). No reason is preselected. The spend preview counts every
+ * site the weekly job will bill, undecided ones included.
  */
 export function SitePicker({
   provider,
@@ -119,7 +109,7 @@ export function SitePicker({
   const [phase, setPhase] = useState<Phase>({ phase: "choosing" });
   // Focus follows the panel's primary action: the form the key was typed in
   // has just gone, so Start (then Open, or Done) is where Enter should land.
-  // Never away from the operator, though (bead ro-ujb9.77.11): once they have
+  // Never away from the operator, though: once they have
   // pressed a key or pointed while the list loads — Tab to Replace, say — a
   // list that arrives late leaves focus where they put it, unless the control
   // it was on has gone. Otherwise their next Enter would press Start.
@@ -333,8 +323,7 @@ export function SitePicker({
 }
 
 /** What a row's picker chooses, where a provider collects more than one kind
- * of site on one row (Google: a GA4 property and a Search Console site, bead
- * `ro-ujb9.96.7.7`). */
+ * of site on one row (Google: a GA4 property and a Search Console site). */
 const LANE_PICK: Record<string, string> = {
   ga4: "GA4 property",
   gsc: "Search Console site",
@@ -379,13 +368,13 @@ function ChoiceRow({
   let action: ReactNode = null;
   const subject: StatusSubject = `site:${provider.id}:${row.asset.id}`;
   if (row.excluded) action = <StateChip tone={row.excluded === "not-using" ? "declined" : "na"} label={EXCLUSION[row.excluded]} dot="hollow" subject={subject} />;
-  // Unticked but still on the job's schedule (bead `ro-ujb9.96.7.18`): the
-  // row says what will happen until a reason says otherwise.
+  // Unticked but still on the job's schedule: the row says what will happen
+  // until a reason says otherwise.
   else if (decision === "undecided") action = <StateChip tone="caution" label="Still collected" subject={subject} />;
   else if (decision === "not-using") action = <StateChip tone="declined" label="Not using" dot="hollow" subject={subject} />;
   else if (row.lanes.some((lane) => lane.state === "not-ready")) action = <StateChip tone="na" label="Not verified" subject={subject} />;
-  // PostHog: the funnels this row brings from its project's saved insights
-  // (bead ro-ujb9.96.7.8) — picked up, never typed.
+  // PostHog: the funnels this row brings from its project's saved insights,
+  // picked up, never typed.
   else if (funnels > 0) action = <StateChip tone="neutral" label={`${funnels} ${funnels === 1 ? "funnel" : "funnels"}`} subject={subject} />;
   else if (choosable.length === 0 && unlisted.length === row.lanes.length && kind === "account" && addSite) {
     action = (
@@ -461,9 +450,8 @@ function choiceDetail(row: SiteRow, lane: SiteLane, selection: SiteSelection, ki
   if (kind === "portfolio") return lane.site ? marketLabel(marketOf(lane)) : "";
   const site = chosenSite(row, lane, selection) ?? lane.site;
   if (!site) return lane.choices.length > 0 ? "" : "Not in this account";
-  // A PostHog project reads as its name and number, the number being what
-  // its PostHog address shows (bead ro-ujb9.96.7.8); a GA4 property as its
-  // number (bead ro-ujb9.96.7.7).
+  // A PostHog project reads as its name and the number its PostHog address
+  // shows; a GA4 property as its number.
   const project = site.mapping.projectId;
   if (project !== undefined) return `${site.label} · ${project}`;
   const property = site.mapping.propertyId;

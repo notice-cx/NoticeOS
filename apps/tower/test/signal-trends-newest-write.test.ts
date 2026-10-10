@@ -1,17 +1,9 @@
 // @vitest-environment node
-// The trend read keeps each day's newest write (beads `ro-ujb9.110`,
-// ro-ujb9.76.5.3).
-//
 // Every trend chart reads one value per (asset, lane, day, metric): the one the
-// newest successful run wrote. On D1 the read kept that write with a GROUP BY
-// over a text key (bead `ro-ujb9.110`); on Postgres it keeps it with DISTINCT
-// ON, ordered by the run's finish and then the write's identity
-// (apps/tower/worker/signal-trends.ts). The rule is stated below once more as
-// a ranking, the way the read stood before `ro-ujb9.110` (ROW_NUMBER() over
-// `r.finished_at DESC, o.id DESC`), and that statement is the specification:
-// every trend read the Tower issues, and every payload built on them, must
-// give the same answer through it. The measurement is in
-// docs/artifacts/tower-perf-2026-09-23/measurements.md.
+// newest successful run wrote, kept with DISTINCT ON ordered by the run's finish
+// and then the write's identity (worker/signal-trends.ts). The ranking below
+// (ROW_NUMBER() over `r.finished_at DESC, o.id DESC`) is the specification
+// every trend read must agree with.
 
 import type { SqlValue, Transaction, WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it } from "vitest";
@@ -92,8 +84,6 @@ interface Captured {
   params: SqlValue[];
 }
 
-// ── Fixture ──────────────────────────────────────────────────────────────────
-
 const ASSETS = [
   "carry.example",
   "ties.example",
@@ -128,8 +118,7 @@ const daysBefore = (date: string, days: number) =>
  * page (90 + 62). */
 const WINDOW_BACK_DAYS = [28 + 62 - 1, REVENUE_HISTORY_DAYS + 62 - 1, 90 + 62 - 1];
 
-/** The fixture, on Postgres where the runs and their values are (bead
- * ro-ujb9.76.5.3), in this test's own copy of its sites; returns that store. */
+/** The fixture, in this test's own copy of its sites; returns that store. */
 async function seed(raw: TestStore): Promise<WorkspaceStore> {
   for (const id of ASSETS) await addAsset(raw, id);
   const store = raw.call;
@@ -145,7 +134,7 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
     writeSignalValues(store, runId, Object.entries(values).map(([date, value]): TestSignalValue =>
       Array.isArray(value) ? { date, metric, value: value[0], id: value[1] } : { date, metric, value }));
 
-  // CARRY-FORWARD, BACKFILL, GAPS, FAILED RUNS (GA4). The run log is a change
+  // Carry-forward, backfill, gaps, failed runs (GA4). The run log is a change
   // log: a day the newest run did not rewrite keeps an older run's value.
   const carry = { asset: "carry.example", integration: "ga4" } as const;
   await addRun({ ...carry, id: "c1", finishedAt: "2026-07-01T12:00:00.000Z", windowEnd: "2026-07-01", provisionalFrom: "2026-07-01" });
@@ -157,8 +146,8 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
   await addValues("c2", "active_users", { "2026-07-01": 113, "2026-07-02": 114, "2026-07-03": 115 });
   await addValues("c2", "sessions", { "2026-07-03": 125 });
   await addValues("c2", "page_views", { "2026-07-01": 133 });
-  // A failed run is no evidence, however new. On D1 it could carry values;
-  // the store refuses a value under a failed run, so it carries none.
+  // A failed run is no evidence, however new: the store refuses a value under
+  // a failed run.
   await addRun({ ...carry, id: "c-failed", status: "error", finishedAt: "2026-07-04T00:00:00.000Z", windowEnd: "2026-07-04" });
   // A backfill finished after c1 rewrites an old day and adds older ones; the
   // days between them stay a gap.
@@ -171,11 +160,10 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
   // A failed run newer than the newest success.
   await addRun({ ...carry, id: "c-failed-latest", status: "error", finishedAt: "2026-07-05T11:30:00.000Z", windowEnd: "2026-07-05" });
 
-  // TIES AND TIMESTAMP SHAPES (Search Console).
+  // Ties and timestamp shapes (Search Console).
   const ties = { asset: "ties.example", integration: "gsc" } as const;
-  // Two runs finish in the same instant, both newest. The newest run is the
-  // later-written one, but the day's value is the later-written VALUE (its
-  // identity): here the other run's.
+  // Two runs finish in the same instant, both newest. The day's value is the
+  // later-written value (its identity): here the other run's.
   await addRun({ ...ties, id: "t-latest-a", finishedAt: "2026-07-05T10:00:00.000Z", windowEnd: "2026-07-05" });
   await addRun({ ...ties, id: "t-latest-b", finishedAt: "2026-07-05T10:00:00.000Z", windowEnd: "2026-07-05" });
   await addValues("t-latest-b", "clicks", { "2026-07-04": 41 });
@@ -187,9 +175,8 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
   await addValues("t-ms-100", "impressions", { "2026-07-02": 100 });
   await addValues("t-ms-900", "ctr", { "2026-07-02": 0.09 });
   await addValues("t-ms-100", "ctr", { "2026-07-02": 0.01 });
-  // finished_at in four spellings. On D1 they were text, compared as text;
-  // in the store each is an instant: the first three are 09:00 UTC (a time
-  // with no zone is UTC, as the importer reads it), the fourth 23:00 UTC.
+  // finished_at in four spellings, each an instant: the first three are
+  // 09:00 UTC (a time with no zone is UTC), the fourth 23:00 UTC.
   const shapes = {
     zulu: "2026-07-02T09:00:00Z",
     millis: "2026-07-02T09:00:00.000Z",
@@ -209,8 +196,7 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
   await addValues("t-millis", "position", { "2026-06-30": 2.5 });
   await addValues("t-prefix", "position", { "2026-06-30": 3.5 });
   // Tied runs whose writes carry negative and extreme identities (a restored
-  // or hand-repaired store; the importer keeps D1's ids). The greater identity
-  // is the newer write.
+  // or hand-repaired store). The greater identity is the newer write.
   await addRun({ ...ties, id: "t-neg-1", finishedAt: "2026-07-01T07:00:00.000Z", windowEnd: "2026-07-01" });
   await addRun({ ...ties, id: "t-neg-2", finishedAt: "2026-07-01T07:00:00.000Z", windowEnd: "2026-07-01" });
   await addValues("t-neg-1", "impressions", {
@@ -224,7 +210,7 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
     "2026-06-27": [-8_000, -9223372036854775807n],
   });
 
-  // A REPOINTED PROPERTY and a rotated credential (Search Console and Bing).
+  // A repointed property and a rotated credential (Search Console and Bing).
   for (const integration of ["gsc", "bing-webmaster"] as const) {
     const lane = { asset: "repoint.example", integration };
     const p = integration === "gsc" ? "g" : "b";
@@ -242,10 +228,10 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
     await addValues(`${p}-new-2`, "clicks", { "2026-07-05": 5 });
   }
 
-  // WINDOW EDGES, for each read's window (GA4 for the revenue read, Bing for
-  // the web-search ones). A run finished ON the first kept day is read, one a
-  // millisecond before it is not; a day ON the first kept day is kept, the day
-  // before it is not; a day after the newest window end is not.
+  // Window edges, for each read's window (GA4 for the revenue read, Bing for
+  // the web-search ones). A run finished on the first kept day is read, one a
+  // millisecond before it is not; a day on the first kept day is kept, the
+  // day before it is not; a day after the newest window end is not.
   for (const integration of ["ga4", "bing-webmaster"] as const) {
     const lane = { asset: "edges.example", integration };
     const [first, second] = integration === "ga4" ? ["active_users", "sessions"] : ["clicks", "impressions"];
@@ -265,7 +251,7 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
     await addValues(`${integration}-latest`, first!, { "2026-07-05": 8, "2026-07-06": 9 });
   }
 
-  // THE EVIDENCE FLOOR. A lane whose only success finished exactly on the
+  // The evidence floor: a lane whose only success finished exactly on the
   // floor is read; one a millisecond older is not; only failures is nothing.
   const floorDay = FLOOR.slice(0, 10);
   await addRun({ asset: "floor.example", integration: "gsc", id: "f-on", finishedAt: FLOOR, windowEnd: floorDay });
@@ -274,10 +260,6 @@ async function seed(raw: TestStore): Promise<WorkspaceStore> {
   await addRun({ asset: "floor.example", integration: "bing-webmaster", id: "f-before", finishedAt: justBefore, windowEnd: floorDay });
   await addValues("f-before", "clicks", { [floorDay]: 3 });
   await addRun({ asset: "floor.example", integration: "ga4", id: "f-failed", status: "error", finishedAt: "2026-07-05T00:00:00.000Z", windowEnd: "2026-07-05" });
-
-  // Revenue for one asset, so the Wall issues its second trend read: on
-  // Postgres (bead ro-ujb9.76.5.5), written by the test that builds the Wall
-  // (`seedCarryRevenue`).
 
   // The largest identities last.
   await addRun({ ...ties, id: "t-max-1", finishedAt: "2026-06-30T07:00:00.000Z", windowEnd: "2026-06-30" });
@@ -341,7 +323,7 @@ function rowsOf(store: WorkspaceStore, sql: string, params: readonly SqlValue[])
   return store.read((tx) => tx.query(sql, params));
 }
 
-describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
+describe("the trend read keeps each day's newest write", () => {
   it("gives the specification's rows for every trend read", async () => {
     const raw = await createTestStore();
     const store = await seed(raw);
@@ -351,8 +333,7 @@ describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
       const spec = await rowsOf(store, specOf(sql), params);
       expect(byKey(shipped), read.name).toEqual(byKey(spec));
       // The spec orders by (asset, lane, day) and leaves metrics on one day in
-      // no stated order; the shipped read orders them too, so its order is the
-      // spec's sort key, refined.
+      // no stated order; the shipped read's order is the spec's sort key, refined.
       expect(shipped, `${read.name}: ordered`).toEqual(byKey(shipped));
     }
   });
@@ -415,13 +396,10 @@ describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
     const at = (series: { t: string; v: number }[], day: string) => series.find((point) => point.t === day)?.v;
     const clicks = ties.webSearchClicks.google.series;
     expect(at(clicks, "2026-07-04")).toBe(42);
-    // The four spellings are instants on Postgres (bead ro-ujb9.76.5.3): the
-    // run that finished at 23:00 is the newest, where D1's text order put
-    // "…T09:00:00Z" last and answered 1.
+    // The four spellings are instants: the run that finished at 23:00 is the newest.
     expect(at(clicks, "2026-07-01")).toBe(4);
     // "…T09:00:00.000Z" and "…T09:00:00" are one instant, so the later-written
-    // value wins, where D1's text order put the longer text last and answered
-    // 20 (and 2.5 for the position).
+    // value wins.
     expect(at(clicks, "2026-06-30")).toBe(30);
     const impressions = ties.webSearchImpressions.google.series;
     expect(at(impressions, "2026-07-02")).toBe(900);
@@ -462,8 +440,8 @@ describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
   });
 
   it("the fixture reaches every part of the rule", async () => {
-    // A weaker rule must give a different answer here, or the fixture would not
-    // prove that part of the rule is needed.
+    // A weaker rule must give a different answer here, or the fixture would
+    // not prove that part of the rule is needed.
     const raw = await createTestStore();
     const store = await seed(raw);
     const { sql, params } = await capture(store, 90, { includeSecondarySeries: true, asset: "ties.example" });
@@ -487,9 +465,7 @@ describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
   });
 
   it("sorts the candidates once", async () => {
-    // Pinned as a PLAN. Before bead ro-ujb9.110 the read ranked every
-    // candidate in a window (one sort) and sorted the survivors again for
-    // output (a second); DISTINCT ON's one sort is also the output order.
+    // Pinned as a plan: DISTINCT ON's one sort is also the output order.
     const raw = await createTestStore();
     const store = await seed(raw);
     for (const read of READS) {
@@ -501,22 +477,17 @@ describe("the trend read keeps each day's newest write (ro-ujb9.110)", () => {
   });
 });
 
-// ── The collector's own instants ─────────────────────────────────────────────
-//
-// What changed with the move is only how odd spellings of an instant compare.
-// Every instant the collector writes is `Date#toISOString()`, where text order
-// and time order are one order, so the newest write must be the one D1 chose:
-// the run that finished last, and of two in the same millisecond, the value
-// written last.
+// Every instant the collector writes is `Date#toISOString()`, where text
+// order and time order are one order, so the newest write must be the run
+// that finished last, and of two in the same millisecond, the value written last.
 
-describe("for every instant the collector writes, the newest write is D1's", () => {
-  it("picks the write D1 picked, same-millisecond runs included", async () => {
+describe("for every instant the collector writes, the newest write is the text-order one", () => {
+  it("picks the text-order write, same-millisecond runs included", async () => {
     const raw = await createTestStore();
     await addAsset(raw, "collector.example");
     const store = raw.call;
     // Twelve runs over five days of one series, finishing at instants drawn
-    // from four, so several finish in the same millisecond; each rewrites some
-    // of the days. Deterministic, so a failure reproduces.
+    // from four, so several finish in the same millisecond. Deterministic.
     const instants = ["2026-07-03T08:00:00.000Z", "2026-07-03T08:00:00.001Z", "2026-07-04T23:59:59.999Z", "2026-07-05T01:00:00.000Z"];
     const days = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04", "2026-07-05"];
     let state = 7;
@@ -525,7 +496,7 @@ describe("for every instant the collector writes, the newest write is D1's", () 
       state = (state * 1103515245 + 12345) % 2147483648;
       return (state >>> 16) % n;
     };
-    /** D1's rule over the collector's instants: (finished_at text, write order), greatest wins. */
+    /** The rule over the collector's instants: (finished_at text, write order), greatest wins. */
     const newest = new Map<string, { finishedAt: string; order: number; value: number }>();
     let order = 0;
     const finishes = new Map<string, string[]>();
@@ -547,7 +518,7 @@ describe("for every instant the collector writes, the newest write is D1's", () 
       }
     }
     // The fixture does reach the tie: on some day the newest millisecond holds
-    // more than one write, and the value written last decides it.
+    // more than one write.
     const decidedByIdentity = [...newest].filter(([date, held]) =>
       finishes.get(date)!.filter((finishedAt) => finishedAt === held.finishedAt).length > 1);
     expect(decidedByIdentity.length).toBeGreaterThan(0);
@@ -557,8 +528,6 @@ describe("for every instant the collector writes, the newest write is D1's", () 
     );
   });
 });
-
-// ── Payload inputs ───────────────────────────────────────────────────────────
 
 const INTEGRATIONS: IntegrationsConfig = {
   catalog: [

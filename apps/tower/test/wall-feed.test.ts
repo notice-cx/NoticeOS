@@ -1,18 +1,9 @@
 // @vitest-environment node
 //
-// The Wall's live feed (bead `ro-trai.6`, docs/14-design.md § Feed).
-//
-// One stored row per source, placed around the window (6 PM yesterday in the
-// OS time zone), and the feed must state each once, newest first, with the
-// three fold rules and no line for anything outside the window. The query
-// half: a fixed number of statements per request, every event table SEARCHed
-// through an index, never scanned.
-//
-// Settings saved come from the config store, on Postgres since bead
-// ro-ujb9.76.4.1, and alerts and nightly reports since ro-ujb9.76.5.2: each
-// test has its own copy of the run's throwaway store (test/postgres-store.ts)
-// beside its SQLite one, and skips, naming why, where no Postgres can start
-// here.
+// The Wall's live feed: one stored row per source, placed around the window
+// (6 PM yesterday in the OS time zone), stated once each, newest first, with
+// the three fold rules and nothing outside the window. The query half: a fixed
+// number of statements per request, every event table searched through an index.
 
 import type { SqlValue, WorkspaceStore } from "@noticeos/postgres";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -55,8 +46,7 @@ const ZONE = "America/Los_Angeles";
 const SINCE = "2026-09-22T01:00:00.000Z";
 const at = (hhmm: string, day = "2026-09-22") => `${day}T${hhmm}:00.000Z`;
 
-/** A site, in both of the test's stores (test/sites.ts): the feed names sites
- * from the site list on Postgres and joins D1's copy of it to the events. */
+/** A site, in both of the test's stores (test/sites.ts). */
 async function asset(raw: TestStore, id: string, name: string, isOs = 0): Promise<void> {
   await addSites(raw, [{ id, displayName: name, status: "live", senseOnly: 0, isOs, createdAt: "2026-01-01T00:00:00.000Z" }]);
 }
@@ -65,8 +55,7 @@ function flag(a: string, firedAt: string, message: string, severity = "warn", re
   return { asset: a, firedAt, severity, kind: "anomaly", metric: null, message, ruleId: "feed-test-rule", ruleInputs: null, resolvedAt };
 }
 
-/** One collection run, on Postgres where the collectors write them (bead
- * ro-ujb9.76.5.3); the store must already hold its site. */
+/** One collection run; the store must already hold its site. */
 async function signalRun(store: WorkspaceStore, id: string, a: string, integration: "ga4" | "gsc" | "bing-webmaster", finishedAt: string, ok = true): Promise<void> {
   await writeSignalRun(store, {
     id, asset: a, integration, credentialRef: "cred", propertyRef: "prop", finishedAt, status: ok ? "success" : "error",
@@ -84,8 +73,7 @@ function dump(id: string, a: string, integration: string, finishedAt: string, co
   };
 }
 
-/** A source's transition, on Postgres where the feed reads it (bead
- * ro-ujb9.76.5.6), with the target it is about. */
+/** A source's transition, with the target it is about. */
 async function health(pg: TestStore, eventId: string, provider: string, capability: string, a: string, recordedAt: string,
   kind: "failed" | "recovered", evidenceSource: string, evidenceId: string): Promise<void> {
   await pg.call.write(async (tx) => {
@@ -104,8 +92,7 @@ async function health(pg: TestStore, eventId: string, provider: string, capabili
   });
 }
 
-/** A task-hub photograph, on Postgres where the feed reads it (bead
- * ro-ujb9.76.4.3). */
+/** A task-hub photograph. */
 async function snapshot(
   store: WorkspaceStore,
   capturedAt: string,
@@ -113,8 +100,8 @@ async function snapshot(
   created: Record<string, [string, string, string][]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
-  // (supersededPayload, workers/ingest/src/beads-snapshots.ts, ro-ujb9.76.16):
-  // only the two lists the feed reads, each item its id, title and time.
+  // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
+  // lists the feed reads, each item its id, title and time.
   const projects = [...new Set([...Object.keys(closed), ...Object.keys(created)])].map((a) => ({
     asset: a, ok: true,
     counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: closed[a]?.length ?? 0 },
@@ -170,8 +157,7 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  * report, a deploy.
  */
 async function seed(raw: TestStore): Promise<void> {
-  // The OS row as the owner's store holds it, with its pre-rename name: every
-  // line about it still reads NoticeOS (bead ro-ujb9.77.10).
+  // The OS row's stored name is one every line still reads as NoticeOS.
   await asset(raw, "os.example.com", "ReindexOS", 1);
   await asset(raw, "recipes.example.com", "Recipes");
   await asset(raw, "menus.example.com", "Menus");
@@ -179,28 +165,11 @@ async function seed(raw: TestStore): Promise<void> {
   await asset(raw, "codes.example.com", "Codes");
   await asset(raw, "money.example.com", "Money");
 
-  // Alerts and nightly reports are on Postgres: `seedAlertsAndReports`.
-
-  // The Google and Bing runs, and their sources' transitions, are on
-  // Postgres (`seedPostgres`).
-
-  // The paid reports and lookups and the insights are on Postgres:
-  // `seedProviderReports`.
-
-  // Mediavine's revenue and the money booked are on Postgres: `seedMoney`.
-
-  // The nightly site checks, a setting saved and a job that failed are on
-  // Postgres (seedPostgres).
-
-  // Deploys and changes are on Postgres: `seedPostgres`.
-
-  // The task hub's photographs are on Postgres: `seedPostgres`.
 }
 
-/** Mediavine's revenue and the money booked, on Postgres (beads
- * ro-ujb9.76.5.5, ro-ujb9.76.6.1), in the test's own copy once its sites are
- * there: two sites reported Sep 21 (and revised Sep 20, which is not news), and
- * the OS booked its infra cost. */
+/** Mediavine's revenue and the money booked, once the sites are there: two
+ * sites reported Sep 21 (and revised Sep 20, which is not news), and the OS
+ * booked its infra cost. */
 async function seedMoney(store: WorkspaceStore): Promise<void> {
   await writeMediavine(store, ([["mv-mp", "recipes.example.com", 4110], ["mv-nom", "menus.example.com", 1415]] as const).map(([site, a, cents]) => ({
     id: `run-${site}`, asset: a, siteId: site, start: "2026-09-15", end: "2026-09-21", attemptedAt: at("16:14"),
@@ -210,9 +179,8 @@ async function seedMoney(store: WorkspaceStore): Promise<void> {
     booking_state: "reconciled", recorded_at: at("13:00") }]);
 }
 
-/** The paid reports and lookups and the insights, on Postgres where the
- * collectors and the publisher write them (bead ro-ujb9.76.5.4), in a store
- * already holding their sites. */
+/** The paid reports and lookups and the insights, in a store already holding
+ * their sites. */
 async function seedProviderReports(store: WorkspaceStore): Promise<void> {
   // DataForSEO paid reports, and a PostHog report that failed with no
   // transition recorded — still its own line.
@@ -233,8 +201,7 @@ async function seedProviderReports(store: WorkspaceStore): Promise<void> {
   ]);
 }
 
-/** `seed`'s alerts and nightly reports, on Postgres (bead ro-ujb9.76.5.2), in
- * a store already holding its sites. */
+/** `seed`'s alerts and nightly reports, in a store already holding its sites. */
 async function seedAlertsAndReports(store: WorkspaceStore): Promise<void> {
   // Alerts: one fired, one resolved, one fired before the window.
   await storeAlerts(store, [
@@ -251,10 +218,9 @@ async function seedAlertsAndReports(store: WorkspaceStore): Promise<void> {
   ]);
 }
 
-/** The fixture's collection runs, in a store that holds its sites: Google,
- * two runs for Recipes (the older is superseded), one each for Menus and
- * Money, and Codes's failure; Bing, the run that brought Menus back (bead
- * ro-ujb9.76.5.3). */
+/** The fixture's collection runs: Google, two runs for Recipes (the older is
+ * superseded), one each for Menus and Money, and Codes's failure; Bing, the
+ * run that brought Menus back. */
 async function seedSignalRuns(store: WorkspaceStore): Promise<void> {
   await signalRun(store, "g-mp-old", "recipes.example.com", "ga4", at("18:44"));
   await signalRun(store, "g-mp", "recipes.example.com", "ga4", at("18:59"));
@@ -266,12 +232,9 @@ async function seedSignalRuns(store: WorkspaceStore): Promise<void> {
 }
 
 /** The seed's rows on Postgres: the collection runs, the paid reports and
- * lookups and the insights, two sources' transitions
- * (Codes's failure, beside its failed run, and Menus coming back), the nightly
- * site checks (Recipes's four), the alerts and nightly reports, the deploys
- * and changes, the setting saved at noon, in the config store, the backup
- * that failed at 11:05, in the job-run record, and the task hub's
- * photographs. */
+ * lookups and the insights, two sources' transitions, the nightly site
+ * checks, the alerts and nightly reports, the deploys and changes, the setting
+ * saved at noon, the backup that failed at 11:05, and the task hub's photographs. */
 async function seedPostgres(pg: TestStore): Promise<void> {
   await seedSignalRuns(pg.call);
   await seedProviderReports(pg.call);
@@ -282,8 +245,8 @@ async function seedPostgres(pg: TestStore): Promise<void> {
     "fitness.example.com": [["pft-1", "Standards table loads", at("14:15")]],
   });
   await snapshot(pg.call, at("16:00"), { "os.example.com": [["ro-9", "Feed reads the store", at("14:25")]] });
-  // Newly filed work (bead ro-trai.7): one task inside the window, in two
-  // photographs; one filed before it.
+  // Newly filed work: one task inside the window, in two photographs; one
+  // filed before it.
   await snapshot(pg.call, at("19:15"), {}, { "menus.example.com": [["mn-7", "Menu import skips closed restaurants", at("19:11")]] });
   await snapshot(pg.call, at("19:25"), {
     "recipes.example.com": [["mp-1", "Recipe cards load faster", at("19:24")]],
@@ -294,7 +257,7 @@ async function seedPostgres(pg: TestStore): Promise<void> {
   await health(pg, "ev-ac", "google", "ga4-daily", "codes.example.com", at("18:40"), "failed", "signal_runs", "g-ac-fail");
   await health(pg, "ev-nom", "bing-webmaster", "bing-daily", "menus.example.com", at("18:00"), "recovered", "signal_runs", "b-nom");
   await seedAlertsAndReports(pg.call);
-  // Deploys and changes (bead ro-ujb9.76.5.7): one before the window.
+  // Deploys and changes: one before the window.
   await storeChanges(pg.call, [
     { asset: "os.example.com", at: at("02:40"), kind: "deploy", ref: "abc1234def" },
     { asset: "menus.example.com", at: at("03:00"), kind: "incident", note: "Checkout outage" },
@@ -333,7 +296,7 @@ const DEPS = { now: NOW, osTimeZone: ZONE };
 const unavailable = postgresUnavailable();
 const needsPostgres = describe.skipIf(unavailable !== null);
 
-describe("the feed's window (docs/25 § Feed)", () => {
+describe("the feed's window", () => {
   it("opens at 6 PM yesterday in the OS time zone, across both DST changes", () => {
     expect(feedWindowStart(NOW, ZONE)).toBe(SINCE);
     expect(feedWindowStart(NOW, "UTC")).toBe("2026-09-21T18:00:00.000Z");
@@ -347,8 +310,8 @@ describe("the feed's window (docs/25 § Feed)", () => {
   });
 
   // The task store keeps two days of photographs for this window, sized on a
-  // 31-hour reach (WALL_FEED_REACH_HOURS, workers/ingest/src/beads-snapshots.ts,
-  // bead ro-ujb9.76.16). A longer reach would read photographs already pruned.
+  // 31-hour reach (WALL_FEED_REACH_HOURS, workers/ingest/src/beads-snapshots.ts).
+  // A longer reach would read photographs already pruned.
   it("never reaches back more than 31 hours, across a fall-back night", () => {
     let longest = 0;
     for (const zone of ["UTC", "America/Los_Angeles", "Australia/Lord_Howe", "Asia/Kathmandu"]) {
@@ -417,16 +380,14 @@ needsPostgres("buildWallFeed", () => {
       "03:00 change Menus · Checkout outage",
       "02:40 deployed NoticeOS · New version abc1234def is live",
     ]);
-    // Every kind the vocabulary has is here, once or more.
     expect(new Set(feed.items.map((item) => item.kind))).toEqual(new Set(WALL_FEED_KINDS));
-    // Each line carries its own event's time, newest first, all in the window.
     const times = feed.items.map((item) => Date.parse(item.at));
     expect(times).toEqual([...times].sort((a, b) => b - a));
     expect(times.every((t) => t >= Date.parse(SINCE) && t <= NOW.getTime())).toBe(true);
     expect(new Set(feed.items.map((item) => item.id)).size).toBe(feed.items.length);
   });
 
-  it("states a task filed inside the window once, as New task, named for its project's site (ro-trai.7)", async () => {
+  it("states a task filed inside the window once, as New task, named for its project's site", async () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const filed = items.filter((item) => item.kind === "task-filed");
     expect(filed).toEqual([
@@ -435,7 +396,6 @@ needsPostgres("buildWallFeed", () => {
         site: "Menus", text: "Menu import skips closed restaurants", count: 1, tone: "neutral",
       },
     ]);
-    // A project the store has no asset for still files its task, unnamed.
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ kind: "task-filed", asset: null, site: null, text: "Stray task" });
@@ -469,10 +429,9 @@ needsPostgres("buildWallFeed", () => {
     ]);
   });
 
-  it("states an OS deploy as Deployed, and a failed deploy and its rollback as their own lines (ro-trai.8)", async () => {
+  it("states an OS deploy as Deployed, and a failed deploy and its rollback as their own lines", async () => {
     // The annotations the runner files from the host's deploy log, through the
-    // same mapping it uses (scripts/os-deploy-events.mts): a deploy that did
-    // not come back healthy, the rollback it made by itself, a deploy after.
+    // same mapping it uses (scripts/os-deploy-events.mts).
     const failed = "a".repeat(40);
     const previous = "b".repeat(40);
     await storeChanges(pg.call, [
@@ -483,8 +442,8 @@ needsPostgres("buildWallFeed", () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const moves = items.filter((item) => item.asset === "os.example.com" && item.kind === "deployed");
     // The healthy deploy and the seed's 02:40 one are the OS's two successful
-    // deploys since last night: one line (bead ro-trai.38). The failure and
-    // the rollback stay their own lines.
+    // deploys since last night: one line. The failure and the rollback stay
+    // their own lines.
     expect(moves.map((item) => [item.at.slice(11, 16), item.label, item.text, item.tone, item.count])).toEqual([
       ["19:20", "Deployed", "2 times since last night", "neutral", 2],
       ["19:03", "Rolled back", "The OS went back to the previous version", "neutral", 1],
@@ -494,9 +453,9 @@ needsPostgres("buildWallFeed", () => {
     expect(JSON.stringify(items)).not.toContain("ReindexOS");
   });
 
-  it("states all the OS's deploys since last night as one line at the newest, and keeps a site's own (ro-trai.38)", async () => {
-    // Four more OS deploys, each between other events, beside the seed's 02:40
-    // one; one before the window; two deploys of sites of their own.
+  it("states all the OS's deploys since last night as one line at the newest, and keeps a site's own", async () => {
+    // Four more OS deploys, each between other events, beside the seed's
+    // 02:40 one; one before the window; two deploys of sites of their own.
     await storeChanges(pg.call, [
       ...([["04:00", "1"], ["12:30", "2"], ["16:05", "3"], ["19:26", "4"]] as const).map(([hhmm, commit]) =>
         osDeployAnnotation({ at: at(hhmm), action: "deploy", from: "0".repeat(40), to: commit.repeat(40), result: "healthy" }, "os.example.com")!),
@@ -512,8 +471,6 @@ needsPostgres("buildWallFeed", () => {
       ["18:20", "Recipes", "New version bbbbbbbbbbbb is live", 1],
       ["17:00", "Menus", "New version aaaaaaaaaaaa is live", 1],
     ]);
-    // The one line sits where its newest deploy happened: first, above the
-    // 19:24 task.
     expect(items[0]).toMatchObject({ kind: "deployed", asset: "os.example.com", label: "Deployed", tone: "neutral", count: 5 });
     expect(items[1]!.text).toBe("Recipe cards load faster");
     expect(new Set(items.map((item) => item.id)).size).toBe(items.length);
@@ -535,7 +492,7 @@ needsPostgres("buildWallFeed", () => {
     expect(byText("Plans saved well below normal").tone).toBe("warn");
   });
 
-  // Bead ro-ujb9.155: every site count goes through siteCount (shared/site-noun.ts).
+  // Every site count goes through siteCount (shared/site-noun.ts).
   it("counts sites with the shared helper: one site, one of two, two of three", async () => {
     const collected = async (runs: [string, string, boolean][]) => {
       const store = await createTestStore();
@@ -641,12 +598,6 @@ describe("the feed's reads are bounded", () => {
     } finally {
       await pg.close();
     }
-    // Nothing on D1; on Postgres the site list, the settings saved, the
-    // sources' transitions, the collection runs (bead ro-ujb9.76.5.3), the paid
-    // reports and lookups and the insights (bead ro-ujb9.76.5.4), the Mediavine
-    // attempts, revenue days and money booked, the site checks, the alerts
-    // fired and resolved, the nightly reports, the deploys and changes (bead
-    // ro-ujb9.76.5.7), the failed jobs and the task photographs.
     expect(stored).toHaveLength(18);
     // Per asset, at most one row per integration or two analyses: bounded by
     // the registry, not the history.
@@ -674,8 +625,7 @@ describe("the feed's reads are bounded", () => {
         ];
       }, { readOnly: true });
       expect(config.map((row) => row["QUERY PLAN"]).join("\n")).toMatch(/Index (Only )?Scan using config_changes_document/);
-      // The newest transitions since the window opened, down the recorded-time
-      // index (D1 read its newest rows by rowid).
+      // The newest transitions since the window opened, down the recorded-time index.
       expect(transitions.map((row) => row["QUERY PLAN"]).join("\n")).toMatch(/Index Scan Backward using integration_health_events_recorded/);
     } finally {
       await pg.close();
@@ -689,13 +639,10 @@ describe("the feed's reads are bounded", () => {
         await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
         return (await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${sql}`, params)).map((row) => row["QUERY PLAN"]).join("\n");
       }, { readOnly: true });
-      // Each site seeks its own (site, time) range; a run's newest day is a
-      // seek on (run, day).
       expect(await explain(FEED_MEDIAVINE_RUNS_SQL, [SINCE, 500])).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
       const revenue = await explain(FEED_REVENUE_SQL, [SINCE, 500]);
       expect(revenue).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
       expect(revenue).toMatch(/Index (Only )?Scan (Backward )?using mediavine_daily_workspace_id_run_seq_report_date_key on mediavine_daily/);
-      // The ledger keeps no time index: its newest numbers, by the workspace's own.
       expect(await explain(FEED_LEDGER_SQL, [500, SINCE, 500])).toMatch(/Index Scan Backward using ledger_entries_workspace_id_entry_number_key on ledger_entries/);
       for (const sql of [FEED_MEDIAVINE_RUNS_SQL, FEED_REVENUE_SQL, FEED_LEDGER_SQL]) {
         expect(await explain(sql, sql === FEED_LEDGER_SQL ? [500, SINCE, 500] : [SINCE, 500])).not.toMatch(/Seq Scan on (mediavine|ledger)/);
@@ -751,11 +698,8 @@ describe("the feed's reads are bounded", () => {
   });
 
   it.skipIf(unavailable !== null)("reads the paid reports and lookups and the insights through their indexes on Postgres", async () => {
-    // Bead ro-ujb9.76.5.4: the report runs by (lane, asked), the lookups by
-    // when they were bought, and each site's two newest insights down its
-    // (site, generated) index, as D1 read them. Postgres plans a table it has
-    // never analyzed by its size on disk, so each holds a history from before
-    // the window.
+    // Postgres plans a table it has never analyzed by its size on disk, so
+    // each holds a history from before the window.
     const ctx = await createTestStore();
     await seed(ctx);
     const pg = ctx;
@@ -773,15 +717,12 @@ describe("the feed's reads are bounded", () => {
         await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
         return (await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${sql}`, params)).map((row) => row["QUERY PLAN"]).join("\n");
       }, { readOnly: true });
-      // One seek per lane, the asked time inside the index condition.
       const dumps = await explain(FEED_DUMPS_SQL, [SINCE, SINCE, 500]);
       expect(dumps).toMatch(/Index Scan using archive_runs_spend on archive_runs r [^\n]*\n\s+Index Cond: \([^\n]*\(integration = "\*VALUES\*"\.column1\) AND \(requested_at >= /);
       expect(dumps).not.toMatch(/Seq Scan|Bitmap/);
       const research = await explain(FEED_RESEARCH_SQL, [SINCE, 500]);
       expect(research).toMatch(/Index Scan Backward using research_log_spend on research_log r [^\n]*\n\s+Index Cond: \([^\n]*\(bought_at >= /);
       expect(research).not.toMatch(/Seq Scan/);
-      // Each site's newest analysis, then its two newest, each a seek down the
-      // site's own entries.
       const insights = await explain(FEED_INSIGHTS_SQL, [SINCE]);
       expect(insights).toMatch(/Index Only Scan using asset_insight_snapshots_latest on asset_insight_snapshots n [^\n]*\n\s+Index Cond: \(\(workspace_id = a\.workspace_id\) AND \(asset_id = a\.asset_id\)/);
       expect(insights).toMatch(/Index Scan using asset_insight_snapshots_latest on asset_insight_snapshots q [^\n]*\n\s+Index Cond: \(\(workspace_id = a\.workspace_id\) AND \(asset_id = a\.asset_id\)\)/);
@@ -814,10 +755,7 @@ describe("the feed's reads are bounded", () => {
   });
 });
 
-// Bead ro-ujb9.76.5.2: the alerts and nightly reports are on Postgres, and each
-// site's alerts and reports are read through its own (site, time) index, as D1
-// read them through idx_flags_asset_fired, idx_flags_asset_settled and
-// idx_pulses_received_at.
+// Each site's alerts and reports are read through its own (site, time) index.
 needsPostgres("the alerts and reports reads on Postgres", () => {
   it("each seeks its site's own (site, time) range", async () => {
     const pg = await createTestStore();
@@ -848,8 +786,7 @@ needsPostgres("the alerts and reports reads on Postgres", () => {
       const reports = await plan(FEED_PULSES_SQL);
       expect(reports).toMatch(seek("pulses_received", "pulses p", "received_at"));
       expect(reports).not.toMatch(/Seq Scan/);
-      // The deploys and changes (bead ro-ujb9.76.5.7), as D1 read them
-      // through idx_annotations_asset_at.
+      // The deploys and changes.
       const changes = await plan(FEED_ANNOTATIONS_SQL);
       expect(changes).toMatch(seek("annotations_asset_at", "annotations c", "at"));
       expect(changes).not.toMatch(/Seq Scan/);

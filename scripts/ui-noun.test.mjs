@@ -78,8 +78,6 @@ const ALLOWED_PHRASES = [
   // It names the provider's object and never reaches a person: it is a cache
   // key, and the two cards that share it share it BY this string.
   '"google-properties"',
-  // 3. a quotation of a label that no longer exists
-  '← All properties',
 ];
 
 /** Comments are not labels. Block comments (JSX `{/* … *\/}` included) go

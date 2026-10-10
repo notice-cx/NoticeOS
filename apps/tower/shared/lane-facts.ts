@@ -1,11 +1,6 @@
 /**
- * WHAT A DATA SOURCE COSTS, HOW OFTEN IT RUNS, ITS LIMIT, AND WHAT HAPPENS WHEN
- * IT FAILS — as facts, not sentences (bead `ro-ujb9.96.6.2`).
- *
- * Each source used to carry two paragraphs copied from doc 11, "Usage limits"
- * and "On failure", which the Health page's audit grid printed under every
- * opened source. The operator reads four facts there, the way a sync tool
- * states a connection's schedule and volume; the methodology stays in
+ * What a data source costs, how often it runs, its limit, and what happens
+ * when it fails: as short facts, not sentences. The methodology stays in
  * docs/11-integrations.md.
  */
 export type LaneCost = "free" | "metered";

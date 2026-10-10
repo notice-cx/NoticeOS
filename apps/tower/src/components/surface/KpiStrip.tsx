@@ -9,17 +9,8 @@ import { pillControlClass } from "@/components/ui/pill";
 import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
-/**
- * How many across, and what a phone does with them.
- *
- * The desk width is chosen per count, so five KPIs cannot land on a six-track
- * grid with a hole in it. On a phone the strip is one row: up to three KPIs
- * side by side, four or more a row you swipe (below, doc 14's phone first
- * screen).
- * A static map rather than a computed class because Tailwind generates
- * utilities from source TEXT — a `grid-cols-${n}` built at runtime produces no
- * CSS at all, which is the kind of bug that only shows up in the built app.
- */
+/** A static map, not a computed class: Tailwind generates utilities from
+ * source text, so a `grid-cols-${n}` built at runtime produces no CSS. */
 const COLUMNS: Record<number, string> = {
   1: "grid-cols-1",
   2: "grid-cols-2",
@@ -30,20 +21,11 @@ const COLUMNS: Record<number, string> = {
 };
 
 /**
- * ON A PHONE A STRIP IS ONE ROW (bead `ro-ujb9.13`).
- *
- * Two columns stacked a six-KPI strip three rows deep: 380px of Alerts' and
- * 330px of Tasks' 844px first screen went on the summary before the first
- * alert or task, and Home's three status KPIs left a grey hole in a fourth
- * cell. Now the phone strip is always one row tall. Up to three cells share
- * the width while their words fit. At enlarged text sizes their intrinsic
- * minimum widths let the strip scroll instead of clipping a label. From four,
- * each cell uses at least 44% of the row width and grows for its words; the
- * row swipes, with the next cell peeking in to say there is more (Vercel's metric tabs
- * over one chart); the selected cell is brought into view, so the chart under
- * a strip never names a KPI the eye cannot find. Each cell keeps its label,
- * value, movement and line; nothing is dropped. From `sm` up the grid above
- * is unchanged.
+ * On a phone a strip is one row. Up to three cells share the width, and at
+ * enlarged text sizes their intrinsic minimum widths let the strip scroll
+ * instead of clipping a label. From four, each cell takes at least 44% of the
+ * row and the row swipes, with the next cell peeking in; the selected cell is
+ * brought into view.
  */
 const PHONE_THREE = "max-sm:grid-cols-[repeat(3,minmax(min-content,1fr))] max-sm:overflow-x-auto max-sm:overscroll-x-contain";
 const PHONE_ROW =
@@ -53,36 +35,25 @@ const PHONE_ROW =
 
 export interface KpiStripProps {
   children: ReactNode;
-  /** Defaults to six across on a desk — doc 14's Overview strip. */
+  /** Defaults to six across on a desk. */
   columns?: number;
   className?: string;
 }
 
 /**
- * ONE STRIP, SO THE EYE READS LEFT TO RIGHT ONCE (doc 14).
- *
- * *Registry justification:* it replaces `Stat`, the four Home widgets and the
- * asset page's state cards — four ways of drawing "a label, a number and
- * something small under it", each in its own bordered box. The strip is one
- * card with hairline dividers, and the dividers are the grid's own `gap-px`
- * over a border-coloured ground: that draws a hairline between cells in any
- * arrangement, including the wrapped rows a phone produces, which a per-cell
- * border cannot do without a trailing edge in the wrong place.
- *
- * It draws no outer border of its own — doc 14's "a container must earn its
- * boundary". The page puts it inside the one `Card` it shares with the chart it
- * selects, which is what makes the KPI and its series read as one unit.
+ * One strip of KPIs with hairline dividers: the grid's own `gap-px` over a
+ * border-coloured ground, which draws a hairline between cells in any
+ * arrangement, including the wrapped rows a phone produces. It draws no outer
+ * border; the page puts it inside the `Card` it shares with its chart.
  */
 export function KpiStrip({ children, columns = 6, className }: KpiStripProps) {
-  // The row follows the cells actually drawn, not the `columns` asked for: a
-  // strip whose third KPI waits on a task source is two cells, and two fit.
+  // The row follows the cells actually drawn, not the `columns` asked for.
   const cells = Children.toArray(children).length;
   const phone = cells >= 4 ? "swipe" : cells === 3 ? "three" : null;
   const strip = useRef<HTMLDivElement>(null);
   const shown = useRef<string | null>(null);
-  // Bring the selected KPI into a swiping row's view — once per selection, so
-  // a reader's own swipe is never pulled back. Horizontal only: the page does
-  // not move. A row that does not scroll (every desk) has nothing to adjust.
+  // Bring the selected KPI into a swiping row's view once per selection, so a
+  // reader's own swipe is never pulled back. Horizontal only.
   useEffect(() => {
     const row = strip.current;
     const cell = row?.querySelector<HTMLElement>("[data-kpi-selected]");
@@ -103,9 +74,8 @@ export function KpiStrip({ children, columns = 6, className }: KpiStripProps) {
   return (
     <div
       ref={strip}
-      // The audit script measuring doc 14's acceptance list finds the strip, its
-      // KPIs and their sparks by these marks rather than by a class name, which
-      // is styling and may change without the structure changing.
+      // The surface audit finds the strip and its KPIs by these marks, never by
+      // a class name.
       data-kpi-strip=""
       data-phone-row={phone ?? undefined}
       className={cn(
@@ -123,22 +93,12 @@ export function KpiStrip({ children, columns = 6, className }: KpiStripProps) {
 
 export type KpiValueTone = "default" | "healthy" | "warn" | "error";
 
-/**
- * Which direction is GOOD for this metric (doc 14).
- *
- * Up for users, sessions, clicks, impressions and product counts; DOWN for open
- * alerts and errors; `none` for a figure whose movement carries no verdict at
- * all — Net, which shows its composition instead. It is a prop rather than a
- * lookup because only the page knows what its metric means, and a component
- * that guessed would eventually paint a falling error count red.
- */
+/** Which direction is good for this metric; `none` for a figure whose
+ * movement carries no verdict. A prop rather than a lookup, because only the
+ * page knows what its metric means. */
 export type KpiImprovement = "up" | "down" | "none";
 
-/**
- * Under this, a movement is not a verdict (doc 14). Two percent on a
- * fortnight's traffic is weather, and a strip where six KPIs are all faintly
- * green or faintly red says nothing louder than one that is honestly grey.
- */
+/** Under this, a movement is weather, not a verdict. */
 const VERDICT_FLOOR_PERCENT = 2;
 
 const VALUE_TONE: Record<KpiValueTone, string> = {
@@ -169,59 +129,26 @@ export interface KpiProps {
   /** Supporting context joins the KPI's one explanation tooltip. Keep units,
    * essential scope and material warnings in label/note/caption instead. */
   explanation?: ReactNode;
-  /** The same window the delta covers, drawn as its 7-day average. Fewer than
-   * three points draws NO line: two dots joined by a segment is a shape the eye
-   * reads as a trend and the data cannot support (doc 14). */
+  /** The same window the delta covers. Fewer than three points draws no line:
+   * two dots joined by a segment reads as a trend the data cannot support. */
   spark?: readonly SeriesPoint[];
   /** The plotted quantity when it differs from the headline's time scope. */
   sparkLabel?: string;
-  /** Defaults to the delta's own tone — doc 14: "a KPI's sparkline takes the
-   * same tone; a sparkline on a neutral metric is muted". */
+  /** Defaults to the delta's own tone; a neutral metric's spark is muted. */
   sparkTone?: SeriesTone;
-  /**
-   * Smooth the spark, and over how many PERIODS of its own grain.
-   *
-   * The default is doc 14's daily line: seven days, drawn in place of the raw
-   * one, because at 64×22 the raw series is noise with a shape hidden in it. A
-   * MONTHLY series wants neither (bead `ro-78qo.18`): seven periods is seven
-   * MONTHS, and a portfolio with six months of net flattens into a line that
-   * hides the one dip worth seeing. `false` draws the periods themselves.
-   */
+  /** Smooth the spark over this many periods of its own grain. A monthly
+   * series wants `false`: seven periods is seven months. */
   sparkAverage?: boolean;
   sparkAverageWindow?: number;
   /** Input was already averaged (for example before windowing with pre-roll). */
   sparkPreAveragedWindow?: number;
-  /**
-   * The first period the provider has not finished, so the spark's endpoint cap
-   * goes hollow (doc 14: "the latest day of any daily series is provisional
-   * until the provider closes it").
-   *
-   * Forwarded alongside the two above because they arrive together: the caller
-   * that has a reason to turn the averaging off is a caller drawing raw
-   * periods, and the last of those is the one still being lived in. Without it,
-   * moving a series into this slot would silently drop the mark that says so.
-   */
+  /** The first period the provider has not finished, so the spark's endpoint
+   * cap goes hollow. */
   sparkProvisionalFrom?: string | null;
-  /**
-   * WHY THIS NUMBER HAS NO SERIES YET, in the operator's words — "the queue
-   * keeps 7 days of snapshots" (bead `ro-78qo.6`).
-   *
-   * doc 14 asks every number that CAN have a series to show one, and a payload
-   * that keeps no history is a third answer beside a series and a composition:
-   * the series does not exist YET. Six KPIs each printing a grey "no series"
-   * placard is six identical pills saying nothing, so the honest treatment is
-   * to draw no invented line and DECLARE the gap — a visible reason for the
-   * reader with its reason in the explanation, `data-series="unavailable"` for the surface audit,
-   * which lists it instead of failing the route so the gap stays visible until
-   * the payload grows one.
-   *
-   * THE SERIES WINS. The reason is only read when there is no series to
-   * draw, so a caller may pass both — `seriesUnavailable={drawable ? undefined
-   * : reason}` beside the spark is the common shape — and the cell never
-   * states a gap it does not have. The gap is NOT printed under the number
-   * (bead `ro-ujb9.96.6.15`): the missing line is the visible state, the reason
-   * is in the cell's explanation, and the two marks keep it machine-readable.
-   */
+  /** Why this number has no series yet, in the operator's words. Read only
+   * when there is no series to draw, so a caller may pass both. The gap is
+   * declared by `data-series="unavailable"` and said in the explanation, never
+   * printed under the number. */
   seriesUnavailable?: string;
   /** A visible chart shared by this summary and its neighboring KPIs. The
    * accessible details relationship points to that chart's container. */
@@ -232,17 +159,13 @@ export interface KpiProps {
   /** Anything below the delta line — Home's share bar under a count. */
   footer?: ReactNode;
   /** Selectable KPIs drive the chart under the strip. A KPI with no `onSelect`
-   * renders as a figure rather than a control: nothing to press is better than
-   * a button that does nothing. */
+   * renders as a figure rather than a control. */
   selected?: boolean;
   onSelect?: () => void;
   className?: string;
 }
 
-/**
- * ONE KPI: a label, a value, its movement, and its own series (doc 14
- * principle 2 — "a number without its series is noise").
- */
+/** One KPI: a label, a value, its movement, and its own series. */
 export function Kpi({
   label,
   value,
@@ -282,9 +205,6 @@ export function Kpi({
       <span className={cn(eyebrowClass, hasContext && "pe-6")}>
         {label}
       </span>
-      {/* Wrap when the cell is narrow, including beside the tablet sidebar.
-          Keep the value's size and the spark's newest point visible. The phone
-          spark still takes a full row; wider cells wrap only when needed. */}
       <span className="flex flex-wrap items-baseline justify-between gap-2">
         <span
           className={cn(
@@ -293,8 +213,8 @@ export function Kpi({
           )}
         >
           {value}
-          {/* Its own line height (bead ro-ujb9.13): in a phone's narrow cell a
-              wrapped note took the 28px value's line box per line. */}
+          {/* Its own line height: a wrapped note must not take the 28px
+              value's line box per line. */}
           {note ? (
             <span className="ms-1 inline-block text-xs font-medium leading-snug tracking-normal text-muted-foreground">
               {note}
@@ -320,12 +240,6 @@ export function Kpi({
           />
         ) : null}
       </span>
-      {/* ONE REPRESENTATION PER FACT (bead `ro-ujb9.96.6.15`). The cell is its
-          label, value, movement and line. The line's method ("7-day average",
-          "monthly values") and a missing history's reason are each stated once,
-          in the explanation beside the label and in the line's own readout —
-          not again as a caption under the number on every page that uses the
-          strip. */}
       <KpiDelta delta={delta} verdict={verdict} caption={caption} format={format} />
       {footer}
       {selected ? (
@@ -340,15 +254,11 @@ export function Kpi({
     className,
   );
 
-  // The mark CARRIES THE METRIC'S NAME (scripts/README.md's audit table), so an
-  // audit failure can say which KPI is missing its series instead of quoting
-  // the offending element's text back at the operator (bead `ro-78qo.1`). A
-  // label that is a node rather than a string names nothing, and stays empty.
+  // The mark carries the metric's name so the surface audit can say which KPI
+  // is missing its series. A label that is a node names nothing.
   const mark = typeof label === "string" ? label : "";
 
-  // A DECLARED GAP, in two attributes because one cannot hold two facts: the
-  // STATE is what `scripts/surface-audit.mjs` keys on; the REASON is also
-  // available through the KPI's hover/focus/tap explanation.
+  // The state is what `scripts/surface-audit.mjs` keys on; the reason rides beside it.
   const gapMarks = declaresGap
     ? {
         "data-series": "unavailable",
@@ -377,14 +287,10 @@ export function Kpi({
 }
 
 /**
- * WHAT A MOVEMENT IS WORTH, decided once for the chip and the sparkline.
- *
- * Four things can take the colour away and each is a different sentence: the
- * two sides are not the same measurement (doc 14, `ro-jkp2`); the metric's
- * movement carries no verdict at all (Net); the change is under the floor; or
- * there is no percentage because the prior period totalled zero. What is left
- * is coloured for the direction that is GOOD for this metric, which is why a
- * falling error count is green.
+ * What a movement is worth, decided once for the chip and the sparkline. No
+ * colour when the two sides are not comparable, the metric carries no
+ * verdict, the change is under the floor, or there is no percentage; what is
+ * left is coloured for the direction that is good for this metric.
  */
 function deltaVerdict(
   delta: PeriodDelta | null | undefined,

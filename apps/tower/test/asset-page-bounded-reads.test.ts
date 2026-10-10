@@ -1,15 +1,7 @@
 // @vitest-environment node
-// Two asset-page reads bounded by what the page shows (bead `ro-ujb9.103`).
-//
-// Site-health history used to read every night the asset ever recorded to
-// keep ninety: its date filter skipped the middle column of the unique index,
-// so SQLite could not use it. The timeline's bounds read counted every
-// annotation, and found the watch-anchored change by walking all of them.
-// Both old statements are kept below as the specification, in Postgres's
-// words since the readings (bead ro-ujb9.76.5.8) and the changes and windows
-// (bead ro-ujb9.76.5.7) moved there, and the page must state exactly what
-// they stated. The measurement is in
-// docs/artifacts/tower-perf-2026-09-23/measurements.md.
+// Two asset-page reads bounded by what the page shows. The unbounded
+// statements are kept below as the specification, and the page must state
+// exactly what they stated.
 
 import { javascriptInstant, type Transaction, type WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it } from "vitest";
@@ -43,7 +35,7 @@ const DEPS: AssetDetailDeps = {
   osTimeZone: "UTC",
 };
 
-/** The site-health read as it stood before this bead: no check named. */
+/** The unbounded site-health read: no check named. */
 const HYGIENE_SPEC = `SELECT check_id AS "checkId", observed_at AS "observedAt",
                 observed_on AS "observedOn", status,
                 value_num AS "valueNum", detail::text AS "detailJson"
@@ -57,7 +49,6 @@ async function asset(raw: TestStore, id: string): Promise<void> {
 }
 
 // ─── site-health history ────────────────────────────────────────────────────
-// On Postgres (bead ro-ujb9.76.5.8).
 
 const dayOf = (days: number) => new Date(NOW.getTime() - days * DAY).toISOString().slice(0, 10);
 
@@ -136,7 +127,7 @@ async function seedHygiene(ctx: TestStore): Promise<WorkspaceStore> {
   return store;
 }
 
-describe("site-health history reads only its ninety days (ro-ujb9.103)", () => {
+describe("site-health history reads only its ninety days", () => {
   it("returns the old read's rows, and the page states the same history", async () => {
     const ctx = await createTestStore();
     const store = await seedHygiene(ctx);
@@ -159,9 +150,9 @@ describe("site-health history reads only its ninety days (ro-ujb9.103)", () => {
   });
 
   it("names every check the store's vocabulary lists, so no stored row is left out", async () => {
-    // The read lists check ids so the index can seek the date. A migration that
-    // adds a check to the vocabulary must widen this list too, or the section
-    // would stop reading the new check's rows without a word.
+    // The read lists check ids so the index can seek the date. A migration
+    // that adds a check to the vocabulary must widen this list too, or the
+    // section would stop reading the new check's rows without a word.
     const ctx = await createTestStore();
     const kinds = await (ctx.call).read((tx) =>
       tx.query<{ check_id: string }>(`SELECT check_id FROM noticeos_ref.check_kinds ORDER BY check_id COLLATE "C"`),
@@ -172,8 +163,7 @@ describe("site-health history reads only its ninety days (ro-ujb9.103)", () => {
   it("reads the site through the unique index, the window's first day inside the index condition", async () => {
     // Postgres applies the date inside the index scan, so a night before the
     // window is passed over in the index and never read from the table; the
-    // check list filters what that returns. (SQLite could use the date only
-    // after every check was named.)
+    // check list filters what that returns.
     const store = (await createTestStore()).call;
     const shipped = await postgresPlan(store, HYGIENE_HISTORY_SQL, ["a.example", "2026-04-06"]);
     expect(shipped).toMatch(/Index Scan using hygiene_checks_workspace_id_asset_id_check_id_observed_on_key/);
@@ -183,12 +173,10 @@ describe("site-health history reads only its ninety days (ro-ujb9.103)", () => {
 });
 
 // ─── the timeline ───────────────────────────────────────────────────────────
-// On Postgres (bead ro-ujb9.76.5.7): the changes and the readback windows the
-// read joins, and the old two reads in Postgres's words. A change is known by
-// its workspace's number; a window anchors one when its ref is that number
-// written out, D1's `w.ref = CAST(anchor.id AS TEXT)`.
+// A change is known by its workspace's number; a window anchors one when its
+// ref is that number written out.
 
-/** The timeline's two reads as they stood before this bead. */
+/** The timeline's two unbounded reads. */
 const TIMELINE_BOUNDS_SPEC = `SELECT count(*)::int AS total,
               COALESCE(SUM(CASE WHEN a.at >= (
                 SELECT min(anchor.at)
@@ -206,7 +194,7 @@ const TIMELINE_ITEMS_SPEC = `SELECT annotation_number::int AS id, at, kind, ref,
           LIMIT $2`;
 const TIMELINE_LIMIT = 200;
 
-/** The timeline exactly as the old reader built it. */
+/** The timeline exactly as the unbounded reader built it. */
 async function specTimeline(store: WorkspaceStore, asset: string) {
   const [bounds] = await store.read((tx) => tx.query<{ total: number; anchored: number }>(TIMELINE_BOUNDS_SPEC, [asset]));
   const total = bounds?.total ?? 0;
@@ -283,7 +271,7 @@ async function seedTimeline(ctx: TestStore): Promise<{ store: WorkspaceStore; an
   return { store, anchor, twin: twin! };
 }
 
-describe("the timeline reads its own depth, not the whole history (ro-ujb9.103)", () => {
+describe("the timeline reads its own depth, not the whole history", () => {
   it("states the same rows and the same 'N older' as the old two reads", async () => {
     const ctx = await createTestStore();
     const { store, anchor, twin } = await seedTimeline(ctx);

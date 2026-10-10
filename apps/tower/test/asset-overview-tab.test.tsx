@@ -12,16 +12,11 @@ import { loadAssetTabs } from "./lazy-code";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 import { stubJsonFetch } from "./stub-fetch";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 /**
- * THE OVERVIEW DOC 21 ASKED FOR (bead `ro-78qo.3`).
- *
  * The DOM pin in `asset-detail-tabs.test.tsx` records what this tab renders;
- * these are the four rules that make it the surface doc 14 specifies rather
- * than a rearrangement — the strip drives the chart, the range re-derives every
+ * these are the rules: the strip drives the chart, the range re-derives every
  * number under it, the prose is behind the one disclosure, and the banner is
  * there only while the setup is open.
  */
@@ -43,11 +38,8 @@ function days(count: number, value: (index: number) => number): SeriesPoint[] {
   }));
 }
 
-/**
- * Sixty days rising by two, so the mean over the last 28 COMPLETE days (91) and
- * over the last 7 (112) are different whole numbers — which is what makes a
- * range change visible in an assertion rather than merely plausible.
- */
+/** Sixty days rising by two, so the mean over the last 28 complete days (91)
+ * and over the last 7 (112) are different whole numbers. */
 const ACTIVE_USERS = days(60, (index) => (index + 1) * 2);
 
 function trend(series: SeriesPoint[], provisionalFrom: string | null = LAST_DAY) {
@@ -328,8 +320,6 @@ function kpi(container: HTMLElement, label: string): HTMLElement {
   return cell;
 }
 
-// Each tab's code arrives when the tab is opened (bead `ro-ujb9.84`); what this
-// suite reads is the tab once it has.
 beforeAll(loadAssetTabs);
 
 beforeEach(() => {
@@ -368,8 +358,6 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(alerts.textContent).toContain("None open");
     expect(alerts.querySelector("[data-spark]")).toBeNull();
     expect(alerts.querySelector("[data-hero-chart]")).toBeNull();
-    // No explanation of the missing trend: there is simply no line (bead
-    // `ro-ujb9.96.6.6`, doc 14 principle 3a).
     expect(alerts.querySelector("[data-info-tooltip-trigger]")).toBeNull();
     expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meals.example/alerts");
   });
@@ -392,24 +380,21 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(row).toHaveTextContent("last fired");
   });
 
-  it("draws daily users with their 7-day average, last week's same weekday and the weekly change (ro-trai.10)", async () => {
+  it("draws daily users with their 7-day average, last week's same weekday and the weekly change", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     const chart = container.querySelector<HTMLElement>("[data-hero-chart]")!;
-    // Every day's value, faint, with the bold 7-day average over it.
     expect(chart.querySelector('[data-hero-raw="GA4"]')).not.toBeNull();
     expect(chart.querySelector('[data-hero-line="GA4"]')).not.toBeNull();
     expect(chart.textContent).toContain("7-day average");
-    // The same weekday a week earlier, dotted, as observed — no average of it.
     const lastWeek = chart.querySelector('[data-hero-line="Same day last week"]')!;
     expect(lastWeek.getAttribute("stroke-dasharray")).toBe("2 5");
-    // A reference, so it reads second: thinner than the lead (ro-ujb9.12).
+    // A reference, so it reads second: thinner than the lead.
     expect(lastWeek).toHaveAttribute("data-hero-weight", "reference");
     expect(chart.querySelector('[data-hero-line="GA4"]')).toHaveAttribute("data-hero-weight", "lead");
     expect(chart.querySelector('[data-hero-raw="Same day last week"]')).toBeNull();
-    // Latest complete 7 days against the 7 before: the series rises by two a
-    // day, so the last seven complete days average 14 more than the seven
-    // before them.
+    // The series rises by two a day, so the last seven complete days average
+    // 14 more than the seven before them.
     const weekly = chart.querySelector<HTMLElement>("[data-weekly-change]")!;
     expect(weekly.textContent).toBe("7 days vs the 7 before14%");
     expect(weekly.querySelector("[data-tone]")).toHaveAttribute("data-tone", "positive");
@@ -435,7 +420,6 @@ describe("Asset Overview — the strip drives the chart", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    // The first KPI leads, and the chart under the strip is about it.
     expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
     expect(container.querySelector("[data-hero-chart]")?.textContent).toContain(
       "Active users · daily",
@@ -447,8 +431,6 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "false");
     const chart = container.querySelector("[data-hero-chart]")!;
     expect(chart.textContent).toContain("Search clicks · daily");
-    // Two providers, one measurement: both lines are named and either can be
-    // switched off.
     expect(within(chart as HTMLElement).getByRole("button", { name: "Google" })).toBeTruthy();
     expect(within(chart as HTMLElement).getByRole("button", { name: "Bing" })).toBeTruthy();
   });
@@ -459,16 +441,11 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(leadMetric(strip(["activeUsers", "sessions", "clicks", "impressions"]))).toBe("activeUsers");
     expect(leadMetric(strip(["clicks", "impressions"]))).toBe("clicks");
     expect(leadMetric(strip([]))).toBeNull();
-    // The operator's pick wins while it has a series, and only then.
     expect(leadMetric(strip(["clicks", "impressions"]), "impressions")).toBe("impressions");
     expect(leadMetric(strip(["clicks", "impressions"]), "sessions")).toBe("clicks");
   });
 
-  /**
-   * Bead ro-ujb9.124: the first number a site collects lands on a chart of
-   * that number. The fresh-install walk ended on "No series yet" under daily
-   * users while Search clicks 602 sat beside it.
-   */
+  /** The first number a site collects lands on a chart of that number. */
   function onlyTraffic(keep: "users" | "search" | "none"): AssetDetailPayload {
     const body = payload();
     const none = { google: emptyTrend(), bing: emptyTrend() };
@@ -510,7 +487,6 @@ describe("Asset Overview — the strip drives the chart", () => {
     renderOverview();
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    // The four dashes say it once; nothing is selected and nothing is drawn.
     expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
     expect(traffic.querySelector('button[aria-pressed="true"]')).toBeNull();
     for (const figure of traffic.querySelectorAll("[data-kpi]")) {
@@ -527,7 +503,6 @@ describe("Asset Overview — the strip drives the chart", () => {
     await screen.findByRole("tablist");
     fireEvent.click(kpi(container, "Impressions").querySelector("button[aria-pressed]")!);
     expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("Impressions · daily");
-    // A range change re-derives every number; the pick stays.
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
     await screen.findByRole("region", { name: "Traffic · last 7 days" });
     expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("Impressions · daily");
@@ -537,8 +512,8 @@ describe("Asset Overview — the strip drives the chart", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    // A person who visits on two days is one person, so active users is a mean:
-    // 28 complete days rising by two average 91.
+    // A person who visits on two days is one person, so active users is a
+    // mean: 28 complete days rising by two average 91.
     expect(kpi(container, "Avg. daily users").textContent).toContain("91");
     // Sessions are events and add up: 28 × 200.
     expect(kpi(container, "Sessions").textContent).toContain("5,600");
@@ -547,13 +522,7 @@ describe("Asset Overview — the strip drives the chart", () => {
   });
 });
 
-/**
- * Bead ro-ujb9.146: a site whose first source is ad revenue, PostHog or
- * DataForSEO opened its Overview on four traffic dashes, its own number lower
- * down or on another tab. The lead is now chosen from what the site has.
- */
-// The totals the old Wall card drew now live on the site's own Overview
-// (bead ro-trai.21, docs/14-design.md § What leaves the Wall).
+// The site's all-time totals live on its own Overview.
 describe("Asset Overview — the site's all-time totals", () => {
   const minutesAgo = (minutes: number) => new Date(NOW - minutes * 60_000).toISOString();
 
@@ -575,18 +544,15 @@ describe("Asset Overview — the site's all-time totals", () => {
     const section = await screen.findByRole("region", { name: "All-time totals" });
     expect(section).toHaveAttribute("data-site-totals");
     const cells = [...section.querySelectorAll<HTMLElement>(".bg-card")];
-    // A stale age says so to a screen reader, not only in amber (ro-ujb9.14).
+    // A stale age says so to a screen reader, not only in amber.
     expect(cells.map((cell) => cell.textContent)).toEqual(["Accounts1,28410m", "Leads31245m · stale", "Orders97"]);
     const age = (index: number) => cells[index]!.querySelector("[data-age-state]")!;
     // 10 minutes is inside two 15-minute cadences; 45 is past it.
     expect(age(0).className).not.toContain("text-warn");
     expect(age(1).className).toContain("text-warn");
-    // …and draws the clock with the mark, so the state is not colour-only.
     expect(age(0).querySelector("[data-age-glyph]")).toHaveAttribute("data-age-glyph", "aged");
     expect(age(1).querySelector("[data-age-glyph]")).toHaveAttribute("data-age-glyph", "stale");
-    // A nightly total carries no age of its own: the header states the report's.
     expect(cells[2]!.querySelector("[data-age-state]")).toBeNull();
-    // A total neither lane has is left out, never drawn as 0.
     expect(section.textContent).not.toContain("Plans saved");
     expect(container.querySelector("[data-site-totals]")).toBe(section);
   });
@@ -606,7 +572,7 @@ describe("Asset Overview — the site's all-time totals", () => {
   });
 });
 
-describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", () => {
+describe("Asset Overview — leads with the number the site has", () => {
   /** The same site with no Analytics, Search Console or Bing series at all. */
   function noTraffic(): AssetDetailPayload {
     const body = payload();
@@ -699,12 +665,12 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     await screen.findByRole("tablist");
     expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
     const lead = screen.getByRole("region", { name: "Daily revenue" });
-    // The site's own number is the first thing drawn: 28 days × $5.00.
+    // 28 days × $5.00.
     expect(kpiLabels(container)[0]).toBe("Reported earnings");
     expect(kpi(lead, "Reported earnings")).toHaveTextContent("$140.00");
     expect(lead.querySelector("[data-hero-chart]")).not.toBeNull();
     expect(container.textContent).not.toContain("Avg. daily users");
-    // The range re-derives it, as it does traffic: 7 × $5.00.
+    // 7 × $5.00.
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
     await waitFor(() => expect(kpi(screen.getByRole("region", { name: "Daily revenue" }), "Reported earnings")).toHaveTextContent("$35.00"));
   });
@@ -722,7 +688,6 @@ describe("Asset Overview — leads with the number the site has (ro-ujb9.146)", 
     await screen.findByRole("tablist");
     const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
     expect(kpiLabels(container).slice(0, 3)).toEqual(["People a day", "Page views", "Sessions"]);
-    // No dash in the strip: every KPI there is a number the site has.
     expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(3);
     expect(kpi(traffic, "People a day")).toHaveTextContent("100");
     expect(kpi(traffic, "Page views")).toHaveTextContent("14K");
@@ -786,8 +751,6 @@ describe("Asset Overview — the range controls traffic, not independent snapsho
       "aria-label",
       expect.stringContaining("7 days"),
     );
-    // …and the range is in the URL, so a link carries it and the other tabs
-    // read the same value.
     expect(getByTestId("url").textContent).toBe("/assets/meals.example?range=7");
   });
 
@@ -901,20 +864,14 @@ describe("Asset Overview — explanations are disclosed, essential context stays
     expect(screen.getByRole("tooltip")).toHaveTextContent("Report received");
   });
 
-  it("explains nothing the surface already draws (bead ro-ujb9.96.6.6)", async () => {
+  it("explains nothing the surface already draws", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    // No "About these numbers" and no section tooltips restating the labels.
     expect(container.querySelector("[data-about]")).toBeNull();
     for (const name of ["About traffic figures", "About this financial snapshot", "About open alert counts"]) {
       expect(screen.queryByRole("button", { name })).toBeNull();
     }
-    // What those paragraphs said is on the surface itself: the averaged
-    // measure in its label, the plotted method in the cell's own info tip
-    // (the cell no longer repeats it as a line — bead ro-ujb9.96.6.15), the
-    // provider in the chart legend, the month in the financial title and the
-    // booking state on the figure.
     expect(kpi(container, "Avg. daily users")).toHaveTextContent("7-day average");
     expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("GA4");
     const financials = screen.getByRole("region", { name: "Money · July 2026" });
@@ -931,16 +888,13 @@ describe("Asset Overview — the setup banner", () => {
     const banner = await screen.findByRole("status");
     expect(banner.textContent).toContain("Data setup");
     // A row of values: the fraction, then each step still to do by name. The
-    // site has never sent a nightly report, so the report is no step to do
-    // (D29 amended, ro-ujb9.121).
+    // site has never sent a nightly report, so the report is no step to do.
     expect(banner.textContent).toMatch(/\d of 2 done · to do: .+/u);
     expect(banner.textContent?.toLowerCase()).not.toContain("nightly report");
     expect(banner.textContent).not.toContain("—");
     expect(
       within(banner).getByRole("link", { name: /Review data setup/ }),
     ).toHaveAttribute("href", "/assets/meals.example/sources");
-    // The saved `#setup` link still lands on something that says where the
-    // checklist went.
     expect(container.querySelector('#setup [role="status"]')).not.toBeNull();
   });
 
@@ -979,8 +933,7 @@ describe("Asset Overview — the two lists", () => {
     );
     expect(rows).toHaveLength(3);
     expect(rows[0]!.textContent).toContain("Move every recurring charge off");
-    // The fourth is disclosed, never dropped: a panel that keeps three of four
-    // is lying about the size of the queue.
+    // The fourth is disclosed, never dropped.
     expect(needs.getByRole("button", { name: "Show 1 more" })).toBeTruthy();
     expect(needs.getByRole("link", { name: /All tasks/ })).toHaveAttribute(
       "href",
@@ -988,7 +941,7 @@ describe("Asset Overview — the two lists", () => {
     );
   });
 
-  it("gives every ask the Tasks board's face — warn at every priority, a gate's △ (ro-ujb9.240)", async () => {
+  it("gives every ask the Tasks board's face — warn at every priority, a gate's △", async () => {
     const base = payload();
     stubJsonFetch(payload({
       operator: {
@@ -1006,9 +959,8 @@ describe("Asset Overview — the two lists", () => {
     const rings = [...container.querySelectorAll('section[aria-label="Needs you"] ul > li')].map(
       (row) => row.querySelector("[aria-hidden]")!,
     );
-    // A task's priority is not a severity (doc 14): the top-priority ask was a
-    // red ring here and an amber one on /tasks. Every ask is warn now, a top one
-    // too; the gate keeps the △ that says it holds other work.
+    // A task's priority is not a severity: every ask is warn, a top one too;
+    // the gate keeps the △ that says it holds other work.
     expect(rings.map((ring) => ring.textContent)).toEqual(["!", "△", "!"]);
     for (const ring of rings) {
       expect(ring.className).toContain("text-warn");
@@ -1069,11 +1021,9 @@ describe("Asset Overview — the two lists", () => {
       'section[aria-label="What matters"]',
     )!;
     const rows = matters.querySelectorAll("ul > li");
-    // Warnings outrank recommendations whatever order the snapshot arrived in.
     expect(rows[0]!.textContent).toContain("11.3% of sessions are unattributed");
-    // The first row is expanded, with its EVIDENCE and the three actions — the
-    // finding's own paragraphs are behind All findings, because doc 14 allows
-    // no paragraph on a view surface outside About.
+    // The first row is expanded, with its evidence and the three actions; the
+    // finding's own paragraphs are behind All findings.
     expect(rows[0]!.textContent).toContain("Unassigned share");
     expect(rows[0]!.textContent).toContain("11.3%");
     expect(rows[0]!.textContent).not.toContain("Why it matters");
@@ -1085,9 +1035,8 @@ describe("Asset Overview — the two lists", () => {
     ).toBeTruthy();
   });
 
-  // Bead ro-ujb9.96.6.21: an empty What matters is a state in the panel's own
-  // noun, never a sentence about an internal job ("the archive analysis has
-  // not run") — doc 14 principle 3b, zero words needed to act.
+  // An empty What matters is a state in the panel's own noun, never a
+  // sentence about an internal job.
   it.each([
     ["no analysis saved yet", null, "No findings yet"],
     ["an analysis that found nothing", "empty", "Nothing found"],

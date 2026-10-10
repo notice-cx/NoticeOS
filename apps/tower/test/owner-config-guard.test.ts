@@ -1,12 +1,8 @@
 // @vitest-environment node
-//
-// The Tower suite never reads the checkout's own config/ (bead ro-ujb9.92).
-// This proves the node:fs refusal is live in THIS suite, not only in the unit
-// test of the guard (scripts/test-config-isolation.test.mjs). The import
-// refusal cannot be shown from a passing test here: a literal
-// `import("../../../config/…")` fails the whole file's transform, which is the
-// refusal. Only the seed-validation tests listed in
-// scripts/test-config-isolation.mjs may do either.
+// The Tower suite never reads the checkout's own config/: this proves the
+// node:fs refusal is live here (scripts/test-config-isolation.test.mjs tests the
+// guard itself). The import refusal cannot be shown from a passing test, since
+// a literal `import("../../../config/…")` fails the file's transform.
 import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { describe, expect, it } from "vitest";

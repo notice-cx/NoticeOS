@@ -8,29 +8,14 @@ import { recordFlagTune } from "./flag-tunes";
 export type FlagAction = "acknowledge" | "resolve" | "snooze" | "unsnooze" | "tune";
 
 /**
- * A NEW DECISION NEVER ERASES THE TUNE UNDER IT (bead `ro-bkcl`).
- *
- * `disposition` is one slot and a tuned alert deliberately stays OPEN
- * (`worker/flag-scope.ts`), so Mark read and Snooze were both landing on rows
- * that already said `tune` and overwriting the only record that a rule had been
- * noisy enough to change. Resolve never did — it writes `resolved_at` and
- * leaves the disposition alone — which is why the leak only ever showed on the
- * operator who both quietened the rule and cleared the alert.
- *
- * Migrations are operator-only and forever-forbidden here (AGENTS.md), so the
- * tune is carried in the note the row already has, behind
- * `shared/tune.ts`'s mark. The disposition slot keeps meaning what it always
- * meant: the operator's decision about the EVENT.
- *
- * IT IS EVALUATED PER ROW, not composed from the clicked one. A recurring
- * condition dispositions every open firing at once, and a group can hold a
- * tuned row beside one that fired last night and was never tuned — composing
- * the note in TypeScript from the target would stamp the untuned sibling as
- * tuned and inflate the very rate this fixes.
- *
- * Three cases, and the third is the one a hand-written `CASE` forgets: a row
- * already CARRYING a mark (tuned, then parked) keeps its tail when the snooze
- * ends, so unsnooze does not become the second way to lose a tune.
+ * A new decision never erases the tune under it. `disposition` is one slot
+ * and a tuned alert stays open (`worker/flag-scope.ts`), so the tune is
+ * carried in the note behind `shared/tune.ts`'s mark, and the disposition
+ * slot keeps holding the decision about the event. Evaluated per row, not
+ * composed from the clicked one: a recurring condition dispositions every
+ * open firing at once, and a group can hold a tuned row beside an untuned
+ * one. Three cases, and the third is the one a hand-written `CASE` forgets:
+ * a row already carrying a mark keeps its tail when the snooze ends.
  */
 function keepingTune(decisionNote: string): string {
   return `('${decisionNote}' || CASE
@@ -54,47 +39,31 @@ export interface FlagActionResult {
 }
 
 /**
- * Apply the operator actions that move a CONDITION in or out of the open
+ * Apply the operator actions that move a condition in or out of the open
  * attention queue. The flag's evidence is never rewritten or deleted:
  *
  * - acknowledge = "I read this"; a later recurrence creates a new event.
  * - resolve = "the underlying issue is no longer active."
- * - snooze = "not now — bring it back on this date" (docs/15 flow E).
+ * - snooze = "not now — bring it back on this date."
  * - unsnooze = "bring it back now."
  * - tune = "the rule that produced this was too loud, and here is what I
- *   changed" — the one disposition that does NOT move the row out of the
- *   attention queue (bead `ro-van6`). See `worker/flag-scope.ts`.
+ *   changed" — the one disposition that does not move the row out of the
+ *   attention queue. See `worker/flag-scope.ts`.
  *
- * A decision landing on a row that was already tuned KEEPS THE TUNE, carried in
- * the note (`keepingTune` below, bead `ro-bkcl`) — the alert's record of what
- * the operator did to the rule outlives what they then did with the firing.
+ * A decision landing on a row that was already tuned keeps the tune, carried
+ * in the note (`keepingTune`). Snooze is the only disposition that expires:
+ * it writes `disposition='snooze'` plus the date, and when the date passes
+ * `worker/flag-scope`'s one predicate hands the same row back. Unsnooze moves
+ * the end date to now rather than erasing the disposition.
  *
- * SNOOZE IS THE ONLY DISPOSITION THAT EXPIRES, and the whole design follows
- * from that. It writes `disposition='snooze'` plus the date, so the row leaves
- * every open list; when the date passes, `worker/flag-scope`'s one predicate
- * hands the SAME row back — same id, same evidence, same headline — rather than
- * the rule firing a new one. Unsnooze does not erase the disposition, it moves
- * the end date to now: one mechanism serves both "the clock ran out" and "I
- * changed my mind", and the row still records that it was quiet and until when.
- * Erasing it would make an operator's own decision the one event the store
- * forgets.
- *
- * ACTS ON THE WHOLE CONDITION, not one firing (`ro-kukv.1`). The band now shows
- * one row per condition, so the button under that row has to mean what the row
- * says. When the target's rule is one of `RECURRING_CONDITION_RULES`, every open
- * flag sharing its (asset, rule_id, metric) is dispositioned with it — otherwise
- * resolving one asset's 16-firing condition would clear one row and leave fifteen
- * identical ones behind, which is the failure the grouping exists to end.
- *
- * Undeclared rules are unaffected: their group is themselves, and the SQL below
- * still matches exactly one row. `watch-window-closed` fires twice on one
- * asset with one metric and asks two different questions — dispositioning
- * both from one click would answer a question the operator never read.
+ * Acts on the whole condition, not one firing: when the target's rule is one
+ * of `RECURRING_CONDITION_RULES`, every open flag sharing its (asset,
+ * rule_id, metric) is dispositioned with it. Undeclared rules are unaffected;
+ * their group is themselves.
  */
 export async function applyFlagAction(
   store: WorkspaceStore,
-  /** The alert's workspace number — what the Tower shows and acts on
-   * (bead ro-ujb9.76.5.2). */
+  /** The alert's workspace number — what the Tower shows and acts on. */
   id: number,
   action: FlagAction,
   nowIso: string,
@@ -107,17 +76,10 @@ export async function applyFlagAction(
   if (action === "snooze" && !snoozeUntil) return null;
   if (action === "tune" && !tuned) return null;
 
-  // Which rows this action may touch at all. Every action but `unsnooze` needs
-  // an OPEN condition; unsnooze needs the opposite — a live snooze — so the two
-  // read their eligibility from the same module that defines the words.
-  //
-  // `tune` needs an open row that has NOT already been dispositioned something
-  // else. It writes into the same one-decision-per-row slot ack and snooze use,
-  // so without that arm a Save from a row that came back from a snooze would
-  // erase the record of the silence — and the operator's own decision would be
-  // the one event the store forgets. A row already tuned may be tuned again:
-  // the panel holds three settings, and the second Save is the same decision
-  // continued, not a different one.
+  // Which rows this action may touch. Every action but `unsnooze` needs an
+  // open condition; unsnooze needs a live snooze. `tune` needs an open row not
+  // already dispositioned something else, since it writes into the same
+  // one-decision-per-row slot; a row already tuned may be tuned again.
   const eligible = (now: string) =>
     action === "unsnooze"
       ? snoozedFlagsSql("", now)
@@ -125,10 +87,9 @@ export async function applyFlagAction(
         ? `(${openFlagsSql("", now)}) AND (disposition IS NULL OR disposition = 'tune')`
         : openFlagsSql("", now);
 
-  // One transaction (bead ro-ujb9.76.5.2): the eligibility read, the
-  // disposition and the tune's own row land together or not at all. An alert a
-  // same-day report retry replaced is no alert (`current_flags`), so it is
-  // never acted on.
+  // One transaction: the eligibility read, the disposition and the tune's own
+  // row land together or not at all. An alert a same-day report retry
+  // replaced is no alert (`current_flags`), so it is never acted on.
   return store.write(async (tx) => {
     const [target] = await tx.query<{ flagId: bigint; id: number; asset: string; ruleId: string; metric: string | null }>(
       `SELECT flag_id AS "flagId", flag_number::int AS id, asset_id AS asset, rule_id AS "ruleId", metric
@@ -146,8 +107,7 @@ export async function applyFlagAction(
       return `$${values.length}${cast}`;
     };
 
-    // The end of a snooze IS a date, so unsnooze stores one rather than a null:
-    // "quiet until now" reads as "back", and needs no second column to say so.
+    // The end of a snooze is a date, so unsnooze stores one rather than a null.
     const endsAt = action === "unsnooze" ? nowIso : snoozeUntil;
 
     const setSql =
@@ -176,18 +136,14 @@ export async function applyFlagAction(
                    disposition_note = ${keepingTune("Snooze ended by operator")},
                    snooze_until = ${bind(endsAt, "::timestamptz")}`;
 
-    // NULL never equals NULL in SQL, so a metric-less rule needs an IS NULL arm
-    // rather than `metric = $n`; without it a grouped rule that stores no metric
-    // would silently match nothing and disposition only the clicked row.
+    // NULL never equals NULL in SQL, so a metric-less rule needs an IS NULL arm.
     const scope = grouped
       ? `asset_id = ${bind(target.asset)} AND rule_id = ${bind(target.ruleId)} AND ${
           target.metric === null ? "metric IS NULL" : `metric = ${bind(target.metric)}`
         }`
       : `flag_id = ${bind(target.flagId)}`;
 
-    // The point of the grouped arm is that it updates SEVERAL rows, so the
-    // statement returns every one it changed — a result that read as "one flag
-    // changed" when sixteen did would be the failure the grouping ends.
+    // The grouped arm updates several rows, so the statement returns every one it changed.
     const changed = await tx.query<{ id: number }>(
       `UPDATE noticeos.flags
           ${setSql}
@@ -197,15 +153,9 @@ export async function applyFlagAction(
     );
     if (changed.length === 0) return null;
 
-    // AND THE TUNE IS ALSO ITS OWN ROW (bead `ro-6d1t`). The note above records
-    // THAT this alert was tuned and which setting last moved; a second tune
-    // overwrites it, so "tuned five times this quarter" was unanswerable.
-    // `flag_tunes` is one row per tune, in the same transaction.
-    //
-    // ONE ROW, against the flag the operator acted FROM. A grouped rule writes
-    // its disposition onto every open firing of the same condition at once,
-    // which is why the false-positive counts are counts of ALERTS; a count of
-    // TUNES has to be a count of decisions, and there was exactly one.
+    // The tune is also its own row: `flag_tunes` is one row per tune, in the
+    // same transaction, against the flag the operator acted from — a count of
+    // tunes is a count of decisions, and there was exactly one.
     if (action === "tune") {
       await recordFlagTune(tx, {
         flagId: target.flagId,

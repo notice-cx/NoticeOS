@@ -184,8 +184,8 @@ describe("item 3 — the first nightly report", () => {
     expect(report.note).toBe("First report arrived 9 days ago.");
   });
 
-  // D29 amended (ro-ujb9.121): a site that has never sent a report expects
-  // none, so the report is offered, never owed.
+  // A site that has never sent a report expects none, so the report is
+  // offered, never owed.
   it("is an optional offer when none has, linking to the site's Data collection card", () => {
     const report = item(
       checklist({ id: "new.example.com", latestReportAt: null, firstReportAt: null }),
@@ -214,8 +214,8 @@ describe("item 3 — the first nightly report", () => {
 });
 
 describe("item 4 — measured 28-day report coverage", () => {
-  // The note is the count the step waits on, beside its label "Report
-  // coverage · 28 days" — never how coverage is measured (bead ro-ujb9.96.6.10).
+  // The note is the count the step waits on, beside its label, never how
+  // coverage is measured.
   it("counts actual report dates as the count the step waits on", () => {
     const baseline = item(checklist(), "baseline");
     expect(baseline.state).toBe("pending");
@@ -355,7 +355,7 @@ describe("daysSince", () => {
   });
 });
 
-describe("an asset declared as sending no nightly report (ro-ujb9.96.8)", () => {
+describe("an asset declared as sending no nightly report", () => {
   it("drops both nightly-report steps instead of leaving them pending forever", () => {
     const list = checklist({
       noNightlyReport: true,

@@ -1,15 +1,13 @@
-// THE PURE ANSWERS ABOUT ONE OPEN ALERT that Home's Alerts list and /alerts
-// both read (bead `ro-trai.25`). They lived in `components/bands/AttentionBand`
-// beside a desk table no screen drew any more; the table left the Tower and the
-// answers moved here, unchanged, so a group cannot be a group on one surface and
-// four rows on another, and an alert files the same task wherever it is filed.
+// The pure answers about one open alert that Home's Alerts list and /alerts
+// both read, so a group cannot be a group on one surface and four rows on
+// another, and an alert files the same task wherever it is filed.
 
 import type { AttentionItem } from "@shared/wall";
 import { translateAlert } from "@shared/alert-language";
 import type { TaskHandoff } from "@/lib/task-handoff";
 
 /**
- * The sites behind a grouped row, as one hover string (`ro-kukv.6`).
+ * The sites behind a grouped row, as one hover string.
  *
  * A group's headline states the COUNT, not the names — four site names in a
  * row is the wall of text the group exists to remove. The names still have to
@@ -36,10 +34,9 @@ export function kindLabel(item: AttentionItem): string {
 }
 
 /**
- * The task an alert row files — the `alert` handoff kind (D19, bead
- * `ro-l1ed.4`).
+ * The task an alert row files: the `alert` handoff kind.
  *
- * The KEY is `flags.id`, not the rule id: a rule fires repeatedly on one site,
+ * The key is `flags.id`, not the rule id: a rule fires repeatedly on one site,
  * and only the flag id names the firing on screen. `rule:` carries the
  * `rule_id`, so `bd list -l rule:watch-window-closed` still gathers the family.
  *

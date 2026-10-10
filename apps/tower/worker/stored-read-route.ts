@@ -20,41 +20,24 @@ export async function handleStoredRead(request: Request, {
   store, config, compiledTimeZone,
 }: { store: WorkspaceStore; config: () => Promise<TowerConfig>; compiledTimeZone: string }): Promise<Response | null> {
   const url = new URL(request.url);
-  // What ALREADY CLOSED, across the portfolio (bead `ro-ju7f`). Deliberately
-  // not part of `/api/wall`: that payload is polled every 60s by a television
-  // and carries open work, while this is a paged archive an operator opens on
-  // purpose. Read-only — disposition and resolution stay on
-  // `PATCH /api/flags/:id` above.
+  // What already closed, across the portfolio: a paged archive, kept out of
+  // the Wall's 60-second poll.
   if (url.pathname === "/api/alerts/history") {
     return handleAlertHistoryRequest(request, url, store, { now: new Date() });
   }
 
-
-  // What each RULE has cost, per rule_id over the last quarter (bead
-  // `ro-ayxy`) — docs/15 flow E's false-positive rate, which had a write half
-  // since `ro-van6` and no reader. Deliberately not a field on `/api/settings`:
-  // that payload is a pure builder over config so an empty store cannot blank
-  // the page an operator opens to fix things, and this is evidence. The Tune
-  // panel on an alert row reads it too, where `/settings` is never loaded.
+  // What each rule has cost over the last quarter (alert-rules.ts).
   if (url.pathname === "/api/alerts/rules") {
     return handleAlertRuleStatsRequest(request, store, { now: new Date() });
   }
 
-
-  // The portfolio's accounting for an operator who is READING (ro-kukv.7).
-  // The Wall's ROI card is a glance and links here; this is everything that
-  // card deliberately cannot hold.
+  // The portfolio's accounting, in full; the Wall's ROI card links here.
   if (url.pathname === "/api/financials") {
-    // `?period=YYYY-MM` makes a month a LINK (bead `ro-69vb`) — the reader
-    // can send someone "look at August" rather than describing which
-    // dropdown to move. Absent, the payload picks the latest month with rows.
+    // `?period=YYYY-MM` makes a month a link. Absent, the payload picks the
+    // latest month with rows.
     const requestedPeriod = url.searchParams.get("period");
-    // BOTH REFUSALS CARRY THE MONTHS THAT EXIST (bead `ro-dm67`). A malformed
-    // value used to be turned away before the store was touched, which was
-    // cheap and left the page with nothing to offer but "the ledger did not
-    // answer". One read of a payload nobody asked for is a fair price for a
-    // dead bookmark landing on a list of live months instead of an error, and
-    // a mistyped month and a missing one are one situation to the reader.
+    // Both refusals carry the months that exist, so a dead bookmark lands on
+    // a list of live months; a mistyped month and a missing one are one case.
     const malformed =
       requestedPeriod !== null && !PERIOD_PATTERN.test(requestedPeriod);
     const cfg = await config();
@@ -71,9 +54,7 @@ export async function handleStoredRead(request: Request, {
       }
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
-      // A well-formed month the ledger has nothing for is a miss, not a
-      // failure — and it comes back with the months that DO exist, so a
-      // stale bookmark is one click from something real.
+      // A well-formed month the ledger has nothing for is a miss, not a failure.
       if (err instanceof PeriodNotFound) {
         return jsonError("period_not_found", 404, { periods: err.periods });
       }
@@ -85,15 +66,14 @@ export async function handleStoredRead(request: Request, {
     }
   }
 
-
-  // Every portfolio-wide knob on one page (bead `ro-pbzu.2`). The pure builder
+  // Every portfolio-wide knob on one page. The pure builder
   // receives resolved store-first configuration, with compiled fallbacks, and
   // the bounded clock-selection read below. Missing evidence keeps the clock
   // chosen instead of inventing a proposal.
   if (url.pathname === "/api/settings") {
     const cfg = await config();
-    // The one store read here, and a total one (bead `ro-ujb9.134`): an
-    // unanswered read leaves the clock "chosen", so nothing is proposed.
+    // The one store read here, and a total one: an unanswered read leaves the
+    // clock "chosen", so nothing is proposed.
     const everSaved = await timeZoneEverSaved(store);
     const payload = buildSettingsPayload({
       now: new Date(),
@@ -113,14 +93,12 @@ export async function handleStoredRead(request: Request, {
     return Response.json(payload, { headers: JSON_HEADERS });
   }
 
-
-  // The Wall's live feed (bead `ro-trai.6`): its own 30-second poll, apart
+  // The Wall's live feed: its own 30-second poll, apart
   // from `/api/wall`, so a slow union never delays the rest of the TV.
   if (url.pathname === "/api/wall/feed") {
     const cfg = await config();
     return handleWallFeedRequest(request, url, store, { now: new Date(), osTimeZone: cfg.osTimeZone });
   }
-
 
   if (url.pathname === "/api/wall") {
     const cfg = await config();
@@ -140,7 +118,7 @@ export async function handleStoredRead(request: Request, {
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       // Surface a clean error; the client keeps its last-good payload and
-      // ages the badges rather than blanking (doc 10).
+      // ages the badges rather than blanking.
       const message = err instanceof Error ? err.message : String(err);
       return new Response(JSON.stringify({ error: "wall_assembly_failed", message }), {
         status: 500,
@@ -152,8 +130,7 @@ export async function handleStoredRead(request: Request, {
   if (url.pathname === "/api/integrations") {
     const cfg = await config();
     try {
-      // Reads only: the hourly tick records each source's day (tower-cron.ts,
-      // bead ro-ujb9.96.7.31).
+      // Reads only: the hourly tick records each source's day (tower-cron.ts).
       const payload = await buildIntegrationsMatrix(store, integrationsDeps(cfg, new Date()));
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
@@ -165,9 +142,8 @@ export async function handleStoredRead(request: Request, {
     }
   }
 
-
   // Which task source every task screen shows, and each source's row on
-  // Integrations (D32, bead `ro-ujb9.143`). Connected is derived from the
+  // Integrations. Connected is derived from the
   // source's own reading (`./task-source`); the saved projects only tell a
   // row that is being set up from one nobody has started.
   if (url.pathname === "/api/task-source") {
@@ -184,7 +160,6 @@ export async function handleStoredRead(request: Request, {
       });
     }
   }
-
 
   // The task board (desk-only), through the connected task source: for the
   // beads hub, the newest snapshot the local runner filed. An installation
@@ -211,8 +186,8 @@ export async function handleStoredRead(request: Request, {
         headers: JSON_HEADERS,
       });
     }
-    // `?view=<tab>` is one tab's read (bead `ro-ujb9.64`,
-    // shared/asset-detail-views); no view is the whole page.
+    // `?view=<tab>` is one tab's read (shared/asset-detail-views); no view is
+    // the whole page.
     const view = url.searchParams.get("view");
     if (view !== null && !isAssetDetailView(view)) {
       return new Response(JSON.stringify({ error: "unknown_view", view }), {

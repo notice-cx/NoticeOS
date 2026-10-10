@@ -1,4 +1,4 @@
-// Direct Postgres site fixtures: every test owns its copy (ro-ujb9.76.40.2).
+// Direct Postgres site fixtures: every test owns its copy.
 import type { WorkspaceStore } from "@noticeos/postgres";
 import type { TestStore } from "./postgres-store";
 

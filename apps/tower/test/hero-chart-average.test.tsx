@@ -113,9 +113,9 @@ describe("HeroChart completed-report averages", () => {
     render(<HeroChart range={7} series={[{ name: "Google", points: reports(2) }]} formatValue={(value) => value.toFixed(1)} />);
     fireEvent.focus(screen.getByRole("group", { name: "Explore Google values" }));
     expect(screen.getByRole("status")).toHaveTextContent("7-day avg: 1.5 · 2/7 reported daysReported: 2.0");
-    // The chart keys itself (bead ro-ujb9.96.6.12): the legend names the bold
-    // line, the readout above counts the reports each average used, and no
-    // methodology paragraph sits behind an info icon.
+    // The chart keys itself: the legend names the bold line, the readout above
+    // counts the reports each average used, and no methodology paragraph sits
+    // behind an info icon.
     expect(screen.getByRole("list")).toHaveTextContent("7-day average");
     expect(screen.queryByRole("button", { name: "About this chart" })).toBeNull();
   });

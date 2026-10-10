@@ -1,18 +1,8 @@
-// The settings this bundle was compiled with — injected at build time from the
-// repo config files by vite.config.ts (and by the journey fixture's own
-// defines, apps/tower/e2e/fixtures.ts `INJECTED`).
-//
-// THEY ARE THE FALLBACK NOW, NOT THE SOURCE (epic `ro-syok`, db/0029). Every
-// setting below is resolved from the store at REQUEST time, with the compiled
-// copy answering when the store holds no document for that file — which is what
-// makes an unseeded install behave exactly as it did before, and what lets a
-// deployed Tower save a setting at all. `config-source.ts` owns the resolution;
-// these stay because a Worker with an empty or unreachable store still has to
-// render the page an operator opened to fix things.
-//
-// Its own module so a request and a scheduled tick (tower-cron.ts, bead
-// `ro-ujb9.96.7.31`) resolve settings from the same compiled copy, and the
-// journey fixture runs the tick exactly as the Worker does.
+// The settings this bundle was compiled with, injected by vite.config.ts (and
+// by apps/tower/e2e/fixtures.ts `INJECTED`). They are the fallback, not the
+// source: `config-source.ts` resolves each setting from the store per request
+// and answers with these only when the store holds no document, so a Worker
+// with an empty or unreachable store can still render the page that fixes it.
 
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
 import type {
@@ -47,7 +37,7 @@ declare const __VALUE_EVENTS__: ValueEventsConfig;
 declare const __GA4_EVENT_PARAMS__: Ga4EventParamsConfig;
 declare const __DOMAIN_COSTS__: DomainOrder[];
 declare const __RECURRING_COSTS__: RecurringCost[];
-// Which legal entity owns which assets (config/entities.json, bead `ro-aodz`).
+// Which legal entity owns which assets (config/entities.json).
 declare const __ENTITIES__: EntityRow[];
 // config/beads.json, spokes only — the hub connection never leaves this machine.
 declare const __BEADS__: BeadsConfig;

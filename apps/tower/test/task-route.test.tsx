@@ -7,18 +7,10 @@ import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
 import { validateDemoViewer } from '@shared/demo-viewer';
 
-// `/tasks/:id` — one bead, whole (D19, bead `ro-l1ed.3`).
-//
-// What is asserted here is the page's promise: it renders what the hub holds,
-// an edit WRITES and the toast's Undo writes the previous value back, a close
-// carries its evidence, and the two states that are not a task — an id the hub
-// has never heard of, and a deployment with no lane — say so rather than
-// spinning or erroring.
-//
-// The NETWORK is mocked, not the hooks: the real `useTask` / `useUpdateTask` /
-// `useCloseTask` run against fake `@/lib/api` functions, so what the test proves
-// is the request the page actually makes. Sonner is mocked because the toast is
-// not the subject — except for its Undo, which is the subject twice over.
+// `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
+// `useTask` / `useUpdateTask` / `useCloseTask` run against fake `@/lib/api`
+// functions. Sonner is mocked because the toast is not the subject, except for
+// its Undo.
 
 const api = vi.hoisted(() => ({
   fetchTasksCapabilities: vi.fn(),
@@ -57,8 +49,6 @@ import { TaskRoute } from "@/routes/TaskRoute";
 import { statusFace } from "@/routes/tasks/task-face";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 const ID = "ro-l1ed.3";
@@ -119,8 +109,8 @@ function detail(over: Partial<LiveTaskDetail> = {}): LiveTaskDetail {
   };
 }
 
-/** The project's board — where the two facts a single bead's own read cannot
- * carry come from: what it BLOCKS, and the epic's all-time child progress. */
+/** The project's board, where the two facts a single task's own read cannot
+ * carry come from: what it blocks, and the epic's all-time child progress. */
 function board(): LiveTasksPayload {
   return {
     project: "root-os",
@@ -399,7 +389,7 @@ describe("the core task page before the snapshot hub status answers", () => {
   });
 });
 
-describe("a task's status looks the same here as on the board (bead ro-ujb9.202)", () => {
+describe("a task's status looks the same here as on the board", () => {
   it.each([["closed"], ["in_progress"], ["marinating"]])("draws %s from the board's own status face", async (stored) => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: stored }) }));
     const { container } = renderTask();
@@ -409,35 +399,29 @@ describe("a task's status looks the same here as on the board (bead ro-ujb9.202)
     const word = within(header).getByText(face.label);
     expect(word).toHaveAttribute("data-task-status", face.key);
     const chip = word.closest("[data-status-for]") as HTMLElement;
-    // The chip's tone is the one the board's State cell inks its word with.
     expect(chip.className).toContain(STATE_TONE[face.tone].chip.split(" ").at(-1)!);
     expect(chip.querySelector(`[data-task-status-glyph="${face.key}"]`)).not.toBeNull();
-    // A closed task wears no green on its page either.
     expect(chip.className).not.toContain("healthy");
   });
 });
 
 describe("the task page", () => {
-  it("renders the bead, its dependencies, its epic and its conversation", async () => {
+  it("renders the task, its dependencies, its epic and its conversation", async () => {
     const { container } = renderTask();
 
     expect(await screen.findByText("A task has a page")).toBeInTheDocument();
-    // The id is beside the title, not instead of it: it is what a commit quotes.
     expect(screen.getAllByText(ID).length).toBeGreaterThan(0);
 
-    // State is a glyph-led chip in the header, and that chip is the page's ONE
-    // display of the fact — which is why the facts panel below carries the
-    // control and no second chip beside it (doc 14).
+    // The state chip in the header is the page's one display of the fact, so
+    // the facts panel below carries the control and no second chip.
     const header = container.querySelector("[data-page-header]") as HTMLElement;
     expect(within(header).getByText("In progress")).toBeInTheDocument();
     expect(within(header).getByText("high priority")).toBeInTheDocument();
-    // Priority is a rank, not a severity (doc 14, bead ro-ujb9.200): the chip
-    // leads with the board row's own mark and wears no attention hue.
+    // Priority is a rank, not a severity: the chip wears no attention hue.
     const priorityChip = within(header).getByText("high priority").closest("[data-status-for]")!;
     expect(priorityChip.querySelector("[data-priority-mark]")).toHaveAttribute("data-priority-mark", "high");
     expect(priorityChip.className).not.toMatch(/\b(text|bg|border)-(error|warn|info)\b/);
 
-    // Markdown, rendered as structure rather than a wall of asterisks.
     expect(screen.getByRole("heading", { level: 3, name: "What" })).toBeInTheDocument();
     expect(screen.getByText("the fields")).toBeInTheDocument();
     expect(container.querySelector("code")?.textContent).toBe("bd show");
@@ -446,11 +430,8 @@ describe("the task page", () => {
       screen.getByText("Renders the fields, the comments and where it came from."),
     ).toBeInTheDocument();
 
-    // The project's board is a second read, and the two facts a single bead
-    // cannot carry — what it BLOCKS, and the epic's progress — arrive with it.
     await screen.findByText("Blocks");
     const facts = container.querySelector("[data-task-facts]") as HTMLElement;
-    // The project links to its asset page; the type is a plain fact.
     expect(within(facts).getByRole("link", { name: /NoticeOS/ })).toHaveAttribute(
       "href",
       "/assets/root-os",
@@ -458,8 +439,6 @@ describe("the task page", () => {
     expect(within(facts).getByText("task")).toBeInTheDocument();
     expect(within(facts).getByText("tower")).toBeInTheDocument();
 
-    // The blocker it depends on, and the bead it blocks — opposite directions,
-    // both linking to their own page.
     expect(within(facts).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
       "href",
       "/tasks/ro-l1ed.1",
@@ -468,12 +447,9 @@ describe("the task page", () => {
       "href",
       "/tasks/ro-l1ed.4",
     );
-    // A closed blocker is out of the way, and the glyph says so — the board's
-    // own status glyph, in its quiet ink (bead ro-ujb9.202).
     const closedBlocker = within(facts).getByLabelText("State — Closed");
     expect(closedBlocker.getAttribute("class")).toContain("text-muted-foreground");
 
-    // The parent epic with its all-time child progress.
     expect(
       within(facts).getByRole("link", { name: "Tasks are managed in the Tower" }),
     ).toHaveAttribute("href", "/tasks/ro-l1ed");
@@ -483,7 +459,6 @@ describe("the task page", () => {
     );
     expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument();
 
-    // The conversation, and the activity timeline under it.
     const comments = container.querySelector("[data-task-comments]") as HTMLElement;
     expect(within(comments).getByText("Example Operator")).toBeInTheDocument();
     expect(within(comments).getByText("Ship the facts panel first.")).toBeInTheDocument();
@@ -496,11 +471,9 @@ describe("the task page", () => {
     expect(within(activity).getByText("Comment from Example Operator")).toBeInTheDocument();
   });
 
-  // `ro-kukv.12`, doc 14 rule 6. Every place `Age` renders pairs it with a word
-  // that needs it — created, updated, an author, an event label — so all four
-  // are labelled value slots rather than the dense table cells rule 6 exempts.
-  // A bare em-dash after "created" reads as a rendering failure; the phrase
-  // reads as the fact. `formatAge` keeps its own dash, untouched.
+  // Every place `Age` renders pairs it with a word that needs it, so a bare
+  // em-dash after "created" reads as a rendering failure. `formatAge` keeps
+  // its own dash.
   it("names an absent age in words rather than drawing a dash", async () => {
     api.fetchTask.mockResolvedValue(
       detail({
@@ -520,9 +493,8 @@ describe("the task page", () => {
     );
     expect(facts.textContent).not.toContain("—");
 
-    // One phrase, and the TITLE says which absence it is: neither of these is
-    // "never" — the task was created and the comment was written; the hub
-    // simply recorded no time.
+    // The title says which absence it is: the task was created and the
+    // comment was written; the hub simply recorded no time.
     for (const slot of container.querySelectorAll('[data-age="missing"]')) {
       expect(slot.getAttribute("title")).toBe("No time is recorded for this");
     }
@@ -550,14 +522,13 @@ describe("the task page", () => {
 
     const back = within(facts).getByRole("link", { name: "the findings on meals.example" });
     expect(back).toHaveAttribute("href", "/assets/meals.example#insights");
-    // The join key travels byte-exact, which is the whole point of the grammar.
     expect(within(facts).getByText(/organic-clicks-fell/)).toBeInTheDocument();
     expect(container.textContent).toContain("traffic-warning");
   });
 
-  // The fixture above is a bead filed BEFORE the NoticeOS rename (reindex_*
-  // metadata, the reindex-handoff label); this is one filed after it. Both link
-  // back the same way (bead ro-ujb9.77.4).
+  // The fixture above is a task filed under the legacy handoff grammar
+  // (reindex_* metadata, the reindex-handoff label); this one uses the current
+  // names. Both link back the same way.
   it("links a handoff filed under the NoticeOS names back the same way", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({
       labels: ["noticeos-handoff"],
@@ -577,7 +548,7 @@ describe("the task page", () => {
     expect(container.textContent).toContain("recover");
   });
 
-  it("says nothing about an origin when the bead carries no handoff metadata", async () => {
+  it("says nothing about an origin when the task carries no handoff metadata", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ metadata: null }) }));
     renderTask();
     await screen.findByText("A task has a page");
@@ -647,7 +618,6 @@ describe("the task page", () => {
     renderTask();
     await screen.findByText("A task has a page");
 
-    // Bead ro-ujb9.96.6.11: no sentence quoting `bd update --description`.
     expect(document.body.textContent).not.toContain("--description");
     fireEvent.click(screen.getByRole("button", { name: /Add a description/ }));
     fireEvent.change(screen.getByLabelText("Description"), { target: { value: "What, why, where." } });
@@ -656,7 +626,6 @@ describe("the task page", () => {
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { description: "What, why, where." }),
     );
-    // The same way back every field has.
     pressUndo();
     await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { description: "" }));
     expect(screen.getByRole("button", { name: /Add when it is done/ })).toBeInTheDocument();
@@ -676,18 +645,15 @@ describe("the task page", () => {
   it("will not close without a reason, and closes with one", async () => {
     renderTask();
     // The header renders before the lane has answered, and until it does the
-    // actions are the refused ones — so wait for the live bead rather than
-    // clicking a Close that is still disabled.
+    // actions are the refused ones, so wait for the live task.
     await screen.findByText("A task has a page");
 
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     const confirm = screen.getByRole("button", { name: "Close task" });
-    // The field's label asks for what closes it; no footnote under the buttons.
     expect(screen.getByText("What shipped, and the commit")).toBeInTheDocument();
     expect(screen.queryByText(/Closing records a decision/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Closed means shipped/)).not.toBeInTheDocument();
-    // Completion is evidence: the button that writes stays disabled until there
-    // is something to write.
+    // The button that writes stays disabled until there is something to write.
     expect(confirm).toBeDisabled();
     expect(api.closeTask).not.toHaveBeenCalled();
 
@@ -719,7 +685,7 @@ describe("the task page", () => {
     );
   });
 
-  it("offers Claim on an open, unclaimed bead", async () => {
+  it("offers Claim on an open, unclaimed task", async () => {
     api.fetchTask.mockResolvedValue(
       detail({ task: task({ status: "open", assignee: null, startedAt: null }) }),
     );
@@ -762,21 +728,17 @@ describe("the task page", () => {
     state.work = work([snapshotItem()]);
     renderTask();
 
-    // The header still identifies the task from the photograph.
     expect(await screen.findByText("A task has a page")).toBeInTheDocument();
     expect(screen.getByText("Open")).toBeInTheDocument();
-    // What happened, then what to do — one banner, not two paragraphs.
     expect(screen.getByText("Read-only snapshot")).toBeInTheDocument();
     expect(document.querySelector("[data-task-readonly] [role=status]")).toHaveTextContent(READ_ONLY_TASKS_HINT);
     expect(document.querySelector("[data-owner-chip]")).toBeNull();
 
-    // The two primary actions are present and refused, with what to do on them.
     const claim = screen.getByRole("button", { name: "Claim" });
     expect(claim).toBeDisabled();
     expect(claim).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
-    // And nothing pretends the live read happened.
     expect(api.fetchTask).not.toHaveBeenCalled();
     expect(screen.queryByLabelText("Add a comment")).toBeNull();
   });
@@ -796,9 +758,8 @@ describe("the task page", () => {
 });
 
 // A task waiting on the operator offers the verbs its inbox row offers, from
-// the same definition (routes/tasks/ask-actions, bead ro-ujb9.243): Claim and
-// Close were the wrong commands for a gate or an ask.
-describe("a waiting task's page offers what its inbox row offers (bead ro-ujb9.243)", () => {
+// the same definition (routes/tasks/ask-actions).
+describe("a waiting task's page offers what its inbox row offers", () => {
   const gate = () => task({ issueType: "gate", awaitType: "human", status: "open", assignee: null, labels: ["human"], startedAt: null });
   const ask = () => task({ status: "open", assignee: null, labels: ["human"], ready: true, startedAt: null });
   const header = () => within(document.querySelector<HTMLElement>("[data-page-header]")!);
@@ -811,7 +772,6 @@ describe("a waiting task's page offers what its inbox row offers (bead ro-ujb9.2
     const approve = await header().findByRole("button", { name: "Approve" });
     expect(headerButtons()).toEqual(["Approve"]);
     fireEvent.click(approve);
-    // The inbox's own path: the toast names it with Undo, and the verb leaves.
     expect(toasts.success).toHaveBeenCalledWith("Approved", expect.objectContaining({ description: "A task has a page" }));
     expect(header().queryByRole("button", { name: "Approve" })).toBeNull();
     expect(api.resolveGate).not.toHaveBeenCalled();

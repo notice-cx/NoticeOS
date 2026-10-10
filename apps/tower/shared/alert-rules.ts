@@ -1,50 +1,23 @@
-// The FALSE-POSITIVE RATE contract — per rule, how often the operator answered
-// an alert by making the rule quieter (docs/15 flow E, bead `ro-ayxy`).
-//
-// WHAT THE NUMBER IS. Over SETTLED flags (`@noticeos/contract`'s
-// `settledFlagsSql`), grouped by `rule_id`, the share carrying
-// `disposition='tune'`: "of the N alerts this rule produced that are now
-// finished with, the operator answered M of them by changing the rule". `tune`
-// is the only disposition that says the ALERT was the problem — ack and resolve
-// are statements about the event, and a snooze is a statement about timing.
-//
-// WHY IT IS A SEPARATE CONTRACT FROM `shared/settings.ts`. The settings payload
-// is a PURE builder over config, deliberately: nothing on that page is evidence,
-// so an empty or down database must not be able to blank the page an operator
-// opens to fix things. These counts are the opposite — they are evidence, they
-// need the store, and they are read by a second surface that never loads
-// `/settings` at all (the Tune panel on an alert row). So they travel on their
-// own read, and the two payloads keep their own failure modes.
-//
-// ONE LIMIT STILL TRAVELS WITH THE NUMBER, stated on the surface rather than
-// buried here, and it makes `tuned` a LOWER bound: a decision on a rule in
-// `RECURRING_CONDITION_RULES` is recorded on every open firing of the same
-// condition at once (`worker/flag-actions.ts`), so these are counts of ALERTS,
-// not of separate decisions.
-//
-// THE SECOND LIMIT IS FIXED as of bead `ro-bkcl`. `flags.disposition` still
-// holds ONE decision, but a decision landing on a tuned row now carries the
-// tune into the note behind `shared/tune.ts`'s mark, and the numerator asks
-// "was this ever tuned" (`worker/flag-scope.ts`'s `everTunedSql`) rather than
-// "does it say tune now". The operator who tunes the rule AND clears the alert
-// is no longer the one whose tune is forgotten.
-//
-// The third count comes from one `noticeos.flag_tunes` row per decision.
+// The false-positive rate contract — per rule, how often the operator
+// answered an alert by making the rule quieter: over settled flags
+// (`settledFlagsSql`), grouped by `rule_id`, the share the operator ever
+// tuned. `tune` is the only disposition that says the alert was the problem.
+// A separate contract from `shared/settings.ts` because these counts are
+// evidence that needs the store, read by a second surface (the Tune panel on
+// an alert row). `tuned` is a lower bound: a decision on a rule in
+// `RECURRING_CONDITION_RULES` lands on every open firing of the condition at
+// once (`worker/flag-actions.ts`), so these count alerts, not decisions. The
+// numerator asks "was this ever tuned" (`worker/flag-scope.ts`'s
+// `everTunedSql`), since a later decision keeps the tune in the note.
 
-/** How far back the counts look, in days. One quarter: long enough that a rule
- * firing weekly has something to average, short enough that a threshold changed
- * two quarters ago is not still being judged on the alerts it produced before
- * the change. */
+/** How far back the counts look, in days: long enough that a rule firing
+ * weekly has something to average, short enough that an old threshold is not
+ * still being judged. */
 export const ALERT_RULE_WINDOW_DAYS = 90;
 
-/**
- * One rule's record over the window, in counts of FLAG ROWS.
- *
- * `settled` is the denominator the rate is read against, and it is not `fired`:
- * an alert nobody has finished with has not been answered by anything yet, and
- * putting it in the denominator would read every fresh firing as evidence the
- * rule is fine.
- */
+/** One rule's record over the window, in counts of flag rows. `settled` is
+ * the denominator, not `fired`: an alert nobody has finished with has not been
+ * answered yet. */
 export interface AlertRuleStat {
   /** `flags.rule_id` — the identity, and the only field the store guarantees. */
   ruleId: string;
@@ -52,27 +25,13 @@ export interface AlertRuleStat {
   fired: number;
   /** Of those, the ones that are settled at the moment of the read. */
   settled: number;
-  /**
-   * Of the settled, the ones the operator ever tuned. The numerator.
-   *
-   * "Ever", not "still says tune": a tuned alert that was later marked read or
-   * parked keeps its tune in the note (bead `ro-bkcl`), and counting only the
-   * live disposition dropped exactly the alerts the most diligent operator had
-   * dealt with twice. It follows that this and {@link acknowledged} OVERLAP —
-   * one alert, two true facts — so the four counts do not partition `settled`
-   * and nothing may sum them.
-   */
+  /** Of the settled, the ones the operator ever tuned. The numerator. "Ever",
+   * not "still says tune", so this and {@link acknowledged} overlap and the
+   * counts do not partition `settled`. */
   tuned: number;
-  /**
-   * Tuned and NOT YET SETTLED — a tune keeps the row in the queue by design
-   * (`flag-open.ts`), and a tuned row the operator then snoozed is parked, not
-   * settled — so these are answers the operator has already given that the rate
-   * above cannot count yet.
-   *
-   * Carried rather than folded in, because folding it in would be a second
-   * arithmetic for one fact; shown beside the rate, it stops a rule the operator
-   * tuned three times this week from reading as 0%.
-   */
+  /** Tuned and not yet settled — a tune keeps the row in the queue
+   * (`flag-open.ts`), so these are answers the rate above cannot count yet.
+   * Shown beside the rate, never folded in. */
   tunedOpen: number;
   /** Of the settled, the ones marked read (`disposition='ack'`). */
   acknowledged: number;
@@ -81,21 +40,14 @@ export interface AlertRuleStat {
    * `settled - tuned - acknowledged - resolved` and is deliberately not a
    * fourth field nobody reads. */
   resolved: number;
-  /**
-   * HOW MANY TIMES this rule was tuned in the window — a count of DECISIONS,
-   * where every other field here is a count of ALERTS (bead `ro-6d1t`).
-   *
-   * Its window is `tuned_at` rather than `fired_at`: "tuned five times this
-   * quarter" is a question about the operator's quarter, and a rule tuned in
-   * March that has been quiet since would otherwise read as never tuned.
-   */
+  /** How many times this rule was tuned in the window — a count of decisions,
+   * where every other field is a count of alerts. Its window is `tuned_at`
+   * rather than `fired_at`. */
   tunes: number;
 }
 
 /** `GET /api/alerts/rules` — every rule that fired in the window, noisiest
- * first. A rule that has never fired is ABSENT rather than a row of zeros: the
- * store has nothing to say about it, and a zero here would read as "this rule
- * has never been a problem". */
+ * first. A rule that has never fired is absent rather than a row of zeros. */
 export interface AlertRuleStatsPayload {
   generatedAt: string;
   /** {@link ALERT_RULE_WINDOW_DAYS}, so the caption states its own scope. */
@@ -105,57 +57,27 @@ export interface AlertRuleStatsPayload {
   rules: AlertRuleStat[];
 }
 
-/**
- * The share of this rule's settled alerts the operator answered by tuning, 0–1.
- *
- * `null` when nothing has settled — which is a different fact from zero, and the
- * surface says so instead of drawing an empty bar that reads as "this rule has
- * never been wrong".
- */
+/** The share of this rule's settled alerts the operator answered by tuning,
+ * 0–1. `null` when nothing has settled, which is a different fact from zero. */
 export function tuneShare(stat: AlertRuleStat): number | null {
   if (stat.settled <= 0) return null;
   return stat.tuned / stat.settled;
 }
 
-// --- WHEN THE OS PROPOSES QUIETENING A RULE ITSELF (bead `ro-bgny`) --------
-//
-// docs/15 flow E has promised since it was written that "rules above ~40% FP
-// get auto-proposed for tuning (Learn eating its own telemetry)". The rate has
-// been measured and rendered since `ro-ayxy` and nothing acted on it: the
-// operator read the figure and remembered the threshold, which is the manual
-// half of a loop the doc describes as automatic.
-//
-// THE PROPOSAL MAY NEVER APPLY ITSELF. Guardrail thresholds are operator-only
-// and forever-forbidden on the autonomy ladder (AGENTS.md HARD INVARIANTS) —
-// an agent that can edit the ruler eventually will. So what crossing the line
-// produces is a SENTENCE with two answers, on the surfaces where the tuning
-// already happens, and never a saved value.
-//
-// IT IS BUILT ON A FLOOR, ON PURPOSE. One decision still covers every open
-// firing of a repeating condition, so the measured share understates how often
-// the operator actually answered by tuning. A threshold on a floor UNDER-fires,
-// which is the direction a proposal that cannot apply itself should err in: the
-// cost of a proposal that arrives a quarter late is a rule the operator tunes
-// by hand once more, and the cost of one that arrives early is the OS nagging
-// about a rule it has no evidence against.
+// --- when the OS proposes quietening a rule itself ---------------------------
+// The proposal never applies itself: guardrail thresholds are operator-only,
+// so crossing the line produces a sentence with two answers, never a saved
+// value. It is built on a floor on purpose: the measured share understates
+// how often the operator answered by tuning, and a proposal that cannot apply
+// itself should under-fire.
 
-/**
- * The share of settled alerts answered by tuning at which the OS says
- * something. Declared ONCE, here, beside the arithmetic it is compared against
- * — docs/15 flow E's "~40%" is prose about this constant, not a second copy.
- */
+/** The share of settled alerts answered by tuning at which the OS says
+ * something. */
 export const TUNE_PROPOSAL_SHARE = 0.4;
 
-/**
- * How many settled alerts a rule needs before the share means anything.
- *
- * Five, and the reason is the smallest number at which the threshold is not an
- * accident: with two settled alerts one tune is 50% and the OS would propose
- * quietening a rule on the strength of a single click. At five, crossing 40%
- * takes two independent decisions the operator made on two different alerts.
- * It is stated on the surface rather than kept here, because a proposal that
- * did not say what evidence it waits for is a threshold nobody can argue with.
- */
+/** How many settled alerts a rule needs before the share means anything:
+ * at five, crossing 40% takes two independent decisions on two different
+ * alerts. */
 export const TUNE_PROPOSAL_MIN_SETTLED = 5;
 
 /** What the OS proposes, and the counts it read to get there — carried rather
@@ -169,13 +91,9 @@ export interface TuneProposalFacts {
   settled: number;
 }
 
-/**
- * Does this rule cross the line — and is there enough of it to act on?
- *
- * `null` for every other case, including the two that look like a rate and are
- * not: a rule with nothing settled has no share at all, and a rule with three
- * settled alerts has one the OS is not entitled to an opinion about.
- */
+/** Does this rule cross the line, and is there enough of it to act on?
+ * `null` otherwise, including a rule with nothing settled and one with too few
+ * settled alerts. */
 export function tuneProposal(
   stat: AlertRuleStat | null | undefined,
 ): TuneProposalFacts | null {
@@ -191,14 +109,8 @@ export function tuneProposal(
   };
 }
 
-/**
- * One rule's row out of the payload — `null` when the read has not answered
- * yet, failed, or holds nothing for this rule.
- *
- * Both surfaces look their rule up through this, so "the read said nothing about
- * this rule" and "the read never arrived" cannot be told apart differently on
- * the settings page and on the alert row: neither licenses a number.
- */
+/** One rule's row out of the payload — `null` when the read has not answered
+ * yet, failed, or holds nothing for this rule. Neither licenses a number. */
 export function findRuleStat(
   payload: AlertRuleStatsPayload | null | undefined,
   ruleId: string,
@@ -206,14 +118,9 @@ export function findRuleStat(
   return payload?.rules.find((rule) => rule.ruleId === ruleId) ?? null;
 }
 
-/**
- * The rule ids in the operator's words.
- *
- * These are LABELS, not descriptions: the sentence explaining what each rule
- * looks for is `shared/alert-language.ts`'s job, once, on the alert itself. A
- * rule this map has never heard of renders its own id — a new rule shipping from
- * the ingest lane degrades to the identity the store holds, never to a blank.
- */
+/** The rule ids in the operator's words. Labels, not descriptions: what each
+ * rule looks for is `shared/alert-language.ts`'s job. A rule this map has
+ * never heard of renders its own id. */
 export const RULE_LABELS: Record<string, string> = {
   "flow-poisson-low": "Drop at normal volume",
   "flow-lowvol-window": "Drop at low volume",

@@ -29,7 +29,7 @@ export function IntegrationLogo({
     : undefined;
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const showLogo = source !== undefined && source !== failedSource;
-  // The beads task hub (D32) wears the Tasks glyph the sidebar uses.
+  // The task hub wears the Tasks glyph the sidebar uses.
   const Icon = provider === "calendar" ? CalendarDays : provider === BEADS ? ListTodo : Plug;
   return (
     <span

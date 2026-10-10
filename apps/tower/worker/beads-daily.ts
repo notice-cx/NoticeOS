@@ -1,17 +1,7 @@
-// The one reader of the task hub's daily counts (db/migrations/0032, bead
-// `ro-78qo.23`; on Postgres, `noticeos.task_daily_counts`, since bead
-// ro-ujb9.76.4.3) — the daily rollup that puts a trend behind the Tasks
-// strip's six numbers.
-//
-// Its sibling `./beads-snapshot` reads the newest PHOTOGRAPH, which is what is
-// happening now. This reads the ROLLUP, which is what has been happening. Two
-// tables, two questions, and the split is on purpose: the photograph is a cache
-// of the hub's present state and is pruned inside a week, while these rows are
-// the only record there will ever be of a past day — the hub itself holds no
+// The one reader of `noticeos.task_daily_counts`, the rollup behind the Tasks
+// strip's trend. `./beads-snapshot` reads the present and is pruned within a
+// week; these rows are the only record of a past day, since the hub keeps no
 // history of its own counts.
-//
-// A migrated store always has the table: an empty history means the rollup
-// has no days yet.
 
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { type WorkCountsHistory, emptyWorkHistory } from "../shared/work";
@@ -37,7 +27,7 @@ export interface BeadsDailyHistory {
 
 /** How many ids the day's closed set holds, or null when the day's closings
  * were never observable (the column is NULL, or holds something that is not a
- * list of ids any more). Null is a GAP in the series, never a zero. */
+ * list of ids). Null is a gap in the series, never a zero. */
 function closedCount(stored: string | null): number | null {
   if (stored === null) return null;
   let parsed: unknown;
@@ -50,18 +40,9 @@ function closedCount(stored: string | null): number | null {
 }
 
 /**
- * Every day the rollup holds, per project.
- *
- * ONE READ FOR THE WHOLE WINDOW. 400 days across six projects is 2,400 rows of
- * seven small columns — smaller than the single snapshot payload the sibling
- * reader already parses on every request, and the alternative (a query per
- * project) would be six round trips to save nothing.
- *
- * A NULL COUNT DOES NOT BECOME A POINT. `waiting` and `urgent` are null on the
- * days a poller did not measure them and `closed` on the days whose closings
- * were not observable; each of those is a day MISSING from that one series
- * while the other five keep it. Pushing a zero instead would draw a queue that
- * emptied on the day nobody looked (doc 14 principle 8).
+ * Every day the rollup holds, per project, in one read. A null count is a day
+ * missing from that one series, never a zero: a zero would draw a queue that
+ * emptied on the day nobody looked.
  */
 export async function loadBeadsDailyHistory(store: WorkspaceStore): Promise<BeadsDailyHistory> {
   const rows = await store.read((tx) =>

@@ -1,22 +1,8 @@
-// What makes an open flag CURRENT — derived, never assumed (bead `ro-wlq5`).
-//
-// THE PROBLEM THIS EXISTS TO FIX. A `flags` row records that a rule fired at a
-// moment. Confirmation timestamps exist for some rules in `rule_inputs`, but
-// an unresolved row alone does not prove a recent evaluation. The asset
-// page then rendered open rows under the heading "Current signals", which is a
-// claim the data cannot support: it showed "Revert decision needed" from nine
-// days ago and "4300 signups" from fifty-six beside each other, both styled as
-// live, both offering a Resolve button. The operator stopped trusting the
-// surface, correctly.
-//
-// WHAT IS ACTUALLY BROKEN IS NARROWER THAN IT LOOKS. Most rules already resolve
-// themselves: the central flow rules resolve the prior open event on each new
-// reading, and hygiene, egress and the GA4 quota lane each clear their own flag
-// when the condition ends. Those are already frontends to their source of
-// truth, and this module must not second-guess them.
-//
-// So a rule declares what confirms it, and the read model asks that source
-// rather than trusting the row.
+// What makes an open flag current: derived, never assumed. A `flags` row only
+// records that a rule fired; an unresolved row does not prove a recent
+// evaluation. So a rule declares what confirms it, and the read model asks that
+// source rather than trusting the row. Rules that resolve their own flags are
+// not second-guessed.
 
 /**
  * Where a flag's continued truth comes from.
@@ -28,7 +14,7 @@
  *   the asset's LATEST pulse.
  * - `decision-owed` — a one-shot verdict. The evaluation is finished; what is
  *   outstanding is a human decision, and its truth lives wherever that decision
- *   is recorded (a bead, a `decisions` row).
+ *   is recorded (a task, a `decisions` row).
  * - `historical` — an event that happened. Never still-true, never
  *   no-longer-true, never actionable.
  */
@@ -39,12 +25,9 @@ export type SignalClass =
   | "historical";
 
 /**
- * Rules whose class is not the default. Everything absent is `central-rule`.
- *
- * WHY THE DEFAULT IS "SHOW IT". An alert system's dangerous failure is hiding a
- * real alert, not showing a stale one, so an unregistered rule keeps today's
- * behaviour and stays visible. A rule earns quieter treatment by declaring
- * itself — never by being forgotten.
+ * Rules whose class is not the default. Everything absent is `central-rule`,
+ * so an unregistered rule stays visible: hiding a real alert is the dangerous
+ * failure, not showing a stale one.
  */
 export const SIGNAL_CLASSES: Readonly<Record<string, SignalClass>> =
   Object.freeze({
@@ -68,16 +51,8 @@ export function signalClassOf(flag: {
   return SIGNAL_CLASSES[flag.ruleId] ?? "central-rule";
 }
 
-/**
- * WHY a verification reads the way it does, as a code (bead `ro-ujb9.96.6.7`).
- *
- * The read model used to ship a sentence per case — "The last confirming check
- * is older than this source's freshness window; the condition remains
- * unresolved." — and the desk printed it word for word under a tooltip. A code
- * crosses the wire instead, and `AlertVerification` owns the one short label
- * each code renders as, so the payload stays data and the screen stays a
- * glance.
- */
+/** Why a verification reads the way it does, as a code; `AlertVerification`
+ * owns the short label each code renders as. */
 export type VerificationReason =
   /** Closed in the store; nothing at the source said it recovered. */
   | "recorded-closed"

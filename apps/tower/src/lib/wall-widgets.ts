@@ -1,14 +1,8 @@
-// What a Wall widget needs from the payload before it is worth a track.
-//
-// ONE COPY OF THE RULE (epic `ro-lzmq`). "A widget with nothing to show renders
-// nothing AND yields its track": an empty grid track is a hole on the TV for a
-// feature nobody set up (bead `ro-py40`). The library declares WHICH widgets
-// may vanish (`hidesWhenEmpty` in `shared/wall-layout`); this answers WHETHER
-// one of them has anything today.
-//
-// D28's five widgets all draw their own empty state (docs/14-design.md §
-// Regions, "Hides when empty"), so none may vanish today (bead `ro-trai.11`).
-// The rule stays because the renderer's hiding does: a widget added with
+// What a Wall widget needs from the payload before it is worth a track. A
+// widget with nothing to show renders nothing and yields its track: an empty
+// grid track is a hole on the TV for a feature nobody set up. The library
+// declares which widgets may vanish (`hidesWhenEmpty` in `shared/wall-layout`);
+// this answers whether one of them has anything today. A widget added with
 // `hidesWhenEmpty` must answer here, or the build's first render says so.
 
 import type { AttentionItem, AssetCard } from "@shared/wall";
@@ -24,13 +18,12 @@ import {
  * A widget the library does not let vanish is always true — its own empty state
  * is a fact worth the space (a calm Needs you, a month with no revenue source).
  * A widget that may vanish takes what its answer reads as a second argument
- * when one is added; the old Wall's countdown and meetings read the display
- * config and the calendar poll.
+ * when one is added.
  */
 export function wallWidgetHasContent(type: WallWidgetType): boolean {
   if (!wallWidgetSpec(type).hidesWhenEmpty) return true;
-  // A `hidesWhenEmpty` widget with no answer here would silently keep its track
-  // forever, which is the exact bug this module exists to stop.
+  // A `hidesWhenEmpty` widget with no answer here would silently keep its
+  // track forever, so it fails loudly instead.
   throw new Error(`no emptiness rule for the ${type} widget`);
 }
 
@@ -47,8 +40,8 @@ export function filterWallAssets(
   settings: WallWidgetSettings | undefined,
 ): AssetCard[] {
   const ids = settings?.assets;
-  // An empty filter is "every asset" too (bead `ro-ujb9.96.6.17`): the
-  // validator reads a stored `[]` that way, and so must the renderer.
+  // An empty filter is "every asset" too: the validator reads a stored `[]`
+  // that way, and so must the renderer.
   if (ids === undefined || ids.length === 0) return assets;
   return ids
     .map((id) => assets.find((asset) => asset.id === id))
@@ -56,13 +49,11 @@ export function filterWallAssets(
 }
 
 /**
- * The same setting, applied to the alerts Needs you lists.
- *
- * A CROSS-ASSET row (decision D15 — "Four assets have never reported") states
- * one fact about several assets, so it survives while any of its members is on
- * the filtered Wall, and it states it about those members only: a narrowed Wall
- * that still counted four would be naming assets the operator asked it not to
- * show. Rows are kept in payload order, which is severity order.
+ * The same setting, applied to the alerts Needs you lists. A cross-asset row
+ * ("Four assets have never reported") states one fact about several assets,
+ * so it survives while any of its members is on the filtered Wall, and it
+ * states it about those members only. Rows are kept in payload order, which
+ * is severity order.
  */
 export function filterWallAttention(
   items: AttentionItem[],

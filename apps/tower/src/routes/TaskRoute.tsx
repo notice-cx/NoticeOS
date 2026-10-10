@@ -62,45 +62,11 @@ import { PriorityMark, TaskStatusChip, TaskStatusGlyph, priorityFace } from "@/r
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
 /**
- * `/tasks/:id` — one bead, whole (D19, bead `ro-l1ed.3`).
- *
- * Until this page a bead id was a monospace string the operator selected and
- * pasted into `bd show` in a terminal. Every surface that had one — a finding's
- * filing badge, a query or page decision row, an asset's timeline, the work
- * board — could name the task and then had nothing to offer. This is the page
- * those ids point at, and it is the shape a task tool is expected to have: what
- * the work is, what it is waiting on, what people have said about it, and the
- * two buttons that move it.
- *
- * THREE READS, EACH FOR A DIFFERENT REASON.
- *
- *  1. `useTask(id)` — the LIVE bead through the local lane: description,
- *     acceptance criteria, labels, dependencies, comments, handoff metadata.
- *     The page's subject. Exists only where `os:up` is serving.
- *  2. `useWork()` — the once-a-minute SNAPSHOT every deployment can serve. It
- *     is what a deployed build renders instead of an error (`live: false`), and
- *     it is also where the asset's display name comes from.
- *  3. `useTasks(project)` — the project's live board, for the two facts a
- *     single bead's own read cannot carry: what this task BLOCKS (`bd show`
- *     reports only outgoing edges) and the parent epic's all-time child
- *     progress (`bd epic status`, which the detail read does not run).
- *
- * ONE REPRESENTATION PER FACT (doc 14). Status and priority are the header's
- * glyph-led chips, so the editors in the facts panel are controls with no chip
- * of their own beside them — the control is where the value is *changed*, the
- * header is where it is *read*. The status chip, the dependency glyphs and the
- * board's State column all draw from one status face (`routes/tasks/task-face`,
- * bead `ro-ujb9.202`), so a closed blocker reads as out of the way rather than
- * as one more thing in it, and a task looks the same one click apart.
- *
- * A CLOSED TASK IS SHIPPED, NOT PROVEN (the task-key chain).
- * Nothing here is green and nothing says resolved: the outcome is read later in
- * a watch window carrying this bead id.
- *
- * NO PARAGRAPHS (bead `ro-ujb9.96.6.11`, doc 14 principle 3a). An empty
- * description is an "Add a description" button, not a sentence quoting the
- * `bd` flag that would fill it; a read-only build is one banner; the chips and
- * the editors carry their own state with no footnote under them.
+ * `/tasks/:id`: one task, whole. Three reads: `useTask(id)`, the live task;
+ * `useWork()`, the once-a-minute snapshot every deployment can serve, drawn
+ * where there is no live lane; `useTasks(project)`, the live board, for what
+ * this task blocks (`bd show` reports only outgoing edges). A closed task is
+ * shipped, not proven, so nothing here is green.
  */
 const TaskWritePermission = createContext(true);
 const TaskActors = createContext<readonly TaskActor[] | undefined>(undefined);
@@ -132,8 +98,8 @@ export function TaskRoute() {
   const task = detail.data?.task ?? null;
   const project = detail.data?.project ?? null;
 
-  // The board read is only worth spawning `bd` for once we know which spoke the
-  // bead belongs to, which the detail read is what tells us.
+  // The board read is only worth spawning `bd` for once the detail read has
+  // said which spoke the task belongs to.
   const board = useTasks(project);
 
   // What the snapshot alone can say — the whole page in a deployed build, and
@@ -223,9 +189,7 @@ export function taskReturnPath(state: unknown): string {
   return typeof path === "string" && /^\/(?:assets(?:\/|\?|$)|tasks(?:\?|$)|\?|$)/.test(path) ? path : "/tasks";
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The header: identity, state, and the two primary actions
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The header: identity, state, and the two primary actions ---------------
 
 interface HeadFacts {
   title: string;
@@ -238,13 +202,10 @@ interface HeadFacts {
 }
 
 /**
- * A task waiting on the operator offers what its inbox row offers (bead
- * `ro-ujb9.243`): a human gate its one verb, Approve, and an ask Answer and
- * Dismiss — the same buttons, box and Undo (`routes/tasks/ask-actions`). Claim
- * and Close stay for everything else: claiming a gate assigned the operator to
- * a mechanism, and Close ran `bd close` instead of the command the gate or ask
- * was waiting for. Once answered, the header offers nothing until the task is
- * read again — the toast holds the Undo.
+ * A task waiting on the operator offers its inbox row's verbs
+ * (`routes/tasks/ask-actions`), never Close: that would run `bd close` instead
+ * of the command the gate or ask was waiting for. Once answered, the header
+ * offers nothing until the task is read again; the toast holds the Undo.
  */
 function TaskHeader({
   id,
@@ -277,8 +238,7 @@ function TaskHeader({
   const waitsOnOperator = (head?.ask ?? null) !== null;
 
   return (
-    // No breadcrumb: the back link above it already names the way back, and
-    // knows whether that is the site, Home or Tasks (D44: not a repeat).
+    // No breadcrumb: the back link above it already names the way back.
     <PageHeader
       documentTitle={head?.title ?? "Task"}
       title={
@@ -350,14 +310,9 @@ function ClaimAction({ id, disabledReason }: { id: string; disabledReason: strin
   );
 }
 
-/**
- * Close, with the reason in front of it rather than behind a confirm.
- *
- * The reason is REQUIRED because completion is evidence: the closer cites what
- * proves it, and a close with nothing in the box is the exact habit
- * `config/beads.README.md` exists to prevent. So the button that actually
- * writes stays disabled until there is something to write.
- */
+/** Close, with the reason in front of it rather than behind a confirm. The
+ * reason is required because completion is evidence, so the button that
+ * writes stays disabled until there is something to write. */
 function CloseForm({
   id,
   onDone,
@@ -415,16 +370,13 @@ function CloseForm({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Priority, on a chip — the status chip is the shared `TaskStatusChip`
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Priority, on a chip; the status chip is the shared `TaskStatusChip` ----
 
 /**
  * Priority as the operator's word, led by the board row's own priority mark:
- * ink weight, never a severity hue (doc 14, bead `ro-ujb9.200`) — a top task is
- * not a failure. A single task page shows the default band too — on a board a
- * row saying "normal" is noise, but on the page for one task the absence of a
- * priority chip would read as a fact nobody recorded.
+ * ink weight, never a severity hue, because a top task is not a failure. A
+ * single task page shows the default band too: the absence of a priority chip
+ * would read as a fact nobody recorded.
  */
 function PriorityChip({ priority, subject }: { priority: number; subject: StatusSubject }) {
   const { band } = priorityFace(priority);
@@ -440,16 +392,11 @@ function PriorityChip({ priority, subject }: { priority: number; subject: Status
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The left column: what the work is
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The left column: what the work is --------------------------------------
 
-/**
- * WHAT THE WORK IS, and both halves are editable where they are read (Linear's
- * inline description). An empty one is its own "Add" button rather than a
- * sentence quoting the `bd update --description` flag that would fill it: the
- * page runs that command, so it offers the field instead of the instruction.
- */
+/** What the work is, both halves editable where they are read. An empty one
+ * is its own "Add" button: the page runs the `bd` command, so it offers the
+ * field instead of the instruction. */
 function Body({ task }: { task: LiveTask }) {
   const save = useFieldSave(task.id);
   return (
@@ -571,16 +518,10 @@ function SectionLabel({ children }: { children: ReactNode }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Comments
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Comments ---------------------------------------------------------------
 
-/**
- * The conversation, oldest first — a thread reads forward, and the composer sits
- * where the next line goes. The operator's own answers to `human` beads land
- * here, so this list is where a decision that was made in a comment stays
- * findable.
- */
+/** The conversation, oldest first, with the composer where the next line
+ * goes. The operator's own answers to `human` tasks land here. */
 function Comments({
   id,
   comments,
@@ -601,8 +542,8 @@ function Comments({
   return (
     <Card>
       <CardHeader className="pb-2">
-        {/* One heading style on the page (D44): the eyebrow Description and
-            Done when wear. */}
+        {/* One heading style on the page: the eyebrow Description and Done
+            when wear. */}
         <h2 className="m-0 flex items-center gap-2">
           <SectionLabel>Comments</SectionLabel>
           {comments.length > 0 ? (
@@ -667,9 +608,7 @@ function Comments({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The right column: the facts, most of them editable in place
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The right column: the facts, most of them editable in place ------------
 
 function Facts({
   task,
@@ -694,7 +633,7 @@ function Facts({
   const saveAssignee = (next: string) => save({
     label: 'assignee',
     edit: { assignee: next },
-    // A new holder owns an in-progress claim. Beads refuses reversing that
+    // A new holder owns an in-progress claim. `bd` refuses reversing that
     // handoff without the holder's coordination; never promise a forceful Undo.
     undo: task.status === 'in_progress' && next !== '' && next !== task.assignee
       ? undefined : { assignee: task.assignee ?? '' },
@@ -817,7 +756,7 @@ function Facts({
               >
                 {epic.title}
               </Link>
-              {/* The epic's ALL-TIME child progress (`bd epic status`) — the only
+              {/* The epic's all-time child progress (`bd epic status`): the only
                   honest denominator, since a list read is a window. */}
               <Meter
                 value={epic.closed}
@@ -907,10 +846,8 @@ function Fact({
   );
 }
 
-/** Where a task came from, in the direction nobody could travel before: the
- * handoff metadata already tied a bead to the finding, query or page decision
- * that raised it (`config/beads.README.md` §Handoff metadata), and only the
- * asset page could read it. This is the same join, backwards. */
+/** Where a task came from: the handoff metadata ties a task to the finding,
+ * query or page decision that raised it, and this is that join, backwards. */
 function CameFrom({ origin }: { origin: HandoffOrigin }) {
   return (
     <Fact label="Came from">
@@ -948,10 +885,8 @@ function DependencyList({ items }: { items: { id: string; title: string | null; 
 }
 
 /** A blocker's own status, as the lifecycle glyph the board and the header
- * draw. A CLOSED blocker is the one that matters most here: it is no longer in
- * the way, and a list that could not say so would read as five things blocking
- * work that only two of them block. A list read that carried no status is its
- * own quiet question mark. */
+ * draw. A closed blocker is no longer in the way, and a list that could not
+ * say so would read as five things blocking work that only two of them block. */
 function DependencyGlyph({ status }: { status: string | null }) {
   if (status === null) {
     return (
@@ -965,10 +900,7 @@ function DependencyGlyph({ status }: { status: string | null }) {
   return <TaskStatusGlyph status={status} className="mt-0.5" />;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The editors — KnobEditor's idiom: buffer a draft, Save writes it, the toast
-// carries the way back (docs/15 principle 5: undo over confirm)
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The editors: buffer a draft, Save writes it, the toast carries the way back
 
 type FieldSave = (input: { label: string; edit: TaskEdit; undo?: TaskEdit }) => Promise<boolean>;
 
@@ -1282,23 +1214,13 @@ function SaveButton({
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The activity timeline
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The activity timeline --------------------------------------------------
 
 /**
- * What happened to this bead, in `Timeline`'s grammar — a glyph node, a
- * connecting rule, a label, and a relative age with the absolute on hover.
- *
- * It is NOT the `Timeline` component: that renders `annotations` (deploy, model
- * change, incident, external), a different vocabulary over a different table,
- * and bending its `AnnotationKind` to mean "claimed" would make one component
- * answer two questions. It is one route's layout over one payload and stays
- * here until a second surface needs it (components/registry.ts).
- *
- * Every node is DATED, and an undated fact is simply not a node: a claim with
- * no `started_at` would otherwise be dated by the last edit, quietly redating
- * history every time somebody changed a label.
+ * What happened to this task, in `Timeline`'s grammar, but not the `Timeline`
+ * component: that renders `annotations`, a different vocabulary over a
+ * different table. Every node is dated, and an undated fact is not a node: a
+ * claim with no `started_at` would otherwise be dated by the last edit.
  */
 function Activity({
   task,
@@ -1387,24 +1309,12 @@ function Activity({
   );
 }
 
-/** Relative age with the absolute on hover (docs/15 principle 7). */
 /**
- * When something on this page happened, always as a distance ("3d ago").
- *
- * ABSENCE IS A PHRASE, NOT A DASH (bead `ro-kukv.12`, doc 14 rule 6). All four
- * places this renders pair it with a word that needs it — *created*, *updated*,
- * a comment's author, a timeline event's label — so it is a labelled value slot
- * on every one of them, not the dense table cell rule 6 exempts. A bare em-dash
- * after "created" reads as a rendering failure; "created at an unknown time"
- * reads as the fact. `formatAge` keeps its own dash, for the reason
- * `shared/freshness.ts` records: fifteen call sites interpolate it as
- * "{age} ago", and a word there would read "never ago".
- *
- * ONE PHRASE, TWO TITLES, deliberately. Rule 6 asks which absence this is, and
- * here the honest answer is in the cause rather than in the word: a row with no
- * time and a time we cannot parse both mean *we do not know when*, and neither
- * is **never** — the comment was written, the task was created. So the title
- * says which and the phrase stays one thing the eye can learn.
+ * When something on this page happened, as a distance ("3d ago") with the
+ * absolute on hover. Absence is a phrase, not a dash: every place this renders
+ * pairs it with a word ("created"), and a bare em-dash after it reads as a
+ * rendering failure. A row with no time and a time we cannot parse both mean
+ * "we do not know when", so the phrase is one thing and the title says which.
  */
 function Age({ iso, nowMs }: { iso: string | null; nowMs: number }) {
   const ms = ageMs(nowMs, iso);
@@ -1431,17 +1341,13 @@ function Age({ iso, nowMs }: { iso: string | null; nowMs: number }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The states that are not a task
-// ─────────────────────────────────────────────────────────────────────────────
+// --- The states that are not a task -----------------------------------------
 
 /**
- * A deployed build. The snapshot board is always correct to show, so the page
- * renders whatever the once-a-minute photograph holds for this id under ONE
- * Read-only banner — what happened, then what to do — rather than an error,
- * and rather than pretending an empty page is an empty task. An id the
- * photograph does not carry gets the door that could find it: its project's
- * board, or the task projects when no project uses its prefix.
+ * A deployed build: the page renders whatever the once-a-minute snapshot holds
+ * for this id under one Read-only banner. An id the snapshot does not carry
+ * gets the door that could find it: its project's board, or the task projects
+ * when no project uses its prefix.
  */
 function ReadOnly({
   row,
@@ -1530,9 +1436,7 @@ function LaneFailed({ error }: { error: Error | null }) {
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pure helpers
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Pure helpers -----------------------------------------------------------
 
 /** The statuses `bd` ships with, in the board's own words. Not exhaustive by
  * design — `bd` supports custom statuses, and `SelectEditor` offers a stored one
@@ -1543,9 +1447,8 @@ function dependencyRow(dep: TaskDependency): { id: string; title: string | null;
   return { id: dep.id, title: dep.title, status: dep.status };
 }
 
-/** What this task BLOCKS. `bd show` reports only the edges pointing OUT of a
- * bead, so the reverse direction is read off the project's board: every bead
- * that names this one as something it depends on. */
+/** What this task blocks. `bd show` reports only the edges pointing out of a
+ * task, so the reverse direction is read off the project's board. */
 function blockedByThis(tasks: LiveTask[], id: string): LiveTask[] {
   return tasks.filter((task) =>
     task.dependencies.some((dep) => dep.id === id && dep.type !== "parent-child"),
@@ -1580,10 +1483,8 @@ function findInSnapshot(
   return null;
 }
 
-/** The spoke a bead id belongs to, from its prefix — the half of an id that is
- * not derivable from the asset (`ex` is not example.com), which is
- * exactly why a saved task project records its prefix (Settings → Task
- * projects). */
+/** The spoke a task id belongs to, from its prefix, which is not derivable
+ * from the asset and is why a saved task project records it. */
 function projectByPrefix(payload: WorkPayload | undefined, id: string): WorkProject | null {
   const prefix = id.split("-")[0] ?? "";
   if (prefix === "") return null;
@@ -1598,12 +1499,8 @@ interface HandoffOrigin {
   to: string;
 }
 
-/**
- * The `noticeos_*` grammar, read backwards (config/beads.README.md §Handoff
- * metadata). The kind decides which section of the asset page raised it; the
- * page routes its own hashes, so an anchor that moves is that page's problem
- * and not a broken link here.
- */
+/** The `noticeos_*` handoff grammar, read backwards. The kind decides which
+ * section of the asset page raised it; the page routes its own hashes. */
 const ORIGIN_SECTIONS: Readonly<Record<string, { hash: string; what: string }>> = {
   finding: { hash: "#insights", what: "the findings" },
   query: { hash: "#query-visibility", what: "the query decisions" },
@@ -1612,8 +1509,8 @@ const ORIGIN_SECTIONS: Readonly<Record<string, { hash: string; what: string }>> 
 
 function handoffOrigin(metadata: Record<string, unknown> | null): HandoffOrigin | null {
   if (metadata === null) return null;
-  // Either vintage of the handoff grammar: `noticeos_*`, or the `reindex_*` a
-  // bead filed before the rename carries (packages/contract/src/task-metadata.mts).
+  // Either vintage of the handoff grammar, `noticeos_*` or `reindex_*`
+  // (packages/contract/src/task-metadata.mts).
   const text = (field: TaskMetadataName) => {
     const value = taskMetadataValue(metadata, field);
     return typeof value === "string" ? value : "";
@@ -1631,24 +1528,15 @@ function handoffOrigin(metadata: Record<string, unknown> | null): HandoffOrigin 
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Markdown, the safe subset
-// ─────────────────────────────────────────────────────────────────────────────
+// --- Markdown, the safe subset ----------------------------------------------
 
 /**
- * A bead's description, acceptance criteria and comments are Markdown, written
- * by whoever filed them — an agent, the operator, a copied handoff. They have to
- * render as headings, lists and code rather than as one wall of text with
- * asterisks in it.
- *
- * NO DEPENDENCY, AND NO RAW HTML. The Tower ships no Markdown library and this
- * does not add one for a handful of block types. More importantly, the renderer
- * never builds a string of HTML: it parses into blocks and emits React
- * elements, so there is no `dangerouslySetInnerHTML` anywhere on the path and a
- * `<script>` in a bead's description is TEXT by construction rather than by a
- * sanitizer somebody has to keep correct. A link is rendered only when its href
- * is `http(s)`, `mailto:` or site-relative; anything else (a `javascript:` URL)
- * renders as the literal Markdown it was written as.
+ * A task's description, acceptance criteria and comments are Markdown written
+ * by whoever filed them. No dependency and no raw HTML: the renderer parses
+ * into blocks and emits React elements, so there is no `dangerouslySetInnerHTML`
+ * on the path and a `<script>` in a description is text by construction. A link
+ * is rendered only when its href is `http(s)`, `mailto:` or site-relative;
+ * anything else renders as the literal Markdown it was written as.
  */
 export function MarkdownText({ source, className }: { source: string; className?: string }) {
   const blocks = useMemo(() => parseBlocks(source), [source]);

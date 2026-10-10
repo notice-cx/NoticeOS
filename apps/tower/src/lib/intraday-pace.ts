@@ -1,32 +1,18 @@
-// Today's pace as arithmetic, with no rendering attached (bead `ro-pbzu.3`).
-// It lived in `components/bands/AssetsBand.tsx` beside the old Wall card that
-// first drew it; the Wall's site rows, Home's assets table and the site page
-// read it too, and a module is downloaded whole, so since bead `ro-trai.14` it
-// lives here and the TV no longer downloads the old card to compute it; the
-// card itself left with bead `ro-trai.20`.
+// Today's pace as arithmetic, with no rendering attached.
 
 import type { Ga4RealtimeAsset } from "@noticeos/contract";
 import type { AssetCard } from "@shared/wall";
 
 /**
- * THE LEAST A PACE NEEDS BEFORE IT STATES A PERCENT (bead `ro-trai.43`), in
- * one place for every surface that draws it.
- *
- * GA4 processes a standard property's hours two to six hours behind the clock
- * (its "Standard intraday: 2-6 hours"), so at breakfast today's series can hold
- * only the dead of night. Two such hours read 52 users against 100 — a red
- * "↓48%" from a sample nobody would bet on. So a percent needs both:
- *
- *   - `minDataHours` completed hours WITH PROCESSED DATA — hours in the series,
- *     never clock hours: at 10 AM a lagging property may still have two;
- *   - `minLastWeekUsers` of last week's users in those hours: at 100 the
- *     percent's ordinary noise is about ±10% (1 / √100), so a red reading
- *     (past −40%) is four times the noise, never chance — the pace's form of
- *     the flag rules' "no verdict on a baseline too small to carry one"
- *     (docs/02, `min_baseline_per_day`).
- *
- * Generic defaults, the same for every site; below either, a surface names how
- * far the data reaches ("to 2 AM") and states no percent.
+ * The least a pace needs before it states a percent. GA4 processes a standard
+ * property's hours two to six hours behind the clock, so at breakfast today's
+ * series can hold only the dead of night, and two such hours would read as a
+ * red "↓48%" from a sample nobody would bet on. So a percent needs both
+ * `minDataHours` completed hours with processed data (hours in the series,
+ * never clock hours) and `minLastWeekUsers` of last week's users in those
+ * hours: at 100 the percent's ordinary noise is about ±10% (1 / √100), so a
+ * red reading is four times the noise. Below either, a surface names how far
+ * the data reaches ("to 2 AM") and states no percent.
  */
 export const PACE_VERDICT_MINIMUM = Object.freeze({ minDataHours: 4, minLastWeekUsers: 100 });
 
@@ -104,19 +90,14 @@ function weekdayName(value: string): string {
 }
 
 /**
- * The intraday pace.
- *
- * Every surface that states today's users and their pace makes the same claim,
- * and the two rules that make it honest are easy to lose in a second copy: the
- * newest reported hour is STILL FILLING, so pacing it against last week's whole
- * hour reads as a slump that is really just a clock; and a comparison needs at
- * least two reported hours before there is a completed one to compare at all.
- * A third (bead `ro-trai.43`): a percent only once the completed hours can
- * carry a verdict (`PACE_VERDICT_MINIMUM`); before that `paceChange` is null
- * and the window (`paceWindowLabel`) is what a surface states.
- *
- * `null` means there is no pace to state — no successful snapshot, or fewer
- * than two reported hours. Never a zero, which would claim flat.
+ * The intraday pace. Three rules make it honest: the newest reported hour is
+ * still filling, so pacing it against last week's whole hour would read as a
+ * slump that is really just a clock; a comparison needs at least two reported
+ * hours before there is a completed one to compare; and a percent only once
+ * the completed hours can carry a verdict (`PACE_VERDICT_MINIMUM`), before
+ * which `paceChange` is null and the window (`paceWindowLabel`) is what a
+ * surface states. `null` means there is no pace to state. Never a zero, which
+ * would claim flat.
  */
 export function intradayUsersPace(
   asset: AssetCard,

@@ -17,26 +17,9 @@ import { leadMetric, metricWindow, type Aggregate, type MergedTrend } from "@/ro
 import { timelineAnnotations, watchSpans } from "@/routes/asset-detail/shared";
 
 /**
- * THE FIRST THING A SITE'S PAGE DRAWS: its own numbers, fused to their chart
- * (doc 14; beads `ro-ujb9.124`, `ro-ujb9.127`, `ro-ujb9.146`).
- *
- * One composition in two places — the site's Overview, and Home when the
- * installation has one site — so the two can never state the site differently.
- *
- * IT LEADS WITH WHAT THE SITE HAS. A site's first source may be Search
- * Console, Bing or Analytics, ad revenue, PostHog or DataForSEO, and four
- * traffic dashes over a site that only earns money say nothing about it. So
- * the lead is chosen from the data (`siteLead`), in this order:
- *
- * 1. Traffic from Analytics, Search Console or Bing — the four KPIs and their
- *    chart, as the Overview has always drawn them.
- * 2. Daily ad revenue — the panel the site's Financials tab draws (money
- *    leads, D13).
- * 3. PostHog's daily site use — people, page views and sessions in the same
- *    traffic strip, read from the source the site has.
- * 4. Clarity's latest reported page or explicitly unattributed bucket.
- * 5. DataForSEO's latest rankings, which carry no daily series.
- * 6. Nothing collected yet — the four traffic KPIs as dashes and no chart.
+ * A site's own numbers fused to their chart, led by whatever the site has
+ * (`siteLead` owns the order). Drawn on the site's Overview, and on Home when
+ * the installation has one site.
  */
 export type SiteLeadData = AssetDetailFor<"overview">;
 
@@ -63,7 +46,7 @@ export interface SignalKpi {
   format: (value: number) => string;
   selectable: boolean;
   /** Latest complete 7 days against the 7 before, for a measure whose chart
-   * carries last week's marks (daily users, bead `ro-trai.10`). */
+   * carries last week's marks (daily users). */
   weekly?: WeeklyComparison;
 }
 
@@ -194,7 +177,7 @@ function TrafficLead({
   metrics: SignalKpi[];
   days: RangeDays;
   annotations: ReturnType<typeof timelineAnnotations>;
-  /** The windows being watched, shaded on the chart (D44). */
+  /** The windows being watched, shaded on the chart. */
   spans: SurfaceSpan[];
   aside?: ReactNode;
   picked: MetricKey | null;
@@ -211,11 +194,8 @@ function TrafficLead({
       data-site-lead={source === "posthog" ? "posthog" : undefined}
       className="overflow-hidden rounded-[10px] border border-border bg-card"
     >
-      {/* No explanation beside the title (doc 14 principle 3a): each KPI
-          names its own aggregate ("Avg. daily users", a period total for the
-          rest) and its plotted method ("Trend: 7-day average"), and the chart
-          legend names the provider. A tooltip restating them was a second
-          copy of facts already on screen. */}
+      {/* No explanation beside the title: each KPI names its own aggregate
+          and its plotted method, and the chart legend names the provider. */}
       <SectionLabel
         id={id}
         title={`Traffic · last ${days} days`}
@@ -263,11 +243,9 @@ function TrafficLead({
   );
 }
 
-/**
- * DataForSEO's latest weekly rankings: four figures and no chart. The saved
- * analysis keeps only the newest report, so each KPI declares that rather than
- * drawing a line through one reading (doc 14's `seriesUnavailable`).
- */
+/** DataForSEO's latest weekly rankings: four figures and no chart. The saved
+ * analysis keeps only the newest report, so each KPI declares that rather
+ * than drawing a line through one reading (`seriesUnavailable`). */
 function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapshot; aside?: ReactNode }) {
   const id = useId();
   const { rankings } = snapshot;
@@ -292,12 +270,9 @@ function RankingsLead({ snapshot, aside }: { snapshot: SearchIntelligenceSnapsho
   );
 }
 
-/**
- * "Latest 7 days vs the 7 before" beside the daily-users chart — what the
- * Wall's 30-day bars carried before they left it for this page (D28, bead
- * `ro-trai.10`). A window across a reporting-timezone change keeps its number
- * and loses its colour, with the ⚠ saying why (doc 14, `ro-jkp2`).
- */
+/** "Latest 7 days vs the 7 before" beside the daily-users chart. A window
+ * across a reporting-timezone change keeps its number and loses its colour,
+ * with the ⚠ saying why. */
 function WeeklyChange({ weekly }: { weekly: WeeklyComparison }) {
   return (
     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-weekly-change>
@@ -447,9 +422,9 @@ function signalKpi({
   days: number;
   format: (value: number) => string;
 }): SignalKpi {
-  // The asset page's ONE derivation for a metric over a window (bead
-  // `ro-78qo.4`). Growth's chart pairs read the same function, so the strip and
-  // the charts cannot state different totals for the same measure.
+  // The asset page's one derivation for a metric over a window. Growth's
+  // chart pairs read the same function, so the strip and the charts cannot
+  // state different totals for the same measure.
   const { merged, enough, value, delta, spark } = metricWindow(
     trends.map((one) => one.trend),
     days,

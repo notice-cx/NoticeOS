@@ -22,17 +22,9 @@ export interface WallVersionsProps {
 }
 
 /**
- * What the Wall used to show, and the way back (docs/15 principle 5).
- *
- * A REVERT IS A SAVE. It does not pop a stack: the layout it restores becomes
- * current, the layout it replaced joins the history like any other, and the
- * entry that was reverted TO stays exactly where it was. So a revert can itself
- * be reverted, and the list is a record of what the television showed rather
- * than an undo buffer that shortens as you use it.
- *
- * It asks for no reason, which is the one difference from Save: the reason is
- * already written — the entry's own — and asking the operator to explain
- * putting something back the way it was is the ceremony D18 retired.
+ * What the Wall used to show, and the way back. A revert is a save, not a pop:
+ * the replaced layout joins the history, so a revert can itself be reverted.
+ * It asks for no reason; the entry already carries its own.
  */
 export function WallVersions({
   history,

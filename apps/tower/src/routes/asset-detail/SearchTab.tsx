@@ -28,28 +28,12 @@ import { SearchPair } from "@/routes/asset-detail/trend-panels";
 import { useRange } from "@/routes/asset-detail/useRange";
 
 /**
- * THE SEARCH TAB — which term, which page, which domain (doc 14, `ro-78qo.4`).
- *
- * WHY IT EXISTS. Until 2026-09-05 all of this was the bottom nine tenths of the
- * Growth tab, which measured 10,139px at 1440 wide with every table open at
- * once. Growth asks *which way did the numbers go*; a tracked result page, a
- * query decision, a page decision, a competitor and a linking domain all answer
- * *which one* — a different question, and doc 14's first principle makes a
- * different question a tab rather than a section further down.
- *
- * EVERYTHING OPENS COLLAPSED, which is the whole design. The panel shows its
- * scoreboard and its first terms; the two decision lists show three rows each,
- * closed over their own evidence; the search context is four strips of numbers
- * with its reference tables behind one disclosure. Every row and every table is
- * still here and every action still works — the ten thousand pixels became
- * clicks, and none of them leaves the page.
- *
- * NO ABOUT (bead `ro-ujb9.96.6.5`). Its four paragraphs explained what the
- * screen already shows: ">20" is a rank past the depth the pull read, "of 7
- * checked" is the AI Overview denominator, each list names the windows it
- * compares, "Modelled" and its date head the search context, and a filed row
- * wears its task marker. The saved analysis's applicability is said once, at
- * the top; a list repeats it only where its own state differs.
+ * The Search tab: which term, which page, which domain. Growth asks which way
+ * the numbers went; this answers which one. Everything opens collapsed: the
+ * panel shows its scoreboard and its first terms, the two decision lists show
+ * three rows each, and the search context is four strips of numbers with its
+ * reference tables behind one disclosure. The saved analysis's applicability
+ * is said once, at the top.
  */
 export function SearchTab({
   data,
@@ -73,27 +57,20 @@ export function SearchTab({
   // it again. Nothing is stated when there is no saved analysis to state.
   const statedState = data.executive ? analysis.state : null;
 
-  // NEVER A BLANK TAB (bead `ro-ujb9.136`). Every section below draws only
-  // from a tracked panel, the query and page decisions or the search
-  // context, so a site with none of them opened onto one analysis line over
-  // nothing — even with Bing's clicks collected. It opens instead on the
-  // site's own search numbers and the one step to tracking terms, or, with
-  // no search numbers at all, the one step to a search source.
+  // Never a blank tab: a site with no tracked panel, decisions or search
+  // context opens on its own search numbers and the one step to tracking
+  // terms, or, with no search numbers at all, the one step to a search source.
   if (!panel && !hasDecisions && !intelligence) return <SearchStart data={data} nowMs={nowMs} />;
 
   return (
     <div id="search-evidence" className="flex scroll-mt-4 flex-col gap-5">
       {data.executive ? <AnalysisEvidence snapshot={data.executive} /> : null}
       {panel ? (
-        // The block that IS this tab's answer (`surface:audit`, doc 14): the
-        // panel's scoreboard is what "how is search doing" looks like at a
-        // glance, and the first screen is measured against its bottom edge.
-        //
-        // NO SECTION EYEBROW OVER IT. `SerpPanelBoard` draws its own heading and
-        // its own collection line, so a second title above the card would be the
-        // same fact at two sizes (doc 14). The one thing this tab owes it that
-        // the board cannot know is where the panel's TREND lives, and that goes
-        // beside the board rather than over it.
+        // The block that is this tab's answer (`surface:audit`). No section
+        // eyebrow over it: `SerpPanelBoard` draws its own heading and its own
+        // collection line. The one thing this tab owes it that the board
+        // cannot know is where the panel's trend lives, and that goes beside
+        // the board rather than over it.
         <section id="serp-panel" data-surface-hero className="scroll-mt-4 min-w-0">
           <SerpPanelBoard panel={panel} collapsed />
           <Link
@@ -106,10 +83,8 @@ export function SearchTab({
       ) : null}
 
       {hasDecisions ? (
-        // NO CARD AROUND THE PAIR. Both lists already carry their own rules and
-        // their own hairlines; a border round the two of them is a container
-        // that has not earned its boundary (doc 14) and thirty-two pixels of
-        // inset on a tab measured in pixels.
+        // No card around the pair: both lists already carry their own rules
+        // and their own hairlines.
         <div className="grid min-w-0 gap-3.5">
           <QueryVisibilityRankings
             trends={data.executive?.searchQueries ?? null}
@@ -120,8 +95,8 @@ export function SearchTab({
             collapsed
           />
           {/* Directly under the query list, because they are the same four
-              decisions on two grains and an operator reads down from the term to
-              the page that answers it (bead `ro-427`). */}
+              decisions on two grains and an operator reads down from the term
+              to the page that answers it. */}
           <PageDecisions
             pages={data.executive?.searchPages ?? null}
             asset={data.asset}
@@ -135,13 +110,8 @@ export function SearchTab({
 
       <SearchContext snapshot={intelligence} />
 
-      {/* WHAT THE PANEL BUYS IS ON SETTINGS (bead `ro-78qo.25`). `ro-78qo.4`
-          parked the two register editors here behind a closed disclosure rather
-          than delete them, because hand-editing `config/serp-panel.json` would
-          have been the operator's only remaining control; doc 14 principle 4
-          gives a file-owned register a home on Settings, and that is where they
-          went, with the spend meter and the monthly-cap sentence. Search keeps
-          the BOARD — the evidence — which is what this tab is for. */}
+      {/* What the panel buys is on Settings, with the spend meter. Search keeps
+          the board, the evidence, which is what this tab is for. */}
 
     </div>
   );
@@ -155,13 +125,10 @@ const SEARCH_SOURCES = new Set(["gsc", "bing-webmaster"]);
 const hasPoints = (trend: SignalTrend) => trend.series.length > 0 || (trend.contextSeries?.length ?? 0) > 0;
 
 /**
- * THE SEARCH TAB BEFORE ANY TRACKED TERM, and its one next step.
- *
- * With search numbers: Growth's search pair — the same rendering, so the
- * site's clicks are one fact on both tabs — and a row whose one button starts
- * tracking terms (Settings' tracked panel), or connects DataForSEO first,
- * which buys them. With none: one empty state whose button connects the
- * site's first search source, the one its Data sources lead with.
+ * The Search tab before any tracked term, and its one next step: with search
+ * numbers, Growth's search pair (one rendering, so clicks are one fact on both
+ * tabs) and a button to start tracking terms; with none, a button to connect
+ * the site's first search source.
  */
 function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: number }) {
   const { days } = useRange();
@@ -225,17 +192,10 @@ function SearchStart({ data, nowMs }: { data: AssetDetailFor<"search">; nowMs: n
 // --- the search context strips ---------------------------------------------
 
 /**
- * WHAT THE WEEKLY PROVIDER PULL BOUGHT, as strips of numbers.
- *
- * These were four bordered groups of labelled statistics on the Overview, under
- * a heading, two badges and a two-sentence caveat — the second thing an operator
- * saw on the page they open most. They belong beside the queries and pages they
- * are context FOR, and they belong as numbers rather than as a section: doc 14's
- * `SmallMultiple` strip is one bordered row of hairline cells, which is what a
- * list of counts actually is.
- *
- * Every metered figure the pull retains still has a slot of its own (bead
- * `ro-dqh`): a number demoted to a sub-line is a number nobody reads.
+ * What the weekly provider pull bought, as strips of numbers beside the
+ * queries and pages they are context for. Every metered figure the pull
+ * retains has a slot of its own: a number demoted to a sub-line is a number
+ * nobody reads.
  */
 function SearchContext({
   snapshot,
@@ -246,8 +206,8 @@ function SearchContext({
   const links = snapshot.backlinks;
   const linkValue = (pick: (b: NonNullable<typeof links>) => number) =>
     links ? formatInt(pick(links)) : "—";
-  // A platform whose row stated no figure is unknown, never zero (bead
-  // `ro-8s5`), and a total over an unknown is not a total.
+  // A platform whose row stated no figure is unknown, never zero, and a total
+  // over an unknown is not a total.
   const { googleMentions, chatgptMentions, googleSearchVolume, chatgptSearchVolume } =
     snapshot.ai;
   const aiMentions =
@@ -289,7 +249,7 @@ function SearchContext({
       />
 
       <SmallMultipleStrip columns={6}>
-        {/* THE MONEY FIGURE LEADS. It is the only number here denominated in
+        {/* The money figure leads. It is the only number here denominated in
             something the operator spends, and it is the question the counts
             beside it are evidence for: what are these rankings worth? */}
         {/* Ahrefs' "traffic value": the estimated visits priced as ads. The
@@ -315,12 +275,8 @@ function SearchContext({
         />
       </SmallMultipleStrip>
 
-      {/* ONE STRIP VISIBLE, THE REST BEHIND A DOOR (doc 14, bead `ro-78qo.4`).
-          Four strips of equal-weight numbers is twenty-two figures in one block
-          with nothing saying which of them the operator came for — the
-          "everything at once, in the same size" the redesign exists to cure. The
-          rankings above answer what the asset's search position is WORTH, which
-          is the question this section is on the page for; links, AI mentions and
+      {/* One strip visible, the rest behind a door: the rankings above answer
+          what the asset's search position is worth; links, AI mentions and
           competitors qualify that answer and are one click away with the rows
           they are drawn from. */}
       <details className="rounded-[10px] border border-border bg-card">
@@ -446,28 +402,17 @@ function SearchContext({
   );
 }
 
-/**
- * Overlap share, readable at the magnitudes it actually takes (`ro-kukv.2`).
- *
- * A focused competitor overlaps on a fraction of a percent of its own footprint
- * — one asset's closest competitor sits at 0.22%. Rounded to whole
- * percent that reads "0%", which is both wrong and useless, so anything under
- * one percent keeps two decimals.
- */
+/** Overlap share, readable at the magnitudes it actually takes: a focused
+ * competitor overlaps on a fraction of a percent, which rounded to whole
+ * percent reads "0%", so anything under one percent keeps two decimals. */
 function overlapValue(entry: SerpCompetitor): string {
   if (entry.competitorKeywords <= 0) return "—";
   const percent = entry.overlapShare * 100;
   return percent >= 1 ? `${Math.round(percent)}%` : `${percent.toFixed(2)}%`;
 }
 
-/**
- * THE ROWS BEHIND THE STRIPS, in one closed disclosure.
- *
- * The strips answer "is anything happening"; these answer "what, exactly". They
- * are reference tables — the named linking domains, the anchor distribution, the
- * keyword ideas, the full competitor set — and doc 14's rule for a reference
- * table on a view surface is that it opens closed.
- */
+/** The rows behind the strips, in one closed disclosure: the strips answer
+ * "is anything happening"; these reference tables answer "what, exactly". */
 function SearchContextRows({
   snapshot,
 }: {
@@ -534,10 +479,8 @@ function SearchContextRows({
   if (tables.length === 0) return null;
 
   return (
-    // ONE door, not four. Four collapsed cards stacked under the strips is two
-    // hundred pixels of chrome on a page whose whole point is that the evidence
-    // is one click away rather than in the way; the tables inside keep their own
-    // summaries, so nothing about what is behind each one is hidden.
+    // One door, not four; the tables inside keep their own summaries, so
+    // nothing about what is behind each one is hidden.
     <details className="rounded-[10px] border border-border bg-card">
       <summary className="flex min-h-11 cursor-pointer list-none items-center px-3 text-xs text-muted-foreground hover:text-foreground">
         The rows behind these numbers · {formatInt(tables.length)}{" "}

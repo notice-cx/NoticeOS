@@ -24,16 +24,10 @@ import { copyText } from "@/lib/clipboard";
  * store after a save whose local export failed. */
 export const CONFIG_EXPORT_COMMAND = "pnpm config:export";
 
-/**
- * A stored value and its local export are separate outcomes (bead
- * `ro-ujb9.96.6.3`): the save's own confirmation says the value landed, and
- * this says the one thing that did not — this machine's files — as its fix.
- *
- * It used to be 25 words telling the operator to run a command, that the value
- * was already stored and not to retry. Now the title names the state, the
- * description IS the command, and the action copies it: nothing to read, and
- * nothing here suggests the save failed, so there is nothing to retry.
- */
+/** A stored value and its local export are separate outcomes: the save's own
+ * confirmation says the value landed, and this says the one thing that did
+ * not, this machine's files, as its fix. Nothing here suggests the save
+ * failed, so there is nothing to retry. */
 export function warnConfigExport(result: ConfigSaveResult | void, notify = toast): void {
   if (result?.exported === false) {
     notify.warning("Local files not updated", {
@@ -51,16 +45,11 @@ export function warnConfigExport(result: ConfigSaveResult | void, notify = toast
 }
 
 /**
- * The one way a setting is saved in the Tower (D18, bead `ro-pbzu.5`).
- *
- * Every editable field — a knob on the asset page, the countdown on Home, the
- * Settings page when it lands — goes through here, so "what a Save does" has one
- * answer: apply, confirm, offer Undo, and say plainly when it was refused.
- *
- * UNDO OVER CONFIRM (docs/15 principle 5). There is no "are you sure": the save
- * happens, and the toast carries the way back. Undo is not a special path — it
- * is the same write with the values swapped, `expect` set to what was just
- * saved, so it is refused in turn if something else moved the value in between.
+ * The one way a setting is saved in the Tower: apply, confirm, offer Undo, and
+ * say plainly when it was refused. Undo over confirm: there is no "are you
+ * sure", and Undo is the same write with the values swapped and `expect` set
+ * to what was just saved, so it is refused in turn if something else moved
+ * the value in between.
  */
 
 /** Where an op is owned decides which lane writes it: files go to the local
@@ -82,19 +71,9 @@ function splitOps(ops: SettingOp[]): {
 /**
  * The same edit, backwards. `expect` becomes the value just written, so an Undo
  * pressed after somebody else changed the same field is refused rather than
- * quietly reverting their work too.
- *
- * A FIRST WRITE INVERTS INTO A DELETE, and a delete back into a first write
- * (bead `ro-pkpz`). Its guard was "nothing is there", so the way back is taking
- * the key away again — which a set cannot do, and which nothing in the
- * vocabulary licensed at a field until the pipeline gained
- * `file-json-delete` there. Until then this answered `null` and the Sources tab
- * was the one Save surface in the Tower with no Undo (docs/15 principle 5).
- *
- * The guard survives the round trip in both directions: the delete expects
- * exactly the value the save wrote, and the set back expects the key to be
- * absent — so an Undo pressed after somebody else touched the field is refused
- * rather than quietly undoing their work too.
+ * quietly reverting their work too. A first write inverts into a delete, and a
+ * delete back into a first write: the delete expects exactly the value the
+ * save wrote, and the set back expects the key to be absent.
  */
 function invert(op: SettingOp): SettingOp {
   if (op.kind === "file-json-delete") {
@@ -104,13 +83,11 @@ function invert(op: SettingOp): SettingOp {
     return {
       kind: "file-json-delete",
       // The boundary between two vocabularies, the same one `collectionOps`
-      // crosses: a set may name a wholesale-editable file OR a register file,
+      // crosses: a set may name a wholesale-editable file or a register file,
       // and a delete only a register or a declared document. A first write is
-      // licensed at nothing but a declared register field or a declared
-      // document's own pointer (`scripts/config-documents.mjs`
-      // `firstWriteRefusal`, bead `ro-ujb9.96.8`), so the file this op names is
-      // one of those two by construction — a set anywhere else could never have
-      // carried `expectAbsent` past validation.
+      // licensed only at a declared register field or a declared document's own
+      // pointer (`scripts/config-documents.mjs` `firstWriteRefusal`), so the
+      // file this op names is one of those two by construction.
       file: op.file as RegisterFile | DocumentFile,
       pointer: op.pointer,
       expect: op.value,
@@ -126,22 +103,17 @@ export interface SaveRequest {
   /** The changeset slug for file ops; also the commit subject. */
   slug?: string;
   /**
-   * Write the timeline event this save IS, once the store has actually moved
-   * (bead `ro-3085`: a lifecycle stage change is an event on the asset).
-   *
-   * It receives the ops that landed, so the UNDO path records the move back
-   * rather than leaving a timeline claiming a change the operator took away. A
-   * refusal here is reported on its own line and never turns a save that worked
-   * into a save that failed — the value moved; only the record of it did not.
+   * Write the timeline event this save is, once the store has actually moved.
+   * It receives the ops that landed, so the Undo path records the move back.
+   * A refusal here is reported on its own line and never turns a save that
+   * worked into a save that failed.
    */
   record?: (written: SettingOp[]) => Promise<void>;
   /**
-   * The way back, when it is NOT every op inverted (bead `ro-ujb9.96.7.13`).
-   * A data source declined from a blank note cannot have the blank written
-   * back — the register refuses one — so its Undo puts the posture back and
-   * leaves the reason as the cell's history (`undeclineOps`,
-   * `shared/lane-decline.ts`). Guarded exactly as an inverse is: each op
-   * expects what the save just wrote.
+   * The way back, when it is not every op inverted. A data source declined
+   * from a blank note cannot have the blank written back, so its Undo puts the
+   * posture back and leaves the reason as the cell's history (`undeclineOps`,
+   * `shared/lane-decline.ts`). Guarded exactly as an inverse is.
    */
   undo?: SettingOp[];
 }
@@ -162,8 +134,8 @@ export function useConfigSave() {
         toast.error(refusalMessage(err));
         return false;
       }
-      // The way back — and since bead `ro-pkpz` every op this hook takes has
-      // one, including the save that filled in a field nothing had written yet.
+      // The way back: every op this hook takes has one, including the save
+      // that filled in a field nothing had written yet.
       const back = undo ?? ops.map(invert);
       toast.success(`Saved — ${label}`, {
         action: {
@@ -195,11 +167,10 @@ export interface InlineSaved {
 }
 
 /**
- * A save as the FIELD reports it (bead `ro-ujb9.96.7.12`): it landed, with the
- * way back — or it did not, with the refusal's own words for the field to show
- * beside itself. Nothing here speaks in a toast: the field is where the operator
- * made the change, so the field is where its outcome is said (one status per
- * subject, doc 14 principle 3b).
+ * A save as the field reports it: it landed, with the way back, or it did
+ * not, with the refusal's own words for the field to show beside itself.
+ * Nothing here speaks in a toast: the field is where the operator made the
+ * change, so the field is where its outcome is said.
  */
 export type FieldSaveOutcome =
   | { saved: true; undo: () => Promise<FieldUndoOutcome> }
@@ -209,15 +180,9 @@ export type FieldSaveOutcome =
 export type FieldUndoOutcome = { undone: true } | { undone: false; refusal: string };
 
 /**
- * THE SAME SAVE, ITS WHOLE OUTCOME BESIDE THE FIELD (bead `ro-ujb9.96.7.12`).
- *
- * The one write every setting shares (`useConfigWrite` below — the config door
- * and its `config_changes` audit), and the one inverse (`invert`): an Undo is
- * the same write with the values swapped and `expect` set to what was just
- * saved, so an Undo pressed after somebody else moved the value is refused
- * rather than quietly reverting them. What is new is only WHERE a refusal is
- * said: it comes back to the field as a short state instead of a corner toast
- * the operator has to connect to the control they just touched.
+ * The same save, its whole outcome beside the field: the one write every
+ * setting shares (`useConfigWrite`) and the one inverse (`invert`), with a
+ * refusal coming back to the field as a short state instead of a corner toast.
  */
 export function useFieldConfigSave() {
   const write = useConfigWrite();
@@ -246,19 +211,11 @@ export function useFieldConfigSave() {
 }
 
 /**
- * THE SAME SAVE, CONFIRMED BESIDE THE FIELD (bead `ro-ujb9.96.6.3`).
- *
- * `/settings` confirms where the change was made — "Saved" and an Undo next to
- * the control, as GitLab Pajamas does for a single field — rather than in
- * a toast in the corner that also carries the Undo. Same write, same inverse,
- * same refusals; only where the confirmation lives differs, so the field is the
- * one place the save's state is shown (one status per subject). A failed local
- * export is a different subject — this machine's files — and keeps its toast.
- *
- * This form is for a PANEL that confirms by its rows' own states (the connect
- * panel's Start) and has no field to put a refusal beside, so a refusal is
- * still toasted here. A field uses {@link useFieldConfigSave} and says it
- * itself.
+ * The same save, confirmed beside the field: "Saved" and an Undo next to the
+ * control rather than a toast. A failed local export is a different subject,
+ * this machine's files, and keeps its toast. This form is for a panel that
+ * confirms by its rows' own states and has no field to put a refusal beside,
+ * so a refusal is still toasted here; a field uses {@link useFieldConfigSave}.
  */
 export function useInlineConfigSave() {
   const toast = useOwnerToast();
@@ -284,17 +241,11 @@ export function useInlineConfigSave() {
 
 /**
  * The write both hooks above share: files through the lane, store columns
- * through the Worker, the timeline record after, and the refresh.
- *
- * WHICH READS A SAVE REFRESHES is `config-backed-queries.ts`, which
- * `useCollectionSave` reads too (bead `ro-ina0`). This hook used to keep its own
- * copy of that list, and the copies had drifted: a setting saved here left
- * `/financials` showing the figure it had just been told to change.
- *
- * HOW LONG IT WAITS comes from the same module for the same reason, and since
- * D22 it is a question rather than a constant (bead `ro-ssgu`): a file save
- * restarts the local Worker and a store-backed save restarts nothing, so
- * `useConfigSaveDelay` answers which this deployment just did.
+ * through the Worker, the timeline record after, and the refresh. Which reads
+ * a save refreshes, and how long it waits, come from `config-backed-queries.ts`,
+ * which `useCollectionSave` reads too: a file save restarts the local Worker
+ * and a store-backed save restarts nothing, so `useConfigSaveDelay` answers
+ * which this deployment just did.
  */
 function useConfigWrite() {
   const toast = useOwnerToast();
@@ -327,9 +278,8 @@ function useConfigWrite() {
           toast.error(`Not recorded on the timeline — ${refusalMessage(err)}`);
         }
       }
-      // A store COLUMN write (`store-asset-set`) never touched a file even
-      // before D22, so it has always refreshed immediately. What is new is that
-      // a `file-json-set` may not have touched one either.
+      // A store column write (`store-asset-set`) touches no file, so it
+      // refreshes immediately; a `file-json-set` may not have touched one either.
       refresh(fileOps.length > 0 ? delayMs : 0);
     },
     [refresh, delayMs],
@@ -337,25 +287,13 @@ function useConfigWrite() {
 }
 
 /**
- * A LANDMARK: one whole optional block, added or taken away (bead `ro-fqag`).
- *
- * `useConfigSave` above takes only the ops whose inverse is the same op with
- * `expect` and `value` swapped, which is what makes its Undo honest. A block a
- * file does not have yet cannot be written that way — "we never create
- * structure" means a set at `/countdown/emoji` is refused while there is no
- * countdown — so the countdown is added and removed WHOLE, at its own pointer,
- * through the two structural op kinds the changeset vocabulary already has.
- *
- * Undo is still real here, and that is why this lives beside the hook above
- * rather than calling `saveConfig` from a form: the inverse of adding a block is
- * removing exactly the block that was added, and of removing one is putting back
- * exactly the block that was there. One op each way, guarded by the value on the
- * other side, so an Undo pressed after somebody else touched the same landmark
- * is refused rather than quietly overwriting them.
- *
- * The three fields move together because they ARE one thing (bead `ro-py40`): a
- * countdown with a label and no moment is not half a countdown, it is a mistake
- * on a television.
+ * A landmark: one whole optional block, added or taken away. A set at
+ * `/countdown/emoji` is refused while there is no countdown, so the countdown
+ * is added and removed whole, at its own pointer, through the two structural
+ * op kinds. Undo is still real: the inverse of adding a block is removing
+ * exactly the block that was added, guarded by the value on the other side.
+ * The three fields move together because a countdown with a label and no
+ * moment is a mistake on a television.
  */
 export interface LandmarkSaveRequest {
   op: FileJsonInsertOp | FileJsonDeleteOp;

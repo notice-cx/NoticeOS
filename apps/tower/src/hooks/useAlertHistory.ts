@@ -11,22 +11,13 @@ import { AlertHistoryPageError } from "@/lib/api";
 export const ALERT_HISTORY_KEY = ["alert-history"] as const;
 
 /**
- * One page of settled alerts (bead `ro-ju7f`).
- *
- * NOT POLLED, unlike every other read on the desk. The other payloads answer
- * "what is true now" and go stale by the second; this one answers "what
- * happened", and a closed alert does not reopen. A 60-second poll here would
- * re-fetch an archive nobody is watching change, and would yank the page out
- * from under an operator mid-read the moment a row settles.
- *
- * WHAT CHANGES IT IS THE OPERATOR, so the operator's own actions re-read it:
- * `FlagActions` invalidates {@link ALERT_HISTORY_KEY} after every Mark read,
- * Snooze, Unsnooze and Resolve (bead `ro-ujb9.195`), and "Settled · 7d" moves
- * the moment the row it counts leaves the Open list.
- *
- * `keepPreviousData` is the paging half: turning a page holds the rows on
- * screen while the next ones load, so the list does not blink to "Loading…"
- * and back on every Older click.
+ * One page of settled alerts. Not polled, unlike every other read on the
+ * desk: this one answers "what happened", and a closed alert does not reopen,
+ * so a poll would yank the page out from under an operator mid-read. What
+ * changes it is the operator: `FlagActions` invalidates
+ * {@link ALERT_HISTORY_KEY} after every Mark read, Snooze, Unsnooze and
+ * Resolve. `keepPreviousData` holds the rows on screen while the next page
+ * loads.
  */
 export function useAlertHistory(query: AlertHistoryQuery) {
   const { fetchAlertHistory } = useTowerApi();
@@ -37,10 +28,9 @@ export function useAlertHistory(query: AlertHistoryQuery) {
       query.severity,
       query.offset,
       query.limit,
-      // The REFUSED page param is part of the key (bead `ro-oefa`). Without it
-      // `?offset=nonsense` and the plain first page hash to the same entry —
-      // `offset`/`limit` both hold their defaults on a refusal — and the cache
-      // would hand a 400 URL the 200 answer that made this bug invisible.
+      // The refused page param is part of the key: without it `?offset=nonsense`
+      // and the plain first page would hash to the same entry, and the cache
+      // would hand a 400 URL the 200 answer.
       query.malformed,
     ],
     queryFn: ({ signal }) => fetchAlertHistory(query, signal),

@@ -29,20 +29,12 @@ export interface IntegrationMatrixProps {
 type CellKind = ConnectionKind | "not-applicable";
 
 /**
- * The portfolio integration register as a scannable grid: rows = lanes (each with
- * an expandable doc-11 explainer), columns = the six assets in fixed seed order,
- * cells = the EFFECTIVE state. Not-applicable cells are quiet (a muted dash) so
- * the scannable signal is where action lives (the brief). Cells carrying store
- * evidence get an affordance; every DECLARED cell links to that asset's detail
- * integrations section, where the state is edited. A derived cell has nothing to
- * edit, so it doesn't pretend to link.
- *
- * The rows are GROUPED BY LAYER, os → provider → property (bead `ro-034`),
- * because that is the order the reds have to be read in: the OS's own connection
- * failing explains every provider and asset row under it, which is exactly
- * the reading nobody could do on 2026-08-08. Within a layer the derived lanes
- * lead — the ones the OS already runs, whose state is read out of the store
- * rather than declared — then the catalog in file order.
+ * The portfolio integration register as a grid: rows are lanes, columns are
+ * assets, cells the effective state. Not-applicable cells are a muted dash.
+ * Declared cells link to the asset's integrations section; derived cells have
+ * nothing to edit and do not link. Rows group by layer, OS → provider →
+ * property, because an OS connection failing explains every row under it;
+ * within a layer the derived lanes lead, then the catalog in file order.
  */
 export function IntegrationMatrix({ matrix, nowMs, statusOf, className }: IntegrationMatrixProps) {
   const kindOf = statusOf ?? ((cell: IntegrationCellBase) => registerKind(cell, nowMs));
@@ -58,16 +50,14 @@ export function IntegrationMatrix({ matrix, nowMs, statusOf, className }: Integr
       cellFor: (assetId: string) => cells[assetId]?.[index],
     }))
       // A source nothing on Integrations connects gets no row while no site
-      // uses it (`unusedWithoutConnectPath`, bead `ro-ujb9.133`): a row of Not
-      // connected with no way to connect is a dead end, not an audit.
+      // uses it: Not connected with no way to connect is a dead end.
       .filter(({ cellFor }) => {
         const laneCells = assets.flatMap((asset) => cellFor(asset.id) ?? []);
         return !(laneCells.some(unusedWithoutConnectPath)
           && laneCells.every((cell) => unusedWithoutConnectPath(cell) || cell.effective === "not-applicable"));
       }),
   ];
-  // An empty layer renders nothing at all: a heading over no rows would be a
-  // section the operator reads and learns nothing from.
+  // An empty layer renders nothing: a heading over no rows says nothing.
   const layers = INTEGRATION_LAYERS.map((layer) => ({
     layer,
     lanes: lanes.filter((entry) => entry.lane.layer === layer),
@@ -113,10 +103,8 @@ export function IntegrationMatrix({ matrix, nowMs, statusOf, className }: Integr
       <Table className="hidden md:table">
         <TableHeader>
           <TableRow>
-            {/* "Connection", not "Data source": since bead `ro-034` the first
-                row is the OS's own uplink, which is a dependency rather than a
-                source — and connection is the word the summary strip and the
-                unblocker list already count in. */}
+            {/* "Connection", not "Data source": the first row is the OS's own
+                uplink, a dependency rather than a source. */}
             <TableHead className="sticky left-0 z-10 bg-background">
               Connection
             </TableHead>
@@ -240,16 +228,8 @@ function PropertySources({
                 key={lane.id}
                 className="border-b border-border last:border-b-0"
               >
-                {/* THE ROW WAS ALREADY 44px; NOTHING IN IT WAS (bead
-                    `ro-khoy`). `p-3` on this wrapper made a 50px row whose only
-                    tap targets were a 20px name and a 26px chip, which is how
-                    /health came out of the phone sweep at 170 controls under
-                    40px while sixteen other routes came back in single digits.
-                    The bead's worry was that a blanket 44px on ~84 source rows
-                    would roughly double the page — so the height is not added,
-                    it is CLAIMED: the padding moves off the wrapper and into
-                    the targets, and each of them fills the row it was already
-                    sitting in the middle of. */}
+                {/* The padding sits in the targets, not the wrapper, so each
+                    target fills the 44px row without adding height. */}
                 <div className="flex items-stretch justify-between gap-2 px-3">
                   <button
                     type="button"
@@ -377,11 +357,9 @@ function MatrixCell({
     );
   }
 
-  // The `max-md:` half of every rule below is the phone accordion's alone: the
-  // matrix table is `hidden md:table`, so a thumb-sized target here can never
-  // loosen the desk's grid, where the same chip is one of ~84 in a scrollable
-  // register a pointer already hits exactly (bead `ro-khoy`). The chip and the
-  // glyph keep their drawn size; what grows is the box around them.
+  // The `max-md:` half of every rule below is the phone accordion's alone (the
+  // matrix table is `hidden md:table`), so a thumb target never loosens the
+  // desk grid. The chip keeps its drawn size; the box around it grows.
   return (
     <div className="inline-flex items-center gap-1 max-md:gap-0">
       {derived ? (
@@ -410,10 +388,8 @@ function MatrixCell({
 }
 
 /**
- * An opened source: its facts first — cost, when it runs, its limit, what
- * happens while it fails — as values, the way a sync tool states a
- * connection's schedule (bead `ro-ujb9.96.6.2`). The reasoning behind each is
- * doc 11's, not the grid's.
+ * An opened source: its facts first (cost, when it runs, its limit, what
+ * happens while it fails) as values.
  */
 function LaneExplainer({ lane }: { lane: IntegrationCatalogRow }) {
   return (
@@ -425,8 +401,7 @@ function LaneExplainer({ lane }: { lane: IntegrationCatalogRow }) {
             <dd className="font-medium tabular-nums text-foreground">{fact.value}</dd>
           </div>
         ))}
-        {/* Whose account unlocks it, as the value it is — only where a
-            provider's credential is involved at all (bead `ro-ujb9.96.6.1`). */}
+        {/* Whose account unlocks it, only where a provider credential is involved. */}
         {lane.layer === "provider" ? (
           <div className="flex items-baseline gap-1.5" data-lane-fact="credential">
             <dt className="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">Credential</dt>

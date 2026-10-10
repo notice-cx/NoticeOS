@@ -2,7 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { siteCount, siteNoun } from "@shared/site-noun";
 
-describe("the count of sites (D31, beads ro-ujb9.142 and ro-ujb9.130)", () => {
+describe("the count of sites", () => {
   it("says site for exactly one and sites for every other count", () => {
     expect(siteCount(1)).toBe("1 site");
     expect(siteCount(2)).toBe("2 sites");

@@ -11,16 +11,6 @@ import type { AssetCard, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
 import type { RuleBacktest } from "@noticeos/contract";
 
-// /settings — the one page an operator opens to change something (bead
-// `ro-pbzu.2`).
-//
-// What is asserted here is the promise the page makes: every section is
-// present and reachable by its anchor, a Save writes the exact op the write
-// lane expects (D18), a build that cannot write says so once and disables the
-// fields, and every cap shows spend against a meter — a cap nothing could
-// measure was withdrawn rather than rendered beside an empty bar (D6,
-// bead `ro-uj7x`).
-//
 // Sonner is mocked because the toast is not the subject: the request the Save
 // makes is.
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
@@ -30,19 +20,15 @@ const state = vi.hoisted(() => ({
   settings: null as SettingsPayload | null,
   integrations: null as IntegrationsMatrix | null,
   writable: { writable: true, reason: null as string | null },
-  /** The portfolio the alert-rule replay picks its asset from (bead `ro-w35m`).
-   * Null is a page that has not read the Wall yet, which is what every test
-   * that is not about the preview wants. */
+  /** The portfolio the alert-rule replay picks its asset from. Null is a page
+   * that has not read the Wall yet. */
   wall: null as WallPayload | null,
-  /** What each rule has cost (bead `ro-ayxy`). Null is a read that has not
-   * answered, and the record block then renders nothing at all — which is what
-   * every test that is not about it wants. */
+  /** What each rule has cost. Null is a read that has not answered, and the
+   * record block then renders nothing. */
   ruleStats: null as AlertRuleStatsPayload | null,
   ruleStatsError: false,
-  /** The task board, which is where the hourly reconciliation's finding reaches
-   * this page (bead `ro-eb7z`). Null is a board that has not answered, and the
-   * page then marks nothing — which is what every test that is not about it
-   * wants. */
+  /** The task board, where the hourly reconciliation's finding reaches this
+   * page. Null is a board that has not answered, and the page marks nothing. */
   work: null as WorkPayload | null,
 }));
 
@@ -84,8 +70,6 @@ vi.mock("@/hooks/useAlertRuleStats", () => ({
 import { SettingsRoute } from "@/routes/SettingsRoute";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
-// A task source connected, as this installation's is (D32, bead
-// ro-ujb9.143): the task screens here render exactly as before it existed.
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 const READ_ONLY_REASON =
@@ -192,8 +176,8 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
       owner: "config/entities.json",
       rows: [
         {
-          slug: "reindex-ventures",
-          name: "Reindex Ventures LLC",
+          slug: "example-ventures",
+          name: "Example Ventures LLC",
           form: "LLC",
           jurisdiction: "US-DE",
           assets: ["meals.example"],
@@ -212,7 +196,7 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
   };
 }
 
-/** The assets the OS knows, as the integrations matrix reports them — the only
+/** The assets the OS knows, as the integrations matrix reports them: the only
  * source of "which asset ids exist" this page has. */
 function assetRefs(...ids: string[]) {
   return ids.map((id) => ({ id, displayName: id, isOs: false }));
@@ -222,8 +206,7 @@ function matrix(
   spentUsd: number,
   period = "2026-09",
   assets: ReturnType<typeof assetRefs> = [],
-  /** Data sources some asset has no entry for (bead `ro-qodp`). Empty is the
-   * healthy state and what every test that is not about it wants. */
+  /** Data sources some asset has no entry for. Empty is the healthy state. */
   undeclared: { laneId: string; label: string; assets: string[] }[] = [],
 ): IntegrationsMatrix {
   return {
@@ -316,7 +299,7 @@ afterEach(() => {
 });
 
 describe("/settings", () => {
-  it("needs no section help: every section is a title, its fields and their state (ro-ujb9.96.6.3)", () => {
+  it("needs no section help: every section is a title, its fields and their state", () => {
     const calls = stubFetch();
     const { container } = renderPage();
     for (const [section, title] of [
@@ -328,28 +311,21 @@ describe("/settings", () => {
       ["task-hub", "task projects"],
     ]) {
       pickSection(section!);
-      // No "About <section>" tooltip and no description paragraph under the
-      // title: what used to be explained there is state now.
       expect(screen.queryByRole("button", { name: `About ${title}` })).toBeNull();
       const header = container.querySelector(`#${section} > *`) as HTMLElement;
       expect(header.querySelector("p")).toBeNull();
     }
-    // What the explanations carried, kept as label-length units, effects and
-    // actions beside the fields they qualify.
     pickSection("general");
     expect(screen.getByText("USD per month · all sites")).toBeVisible();
     expect(screen.getByText("USD per minute · prices review time in ROI")).toBeVisible();
-    // What happens at the cap is a state beside the meter, not a sentence
-    // under it (bead ro-ujb9.18).
     expect(within(container.querySelector("[data-budget-meter='data']") as HTMLElement).getByText("Stops at the budget")).toBeVisible();
     expect(screen.queryByText(/Collection that would exceed the cap/)).toBeNull();
     expect(screen.queryByRole("button", { name: "About monthly data cap" })).toBeNull();
     pickSection("alert-rules");
     expect(within(container.querySelector("#alert-rules") as HTMLElement).getByText("All sites")).toBeVisible();
     pickSection("data-collection");
-    // A collection no connection feeds has its schedule as a row here (beads
-    // ro-ujb9.96.7.12, ro-ujb9.96.7.28); one a connection feeds is changed on
-    // that connection's Manage panel.
+    // A collection no connection feeds has its schedule as a row here; one a
+    // connection feeds is changed on that connection's Manage panel.
     expect(container.querySelector('[data-schedule-row="pull"]')).not.toBeNull();
     expect(container.querySelector('[data-schedule-row="signal-dumps"]')).toBeNull();
     expect(screen.queryByText(/View background operations/)).toBeNull();
@@ -379,7 +355,6 @@ describe("/settings", () => {
       expect(screen.getByRole("navigation", { name: "Settings sections" }).querySelector('[aria-current="page"]')).toHaveAttribute("href", `/settings#${id}`);
     }
 
-    // The section list IS the outline: one anchor per section, in DOM order.
     const nav = screen.getByRole("navigation", { name: "Settings sections" });
     expect(
       within(nav)
@@ -395,8 +370,8 @@ describe("/settings", () => {
     ]);
   });
 
-  // Bead ro-ujb9.18: General holds the clock and the budget, and their old
-  // addresses (Integrations' DataForSEO card links #budget) land on it.
+  // General holds the clock and the budget, and the #budget anchor
+  // Integrations' DataForSEO card links to lands on it.
   it("opens on General, with the time zone and the budget as its rows", () => {
     stubFetch();
     for (const hash of ["", "clock", "budget"]) {
@@ -413,7 +388,6 @@ describe("/settings", () => {
     }
   });
 
-  // D32: core task project settings remain reachable at every hub state.
   it("always lists core Task projects, including an unconfigured hub", () => {
     stubFetch();
     const links = () => within(screen.getByRole("navigation", { name: "Settings sections" })).getAllByRole("link").map((a) => a.getAttribute("href"));
@@ -423,12 +397,10 @@ describe("/settings", () => {
       const fresh = renderPage("general");
       expect(links()).toEqual(["/settings#general", "/settings#alert-rules", "/settings#data-collection", "/settings#tv-dashboard", "/settings#entities", "/settings#task-hub"]);
       fresh.unmount();
-      // A direct link opens the same existing project-management section.
       const connecting = renderPage("task-hub");
       expect(connecting.container.querySelector("#task-hub")).not.toBeNull();
       expect(links()).toContain("/settings#task-hub");
       connecting.unmount();
-      // A saved project lists it, connected or not.
       state.settings = payload();
       renderPage("general");
       expect(links()).toContain("/settings#task-hub");
@@ -437,8 +409,7 @@ describe("/settings", () => {
     }
   });
 
-  // The zone a person most likely means is the one this device runs in: it is
-  // the first option, named as such (bead ro-ujb9.18).
+  // The zone a person most likely means is the one this device runs in.
   it("offers this device's zone first in the time zone list", () => {
     stubFetch();
     const zone = vi.spyOn(Intl.DateTimeFormat.prototype, "resolvedOptions").mockReturnValue({
@@ -481,22 +452,18 @@ describe("/settings", () => {
     expect(clock.textContent).not.toContain("config/constants.json");
     expect(clock.textContent).not.toContain("os_time_zone");
     expect(clock.textContent).not.toContain("Technical details");
-    // A zone name is not legible on its own: the visual is what time it is
-    // there right now (doc 14 — a state carries the visual that shows it).
     expect(clock.querySelector("[data-zone-clock='America/Los_Angeles']")).not.toBeNull();
   });
 
-  it("shows what the timezone decides — yesterday's revenue date and the current month — as values (ro-ujb9.88)", async () => {
+  it("shows what the timezone decides — yesterday's revenue date and the current month — as values", async () => {
     const calls = stubFetch();
     const { container } = renderPage();
     const value = (label: string) =>
       container.querySelector(`[data-zone-value="${label}"]`)?.textContent;
 
-    // 2026-09-04 12:00 UTC is 5 AM on the 4th in Los Angeles.
     expect(value("Yesterday's revenue")).toBe("Sep 3, 2026");
     expect(value("Current month")).toBe("September 2026");
     expect(value("Now")).toMatch(/PT$/u);
-    // ...and 2 AM on the 5th at UTC+14: the revenue day moves with the zone.
     fireEvent.change(screen.getByRole("combobox", { name: /^Time zone/u }), {
       target: { value: "Pacific/Kiritimati" },
     });
@@ -507,7 +474,6 @@ describe("/settings", () => {
     expect(calls.find((call) => call.method === "PUT")!.body).toMatchObject({
       ops: [{ pointer: "/os_time_zone", expect: "America/Los_Angeles", value: "Pacific/Kiritimati" }],
     });
-    // No paragraph explains it any more (bead ro-ujb9.96.6.3).
     expect(screen.queryByRole("button", { name: "About time & timezone" })).toBeNull();
   });
 
@@ -515,7 +481,6 @@ describe("/settings", () => {
     const calls = stubFetch();
     renderPage();
     const clock = document.querySelector("#clock") as HTMLElement;
-    // Pick-to-save: the timezone is one low-risk choice, so there is no Save.
     expect(within(clock).queryByRole("button", { name: "Save" })).toBeNull();
 
     fireEvent.change(within(clock).getByLabelText(/^Time zone/u), {
@@ -531,18 +496,15 @@ describe("/settings", () => {
           kind: "file-json-set",
           file: "config/constants.json",
           pointer: "/os_time_zone",
-          // The concurrency guard is the value the field was rendered from.
           expect: "America/Los_Angeles",
           value: "Europe/Warsaw",
         },
       ],
     });
-    // Confirmed where the change was made, not in a corner toast.
     await waitFor(() => expect(within(clock).getByRole("status")).toHaveTextContent("Saved"));
     const status = within(clock).getByRole("status");
     expect(toasts.success).not.toHaveBeenCalled();
 
-    // Undo is the same write reversed, guarded on the value just written.
     fireEvent.click(within(status).getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(puts()).toHaveLength(2));
     expect(puts()[1]!.body).toMatchObject({
@@ -575,8 +537,6 @@ describe("/settings", () => {
       expect(screen.getByRole("combobox", { name: /^Time zone/u })).toHaveValue("America/Los_Angeles"),
     );
     expect(container.querySelector("[data-zone-clock='America/Los_Angeles']")).not.toBeNull();
-    // Said beside the picker as a short state, not in a corner toast
-    // (bead ro-ujb9.96.7.12).
     const refused = within(container.querySelector("#clock") as HTMLElement).getByRole("alert");
     expect(refused).toHaveTextContent("Not saved");
     expect(refused).toHaveTextContent("Changed elsewhere");
@@ -595,10 +555,6 @@ describe("/settings", () => {
   });
 
   it("keeps the TV section for the layout when no countdown is configured", () => {
-    // Bead ro-py40 said a fresh install gets no empty countdown card and no
-    // "set a countdown" placeholder, and that half is unchanged. The section
-    // itself now stays (bead ro-lzmq.2): every install has a TV LAYOUT whether
-    // or not it counts down to anything, and this is the door to arranging it.
     state.settings = payload({ dashboard: {} });
     stubFetch();
     const { container } = renderPage("tv-dashboard");
@@ -614,25 +570,18 @@ describe("/settings", () => {
         .map((a) => a.getAttribute("href")),
     ).toContain("/settings#tv-dashboard");
 
-    // No countdown card and no invented event — the form is behind a button,
-    // not sitting open (bead `ro-fqag`).
     expect(screen.queryByText("Launch day")).toBeNull();
     expect(screen.queryByLabelText("Countdown emoji")).toBeNull();
     expect(container.querySelector("[data-countdown-layout]")).toBeNull();
     expect(screen.getByRole("button", { name: "Set a countdown" })).toBeTruthy();
 
-    // Other sections remain reachable without mounting their editors here.
     expect(container.querySelector("#budget")).toBeNull();
     expect(container.querySelector("#clock")).toBeNull();
   });
 
   it("makes the first countdown here, as ONE insert of the whole landmark", async () => {
-    // The gap bead ro-fqag closed: /settings could EDIT the three fields and
-    // never create them, because a set never creates a key — so the only path to
-    // a first countdown was hand-editing config/tower.json, the terminal step
-    // D18 retired everywhere else. It is one op because the emoji, the words and
-    // the moment are one landmark (ro-py40): a countdown with a label and no
-    // moment is not half a countdown.
+    // A set never creates a key, so the first countdown is an insert. It is
+    // one op because the emoji, the words and the moment are one landmark.
     state.settings = payload({ dashboard: {} });
     const calls = stubFetch();
     renderPage("tv-dashboard");
@@ -667,14 +616,11 @@ describe("/settings", () => {
         },
       ],
     });
-    // ONE op, and no per-field sets alongside it.
     expect((put.body as { ops: unknown[] }).ops).toHaveLength(1);
   });
 
-  // Bead ro-trai.45: a saved countdown the Tower refused is not "No countdown
-  // set" — the store holds one, so the first-countdown insert would be refused
-  // because the key exists. The section names it and the form saves over the
-  // value as stored.
+  // A saved countdown the Tower refused is not "No countdown set": the store
+  // holds one, so a first-countdown insert would be refused.
   it("names a saved countdown the Tower refused and saves over it, guarded by the value as stored", async () => {
     const stored = { emoji: "", label: "Launch day", targetAt: "2027-01-01T00:00:00.000Z" };
     state.settings = payload({
@@ -724,8 +670,6 @@ describe("/settings", () => {
           kind: "file-json-delete",
           file: "config/tower.json",
           pointer: "/countdown",
-          // The whole landmark as it was rendered — the guard that refuses if
-          // somebody moved it in between.
           expect: {
             emoji: "🚀",
             label: "Launch day",
@@ -740,10 +684,8 @@ describe("/settings", () => {
     stubFetch();
     renderPage("tv-dashboard");
 
-    // The TV countdown renders itself, editor and all.
     expect(screen.getByText("Launch day")).toBeTruthy();
     pickSection("alert-rules");
-    // Field meaning is on demand; scope stays visible.
     expect(screen.getByText("Anomaly sensitivity")).toBeTruthy();
     expect(screen.queryByText("How unlikely a drop must be before an alert fires.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "About anomaly sensitivity" }));
@@ -754,13 +696,10 @@ describe("/settings", () => {
     // pull lane. The pull registry is the half that stays read-only.
     pickSection("data-collection");
     expect(screen.queryByRole("spinbutton", { name: /Counter read interval/ })).toBeNull();
-    // Each collection no connection feeds is a row with its own pick
-    // (ro-ujb9.96.7.12, ro-ujb9.96.7.28).
     expect(screen.getByRole("combobox", { name: "Nightly reports · how often" })).toHaveValue("daily");
     expect(screen.getByRole("spinbutton", { name: /Panel history window/ })).toHaveValue(35);
     expect(within(document.querySelector('[data-pull-asset="meals.example"]') as HTMLElement).getByText("Enabled")).toBeTruthy();
     expect(within(document.querySelector('[data-pull-asset="nosh.example"]') as HTMLElement).getByText("Paused")).toBeTruthy();
-    // Task hub: a project's prefix and repo, now as the fields they are.
     pickSection("task-hub");
     const project = document.querySelector('[data-collection-row="meals.example"]') as HTMLElement;
     expect(within(project).getByLabelText("Task prefix")).toHaveValue("mp");
@@ -773,7 +712,6 @@ describe("/settings", () => {
 
     const field = screen.getByRole("spinbutton", { name: /Monthly data cap/ });
     fireEvent.change(field, { target: { value: "40" } });
-    // The Save that belongs to THIS field, not the first one on the page.
     fireEvent.click(
       within(field.parentElement as HTMLElement).getByRole("button", { name: "Save" }),
     );
@@ -787,14 +725,13 @@ describe("/settings", () => {
           kind: "file-json-set",
           file: "config/constants.json",
           pointer: "/monthly_caps/data_usd",
-          // `expect` is the value the field was RENDERED from — the guard that
+          // `expect` is the value the field was rendered from: the guard that
           // makes a concurrent edit a refusal rather than a silent overwrite.
           expect: 25,
           value: 40,
         },
       ],
     });
-    // Confirmed beside the field, with its Undo there too — not in a toast.
     const status = await within(field.parentElement as HTMLElement).findByRole("status");
     expect(status).toHaveTextContent("Saved");
     expect(within(status).getByRole("button", { name: "Undo" })).toBeTruthy();
@@ -811,9 +748,7 @@ describe("/settings", () => {
     expect(bar.getAttribute("aria-valuenow")).toBe("11");
     expect(bar.getAttribute("aria-valuemax")).toBe("25");
 
-    // The monthly inference cap was withdrawn with D6 (bead `ro-uj7x`) rather
-    // than keep an empty bar reading "not instrumented" beside a ceiling
-    // nothing measures. Budget now holds only caps that have a meter.
+    // Budget holds only caps that have a meter.
     expect(document.querySelector('[data-budget-meter="inference"]')).toBeNull();
     expect(screen.queryByText("not instrumented")).toBeNull();
     expect(screen.queryByText("Monthly inference cap")).toBeNull();
@@ -834,8 +769,6 @@ describe("/settings", () => {
     stubFetch();
     renderPage("budget");
 
-    // Said ONCE for the whole page (bead ro-p8qq), above whichever section is
-    // open, and never again under a field: each field shows only its lock.
     const paused = document.querySelector("[data-saves-paused]") as HTMLElement;
     expect(paused).toHaveTextContent("Saves paused");
     expect(paused).toHaveTextContent(READ_ONLY_REASON);
@@ -872,22 +805,15 @@ describe("/settings", () => {
     expect(document.querySelector("[data-pull-none]")).toHaveTextContent("None · sites send their own");
     pickSection("task-hub");
     expect(screen.getByText("No task projects configured.")).toBeTruthy();
-    // A hosted map needs the local service for project setup: a chip says so,
-    // and there is no Add that would be refused.
     expect(within(taskHub()).getByText("Read-only here")).toBeTruthy();
     expect(within(taskHub()).queryByRole("button", { name: "Add" })).toBeNull();
-    // A build with no connection details does not invent them.
     expect(document.querySelector("[data-task-hub-connection]")).toBeNull();
   });
 });
 
-// --- the task-hub project map (bead ro-x5gu.5) -------------------------------
-//
-// What is asserted here is the thing this section had to earn to stop being a
-// list you could only look at: a project can be MAPPED from the page, the rules
-// that make a map usable are refused before a request is made, and — because a
-// row in a file is not a working project — the steps left over are named with
-// the exact text to paste.
+// The task-hub project map: a project can be mapped from the page, the rules
+// that make a map usable are refused before a request is made, and the steps
+// left over are named with the exact text to paste.
 
 function taskHub(): HTMLElement {
   return document.querySelector("#task-hub") as HTMLElement;
@@ -909,8 +835,8 @@ async function findChecklist(asset = "nosh.example"): Promise<HTMLElement> {
 }
 
 /** The task the runner files for a project whose declared database the server
- * does not hold. Its title is the join — pinned from the writing side in
- * `scripts/os-up.test.mjs`, so the two spellings cannot drift apart quietly. */
+ * does not hold. Its title is the join, pinned from the writing side in
+ * `scripts/os-up.test.mjs`. */
 function driftTask(asset: string): WorkItem {
   return {
     id: `ro-${asset.length}`,
@@ -927,7 +853,7 @@ function driftTask(asset: string): WorkItem {
 }
 
 /** A board carrying exactly the given inbox, filed against this repo's own
- * project — which is where the reconciliation files every one of them. */
+ * project, where the reconciliation files every one of them. */
 function workBoard(...waiting: WorkItem[]): WorkPayload {
   return {
     generatedAt: "2026-09-05T12:00:00.000Z",
@@ -1013,7 +939,6 @@ describe("/settings — the task-hub project map", () => {
     renderPage();
 
     expect(within(projectRow("meals.example")).queryByLabelText("Repo")).toBeNull();
-    // No Save in any cell: a cell saves when it is left (bead ro-ujb9.96.7.12).
     expect(within(taskHub()).queryByRole("button", { name: "Save" })).toBeNull();
     const field = within(projectRow("meals.example")).getByLabelText("Database");
     fireEvent.change(field, { target: { value: "meals" } });
@@ -1031,7 +956,6 @@ describe("/settings — the task-hub project map", () => {
         },
       ],
     });
-    // Saved beside the cell with its Undo — not in a toast.
     const saved = await waitFor(() => {
       const found = projectRow("meals.example").querySelector('[data-save-state="saved"]');
       expect(found).not.toBeNull();
@@ -1066,7 +990,6 @@ describe("/settings — the task-hub project map", () => {
     undo.action.onClick();
     await waitFor(() => expect(calls.filter((c) => c.method === "PUT")).toHaveLength(2));
     expect(calls.filter((c) => c.method === "PUT")[1]!.body).toMatchObject({
-      // Back at its own index rather than onto the end (bead `ro-asj9`).
       ops: [{ kind: "file-json-insert", file: "config/beads.json", pointer: "/spokes/1", value: gone }],
     });
   });
@@ -1076,7 +999,7 @@ describe("/settings — the task-hub project map", () => {
     const calls = stubFetch();
     renderPage();
 
-    // A second project on `mp-` would make every task id ambiguous — and the
+    // A second project on `mp-` would make every task id ambiguous, and the
     // asset is free, so the key field cannot catch this one.
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
     fillProject({ asset: "nosh.example", prefix: "mp" });
@@ -1094,7 +1017,6 @@ describe("/settings — the task-hub project map", () => {
     renderPage();
 
     fireEvent.click(within(taskHub()).getByRole("button", { name: "Add" }));
-    // The picker offers exactly the unclaimed assets — meals.example is mapped.
     const list = addForm().querySelector("datalist") as HTMLDataListElement;
     expect([...list.querySelectorAll("option")].map((o) => o.getAttribute("value"))).toEqual([
       "nosh.example",
@@ -1120,14 +1042,11 @@ describe("/settings — the task-hub project map", () => {
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     const checklist = await findChecklist();
-    // The command carries the hub's real host and port — a fourth typed copy of
-    // those is exactly what the three-file invariant exists to prevent.
+    // The command carries the hub's real host and port, never a typed copy.
     expect(checklist.textContent).toContain(
       "bd init --server --external --server-host 127.0.0.1 --server-port 3308 " +
         "--server-user root --prefix nom --non-interactive --skip-agents --skip-hooks",
     );
-    // The config edit, drawn as the diff it is: the line to remove struck, the
-    // two keys to add marked — and Copy takes only what is added.
     const yaml = within(checklist)
       .getByText("File · the project checkout/.beads/config.yaml")
       .closest("[data-command-block]") as HTMLElement;
@@ -1136,7 +1055,6 @@ describe("/settings — the task-hub project map", () => {
     expect(yaml.textContent).toContain("+ import.auto: false");
     expect(within(checklist).getByText("File · installation/task-host.json · repositories")).toBeTruthy();
     expect(checklist.textContent).toContain("three steps left");
-    // Titles and text to paste, no paragraph per step (bead ro-ujb9.96.6.3).
     expect(checklist.textContent).not.toMatch(/within a minute|quietly starts|not onboarded until/u);
 
     fireEvent.click(within(checklist).getByRole("button", { name: "Done" }));
@@ -1164,22 +1082,15 @@ describe("/settings — the task-hub project map", () => {
     const connection = document.querySelector("[data-task-hub-connection]") as HTMLElement;
     expect(connection.textContent).toContain("127.0.0.1:3308");
     expect(connection.textContent).toContain(".local/beads-dolt");
-    // A label and the value — read-only by construction (no field, no Save),
-    // with no tooltip explaining what the label already names.
     expect(connection.textContent).toContain("Task database server");
     expect(within(connection).queryByRole("textbox")).toBeNull();
     expect(within(connection).queryByRole("button")).toBeNull();
   });
 
-  // WHAT THE HOURLY CHECK FOUND, ON THE FIELD THAT CAUSED IT (bead `ro-eb7z`).
-  //
-  // The runner reconciles each project's declared database against what the
-  // server actually holds and files an operator task about the ones that
-  // disagree. Before this the operator met that task in his inbox, which is a
-  // slower loop than a mark on the value he typed — and this is the one page
-  // where the fix is a single edit. The page probes nothing: it reads the filed
-  // task off the board, which is why both states below are staged by moving one
-  // item in and out of the work payload.
+  // The runner files an operator task for each project whose declared database
+  // the server does not hold; the page probes nothing and reads that task off
+  // the board, so both states are staged by moving one item in and out of the
+  // work payload.
   it("marks the project whose database does not exist, and names both fixes", () => {
     state.work = workBoard(driftTask("meals.example"));
     stubFetch();
@@ -1190,22 +1101,18 @@ describe("/settings — the task-hub project map", () => {
         name: "No database named mp where the tasks live",
       }),
     ).toBeTruthy();
-    // The agreeing project carries no mark at all — never an all-clear, because
+    // The agreeing project carries no mark at all, never an all-clear, because
     // the board only ever carries a bounded head of each list.
     expect(
       within(projectRow("root-os")).queryByRole("img", { name: /No database/u }),
     ).toBeNull();
 
-    // What happened, as its consequence, then the two fixes as two options —
-    // no paragraph between them (bead ro-ujb9.96.6.3).
     const note = document.querySelector("[data-database-not-found]") as HTMLElement;
     expect(note.textContent).toContain("meals.example is not being backed up");
     expect(note.textContent).toContain("No database named mp");
     expect(note.textContent).not.toMatch(/Tasks board keeps working/u);
-    // Fix one: rename it here — the button puts the cursor in the Database cell.
     fireEvent.click(within(note).getByRole("button", { name: "Edit name" }));
     expect(document.activeElement).toBe(within(projectRow("meals.example")).getByLabelText("Database"));
-    // Fix two: keep the name and move the repo onto it.
     expect(within(note).getByText("Keep mp")).toBeTruthy();
     expect(note.textContent).toContain("--prefix mp --database mp");
   });
@@ -1219,20 +1126,17 @@ describe("/settings — the task-hub project map", () => {
     expect(
       within(projectRow("meals.example")).queryByRole("img", { name: /No database/u }),
     ).toBeNull();
-    // The column is still offered, because the board DID answer.
     expect(within(taskHub()).getByText("Found")).toBeTruthy();
     unmount();
 
-    // A board that never answered is not an all-clear: no column at all.
     state.work = null;
     renderPage();
     expect(within(taskHub()).queryByText("Found")).toBeNull();
     expect(document.querySelector("[data-database-not-found]")).toBeNull();
   });
 
-  // THE SERVER THAT DID NOT ANSWER (bead `ro-ujb9.208`). Every project read
-  // failing is the task server down: the address carries the state and the
-  // read's own error, once each, and the Found column says it does not know.
+  // Every project read failing is the task server down: the address carries
+  // the state and the read's own error, once each.
   it("says the task server is not answering beside its address when every project read failed", () => {
     const refused = "bd list exited 1: dial tcp 127.0.0.1:3308: connect: connection refused";
     const board = workBoard();
@@ -1245,11 +1149,9 @@ describe("/settings — the task-hub project map", () => {
     expect(connection).toHaveAttribute("data-task-server", "not-answering");
     expect(connection.querySelectorAll('[data-status-for="tasks:server"]')).toHaveLength(1);
     expect(connection.querySelector('[data-status-for="tasks:server"]')).toHaveTextContent("Not answering");
-    // The same error from two projects is said once.
     expect(connection.textContent!.split(refused)).toHaveLength(2);
     expect(connection.textContent).toContain("127.0.0.1:3308");
 
-    // Found stays, and says it does not know on every row.
     expect(within(taskHub()).getByText("Found")).toBeTruthy();
     expect(projectRow("meals.example").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
     expect(projectRow("root-os").querySelector("[data-found-unknown]")).toHaveTextContent("Unknown");
@@ -1285,28 +1187,19 @@ describe("/settings — the task-hub project map", () => {
     stubFetch();
     renderPage();
 
-    // Why is said once for the screen (bead ro-p8qq); the map shows its lock.
     await waitFor(() => expect(document.querySelector("[data-saves-paused]")).toHaveTextContent(READ_ONLY_REASON));
     expect(pausedStatements()).toBe(1);
     expect(taskHub().querySelector("[data-collection-locked]")).not.toBeNull();
     expect(within(taskHub()).queryByRole("button", { name: "Add" })).toBeNull();
     expect(within(taskHub()).queryByLabelText("Repo")).toBeNull();
-    // The facts are still there to read.
     expect(within(taskHub()).getAllByText("mp").length).toBeGreaterThan(0);
     expect(within(taskHub()).queryByText("../meals.example")).toBeNull();
   });
 });
 
-/**
- * `/settings#alert-rules` shows what a change would do (bead `ro-w35m`).
- *
- * The same three settings typed on an alert row have shown their 30-day replay
- * since `ro-u072`; typed here they saved blind, which is docs/15 principle 1
- * holding on one surface and not the other for the same edit. What is pinned
- * below is that the evidence is REAL and SCOPED: the strip is the shipped one
- * fed by the shipped RPC, the asset it replays against is the operator's choice
- * and is named on the page, and a deployment that cannot save still shows it.
- */
+/** The replay strip is the shipped one fed by the shipped RPC, the asset it
+ * replays against is the operator's choice and is named on the page, and a
+ * deployment that cannot save still shows it. */
 function assetCard(overrides: Partial<AssetCard>): AssetCard {
   return {
     id: "meals.example",
@@ -1385,8 +1278,6 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     const { container } = renderPage();
 
     await waitFor(() => expect(asked).toHaveLength(1));
-    // Nosh is the noisiest, so it is what the operator is shown first — not the
-    // payload's first row.
     expect(asked[0]).toMatchObject({ asset: "nosh.example", ruleId: "flow-poisson-low" });
     await waitFor(() => {
       expect(screen.getByText(/Would have fired/)).toHaveTextContent(
@@ -1416,8 +1307,6 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     await waitFor(() => {
       expect(asked[asked.length - 1]).toMatchObject({ asset: "meals.example" });
     });
-    // The caption follows the choice: a strip whose asset is only in a pressed
-    // button is a number the reader has to remember the scope of.
     expect(container.querySelector("[data-replay-caption]")).toHaveTextContent(
       /^Meal Planner · last 30 days/,
     );
@@ -1438,7 +1327,6 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
       { target: { value: "0.05" } },
     );
 
-    // Show, then ask: the number moves before the Save, not after it.
     await waitFor(() => {
       expect(asked[asked.length - 1]).toMatchObject({
         config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
@@ -1463,13 +1351,9 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     });
   });
 
-  /**
-   * THE TWO PICKERS ARE THUMB TARGETS (bead `ro-zmyq`). They are hand-rolled
-   * buttons rather than `<Button>`, which is how a pair of 26px controls
-   * survived `ro-md80`'s sweep and `ro-9smi`'s. jsdom has no layout, so what is
-   * asserted is the class that carries the floor — and that it is `max-sm:`,
-   * because the desk's density is not what this fixes.
-   */
+  /** The pickers are hand-rolled buttons rather than `<Button>`. jsdom has no
+   * layout, so what is asserted is the class that carries the floor, and that
+   * it is `max-sm:`. */
   it("gives both replay pickers the phone's thumb floor and leaves the desk alone", async () => {
     state.wall = wall([
       assetCard({ id: "nosh.example", displayName: "Nosh" }),
@@ -1488,7 +1372,6 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     expect(pickers.length).toBeGreaterThanOrEqual(3);
     for (const picker of pickers) {
       expect(picker.className).toContain("max-sm:min-h-11");
-      // The label rides the middle of the taller box, not its top edge.
       expect(picker.className).toContain("items-center");
       expect(picker.className).not.toContain(" min-h-11");
     }
@@ -1501,8 +1384,8 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     const { container } = renderPage();
 
     await waitFor(() => expect(asked).toHaveLength(1));
-    // The strip is a READ. A deployment with no write lane can still answer
-    // "what would this do", and the answer is most of the value.
+    // The strip is a read: a deployment with no write lane can still answer
+    // "what would this do".
     const section = container.querySelector("#alert-rules") as HTMLElement;
     await waitFor(() => {
       expect(section.querySelectorAll("[data-backtest-day]")).toHaveLength(30);
@@ -1513,8 +1396,6 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
   });
 
   it("says there is nothing to replay against rather than drawing an empty strip", () => {
-    // An asset that has never filed a report cannot be replayed, so it is not
-    // offered — and a portfolio of only those says so.
     state.wall = wall([assetCard({ id: "nosh.example", pulseReceivedAt: null })]);
     stubReplay();
     const { container } = renderPage();
@@ -1522,24 +1403,17 @@ describe("/settings#alert-rules — the replay the fields are edited against", (
     const section = container.querySelector("#alert-rules") as HTMLElement;
     expect(section.querySelector("[data-alert-rule-preview]")).toBeNull();
     expect(section.querySelector("[data-backtest-day]")).toBeNull();
-    // One calm line with its glyph, not a paragraph (doc 14 empty states).
     expect(section.querySelector("[data-alert-rule-preview-empty]")).toHaveTextContent(
       "No reports to replay yet",
     );
   });
 });
 
-// ---------------------------------------------------------------------------
-// The two sections that stopped being read-only (bead `ro-x5gu.6`)
-// ---------------------------------------------------------------------------
-// Both are edited through a DECLARATION rather than through anything this page
-// knows: the cadence numbers are the knobs in `CONFIG_KNOBS`, the catalog is the
-// `data-source-catalog` register. So what is asserted here is that the page
-// sends the pointer the declaration names, refuses with the sentence the
-// declaration writes, and offers the way back the lane's own contract promises.
+// Both sections are edited through a declaration: the cadence numbers are the
+// knobs in `CONFIG_KNOBS`, the catalog is the `data-source-catalog` register.
 
 /** How many times this screen says saves are paused: the page's one state plus
- * any editor still saying it under itself (bead ro-p8qq wants exactly 1). */
+ * any editor still saying it under itself (exactly 1 is the rule). */
 function pausedStatements(): number {
   return (
     document.querySelectorAll("[data-saves-paused]").length +
@@ -1586,8 +1460,7 @@ describe("/settings — the collection cadence", () => {
   });
 
   it("shows the actual schedule without offering a control that only changes freshness", () => {
-    // The counters read interval is retired (bead ro-ujb9.222): the counters
-    // row's schedule is the one control, and the cards age against it.
+    // The counters row's schedule is the one control, and the cards age against it.
     state.settings = payload({
       collection: {
         knobs: [],
@@ -1606,8 +1479,7 @@ describe("/settings — the collection cadence", () => {
     expect(calls.some((call) => call.method === "PUT")).toBe(false);
   });
 
-  // ── the schedules no connection feeds, edited here (beads ro-ujb9.96.7.12,
-  // ro-ujb9.96.7.28) ──────────────────────────────────────────────────────────
+  // The schedules no connection feeds, edited here.
 
   it("shows each collection no connection feeds as its own row, and no other job", () => {
     stubFetch();
@@ -1620,10 +1492,8 @@ describe("/settings — the collection cadence", () => {
     for (const job of ["mediavine", "clarity", "signal-dumps", "posthog", "dataforseo"]) {
       expect(document.querySelector(`[data-schedule-row="${job}"]`)).toBeNull();
     }
-    // A backup or a freshness check keeps its one editor where it runs.
     expect(document.querySelector('[data-schedule-row="backup"]')).toBeNull();
     expect(document.querySelector('[data-schedule-row="freshness"]')).toBeNull();
-    // The value each row shows is the saved schedule, read as the operator's picks.
     expect(screen.getByRole("combobox", { name: "Nightly reports · how often" })).toHaveValue("daily");
     expect(screen.getByRole("combobox", { name: "Live traffic and counters · how often" })).toHaveValue("minutes");
   });
@@ -1646,7 +1516,6 @@ describe("/settings — the collection cadence", () => {
           kind: "file-json-set",
           file: "config/constants.json",
           pointer: "/schedules",
-          // Nothing saved yet, so the first write says so as its guard.
           expectAbsent: true,
           value: { pull: { enabled: true, cron: "15 9 * * *", timezone: zone } },
         },
@@ -1659,8 +1528,6 @@ describe("/settings — the collection cadence", () => {
       return found as HTMLElement;
     });
 
-    // Undo is the same write reversed: a first write undoes into a delete of
-    // exactly what it wrote.
     fireEvent.click(within(saved).getByRole("button", { name: "Undo" }));
     await waitFor(() => expect(calls.filter((c) => c.method === "PUT")).toHaveLength(2));
     expect((await lastPut(calls)).body).toMatchObject({
@@ -1747,8 +1614,7 @@ describe("/settings — the collection cadence", () => {
     fireEvent.change(field, { target: { value: "0" } });
     fireEvent.click(saveBeside(field));
 
-    // The declaration's own sentence — the same one a 422 would have carried,
-    // naming the field by the label beside the input (bead ro-ujb9.154).
+    // The declaration's own sentence, the same one a 422 would have carried.
     expect(screen.getByText("Panel history window must be at least 1")).toBeTruthy();
     expect(calls.some((c) => c.method === "PUT")).toBe(false);
   });
@@ -1757,14 +1623,10 @@ describe("/settings — the collection cadence", () => {
     stubFetch();
     renderPage();
 
-    // The cost is a value beside the field, not a consequence paragraph under
-    // it (bead ro-ujb9.96.6.3).
     expect(document.querySelector("[data-knob-consequence]")).toBeNull();
     const historyWindow = document.querySelector('[data-collection-scale="panel-refresh-window"]')!;
     expect(historyWindow.querySelector("[data-collection-cost]")).toHaveTextContent("$0.00");
     expect(historyWindow).toHaveTextContent("5 weeks");
-    // The freshness bar has to fit inside the window, which is the one thing the
-    // number cannot say on its own — so it is the meter, and a ✓/✕ chip.
     const bar = document.querySelector('[data-collection-scale="panel-freshness-bar"]')!;
     const meter = within(bar as HTMLElement).getByRole("progressbar");
     expect(meter.getAttribute("aria-valuenow")).toBe("7");
@@ -1803,7 +1665,6 @@ describe("/settings — the collection cadence", () => {
     renderPage();
 
     expect(screen.queryByRole("spinbutton", { name: /Counter read interval/ })).toBeNull();
-    // Absent, never a zero: nothing configured a window of nothing.
     expect(screen.queryByRole("spinbutton", { name: /Panel history window/ })).toBeNull();
     expect(document.querySelector('[data-collection-scale="panel-refresh-window"]')).toBeNull();
   });
@@ -1815,8 +1676,6 @@ describe("/settings — the collection cadence", () => {
 
     const field = screen.getByRole("spinbutton", { name: /Panel history window/ });
     expect((field as HTMLInputElement).disabled).toBe(true);
-    // Said ONCE for the screen (bead ro-p8qq); each field shows only its lock,
-    // and every schedule pick is dark too.
     expect(pausedStatements()).toBe(1);
     expect(document.querySelector("[data-saves-paused]")).toHaveTextContent(READ_ONLY_REASON);
     const section = document.querySelector("#data-collection") as HTMLElement;
@@ -1827,7 +1686,7 @@ describe("/settings — the collection cadence", () => {
   });
 });
 
-describe("/settings — the data-source catalog is not a setting (ro-ujb9.96.14)", () => {
+describe("/settings — the data-source catalog is not a setting", () => {
   it("offers no catalog table, no Add and no section for it", () => {
     stubFetch();
     const { container } = renderPage();
@@ -1847,16 +1706,9 @@ describe("/settings — the data-source catalog is not a setting (ro-ujb9.96.14)
   });
 });
 
-/**
- * /settings#alert-rules — what each rule has ALREADY cost (bead `ro-ayxy`).
- *
- * docs/15 flow E has promised a visible false-positive rate per rule since the
- * beginning; `ro-van6` shipped the write half (a save from the Tune panel
- * dispositions the alert `tune`) and nothing read it back. What is pinned here
- * is that the number on the page is the doc's arithmetic, that the two limits
- * the store imposes are STATED rather than hidden, and that a rule the store has
- * nothing to say about never gets a zero it did not measure.
- */
+/** The number on the page is the documented arithmetic, the two limits the
+ * store imposes are stated, and a rule the store has nothing to say about
+ * never gets a zero it did not measure. */
 function ruleStats(
   rules: AlertRuleStatsPayload["rules"],
   windowDays = 90,
@@ -1890,19 +1742,15 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     const row = container.querySelector(
       "[data-alert-rule-row='flow-poisson-low']",
     ) as HTMLElement;
-    // The operator's name for the rule leads; the id is evidence and rides in
-    // the hover (docs/17 rule 4).
     expect(within(row).getByText("Drop at normal volume")).toBeTruthy();
     expect(within(row).getByTitle("flow-poisson-low")).toBeTruthy();
 
-    // docs/15 flow E: of the three this rule produced that are finished with,
-    // the operator answered one by making the rule quieter.
+    // Of the three this rule produced that are finished with, the operator
+    // answered one by making the rule quieter.
     expect(within(row).getByText("33%")).toBeTruthy();
     expect(within(row).getByText("1 of 3 settled")).toBeTruthy();
     expect(within(row).getByText(/5 fired in 90 days/)).toBeTruthy();
 
-    // The figure carries its visual (doc 14): the share is a bar, and the bar
-    // says the whole sentence to a screen reader.
     const bar = row.querySelector("[data-segment-bar]") as HTMLElement;
     expect(bar.getAttribute("aria-label")).toBe(
       "1 of 3 settled alerts from this rule were answered by tuning it",
@@ -1910,14 +1758,8 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     expect(bar.querySelector("[data-segment='tuned']")).not.toBeNull();
   });
 
-  /**
-   * `ro-bgny`. docs/15 flow E's "rules above ~40% FP get auto-proposed for
-   * tuning" was prose for as long as the doc has existed: the rate was measured
-   * and rendered, and the operator was left to remember the threshold.
-   */
   it("proposes quietening a rule that crosses the line, and never applies it", () => {
     state.ruleStats = ruleStats([
-      // 5 of 8 settled — over 40%, and past the 5 settled alerts it waits for.
       { ...RULE_ROW, fired: 22, settled: 8, tuned: 5, acknowledged: 2, resolved: 1 },
     ]);
     stubFetch();
@@ -1927,18 +1769,14 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
       "[data-tune-proposal='flow-poisson-low']",
     ) as HTMLElement;
     expect(within(proposal).getByText(/make this rule quieter/)).toBeTruthy();
-    // The line it crossed is stated, not implied — a proposal nobody can argue
-    // with is a proposal nobody can check. It is said once in the proposal and
-    // DRAWN on the bar as a tick at 40%, beside the counts it was read from
-    // (bead `ro-ujb9.96.6.7`: the paragraph that described it is the tick).
     expect(proposal.textContent).toMatch(/over 40%/);
     const row = container.querySelector("[data-alert-rule-row='flow-poisson-low']") as HTMLElement;
     const line = row.querySelector("[data-tune-rate-line]") as HTMLElement;
     expect(line.style.left).toBe("40%");
     expect(row.querySelector("[data-tune-rate-counts]")?.textContent).toBe("5 of 8 settled");
 
-    // Guardrail settings are operator-only forever (AGENTS.md), so the
-    // proposal's only controls are two answers — neither of them a setting.
+    // Guardrail settings are operator-only, so the proposal's only controls
+    // are two answers, neither of them a setting.
     const answers = within(proposal).getAllByRole("button");
     expect(answers).toHaveLength(2);
     expect(within(proposal).getByRole("button", { name: /File task/ })).toBeTruthy();
@@ -1948,12 +1786,8 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     expect(proposal.querySelector("input")).toBeNull();
   });
 
-  /**
-   * The decline is deliberately the weaker of the two answers: it is a note
-   * against THIS evidence, not a record, so the eleventh alert asks again. The
-   * durable answers are the task and the tune itself — muting without a reason
-   * does not exist here (docs/15 flow E).
-   */
+  /** The decline is a note against this evidence, not a record, so the
+   * eleventh alert asks again. */
   it("takes 'keep it as it is' against the evidence it was shown for, not forever", () => {
     window.localStorage.clear();
     const crossing = {
@@ -1976,15 +1810,12 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     expect(first.container.querySelector("[data-tune-proposal]")).toBeNull();
     first.unmount();
 
-    // Same evidence on the next visit: still declined.
     state.ruleStats = ruleStats([crossing]);
     stubFetch();
     const again = renderPage();
     expect(again.container.querySelector("[data-tune-proposal]")).toBeNull();
     again.unmount();
 
-    // One more tune and one more settled alert is a different question, and
-    // the OS is entitled to ask it again.
     state.ruleStats = ruleStats([{ ...crossing, settled: 9, tuned: 6 }]);
     stubFetch();
     const later = renderPage();
@@ -1994,7 +1825,7 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
 
   it("says nothing about a rule whose share is over the line on too little evidence", () => {
     // 3 of 4 is 75% and the OS stays quiet: one more click either way moves
-    // that share 25 points, which is not a rule's record, it is a coin.
+    // that share 25 points.
     state.ruleStats = ruleStats([
       { ...RULE_ROW, fired: 6, settled: 4, tuned: 3, acknowledged: 1, resolved: 0 },
     ]);
@@ -2008,10 +1839,6 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
   });
 
   it("prints no methodology caveat under the rules — the counts say what they count", () => {
-    // Bead `ro-ujb9.96.6.7`. A once-per-surface caveat paragraph ("Still a
-    // floor: one decision covers every open firing…", plus a task link about a
-    // migration) sat under the list. It was methodology, not something the
-    // operator acts on; each row's counts already say "N of M settled".
     state.ruleStats = ruleStats([
       RULE_ROW,
       { ...RULE_ROW, ruleId: "ingest-freshness", tuned: 0, acknowledged: 2 },
@@ -2021,7 +1848,7 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
 
     const section = container.querySelector("#alert-rules") as HTMLElement;
     expect(section.querySelector("[data-tune-rate-caveat]")).toBeNull();
-    expect(within(section).queryByRole("link", { name: "ro-6d1t" })).toBeNull();
+    expect(section.querySelector('a[href^="/tasks/"]')).toBeNull();
     expect(section.textContent).not.toMatch(/Still a floor|tuned twice counts once/);
   });
 
@@ -2049,9 +1876,8 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
   });
 
   it("names tunes that are not settled yet instead of counting them as 0%", () => {
-    // A tune leaves its alert OPEN by design, and a tuned alert then snoozed is
-    // parked, so an answer the operator has already given sits outside the rate
-    // until the alert settles (bead ro-ujb9.194: a snooze is not settled).
+    // A tune leaves its alert open by design, and a tuned alert then snoozed
+    // is parked, so that answer sits outside the rate until the alert settles.
     state.ruleStats = ruleStats([
       { ...RULE_ROW, fired: 4, settled: 1, tuned: 0, tunedOpen: 2, acknowledged: 1, resolved: 0 },
     ]);
@@ -2075,8 +1901,7 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
       "[data-alert-rule-row='flow-poisson-low']",
     ) as HTMLElement;
     expect(within(row).getByText(/none settled yet/)).toBeTruthy();
-    // An empty track would read as a measured zero — the one thing the store
-    // cannot say yet.
+    // An empty track would read as a measured zero.
     expect(row.querySelector("[data-segment-bar]")).toBeNull();
   });
 
@@ -2086,13 +1911,10 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     const { container } = renderPage();
 
     const section = container.querySelector("#alert-rules") as HTMLElement;
-    // One calm line under the block's "last 90 days" header, which already
-    // names the window.
     const record = section.querySelector("[data-alert-rule-record]") as HTMLElement;
     expect(record).toHaveTextContent("last 90 days");
     expect(within(record).getByText("No rule has fired")).toBeTruthy();
     expect(section.querySelector("[data-alert-rule-row]")).toBeNull();
-    // The fields the section exists for are untouched by an empty store.
     expect(within(section).getAllByLabelText(/Anomaly sensitivity/).length).toBeGreaterThan(0);
   });
 
@@ -2105,19 +1927,13 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
     expect(section.querySelector('[data-alert-rule-record="unavailable"]')).toHaveTextContent(
       "Tuning history unavailable",
     );
-    // The settings payload is built from config alone precisely so this is true.
     expect(within(section).getAllByLabelText(/Anomaly sensitivity/).length).toBeGreaterThan(0);
   });
 });
 
-// --- Entities (bead `ro-aodz`) ----------------------------------------------
-//
-// The section owns the entity; the ASSET's own page owns which entity owns it.
-// That split is the design and not a gap: an asset belongs to exactly one
-// entity, no field of one row can see another, and a list typed into two rows
-// would claim the same asset twice with nothing to catch it. So the assets
-// column is not offered here, and what this section owes instead is the READ —
-// who owns what, and which assets nobody has claimed.
+// The section owns the entity; the asset's own page owns which entity owns it,
+// so the assets column is not offered here (an asset typed into two rows would
+// be claimed twice).
 
 function entities(): HTMLElement {
   return document.querySelector("#entities") as HTMLElement;
@@ -2133,7 +1949,6 @@ describe("/settings — who owns what", () => {
     for (const column of ["Id", "Name", "Legal form", "Registered in"]) {
       expect(within(table).getAllByText(column).length).toBeGreaterThan(0);
     }
-    // The declared column this surface deliberately does not offer.
     expect(within(table).queryByText("Sites")).toBeNull();
   });
 
@@ -2147,22 +1962,18 @@ describe("/settings — who owns what", () => {
     renderPage();
 
     const map = entities().querySelector("[data-entity-ownership]") as HTMLElement;
-    expect(within(map).getByText("Reindex Ventures LLC")).toBeTruthy();
+    expect(within(map).getByText("Example Ventures LLC")).toBeTruthy();
     expect(within(map).getByText("meals.example")).toBeTruthy();
 
-    // The two assets the fixture's one entity does not own.
     const unclaimed = map.querySelector("[data-entity-unowned]") as HTMLElement;
     expect(unclaimed.getAttribute("data-entity-unowned")).toBe("2");
-    // Each asset points at the card that changes it — this page never does.
     expect(within(unclaimed).getByText("nosh.example").closest("a")?.getAttribute("href")).toBe(
       "/assets/nosh.example/settings",
     );
   });
 
   it("says nothing about unclaimed assets until the asset list has answered", () => {
-    // An empty list is "nothing answered", and a page that drew it as an
-    // all-clear would be claiming every asset is owned on the strength of a
-    // read that never landed.
+    // An empty list is "nothing answered", not an all-clear.
     state.integrations = matrix(11.4, "2026-09", []);
     stubFetch();
     renderPage();
@@ -2180,8 +1991,7 @@ describe("/settings — who owns what", () => {
     fireEvent.click(within(addForm()).getByRole("button", { name: "Add" }));
 
     await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
-    // No `assets` key: an entity that owns nothing yet is a real state, and an
-    // empty list would be a claim nobody has made.
+    // No `assets` key: an entity that owns nothing yet is a real state.
     const added = { slug: "second-co", name: "Second Co" };
     expect(calls.find((c) => c.method === "PUT")!.body).toMatchObject({
       ops: [
@@ -2214,9 +2024,7 @@ describe("/settings — who owns what", () => {
     stubFetch();
     renderPage();
 
-    const row = document.querySelector("[data-collection-row='reindex-ventures']") as HTMLElement;
-    // The name is editable; the id it is filed under is not, and wears the
-    // lock and its state rather than a sentence (bead `ro-ujb9.96.6.17`).
+    const row = document.querySelector("[data-collection-row='example-ventures']") as HTMLElement;
     expect(within(row).getByLabelText("Name")).toBeTruthy();
     expect(within(row).queryByLabelText("Id")).toBeNull();
     expect(row.querySelector("[data-collection-fixed='slug']")).toHaveAttribute("title", "Fixed once added");

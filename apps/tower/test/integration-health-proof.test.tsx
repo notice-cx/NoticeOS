@@ -19,7 +19,7 @@ vi.mock("@/hooks/useIntegrations", () => ({ useIntegrations: () => ({ data: stat
 vi.mock("@/hooks/useIntegrationProviders", () => ({ useIntegrationProviders: () => ({ data: null }) }));
 vi.mock("@/hooks/useNow", () => ({ useNow: () => Date.parse("2026-09-06T12:00:00Z") }));
 vi.mock("@/hooks/useWorkflows", () => ({ useWorkflows: () => ({ data: undefined, isError: false }) }));
-// System health reads the Wall for the OS's own problems (D45); none here.
+// System health reads the Wall for the OS's own problems; none here.
 vi.mock("@/hooks/useWall", () => ({ useWall: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 import { HealthRoute } from "@/routes/HealthRoute";
@@ -50,10 +50,9 @@ function mixedMatrix(): IntegrationsMatrix {
 const allCells = (matrix: IntegrationsMatrix) => [...Object.values(matrix.cells).flat(), ...matrix.derivedLanes.flatMap((lane) => Object.values(lane.cells))];
 
 describe("current working proof is stricter than historical setup proof", () => {
-  // Clarity moved to this list with bead ro-at7t: its daily export's manifests
-  // became the lane's collection, with the one-day cadence the ingest's own
-  // health read already held it to.
-  // Uptime joined with bead ro-ujb9.165: the OS checks each home page hourly.
+  // Clarity's daily export's manifests are the lane's collection, with the
+  // one-day cadence the ingest's own health read holds it to. Uptime is the
+  // OS's hourly check of each home page.
   it.each(["gsc", "ga4", "bing-webmaster", "dataforseo", "clarity", "nightly-report", "uptime"])("uses the existing %s cadence at its exact boundary", (laneId) => {
     const window = collectionCadenceHours(laneId)! * AMBER_MULTIPLIER * 3_600_000;
     const current = cell(laneId, [proof(laneId, new Date(NOW - window).toISOString())]);

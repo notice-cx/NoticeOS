@@ -10,8 +10,8 @@ import { useConfigWritable } from '@/hooks/useConfigWritable';
 
 const money = (minor: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(minor / 100);
 /** Days of saved daily revenue the Wall's forecast needs before it learns
- * weekday and holiday effects (three weeks). A meter toward it replaces the
- * sentence that asked the operator to backfill (bead `ro-ujb9.96.6.4`). */
+ * weekday and holiday effects (three weeks). A meter toward it, rather than a
+ * sentence asking the operator to backfill. */
 const FORECAST_DAYS = 21;
 /** The earliest start one backfill request may ask for: a year before its end.
  * The date picker enforces it, so the limit needs no sentence. */
@@ -22,15 +22,11 @@ function yearBefore(date: string): string {
   return d.toISOString().slice(0, 10);
 }
 /**
- * A SITE'S MEDIAVINE REVENUE, once it is collected: how far it reaches, a
- * refresh, a backfill, the forecast calendar and the saved days.
- *
- * Which Mediavine site this is — and starting the sync — is the connect
- * panel's (bead `ro-ujb9.96.7.6`): the row's Connect opens it over this page
- * with this site first, and Start saves the site and collects. Stopping is the
- * row's own Not using, as for every source. So nothing here picks a site, loads
- * the account's sites or switches the sync on and off, and nothing shows until
- * a site is mapped. The row's chip is the one status; this adds none.
+ * A site's Mediavine revenue, once it is collected: how far it reaches, a
+ * refresh, a backfill, the forecast calendar and the saved days. Which
+ * Mediavine site this is, and starting the sync, is the connect panel's;
+ * stopping is the row's own Not using. Nothing shows until a site is mapped.
+ * The row's chip is the one status; this adds none.
  */
 export function MediavineSettings({ asset }: { asset: string }) {
   const { writable } = useConfigWritable();
@@ -68,8 +64,8 @@ export function MediavineSettings({ asset }: { asset: string }) {
   // Nothing mapped, or no login: the row's Connect is the one action.
   if (status && (!status.connected || status.siteId === null)) return null;
   return <section aria-label="Mediavine revenue" className="flex min-w-0 flex-col gap-3 border-t border-border pt-3">
-    {/* The schedule is a chip, not a sentence (bead `ro-ujb9.96.6.4`): the
-        sync collects yesterday, once a day, at 6:10 a.m. Pacific. */}
+    {/* The schedule is a chip, not a sentence: the sync collects yesterday,
+        once a day. */}
     <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-foreground">Mediavine revenue</h3>
       <StateChip label="Daily · 6:10 a.m. PT" tone="neutral" dot="hollow" subject={`revenue:${asset}`} />
       {status?.enabled ? <Button size="sm" variant="outline" className="ms-auto" disabled={busy || !writable} onClick={() => void action(() => api.syncMediavine({ asset }))}>{busy ? 'Working…' : 'Refresh revenue'}</Button> : null}

@@ -24,12 +24,11 @@ function storedTheme(): Theme {
 }
 
 /**
- * The operator's theme choice, as state plus its one mutation.
- *
- * This hook does NOT touch the document: `AppShell` owns applying the `.light`
- * class, because the class has to come OFF when the shell unmounts. `/wall`
- * renders outside the shell and its tokens assume dark (the TV is an emissive
- * surface — doc 14), so a light desk must never leak onto the television.
+ * The operator's theme choice, as state plus its one mutation. This hook does
+ * not touch the document: `AppShell` owns applying the `.light` class, because
+ * the class has to come off when the shell unmounts. `/wall` renders outside
+ * the shell and its tokens assume dark, so a light desk must never leak onto
+ * the television.
  */
 export function useTheme(): { theme: Theme; toggle: () => void } {
   const [theme, setTheme] = useState<Theme>(storedTheme);
@@ -61,11 +60,10 @@ function watchAppliedTheme(onChange: () => void): () => void {
 }
 
 /**
- * The theme the page is DRAWN in right now, for what renders outside
- * `AppShell` — the toaster (bead `ro-ujb9.117`). It reads the document, not
- * the stored choice, so it follows a toggle the moment the shell applies it,
- * with no second copy of the state to drift, and it stays dark wherever the
- * shell is not (the Wall).
+ * The theme the page is drawn in right now, for what renders outside
+ * `AppShell` (the toaster). It reads the document, not the stored choice, so
+ * it follows a toggle the moment the shell applies it and stays dark wherever
+ * the shell is not.
  */
 export function useAppliedTheme(): Theme {
   return useSyncExternalStore(watchAppliedTheme, appliedTheme, () => "dark");

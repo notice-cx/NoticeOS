@@ -5,44 +5,18 @@ import { cn } from "@/lib/utils";
 
 /**
  * Which frame the missing code is drawn in: a whole desk page inside the shell,
- * the whole TV, or — since bead `ro-ujb9.84` split them off their screens — one
- * PART of a page: an asset tab's panel (`panel`), or the command palette's box
+ * the whole TV, an asset tab's panel (`panel`), or the command palette's box
  * over the page (`palette`).
  */
 export type RouteSurface = "desk" | "wall" | "panel" | "palette";
 
 /**
- * What stands in for a screen while its code is still arriving (bead `ro-82x`).
- *
- * Since the route split, the code for each screen is its own file, fetched the
- * first time that screen is opened. This is drawn in the space the screen will
- * take — the desk page's column, or the whole TV — and it says one thing:
- * loading. No number, no chart outline, no status colour and no page-shaped
- * skeleton, because anything that looks like data can be read as data, and a
- * placeholder must never pass for a reading of how an asset is doing.
- *
- * The line waits before it shows (`.route-loading-label`): the code usually
- * arrives faster than anyone could read the word, and a word that flashes on
- * every page load is noise. A screen reader gets it at once through the polite
- * status region. The box keeps the page's own width, padding and a full
- * viewport of height, so the page arriving does not move the column or add a
- * scrollbar to a page that had none.
- *
- * The Wall's version is the TV's true black (`.wall-root`), with the same words
- * the Wall shows while its first data poll is out, so code loading and data
- * loading read as one continuous state rather than two flashes.
- *
- * AN ASSET TAB'S version (`panel`, bead `ro-ujb9.84`) sits inside the page the
- * header and tab bar already drew, so it takes the panel's width and a half
- * viewport of height rather than a page's padding: the section is about to fill
- * it, and the footer should not jump up and back down. It is only ever seen on
- * a first load, and then only if the tab's code is slower than the asset's own
- * report; a tab switch keeps the previous tab on screen until the next one's
- * code is here, exactly as a page switch does.
- *
- * THE PALETTE draws nothing while its code arrives (`palette`): it is a box the
- * operator summoned with a key, it appears the moment its code is here, and an
- * empty search box in the meantime would be a control that does not work.
+ * What stands in for a screen while its code is still arriving: one word in
+ * the space the screen will take. No skeleton or number, because a placeholder
+ * must never pass for a reading. The label waits before it shows
+ * (`.route-loading-label`) so a fast load does not flash; a screen reader gets
+ * it at once. The palette draws nothing, since an empty search box would be a
+ * control that does not work.
  */
 export function RouteLoading({ surface = "desk" }: { surface?: RouteSurface }) {
   if (surface === "palette") return null;
@@ -109,8 +83,8 @@ function openUpdatedApp() {
   window.open(window.location.href, '_blank', 'noopener,noreferrer');
 }
 
-/** A missing chunk never reloads the document or discards another editor.
- * The operator opens the current app in a new tab (D41). */
+/** A missing chunk never reloads the document or discards another editor;
+ * the operator opens the current app in a new tab. */
 export function RouteLoadFailure({
   surface = "desk",
   openUpdated = openUpdatedApp,

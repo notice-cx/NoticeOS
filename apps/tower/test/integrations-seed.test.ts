@@ -53,19 +53,16 @@ describe("the shipped data-source catalog", () => {
   });
 
   it("declares a layer on every catalog row rather than leaning on the default", () => {
-    // The default exists so a missing key cannot break a page, not so the file
-    // can leave the question open — a lane that lands in a layer by omission is
-    // still claiming whose failure it reports.
+    // The default exists so a missing key cannot break a page, not so the
+    // file can leave the question open.
     for (const row of shipped.catalog) {
       expect(INTEGRATION_LAYERS, `layer for ${row.id}`).toContain(row.layer);
     }
-    // And it is not `credential` under another name. Clarity is a provider lane
-    // that happens to issue one token per project, which is the one row where
-    // deriving the layer from the credential scope would have been wrong.
+    // Not `credential` under another name: Clarity is a provider lane that
+    // happens to issue one token per project.
     const clarity = shipped.catalog.find((r) => r.id === "clarity")!;
     expect(clarity.layer).toBe("provider");
     expect(clarity.credential).toBe("per-property");
-    // The only lane where nothing outside the asset is involved at all.
     expect(
       shipped.catalog.filter((r) => r.layer === "property").map((r) => r.id),
     ).toEqual(["deploy-annotations"]);
@@ -76,12 +73,10 @@ describe("the synthetic integrations register", () => {
   it("covers every registered asset × every catalog lane, with usage and failure facts for each lane", async () => {
     const m = await matrix();
 
-    // Every saved asset is represented; asset #0 leads the installation order.
     expect(m.assets.map((asset) => asset.id).sort()).toEqual(Object.keys(committed.assets).sort());
     expect(m.assets[0]!.isOs).toBe(true);
     expect(m.assets.filter((asset) => asset.isOs)).toHaveLength(1);
 
-    // full matrix: every asset carries every lane, every effective state is valid.
     expect(m.catalog.length).toBeGreaterThanOrEqual(11);
     for (const a of m.assets) {
       expect(m.cells[a.id]).toHaveLength(m.catalog.length);
@@ -93,22 +88,17 @@ describe("the synthetic integrations register", () => {
     // neither of which has a catalog entry.
     expect(m.summary.total).toBe(m.assets.length * (m.catalog.length + 2));
 
-    // LANE_FACTS must cover EVERY catalog lane — a lane with no cost or no
-    // failure posture would mean its id drifted out of the Worker's facts map.
+    // LANE_FACTS must cover every catalog lane.
     for (const row of m.catalog) {
       expect(row.usage.cost, `cost for ${row.id}`).toBeDefined();
       expect(row.onFailure, `failure posture for ${row.id}`).not.toBeNull();
-      // credential scope: every lane declares one — as a value, with no prose
-      // beside it (bead `ro-ujb9.96.6.1`).
+      // Every lane declares a credential scope, as a value.
       expect(["shared", "per-property"], `credential scope for ${row.id}`).toContain(row.credential);
     }
   });
 
   it("stores obligations and exceptions, and DERIVES the obvious not-applicable cells", async () => {
-    // the 2026-07 audit's finding 12 / bead `ro-9mx`: the register was a full matrix, and 27
-    // of its 84 cells said "not applicable" in prose — fifteen of them two rules
-    // written out fifteen times. The rule is now `scope` on the catalog row, so
-    // a new asset arrives owing decisions rather than paragraphs.
+    // Not-applicable is `scope` on the catalog row, never prose in a cell.
     const m = await matrix();
     const laneIndex = (id: string) => m.catalog.findIndex((lane) => lane.id === id);
 
@@ -118,14 +108,12 @@ describe("the synthetic integrations register", () => {
         const rule = derivedNotApplicable(lane.scope ?? "property", asset.isOs);
         if (!rule) continue;
         derived += 1;
-        // ABSENT from the stored register…
+        // Absent from the stored register…
         expect(
           committed.assets[asset.id]?.[lane.id],
           `${asset.id}/${lane.id} is derivable and must not be written down`,
         ).toBeUndefined();
-        // …and present in what the Tower renders, as the rule's state with no
-        // sentence riding it — the surfaces draw the rule as a chip from the
-        // lane's scope (beads `ro-ujb9.96.6.4`, `ro-ujb9.96.6.1`).
+        // …and present in what the Tower renders, as the rule's state.
         const cell = m.cells[asset.id]![laneIndex(lane.id)]!;
         expect(cell.laneId).toBe(lane.id);
         expect(cell.effective).toBe("not-applicable");
@@ -134,12 +122,11 @@ describe("the synthetic integrations register", () => {
         expect(cell.since).toBe("");
       }
     }
-    // The System's ten content-asset lanes (PostHog joined in bead
-    // ro-ghis.1), plus the operator-notification lane on each other asset.
+    // The System's ten content-asset lanes, plus the operator-notification
+    // lane on each other asset.
     expect(derived).toBe(10 + (m.assets.length - 1));
 
-    // What is left in the file is decisions: nothing not-applicable there is a
-    // restatement of the two rules above.
+    // Nothing not-applicable in the file is a restatement of the two rules above.
     const stored = Object.values(committed.assets).flatMap((lanes) =>
       Object.values(lanes),
     );
@@ -147,30 +134,18 @@ describe("the synthetic integrations register", () => {
     for (const c of stored) expect(c.note).not.toBe("");
   });
 
-  // THE INVARIANT IS CHECKED NOW, NOT ASSUMED (bead `ro-qodp`).
-  //
   // config/integrations.README.md requires every asset to carry an entry for
-  // every data source the scope rule does not answer, and it ships a validation
-  // snippet that reports `ASSET missing LANE`. Nothing in this repo ran that
-  // snippet — so once /settings could add a catalog row in one changeset (bead
-  // `ro-x5gu.6`), an operator could put the file into the state its own README
-  // forbids with a click, and the gap stayed invisible until somebody opened
-  // the file. This is that snippet, as a gate and as a payload field.
+  // every data source the scope rule does not answer.
   it("declares every source on every asset", async () => {
-    // The whole point of a gate: this is the failure an operator would
-    // otherwise only meet by reading the file. Each row names the source and
-    // every asset owing it an entry.
     expect((await matrix()).undeclared).toEqual([]);
   });
 
-  it("reads into an unblock list an operator could work through (bead ro-9mx)", async () => {
+  it("reads into an unblock list an operator could work through", async () => {
     const m = await matrix();
     const list = unblockers(m);
 
-    // Blocked cells in the register (no collector runs in this fixture)
-    // collapse to a list an operator can actually read.
+    // Blocked cells in the register collapse to a list an operator can read.
     expect(list.length).toBeLessThan(m.summary.needsAttention / 2);
-    // Every entry names at least one thing it moves, and nothing is a cell.
     for (const item of list) {
       expect(item.unlocks.length).toBeGreaterThan(0);
       expect(item.cells).toBe(item.unlocks.length);

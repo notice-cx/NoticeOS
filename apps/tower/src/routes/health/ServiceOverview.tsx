@@ -14,9 +14,8 @@ import { cn } from '@/lib/utils';
 export function ServiceOverview({ dataCurrent, degraded, unverified, setup, integrations }: { dataCurrent: boolean; degraded: number; unverified: number; setup: number; integrations: IntegrationStatus }) {
   const query = useWorkflows();
   const now = useNow(5_000);
-  // THE OS'S OWN PROBLEMS, IN THE WALL'S AND HOME'S WORDS (D45). Home's brief
-  // sends a Stopped card here with Look; this page names the same problem
-  // first, from the same derivation (`withSystemIssues`), errors first.
+  // The OS's own problems, in the Wall's and Home's words: this page names
+  // the same problem first, from the same derivation (`withSystemIssues`).
   const wall = useWall();
   const systemIssues = wall.data ? withSystemIssues([], wall.data.system, now).sort((a, b) => Number(b.severity === 'error') - Number(a.severity === 'error')) : [];
   const payload = query.data;
@@ -31,8 +30,8 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
     return definition ? [{ definition, summary, state: workflowState(summary, data) }] : [];
   }) ?? [];
   const failures = operations.filter((item) => item.state === 'failed');
-  // Sites whose unpublished commits the runner could not check, and why (bead
-  // ro-ujb9.188): unknown, not failed — the sites' own state is what is unread.
+  // Sites whose unpublished commits the runner could not check, and why:
+  // unknown, not failed.
   const pushCheck = installedWorkflows(data).find((item) => item.id === PUSH_STATE_JOB);
   const unread = history && pushCheck ? unreadSites(data?.workflows.find((summary) => summary.id === pushCheck.id)?.latest) : null;
   const covered = internal.every((definition) => operations.some((item) => item.definition.id === definition.id && item.state !== 'unknown'));
@@ -58,9 +57,8 @@ export function ServiceOverview({ dataCurrent, degraded, unverified, setup, inte
       </div></div>
       {payload && <time dateTime={payload.generatedAt} title={utcRunReference(payload.generatedAt)} className="text-xs text-muted-foreground tabular-nums">Updated {workflowRunAge(payload.generatedAt, now).toLowerCase()}</time>}
     </div>
-    {/* ONLY WHAT IS NOT FINE (D45): four equal cells saying "Reporting" were
-        a box per fact on a page whose answer is the line above. A cell that is
-        fine says nothing; all four fine is no grid at all. */}
+    {/* Only what is not fine: a cell that is fine says nothing; all four fine
+        is no grid at all. */}
     {statusItems.some((item) => !item.ok) ? <div className="grid divide-y divide-border border-t border-border md:auto-cols-fr md:grid-flow-col md:divide-x md:divide-y-0" data-status-cells>{statusItems.filter((item) => !item.ok).map((item) => <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-x-3 gap-y-2 p-4 md:block md:space-y-2 md:px-6">
       <div className="flex items-center gap-2 text-xs text-muted-foreground"><item.icon className="size-3.5" aria-hidden />{item.label}</div>
       <p className={cn('text-sm font-medium', item.failed ? 'text-error' : item.ok ? 'text-healthy' : 'text-muted-foreground')}>{item.text}</p><p className={cn("col-span-2 text-xs text-muted-foreground", item.ok && "hidden md:block")}>{item.detail}</p>

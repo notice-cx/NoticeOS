@@ -46,45 +46,24 @@ import { Button } from "@/components/ui/button";
 import { formatCalendarDate, formatCalendarRange, formatInt, formatSeriesDate } from "@/lib/format";
 
 // --- the outcome check an operator opens on a change -----------------------
-// The Activity tab's composer and the strip of checks it files, moved out whole
-// with the per-tab split (bead `ro-78qo.2`).
+// The Activity tab's composer and the strip of checks it files.
 
 /**
- * Open a pre-registered outcome check on this asset (bead `ro-71r`).
+ * Open a pre-registered outcome check on this asset. Everything here is a
+ * prefill, so registering is one click and every field is editable; what it
+ * will not do is relax a rule: `watchDraftIssues` mirrors the ingest route's
+ * own 422s and blocks the button, and the route re-checks every one anyway.
  *
- * The honesty mechanism docs/03 leans on hardest was, until this form, the
- * highest-friction thing in the OS: a hand-written POST carrying the operator
- * bearer. Friction on the step that stops you choosing the verdict after the
- * numbers arrive is friction in exactly the wrong place, so it got skipped.
+ * No backdating control, though the route allows it: a backdated window's
+ * final check may already have passed, closing on numbers the operator has
+ * seen. The baseline may be as old as the change; the checks start now.
  *
- * Everything here is a PREFILL. The composer opens already answerable — the
- * newest timeline event, the asset's own reporting lane, four weeks of
- * baseline ending the day before the change, a symmetric ±10% predicate — so
- * registering is one click, and every one of those is editable. What it will not
- * do is relax a rule: `watchDraftIssues` mirrors the ingest route's own 422s
- * and blocks the button, and the route re-checks every one of them anyway
- * (`shared/watch-windows.ts` says why that duplication is deliberate).
- *
- * There is no backdating control, though the route allows it. Backdated to a
- * change from two months ago, a 28-day window's final check has already passed
- * and closes on the next nightly run — a "pre-registration" read out of numbers
- * the operator had already seen. The baseline may be as old as the change; the
- * checks always start now.
- *
- * THE THRESHOLD IS CALIBRATED, and says so (bead `ro-5e8.2`). The prefill is
- * derived from this asset's OWN series: the same comparison the evaluator will
- * make, run over every adjacent pair of baseline-length windows the archives
- * hold, gives the floor a threshold has to clear. It re-derives when the series
- * or the baseline length changes, because both change which comparison is being
- * calibrated.
- *
- * THE PLAN IS DRAWN, NOT WRITTEN (bead `ro-ujb9.96.6.6`). Under the fields: the win and loss thresholds
- * with their direction, the check dates and the verdict date; a chip naming
- * where the threshold came from with the asset's normal noise as a bar against
- * it; and, for a check opened from a query, the scope as a chip. A rule the
- * route would refuse is prevented where it can be — averages are disabled
- * outside a query, the date pickers stop at today, a verdict shorter than the
- * baseline is disabled — so the refusal line is a guard, not an explanation.
+ * The threshold is calibrated from this asset's own series, the same
+ * comparison the evaluator will make, run over every adjacent pair of
+ * baseline-length windows the archives hold; it re-derives when the series or
+ * the baseline length changes. The plan is drawn under the fields, and a rule
+ * the route would refuse is prevented where it can be, so the refusal line is
+ * a guard, not an explanation.
  */
 export function WatchComposer({
   assetId,
@@ -100,7 +79,7 @@ export function WatchComposer({
   lanes: AssetIntegrationLane[];
   history: WatchSeriesHistory[];
   /** What a query row or finding card asked to watch, or null when the operator
-   * opened the form from the section header (bead `ro-5e8.5`). */
+   * opened the form from the section header. */
   seed: WatchSeed | null;
   nowMs: number;
   onDone: () => void;
@@ -116,10 +95,10 @@ export function WatchComposer({
   const [changeId, setChangeId] = useState<number | "manual">(
     seed ? "manual" : (changes[0]?.id ?? "manual"),
   );
-  // The REF is the bead when the surface knew one, and the operator's own words
-  // otherwise (bead `ro-4ko`). The subject still travels — as the note — so the
-  // pending list says what is being watched in English while the ref stays the
-  // id a later reading joins on.
+  // The ref is the task when the surface knew one, and the operator's own
+  // words otherwise. The subject still travels as the note, so the pending
+  // list says what is being watched while the ref stays the id a later
+  // reading joins on.
   const [manualRef, setManualRef] = useState(
     seed?.beadId ?? seed?.subject ?? "",
   );
@@ -225,8 +204,8 @@ export function WatchComposer({
               ? "calibrated"
               : "historical";
   // A seeded query can be followed by an average; without one, an average
-  // would read the query mix rather than the change (ro-715c), so those series
-  // are offered but disabled rather than refused after the fact.
+  // would read the query mix rather than the change, so those series are
+  // offered but disabled rather than refused after the fact.
   const averagesAllowed = Boolean(seed?.query);
 
   async function save() {
@@ -459,7 +438,7 @@ function PlanFact({ label, children }: { label: string; children: ReactNode }) {
 }
 
 /**
- * THE REGISTRATION AS A PLAN: what counts as a win and a loss, and when it is
+ * The registration as a plan: what counts as a win and a loss, and when it is
  * read. The arrows carry the direction, so average position (better when it
  * falls) needs no parenthesis to say so; the series and the baseline dates are
  * the fields right above and are not repeated.
@@ -509,13 +488,11 @@ const CALIBRATION_CHIP: Record<
 };
 
 /**
- * WHERE THE THRESHOLD CAME FROM, as a chip and a shape (bead `ro-5e8.2`): a
- * number the operator cannot trace is a number they will override on feel. The
- * chip names the basis; when there is a floor, a bar shows the asset's normal
- * noise (nine in ten historical moves stayed under it) against the threshold,
- * amber once the threshold sits inside it; the figures behind it follow as
- * short labelled facts. With nothing to measure from, the chip says so and the
- * one fact beside it says why.
+ * Where the threshold came from, as a chip and a shape: the chip names the
+ * basis; when there is a floor, a bar shows the asset's normal noise (nine in
+ * ten historical moves stayed under it) against the threshold, amber once the
+ * threshold sits inside it. With nothing to measure from, the chip says so and
+ * the one fact beside it says why.
  */
 function CalibrationLine({
   state,
@@ -631,11 +608,8 @@ function watchChangeLabel(item: AnnotationItem): string {
   return what.length > 0 ? `${head} — ${what}` : head;
 }
 
-/**
- * What a watch measures: the series, and — when it is narrowed — the one query
- * or page, so a verdict about one query never reads as the whole site's (bead
- * `ro-ujb9.96.6.30`; the verdict's note used to carry it in the store's words).
- */
+/** What a watch measures: the series, and, when it is narrowed, the one query
+ * or page, so a verdict about one query never reads as the whole site's. */
 function watchSubject(
   watch: Pick<WatchSlice["open"][number], "metricIntegration" | "metric" | "scope">,
 ): ReactNode {
@@ -679,23 +653,12 @@ function watchRef(
 }
 
 /**
- * THE PRE-REGISTERED CHECKS, AS DOC 21'S LIST (`ro-78qo.5`), with their
- * progress and verdict drawn (bead `ro-ujb9.96.6.6`).
- *
- * A mark for the state (a timer while it runs, a tick when it is read), the
- * series as the title, the bet's name once as the caption. A RUNNING check's
- * value is its progress — a segmented ring, one segment per registered check,
- * filled as each is read — beside the date it is waiting on, the way an
- * experiment list shows a progress bar and days left. A READ check's verdict is
- * one chip on the title, with a direction glyph.
- *
- * TONE IS THE VERDICT, NOT THE STATUS. An open check is `info` — muted, because
- * a check nobody has answered yet is not asking for anything.
- *
- * Still REPORTS and offers no control: nothing here is the operator's to change,
- * because a registered comparison is the one thing that must survive learning
- * the answer, and evaluation belongs to the 03:30 job. The list stays silent
- * when nothing is registered; the Record action already says one can be.
+ * The pre-registered checks, with their progress and verdict drawn. A running
+ * check's value is its progress, a segmented ring filled as each check is
+ * read, beside the date it is waiting on; a read check's verdict is one chip
+ * on the title. Tone is the verdict, not the status: an open check is muted.
+ * It offers no control: a registered comparison is the one thing that must
+ * survive learning the answer, and evaluation belongs to the nightly job.
  */
 export function WatchesStrip({
   watches,
@@ -708,7 +671,7 @@ export function WatchesStrip({
   const byId = new Map((beads ?? []).map((bead) => [bead.beadId, bead]));
   const open = watches.open.length;
   const closed = watches.closed.length;
-  // The Overview's word for the same subject (doc 14: watch window → Bets).
+  // The Overview's word for the same subject (watch window → Bets).
   const count = [
     open > 0 ? `${open} being watched` : null,
     closed > 0 ? `${closed} with a verdict` : null,

@@ -12,13 +12,8 @@ const buttonVariants = cva(
         outline: "border border-border bg-transparent hover:bg-muted",
         ghost: "hover:bg-muted",
       },
-      // THE PHONE FLOOR IS 44px (bead `ro-md80`). Every size here was set for a
-      // pointer — 36px, 32px, 36px — and the three verbs the desk is opened on
-      // a phone for (Mark read, Snooze, Resolve) are all `sm`. `max-sm:` only,
-      // so the desk's density is untouched: below `sm` each size keeps its
-      // padding and grows to the thumb target, and a caller that genuinely
-      // needs a denser control on a phone overrides it the way it overrides any
-      // other utility here.
+      // Below `sm` every size grows to the 44px thumb target; desk density is
+      // untouched.
       size: {
         default: "h-9 px-4 py-2 max-sm:min-h-11",
         sm: "h-8 px-3 text-xs max-sm:min-h-11",

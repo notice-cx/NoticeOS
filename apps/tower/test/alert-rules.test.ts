@@ -18,16 +18,12 @@ import { storeAlert, storeReports } from "./alert-rows";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { addSites } from "./sites";
 
-// GET /api/alerts/rules — what each rule has COST (bead `ro-ayxy`).
-//
-// Asserted against the REAL schema on a Postgres copy (bead ro-ujb9.76.5.2), so
-// the grouping, the settled predicate and the window all run the SQL the Tower
-// runs. What
-// these tests really guard is that the false-positive rate is HONEST: the
-// denominator is what the operator has finished with rather than everything the
-// rule ever produced, a tune that is still open is never quietly counted as
-// though it had settled, and a rule the store has nothing to say about is absent
-// rather than a row of zeros that would read as "never a problem".
+// GET /api/alerts/rules, what each rule has cost, asserted against the real
+// schema on a Postgres copy. The false-positive rate is honest: the
+// denominator is what the operator has finished with rather than everything
+// the rule ever produced, a tune that is still open is never counted as
+// settled, and a rule the store has nothing to say about is absent rather
+// than a row of zeros.
 
 const NOW = new Date("2026-09-04T12:00:00.000Z");
 const DAY = 86_400_000;
@@ -42,7 +38,7 @@ interface FlagSpec {
   asset?: string;
   disposition?: "ack" | "snooze" | "tune" | "incident" | "hypothesis" | null;
   /** The reason field. It carries a tune the operator later answered another
-   * way (bead `ro-bkcl`), so the numerator has to read it. */
+   * way, so the numerator has to read it. */
   dispositionNote?: string | null;
   snoozeUntil?: string | null;
   resolvedAt?: string | null;
@@ -76,11 +72,10 @@ beforeEach(async () => {
 const build = async () => buildAlertRuleStatsPayload(test.call, { now: NOW });
 
 describe("the per-rule tune counts", () => {
-  it("reads docs/15 flow E's arithmetic: 3 fired, 1 of them answered by tuning, 33%", async () => {
-    // The shape the doc describes, at the smallest size that has a rate at all:
-    // three settled alerts from one rule, one of which the operator answered by
-    // making the rule quieter. Tuning does not close a firing, so the tuned one
-    // also carries the `resolved_at` that settled it.
+  it("reads the false-positive arithmetic: 3 fired, 1 of them answered by tuning, 33%", async () => {
+    // Three settled alerts from one rule, one of which the operator answered
+    // by making the rule quieter. Tuning does not close a firing, so the
+    // tuned one also carries the `resolved_at` that settled it.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(20),
@@ -105,24 +100,18 @@ describe("the per-rule tune counts", () => {
     expect(Math.round(tuneShare(stat!)! * 100)).toBe(33);
   });
 
-  /**
-   * `ro-bkcl`. Before the fix this rule read 0% — the diligent operator's two
-   * tunes had both been overwritten by the Mark read that cleared the alert,
-   * and the store said nobody had ever complained about it.
-   */
+  /** A Mark read that cleared the alert must not overwrite the tune. */
   it("counts a tune the operator later answered another way", async () => {
     const carried = (note: string) =>
       `${note} · rule tuned: Anomaly sensitivity (alpha) 0.01 → 0.05`;
-    // Tuned, then marked read — the disposition slot says `ack`.
+    // Tuned, then marked read: the disposition slot says `ack`.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(20),
       disposition: "ack",
       dispositionNote: carried("Marked read by operator"),
     });
-    // Tuned, then parked, and still quiet: still tuned, but NOT settled — a
-    // snooze is put off, not answered (bead `ro-ujb9.194`), so it waits beside
-    // the rate as a tune not settled yet.
+    // Tuned, then parked, and still quiet: tuned, but not settled.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(15),
@@ -130,7 +119,7 @@ describe("the per-rule tune counts", () => {
       dispositionNote: carried("Snoozed by operator"),
       snoozeUntil: at(-5),
     });
-    // Marked read and never tuned — the row that must NOT move the numerator.
+    // Marked read and never tuned: the row that must not move the numerator.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(10),
@@ -140,17 +129,15 @@ describe("the per-rule tune counts", () => {
 
     const stat = findRuleStat(await build(), "flow-poisson-low");
     expect(stat).toMatchObject({ fired: 3, settled: 2, tuned: 1, tunedOpen: 1 });
-    // Both true of one alert, and both counted: an alert that was tuned AND
-    // marked read is in `tuned` and in `acknowledged`, so the four counts no
-    // longer partition `settled` and nothing may sum them.
+    // An alert that was tuned and marked read is in `tuned` and in
+    // `acknowledged`, so the four counts do not partition `settled`.
     expect(stat!.acknowledged).toBe(2);
     expect(Math.round(tuneShare(stat!)! * 100)).toBe(50);
   });
 
   it("keeps the denominator to what the operator has FINISHED with", async () => {
-    // Two open firings and one settled. Counting the open ones would read every
-    // fresh alert as evidence the rule is fine, and the one tune the operator
-    // did record would drop from a half to a sixth.
+    // Counting the open ones would read every fresh alert as evidence the
+    // rule is fine.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(20),
@@ -169,10 +156,8 @@ describe("the per-rule tune counts", () => {
   });
 
   it("counts a tune that is still open separately, never inside the rate", async () => {
-    // A tune leaves the row OPEN by design (`worker/flag-scope.ts`): the drop is
-    // still there and only what would produce it next time changed. So the
-    // answer the operator already gave sits outside the rate until the alert
-    // settles — and the surface says so rather than reading 0%.
+    // A tune leaves the row open by design (`worker/flag-scope.ts`), so the
+    // answer the operator already gave sits outside the rate until the alert settles.
     await insertFlag({ ruleId: "flow-poisson-low", firedAt: at(3), disposition: "tune" });
     await insertFlag({ ruleId: "flow-poisson-low", firedAt: at(2), disposition: "tune" });
     await insertFlag({ ruleId: "flow-poisson-low", firedAt: at(1), disposition: "ack",
@@ -185,10 +170,8 @@ describe("the per-rule tune counts", () => {
   });
 
   it("counts neither an ACTIVE nor an EXPIRED snooze as settled", async () => {
-    // Bead `ro-ujb9.194` replaced "treats an ACTIVE snooze as settled": a snooze
-    // with time on the clock is put off, not answered, and one whose date has
-    // passed is the same condition back in the queue. Neither tells the rate
-    // anything about the rule yet.
+    // A snooze with time on the clock is put off, not answered, and one whose
+    // date has passed is the same condition back in the queue.
     await insertFlag({
       ruleId: "asset-declared",
       firedAt: at(9),
@@ -230,7 +213,7 @@ describe("the per-rule tune counts", () => {
 
   it("windows on WHEN THE RULE FIRED, not on when the alert closed", async () => {
     // A firing from before the window is out even though it was dispositioned
-    // yesterday: the question is what this rule produced this quarter.
+    // yesterday.
     await insertFlag({
       ruleId: "flow-poisson-low",
       firedAt: at(ALERT_RULE_WINDOW_DAYS + 2),
@@ -252,8 +235,8 @@ describe("the per-rule tune counts", () => {
 
   it("counts a report re-sent the same day once: the alert it replaced fired for no rule", async () => {
     // A same-day retry keeps the alerts it re-derived in place of the earlier
-    // revision's, which stay in the store, replaced (bead ro-ujb9.76.5.2); D1
-    // deleted them. Either way the rule fired once that day.
+    // revision's, which stay in the store, replaced. Either way the rule
+    // fired once that day.
     const store = test.call;
     const [first, second] = await storeReports(store, [
       { asset: "nosh.example", date: at(3).slice(0, 10), receivedAt: at(3), envelope: {} },
@@ -317,18 +300,12 @@ describe("the route", () => {
 describe("the rule vocabulary", () => {
   it("names the rules the operator has words for and falls back to the id", () => {
     expect(ruleLabel("flow-poisson-low")).toBe("Drop at normal volume");
-    // A rule shipped from the ingest lane that nothing here has heard of keeps
-    // the identity the store holds, rather than rendering blank.
     expect(ruleLabel("some-new-rule")).toBe("some-new-rule");
   });
 });
 
-/**
- * `ro-bgny`. docs/15 flow E has promised since it was written that rules above
- * ~40% get auto-proposed for tuning, and until now nothing read the rate. What
- * crossing the line produces is a sentence with two answers — never a saved
- * threshold, which is operator-only forever (AGENTS.md).
- */
+/** Crossing the line produces a sentence with two answers, never a saved
+ * threshold, which is operator-only. */
 describe("when the OS proposes quietening a rule", () => {
   const stat = (over: Partial<AlertRuleStat> = {}): AlertRuleStat => ({
     ruleId: "flow-poisson-low",
@@ -343,8 +320,7 @@ describe("when the OS proposes quietening a rule", () => {
   });
 
   it("declares the threshold once, and it is the doc's ~40%", () => {
-    // docs/15 flow E's sentence is prose ABOUT this constant. If they ever
-    // disagree, the doc is describing a number nothing uses.
+    // The documented sentence is prose about this constant.
     expect(TUNE_PROPOSAL_SHARE).toBe(0.4);
   });
 
@@ -361,17 +337,13 @@ describe("when the OS proposes quietening a rule", () => {
     expect(tuneProposal(stat({ tuned: 3, settled: 10 }))).toBeNull();
   });
 
-  /**
-   * The minimum is what stops one click becoming a policy: at two settled
-   * alerts a single tune reads as 50%, and the OS would be proposing a
-   * threshold change off one decision.
-   */
+  /** At two settled alerts a single tune reads as 50%, and the OS would be
+   * proposing a threshold change off one decision. */
   it("waits for enough settled alerts before it has an opinion at all", () => {
     const thin = stat({ settled: TUNE_PROPOSAL_MIN_SETTLED - 1, tuned: 3 });
     expect(tuneShare(thin)).toBeGreaterThan(TUNE_PROPOSAL_SHARE);
     expect(tuneProposal(thin)).toBeNull();
 
-    // One more settled alert, still over the line, and now it speaks.
     expect(
       tuneProposal(stat({ settled: TUNE_PROPOSAL_MIN_SETTLED, tuned: 3 })),
     ).not.toBeNull();
@@ -383,13 +355,9 @@ describe("when the OS proposes quietening a rule", () => {
     expect(tuneProposal(undefined)).toBeNull();
   });
 
-  /**
-   * The measured share is a FLOOR — one decision still covers every open firing
-   * of a repeating condition — so a threshold on it UNDER-fires. That is the
-   * direction to err in for a proposal that cannot apply itself: this rule has
-   * two tunes the operator has already made sitting outside the denominator,
-   * and the OS stays quiet rather than counting an answer twice.
-   */
+  /** The measured share is a floor (one decision still covers every open
+   * firing of a repeating condition), so a threshold on it under-fires, which
+   * is the direction to err in for a proposal that cannot apply itself. */
   it("reads the settled share only, never the tunes still open", () => {
     expect(tuneProposal(stat({ settled: 10, tuned: 3, tunedOpen: 4 }))).toBeNull();
   });

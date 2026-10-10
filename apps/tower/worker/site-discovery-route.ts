@@ -1,5 +1,4 @@
-// The connect panel's second screen: the account's sites, and Start collecting
-// (bead `ro-ujb9.96.7.2`, epic `ro-ujb9.96.7`).
+// The connect panel's second screen: the account's sites, and Start collecting.
 //
 //   GET  /api/integrations/:provider/sites   — what the connected account lists,
 //                                              beside the portfolio's assets and
@@ -8,15 +7,9 @@
 //   POST /api/integrations/:provider/collect — run the provider's collect-now
 //                                              job step for the confirmed assets
 //
-// NEITHER WRITES A MAPPING. The mapping a press confirms is saved by the panel
-// through `PUT /api/config` — the same operations, register and audit row an
-// asset's Data sources tab writes — BEFORE it asks for the collection, so the
-// run reads the stored mapping like any scheduled run would. This file only
-// lists and triggers.
-//
-// NOTHING HERE HOLDS A SECRET: the listing and the collection happen inside the
-// ingest Worker, which alone can open the credential; what crosses is site
-// identities, asset ids and outcomes.
+// Neither writes a mapping: the panel saves it through `PUT /api/config` before
+// asking for the collection, so the run reads the stored mapping like any
+// scheduled run. Nothing here holds a secret; ingest alone opens the credential.
 
 import type {
   CollectNowInput,
@@ -49,16 +42,12 @@ const COLLECT_MAX_ASSETS = 100;
  * The portfolio's assets as the panel matches them: every non-OS asset that is
  * not retired, with its saved cell for each of the provider's lanes. A missing
  * cell is `null` — the register has no entry, so there is nothing the Data
- * sources tab could write there either.
- *
- * From the site list on Postgres (bead ro-ujb9.76.4.2), by each site's place
- * in the list.
+ * sources tab could write there either. In site-list order.
  *
  * `fieldsOf` names the mapping fields read from each cell: the lane's
  * `LANE_MAPPING` fields, plus whatever the account's sites write there — so a
- * lane whose Data sources row has its own editor (Mediavine's site id, bead
- * `ro-ujb9.96.7.6`) is still read as mapped, and Start's guard is what the
- * register holds.
+ * lane whose Data sources row has its own editor (Mediavine's site id) is still
+ * read as mapped.
  */
 export async function loadSitesAssets(
   store: WorkspaceStore,
@@ -84,10 +73,10 @@ export async function loadSitesAssets(
         if (typeof value === "string" || typeof value === "number") mapping[field] = value;
       }
       // The note rides along as the guard a Not using from the panel writes
-      // against (bead `ro-ujb9.96.7.18`); null when the key is absent.
+      // against; null when the key is absent.
       const note = (cell as unknown as Record<string, unknown>).note;
       // A saved funnel list (PostHog), as held: the guard picked-up funnels
-      // are written against, and never over (bead `ro-ujb9.96.7.8`).
+      // are written against, and never over.
       const funnels = (cell as unknown as Record<string, unknown>).funnels;
       return [lane, {
         status: cell.status,

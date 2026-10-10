@@ -1,14 +1,8 @@
 // @vitest-environment node
-// The Wall reads revenue-projection traffic only for assets with daily revenue
-// (bead `ro-ujb9.102`).
-//
-// The Wall's second trend read used to fetch 84 days of sessions for EVERY
-// asset, although `projectRevenue` answers "no revenue" before it looks at
-// traffic for an asset with no daily revenue rows. It is now narrowed to the
-// assets `mediavine_current_daily` returned. The specification is the Wall
-// as it was: the same builder with the narrowing removed from that one call.
-// The two payloads must be equal. The measurement is in
-// docs/artifacts/tower-perf-2026-09-23/measurements.md.
+// `projectRevenue` answers "no revenue" before it looks at traffic, so the Wall's
+// second trend read is narrowed to the assets `mediavine_current_daily`
+// returned. The specification is the same builder without that narrowing, and
+// the two payloads must be equal.
 
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it, vi } from "vitest";
@@ -20,7 +14,7 @@ import { createTestStore, type TestStore } from "./postgres-store";
 import { addSites } from "./sites";
 import { seedRevenueHistory } from "./revenue-fixture";
 
-/** When true, every trend read ignores `assets`: the pre-bead Wall. */
+/** When true, every trend read ignores `assets`: the unnarrowed Wall. */
 const spec = vi.hoisted(() => ({ unnarrowed: false, calls: [] as SignalTrendOptions[] }));
 
 vi.mock("../worker/signal-trends", async (importOriginal) => {
@@ -52,8 +46,7 @@ async function asset(raw: TestStore, id: string): Promise<void> {
   await addSites(raw, [{ id, displayName: id, status: "live", senseOnly: 0, createdAt: NOW.toISOString() }]);
 }
 
-/** 84 days of GA4 sessions for an asset with no daily revenue, on Postgres
- * where the collectors write them (bead ro-ujb9.76.5.3). */
+/** 84 days of GA4 sessions for an asset with no daily revenue. */
 async function trafficOnly(store: WorkspaceStore, id: string): Promise<void> {
   const at = NOW.toISOString();
   const values = [];
@@ -67,7 +60,7 @@ async function trafficOnly(store: WorkspaceStore, id: string): Promise<void> {
   }, values);
 }
 
-/** A few days of daily revenue (on Postgres, bead ro-ujb9.76.5.5) and no traffic at all. */
+/** A few days of daily revenue and no traffic at all. */
 async function revenueOnly(store: WorkspaceStore, id: string): Promise<void> {
   const days: [string, number][] = [];
   for (let day = 1; day <= 8; day += 1) days.push([`2026-09-0${day}`, 900]);
@@ -95,7 +88,7 @@ async function bothWalls(seed: (raw: TestStore) => Promise<void>, seedStore: (st
   }
 }
 
-describe("the Wall's revenue traffic is read only for assets with daily revenue (ro-ujb9.102)", () => {
+describe("the Wall's revenue traffic is read only for assets with daily revenue", () => {
   it("draws the same Wall as reading every asset's traffic", async () => {
     const { shipped, before, shippedCalls } = await bothWalls(async (raw) => {
       for (const id of ["earning.test", "second.test", "traffic.test", "quiet.test"]) await asset(raw, id);
@@ -105,15 +98,13 @@ describe("the Wall's revenue traffic is read only for assets with daily revenue 
       await trafficOnly(store, "traffic.test");
     });
     expect(shipped).toEqual(before);
-    // The edges are really in the fixture: one asset projects from traffic,
-    // one has revenue and no traffic, and the traffic-only asset still charts
-    // its users on the card while owing no projection.
+    // One asset projects from traffic, one has revenue and no traffic, and the
+    // traffic-only asset still charts its users on the card while owing no projection.
     const card = (id: string) => shipped.assets.find((a) => a.id === id)!;
     expect(card("earning.test").revenueProjection).toMatchObject({ status: "ready" });
     expect(card("second.test").revenueProjection).toMatchObject({ status: "waiting-traffic" });
     expect(card("traffic.test").revenueProjection).toMatchObject({ status: "no-revenue" });
     expect(card("traffic.test").activeUsers.series.length).toBeGreaterThan(0);
-    // And the narrowing reached the store.
     expect(shippedCalls.map((call) => call.assets)).toEqual([undefined, ["earning.test", "second.test"]]);
   });
 

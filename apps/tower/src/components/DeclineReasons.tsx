@@ -26,18 +26,10 @@ export interface DeclineReasonsProps {
 const PRESETS: readonly string[] = DECLINE_REASONS.map((reason) => reason.label);
 
 /**
- * WHY A DATA SOURCE IS NOT USED, AS ONE PRESS (beads `ro-ujb9.96.7.13`,
- * `ro-ujb9.96.7.18`; operator answer A, 2026-09-23).
- *
- * The three reasons the operator chose to offer, as choice chips, and Other
- * for a line of their own. A chip IS the decision: pressing one hands its
- * words to the caller, which saves at once with Undo in the toast (the Data
- * sources row) or on the panel's Start (the connect panel). Nothing is
- * preselected — a reason the product picked would be a reason nobody gave.
- *
- * `FlagActions`' snooze is the precedent for a choice expanding in place over
- * a row's own controls; this is the same move for a different decision, and
- * the chip chrome is `pillChoiceClass`, the desk's choice dialect.
+ * Why a data source is not used, as one press: the preset reasons as choice
+ * chips, and Other for the operator's own line. A chip is the decision; the
+ * caller saves it. Nothing is preselected, since a reason the product picked
+ * would be a reason nobody gave.
  */
 export function DeclineReasons({ subject, onChoose, onCancel, selected = null, busy = false, autoFocus = false }: DeclineReasonsProps) {
   const custom = selected !== null && !PRESETS.includes(selected) ? selected : null;

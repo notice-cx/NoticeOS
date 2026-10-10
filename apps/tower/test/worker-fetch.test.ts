@@ -12,36 +12,16 @@ import { bookLedger } from "./money";
 import { addSites } from "./sites";
 
 
-// THE WORKER'S OWN FETCH SWITCH (bead ro-ap7n).
-//
-// Every other Tower worker test targets a sub-module — buildFinancialsPayload,
-// buildWallPayload, handleWatchWindowRequest — so path matching, query-parameter
-// validation, and the status codes the catch blocks emit were untested by
-// construction: nothing imported `worker/index.ts` at all. The client tests are
-// no substitute. `test/financials-route.test.tsx` stubs `fetch` and proves the
-// PAGE reads a body of the right shape; nothing proved the Worker emits one.
-//
-// This file stays at the switch's altitude on purpose. What each payload
-// CONTAINS is already pinned by test/financials-payload.test.ts and its
-// siblings; what is pinned here is which request gets which status and which
-// error code, which is the half a page renders its recovery state from.
-//
-// `/api/financials` is the branch that made the gap visible (bead ro-dm67): a
-// malformed `?period=` is no longer refused before the store is read, because
-// both refusals now carry the months that DO exist. A 400 and a 404 that each
-// hand back `periods[]` are two lines of routing logic with no test between
-// them and the operator's dead bookmark.
+// The Worker's own fetch switch: path matching, query-parameter validation and
+// which request gets which status and error code, the half a page renders its
+// recovery state from. Payload contents are pinned by each read model's tests.
 
 const NOW = new Date("2026-08-15T12:00:00.000Z");
 
 /**
- * The build-time config `vite.config.ts` injects with `define`.
- *
- * Vitest loads `vitest.config.ts`, which has no `define` — deliberately, since
- * these suites test the payload builders by passing config in as parameters.
- * The fetch switch is the one module that reads the injected values, so it gets
- * them here: empty stand-ins, because no assertion below depends on their
- * content, and an empty one cannot be mistaken for the repo's real config.
+ * The build-time config `vite.config.ts` injects with `define`. Vitest loads
+ * `vitest.config.ts`, which has no `define`; the fetch switch is the one
+ * module that reads the injected values, so it gets empty stand-ins here.
  */
 const INJECTED: Record<string, unknown> = {
   __MONTHLY_CAPS__: { dataUsd: 0 },
@@ -63,34 +43,23 @@ const INJECTED: Record<string, unknown> = {
   __ENTITIES__: [],
   __BEADS__: { spokes: [] },
   // A build substitutes `false` here, so the runner lane is dead code in every
-  // deployed bundle. These are the deployed answers.
+  // deployed bundle.
   __RUNNER_LANE__: false,
 };
 
 /**
- * Every INGEST RPC the switch reached during one case, in order.
- *
- * The proxied write routes (`PATCH /api/assets/:id`, `POST
- * /api/assets`) DO call ingest when a request gets that far, so "it refused"
- * cannot be read off the status alone — a binding failure comes back 500, and
- * the cross-origin refusal has to be provably earlier than the binding. This is
- * how a case says *nothing left the Worker*.
+ * Every ingest RPC the switch reached during one case, in order. The proxied
+ * write routes do call ingest when a request gets that far, so "it refused"
+ * cannot be read off the status alone; this is how a case says nothing left
+ * the Worker.
  */
 const ingestCalls: string[] = [];
 
 /**
- * The INGEST Service Binding, as a double that REFUSES.
- *
- * The read routes exercised below never proxy to ingest — they read the store
- * or answer from the path alone — so any call from one of them is the switch
- * having sent a request somewhere it was not meant to go, and the name in the
- * message says which one. A binding that quietly returned `undefined` would let
- * that pass as a 500. For the write routes it is the other half of the same
- * point: a request that clears the origin guard reaches this and fails loudly,
- * so a case asserting 403 is asserting the guard came FIRST.
- *
- * Every RPC in `TowerEnv["INGEST"]` is named here, in one place, so a route that
- * starts calling a new one widens this too rather than getting an undefined.
+ * The INGEST Service Binding, as a double that refuses. The read routes never
+ * proxy to ingest; for the write routes a request that clears the origin guard
+ * fails loudly here, so a 403 case asserts the guard came first. Every RPC in
+ * `TowerEnv["INGEST"]` is named here.
  */
 function refusingIngest(): TowerEnv["INGEST"] {
   const refuse =
@@ -102,11 +71,8 @@ function refusingIngest(): TowerEnv["INGEST"] {
       );
     };
   return {
-    // The ONE exception, and it is not an exception to the rule above: every
-    // read route resolves its config through this now (epic `ro-syok`), so a
-    // refusal here would say "the switch proxied" about every case in the file.
-    // It answers as an UNSEEDED store — the compiled config, which is what these
-    // cases have always been written against.
+    // The one exception: every read route resolves its config through this,
+    // so it answers as an unseeded store, the compiled config.
     getConfigDocuments: async (files: string[]) =>
       files.map((file) => ({
         file,
@@ -158,8 +124,8 @@ async function asset(raw: TestStore, id: string, name: string): Promise<void> {
   await addSites(raw, [{ id, domain: null, displayName: name, status: "live", senseOnly: 0, createdAt: "2026-01-01T00:00:00.000Z" }]);
 }
 
-/** The money the cases read, on Postgres (bead ro-ujb9.76.6.1): the same in
- * every case and only ever read, so booked once into this file's copy. */
+/** The money the cases read: the same in every case and only ever read, so
+ * booked once into this file's copy. */
 const LEDGER = [
   { kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", minor: 30000 },
   { kind: "revenue", asset: "meals.example", period: "2026-08", family: "ads", minor: 44094 },
@@ -172,8 +138,7 @@ async function bookLedgerOnce(): Promise<void> {
     booking_state: "estimated" as const, recorded_at: "2026-08-15T00:00:00.000Z" })));
 }
 
-/** An alert number this file's store never hands out: a case about an alert
- * that is NOT there. */
+/** An alert number this file's store never hands out. */
 const NO_SUCH_ALERT = 404_404;
 
 /** A same-origin request, the way the browser sends one: no `origin` header. */
@@ -231,17 +196,17 @@ afterAll(async () => {
   await pg?.close();
 });
 
-/** This file's copy of the run's throwaway Postgres, what the Worker's POSTGRES
- * binding names (epic ro-ujb9.76), or none where no Postgres can start here. */
+/** This file's copy of the run's throwaway Postgres, or none where no
+ * Postgres can start here. */
 const unavailable = postgresUnavailable();
 let pg: TestStore | undefined;
 
 
 beforeEach(async () => {
-  // The switch reads `new Date()` itself — there is no clock to inject — and
-  // "the latest month with rows" is answered against it. Freezing the clock is
-  // what keeps the 404 case a MISSING month rather than a future one. Only the
-  // clock: the Postgres driver's own timers keep running.
+  // The switch reads `new Date()` itself and "the latest month with rows" is
+  // answered against it, so freezing the clock keeps the 404 case a missing
+  // month rather than a future one. Only the clock: the Postgres driver's own
+  // timers keep running.
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(NOW);
 
@@ -288,8 +253,7 @@ describe("the Worker's fetch switch", () => {
 
       expect(status).toBe(404);
       expect(body.error).toBe("period_not_found");
-      // The whole point of the refusal: a dead bookmark lands one click from a
-      // live month rather than on "the ledger did not answer".
+      // A dead bookmark lands one click from a live month.
       expect(body.periods).toEqual(["2026-07", "2026-08"]);
     });
 
@@ -302,9 +266,8 @@ describe("the Worker's fetch switch", () => {
     });
 
     it("reads the store even for a malformed value, which is what lets it name the months", async () => {
-      // Not a redundant restatement of the case above: it pins the ORDER the
-      // route runs in. Refusing before the read — the pre-ro-dm67 behaviour —
-      // still answers 400, and would still pass the assertion on `error`.
+      // Pins the order the route runs in: refusing before the read would
+      // still answer 400 and still pass the assertion on `error`.
       const { body } = await call(get("/api/financials?period=13"));
 
       expect(body.periods).not.toEqual([]);
@@ -341,9 +304,8 @@ describe("the Worker's fetch switch", () => {
     });
 
     it("lets a same-origin write past the origin guard", async () => {
-      // The other side of the guard: without it, the 403 above could be any
-      // refusal at all. No alert has that number, so the write reaches the
-      // store and comes back 409 flag_not_open — past the guard, and no further.
+      // No alert has that number, so the write reaches the store and comes
+      // back 409 flag_not_open: past the guard, and no further.
       const request = new Request(`https://tower.test/api/flags/${NO_SUCH_ALERT}`, {
         method: "PATCH",
         headers: {
@@ -359,12 +321,8 @@ describe("the Worker's fetch switch", () => {
     });
   });
 
-  // ── the read models the desk and the Wall poll (bead ro-gg26) ─────────────
-  //
-  // Each of these has a payload test of its own. What none of them had is a
-  // test that the SWITCH answers on that path at all — a route deleted, renamed
-  // or shadowed by a pattern above it would leave every payload test green and
-  // every page empty.
+  // Each read model has a payload test of its own; what is pinned here is
+  // that the switch answers on that path at all.
   describe("the read models", () => {
     it("answers /api/wall 200 with the assembled payload", async () => {
       const { status, body } = await call(get("/api/wall"));
@@ -409,9 +367,8 @@ describe("the Worker's fetch switch", () => {
       expect(body.projects).toEqual([]);
     });
 
-    // D32 (bead ro-ujb9.143): the compiled config saves no task project and no
-    // snapshot has landed, so no task source is connected — every task screen
-    // stays away, and Integrations offers the beads source's Connect.
+    // The compiled config saves no task project and no snapshot has landed,
+    // so no task source is connected.
     it("answers /api/task-source 200 with no task source connected", async () => {
       const { status, body } = await call(get("/api/task-source"));
 
@@ -426,7 +383,7 @@ describe("the Worker's fetch switch", () => {
       const { status, body } = await call(get("/api/alerts/history"));
 
       expect(status).toBe(200);
-      // Flag 7 is open, so the settled archive is empty — and an empty archive
+      // Flag 7 is open, so the settled archive is empty, and an empty archive
       // is a page, not an error.
       expect(body.rows).toEqual([]);
       expect(body.total).toBe(0);
@@ -435,12 +392,10 @@ describe("the Worker's fetch switch", () => {
     });
 
     it("dispatches /api/mcp to the MCP route rather than the 404 at the bottom", async () => {
-      // The switch's half of `/api/mcp`, and no more. What the tools RETURN is
-      // pinned by test/mcp-route.test.ts, and getting there means a JSON-RPC
-      // handshake — `initialize`, then `notifications/initialized`, then a
-      // call — which is a transport conversation, not a routing fact. A GET
-      // proves the routing: the MCP route refuses it with a 405 in JSON-RPC,
-      // where an unrouted path would come back `{ error: "not_found" }` with a 404.
+      // The switch's half of `/api/mcp`: what the tools return is pinned by
+      // test/mcp-route.test.ts. A GET proves the routing: the MCP route
+      // refuses it with a 405 in JSON-RPC, where an unrouted path would come
+      // back `{ error: "not_found" }` with a 404.
       const { status, body } = await call(get("/api/mcp"));
 
       expect(status).toBe(405);
@@ -449,11 +404,8 @@ describe("the Worker's fetch switch", () => {
     });
 
     it("refuses a page param it cannot read, the way /api/financials refuses a month", async () => {
-      // The two routes AGREE. Both params arrive from a URL the operator can
-      // share, edit and bookmark, so both refuse what they cannot read and both
-      // carry back what does exist — `periods[]` there, the size of the archive
-      // here. Silently answering page one made a corrupted link look exactly
-      // like one that worked.
+      // Both params arrive from a URL the operator can share, so both refuse
+      // what they cannot read and both carry back what does exist.
       const { status, body } = await call(
         get("/api/alerts/history?offset=nonsense&limit=-4"),
       );
@@ -489,15 +441,14 @@ describe("the Worker's fetch switch", () => {
 
     it("answers 404 not_found for a slash in the id", async () => {
       // Asset ids contain dots, never slashes, so the whole path remainder is
-      // the id — and a remainder with a slash in it is a sub-path nothing
-      // above claimed, not an asset.
+      // the id, and a remainder with a slash in it is a sub-path nothing claimed.
       const { status, body } = await call(get("/api/assets/meals.example/nonsense"));
 
       expect(status).toBe(404);
       expect(body).toEqual({ error: "not_found" });
     });
 
-    // One read per tab (bead ro-ujb9.64): `?view=` names the tab being drawn.
+    // `?view=` names the tab being drawn.
     it("answers one tab's view, named, without the sections it does not draw", async () => {
       const { status, body } = await call(get("/api/assets/meals.example?view=alerts"));
 
@@ -531,24 +482,20 @@ describe("the Worker's fetch switch", () => {
     });
   });
 
-  // ── what a DEPLOYED build says it cannot do ───────────────────────────────
-  //
-  // Locally the dev server's lanes answer these paths first and do the work
-  // (config-write-lane.ts and task-lane.ts, both `enforce: "pre"`). What the
-  // Worker holds is the deployed answer, and it is the half no local run ever
-  // exercises — so it is the half most likely to rot.
+  // Locally the dev server's lanes answer these paths first (config-write-lane.ts
+  // and task-lane.ts, both `enforce: "pre"`). What the Worker holds is the
+  // deployed answer, the half no local run exercises.
   describe("deployed configuration and task capabilities", () => {
     it("enables configuration editing after a successful store read and names fallback values", async () => {
       const { status, body } = await call(get("/api/config"));
 
       expect(status).toBe(200);
-      // The store answered successfully; a missing document uses the compiled
-      // value and does not imply a missing database table.
+      // A missing document uses the compiled value and does not imply a
+      // missing database table.
       expect(body).toMatchObject({
         writable: true,
         reason: null,
       });
-      // And it says, per file, where the value the page rendered came from.
       expect((body as { sources: Record<string, string> }).sources["config/tower.json"]).toBe(
         "file",
       );
@@ -582,8 +529,8 @@ describe("the Worker's fetch switch", () => {
   });
 
   describe.skipIf(unavailable !== null)("PATCH /api/flags/:id", () => {
-    /** One OPEN condition, on Postgres (bead ro-ujb9.76.5.2): this file's store
-     * numbers it, so each case names the alert by what it got back. */
+    /** One open condition: this file's store numbers it, so each case names
+     * the alert by what it got back. */
     let id: number;
     beforeEach(async () => {
       id = await storeAlert(pg!.call, {
@@ -605,7 +552,6 @@ describe("the Worker's fetch switch", () => {
 
       expect(status).toBe(200);
       expect(body.ok).toBe(true);
-      // The store moved, which is the half a 200 alone would not prove.
       expect(await disposition()).toEqual({ disposition: "ack" });
     });
 
@@ -629,12 +575,9 @@ describe("the Worker's fetch switch", () => {
     });
   });
 
-  // ── the writes that leave the Worker ──────────────────────────────────────
-  //
-  // These two DO proxy to ingest when a request gets that far, so the status
-  // alone cannot say the origin guard ran: a binding failure is a 500 and would
-  // look like refusal on the client side too. `ingestCalls` is what makes the
-  // assertion real — nothing left the Worker, and nothing in the store moved.
+  // These two do proxy to ingest when a request gets that far, so the status
+  // alone cannot say the origin guard ran: `ingestCalls` is what makes the
+  // assertion real.
   describe("the ingest-proxied writes", () => {
     it("refuses a cross-origin PATCH /api/assets/:id 403 before the binding", async () => {
       const { status, body } = await call(
@@ -666,9 +609,8 @@ describe("the Worker's fetch switch", () => {
       expect(await readSites(ctx.call)).toHaveLength(1);
     });
 
-    // No DELETE (bead ro-ujb9.76.4.5): a site is archived, never deleted. The
-    // verb is refused rather than read as the GET beside it, so a page loaded
-    // before the Delete card went cannot take a 200 for "deleted".
+    // A site is archived, never deleted. The verb is refused rather than read
+    // as the GET beside it.
     it("refuses DELETE /api/assets/:id 405, reading and removing nothing", async () => {
       const response = await worker.fetch(sameOrigin("/api/assets/meals.example", "DELETE"), env, CALL_CONTEXT);
 

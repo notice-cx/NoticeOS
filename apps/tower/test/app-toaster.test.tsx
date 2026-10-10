@@ -3,14 +3,14 @@ import { toast } from "sonner";
 import { afterEach, describe, expect, it } from "vitest";
 import { AppToaster } from "@/lib/toaster";
 
-// Bead ro-ujb9.87 (and ro-ujb9.54): a toast must not bounce keyboard focus back
-// to the control it came from. jsdom has no Tab key, so each step is the focus
-// move the browser makes for that key: Tab from the page's last control focuses
-// the toast (it is the next Tab stop), and Tab from the toast leaves the page,
-// which blurs it with no element receiving focus. The browser journey
-// (`tabPastToast` in e2e/journeys.spec.ts) presses the real keys, and also
-// covers a toast closing while focus is on it: jsdom, unlike a browser, does
-// not blur an element it removes.
+// A toast must not bounce keyboard focus back to the control it came from.
+// jsdom has no Tab key, so each step is the focus move the browser makes for
+// that key: Tab from the page's last control focuses the toast (it is the
+// next Tab stop), and Tab from the toast leaves the page, which blurs it with
+// no element receiving focus. The browser journey (`tabPastToast` in
+// e2e/journeys.spec.ts) presses the real keys, and also covers a toast
+// closing while focus is on it: jsdom, unlike a browser, does not blur an
+// element it removes.
 
 function Page() {
   return (
@@ -78,9 +78,9 @@ describe("AppToaster keyboard focus", () => {
   });
 });
 
-// Bead ro-ujb9.117: a toast is drawn in the desk's theme, not always dark. The
-// theme is the one AppShell applies to <html> (`.light`), so a toast follows a
-// toggle without a reload, and the Wall — outside the shell — stays dark.
+// A toast is drawn in the desk's theme. The theme is the one AppShell applies
+// to <html> (`.light`), so a toast follows a toggle without a reload, and the
+// Wall, outside the shell, stays dark.
 describe("AppToaster theme", () => {
   afterEach(() => {
     document.documentElement.classList.remove("light");

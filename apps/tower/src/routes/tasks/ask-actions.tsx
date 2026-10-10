@@ -7,21 +7,11 @@ import type { InboxAsk } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 
 /**
- * WHAT A TASK WAITING ON THE OPERATOR OFFERS, defined once for the two places
- * it is met: its row in the Tasks board's Waiting on you and its own page's
- * header (bead `ro-ujb9.243`). A human gate offers ONE verb, Approve
- * (`bd gate resolve`); an ask offers Answer (`bd human respond`) and Dismiss
- * (`bd human dismiss`). Each goes through the inbox's own path — the Undo toast,
- * then the lane call once its window closes (`lib/answer-queue.ts`).
- *
- * The page used to offer Claim and Close here: claiming a gate assigned the
- * operator to a mechanism, and Close ran `bd close` rather than the command the
- * gate or ask was waiting for — two wrong verbs one click from the right one.
- *
- * `buttons` is the verbs and `box` is the answer box Answer opens, returned
- * apart because the row seats them on its line and under it, and the page in
- * its header's actions and under them. Both are null for a task the inbox
- * asks nothing of, so the page can fall back to its own verbs.
+ * What a task waiting on the operator offers, for its board row and its own
+ * page: Approve on a gate (`bd gate resolve`), Answer and Dismiss on an ask
+ * (`bd human respond` / `dismiss`), each after the Undo window
+ * (`lib/answer-queue.ts`). `buttons` and `box` come back apart because each
+ * surface seats them differently; both are null when nothing is asked.
  */
 export function useAskActions({
   ask,

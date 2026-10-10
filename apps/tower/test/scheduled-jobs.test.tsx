@@ -106,7 +106,7 @@ describe('scheduled job editing', () => {
   });
 });
 
-describe('a collection schedule as a row of Settings (bead ro-ujb9.96.7.12)', () => {
+describe('a collection schedule as a row of Settings', () => {
   const clarity = SCHEDULED_JOBS.find((job) => job.id === 'clarity')!;
   const revenue = SCHEDULED_JOBS.find((job) => job.id === 'mediavine')!;
 

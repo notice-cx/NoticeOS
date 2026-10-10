@@ -34,24 +34,17 @@ import type { TaskHandoffKind } from "@/lib/task-handoff";
 import { cn } from "@/lib/utils";
 import { taskMetadataValue } from "@noticeos/contract/task-metadata";
 
-/**
- * Where the toast's Open link points after a task is filed: the task's own page
- * (`ro-l1ed.3`), which is where every other bead id in the Tower already leads —
- * the finding's filing badge, the decision rows, the timeline's resolved refs.
- * The id is also stated in the toast text, so the one thing the operator can act
- * on is readable whether or not they follow the link.
- */
+/** Where the toast's Open link points after a task is filed: the task's own
+ * page, where every other task id in the Tower leads. */
 export const filedTaskPath = taskPath;
 
-/** The desk's field chrome (`components/ui/field`), full width with the extra
- * vertical room a stacked composer reads better in. */
 const FIELD = cn(fieldClass, "w-full py-1.5");
 
-/** `bd -t`. The four the lane's `bd create` accepts and an operator files. */
+/** The types `bd create -t` accepts. */
 const TASK_TYPES = ["task", "bug", "feature", "chore"] as const;
 
 /** What a handoff's `noticeos_kind` is, in the operator's words. The composer
- * never shows the metadata itself — it shows what the metadata MEANS, which is
+ * never shows the metadata itself — it shows what the metadata means, which is
  * the one thing about it the operator can check. */
 const LINKED_NOUN: Record<TaskHandoffKind, string> = {
   finding: "a finding",
@@ -60,12 +53,8 @@ const LINKED_NOUN: Record<TaskHandoffKind, string> = {
   alert: "an alert",
 };
 
-/**
- * What the composer opens with. Every field is optional because "New task" from
- * the Tasks index prefills nothing; a handoff surface hands over a
- * `TaskHandoffPrefill`, which satisfies this exactly (`src/lib/task-handoff.ts`
- * is the one place the values are computed).
- */
+/** What the composer opens with. A handoff surface hands over a
+ * `TaskHandoffPrefill` (`src/lib/task-handoff.ts` computes the values). */
 export interface TaskComposerPrefill {
   /** The `config/beads.json` spoke — preselected in the Project select. */
   project?: string;
@@ -73,7 +62,7 @@ export interface TaskComposerPrefill {
   type?: string;
   priority?: number;
   /** The handoff join (`noticeos-handoff`, `asset:`, `rule:`, `key:`). Added and
-   * LOCKED: they are the contract the poller and the badge read, not the
+   * locked: they are the contract the poller and the badge read, not the
    * operator's own taxonomy. */
   labels?: string[];
   description?: string;
@@ -87,65 +76,30 @@ export interface TaskComposerProps {
   open: boolean;
   onClose: () => void;
   prefill?: TaskComposerPrefill | null;
-  /** The surface that opened it, after the id exists — so a row can invalidate
-   * whatever read carries its `HandoffBeadBadge`. */
+  /** Called after the id exists, so a row can invalidate the read that
+   * carries its `HandoffBeadBadge`. */
   onFiled?: (created: TaskCreated) => void;
-  /** File somewhere other than the lane. The component gallery passes a fake,
-   * so the demo is a real form that never touches the operator's task hub —
-   * the same escape hatch `KnobEditor` takes for the same reason. */
+  /** File somewhere other than the lane; the component gallery passes a fake. */
   onFile?: (input: NewTask) => Promise<TaskCreated>;
-  /** The spokes the Project select offers. Defaults to `/api/settings`'
-   * `taskHub.spokes`, which is `config/beads.json` as the Tower reads it — the
-   * fallback for a row that has no project list of its own. A caller already
-   * holding that map (the Tasks index reads it in the work snapshot) passes it
-   * instead, so its select and its project filter cannot disagree and the page
-   * opens no second read of the same file. */
+  /** The spokes the Project select offers. Defaults to the settings'
+   * `taskHub.spokes`; a caller already holding that map passes it instead, so
+   * its select and its project filter cannot disagree. */
   projects?: ComposerProject[];
 }
 
-/** What the composer reads off a spoke: the asset it files against and the
- * prefix a parent epic must carry. Narrower than `TaskHubSpoke` on purpose —
- * `database` and `repo` are the lane's business, and demanding them would stop
- * a caller holding only the board's own project rows from passing them. */
+/** Narrower than `TaskHubSpoke` on purpose: a caller holding only the board's
+ * own project rows can pass them. */
 export type ComposerProject = Pick<TaskHubSpoke, "asset" | "prefix">;
 
 /**
- * FILE A TASK WITH A BUTTON (D19, bead `ro-l1ed.4`).
- *
- * Every handoff the Tower copies ends in a `bd create` command, and until now
- * the only way to run it was to paste it into a terminal standing in the right
- * repo. That last step is the one that fails: filing from the wrong directory
- * files against the wrong asset, and the `bd` the operator would run is the
- * same `bd` the local task lane already runs for them.
- *
- * WHAT THIS DOES NOT CHANGE — and the reason it is a composer rather than a
- * one-click file. `config/beads.README.md` §"Observations are not commitments"
- * is unamended: a finding is an observation regenerated every run, and a bead is
- * a commitment somebody made. The judgment step is preserved exactly; the paste
- * is what got replaced. So this opens with the values filled in, shows what it
- * is about to file, and files only when a person presses the button.
- *
- * THE HANDOFF LABELS AND METADATA ARE LOCKED. They are the join the poller reads
- * and the `HandoffBeadBadge` renders (one key from finding to bead); an
- * operator editing `key:` by hand would file a bead that never reappears on the
- * row that raised it. Everything an operator legitimately owns — title, project,
- * type, priority, parent, their own labels, the description, the acceptance
- * criteria — is editable, because a task filed with somebody else's words is a
- * task nobody reads cold. A locked label wears a lock, and the join is one
- * "Linked to a finding" chip — no footnote explains either (bead
- * `ro-ujb9.96.6.11`).
- *
- * TITLE, THEN ENTER (Linear's composer; docs/reports/2026-09-23-ux-flow-audit.html
- * finding 10). The first screen is the title, the project and the priority —
- * the project already chosen when the board or the handoff knows it — and
- * Enter files. Type, parent, labels, description and acceptance criteria wait
- * under More, which opens by itself when a handoff filled any of them, so the
- * operator still sees everything that is about to be filed.
- *
- * COPY MARKDOWN STAYS. It is the AGENT's path and it carries the whole
- * evidence brief, not just the bead; and in a deployed build with no lane it is
- * the only path, which is why the trigger disables with the lane's own sentence
- * instead of disappearing.
+ * Files a task through the local task lane. A finding is an observation and a
+ * task is a commitment somebody made, so this opens with the values filled
+ * in, shows what it is about to file, and files only on a press. The handoff
+ * labels and metadata are locked: they are the join the poller reads and the
+ * `HandoffBeadBadge` renders. Title, project and priority are the first
+ * screen and Enter files; the rest waits under More, which opens by itself
+ * when a handoff filled any of it. Copy Markdown remains the agent's path and
+ * the only path where there is no lane.
  */
 export function TaskComposer({
   open,
@@ -187,14 +141,10 @@ export function TaskComposer({
   const [filing, setFiling] = useState(false);
   const unsupported = hostedFields && !taskWritesAvailable(capability);
 
-  // Seeded once per OPENING, and the guard is load-bearing.
-  //
-  // A row builds its prefill fresh on every render (`taskHandoffPrefill(...)`
-  // is a call, not a memo), so an effect keyed on the prefill object would
-  // re-run whenever anything above re-rendered — a poll landing, a toast
-  // appearing — and silently throw away what the operator had typed. Keyed on
-  // `open` alone it would still not re-seed for a caller that toggles `open`
-  // without unmounting. Hence the latch: reset on close, seed on the way in.
+  // Seeded once per opening. A row builds its prefill fresh on every render,
+  // so an effect keyed on it would throw away what the operator typed; keyed
+  // on `open` alone it would not re-seed for a caller that toggles `open`
+  // without unmounting. Hence the latch.
   const seeded = useRef(false);
   useEffect(() => {
     if (!open) {
@@ -253,9 +203,8 @@ export function TaskComposer({
       next.title = "A task needs a title somebody could read cold.";
     }
     const cleanParent = parent.trim();
-    // The prefix comes from the spoke, never from what was typed: an `ro-` epic
-    // named on an `mp-` task is a parent `bd` cannot resolve, and the refusal
-    // would arrive from the hub as a shell error rather than as a field.
+    // A parent from another project is one `bd` cannot resolve, and the
+    // refusal would arrive as a shell error rather than as a field.
     if (cleanParent && spoke && !cleanParent.startsWith(`${spoke.prefix}-`)) {
       next.parent = `An epic in ${spoke.asset} starts with \`${spoke.prefix}-\`.`;
     }
@@ -319,7 +268,7 @@ export function TaskComposer({
             <h2 id={titleId} className="text-base font-semibold">
               File a task
             </h2>
-            {/* What the hidden metadata MEANS, as one chip — never the
+            {/* What the hidden metadata means, as one chip — never the
                 metadata itself. */}
             {linkedKind ? (
               <span
@@ -577,9 +526,8 @@ export function TaskComposer({
   );
 }
 
-/** What a refused file says out loud. The lane hands `bd`'s own stderr back in
- * the refusal, and that sentence is more useful than any wording invented here:
- * "unknown parent" and "cannot reach the hub" ask for different next moves. */
+/** The lane hands `bd`'s own stderr back, and that sentence is more useful
+ * than any wording invented here. */
 function fileFailureMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   return err instanceof Error ? err.message : "Could not file the task";
@@ -627,34 +575,21 @@ function prefilledMore(prefill: TaskComposerPrefill | null): boolean {
 
 export interface FileTaskButtonProps
   extends Pick<TaskComposerProps, "prefill" | "onFiled" | "onFile" | "projects"> {
-  /** The word on the button. "File task" beside a Copy Markdown; "New task" on
-   * the index, where there is no row to file FROM. */
+  /** The word on the button. */
   label?: string;
   variant?: ButtonProps["variant"];
   size?: ButtonProps["size"];
   className?: string;
-  /** What the button is filing, for the accessible name — the row's own
-   * subject, so a table of eight of these does not read as eight "File task". */
+  /** What the button is filing, for the accessible name. */
   subject?: string;
-  /** Stand in for `useTasksLive()`. The component gallery runs inside `os:up`,
-   * which HAS the lane, so the read-only face could not otherwise be shown at
-   * all — and a state nothing renders is a state nobody reviews. */
+  /** Stand in for `useTasksLive()`, so the gallery can show the read-only face. */
   capabilities?: TasksCapabilities;
 }
 
 /**
- * The trigger, everywhere: one button, one composer, one disabled sentence.
- *
- * It owns the open state so a row does not have to, and it renders the composer
- * only while open — which is also why a table of forty rows costs forty buttons
- * and no forms.
- *
- * READ-ONLY BUILDS. `useTasksLive()` is the one question that decides whether a
- * write can happen at all; a deployed Tower has no `bd` and no route to the hub.
- * The button stays visible and goes disabled with what to do on hover, because
- * the alternative — hiding it — would leave an operator on the deployed Tower
- * wondering where the button went. Copy Markdown is beside it and remains the
- * way, exactly as before.
+ * The trigger: one button, one composer mounted only while open, and in a
+ * build with no lane a disabled button with what to do on hover rather than
+ * no button at all.
  */
 export function FileTaskButton({
   prefill = null,
@@ -694,9 +629,8 @@ export function FileTaskButton({
         <ListPlus aria-hidden />
         {label}
       </Button>
-      {/* Mounted only while open. A decision table renders forty of these
-          buttons; forty mounted composers would be forty `/api/settings`
-          subscriptions and forty portals for a form nobody asked for. */}
+      {/* Mounted only while open: a table of forty rows must not cost forty
+          settings subscriptions and forty portals. */}
       {open ? (
         <TaskComposer
           open
@@ -711,11 +645,9 @@ export function FileTaskButton({
   );
 }
 
-/** The handoff kind off a prefill's metadata (`noticeos_kind`, or the
- * `reindex_kind` of a bead filed before the rename), or null. Reads the value rather
- * than trusting it: the metadata is `Record<string, unknown>` at this boundary
- * because the lane accepts any object, and an unknown kind renders no line
- * rather than an empty "Linked to". */
+/** The handoff kind off a prefill's metadata, or null. The metadata is
+ * `Record<string, unknown>` at this boundary, so the value is read, not
+ * trusted, and an unknown kind renders no line. */
 function readKind(
   metadata: Record<string, unknown> | undefined,
 ): TaskHandoffKind | null {

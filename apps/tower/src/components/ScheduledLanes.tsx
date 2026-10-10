@@ -161,9 +161,7 @@ export function ScheduledLanesPanel({
       </div>
       <a href="/health/operations" className="mb-3 inline-flex text-sm underline underline-offset-4">View background operations</a>
       {ordered.length === 0 ? (
-        // Nothing recorded is UNKNOWN, never healthy: the summary's own warn
-        // question mark and headline say so, where a sentence used to (bead
-        // `ro-ujb9.96.6.2`).
+        // Nothing recorded is unknown, never healthy.
         <div
           className="flex items-center gap-2 rounded-md bg-muted/25 px-4 py-3"
           data-scheduled-empty

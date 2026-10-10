@@ -1,15 +1,8 @@
-// `GET /api/site-name?domain=…` — a site's own name, for the add screen (bead
-// `ro-ujb9.96.7.5`).
+// `GET /api/site-name?domain=…` — the name a site gives itself, for the add
+// screen. A nicety, never a gate: every failure answers `{ name: null }` with
+// 200 and the screen keeps the name it derived from the domain.
 //
-// The add screen asks for a domain alone; this reads the name the site gives
-// itself, so shop.example.com is saved as "Example Shop" rather than the
-// domain's own words, "Shop Example". It is
-// a nicety, never a gate: every failure — a refused host, a slow site, a
-// redirect elsewhere, no usable title — answers `{ name: null }` with 200, and
-// the screen keeps the name it already derived from the domain. Add never waits
-// on it.
-//
-// WHAT IT WILL FETCH. Only `https://<the domain>/`, only for a public-looking
+// What it will fetch: only `https://<the domain>/`, only for a public-looking
 // DNS name (`isLookupHost`: no IP literal, no `localhost`, no internal top
 // level), and it follows at most three redirects by hand, checking each hop
 // the same way — so the route cannot be pointed at the machine it runs on by a
@@ -31,7 +24,6 @@ function answer(name: string | null): Response {
   return new Response(JSON.stringify(body), { status: 200, headers: JSON_HEADERS });
 }
 
-/** The first `MAX_BYTES` of a response body, as text. */
 async function head(response: Response): Promise<string> {
   const reader = response.body?.getReader();
   if (!reader) return "";

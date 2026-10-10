@@ -27,19 +27,11 @@ import {
 } from "../worker/integrations-route";
 import type { IntegrationsConfig } from "../shared/integrations";
 
-// The Integrations page's write surface (epic `ro-vu8d`, bead `ro-vu8d.1`).
-//
-// The Tower does not hold credentials: it proxies to the ingest
-// WorkerEntrypoint over the private INGEST Service Binding, exactly as the
-// annotation and asset-column writes do. So what is asserted here is the
-// BOUNDARY — what crosses it, what comes back, and that nothing on the way out
-// carries a value. The crypto, the store order and the field rules are pinned
-// against real D1 and real WebCrypto in workers/ingest/test/credentials.test.ts,
-// which is their only home.
-//
-// The binding is stubbed rather than bound: this project's Vitest runs in
-// node/jsdom with no workerd. The stub is typed by the shared contract, so a
-// change to any RPC's shape breaks these tests at compile time.
+// The Integrations page's write surface: the Tower proxies to the ingest over
+// the INGEST Service Binding, so what is asserted is what crosses it and that
+// nothing on the way out carries a value. The crypto and field rules are pinned
+// in workers/ingest/test/credentials.test.ts. The binding is stubbed: Vitest
+// here runs without workerd.
 
 const SECRET = "SEKRIT-bing-9f2a-do-not-echo";
 const NOW = new Date("2026-09-04T12:00:00.000Z");
@@ -203,8 +195,8 @@ describe("GET /api/integrations/providers", () => {
       "calendar",
     ]);
 
-    // The form the page renders comes down with the state, so the two can never
-    // disagree about what a provider needs.
+    // The form the page renders comes down with the state, so the two can
+    // never disagree about what a provider needs.
     const bing = payload.providers[1];
     expect(bing.provider.fields[0].name).toBe("BING_WEBMASTER_API_KEY");
     expect(bing.provider.fields[0].kind).toBe("password");
@@ -219,9 +211,8 @@ describe("GET /api/integrations/providers", () => {
   });
 
   it("carries today's budget for a metered provider, and null for the rest", async () => {
-    // Bead `ro-vu8d.25`: the reading comes from rows this OS already wrote, so
-    // rendering a quota costs no provider call — which is the whole point on a
-    // ten-a-day cap whose Test button already refuses to spend one.
+    // The reading comes from rows this OS already wrote, so rendering a quota
+    // costs no provider call.
     const asked: IntegrationMeter[] = [];
     const response = await handleIntegrationProvidersRequest(
       new Request("https://tower.local/api/integrations/providers"),
@@ -235,9 +226,8 @@ describe("GET /api/integrations/providers", () => {
       },
     );
     const payload = await response.json();
-    // The DECLARATION reaches the reader, not a bare id: the two metered
-    // providers meter two different windows, and the reader is what turns one
-    // into the other (bead `ro-qpas`).
+    // The declaration reaches the reader, not a bare id: the two metered
+    // providers meter two different windows.
     expect(asked).toEqual([{ ...integrationProvider("clarity")!.meter }]);
     expect(payload.providers[0].meter).toEqual({
       window: "asset-day",
@@ -247,9 +237,8 @@ describe("GET /api/integrations/providers", () => {
   });
 
   it("carries the month's dollars for the provider that meters those", async () => {
-    // Bead `ro-qpas`: DataForSEO's ceiling is the portfolio's monthly reserve,
-    // and it is read from the costs its own reports recorded — never from the
-    // prepaid balance, which only a probe can see and nothing stores.
+    // DataForSEO's ceiling is the portfolio's monthly reserve, read from the
+    // costs its own reports recorded, never from the prepaid balance.
     const response = await handleIntegrationProvidersRequest(
       new Request("https://tower.local/api/integrations/providers"),
       stubIngest({ list: storeState({ summaries: [summary({ provider: "dataforseo" })] }) })
@@ -280,7 +269,6 @@ describe("GET /api/integrations/providers", () => {
         throw new Error("relation \"noticeos.archive_runs\" does not exist");
       },
     );
-    // A card that invented a budget would be worse than one that shows none.
     expect(response.status).toBe(200);
     expect((await response.json()).providers[0].meter).toBeNull();
   });
@@ -299,8 +287,7 @@ describe("GET /api/integrations/providers", () => {
       CONFIG,
       NOW,
     );
-    // A page an operator opens to FIX something must not be able to go blank,
-    // and must not offer a form that cannot save.
+    // A page an operator opens to fix something must not be able to go blank.
     expect(response.status).toBe(200);
     const payload = await response.json();
     expect(payload.keyPresent).toBe(false);
@@ -344,8 +331,8 @@ describe("PUT /api/integrations/:provider/credential", () => {
     );
 
     expect(response.status).toBe(204);
-    // NOTHING is echoed. The only thing a caller could do with a returned
-    // credential is leak it into a cache, a proxy log, or a screenshot.
+    // Nothing is echoed: a returned credential could only leak into a cache,
+    // a proxy log, or a screenshot.
     expect(await response.text()).toBe("");
     expect(puts).toEqual([
       { provider: "bing-webmaster", fields: { BING_WEBMASTER_API_KEY: SECRET } },
@@ -370,9 +357,8 @@ describe("PUT /api/integrations/:provider/credential", () => {
       put({ fields: {} }),
       CREDENTIAL_URL,
       ingest,
-      // Deliberately a provider that has never existed: "clarity" stood here
-      // until bead `ro-vu8d.9` gave it a catalog row, and a stale sentinel that
-      // quietly became real is how a 404 guard stops guarding anything.
+      // A provider that has never existed: a sentinel that quietly became real would
+      // stop the 404 guard guarding anything.
       "no-such-provider",
     );
     expect(response.status).toBe(404);
@@ -500,7 +486,6 @@ describe("PUT /api/integrations/:provider/credential", () => {
       "bing-webmaster",
     );
     expect(response.status).toBe(500);
-    // The browser gets a code, never ingest's internals.
     expect(await response.json()).toEqual({ error: "credential_write_failed" });
   });
 });
@@ -632,7 +617,7 @@ describe("POST /api/integrations/:provider/test", () => {
   });
 });
 
-describe("POST /api/integrations/:provider/connect (bead ro-ujb9.96.7.1)", () => {
+describe("POST /api/integrations/:provider/connect", () => {
   const CONNECT_URL = new URL("https://tower.local/api/integrations/bing-webmaster/connect");
   const connect = (body: unknown, headers: Record<string, string> = {}, provider = "bing-webmaster"): Request =>
     new Request(new URL(`https://tower.local/api/integrations/${provider}/connect`), {
@@ -671,7 +656,7 @@ describe("POST /api/integrations/:provider/connect (bead ro-ujb9.96.7.1)", () =>
     expect((await handleIntegrationConnectRequest(
       connect({ fields: {} }, {}, "nope"), CONNECT_URL, ingest, "nope")).status).toBe(404);
     // A provider that does not connect with one key: Clarity's tokens are
-    // pasted per site, on their own rows (bead ro-ujb9.96.7.9).
+    // pasted per site, on their own rows.
     const clarity = await handleIntegrationConnectRequest(
       connect({ fields: {} }, {}, "clarity"), CONNECT_URL, ingest, "clarity");
     expect(clarity.status).toBe(409);
@@ -699,7 +684,7 @@ describe("POST /api/integrations/:provider/connect (bead ro-ujb9.96.7.1)", () =>
   });
 });
 
-describe("PUT /api/integrations/:provider/site-token (bead ro-ujb9.96.7.9)", () => {
+describe("PUT /api/integrations/:provider/site-token", () => {
   const url = (provider = "clarity") => new URL(`https://tower.local/api/integrations/${provider}/site-token`);
   const put = (body: unknown, headers: Record<string, string> = {}, provider = "clarity"): Request =>
     new Request(url(provider), { method: "PUT", headers: { "content-type": "application/json", ...headers }, body: JSON.stringify(body) });
@@ -843,8 +828,7 @@ describe("PUT /api/integrations/:provider/expiry", () => {
 
 describe("assetsUsingProvider", () => {
   it("skips lanes the register says never apply to that asset", () => {
-    // "What breaks if this credential is wrong" — and a lane that never applied
-    // to an asset breaks nothing there.
+    // A lane that never applied to an asset breaks nothing there.
     expect(assetsUsingProvider(CONFIG, ["gsc"])).toEqual([
       { id: "meals.example", lanes: ["gsc"] },
     ]);
@@ -860,12 +844,3 @@ describe("assetsUsingProvider", () => {
     expect(assetsUsingProvider(CONFIG, [])).toEqual([]);
   });
 });
-
-// The other half of the same question — "what does this credential still have to
-// CARRY" — used to be derived HERE, from `config/integrations.json` alone, and
-// its tests lived beside these. Both are gone with bead `ro-vu8d.22`: the
-// question is asked of the assets the CREDENTIAL names, which only the ingest
-// can read, so there is one function
-// (`credentialPropertyMapUse`, workers/ingest/src/lane-mapping.ts) and it is the
-// collector's own. The answer now arrives on `CredentialSummary.propertyMap` and
-// this route forwards it untouched.

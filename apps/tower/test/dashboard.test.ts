@@ -11,30 +11,30 @@ describe("dashboard config", () => {
         readme: "ignored metadata",
         countdown: {
           emoji: "🌁",
-          label: "  SF Trip  ",
+          label: "  Team offsite  ",
           targetAt: "2026-08-01T07:00:00.000Z",
         },
       }),
     ).toEqual({
       countdown: {
         emoji: "🌁",
-        label: "SF Trip",
+        label: "Team offsite",
         targetAt: "2026-08-01T07:00:00.000Z",
       },
     });
   });
 
   it("accepts a config with no countdown, so a fresh clone builds", () => {
-    // The whole point of bead ro-py40: a countdown is one operator's trip, and
-    // an install that has none must not have to invent one to get a build.
+    // A countdown is one operator's trip, and an install that has none must
+    // not have to invent one to get a build.
     expect(parseDashboardConfig({})).toEqual({});
     expect(parseDashboardConfig({ readme: "config/tower.README.md" })).toEqual({});
     expect(parseDashboardConfig({ readme: "x" }).countdown).toBeUndefined();
   });
 
   it("still refuses a countdown that is present and broken", () => {
-    // Absent is a choice; half-written is a mistake, and the build is where the
-    // operator wants to hear about it rather than the wall TV.
+    // Absent is a choice; half-written is a mistake, and the build is where
+    // the operator wants to hear about it rather than the wall TV.
     expect(() => parseDashboardConfig({ countdown: "soon" })).toThrow(/countdown/u);
     expect(() => parseDashboardConfig({ countdown: {} })).toThrow(/emoji/u);
     expect(() => parseDashboardConfig("not an object")).toThrow(/JSON object/u);
@@ -118,10 +118,9 @@ describe("calendar countdown", () => {
   });
 });
 
-// The build boundary reads `/wall` the way it reads the countdown (epic
-// `ro-lzmq`): absent is a valid file, present must be drawable. A layout the
-// Wall could not draw should fail `vite build` with the validator's own
-// sentence, not reach the television and leave a hole in it.
+// The build boundary reads `/wall` the way it reads the countdown: absent is
+// a valid file, present must be drawable. A layout the Wall could not draw
+// fails `vite build` with the validator's own sentence.
 describe("the Wall's saved layout, at the build boundary", () => {
   it("leaves the key off when the file has none, so the default has one home", () => {
     expect(parseDashboardConfig({ readme: "x" }).wall).toBeUndefined();
@@ -148,9 +147,9 @@ describe("the Wall's saved layout, at the build boundary", () => {
   });
 });
 
-// A SAVED document is read part by part (bead ro-trai.45): the layout and the
-// countdown are two settings that share a file. A part that reads is used; a
-// part that does not is left out and named, with the value as stored.
+// A saved document is read part by part: the layout and the countdown are
+// two settings that share a file. A part that reads is used; a part that
+// does not is left out and named, with the value as stored.
 describe("a saved config/tower.json, read one part at a time", () => {
   const SITES_ONLY = {
     version: 1,

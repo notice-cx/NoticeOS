@@ -1,17 +1,9 @@
 // @vitest-environment node
 //
-// The hole this closes is invisible to a healthy system, so the tests have to
-// manufacture the outage.
-//
-// Two layers, and the second is the one that matters. The unit tests below pin
-// the decisions — who gets a page, who gets the error, what the page contains.
-// But the failure that shipped the bug in the first place was not a wrong
-// decision, it was a middleware sitting one position too early in a Connect
-// stack: Connect walks forward only, so an error handler registered before the
-// throwing middleware never runs, and a plugin in that position is
-// indistinguishable from no plugin at all. No fake request can catch that. So
-// the last describe boots a real vite dev server with a throwing dispatch
-// middleware shaped like @cloudflare/vite-plugin's, and asks over TCP.
+// The last describe boots a real vite dev server with a throwing dispatch
+// middleware shaped like @cloudflare/vite-plugin's: Connect walks forward only,
+// so an error handler registered before the throw never runs, and no fake
+// request can show that.
 
 import http from "node:http";
 import type { AddressInfo } from "node:net";
@@ -62,11 +54,8 @@ function res(headersSent = false) {
   };
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Who gets a page. This is the only judgement call in the plugin: everything
-// downstream of a wrong answer here is either a frozen TV or a poller trying to
-// JSON.parse a holding page.
-// ─────────────────────────────────────────────────────────────────────────────
+// Who gets a page: everything downstream of a wrong answer here is either a
+// frozen TV or a poller trying to JSON.parse a holding page.
 
 describe("document detection", () => {
   it("reads a navigation off Fetch Metadata", () => {
@@ -80,9 +69,9 @@ describe("document detection", () => {
     },
   );
 
-  // The rule that protects the pollers: when Fetch Metadata is present it is the
-  // ONLY thing consulted. A `fetch()` whose accept header happens to mention
-  // html must still get the rejection its caller is written to handle.
+  // When Fetch Metadata is present it is the only thing consulted: a `fetch()`
+  // whose accept header happens to mention html must still get the rejection
+  // its caller is written to handle.
   it("believes sec-fetch-dest alone, even when accept says html", () => {
     expect(
       isDocumentRequest({ "sec-fetch-dest": "empty", accept: "text/html,application/json" }),
@@ -112,15 +101,13 @@ describe("document detection", () => {
   });
 
   // Node hands a repeated header over as an array, and reading `.toLowerCase()`
-  // off one of those throws — which inside an ERROR middleware would replace the
-  // outage with a second, more confusing crash. The cast is the point rather
-  // than a workaround: @types/node narrows these two names to `string`, so the
-  // shape that would crash is the one the compiler cannot warn about.
+  // off one of those throws, which inside an error middleware would replace
+  // the outage with a second crash. @types/node narrows these two names to
+  // `string`, so the shape that would crash is the one the compiler cannot warn about.
   it("survives a repeated header", () => {
     const asHeaders = (h: Record<string, string[]>) => h as unknown as IncomingHttpHeaders;
     expect(isDocumentRequest(asHeaders({ "sec-fetch-dest": ["document", "empty"] }))).toBe(true);
     expect(isDocumentRequest(asHeaders({ accept: ["text/html", "application/json"] }))).toBe(true);
-    // The first value is the one read, so this one is a poller, not a page.
     expect(isDocumentRequest(asHeaders({ accept: ["application/json", "text/html"] }))).toBe(false);
   });
 });
@@ -147,11 +134,8 @@ describe("the failing path", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The page itself. Every assertion here is something the TV needs in order to
-// come back without a human: the retry, the other retry, and no dependency on
-// the pipeline that just failed.
-// ─────────────────────────────────────────────────────────────────────────────
+// Every assertion here is something the TV needs in order to come back
+// without a human.
 
 describe("the reconnecting page", () => {
   const html = reconnectPageHtml("/wall");
@@ -177,8 +161,7 @@ describe("the reconnecting page", () => {
     expect(html).toContain("#0a0a0a");
   });
 
-  // Anything fetched would be fetched through the pipeline that is down, so a
-  // single external reference turns the holding page into a second failure.
+  // Anything fetched would be fetched through the pipeline that is down.
   it("references nothing it would have to fetch", () => {
     expect(html).not.toContain("<link");
     expect(html).not.toContain("<img");
@@ -188,8 +171,8 @@ describe("the reconnecting page", () => {
     expect(html).not.toContain('type="module"');
   });
 
-  // The Tower's listener is on the LAN, and this page is served for ANY failing
-  // navigation — so the path is attacker-supplied text going onto a page.
+  // The page is served for any failing navigation, so the path is
+  // attacker-supplied text going onto a page.
   it("escapes the path instead of reflecting it", () => {
     const injected = reconnectPageHtml("/<script>alert(1)</script>");
     expect(injected).not.toContain("<script>alert(1)");
@@ -197,9 +180,7 @@ describe("the reconnecting page", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // The middleware's three answers: serve the page, stand aside, stand aside.
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe("the error middleware", () => {
   it("answers a failed document load with the reconnecting page", () => {
@@ -236,8 +217,8 @@ describe("the error middleware", () => {
     expect(response.body).not.toContain("/index.html");
   });
 
-  // Answering the request means vite's error middleware never runs, so it never
-  // logs either. Without this the outage would leave no record anywhere.
+  // Answering the request means vite's error middleware never runs, so it
+  // never logs either.
   it("logs the error it swallowed, cause included", () => {
     const logged = vi.fn();
     const err = new Error("fetch failed", { cause: new Error("getaddrinfo ENOTFOUND") });
@@ -250,8 +231,8 @@ describe("the error middleware", () => {
     expect(logged).toHaveBeenCalledWith(err, "/wall");
   });
 
-  // THE ASYMMETRY. The pollers are written against a rejected request; hand one
-  // of them a 503 full of HTML and it blanks the panel it was holding.
+  // The pollers are written against a rejected request; hand one of them a
+  // 503 full of HTML and it blanks the panel it was holding.
   it("lets a poller's failure keep failing, untouched", () => {
     const next = vi.fn();
     const response = res();
@@ -281,8 +262,7 @@ describe("the error middleware", () => {
   });
 
   // A response already committed to the wire cannot be replaced; writing a
-  // second status line throws inside the error path and turns a blank screen
-  // into a crashed request.
+  // second status line throws inside the error path.
   it("passes a half-sent response straight on, document or not", () => {
     const next = vi.fn();
     const err = new Error("fetch failed mid-stream");
@@ -309,9 +289,7 @@ describe("the error middleware", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
 // "fetch failed" is undici's entire message; the diagnosis is on `cause`.
-// ─────────────────────────────────────────────────────────────────────────────
 
 describe("the log line", () => {
   it("unwraps undici's cause, which is where the reason lives", () => {
@@ -329,16 +307,12 @@ describe("the log line", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Stack position, on a real server.
-//
-// The stand-in below is shaped exactly like @cloudflare/vite-plugin's dispatch
-// middleware — a plugin with NO `enforce` that registers its throwing handler
-// from the function `configureServer` returns — and `reconnectPage()` is listed
-// FIRST on purpose. That is the arrangement in which plain post-hook
-// registration puts our handler in front of the throw, where Connect will never
-// reach it; only `order: "post"` survives it.
-// ─────────────────────────────────────────────────────────────────────────────
+// Stack position, on a real server. The stand-in below is shaped exactly like
+// @cloudflare/vite-plugin's dispatch middleware (a plugin with no `enforce`
+// that registers its throwing handler from the function `configureServer`
+// returns), and `reconnectPage()` is listed first on purpose: plain post-hook
+// registration puts our handler in front of the throw, where Connect will
+// never reach it; only `order: "post"` survives it.
 
 function failingDispatch(): Plugin {
   return {
@@ -367,7 +341,7 @@ describe("stack position, on a real vite server", () => {
 
   beforeAll(async () => {
     // The shared test-server helper: no page is loaded, so no optimizer, and
-    // its cache is not the Tower's own node_modules/.vite (bead ro-ujb9.192).
+    // its cache is not the Tower's own node_modules/.vite.
     vite = await createTestViteServer(createServer, {
       configFile: false,
       appType: "custom",
@@ -394,8 +368,7 @@ describe("stack position, on a real vite server", () => {
     await vite?.close();
   }, 30_000);
 
-  // THE REGRESSION TEST. Without `order: "post"` this is vite's error page,
-  // because our handler was appended before the middleware that throws.
+  // Without `order: "post"` this is vite's error page.
   it("catches the dispatch failure before vite does", async () => {
     const response = await fetch(`${origin}/wall`, { headers: DOCUMENT_HEADERS });
     const body = await response.text();

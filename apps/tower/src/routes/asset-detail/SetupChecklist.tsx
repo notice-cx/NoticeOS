@@ -6,17 +6,10 @@ import type { SetupChecklist, SetupChecklistItem } from "@shared/asset-setup";
  * Setup and historical-report progress on Sources, below the Data sources
  * rows. `assetSetupChecklist` controls which manual lifecycle stages show it;
  * completing a step does not verify current health. Each source's status is
- * its Data sources row above, so the sources step states only its count
- * (bead `ro-ujb9.96.7.16`: one status per subject per screen). Rows link to
- * their destination rather than offering editable checkboxes.
- *
- * ONE NAME, ONE COUNT (bead `ro-ujb9.164`). It is closed on arrival (bead
- * `ro-ujb9.96.7.5`: each source row above carries its own Connect, so the
- * checklist is the count, not the next step), and the disclosure IS the panel:
- * its summary carries the name the Overview's banner uses, "Data setup", and
- * the count once. It used to be a disclosure saying "Data setup · 1 of 2 checks
- * complete" around a panel saying "Setting up · 1 of 2 done" — two names and
- * the same count twice for one subject.
+ * its Data sources row above, so the sources step states only its count.
+ * Rows link to their destination rather than offering editable checkboxes.
+ * Closed on arrival, and the disclosure is the panel: its summary carries the
+ * name the Overview's banner uses, "Data setup", and the count once.
  */
 export function SetupChecklistPanel({ setup, open = false }: { setup: SetupChecklist; open?: boolean }) {
   return (
@@ -44,10 +37,10 @@ function SetupChecklistRow({ item }: { item: SetupChecklistItem }) {
     <li className="m-0 flex gap-2.5" data-setup-item={item.id} data-setup-state={item.state}>
       {/* The two shapes a task's status already uses for the same pair
           (`routes/tasks/task-face.tsx`): a tick for finished, an open circle
-          for something nobody has taken yet. Neither is severity-colored — an unfinished setup step is
-          not an alert. An optional step (bead `ro-ujb9.121`) is the dashed
-          circle: offered, owed by nobody. An unavailable capability is a
-          neutral dash, never a pending task or a successful check (D43). */}
+          for something nobody has taken yet. Neither is severity-colored. An
+          optional step is the dashed circle: offered, owed by nobody. An
+          unavailable capability is a neutral dash, never a pending task or a
+          successful check. */}
       {done ? (
         <Check className="mt-0.5 size-4 shrink-0 text-connected" aria-hidden />
       ) : item.state === "optional" ? (
@@ -62,9 +55,9 @@ function SetupChecklistRow({ item }: { item: SetupChecklistItem }) {
           {item.href ? (
             <Link
               to={item.href}
-              // The 44px floor is CLAIMED rather than added (bead `ro-9smi`):
-              // the box grows under a thumb and the negative margin hands the
-              // height back to the line, so the list keeps its rhythm.
+              // The 44px floor is claimed rather than added: the box grows
+              // under a thumb and the negative margin hands the height back to
+              // the line, so the list keeps its rhythm.
               className="rounded-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
             >
               {item.label}

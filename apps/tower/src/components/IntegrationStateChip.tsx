@@ -45,7 +45,7 @@ export function connectionTone(kind: SourceKind): StateTone {
 }
 
 /** The one word a status reads as, on the chip and in a source mark's name.
- * `lane` names the data source, so uptime reads Up or Down (bead `ro-ujb9.165`). */
+ * `lane` names the data source, so uptime reads Up or Down. */
 export function connectionWord(kind: SourceKind, accepted: AcceptedAs = "key", lane: string | null = null): string {
   return kind === "not-applicable" ? "Doesn't apply" : connectionLabel(kind, accepted, lane);
 }
@@ -70,10 +70,8 @@ export interface IntegrationStateChipProps {
 }
 
 /**
- * THE ONE RENDERER OF A CONNECTION'S STATUS (bead `ro-ujb9.96.7.3`): the
- * Integrations list, a provider's page, an asset's Data sources, System health
- * and the register all draw it here, so a status never reads differently on two
- * screens. The glyph carries the meaning with the word; colour is never alone.
+ * The one renderer of a connection's status, so a status never reads
+ * differently on two screens. The glyph carries the meaning with the word.
  */
 export function IntegrationStateChip({ state, accepted = "key", count, subject, lane, className }: IntegrationStateChipProps) {
   const kind = state in FROM_REGISTER ? FROM_REGISTER[state as IntegrationHealthState] : (state as ConnectionKind);

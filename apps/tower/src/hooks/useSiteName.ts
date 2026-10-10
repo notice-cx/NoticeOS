@@ -17,8 +17,8 @@ export function useSettled<T>(value: T, ms: number): T {
 }
 
 /**
- * The name a site gives itself, once the domain has settled (bead
- * `ro-ujb9.96.7.5`). `null` while nothing is known — no domain yet, a host the
+ * The name a site gives itself, once the domain has settled. `null` while
+ * nothing is known — no domain yet, a host the
  * lookup does not fetch, a site that has not answered or answered with no
  * name — and the add screen shows the domain's own name meanwhile. Asked once
  * per domain and remembered: a site's name does not change while a dialog is

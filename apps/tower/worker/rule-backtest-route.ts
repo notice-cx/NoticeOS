@@ -1,15 +1,7 @@
-// POST /api/alerts/backtest — "how often would this alert rule have fired in the
-// last 30 days with these settings?" (bead `ro-u072`, docs/15 principle 1).
-//
-// READ-ONLY DESPITE THE VERB. It is a POST because the question's key is a whole
-// settings object the operator is still typing, which does not survive a query
-// string honestly — the same reasoning `POST /api/research-log/lookup` records
-// in the ingest Worker. Nothing is written on either side of the binding: no
-// flag, no disposition, no config value. Saving the settings the operator ends
-// up choosing is a separate action through the D18 write lane.
-//
-// The answer is produced inside ingest, which owns the `pulses` read the seasonal
-// baseline is assembled from. This route only carries the question across.
+// POST /api/alerts/backtest — how often this alert rule would have fired in the
+// last 30 days with these settings. Read-only despite the verb: the key is a
+// whole settings object that does not fit a query string. Ingest computes the
+// answer; nothing is written.
 
 import type { RuleBacktestInput, RuleBacktestResult } from "@noticeos/contract";
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
@@ -47,8 +39,7 @@ export async function handleRuleBacktestRequest(
     result = await ingest.backtestRule({
       asset: input.asset,
       ruleId: input.ruleId,
-      // Every field is re-validated inside ingest, which is the authority on the
-      // detector's own bounds. What crosses here is the operator's intent.
+      // Ingest re-validates every field against the detector's bounds.
       config: input.config as RuleBacktestInput["config"],
       metric: input.metric ?? null,
       ...(typeof input.through === "string" ? { through: input.through } : {}),
@@ -62,7 +53,7 @@ export async function handleRuleBacktestRequest(
   if (result.ok) {
     return Response.json(result.backtest, { headers: JSON_HEADERS });
   }
-  // A refusal is an ANSWER the panel renders in place of a strip, so each one
+  // A refusal is an answer the panel renders in place of a strip, so each one
   // keeps its own code and its own status: a rule with no replay is not a
   // malformed request, and neither is an asset the store has never heard of.
   if (result.error === "unknown_asset") {

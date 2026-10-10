@@ -49,9 +49,8 @@ const HOUR = 3_600_000;
 const DAY = 86_400_000;
 const CONSTANTS = { dataUsd: 25 };
 
-// config/counters.json's two shapes: a fast-lane asset (meals, with a
-// scrape source) and a fallback-only one (nom, no source — its totals come from
-// its own nightly report). pacer declares nothing, so it gets none.
+// config/counters.json's two shapes: a fast-lane asset (meals, with a scrape
+// source) and a fallback-only one (nosh, no source). pacer declares nothing.
 const COUNTERS: CountersConfig = {
   assets: {
     "meals.example": {
@@ -66,7 +65,6 @@ const COUNTERS: CountersConfig = {
       heading: "Current catalog",
       cards: [{ metric: "items", label: "Items" }],
     },
-    // An entry stubbed before anyone chose its totals — still nothing to render.
     "root-os": { cards: [] },
   },
 };
@@ -97,16 +95,12 @@ const INTEGRATIONS: IntegrationsConfig = {
     },
   },
 };
-// config/serp-panel.json's real shape: a MINORITY of assets buy a tracked
-// panel (meals.example since 2026-07, nosh.example since 2026-08-03). This fixture
-// names one, so every other card here is an asset that owes the SAME weekly
-// read in the other noun — signal collection, never SERP panel (bead ro-z0g).
-// Membership stopped gating the marker at ro-1tu; it picks the words only.
+// A minority of assets buy a tracked panel. Membership picks the marker's
+// words only; it does not gate the marker.
 const SERP_PANEL = { assets: { "meals.example": { queries: ["meals"] } } };
 const PANEL_ASSETS = new Set(Object.keys(SERP_PANEL.assets));
 
-/** The operator's clock these fixtures are written on (bead `ro-ujb9.88`).
- * UTC, because the month-boundary cases below say "half an hour into August"
+/** UTC, because the month-boundary cases below say "half an hour into August"
  * of 00:30Z; the saved-zone behaviour itself is pinned by
  * test/saved-time-zone.test.ts. */
 const OS_TIME_ZONE = "UTC";
@@ -122,7 +116,7 @@ const OPTIONS = {
   dashboard: {
     countdown: {
       emoji: "🌁",
-      label: "SF Trip - August 2026",
+      label: "Team offsite - August 2026",
       targetAt: "2026-08-01T07:00:00.000Z",
     },
   },
@@ -139,16 +133,11 @@ const DETAIL_DEPS: AssetDetailDeps = {
   integrations: INTEGRATIONS,
   counters: COUNTERS,
   // The same file the Wall reads, so a card and the page it links to are gated
-  // on one key set rather than two copies of it (bead ro-elf).
+  // on one key set.
   serpPanel: SERP_PANEL,
-  // Only the asset page reads this one, and only to say what a delete removes.
   signalPanels: { assets: {} },
-  // The GA4 declarations only the asset page's Sources tab reads — nothing this
-  // file asserts touches them.
   valueEvents: { assets: {} },
   ga4EventParams: { assets: {} },
-  // Nobody has said who owns these assets, and nothing this file asserts turns
-  // on it.
   osTimeZone: OS_TIME_ZONE,
 };
 
@@ -156,8 +145,7 @@ const OS_RECEIVED = new Date(NOW_MS - 3 * HOUR).toISOString();
 const MEALS_RECEIVED = new Date(NOW_MS - 4 * HOUR).toISOString();
 const NOM_RECEIVED = new Date(NOW_MS - 3 * DAY).toISOString();
 
-/** A site in both of the test's stores (test/sites.ts): the Wall reads the
- * site list on Postgres and joins D1's copy of it. */
+/** A site in both of the test's stores (test/sites.ts). */
 async function insertAsset(
   raw: TestStore,
   id: string,
@@ -167,22 +155,21 @@ async function insertAsset(
   isOs: number,
 ) {
   // Each site is added a second after the store's last one, as sites added
-  // through the product are. The cards keep the order the fixture adds them in
-  // because each new site takes the next place in the list (`SITE_ORDER`).
+  // through the product are, so the cards keep the fixture's order (`SITE_ORDER`).
   const createdAt = new Date(Date.parse("2026-07-01T00:00:00.000Z") + ((await raw.call.read((tx) => tx.query<{ n: number }>("SELECT count(*)::int AS n FROM noticeos.assets")))[0]!.n + 1) * 1000).toISOString();
   await addSites(raw, [{ id, domain: `${id}.example`, displayName: name, status, senseOnly, isOs, createdAt }]);
 }
 
 type ReportMetrics = Record<string, { last24h: number; avg7d?: number; total?: number }>;
 
-/** One nightly report as the store holds it (bead ro-ujb9.76.5.2): a second one
- * for a site's day is that day's newest revision, which replaces it. */
+/** One nightly report as the store holds it: a second one for a site's day is
+ * that day's newest revision, which replaces it. */
 function report(asset: string, date: string, receivedAt: string, metrics: ReportMetrics, capabilities?: string[]): ReportRow {
   return { asset, date, receivedAt, capabilities: capabilities ?? null, envelope: capabilities ? { capabilities, metrics } : { metrics } };
 }
 
-/** A nightly report, on Postgres in the test's copy of its sites: the site's
- * row must be added first, and a copy written to serves no other test. */
+/** A nightly report in the test's copy of its sites: the site's row must be
+ * added first. */
 async function insertPulse(
   ctx: TestStore,
   asset: string,
@@ -200,20 +187,17 @@ interface LedgerRow {
   asset: string;
   period: string;
   family: string;
-  /** DOLLARS, for readable fixtures — the store never sees this number. It is
-   * rounded to exact cents on the way in, which is all `/api/revenue` writes. */
+  /** Dollars, for readable fixtures; rounded to exact cents on the way in,
+   * which is all `/api/revenue` writes. */
   amount: number;
   booking_state: "estimated" | "reconciled";
   supersedes_id?: number | null;
   recorded_at: string;
 }
 
-/** Writes `amount_minor` and nothing else, exactly as `/api/revenue` does since
- * db/0020 dropped the `amount REAL` mirror — a fixture still filling a column
- * the store no longer has would test a shape no writer produces. On Postgres
- * (bead ro-ujb9.76.6.1), in the test's own copy of its sites (test/money.ts):
- * the sites must be added first, and a copy written to serves no other test.
- * `id` and `supersedes_id` are the fixture's names for its entries. */
+/** Writes `amount_minor` and nothing else, exactly as `/api/revenue` does. The
+ * sites must be added first (test/money.ts). `id` and `supersedes_id` are the
+ * fixture's names for its entries. */
 async function insertLedger(ctx: TestStore, row: LedgerRow) {
   await bookLedger(ctx.call, [{
     id: row.id,
@@ -228,9 +212,8 @@ async function insertLedger(ctx: TestStore, row: LedgerRow) {
   }]);
 }
 
-/** The populated store's ledger: id=1 estimate superseded by id=2 reconciled —
- * id=1 must drop out. Written by the tests that read money, so the rest of
- * `seed` stays a copy every test shares. */
+/** The populated store's ledger: id=1 estimate superseded by id=2 reconciled,
+ * so id=1 must drop out. Written by the tests that read money. */
 async function seedLedger(ctx: TestStore) {
   await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
   await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
@@ -239,9 +222,8 @@ async function seedLedger(ctx: TestStore) {
   await insertLedger(ctx, { id: 5, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
 }
 
-/** A counters-lane reading, on Postgres where the site's totals read it (bead
- * ro-ujb9.76.5.1), in the test's own copy of its sites (test/sites.ts): the
- * site's row must be added first, and a copy written to serves no other test. */
+/** A counters-lane reading in the test's copy of its sites: the site's row
+ * must be added first. */
 async function insertCounterReading(
   ctx: TestStore,
   asset: string,
@@ -259,20 +241,17 @@ async function insertCounterReading(
 }
 
 /** meals' counter readings (the 15-min fast lane), minutes old. plansSaved is
- * deliberately BELOW its nightly total — magnitude must not decide which lane
- * wins. `leads` has no reading and no pulse metric: the both-lanes-empty entry.
- * nom gets none, so its totals fall back to its nightly report. Written by the
- * tests that read them, so the rest of `seed` stays a copy every test shares. */
+ * deliberately below its nightly total: magnitude must not decide which lane
+ * wins. `leads` has no reading and no pulse metric. nosh gets none, so its
+ * totals fall back to its nightly report. */
 async function insertMealsReadings(ctx: TestStore) {
   await insertCounterReading(ctx, "meals.example", "signups", 4310, new Date(NOW_MS - 5 * 60_000).toISOString());
   await insertCounterReading(ctx, "meals.example", "plansSaved", 1900, new Date(NOW_MS - 5 * 60_000).toISOString());
 }
 
-/** One lane's daily values under that lane's one run, on Postgres where the
- * collectors write them (bead ro-ujb9.76.5.3), in the test's own copy of its
- * sites (test/sites.ts): the run on the lane's first call, more values under
- * it on the next (the store never rewrites a run, so its counts are the first
- * call's). */
+/** One lane's daily values under that lane's one run: the run on the lane's
+ * first call, more values under it on the next (the store never rewrites a
+ * run, so its counts are the first call's). */
 async function insertSignalSnapshot(
   ctx: TestStore,
   integration: "ga4" | "gsc" | "bing-webmaster",
@@ -305,7 +284,7 @@ async function insertSignalSnapshot(
     return;
   }
   await writeSignalRun(store, {
-    id: runId, asset, integration, credentialRef: "studio-signals",
+    id: runId, asset, integration, credentialRef: "example-signals",
     propertyRef: integration === "ga4" ? "123456" : integration === "gsc" ? `sc-domain:${asset}` : `https://${asset}/`,
     startedAt: "2026-07-05T11:54:00.000Z", finishedAt: "2026-07-05T11:55:00.000Z",
     windowStart: startDate, windowEnd: endDate,
@@ -315,8 +294,7 @@ async function insertSignalSnapshot(
 }
 
 /** meals' collected metrics: GA4 users, Search Console and Bing clicks and
- * impressions. Written by the tests that read them, so the rest of `seed`
- * stays a copy every test shares. */
+ * impressions. Written by the tests that read them. */
 async function insertMealsSignals(ctx: TestStore) {
   await insertSignalSnapshot(ctx, "ga4", "active_users", [101, 116, 48]);
   await insertSignalSnapshot(ctx, "gsc", "clicks", [12, 17, 5]);
@@ -335,7 +313,7 @@ interface FlagRow {
   message?: string | null;
   rule_inputs?: Record<string, unknown> | null;
   disposition?: string | null;
-  /** For `disposition: "snooze"` — when the condition returns (`ro-c7qq`). */
+  /** For `disposition: "snooze"`: when the condition returns. */
   snooze_until?: string | null;
   resolved_at?: string | null;
 }
@@ -357,14 +335,13 @@ function alertRow(f: FlagRow): AlertRow {
   };
 }
 
-/** One alert, on Postgres in the test's copy of its sites (bead
- * ro-ujb9.76.5.2): its number, which the Wall shows as its id. */
+/** One alert in the test's copy of its sites: its number, which the Wall shows
+ * as its id. */
 async function insertFlag(ctx: TestStore, f: FlagRow): Promise<number> {
   return storeAlert(ctx.call, alertRow(f));
 }
 
-/** One change, on Postgres in the test's copy of its sites (bead
- * ro-ujb9.76.5.7). */
+/** One change in the test's copy of its sites. */
 async function insertAnnotation(
   ctx: TestStore,
   asset: string,
@@ -376,8 +353,7 @@ async function insertAnnotation(
   await storeChange(ctx.call, { asset, at, kind, ref, note });
 }
 
-/** One open readback window, on Postgres in the test's copy of its sites
- * (bead ro-ujb9.76.5.7). */
+/** One open readback window in the test's copy of its sites. */
 async function insertOpenWatch(
   ctx: TestStore,
   {
@@ -407,30 +383,19 @@ async function insertOpenWatch(
 }
 
 async function seed(raw: TestStore, hasOs = true) {
-  // Insertion order IS the fixed card order (rowid). The OS row keeps the
-  // owner's pre-rename stored name, which no payload shows (ro-ujb9.77.10).
+  // Insertion order is the fixed card order. The OS row's stored name is one
+  // no payload shows.
   await insertAsset(raw, "root-os", "ReindexOS", "live", 0, hasOs ? 1 : 0);
   await insertAsset(raw, "meals.example", "Meal Planner", "onboarding", 0, 0);
   await insertAsset(raw, "nosh.example", "Nosh", "onboarding", 0, 0);
   await insertAsset(raw, "pacer.example", "Pacer Test", "onboarding", 1, 0);
 
-  // Nightly reports and alerts are on Postgres: `seedReportsAndAlerts`.
-  // meals' counter readings are on Postgres: `insertMealsReadings`; so are
-  // its collected metrics: `insertMealsSignals`.
-
-  // The ledger is on Postgres: `seedLedger`, written by the tests that read money.
-
-  // Annotations. meals deployed 14h before its alert fired (correlates), and
-  // again a week earlier (outside the window). Nosh's config change lands AFTER
-  // its alert — a change that happened later cannot explain it.
-  // The changes are on Postgres: the test that reads them files them.
+  // Annotations: meals deployed 14h before its alert fired (correlates), and
+  // again a week earlier (outside the window). Nosh's config change lands
+  // after its alert. The test that reads them files them.
 }
 
-/**
- * `seed`'s nightly reports and alerts, on Postgres (bead ro-ujb9.76.5.2), in
- * the test's copy of its sites: written by the tests that read them, so the
- * rest of `seed` stays a copy every test in a file shares.
- */
+/** `seed`'s nightly reports and alerts, written by the tests that read them. */
 async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }: { withoutOsReport?: boolean } = {}) {
   // The OS's own report, unless a test is about the night it sent none.
   const reports: ReportRow[] = withoutOsReport ? [] : [
@@ -440,7 +405,7 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
       queueDepth: { last24h: 14 },
     }),
   ];
-  // meals DECLARES its capabilities — signups leads, so the activity panel
+  // meals declares its capabilities: signups leads, so the activity panel
   // charts signups even though plansSaved is the busier metric.
   const mealsCaps = ["signups", "plansSaved"];
   reports.push(
@@ -468,7 +433,7 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
       },
       mealsCaps,
     ),
-    // nom declares NOTHING — the fallback picks its busiest metric by avg7d.
+    // nosh declares nothing, so the fallback picks its busiest metric by avg7d.
     report("nosh.example", "2026-07-02", NOM_RECEIVED, {
       items: { last24h: 500, avg7d: 40, total: 12954 },
       receiptVisits: { last24h: 12, avg7d: 55 },
@@ -477,9 +442,8 @@ async function seedReportsAndAlerts(ctx: TestStore, { withoutOsReport = false }:
   const store = ctx.call;
   await storeReports(store, reports);
 
-  // Flags: two open (error on meals, warn on nom); two closed (resolved + acked).
-  // The open pair carries the rule_inputs its rule really writes — the attention
-  // row ships them so the client can translate the alert into plain language.
+  // Flags: two open (error on meals, warn on nosh); two closed (resolved + acked).
+  // The open pair carries the rule_inputs its rule really writes.
   await storeAlerts(store, [
     alertRow({ asset: "meals.example", fired_at: "2026-07-05T09:00:00.000Z", severity: "error", kind: "anomaly", rule_id: "ingest-freshness", metric: "pulse", message: "no pulse in 41h (> 36h threshold)", rule_inputs: { rule: "ingest-freshness", lastReceivedAt: "2026-07-03T16:00:00.000Z", thresholdHours: 36, ageHours: 41 } }),
     alertRow({ asset: "nosh.example", fired_at: "2026-07-05T10:00:00.000Z", severity: "warn", kind: "anomaly", rule_id: "flow-poisson-low", metric: "receiptVisits", message: "12 in last24h (avg7d 55.0, P(<=12)~=0.0000)", rule_inputs: { metric: "receiptVisits", observed: 12, baselinePerDay: 55, alpha: 0.01, pLowerTail: 0.0000004 } }),
@@ -499,35 +463,29 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
     // Current July rows: 150 reconciled revenue (superseding the 100 estimate),
-    // 20 reconciled cost, and nom's 30 estimated revenue. The old read model
-    // summed all three into one "portfolio total" (the 2026-07 audit's finding 4).
+    // 20 reconciled cost, and nosh's 30 estimated revenue.
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
     expect(p.portfolio.forecast).toEqual({ currency: 'USD', revenue: 30, cost: 0, net: 30 });
-    // The mixed total the band used to publish (160) appears nowhere.
+    // The mixed total (160) appears nowhere.
     const mixed = p.portfolio.booked.net! + p.portfolio.forecast.net!;
     expect(mixed).toBe(160);
     expect(Object.values(p.portfolio.booked)).not.toContain(mixed);
     expect(p.portfolio.netTrend.map((point) => point.v)).not.toContain(mixed);
     expect(p.portfolio.firstRun).toBe(false);
-    // The trend charts the same money the headline states.
     expect(p.portfolio.netTrend).toEqual([
       { t: "2026-06", v: 90 },
       { t: "2026-07", v: 130 },
     ]);
     expect(p.ledgerRecordedAt).toBe("2026-07-04T00:00:00.000Z");
-    // …and this band has plenty to say, so every surface mounts it (ro-yf3).
     expect(portfolioHasData(p.portfolio)).toBe(true);
   });
 
-  it("PORTFOLIO: the delta pairs two CLOSED months, mid-month, to the cent (bead ro-7yv)", async () => {
+  it("PORTFOLIO: the delta pairs two CLOSED months, mid-month, to the cent", async () => {
     await seedLedger(ctx);
-    // NOW is the 5th of July: the current period is four days old and the band
-    // used to compare it with the whole of June. May and June, both closed, are
-    // the only pair either side of which covers a full month. The cents are the
-    // repo's own float trap (ro-wtt): these rows add to 866.4000000000001 and
-    // 1809.6499999999999 in dollars, and 1809.65 − 866.40 is 943.2500000000001,
-    // so a delta taken anywhere but in cents lands beside the figures it sits
-    // next to.
+    // NOW is the 5th of July. May and June, both closed, are the only pair
+    // either side of which covers a full month. The cents are a float trap:
+    // these rows add to 866.4000000000001 and 1809.6499999999999 in dollars,
+    // and 1809.65 − 866.40 is 943.2500000000001.
     await insertLedger(ctx, { id: 40, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "ads", amount: 445.1, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 41, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "affiliate", amount: 421.3, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 42, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 574.15, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
@@ -542,23 +500,21 @@ describe("buildWallPayload — populated store", () => {
       { t: "2026-06", v: 1809.65 }, // the seed's own 90, plus these four
       { t: "2026-07", v: 130 },
     ]);
-    // Two closed months, named, and the partial one is neither of them.
     const delta = p.portfolio.bookedDelta!;
     expect(delta.value).toBe(943.25);
     expect(delta.value).not.toBe(1809.65 - 866.4); // the float road: …0000001
     expect(delta.period).toBe("2026-06");
     expect(delta.priorPeriod).toBe("2026-05");
     expect(delta.percent).toBeCloseTo(108.87, 2);
-    // The comparison the old chip made — July's four days against all of June.
+    // Not July's four days against all of June.
     expect(delta.value).not.toBe(130 - 1809.65);
     expect(delta.period).not.toBe(p.portfolio.period);
   });
 
   it("PORTFOLIO: one closed month is no delta at all — nothing is drawn", async () => {
     await seedLedger(ctx);
-    // The seed's own shape on the 5th of July: June closed, July open. There is
-    // no second closed month to measure June against, so the payload states
-    // none. A first month has nothing to compare with and says so by absence.
+    // On the 5th of July: June closed, July open. There is no second closed
+    // month to measure June against, so the payload states none.
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.portfolio.netTrend).toEqual([
       { t: "2026-06", v: 90 },
@@ -570,14 +526,9 @@ describe("buildWallPayload — populated store", () => {
   it("PORTFOLIO: the month boundary hands the delta its next pair", async () => {
     await seedLedger(ctx);
     // Half an hour into August: July has just closed, so the pair rolls forward
-    // to July vs June. The delta moves when a month ENDS, not while it is
-    // running.
-    //
-    // The headline beside it no longer states an empty August (bead ro-bdkp) —
-    // thirty minutes in, nothing has been imported, so it falls back to July and
-    // names it. "Closed" is still read off the CALENDAR rather than off the
-    // headline's period, which is why July is one side of the pair even while it
-    // is the month on the card.
+    // to July vs June. The headline falls back to July (nothing imported for
+    // August yet), but "closed" is read off the calendar, so July is one side
+    // of the pair even while it is the month on the card.
     const p = await buildWallPayload(ctx.call, {
       ...OPTIONS,
       now: new Date("2026-08-01T00:30:00.000Z"),
@@ -595,9 +546,8 @@ describe("buildWallPayload — populated store", () => {
 
   it("PORTFOLIO: a closed month worth zero takes the tone off, not the delta", async () => {
     await seedLedger(ctx);
-    // June reconciled to exactly nothing. The change from it is real money and
-    // stays stated; the percent against zero is not a number anybody can divide
-    // for, so it is null rather than an Infinity dressed up as growth.
+    // June reconciled to exactly nothing: the change is real money and stays
+    // stated; the percent against zero is null, not an Infinity.
     await insertLedger(ctx, { id: 44, kind: "cost", asset: "nosh.example", period: "2026-06", family: "inference", amount: 90, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
     await insertLedger(ctx, { id: 45, kind: "revenue", asset: "nosh.example", period: "2026-05", family: "ads", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
 
@@ -609,7 +559,6 @@ describe("buildWallPayload — populated store", () => {
       priorPeriod: "2026-05",
     });
 
-    // …and the other way round: the PRIOR month is the zero.
     await insertLedger(ctx, { id: 46, kind: "cost", asset: "nosh.example", period: "2026-05", family: "inference", amount: 20, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 47, kind: "revenue", asset: "nosh.example", period: "2026-06", family: "ads", amount: 12.5, booking_state: "reconciled", recorded_at: "2026-06-30T00:00:00.000Z" });
     const q = await buildWallPayload(ctx.call, OPTIONS);
@@ -623,9 +572,7 @@ describe("buildWallPayload — populated store", () => {
 
   it("PORTFOLIO: one reconciled row cannot unlock a total made of estimates", async () => {
     await seedLedger(ctx);
-    // The exact shape doc 19 named: the Wall waited for a single reconciled row
-    // to exist and then summed everything current. Here that one row is $150
-    // and the estimates around it are $2,400.
+    // One reconciled row of $150 among $2,400 of estimates.
     await insertLedger(ctx, { id: 10, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 800, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 11, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 900, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 12, kind: "revenue", asset: "pacer.example", period: "2026-07", family: "ads", amount: 700, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
@@ -637,8 +584,7 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("PORTFOLIO: sums exact cents, so the headline is provable", async () => {
-    // Four figures whose float sum is 758.1999999999999 — the reason db/0018
-    // added amount_minor (the 2026-07 audit's finding 1).
+    // Four figures whose float sum is 758.1999999999999.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
       await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
@@ -648,18 +594,11 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("PORTFOLIO: the headline, the card, and the asset's P&L state the same cents — on BOTH sides", async () => {
-    // One month's rows read by three surfaces. Every figure is a float trap:
-    // in dollars the revenue adds to 1809.6499999999999, the ads family to
+    // One month's rows read by three surfaces, every figure a float trap: in
+    // dollars the revenue adds to 1809.6499999999999, the ads family to
     // 845.3499999999999, the costs to 866.4000000000001, and 1809.65 − 866.40
-    // is 943.2500000000001. Any reader that divides before it adds lands a
-    // fraction of a cent away from the other two (ro-wtt) — which is why db/0020
-    // removed the dollars column those readers used to be able to reach (ro-k5s).
-    //
-    // The month is MIXED, because agreeing on exact cents is only half of it
-    // (ro-jk7): three surfaces reading the same rows must also cut them at the
-    // same place. The page rolled every current row into one figure, so before
-    // the split it agreed with the headline here only when nothing was
-    // estimated — which is the one case the 2026-07 audit's finding 4 is not about.
+    // is 943.2500000000001. The month is mixed, so the three surfaces must
+    // also cut it at the same place.
     const rows = [
       [30, "revenue", "ads", 574.15],
       [31, "revenue", "ads", 271.2],
@@ -671,7 +610,7 @@ describe("buildWallPayload — populated store", () => {
     for (const [id, kind, family, amount] of rows) {
       await insertLedger(ctx, { id, kind, asset: "nosh.example", period: "2026-08", family, amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
-    // …plus estimates on the same asset and month: 812.45 − 96.15 = 716.30,
+    // Plus estimates on the same asset and month: 812.45 − 96.15 = 716.30,
     // which is 716.3000000000001 once either side has left integer cents.
     await insertLedger(ctx, { id: 36, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "subs", amount: 812.45, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
     await insertLedger(ctx, { id: 37, kind: "cost", asset: "nosh.example", period: "2026-08", family: "infra", amount: 96.15, booking_state: "estimated", recorded_at: "2026-08-01T00:00:00.000Z" });
@@ -684,24 +623,20 @@ describe("buildWallPayload — populated store", () => {
 
     expect(wall.portfolio.booked).toEqual({ currency: 'USD', revenue: 1809.65, cost: 866.4, net: 943.25 });
     expect(wall.portfolio.forecast).toEqual({ currency: 'USD', revenue: 812.45, cost: 96.15, net: 716.3 });
-    // The asset page's P&L over the same rows, to the cent, on each side…
     expect(august.booked.figure).toEqual(wall.portfolio.booked);
     expect(august.forecast.figure).toEqual(wall.portfolio.forecast);
-    // …and the card's, which the Wall states beside the line that charts it.
     expect(card.booked).toEqual(august.booked.figure);
     expect(card.forecast).toEqual(august.forecast.figure);
     expect(wall.portfolio.netTrend.at(-1)).toEqual({ t: "2026-08", v: 943.25 });
-    // The blend all three used to be able to say: no surface states it, and no
-    // pair of fields on any of them adds up to it by accident.
+    // No surface states the blend, and no pair of fields adds up to it.
     for (const figure of [august.booked.figure, august.forecast.figure, card.booked, card.forecast]) {
       expect(Object.values(figure)).not.toContain(1659.55); // 943.25 + 716.30
     }
   });
 
   it("PORTFOLIO: a superseded row cannot set the ledger's age", async () => {
-    // A late-recorded estimate, corrected by a row that was itself recorded
-    // earlier (a backfilled reconciliation). The estimate is no longer part of
-    // the ledger, so the lane's age must not come from it.
+    // A late-recorded estimate, corrected by a row recorded earlier (a
+    // backfilled reconciliation): the lane's age must not come from it.
     await insertLedger(ctx, { id: 6, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 80, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 7, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "ads", amount: 64, booking_state: "reconciled", supersedes_id: 6, recorded_at: "2026-07-04T12:00:00.000Z" });
 
@@ -713,31 +648,28 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
-    // Bead `ro-trai.44`: the old System card's agents, queue, monthly cap, work
-    // widget and report age are not computed — no screen draws them.
+    // Nothing draws agents, a queue, a cap, a work widget or a report age, so
+    // none is computed.
     expect(Object.keys(p.system).sort()).toEqual(
       ["assetId", "dailyCapUsd", "hasPulse", "ingest", "scheduledLanes", "spendTodayUsd"],
     );
     expect(p.system.assetId).toBe("root-os");
     expect(p.system.hasPulse).toBe(true);
-    // No metered call has been made today, and that is a MEASURED zero rather
-    // than an absent reading (bead `ro-sq42`): the figure comes from the OS's
-    // own record of the calls it made, so "nothing was spent" is knowable.
+    // A measured zero, not an absent reading: the figure comes from the OS's
+    // own record of the calls it made.
     expect(p.system.spendTodayUsd).toBe(0);
-    // The metered data cap alone — the inference half was withdrawn with D6
-    // (bead `ro-uj7x`), so the pace is drawn against money the OS can spend.
+    // The metered data cap alone.
     expect(p.system.dailyCapUsd).toBeCloseTo(25 / 31, 6); // July has 31 days
     expect(p.system.scheduledLanes).toEqual([]);
-    // meals + root-os fresh; nom (3d old) is stale; pacer has
-    // never sent a report, so it expects none (D29 amended, ro-ujb9.121).
+    // meals + root-os fresh; nosh (3d old) is stale; pacer has never sent a
+    // report, so it expects none.
     expect(p.system.ingest).toEqual({
       fresh: 2, stale: 1, notExpected: 1, expected: 3,
     });
   });
 
   /** One metered DataForSEO call and what it cost, on the manifest rows both
-   * the Wall's day and the Health page's month are summed from. On Postgres,
-   * where the collector writes them (bead ro-ujb9.76.5.4). */
+   * the Wall's day and the Health page's month are summed from. */
   async function insertMeteredCall(
     id: string,
     asset: string,
@@ -751,30 +683,22 @@ describe("buildWallPayload — populated store", () => {
     });
   }
 
-  // The defect bead `ro-sq42` closed: this figure was read from asset #0's
-  // report envelope, nothing in the repo ever wrote one of its four candidate
-  // keys, and the row was absent on every real Wall while `/integrations` was
-  // summing the same money out of the store beside it.
   it("SYSTEM: sums TODAY's metered spend out of the store, not the report", async () => {
     await seedReportsAndAlerts(ctx);
     await insertMeteredCall("dfs-today-1", "meals.example", "2026-07-05T02:15:00.000Z", 0.4);
     await insertMeteredCall("dfs-today-2", "nosh.example", "2026-07-05T11:00:00.000Z", 0.15);
-    // Yesterday's call is yesterday's pace, and June's is neither.
     await insertMeteredCall("dfs-yesterday", "meals.example", "2026-07-04T23:59:00.000Z", 9);
     await insertMeteredCall("dfs-june", "nosh.example", "2026-06-30T12:00:00.000Z", 4);
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
     expect(p.system.spendTodayUsd).toBeCloseTo(0.55, 10);
-    // And it is the same function `/integrations` reads, one window over: the
-    // month holds both July days and drops June.
+    // The same function `/integrations` reads, one window over.
     const month = await loadDataForSeoSpend(ctx.call, NOW);
     expect(month.spentUsd).toBeCloseTo(9.55, 10);
   });
 
-  // Bead `ro-ukus`: the pace inherited the desk's undercount. Ad-hoc research
-  // spends the same DataForSEO account against the same daily share of the cap,
-  // and the collector's gate has always counted it — so a Wall that did not was
-  // showing a pace the OS would refuse to keep.
+  // Ad-hoc research spends the same DataForSEO account against the same daily
+  // share of the cap, and the collector's gate counts it.
   it("SYSTEM: today's pace counts the ad-hoc research, not only the collection", async () => {
     await seedReportsAndAlerts(ctx);
     await insertMeteredCall("dfs-today", "meals.example", "2026-07-05T02:15:00.000Z", 0.4);
@@ -787,8 +711,6 @@ describe("buildWallPayload — populated store", () => {
     expect(p.system.spendTodayUsd).toBeCloseTo(0.64, 10);
   });
 
-  // Spend does not vanish with the report: the store remembers what the OS
-  // spent even on the night it goes quiet.
   it("SYSTEM: keeps today's spend when asset #0 sent no report at all", async () => {
     await seedReportsAndAlerts(ctx, { withoutOsReport: true });
     await insertMeteredCall("dfs-quiet", "meals.example", "2026-07-05T06:00:00.000Z", 1.25);
@@ -798,16 +720,14 @@ describe("buildWallPayload — populated store", () => {
     expect(p.system.spendTodayUsd).toBeCloseTo(1.25, 10);
   });
 
-  // `hasPulse` is read off the coverage read every site's arrival already
-  // comes from, not a query of its own (bead `ro-trai.44`): any report the OS
-  // ever sent counts, however old, and a store with no OS row owes none.
+  // `hasPulse` comes off the coverage read: any report the OS ever sent
+  // counts, however old, and a store with no OS row owes none.
   it("SYSTEM: hasPulse is any report from the OS's own row, however old", async () => {
     await seedReportsAndAlerts(ctx, { withoutOsReport: true });
     await insertPulse(ctx, "root-os", "2026-05-01", "2026-05-01T03:00:00.000Z", {});
     expect((await buildWallPayload(ctx.call, OPTIONS)).system.hasPulse).toBe(true);
 
-    // An installation with no OS row: the report that site sends is a site's.
-    // The same store, with the site changed before any report is written (a
+    // The same store with the site changed before any report is written (a
     // test's Postgres copy takes no site change after a write, test/sites.ts).
     const noOsStore = await createTestStore();
     await seed(noOsStore, false);
@@ -819,7 +739,6 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("SYSTEM: Wall and asset #0 read the same latest firing for every scheduled lane", async () => {
-    // The runner's record is on Postgres (bead ro-ujb9.76.4.3): this test's own copy.
     const runs: [string, string, string, string, string, string][] = [
       ["backup", "2026-07-05T08:00:00.000Z", "2026-07-05T08:01:00.000Z", "failed", "copy failed", "2026-07-05T08:01:01.000Z"],
       ["backup", "2026-07-05T09:00:00.000Z", "2026-07-05T09:01:00.000Z", "ran", "copy complete", "2026-07-05T09:01:01.000Z"],
@@ -854,10 +773,8 @@ describe("buildWallPayload — populated store", () => {
     expect(ordinaryPage?.scheduledLanes).toBeNull();
   });
 
-  // the 2026-07 audit's finding 5: the summary used to be counted FROM the pulses table, so
-  // an asset that went quiet could vanish from its own denominator — letting
-  // the Tower say "all fresh" over a sender that had stopped. Counted over the
-  // asset rows, a stale sender stays in the denominator.
+  // Counted over the asset rows, so a sender that went quiet stays in the
+  // denominator.
   it("SYSTEM: a sender that went quiet stays inside the denominator, and blocks all-fresh", async () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
@@ -866,9 +783,8 @@ describe("buildWallPayload — populated store", () => {
     expect(p.system.ingest.expected).toBe(p.system.ingest.fresh + p.system.ingest.stale);
   });
 
-  // D29 amended (ro-ujb9.121): a site expects a nightly report once it has
-  // sent one. One that never has has no sender, so it is not silence — it is
-  // outside the fraction, and all-fresh is reachable without it.
+  // A site expects a nightly report once it has sent one. One that never has
+  // is outside the fraction.
   it("SYSTEM: a site that never sent a report is outside the fraction, so every sender current is all fresh", async () => {
     await seedReportsAndAlerts(ctx);
     await insertPulse(ctx, "nosh.example", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString(), {
@@ -880,21 +796,17 @@ describe("buildWallPayload — populated store", () => {
       fresh: 3, stale: 0, notExpected: 1, expected: 3,
     });
     expect(isAllFresh(p.system.ingest)).toBe(true);
-    // Its first report puts it in the fraction by itself.
     await insertPulse(ctx, "pacer.example", "2026-07-05", new Date(NOW_MS - HOUR).toISOString(), {
       visits: { last24h: 40, avg7d: 38, total: 900 },
     });
     expect((await buildWallPayload(ctx.call, OPTIONS)).system.ingest).toMatchObject({ fresh: 4, expected: 4, notExpected: 0 });
   });
 
-  // ro-uwo.1: the ingest cron fired `ingest-freshness` at 36h while this count
-  // called the same asset fresh until 48h, so one payload could carry an open
-  // error in ATTENTION and a "fresh" tally in SYSTEM about one asset. Both
-  // sides now age a report against the contract's REPORT_MAX_AGE_HOURS
-  // (workers/ingest/test/freshness.test.ts asserts the cron half at the same
-  // two ages).
+  // Both the ingest cron and this count age a report against the contract's
+  // REPORT_MAX_AGE_HOURS (workers/ingest/test/freshness.test.ts asserts the
+  // cron half at the same two ages).
   describe("SYSTEM: one staleness clock, shared with the ingest cron", () => {
-    it("counts a 40h-old report fresh — the age the two surfaces used to disagree at", async () => {
+    it("counts a 40h-old report fresh", async () => {
       await seedReportsAndAlerts(ctx);
       await insertPulse(ctx, "nosh.example", "2026-07-03", new Date(NOW_MS - 40 * HOUR).toISOString(), {
         items: { last24h: 500, avg7d: 40, total: 12954 },
@@ -909,10 +821,9 @@ describe("buildWallPayload — populated store", () => {
 
       await seedReportsAndAlerts(ctx);
       const atAge = async (hours: number) => {
-        // Replace nom's newest report outright: the coverage reads its NEWEST
-        // report. A second report for the same day is that day's newest
-        // revision, which replaces the first (bead ro-ujb9.76.5.2), and nom's
-        // other report, of the 2nd, is older than both ages.
+        // Replace nosh's newest report outright: a second report for the same
+        // day is that day's newest revision, and nosh's other report, of the
+        // 2nd, is older than both ages.
         await insertPulse(
           ctx,
           "nosh.example",
@@ -928,9 +839,9 @@ describe("buildWallPayload — populated store", () => {
     });
 
     it("paints the age badge on the same threshold it counts staleness at", () => {
-      // The badge every card carries reads CADENCE_HOURS.pulse × AMBER_MULTIPLIER.
-      // If that ever drifts from the counted threshold, a card goes grey beside a
-      // SYSTEM line calling the same asset stale — the bug, moved.
+      // The badge every card carries reads CADENCE_HOURS.pulse × AMBER_MULTIPLIER;
+      // if it drifts from the counted threshold a card goes grey beside a
+      // SYSTEM line calling the same asset stale.
       expect(CADENCE_HOURS.pulse * AMBER_MULTIPLIER).toBe(REPORT_MAX_AGE_HOURS);
       expect(isAmber(NOW_MS, new Date(NOW_MS - 40 * HOUR).toISOString(), CADENCE_HOURS.pulse)).toBe(
         false,
@@ -948,8 +859,6 @@ describe("buildWallPayload — populated store", () => {
   it("SYSTEM: pre-launch and retired assets sit outside the expected set", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // Neither owes a report, so neither can make coverage look worse — and
-    // neither pads the denominator that "all fresh" is measured against.
     await insertAsset(ctx, "fees.example", "Fee Codes", "pre-launch", 1, 0);
     await insertAsset(ctx, "old.example", "Retired Thing", "retired", 1, 0);
 
@@ -959,29 +868,22 @@ describe("buildWallPayload — populated store", () => {
     });
   });
 
-  // ro-ujb9.121 — THIS installation, as the payload sees it: every sender keeps
-  // its place in the fraction (a stopped one is stale), and a site declared as
-  // sending none stays No report. The amendment changes only a site that has
-  // never sent a report and was never declared, which it does not have.
-  it("SYSTEM + ASSETS: an installation whose silent sites are all declared counts exactly as before", async () => {
+  // Every sender keeps its place in the fraction (a stopped one is stale), and
+  // a site declared as sending none stays No report.
+  it("SYSTEM + ASSETS: declaring the silent sites keeps every sender in the fraction", async () => {
     await seedReportsAndAlerts(ctx);
     const p = await buildWallPayload(ctx.call, { ...OPTIONS, noNightlyReport: ["pacer.example"] });
     expect(p.system.ingest).toEqual({ fresh: 2, stale: 1, notExpected: 1, expected: 3 });
     const card = (id: string) => p.assets.find((asset) => asset.id === id)!;
-    // The stopped sender still reads Overdue in its strip.
     expect(card("nosh.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("degraded");
     expect(card("meals.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("live");
-    // The declared site is still the operator's No report, in its strip too.
     expect(card("pacer.example").noNightlyReport).toBe(true);
     expect(card("pacer.example").dataSources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
   });
 
-  // ro-ujb9.96.8 — the Tower half of a declared "no nightly report". The ingest
-  // half is workers/ingest/test/freshness.test.ts "assets declared as sending no
-  // nightly report": the same declaration makes the same asset not-expected
-  // there, never earns it a flag, and resolves the one it had. Both sides ask
-  // the contract's `owesNightlyReport`, so neither can count what the other
-  // excuses.
+  // The ingest half is workers/ingest/test/freshness.test.ts "assets declared
+  // as sending no nightly report"; both sides ask the contract's
+  // `owesNightlyReport`.
   describe("an asset declared as sending no nightly report", () => {
     const DECLARED = { ...OPTIONS, noNightlyReport: ["pacer.example"] };
     const neverReported = () =>
@@ -1020,10 +922,7 @@ describe("buildWallPayload — populated store", () => {
       expect(card.noNightlyReport).toBe(true);
       expect(card.openError).toBe(0);
       expect(card.worstSeverity).toBeNull();
-      // The nightly slot in the source strip is the operator's decision — Not
-      // using — rather than a lane that was never wired.
       expect(card.dataSources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
-      // Everyone else still owes theirs.
       expect(p.assets.find((asset) => asset.id === "nosh.example")!.noNightlyReport).toBe(false);
     });
 
@@ -1055,7 +954,6 @@ describe("buildWallPayload — populated store", () => {
       expect(page?.flags.open.some((flag) => flag.ruleId === "ingest-freshness")).toBe(false);
       expect(page?.integrations.sources.find((source) => source.id === "nightly-report")?.state).toBe("skipped");
 
-      // Nobody has declared yet: the switch is told the list is absent, not empty.
       const undeclared = await buildAssetDetailPayload(ctx.call, "pacer.example", DETAIL_DEPS);
       expect(undeclared?.asset.noNightlyReport).toBe(false);
       expect(undeclared?.wiring.noReportDeclarations).toBeNull();
@@ -1082,11 +980,9 @@ describe("buildWallPayload — populated store", () => {
     expect(meals.worstSeverity).toBe("error");
     expect(meals.openError).toBe(1);
     expect(meals.openWarn).toBe(0);
-    // Net, not gross: July is 150 reconciled revenue − 20 cost.
     expect(meals.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
     expect(meals.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(meals.pulseReceivedAt).toBe(MEALS_RECEIVED);
-    // Arrival is a timestamp; recent coverage is measured separately.
     expect(meals.firstReportAt).toBe("2026-07-03T12:00:00.000Z");
     expect(meals.reportDays).toBe(2);
     expect(meals.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
@@ -1099,7 +995,6 @@ describe("buildWallPayload — populated store", () => {
     const nom = p.assets[1]!;
     expect(nom.worstSeverity).toBe("warn");
     expect(nom.openWarn).toBe(1);
-    // Its only July row is an estimate, so nothing is booked here at all.
     expect(nom.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(nom.forecast).toEqual({ currency: 'USD', revenue: 30, cost: 0, net: 30 });
     expect(nom.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
@@ -1117,9 +1012,7 @@ describe("buildWallPayload — populated store", () => {
     expect(pft.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(cardHasMoney(pft)).toBe(false);
     expect(pft.pulseReceivedAt).toBeNull();
-    // Never reported: no first report and no covered dates — and no nightly
-    // slot, since a site expects its report only once it has sent one (D29
-    // amended, ro-ujb9.121).
+    // Never reported: no first report, no covered dates and no nightly slot.
     expect(pft.firstReportAt).toBeNull();
     expect(pft.reportDays).toBe(0);
     expect(pft.dataSources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
@@ -1129,9 +1022,8 @@ describe("buildWallPayload — populated store", () => {
     ]);
   });
 
-  // An open watch is the asset page's (materiality.ts "outcome-watches": the
-  // Wall places it nowhere), so the Wall reads no watch at all (bead
-  // `ro-trai.44`) and the asset page still answers for it.
+  // An open watch is the asset page's (materiality.ts "outcome-watches"); the
+  // Wall reads none.
   it("ASSETS: an open watch is the asset page's, and the Wall computes none of it", async () => {
     await insertOpenWatch(ctx, {
       id: "watch-oldest",
@@ -1175,9 +1067,8 @@ describe("buildWallPayload — populated store", () => {
       collectedAt: "2026-07-05T11:55:00.000Z",
       timeZoneChanges: [],
     });
-    // Search history belongs to the asset page now (doc 10, 2026-08-01), and
-    // the card carries no field for it at all — the loader still returns it for
-    // the page's own call, asserted next.
+    // Search history belongs to the asset page; the card carries no field for
+    // it, but the loader still returns it for the page's own call.
     const detailTrends = (await loadSignalTrends(ctx.call)).get("meals.example")!;
     expect(detailTrends.webSearchClicks.google.series).toEqual([
       { t: "2026-07-03", v: 12 },
@@ -1211,10 +1102,8 @@ describe("buildWallPayload — populated store", () => {
 
   it("SIGNALS: the Wall lane reads no search rows at all", async () => {
     await insertMealsSignals(ctx);
-    // The card charts neither clicks nor impressions since the work widget took
-    // that space, so the Wall must not pay to read either half of the search
-    // lane. The asset page's default call, asserted above, still carries
-    // both.
+    // The card charts neither clicks nor impressions, so the Wall must not pay
+    // to read either half of the search lane.
     const wall = (
       await loadSignalTrends(ctx.call, 28, { includeWebSearch: false })
     ).get("meals.example")!;
@@ -1227,9 +1116,8 @@ describe("buildWallPayload — populated store", () => {
 
   it("SIGNALS: the supporting GA4/GSC series load only when a caller asks for them", async () => {
     await insertMealsSignals(ctx);
-    // The 15-minute collectors have been writing these four series since the
-    // lane was built, with nothing in the Tower reading them. They belong to the
-    // asset page's supporting row, so the Wall must not pay to read them.
+    // These four series belong to the asset page's supporting row, so the Wall
+    // must not pay to read them.
     await insertSignalSnapshot(ctx, "ga4", "sessions", [130, 141, 62]);
     await insertSignalSnapshot(ctx, "ga4", "page_views", [410, 455, 190]);
     await insertSignalSnapshot(ctx, "ga4", "event_count", [980, 1044, 430]);
@@ -1255,25 +1143,21 @@ describe("buildWallPayload — populated store", () => {
     ]);
     expect(detail.pageViews.series.at(-1)).toEqual({ t: "2026-07-05", v: 190 });
     expect(detail.events.series.at(-1)).toEqual({ t: "2026-07-05", v: 430 });
-    // CTR stays the provider's own 0–1 fraction; the store is never asked to
-    // pre-format, so the client owns the percent sign.
+    // CTR stays the provider's own 0–1 fraction; the client owns the percent sign.
     expect(detail.searchCtr.series.at(-1)).toEqual({ t: "2026-07-05", v: 0.038 });
     expect(detail.searchPosition.series.at(-1)).toEqual({
       t: "2026-07-05",
       v: 12.1,
     });
-    // The headline series the page already charted are unchanged by the widening.
     expect(detail.activeUsers.series.at(-1)).toEqual({ t: "2026-07-05", v: 48 });
     expect(detail.webSearchImpressions.google.series).toHaveLength(3);
   });
 
-  it("SIGNALS: a reporting-timezone change reaches only its OWN provider's series (bead ro-kukv.11)", async () => {
+  it("SIGNALS: a reporting-timezone change reaches only its OWN provider's series", async () => {
     await insertMealsSignals(ctx);
-    // The payload used to stamp EVERY trend of an asset with EVERY change filed
-    // for it. A reporting timezone is a setting on one provider's property: a
-    // GA4 property changing its clock changes what a GA4 day is and says
-    // nothing at all about what a Search Console day is, so carrying it onto a
-    // GSC series would paint a mark that is knowingly wrong.
+    // A reporting timezone is a setting on one provider's property: a GA4
+    // property changing its clock says nothing about what a Search Console
+    // day is.
     await insertSignalSnapshot(ctx, "ga4", "sessions", [130, 141, 62]);
     await insertSignalSnapshot(ctx, "gsc", "ctr", [0.041, 0.052, 0.038]);
     await insertAnnotation(
@@ -1307,13 +1191,10 @@ describe("buildWallPayload — populated store", () => {
     ];
     expect(trends.activeUsers.timeZoneChanges).toEqual(ga4Change);
     expect(trends.sessions.timeZoneChanges).toEqual(ga4Change);
-    // The Search Console series see neither move: nothing about their day
-    // definition changed, so their charts draw ordinary days.
     expect(trends.searchCtr.timeZoneChanges).toEqual([]);
     expect(trends.searchPosition.timeZoneChanges).toEqual([]);
     expect(trends.webSearchClicks.google.timeZoneChanges).toEqual([]);
     expect(trends.webSearchImpressions.google.timeZoneChanges).toEqual([]);
-    // And Bing's own move reaches Bing's two series and stops there.
     const bingChange = [
       { effectiveOn: "2026-07-05", from: "UTC", to: "America/New_York",
       },
@@ -1323,15 +1204,11 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("SIGNALS: the trend read seeks the run log rather than scanning it", async () => {
-    // Bead ro-48p.1: `signal_runs` grows ~955 rows a day forever, and this query
-    // returns at most eighteen. It used to rank the whole table to find them —
-    // EXPLAIN reported `SCAN signal_runs USING INDEX idx_signal_runs_latest`,
-    // a full index scan with no seek. Pinned as a PLAN rather than a duration
-    // because the cost only shows up at a table size no fixture will ever have.
+    // `signal_runs` grows ~955 rows a day forever and this query returns at
+    // most eighteen. Pinned as a plan rather than a duration because the cost
+    // only shows at a table size no fixture will ever have.
     await insertMealsSignals(ctx);
     const captured: string[] = [];
-    // The series is read on Postgres since bead ro-ujb9.76.5.3: its statement
-    // is recorded too.
     const store = ctx.call;
     const spyStore: WorkspaceStore = {
       where: store.where,
@@ -1345,19 +1222,16 @@ describe("buildWallPayload — populated store", () => {
       close: () => store.close(),
     };
     await loadSignalTrends(spyStore, 28, { includeWebSearch: false, nowMs: NOW_MS });
-    // TWO reads since ro-tzq: the series, and the reporting-timezone changes
-    // that say which day-definition each point was measured under. The
-    // invariant this test defends is about SCANNING `signal_runs`, not about
-    // the query count. Both are on Postgres; the changes are annotations
-    // (bead ro-ujb9.76.5.7): that read touches no run log, and its plan,
-    // bound from the earliest charted point since ro-ujb9.102, is pinned in
-    // signal-trends.test.ts.
+    // Two reads: the series, and the reporting-timezone changes that say which
+    // day-definition each point was measured under. The invariant is about
+    // scanning `signal_runs`, not the query count; the changes read touches
+    // no run log and its plan is pinned in signal-trends.test.ts.
     expect(captured).toHaveLength(2);
     expect(captured[1]).toBe(timeZoneChangesSql(0));
 
-    // On Postgres, a table scan forbidden as an empty table is cheapest to
-    // scan: the latest success per lane is a seek down the (asset,
-    // integration, finished_at) index, and no read scans the run log.
+    // A table scan forbidden as an empty table is cheapest to scan: the latest
+    // success per lane is a seek down the (asset, integration, finished_at)
+    // index, and no read scans the run log.
     const plan = (await store.read(async (tx) => {
       await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
       return tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${captured[0]!}`, ["2025-01-01T00:00:00.000Z", 34]);
@@ -1367,16 +1241,11 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("SIGNALS: one asset's trend is the portfolio's, narrowed — not a second query", async () => {
-    // Bead ro-48p.2: the asset page used to compute every asset's
-    // ninety-seven-day trend and keep one of them, every sixty seconds. It now
-    // passes an asset, and that asset is pushed into the SQL. The risk a
-    // narrowed read introduces is DIVERGENCE — two surfaces stating different
-    // numbers for one asset is the failure sharing one derivation prevents
-    // (ro-elf) — so the two call shapes are held to exact equality here.
+    // The narrowed read's risk is divergence, so the two call shapes are held
+    // to exact equality.
     const ctx2 = await createTestStore();
     await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
     await insertAsset(ctx2, "nosh.example", "Nosh", "live", 0, 0);
-    // Two assets, different series, so narrowing has something to drop.
     await insertSignalSnapshot(ctx2, "ga4", "active_users", [101, 116, 48]);
     await insertSignalSnapshot(ctx2, "gsc", "clicks", [12, 17, 5]);
     await insertSignalSnapshot(ctx2, "gsc", "ctr", [0.041, 0.052, 0.038]);
@@ -1397,16 +1266,12 @@ describe("buildWallPayload — populated store", () => {
       asset: "meals.example",
     });
 
-    // Same points, same provisional flags, same collectedAt, same ordering —
-    // the whole trend set, compared structurally rather than field by field.
     expect(single.get("meals.example")).toEqual(portfolio.get("meals.example"));
     expect(single.get("meals.example")!.activeUsers.series).toEqual([
       { t: "2026-07-03", v: 101 },
       { t: "2026-07-04", v: 116 },
       { t: "2026-07-05", v: 48 },
     ]);
-    // And the narrowing happened in the store, not after it: the other
-    // asset is in the portfolio map and absent from the single-asset one.
     expect(portfolio.has("nosh.example")).toBe(true);
     expect([...single.keys()]).toEqual(["meals.example"]);
   });
@@ -1439,7 +1304,6 @@ describe("buildWallPayload — populated store", () => {
     await seedLedger(ctx);
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
-    // Net anchor = THIS period's BOOKED net (150 − 20), named with its period.
     const meals = p.assets[0]!;
     expect(meals.booked.net!).toBe(130);
     expect(meals.netPeriod).toBe("2026-07");
@@ -1447,19 +1311,15 @@ describe("buildWallPayload — populated store", () => {
     const nom = p.assets[1]!;
     expect(nom.forecast.net!).toBe(30);
 
-    // No current ledger rows — both money sides are empty, so the row grows
-    // no accounting block.
     const pft = p.assets[2]!;
     expect(cardHasMoney(pft)).toBe(false);
     expect(pft.netPeriod).toBe("2026-07");
   });
 
-  // --- bead ro-uwo.2: the split the 2026-07 audit's finding 4 named, one grain down -------
   it("NET: an asset's stated net is its RECONCILED rows, estimates beside it", async () => {
     await seedLedger(ctx);
     // The mixed asset: one reconciled pair already in the seed (150 revenue,
-    // 20 cost) plus three estimates nobody has confirmed. The old card summed
-    // all five into one "net · Jul" of 1,030.
+    // 20 cost) plus three estimates nobody has confirmed.
     await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 21, kind: "revenue", asset: "meals.example", period: "2026-07", family: "subs", amount: 340, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 22, kind: "cost", asset: "meals.example", period: "2026-07", family: "infra", amount: 40, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
@@ -1468,7 +1328,6 @@ describe("buildWallPayload — populated store", () => {
     const meals = p.assets[0]!;
     expect(meals.booked).toEqual({ currency: 'USD', revenue: 150, cost: 20, net: 130 });
     expect(meals.forecast).toEqual({ currency: 'USD', revenue: 940, cost: 40, net: 900 });
-    // The mixed total the card used to publish exists nowhere in its payload.
     const mixed = meals.booked.net! + meals.forecast.net!;
     expect(mixed).toBe(1030);
     expect(Object.values(meals.booked)).not.toContain(mixed);
@@ -1477,9 +1336,7 @@ describe("buildWallPayload — populated store", () => {
 
   it("NET: every card's booked money adds up to the headline above it", async () => {
     await seedLedger(ctx);
-    // The asset the bead is about: the Wall renders one booked headline and
-    // three cards under it, and an operator can add the cards up. Mixed rows on
-    // two assets, so this is not a one-row coincidence.
+    // Mixed rows on two assets, so this is not a one-row coincidence.
     await insertLedger(ctx, { id: 20, kind: "revenue", asset: "meals.example", period: "2026-07", family: "affiliate", amount: 600, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 21, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 22, kind: "cost", asset: "pacer.example", period: "2026-07", family: "infra", amount: 5.67, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
@@ -1492,18 +1349,14 @@ describe("buildWallPayload — populated store", () => {
     expect(sum((c) => c.booked.cost!)).toBeCloseTo(p.portfolio.booked.cost!, 10);
     expect(sum((c) => c.booked.net!)).toBeCloseTo(p.portfolio.booked.net!, 10);
     expect(sum((c) => c.forecast.net!)).toBeCloseTo(p.portfolio.forecast.net!, 10);
-    // …and it is a real headline, not zero on both sides.
     expect(p.portfolio.booked.net!).toBeCloseTo(130 + 12.34 - 5.67, 10);
-    // Every row belongs to an asset, so there is nothing left over.
     expect(p.portfolio.residue.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(p.portfolio.residue.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
   });
 
-  it("NET: a row against asset #0 is named, so the cards still reconcile (bead ro-t0z)", async () => {
-    // The store the invariant above could not survive: the headline sums EVERY
-    // asset and the ASSETS band excludes the OS, so this row is inside the
-    // figure and on no card. Nothing writes one today — revenue.ts has no is_os
-    // guard, so one POST is all it takes — and the Wall used to show no sign.
+  it("NET: a row against asset #0 is named, so the cards still reconcile", async () => {
+    // The headline sums every asset and the ASSETS band excludes the OS, so
+    // this row is inside the figure and on no card.
     await insertLedger(ctx, { id: 30, kind: "revenue", asset: "nosh.example", period: "2026-07", family: "subs", amount: 12.34, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 31, kind: "cost", asset: "root-os", period: "2026-07", family: "infra", amount: 41.5, booking_state: "reconciled", recorded_at: "2026-07-05T00:00:00.000Z" });
     await insertLedger(ctx, { id: 32, kind: "cost", asset: "root-os", period: "2026-07", family: "infra", amount: 12, booking_state: "estimated", recorded_at: "2026-07-05T00:00:00.000Z" });
@@ -1512,11 +1365,8 @@ describe("buildWallPayload — populated store", () => {
     const sum = (pick: (card: (typeof p.assets)[number]) => number) =>
       p.assets.reduce((total, card) => total + pick(card), 0);
 
-    // The OS has no card of its own.
     expect(p.assets.some((card) => card.id === "root-os")).toBe(false);
-    // The cards alone no longer reach the headline — that is the defect.
     expect(sum((c) => c.booked.net!)).not.toBeCloseTo(p.portfolio.booked.net!, 10);
-    // …and the difference is exactly what the band states.
     expect(p.portfolio.residue.booked).toEqual({ currency: 'USD', revenue: 0, cost: 41.5, net: -41.5 });
     expect(p.portfolio.residue.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 12, net: -12 });
     expect(sum((c) => c.booked.net!) + p.portfolio.residue.booked.net!).toBeCloseTo(
@@ -1527,7 +1377,6 @@ describe("buildWallPayload — populated store", () => {
       p.portfolio.forecast.net!,
       10,
     );
-    // Revenue and cost reconcile too, not just the net.
     expect(sum((c) => c.booked.cost!) + p.portfolio.residue.booked.cost!).toBeCloseTo(
       p.portfolio.booked.cost!,
       10,
@@ -1540,8 +1389,8 @@ describe("buildWallPayload — populated store", () => {
 
   it("NET: an asset with only estimates books nothing, and says so in its own field", async () => {
     await seedLedger(ctx);
-    // nom's July is one estimated row. `booked` is three zeroes rather than a
-    // null, so the card has a shape to render and never a number to mistake.
+    // nosh's July is one estimated row. `booked` is three zeroes rather than a
+    // null, so the card has a shape to render.
     const nom = (await buildWallPayload(ctx.call, OPTIONS)).assets[1]!;
     expect(nom.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(figureHasMoney(nom.booked)).toBe(false);
@@ -1551,8 +1400,6 @@ describe("buildWallPayload — populated store", () => {
 
   it("NET: a fully reconciled asset carries no forecast at all", async () => {
     await seedLedger(ctx);
-    // meals's July is reconciled end to end (its estimate was superseded), so
-    // the forecast side is empty and the card draws no second line.
     const meals = (await buildWallPayload(ctx.call, OPTIONS)).assets[0]!;
     expect(figureHasMoney(meals.booked)).toBe(true);
     expect(figureHasMoney(meals.forecast)).toBe(false);
@@ -1560,9 +1407,8 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("NET: a card's net is subtracted in cents, not in dollars", async () => {
-    // The trap pair from bead ro-wtt: 1809.65 − 866.40 is 943.2500000000001
-    // once either side has left integer cents. One asset, so the card and
-    // the headline are the same money read twice — they must not disagree.
+    // 1809.65 − 866.40 is 943.2500000000001 once either side has left integer
+    // cents. One asset, so the card and the headline are the same money read twice.
     const ctx2 = await createTestStore();
     await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
     await insertLedger(ctx2, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 1809.65, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
@@ -1574,8 +1420,7 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("NET: a card's money is exact cents, like the headline it rolls into", async () => {
-    // Float dollars sum these four to 758.1999999999999 (the 2026-07 audit's finding 1). The
-    // card reads the same integer-cents column the portfolio band does.
+    // Float dollars sum these four to 758.1999999999999.
     for (const [id, amount] of [[20, 512.4], [21, 168.2], [22, 55.5], [23, 22.1]] as const) {
       await insertLedger(ctx, { id, kind: "revenue", asset: "nosh.example", period: "2026-08", family: "ads", amount, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
     }
@@ -1585,11 +1430,9 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("NET: the current monthly value is independent of history volume", async () => {
-    // 18 months of ledger: the card contract carries only the current accounting
-    // fact, not an unused copy of portfolio history.
+    // 18 months of ledger: the card carries only the current accounting fact.
     const ctx2 = await createTestStore();
     await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
-    // 2025-02 … 2026-07, the last one being NOW's period.
     for (let i = 0; i < 18; i += 1) {
       const month = i + 1;
       const period = `${2025 + Math.floor(month / 12)}-${String((month % 12) + 1).padStart(2, "0")}`;
@@ -1609,9 +1452,8 @@ describe("buildWallPayload — populated store", () => {
     expect(card.booked.net!).toBe(27);
   });
 
-  // A site's all-time totals left the Wall with D28 and live on its Overview,
-  // from the asset page's own read (bead `ro-trai.21`); the Wall reads none of
-  // them (bead `ro-trai.44`). Same store, same rule, read where it is drawn.
+  // A site's all-time totals live on its Overview, from the asset page's own
+  // read; the Wall reads none of them.
   async function siteTotals(store: TestStore, asset: string, deps: AssetDetailDeps = DETAIL_DEPS) {
     return (await buildAssetDetailPayload(store.call, asset, deps))!.counters!;
   }
@@ -1690,7 +1532,7 @@ describe("buildWallPayload — populated store", () => {
 
     await seedReportsAndAlerts(ctx);
     // plansSaved: reading 1900 vs last night's total 1907. Freshness decides
-    // which lane owns the number — never magnitude.
+    // which lane owns the number, never magnitude.
     await insertMealsReadings(ctx);
     const plans = (await siteTotals(ctx, "meals.example")).cards.find((c) => c.metric === "plansSaved")!;
     expect(plans.value).toBe(1900);
@@ -1698,8 +1540,7 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("COUNTERS: a STALE reading loses to a newer nightly total — freshest lane, not presence", async () => {
-    // The fast lane stopped a week ago; last night's report is the newer fact,
-    // so the site must carry the report's number and the report's age.
+    // The fast lane stopped a week ago; last night's report is the newer fact.
     const ctx2 = await createTestStore();
     await insertAsset(ctx2, "meals.example", "Meal Planner", "live", 0, 0);
     await insertPulse(ctx2, "meals.example", "2026-07-05", MEALS_RECEIVED, {
@@ -1722,8 +1563,8 @@ describe("buildWallPayload — populated store", () => {
   it("COUNTERS: with no reading, a total falls back to the latest nightly report", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // Nosh has no scrape source at all — its totals exist purely on this fallback,
-    // and their age is the report's received_at, not a counters read.
+    // Nosh has no scrape source, so its totals exist purely on this fallback
+    // and their age is the report's received_at.
     const nom = await siteTotals(ctx, "nosh.example");
     expect(nom.cards).toEqual([{
       metric: "items",
@@ -1756,9 +1597,7 @@ describe("buildWallPayload — populated store", () => {
   });
 
   it("COUNTERS: none for an asset that declares none (the site grows no row)", async () => {
-    // pacer is absent from the config entirely.
     expect((await buildAssetDetailPayload(ctx.call, "pacer.example", DETAIL_DEPS))!.counters).toBeNull();
-    // An asset present but with an empty card list is the same designed nothing.
     const stubbed = await buildAssetDetailPayload(ctx.call, "nosh.example", {
       ...DETAIL_DEPS,
       counters: { assets: { "nosh.example": { cards: [] } } },
@@ -1775,11 +1614,6 @@ describe("buildWallPayload — populated store", () => {
     expect(p.attention[1]).toMatchObject({ asset: "nosh.example", severity: "warn", kind: "anomaly" });
   });
 
-  /**
-   * ro-kukv.1. Measured on the live store 2026-08-31: sixteen of twenty-six open
-   * flags were `asset-declared` on nosh.example, one per night for four weeks, every
-   * one re-stating the same standing condition against a fresh reading.
-   */
   it("ATTENTION: a declared recurring rule is ONE row carrying its firing count", async () => {
     await seedReportsAndAlerts(ctx);
     const nightly = ["2026-07-01", "2026-07-02", "2026-07-03", "2026-07-04"];
@@ -1801,18 +1635,16 @@ describe("buildWallPayload — populated store", () => {
     expect(rows[0]).toMatchObject({
       asset: "nosh.example",
       occurrences: 4,
-      // The NEWEST reading represents the group — the numbers an operator would
-      // act on — while the age comes from the onset.
+      // The newest reading represents the group; the age comes from the onset.
       firedAt: "2026-07-04T02:00:00.000Z",
       firstFiredAt: "2026-07-01T02:00:00.000Z",
     });
   });
 
   /**
-   * The counter-example that decided the design, and the reason the obvious key
-   * (asset, rule_id, metric) is NOT used on its own: `watch-window-closed` fires
-   * twice on one asset with one metric, and each firing asks a different
-   * question. Merging them would hide a decision — strictly worse than noise.
+   * Why the obvious key (asset, rule_id, metric) is not used on its own:
+   * `watch-window-closed` fires twice on one asset with one metric, and each
+   * firing asks a different question.
    */
   it("ATTENTION: an undeclared rule keeps a row per firing, even when it repeats", async () => {
     await seedReportsAndAlerts(ctx);
@@ -1845,20 +1677,12 @@ describe("buildWallPayload — populated store", () => {
     }
   });
 
-  /**
-   * ro-kukv.5 — THE ANTI-DRIFT TEST. The Wall and the asset page read DIFFERENT
-   * payloads over the same store, and until this bead they counted the same
-   * condition differently: nosh.example's `asset-declared` condition was one row
-   * reading "16× in 26d" on the Wall and sixteen identical rows on the asset
-   * page. An operator moving between the two screens saw two portfolios.
-   *
-   * Both builders now call `groupConditionFirings`, so this pins the ONE thing a
-   * future change could quietly break: the same store, read twice, answering the
-   * same number and the same onset.
-   */
+  /** The Wall and the asset page read different payloads over the same store;
+   * both call `groupConditionFirings`, so the same store read twice must
+   * answer the same number and the same onset. */
   it("GROUPING: the Wall and the asset page count one condition identically", async () => {
     await seedReportsAndAlerts(ctx);
-    // Sixteen nightly firings, exactly the shape measured on the live store.
+    // Sixteen nightly firings.
     const nights = Array.from({ length: 16 }, (_, index) =>
       new Date(Date.UTC(2026, 5, 20 + index, 2, 0, 0)).toISOString(),
     );
@@ -1873,8 +1697,7 @@ describe("buildWallPayload — populated store", () => {
         message: "below baseline",
       });
     }
-    // A valid, fresh report still covers and declares this metric. This proves
-    // recent confirmation independently from the sixteen historical firings.
+    // A valid, fresh report still covers and declares this metric.
     const envelope = PulseEnvelope.parse({
       asset: "nosh.example",
       generatedAt: "2026-07-05T02:00:00.000Z",
@@ -1897,14 +1720,12 @@ describe("buildWallPayload — populated store", () => {
     const band = wall.attention.filter((row) => row.ruleId === "asset-declared");
     const signals = page.flags.open.filter((row) => row.ruleId === "asset-declared");
 
-    // One row on each surface, and the row says the same thing on both.
     expect(band).toHaveLength(1);
     expect(signals).toHaveLength(1);
     expect(band[0]!.occurrences).toBe(16);
     expect(signals[0]!.occurrences).toBe(16);
     expect(signals[0]!.firstFiredAt).toBe(band[0]!.firstFiredAt);
     expect(signals[0]!.firstFiredAt).toBe(nights[0]);
-    // The newest reading represents the group on both — the numbers to act on.
     expect(signals[0]!.firedAt).toBe(band[0]!.firedAt);
     expect(signals[0]!.firedAt).toBe(nights.at(-1));
     expect(signals[0]!.liveness.state).toBe("live");
@@ -1915,8 +1736,8 @@ describe("buildWallPayload — populated store", () => {
     });
     expect(band[0]!.verification).toEqual(signals[0]!.verification);
 
-    // Warning badges count the two conditions, matching actionable rows. The
-    // full seventeen firings remain available as occurrence counts.
+    // Warning badges count the two conditions; the full seventeen firings
+    // remain available as occurrence counts.
     const card = wall.assets.find((asset) => asset.id === "nosh.example")!;
     expect(page.flags.openWarn).toBe(card.openWarn);
     expect(page.flags.openError).toBe(card.openError);
@@ -1925,11 +1746,6 @@ describe("buildWallPayload — populated store", () => {
     expect(page.flags.open.reduce((sum, row) => sum + row.occurrences, 0)).toBe(17);
   });
 
-  /**
-   * The same counter-example the Wall is held to, on the asset page: an
-   * undeclared rule firing twice with one metric asks two questions, and merging
-   * them would answer one the operator never read.
-   */
   it("GROUPING: the asset page keeps an undeclared rule's firings apart", async () => {
     await seedReportsAndAlerts(ctx);
     for (const id of ["aaa", "bbb"]) {
@@ -1953,7 +1769,6 @@ describe("buildWallPayload — populated store", () => {
     expect(rows.every((row) => row.occurrences === 1)).toBe(true);
   });
 
-  // Stored legacy flags keep their identities; retired current-state grouping is absent.
   it("ATTENTION: historical silence flags remain ordinary asset alerts with their own identities", async () => {
     await seedReportsAndAlerts(ctx);
     await insertAsset(ctx, "fees.example", "Fee Codes", "onboarding", 1, 0);
@@ -1998,7 +1813,6 @@ describe("buildWallPayload — populated store", () => {
   it("ATTENTION: the OTHER ingest-freshness failure — a lane that broke — is left alone", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // Current stale reports and historical flags remain separate asset alerts.
     await insertAsset(ctx, "fees.example", "Fee Codes", "onboarding", 1, 0);
     for (const asset of ["fees.example", "pacer.example"]) {
       await insertFlag(ctx, {
@@ -2025,8 +1839,6 @@ describe("buildWallPayload — populated store", () => {
   it("ATTENTION: a LONE never-reported asset stays an ordinary row — no group of one", async () => {
 
     await seedReportsAndAlerts(ctx);
-    // One asset that has never reported renders exactly as it always did: no
-    // members, no plural sentence, no disclosure hiding a single row from itself.
     await insertFlag(ctx, {
       asset: "pacer.example",
       fired_at: "2026-06-11T04:00:00.000Z",
@@ -2056,8 +1868,8 @@ describe("buildWallPayload — populated store", () => {
     const nom = p.attention.find((a) => a.asset === "nosh.example")!;
     expect(nom.ruleId).toBe("flow-poisson-low");
     expect(nom.ruleInputs).toMatchObject({ observed: 12, baselinePerDay: 55 });
-    // The rule's own words still ride along, verbatim — the audit trail and the
-    // fallback for any rule the translator hasn't met.
+    // The rule's own words ride along verbatim: the audit trail and the
+    // fallback for any rule the translator has not met.
     expect(nom.message).toBe("12 in last24h (avg7d 55.0, P(<=12)~=0.0000)");
   });
 
@@ -2087,19 +1899,19 @@ describe("buildWallPayload — populated store", () => {
     const p = await buildWallPayload(ctx.call, OPTIONS);
 
     // meals's alert fired 2026-07-05T09:00Z; the 07-04T19:00 deploy is 14h
-    // before it. The 06-28 deploy is far outside the 48h window.
+    // before it, the 06-28 deploy far outside the 48h window.
     const meals = p.attention.find((a) => a.asset === "meals.example")!;
     expect(meals.correlatedChanges.map((c) => c.ref)).toEqual(["a1b2c3d"]);
 
-    // Nosh's only annotation is 8h AFTER its alert — it explains nothing.
+    // Nosh's only annotation is 8h after its alert.
     const nom = p.attention.find((a) => a.asset === "nosh.example")!;
     expect(nom.correlatedChanges).toEqual([]);
   });
 
-  it("ATTENTION: reads each site's changes in the window through its (site, time) index (ro-ujb9.76.5.7)", async () => {
+  it("ATTENTION: reads each site's changes in the window through its (site, time) index", async () => {
     const plan = await (ctx.call).read(async (tx) => {
-      // An empty table is cheapest to scan; forbidding that shows the plan
-      // the index offers once changes pile up.
+      // An empty table is cheapest to scan; forbidding that shows the plan the
+      // index offers once changes pile up.
       await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
       const rows = await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${WALL_CHANGES_SQL}`, ["2026-07-03T00:00:00.000Z", "2026-07-05T09:00:00.000Z"]);
       return rows.map((row) => row["QUERY PLAN"]).join("\n");
@@ -2145,10 +1957,7 @@ describe("resolveCounterCards — which lane owns the number", () => {
     });
   });
 
-  // A reading whose value does not parse used to win the lane on freshness and
-  // then render as nothing, blanking a card the nightly report could still fill
-  // (ro-kvk). Freshness ranks readable lanes; it does not promote an unreadable
-  // one.
+  // Freshness ranks readable lanes; it does not promote an unreadable one.
   const unreadable = (metric: string, value: unknown, observedAt: string): CounterReading => ({
     metric,
     value: value as number,
@@ -2156,7 +1965,6 @@ describe("resolveCounterCards — which lane owns the number", () => {
   });
 
   it("treats an unreadable reading as absent, so a good nightly total keeps the card", () => {
-    // The reading is an HOUR NEWER than the report and still does not win it.
     const [card] = resolveCounterCards(
       CARD,
       new Map([["signups", unreadable("signups", "n/a", "2026-07-05T09:00:00.000Z")]]),
@@ -2179,8 +1987,6 @@ describe("resolveCounterCards — which lane owns the number", () => {
       ]),
       { metrics: { leads: { total: 77 } }, receivedAt: "2026-07-05T08:00:00.000Z" },
     );
-    // No lane can be read: the card says so — no number, no age, no source —
-    // instead of showing a figure it cannot back.
     expect(cards[0]).toEqual({
       metric: "signups",
       label: "Accounts",
@@ -2188,7 +1994,6 @@ describe("resolveCounterCards — which lane owns the number", () => {
       observedAt: null,
       source: null,
     });
-    // The poisoned reading sits BESIDE these two, and neither notices it.
     expect(cards[1]).toMatchObject({ value: 812, source: "counters" });
     expect(cards[2]).toMatchObject({ value: 77, source: "nightly" });
   });
@@ -2229,7 +2034,6 @@ describe("buildWallPayload — report coverage", () => {
     for (const date of ["2026-01-01", "2026-06-06", "2026-06-07", "2026-06-20", "2026-07-04", "2026-07-05", "2026-07-06"]) {
       await insertPulse(ctx, "meals.example", date, `${date}T02:00:00.000Z`, {});
     }
-    // A corrected report adds a revision, not coverage for a missing day.
     await insertPulse(ctx, "meals.example", "2026-06-20", "2026-07-05T03:00:00.000Z", { visits: { last24h: 2 } });
     const wall = await buildWallPayload(ctx.call, OPTIONS);
     const detail = (await buildAssetDetailPayload(ctx.call, "meals.example", DETAIL_DEPS))!;
@@ -2262,19 +2066,9 @@ describe("buildWallPayload — report coverage", () => {
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Pulse reads bounded by what is shown (bead `ro-ujb9.63`).
-//
-// Until this bead the Wall grouped every stored pulse for first/last arrival
-// and 28-day coverage, so its work grew with each night of history while its
-// answer did not. The statement below is that read as it stood at d6de54cd,
-// written for Postgres over each day's current report (bead ro-ujb9.76.5.2):
-// the specification the bounded read (`worker/pulse-history`) must reproduce
-// row for row. The measurement at growing history is
-// docs/artifacts/tower-perf-2026-09-23/measurements.md. (The Wall's ranked
-// activity read it sat beside is gone: no screen drew the sparkline it fed,
-// bead `ro-trai.44`.)
-// ─────────────────────────────────────────────────────────────────────────────
+// The statement below is the unbounded coverage read, written over each day's
+// current report: the specification the bounded read (`worker/pulse-history`)
+// must reproduce row for row.
 
 const GROUPED_COVERAGE_SPEC = `SELECT asset_id AS asset, MAX(received_at) AS latest, MIN(received_at) AS first,
                 COUNT(DISTINCT CASE WHEN pulse_date >= ($1::timestamptz AT TIME ZONE 'UTC')::date - $2::int
@@ -2285,10 +2079,10 @@ const dayBefore = (days: number) => new Date(NOW_MS - days * DAY).toISOString().
 
 /**
  * Four assets whose histories hit every edge the bounded read must keep:
- *  - meals: 45 reports with GAPS; a BACKFILL of an old date that arrived last
- *    and a REPORT for today (outside the completed-day window), so last
+ *  - meals: 45 reports with gaps; a backfill of an old date that arrived last
+ *    and a report for today (outside the completed-day window), so last
  *    arrival is not the newest date and first arrival is not the oldest;
- *  - nom: a few reports, sitting on both edges of the 28-day window;
+ *  - nosh: a few reports, sitting on both edges of the 28-day window;
  *  - pacer: exactly 30;
  *  - fees.example: never reported (no row, no map entry, zero coverage).
  */
@@ -2326,7 +2120,7 @@ async function seedPulseEdges(ctx: TestStore) {
   }
 }
 
-describe("buildWallPayload — the pulse read stays bounded as history grows (ro-ujb9.63)", () => {
+describe("buildWallPayload — the pulse read stays bounded as history grows", () => {
   it("first and last arrival and the 28-day count are exactly the grouped read's", async () => {
     const ctx = await createTestStore();
     await seedPulseEdges(ctx);
@@ -2339,14 +2133,13 @@ describe("buildWallPayload — the pulse read stays bounded as history grows (ro
     expect(Object.fromEntries(bounded)).toEqual(
       Object.fromEntries(spec.map(({ asset, ...rest }) => [asset, rest])),
     );
-    // Last arrival is the backfill, first is the early delivery — neither is
-    // the newest or oldest DATE — and today's report is not a completed day.
+    // Last arrival is the backfill, first is the early delivery, and today's
+    // report is not a completed day.
     expect(bounded.get("meals.example")?.latest).toBe(new Date(NOW_MS - 1 * HOUR).toISOString());
     expect(bounded.get("meals.example")?.first).toBe("2025-01-01T00:00:00.000Z");
     expect(bounded.get("nosh.example")?.reportDays).toBe(3);
     expect(bounded.get("pacer.example")?.reportDays).toBe(28);
     expect(bounded.has("fees.example")).toBe(false);
-    // One asset is the same statement narrowed, with the same answer.
     const one = await readPulseCoverage(store, nowIso, "meals.example");
     expect([...one]).toEqual([["meals.example", bounded.get("meals.example")]]);
     expect((await readPulseCoverage(store, nowIso, "fees.example")).size).toBe(0);
@@ -2362,7 +2155,7 @@ describe("buildWallPayload — the pulse read stays bounded as history grows (ro
     expect(card("nosh.example").reportDays).toBe(3);
     expect(card("fees.example")).toMatchObject({ pulseReceivedAt: null, firstReportAt: null, reportDays: 0 });
     // Counted over the asset rows: the site that never sent a report expects
-    // none (D29 amended, ro-ujb9.121), so it is outside the denominator.
+    // none, so it is outside the denominator.
     expect(wall.system.ingest).not.toHaveProperty("neverReported");
     expect(wall.system.ingest.expected).toBe(4);
 
@@ -2385,16 +2178,13 @@ describe("buildWallPayload — the pulse read stays bounded as history grows (ro
     const pick = (p: typeof a) => p.assets.map(({ id, pulseReceivedAt, reportDays }) =>
       ({ id, pulseReceivedAt, reportDays }));
     expect(pick(b)).toEqual(pick(a));
-    // First arrival is the one fact older history is allowed to move.
     expect(b.assets.find((asset) => asset.id === "pacer.example")!.firstReportAt)
       .toBe(`${dayBefore(1599)}T04:00:00.000Z`);
   });
 
   it("seeks the pulse indexes per asset instead of scanning the pulse history", async () => {
-    // Pinned as a PLAN, like the signal-trend read above: the cost only shows
-    // at a history size no fixture will ever have. A sequential scan of
-    // pulses is the regression; every pulse access must be an index scan
-    // bounded by its site (on Postgres, bead ro-ujb9.76.5.2).
+    // Pinned as a plan: the cost only shows at a history size no fixture will
+    // have. Every pulse access must be an index scan bounded by its site.
     const store = (await createTestStore()).call;
     const nowIso = NOW.toISOString();
     const explain = (sql: string, forbidSeqScan: boolean) =>
@@ -2408,24 +2198,16 @@ describe("buildWallPayload — the pulse read stays bounded as history grows (ro
     expect(plan.filter((line) => /Seq Scan on pulses/.test(line))).toEqual([]);
     expect(plan.some((line) => /Index (Only )?Scan (Backward )?using \w+ on pulses p\b/.test(line))).toBe(true);
     expect(plan.some((line) => /Index Cond: \(\(workspace_id = a\.workspace_id\) AND \(asset_id = a\.asset_id\)/.test(line))).toBe(true);
-    // Before: the statement read the whole history — every report of the
-    // workspace, bounded by no site.
+    // The unbounded statement reads every report of the workspace.
     const before = await explain(GROUPED_COVERAGE_SPEC, false);
     expect(before.some((line) => /Scan.* on pulses\b/.test(line))).toBe(true);
     expect(before.filter((line) => /Index Cond:.*asset_id/.test(line))).toEqual([]);
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The asset card's work slice.
-//
-// `counts` is what the poller measured over the UNTRUNCATED `bd` output — the
-// stored lists keep ten of however many there were — so these tests seed real
-// snapshot payloads and assert the card reads that measurement rather than
-// re-deriving anything from the lists. The epic exclusion itself is pinned
-// where it happens, in `scripts/os-up.test.mjs`; what is pinned here is that
-// the Tower never invents a number the snapshot did not carry.
-// ─────────────────────────────────────────────────────────────────────────────
+// `counts` is what the poller measured over the untruncated `bd` output (the
+// stored lists keep ten), so these seed real snapshot payloads and assert the
+// card reads that measurement rather than re-deriving anything from the lists.
 
 describe("buildWallPayload — the card's work slice", () => {
   let ctx: TestStore;
@@ -2468,8 +2250,6 @@ describe("buildWallPayload — the card's work slice", () => {
     expect((await buildWallPayload(ctx.call, OPTIONS)).attention.find((item) => item.id === id)?.handoffBeads).toBeUndefined();
   });
 
-  // The old System card's work widget left the Wall with D28, and no screen
-  // drew the OS's slice after it (bead `ro-trai.44`).
   it("carries each site's work from the newest snapshot, and none for the OS", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject(),
@@ -2512,14 +2292,12 @@ describe("buildWallPayload — the card's work slice", () => {
       capturedAt: "2026-07-05T11:59:30.000Z",
     });
     expect((await cardFor("nosh.example")).work).toMatchObject({ open: 1, highPriority: 0 });
-    // An asset the snapshot never mentions has no work data — not zeros.
     expect((await cardFor("pacer.example")).work).toBeNull();
   });
 
   it("carries the counts verbatim, never re-derived from the truncated lists", async () => {
-    // The real failure this guards: `bd ready` returned 39 rows on 2026-08-01
-    // and the payload stores ten of them. A card that counted the list would
-    // say 2 where the hub says 31.
+    // The payload stores ten rows of a longer list; a card that counted the
+    // list would say 2 where the hub says 31.
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         counts: workCounts({ open: 31, ready: 31, highPriority: 7 }),
@@ -2548,8 +2326,6 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 
   it("says nothing rather than zero for a repo the poller could not read", async () => {
-    // "We could not look" and "there is nothing to do" are different facts, and
-    // only one of them is good news.
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         ok: false,
@@ -2561,10 +2337,8 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 
   it("keeps the counts a one-generation-behind poller DID send, and calls the rest unknown", async () => {
-    // The 2026-08-01 skew incident: the poller is a long-running node process
-    // and can be a generation behind the Worker. Such a row still knows how
-    // much is open — dropping the whole widget over one missing field would be
-    // its own dishonesty — but `highPriority` is unknown, not zero.
+    // The poller can be a generation behind the Worker. Such a row still
+    // knows how much is open, but `highPriority` is unknown, not zero.
     const { highPriority: _notSentYet, ...olderCounts } = workCounts();
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ counts: olderCounts }),
@@ -2585,8 +2359,6 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 
   it("keeps a zeroed queue distinct from an absent one", async () => {
-    // A project that genuinely has nothing queued reports zeros, and the card
-    // renders them as "nothing queued" — which is a fact, unlike a null.
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({
         counts: workCounts({ open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0 }) }),
@@ -2666,17 +2438,6 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 });
 
-/** One archived tracked-SERP collection. Fills the columns db/0016's CHECK
- * constraints demand for the status being written, so the fixture is a row the
- * real collector could have produced. */
-/**
- * The panel-review state rule, on its own (bead `ro-rkp`).
- *
- * Four states and one clock. The function is pure so the boundary can be
- * pinned to the millisecond, which matters: `overdue` is the only state that
- * paints error, and painting it a moment early would make the loudest thing on
- * the Wall the thing that cries wolf.
- */
 describe("panelReviewState — four states over one clock", () => {
   const PANEL_DAY = "2026-07-01";
   const DUE = "2026-07-08T06:00:00.000Z";
@@ -2696,8 +2457,8 @@ describe("panelReviewState — four states over one clock", () => {
   };
 
   it("says nothing at all when there is no review to speak of", () => {
-    // No collection landed inside the window, none filed, or a snapshot too
-    // old to carry the field — one answer, and it renders nothing.
+    // No collection inside the window, none filed, or a snapshot too old to
+    // carry the field: one answer, and it renders nothing.
     expect(panelReviewState(null, null, NOW_MS)).toBe("none");
     expect(panelReviewState(undefined, PANEL_DAY, NOW_MS)).toBe("none");
   });
@@ -2707,8 +2468,7 @@ describe("panelReviewState — four states over one clock", () => {
   });
 
   it("is still pending at EXACTLY the deadline, and overdue a millisecond later", () => {
-    // The boundary the badge's color turns on. `>` matches isAmber: a review
-    // looked at exactly on time is on time.
+    // `>` matches isAmber: a review looked at exactly on time is on time.
     expect(panelReviewState(open, PANEL_DAY, dueMs)).toBe("pending");
     expect(panelReviewState(open, PANEL_DAY, dueMs + 1)).toBe("overdue");
     expect(panelReviewState(open, PANEL_DAY, dueMs + 3 * DAY)).toBe("overdue");
@@ -2716,24 +2476,18 @@ describe("panelReviewState — four states over one clock", () => {
 
   it("is reviewed once the bead for the newest panel day is closed", () => {
     expect(panelReviewState(closed, PANEL_DAY, NOW_MS)).toBe("reviewed");
-    // And it STAYS reviewed past the old deadline: the obligation was met, so
-    // the deadline is no longer a fact about anything.
     expect(panelReviewState(closed, PANEL_DAY, dueMs + 30 * DAY)).toBe("reviewed");
   });
 
   it("falls back to pending when a NEWER panel day has landed", () => {
-    // The failure this join exists to catch: a fresh result page nobody has
-    // opened, sitting behind a card that says it was read. The bead for it has
-    // not been filed yet, so there is no deadline to be late against — pending,
-    // quietly, never `reviewed`.
+    // A fresh result page nobody has opened, whose review task has not been filed
+    // yet: pending, never `reviewed`.
     expect(panelReviewState(closed, "2026-07-08", NOW_MS)).toBe("pending");
   });
 
   it("reads the panel DAY, not the close time — a late close covers nothing new", () => {
-    // The bug the close-time comparison had (agreed with ro-9hx): panel A lands,
-    // panel B lands a week later, and the operator finally closes A's review
-    // AFTER B arrived. The close is newer than B; the review still covers only
-    // A, and B is a result page nobody has opened.
+    // Panel A lands, panel B lands a week later, and A's review closes after B
+    // arrived: the review still covers only A.
     const lateClose: PanelReview = {
       ...closed,
       closedAt: "2026-07-09T09:00:00.000Z",
@@ -2746,13 +2500,10 @@ describe("panelReviewState — four states over one clock", () => {
   });
 
   it("degrades every unreadable date to the QUIET state, never to overdue", () => {
-    // An older writer's fields survive as absences. None of them may escalate:
-    // error tone is earned off a deadline the OS can actually read.
+    // An older writer's fields survive as absences, and none may escalate.
     expect(panelReviewState({ ...open, dueAt: null }, PANEL_DAY, NOW_MS)).toBe("pending");
     expect(panelReviewState({ ...open, dueAt: "not a date" }, PANEL_DAY, NOW_MS)).toBe("pending");
     expect(panelReviewState({ ...closed, closedAt: null }, PANEL_DAY, NOW_MS)).toBe("pending");
-    // A finished review that cannot name its own panel day cannot be shown to
-    // cover the newest one.
     expect(panelReviewState({ ...closed, panelDate: null }, PANEL_DAY, NOW_MS)).toBe("pending");
   });
 });
@@ -2795,9 +2546,8 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("marks an asset with no config/serp-panel.json entry as panel-less, not as review-less", async () => {
-    // Bead ro-z0g. nosh.example is absent from this fixture's panel file but lands a
-    // weekly collection, so it owes the read and the ONLY difference config
-    // makes is the noun the marker states it in.
+    // nosh.example is absent from this fixture's panel file but lands a weekly
+    // collection, so it owes the read; config only picks the marker's noun.
     await insertDataForSeoCollection(
       ctx,
       "nosh.example",
@@ -2830,10 +2580,8 @@ describe("buildWallPayload — the card's panel-review slice", () => {
       "2026-07-01T06:00:00.000Z",
       { panel: true },
     );
-    // Same collection day, re-archived: byte-identical content, one landing.
     await insertPanelRun(ctx, "meals.example", "2026-07-01", "2026-07-01T07:00:00.000Z", "unchanged");
-    // Five of six is a torn sweep, not a reviewable landing. The prior coherent
-    // day remains the operator-facing identity until the panel family arrives.
+    // Five of six is a torn sweep, not a reviewable landing.
     await insertDataForSeoCollection(
       ctx,
       "meals.example",
@@ -2841,7 +2589,6 @@ describe("buildWallPayload — the card's panel-review slice", () => {
       "2026-07-04T06:00:00.000Z",
       { panel: true, omit: ["serp-panel"] },
     );
-    // A failed attempt collected nothing, so it landed nothing.
     await insertPanelRun(ctx, "meals.example", "2026-07-05", "2026-07-05T06:00:00.000Z", "error");
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: review() }),
@@ -2861,10 +2608,9 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("is not fooled by a backfill of an older panel written later", async () => {
-    // Why the ordering is report_date first and finished_at only as tiebreak:
-    // re-archiving June's panel today writes the LATEST finished_at in the
-    // table, and a MAX(finished_at) read would promote June over July and
-    // un-review a card that was perfectly fine.
+    // report_date first, finished_at only as tiebreak: re-archiving June's
+    // panel today writes the latest finished_at in the table, and a
+    // MAX(finished_at) read would promote June over July.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await insertDataForSeoCollection(ctx, "meals.example", "2026-06-24", "2026-07-05T09:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
@@ -2878,11 +2624,8 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("shows the review of an asset that buys a collection but no panel", async () => {
-    // Bead ro-1tu. nom is absent from the panel config THIS TEST WAS GIVEN, and
-    // it used to be that absence that decided the card said nothing — so since
-    // ro-478 widened the filer to every collecting asset, three assets
-    // held open, due-dated reviews the Wall rendered nowhere. The collection is
-    // what the review is about, so the collection is what the marker follows.
+    // nosh is absent from the panel config; the collection is what the review
+    // is about, so the collection is what the marker follows.
     await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ asset: "nosh.example", prefix: "nom", panelReview: review({ beadId: "nom-f1c" }) }),
@@ -2891,16 +2634,13 @@ describe("buildWallPayload — the card's panel-review slice", () => {
     const card = await cardFor("nosh.example");
     expect(card.panelReview!.beadId).toBe("nom-f1c");
     expect(card.latestPanelDate).toBe("2026-07-01");
-    // The same states a panel asset gets, off the same rule.
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("pending");
   });
 
   it("sheds the marker once the collection behind the review stops", async () => {
-    // The other half of ro-1tu, and the job the old config gate was doing: a
-    // review whose collection has gone quiet is an obligation nobody can
-    // discharge, so it leaves the card rather than accusing the operator
-    // forever. `PANEL_LANDING_WINDOW_DAYS` is the line — this landing is a day
-    // past it, with a finished review that would otherwise read "reviewed".
+    // A review whose collection has gone quiet leaves the card rather than
+    // accusing the operator forever. `PANEL_LANDING_WINDOW_DAYS` is the line;
+    // this landing is a day past it, with a finished review.
     const stopped = new Date(
       NOW_MS - (PANEL_LANDING_WINDOW_DAYS + 1) * DAY,
     ).toISOString();
@@ -2920,15 +2660,11 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("answers for ONE asset by narrowing the same read, not by filtering the map", async () => {
-    // Bead ro-ntu: the asset page windowed every asset's collections and
-    // then took one key. It now passes an asset and the asset is pushed into the
-    // SQL — the same shape ro-48p.2 gave loadSignalTrends. The risk a narrowed
-    // read introduces is DIVERGENCE (ro-elf), so the two call shapes are held to
-    // exact equality over a store where narrowing has something to drop.
+    // The narrowed read's risk is divergence, so the two call shapes are held
+    // to exact equality over a store where narrowing has something to drop.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-06-24", "2026-06-24T06:00:00.000Z", { panel: true });
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
-    // The backfill trap, inside the narrowed read too: an older collection
-    // re-archived today writes the newest finished_at in the table.
+    // The backfill trap, inside the narrowed read too.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-06-17", "2026-07-05T09:00:00.000Z", { panel: true });
     await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-04", "2026-07-04T06:00:00.000Z", { panel: false });
 
@@ -2942,16 +2678,15 @@ describe("buildWallPayload — the card's panel-review slice", () => {
 
     expect(single.get("meals.example")).toBe(portfolio.get("meals.example"));
     expect(single.get("meals.example")).toBe("2026-07-01");
-    // Narrowed in the store, not after it.
     expect(portfolio.has("nosh.example")).toBe(true);
     expect([...single.keys()]).toEqual(["meals.example"]);
   });
 
   it("renders markers for exactly the landings the runner's filer files on", async () => {
-    // One number in two repos: the Tower's window and the read the filer acts on
-    // (workers/ingest/src/serp-panel-landings.ts). A Tower window shorter than
-    // the filer's would hide a review the minute it was created; a longer one
-    // would keep a marker on the board after the filer stopped renewing it.
+    // One number in two places: the Tower's window and the read the filer acts
+    // on (workers/ingest/src/serp-panel-landings.ts). A shorter Tower window
+    // would hide a review the minute it was created; a longer one would keep a
+    // marker on the board after the filer stopped renewing it.
     const ingestSource = readFileSync(
       path.resolve(here, "../../../workers/ingest/src/serp-panel-landings.ts"),
       "utf8",
@@ -2964,24 +2699,20 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("degrades a snapshot written before the field existed to absence", async () => {
-    // The ordinary case until the operator restarts os:up: the poller is a
-    // static node process, so every stored row still omits the key. An older
-    // writer's payload is not damage, and it must not throw or invent.
+    // An older writer's payload omits the key; it must not throw or invent.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [workProject()]);
 
     const card = await cardFor("meals.example");
     expect(card.panelReview).toBeNull();
-    // The landing is still readable — it is the REVIEW that is unknown, and an
-    // unknown review renders nothing rather than an unmet obligation.
+    // The landing is still readable; it is the review that is unknown.
     expect(card.latestPanelDate).toBe("2026-07-01");
     expect(panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS)).toBe("none");
   });
 
   it("keeps 'did not look' and 'looked, found none' apart in the snapshot", async () => {
-    // The card's answer to both is the same nothing, so the payload collapses
-    // them — but they are different measurements and the reader must not be the
-    // place that loses one (agreed with ro-9hx).
+    // The card's answer to both is the same nothing, but they are different
+    // measurements and the reader must not be the place that loses one.
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: null }),
       workProject({ asset: "nosh.example", prefix: "nom" }),
@@ -3024,8 +2755,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("says nothing for a repo the poller could not read", async () => {
-    // Same `bd` read as the counts: a repo it could not open told it nothing
-    // about a review bead either.
+    // A repo the `bd` read could not open told it nothing about a review task.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ ok: false, error: "no beads project found", panelReview: review() }),
@@ -3042,15 +2772,12 @@ describe("buildWallPayload — the card's panel-review slice", () => {
   });
 
   it("states the same obligation on the page the card links to", async () => {
-    // The whole point of bead ro-elf: the overdue badge on the Wall means "open
-    // this asset page and act", so the badge that sent the operator and the
-    // obligation they find on arrival have to be ONE fact. Both payloads, over
-    // one store, through the same two readers and the same state rule.
+    // The badge that sent the operator and the obligation they find on arrival
+    // have to be one fact: both payloads, one store, the same readers and rule.
     await insertDataForSeoCollection(ctx, "meals.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: true });
     await insertDataForSeoCollection(ctx, "nosh.example", "2026-07-01", "2026-07-01T06:00:00.000Z", { panel: false });
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject({ panelReview: review({ dueAt: "2026-07-04T06:00:00.000Z" }) }),
-      // An asset with no panel at all, checked on both surfaces at once.
       workProject({ asset: "nosh.example", prefix: "nom", panelReview: review({ beadId: "nom-f1c" }) }),
     ]);
 
@@ -3064,8 +2791,7 @@ describe("buildWallPayload — the card's panel-review slice", () => {
         panelReviewState(card.panelReview, card.latestPanelDate, NOW_MS),
       );
     }
-    // …and the state is a real one on the asset that owes a review, not two
-    // matching nulls (which every pair of surfaces agrees on).
+    // A real state on the asset that owes a review, not two matching nulls.
     const meals = wall.assets.find((a) => a.id === "meals.example")!;
     expect(panelReviewState(meals.panelReview, meals.latestPanelDate, NOW_MS)).toBe("overdue");
   });
@@ -3084,15 +2810,13 @@ describe("buildWallPayload — empty store", () => {
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(p.portfolio.forecast).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(p.system.hasPulse).toBe(false);
-    // No assets means nobody owes a report — which is not the same as everyone
-    // being fresh, so the coverage claim stays unmade.
+    // No assets means nobody owes a report, which is not the same as everyone
+    // being fresh.
     expect(p.system.ingest).toEqual({
       fresh: 0, stale: 0, notExpected: 0, expected: 0,
     });
     expect(isAllFresh(p.system.ingest)).toBe(false);
     expect(p.ledgerRecordedAt).toBeNull();
-    // Nothing booked, nothing estimated, no trend: the PORTFOLIO band carries
-    // no number, so no surface mounts it at all (bead ro-yf3).
     expect(portfolioHasData(p.portfolio)).toBe(false);
   });
 });
@@ -3122,8 +2846,6 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 45, booking_state: "estimated", recorded_at: "2026-07-04T00:00:00.000Z" });
 
     const p = await buildWallPayload(ctx.call, OPTIONS);
-    // Still nothing booked — the headline stays unstated and the trend empty —
-    // but there is money to report, so the card is no longer noise.
     expect(p.portfolio.firstRun).toBe(true);
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(p.portfolio.netTrend).toEqual([]);
@@ -3132,8 +2854,8 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
   });
 
   it("a reconciled row worth nothing is data, not emptiness", async () => {
-    // $0 revenue somebody actually confirmed. firstRun is false, so the booked
-    // headline is a fact the operator asked for — the band must not hide it.
+    // $0 revenue somebody actually confirmed: firstRun is false, so the booked
+    // headline is a fact the band must not hide.
     const ctx = await storeWithNoLedger();
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 0, booking_state: "reconciled", recorded_at: "2026-07-04T00:00:00.000Z" });
 
@@ -3141,15 +2863,14 @@ describe("buildWallPayload — a portfolio with assets but no ledger", () => {
     expect(p.portfolio.firstRun).toBe(false);
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 0, cost: 0, net: 0 });
     expect(p.portfolio.netTrend).toEqual([{ t: "2026-07", v: 0 }]);
-    // The only month on record is the open one, so there is no pair to state.
     expect(p.portfolio.bookedDelta).toBeNull();
     expect(portfolioHasData(p.portfolio)).toBe(true);
   });
 });
 
-describe("buildWallPayload — the current month has no ledger row yet (bead ro-bdkp)", () => {
-  /** 2026-09-04, the day the defect was observed: three months of imports
-   * behind, nothing for September, and days to go before anything lands. */
+describe("buildWallPayload — the current month has no ledger row yet", () => {
+  /** Three months of imports behind, nothing for September, and days to go
+   * before anything lands. */
   const SEPTEMBER = new Date("2026-09-04T12:00:00.000Z");
   const SEPT_OPTIONS = { ...OPTIONS, now: SEPTEMBER };
 
@@ -3167,8 +2888,6 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   }
 
   it("shows August, and says out loud that August is not this month", async () => {
-    // The defect: the band read '2026-09', found nothing, and the Wall's money
-    // card left the top row for the first days of the month.
     const ctx = await storeEndingInAugust();
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
 
@@ -3176,13 +2895,12 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
     expect(p.portfolio.periodIsCurrent).toBe(false);
     expect(p.portfolio.booked).toEqual({ currency: 'USD', revenue: 412.5, cost: 66.4, net: 346.1 });
     expect(p.portfolio.forecast).toEqual({ currency: 'USD', revenue: 120, cost: 0, net: 120 });
-    // …and the card mounts, which is the whole point.
     expect(portfolioHasData(p.portfolio)).toBe(true);
   });
 
   it("every property card quotes the SAME month the headline does", async () => {
-    // `ro-uwo.2`'s invariant has to survive the fallback: one chosen period
-    // feeds both grains, so the cards still add up to the number above them.
+    // One chosen period feeds both grains, so the cards still add up to the
+    // number above them.
     const ctx = await storeEndingInAugust();
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
 
@@ -3195,15 +2913,13 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
     expect(sum((c) => c.booked.cost!)).toBeCloseTo(p.portfolio.booked.cost!, 10);
     expect(sum((c) => c.booked.net!)).toBeCloseTo(p.portfolio.booked.net!, 10);
     expect(sum((c) => c.forecast.net!)).toBeCloseTo(p.portfolio.forecast.net!, 10);
-    // Real money on both sides, so this is not two zeroes agreeing.
     expect(cardHasMoney(p.assets[0]!)).toBe(true);
     expect(cardHasMoney(p.assets[1]!)).toBe(true);
   });
 
-  it("D13: a month holding only COSTS still leads, and still counts as rows", async () => {
-    // The cost-led headline (config/decisions.md D13). A fallback that waited
-    // for revenue would blank the card on exactly the months this OS is most
-    // honest about — the ones where it only spent.
+  it("a month holding only COSTS still leads, and still counts as rows", async () => {
+    // A fallback that waited for revenue would blank the card on exactly the
+    // months the OS only spent.
     const ctx = await createTestStore();
     await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
     await insertLedger(ctx, { id: 1, kind: "cost", asset: "meals.example", period: "2026-08", family: "infra", amount: 88.25, booking_state: "reconciled", recorded_at: "2026-09-01T00:00:00.000Z" });
@@ -3217,8 +2933,6 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   });
 
   it("the moment September books a row, September is the month again", async () => {
-    // The other 26 days of the month: identical to the behaviour before the
-    // fallback existed, right down to `periodIsCurrent`.
     const ctx = await storeEndingInAugust();
     await insertLedger(ctx, { id: 9, kind: "revenue", asset: "nosh.example", period: "2026-09", family: "subs", amount: 15, booking_state: "estimated", recorded_at: "2026-09-04T00:00:00.000Z" });
 
@@ -3231,12 +2945,9 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   });
 
   it("a month never loses its only row to a restatement in another month", async () => {
-    // The fallback reads current rows, like every other figure on the card. On
-    // D1 only a store without the ledger guards (db/0036, bead ro-ujb9.69)
-    // could hold a July restatement of an August estimate, which left August
-    // with nothing in it. The Postgres store refuses that restatement in every
-    // workspace (0001_baseline.sql `ledger_correction_matches_target`), and
-    // the importer refuses such a D1 pair by name, so August keeps its row.
+    // The fallback reads current rows. The store refuses a July restatement of
+    // an August estimate (`ledger_correction_matches_target`), so August keeps
+    // its row.
     const ctx = await createTestStore();
     await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "reconciled", recorded_at: "2026-08-01T00:00:00.000Z" });
@@ -3252,8 +2963,8 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   });
 
   it("the closed-month delta still measures against the CALENDAR, not the fallback", async () => {
-    // "Closed" is a fact about the clock. A headline that fell back to August
-    // must not thereby declare August unclosed and drop it from its own chip.
+    // "Closed" is a fact about the clock: a headline that fell back to August
+    // must not declare August unclosed and drop it from its own chip.
     const ctx = await storeEndingInAugust();
     const p = await buildWallPayload(ctx.call, SEPT_OPTIONS);
 
@@ -3264,9 +2975,7 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   });
 
   it("no ledger row anywhere is still an empty card, on the current month", async () => {
-    // The absence `portfolioHasData` was written for (bead ro-yf3) survives:
-    // the fallback has nothing to fall back TO, so the period stays honest and
-    // the band renders nothing at all.
+    // The fallback has nothing to fall back to, so the band renders nothing.
     const ctx = await createTestStore();
     await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
 
@@ -3280,13 +2989,7 @@ describe("buildWallPayload — the current month has no ledger row yet (bead ro-
   });
 });
 
-/**
- * Snooze across the portfolio payload (`ro-c7qq`). "Open" is decided in ONE
- * place (`worker/flag-scope.ts`), so a parked condition has to disappear from
- * the attention rail, from the asset card's counts and from the card's worst
- * severity together — and return to all three together.
- */
-describe("the OS's own row is called NoticeOS on the Wall, whatever it stores (ro-ujb9.77.10)", () => {
+describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", () => {
   it("names the OS's alerts and parked alerts by the product, and every site by its own name", async () => {
     const ctx = await createTestStore();
     await insertAsset(ctx, "os-row", "ReindexOS", "live", 0, 1);
@@ -3319,6 +3022,11 @@ describe("the OS's own row is called NoticeOS on the Wall, whatever it stores (r
   });
 });
 
+/**
+ * "Open" is decided in one place (`worker/flag-scope.ts`), so a parked
+ * condition disappears from the attention rail, the card's counts and the
+ * card's worst severity together, and returns to all three together.
+ */
 describe("a snoozed condition leaves the whole Wall, then comes back", () => {
   async function storeWithSnooze(until: string): Promise<TestStore> {
     const ctx = await createTestStore();
@@ -3344,12 +3052,10 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     expect(p.attention).toEqual([]);
     const card = p.assets.find((a) => a.id === "meals.example")!;
     expect(card.openError).toBe(0);
-    // The card's colour comes off with the row: a snoozed condition that still
-    // set `worstOpenSeverity` would keep the asset red on a TV nobody can act
-    // from, about something the operator explicitly deferred.
+    // A snoozed condition that still set `worstOpenSeverity` would keep the
+    // asset red on a TV nobody can act from.
     expect(card.worstSeverity).toBeNull();
 
-    // But it IS on the page that owes it, with the date it returns.
     expect(p.snoozed).toHaveLength(1);
     expect(p.snoozed[0]).toMatchObject({
       asset: "meals.example",
@@ -3361,12 +3067,8 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     });
   });
 
-  /**
-   * Bead `ro-ujb9.229` (decided with `ro-ujb9.194`): one row, one list. A
-   * snooze is put off, not settled, so the row the Snoozed panel lists is not
-   * also History's — GET /api/alerts/history, which the History tab and the
-   * strip's "Settled · 7d" both read, does not return it.
-   */
+  /** A snooze is put off, not settled, so the row the Snoozed panel lists is
+   * not also History's: GET /api/alerts/history does not return it. */
   it("is on Open's Snoozed panel and not in GET /api/alerts/history while it is quiet", async () => {
     const tomorrow = new Date(NOW_MS + 86_400_000).toISOString();
     const ctx = await storeWithSnooze(tomorrow);
@@ -3391,16 +3093,9 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     const card = p.assets.find((a) => a.id === "meals.example")!;
     expect(card.openError).toBe(1);
     expect(card.worstSeverity).toBe("error");
-    // And it has left the snoozed ledger — one row, one list.
     expect(p.snoozed).toEqual([]);
   });
 
-  /**
-   * Bead `ro-w13s`. The ledger used to carry the open table's error/warn scope
-   * while Snooze was offered on EVERY open row of the asset hero, so an
-   * operator could park an info or milestone row and find it in no portfolio
-   * list at all — the silent hide this section exists to prevent.
-   */
   it("lists an info-severity snooze, which the open attention scope still excludes", async () => {
     const ctx = await createTestStore();
     await insertAsset(ctx, "meals.example", "Meal Planner", "live", 0, 0);
@@ -3425,8 +3120,8 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
       snoozeUntil: "2026-07-09T12:00:00.000Z",
     });
 
-    // And nothing about the ATTENTION scope widened with it: an info row was
-    // never something the portfolio owed an answer about, snoozed or not.
+    // The attention scope did not widen with it: an info row was never
+    // something the portfolio owed an answer about.
     expect(p.attention).toEqual([]);
     const card = p.assets.find((a) => a.id === "meals.example")!;
     expect(card.openError).toBe(0);
@@ -3455,23 +3150,15 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     expect(p.snoozed).toHaveLength(1);
     expect(p.snoozed[0]).toMatchObject({
       occurrences: 3,
-      // The LAST date, because the row is quiet until its last member is;
-      // saying the earliest would promise a return that does not happen.
+      // The last date, because the row is quiet until its last member is.
       snoozeUntil: "2026-07-12T12:00:00.000Z",
     });
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// THE THREE THINGS /assets' COMPARISON TABLE NEEDS (bead `ro-78qo.35`).
-//
-// doc 14's Assets row is one table with a sparkline per measurement and a
-// 7 · 28 · 90 range. It shipped with ONE column and a 7d/28d selector because
-// the payload it reads — this one — carried active users, no search clicks, no
-// per-asset monthly net, and twenty-eight days of anything. These pin the three
-// fields that close that, and the one property that makes them safe: the Wall's
-// own drawn window did not move.
-// ─────────────────────────────────────────────────────────────────────────────
+// What /assets' comparison table reads off a card: merged search clicks,
+// per-asset monthly net and ninety days of context, with the Wall's own drawn
+// window unmoved.
 
 describe("buildWallPayload — what the comparison table reads off a card", () => {
   let ctx: TestStore;
@@ -3485,12 +3172,8 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
   const cardOf = async (id: string) =>
     (await buildWallPayload(ctx.call, OPTIONS)).assets.find((a) => a.id === id)!;
 
-  /**
-   * TWO PROVIDERS, ONE MEASUREMENT. A table column states clicks; it does not
-   * state Google's clicks beside Bing's and leave the reader to add them —
-   * which is the defect `ed58223` removed from the asset page, in the same
-   * portfolio, over the same days.
-   */
+  /** A table column states clicks; it does not state Google's beside Bing's
+   * and leave the reader to add them. */
   it("merges Google and Bing clicks into one series per asset", async () => {
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2, 3]);
@@ -3503,29 +3186,22 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     ]);
   });
 
-  /**
-   * A DAY ONLY ONE PROVIDER HAS REPORTED CARRIES ONLY THAT ONE. Bing trails
-   * Google by days; filling its silence with a zero would draw a cliff on a day
-   * nothing happened on, which is the same lie as a fabricated ledger month.
-   */
+  /** Bing trails Google by days; filling its silence with a zero would draw a
+   * cliff on a day nothing happened on. */
   it("never turns a provider's latency into a zero", async () => {
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2], "2026-07-03");
 
     const card = await cardOf("meals.example");
-    // The third day is Google's alone — 30, not 30 + 0, and not dropped.
     expect(card.searchClicks.series.at(-1)).toEqual({ t: "2026-07-05", v: 30 });
   });
 
-  /** A day EITHER provider is still filling is provisional for the pair: the
-   * alternative compares a settled Bing day against a Google day still being
-   * counted and calls the pair complete. */
+  /** A day either provider is still filling is provisional for the pair. */
   it("takes the earlier provisional boundary of the two", async () => {
     await insertSignalSnapshot(ctx, "gsc", "clicks", [10, 20, 30]);
     await insertSignalSnapshot(ctx, "bing-webmaster", "clicks", [1, 2, 3]);
 
     const card = await cardOf("meals.example");
-    // gsc is `includes-provisional` through its last day; bing is `final`.
     expect(card.searchClicks.provisionalFrom).toBe("2026-07-05");
   });
 
@@ -3538,17 +3214,14 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     expect(card.searchClicks.provisionalFrom).toBeNull();
   });
 
-  /**
-   * ONE DERIVATION, TWO PAYLOADS. `netByMonth` comes off the same grouping
-   * /financials' by-asset table is built from, so the Wall, /assets and the
-   * accounting page cannot disagree about a asset's month.
-   */
+  /** `netByMonth` comes off the same grouping /financials' by-asset table is
+   * built from, so the Wall, /assets and the accounting page cannot disagree. */
   it("carries each asset's net month by month, direct costs only", async () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 2, kind: "cost", asset: "meals.example", period: "2026-05", family: "api", amount: 5, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 3, kind: "revenue", asset: "meals.example", period: "2026-06", family: "ads", amount: 200, booking_state: "estimated", recorded_at: "2026-06-30T00:00:00.000Z" });
     await insertLedger(ctx, { id: 4, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
-    // Portfolio overhead. It books to asset #0 and reaches no asset's net.
+    // Portfolio overhead books to asset #0 and reaches no asset's net.
     await insertLedger(ctx, { id: 5, kind: "cost", asset: "root-os", period: "2026-07", family: "inference", amount: 200, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
     const card = await cardOf("meals.example");
@@ -3557,34 +3230,24 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
       { t: "2026-06", v: 200 },
       { t: "2026-07", v: 300 },
     ]);
-    // Not one cent of the $200 overhead reached it: July is 300, not 100.
     expect(card.netByMonth.at(-1)!.v).toBe(300);
-    // And asset #0 has no card at all, so the overhead never lands in this
-    // table under any month — it is /financials' own line.
     expect((await buildWallPayload(ctx.call, OPTIONS)).assets.map((a) => a.id)).not.toContain(
       "root-os",
     );
   });
 
-  /** The month the store is standing in is still being counted, and the card
-   * says which one that is rather than leaving a reader to find a clock. */
   it("names the open month as the provisional boundary", async () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
 
     const card = await cardOf("meals.example");
-    // NOW is 2026-07-05, so July is open — the clock's month, not the ledger's
-    // newest, because those are different facts the moment a month goes by
-    // without a row.
+    // July is the clock's month, not the ledger's newest: those differ the
+    // moment a month goes by without a row.
     expect(card.netByMonthProvisionalFrom).toBe("2026-07");
   });
 
-  /**
-   * A MONTH AN ASSET BOOKED NOTHING IN IS A HOLE, not a zero and not an
-   * omission (bead `ro-78qo.37`). A sparkline spaces its points by position, so
-   * omitting June would draw May next to July as though they were neighbours; a
-   * zero would draw a trough the ledger never recorded. The axis is present and
-   * the value is null, so the line breaks there.
-   */
+  /** A sparkline spaces its points by position, so omitting June would draw
+   * May next to July; a zero would draw a trough the ledger never recorded.
+   * The axis is present and the value is null. */
   it("puts a null on the axis for a month the asset has no row in", async () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
@@ -3598,11 +3261,8 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     ]);
   });
 
-  /**
-   * THE AXIS IS THE ASSET'S, NOT THE LEDGER'S. Nosh's first row is June, so it
-   * has no May — prefixing one would invent a month it did not exist in, which
-   * is a different mistake from the gap above.
-   */
+  /** Nosh's first row is June, so it has no May; prefixing one would invent a
+   * month it did not exist in. */
   it("starts each asset's axis at its own first row", async () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-05", family: "ads", amount: 100, booking_state: "reconciled", recorded_at: "2026-05-31T00:00:00.000Z" });
     await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 300, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
@@ -3611,8 +3271,8 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     expect((await cardOf("nosh.example")).netByMonth).toEqual([{ t: "2026-07", v: 10 }]);
   });
 
-  /** A restated figure is a new row superseding the old one; counting both
-   * would double the month the day it reconciles. */
+  /** Counting a superseded row and its replacement would double the month the
+   * day it reconciles. */
   it("excludes a superseded row from the monthly net", async () => {
     await insertLedger(ctx, { id: 1, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 100, booking_state: "estimated", recorded_at: "2026-07-02T00:00:00.000Z" });
     await insertLedger(ctx, { id: 2, kind: "revenue", asset: "meals.example", period: "2026-07", family: "ads", amount: 150, booking_state: "reconciled", supersedes_id: 1, recorded_at: "2026-07-04T00:00:00.000Z" });
@@ -3621,23 +3281,15 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     expect(card.netByMonth).toEqual([{ t: "2026-07", v: 150 }]);
   });
 
-  /** No ledger at all is an empty series and no boundary — a provisional mark
-   * on nothing is a claim about nothing. */
   it("carries no month and no boundary when the ledger is empty", async () => {
     const card = await cardOf("meals.example");
     expect(card.netByMonth).toEqual([]);
     expect(card.netByMonthProvisionalFrom).toBeNull();
   });
 
-  /**
-   * NINETY DAYS IN THE PAYLOAD, TWENTY-EIGHT ON THE TELEVISION.
-   *
-   * This is the property that makes the widening safe: the split, not the
-   * total. `series` is the Wall's drawn window and did not move, so the card
-   * chart and `wall:fit` are untouched; the other sixty-two days ride in
-   * `contextSeries`, which nothing has ever drawn as chart days, and a desk
-   * surface offering 90d reads the two together.
-   */
+  /** `series` is the Wall's drawn window, so the card chart and `wall:fit` are
+   * untouched; the other sixty-two days ride in `contextSeries`, and a desk
+   * surface offering 90d reads the two together. */
   it("carries ninety days as twenty-eight drawn and sixty-two behind them", async () => {
     const values = Array.from({ length: 95 }, (_, index) => index + 1);
     await insertSignalSnapshot(ctx, "ga4", "active_users", values, "2026-04-02");
@@ -3649,22 +3301,17 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
       ...(card.activeUsers.contextSeries ?? []),
       ...card.activeUsers.series,
     ]).toHaveLength(90);
-    // The drawn window still ends on the newest day and still starts 27 days
-    // before it — the four complete weeks the TV's card is built around.
     expect(card.activeUsers.series.at(-1)).toEqual({ t: "2026-07-05", v: 95 });
     expect(card.activeUsers.series[0]).toEqual({ t: "2026-06-08", v: 68 });
   });
 });
 
-// ─────────────────────────────────────────────────────────────────────────────
-// The nightly alert rollup (db/0033) is not the Wall's: no screen drew the
-// series it carried, so a refresh no longer reads it (bead `ro-trai.44`).
-// ─────────────────────────────────────────────────────────────────────────────
+// No screen draws the nightly alert rollup's series, so a refresh does not read it.
 
 describe("a Wall refresh reads no alert rollup", () => {
   it("builds the same payload whether or not the store holds the rollup", async () => {
-    // On Postgres (bead ro-ujb9.76.5.2) every store has the rollup's table, so
-    // "without" is a store holding no row of it; and no statement names it.
+    // Every store has the rollup's table, so "without" is a store holding no
+    // row of it.
     const withRollup = await createTestStore();
     await seed(withRollup);
     await seedReportsAndAlerts(withRollup);
@@ -3689,7 +3336,7 @@ describe("a Wall refresh reads no alert rollup", () => {
   });
 });
 
-describe("an open fetch failure carries the nights behind it (ro-ujb9.220)", () => {
+describe("an open fetch failure carries the nights behind it", () => {
   const NIGHTS = [
     { at: "2026-07-04T02:30:00.000Z", error: "503 unconfigured", status: 503, count: 1 },
     { at: "2026-07-05T02:30:00.000Z", error: "401 unauthorized", status: 401, count: 2 },
@@ -3699,8 +3346,7 @@ describe("an open fetch failure carries the nights behind it (ro-ujb9.220)", () 
     error: night.error, failureCount: night.count, lastFailedAt: night.at, evaluatedAt: night.at,
   });
 
-  /** The outage's alert and, night by night, its readings, on Postgres (bead
-   * ro-ujb9.76.5.2): its number. */
+  /** The outage's alert and, night by night, its readings: its number. */
   async function insertOutage(ctx: TestStore, { snoozeUntil = null }: { snoozeUntil?: string | null } = {}): Promise<number> {
     const latest = NIGHTS.at(-1)!;
     const store = ctx.call;

@@ -44,24 +44,20 @@ import { useAskActions } from "@/routes/tasks/ask-actions";
 import { askFace } from "@/routes/tasks/task-face";
 
 /**
- * HOME IS THE MORNING BRIEF (D44, doc 14 § Home; the research and the prior
- * art in docs/briefs/2026-10-08-home-overview-redesign.md).
- *
- * It answers one question — what changed since I last looked, and what needs
- * me — in this order: a greeting line with three small figures (yesterday's
- * money, the month's pace, yesterday's visitors); at most five highlight
- * cards, the first the big thing; Decide, at most three rows with their verbs
- * on the row; the sites in seed order with one health word each; and a finish
- * line. The OS never describes itself here: freshness, jobs and snapshots
- * belong to System health, and a broken thing arrives as a highlight card.
+ * Home is the morning brief. It answers one question, what changed since I
+ * last looked and what needs me, in this order: a greeting line with three
+ * small figures; at most five highlight cards, the first the big thing;
+ * Decide, at most three rows with their verbs on the row; the sites in seed
+ * order with one health word each; and a finish line. The OS never describes
+ * itself here: a broken thing arrives as a highlight card.
  */
 export function HomeRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const feed = useWallFeed();
   const now = useNow();
   const connections = useConnections();
-  // Setup is done at the first collected number (bead `ro-ujb9.123`); until
-  // then Home is the guide, following the newest site.
+  // Setup is done at the first collected number; until then Home is the
+  // guide, following the newest site.
   const guide = data ? firstRunSite(data.assets) : null;
   const oneSite = data && !guide && data.assets.length === 1 ? data.assets[0]! : null;
   const brief = data && !guide
@@ -85,9 +81,8 @@ export function HomeRoute() {
       <PageHeader
         title="Home"
         documentTitle={null}
-        // The census is a FACT about the page, not a control, and doc 14 seats
-        // it at the end of the header row: how old the reading is, in one
-        // quiet line.
+        // The census is a fact about the page, not a control: how old the
+        // reading is, in one quiet line at the end of the header row.
         actions={data && !guide ? <Census assetCount={data.assets.length} generatedAt={data.generatedAt} nowMs={now} /> : null}
       />
 
@@ -114,8 +109,8 @@ export function HomeRoute() {
             {oneSite ? null : <SitesStrip assets={data.assets} brief={brief!} nowMs={now} />}
           </div>
 
-          {/* ONE SITE IS THAT SITE (bead `ro-ujb9.127`): its own numbers and
-              chart, the Overview's lead from the same read, under the brief. */}
+          {/* One site is that site: its own numbers and chart, the Overview's
+              lead from the same read, under the brief. */}
           {oneSite ? <OneSiteLead site={oneSite} nowMs={now} /> : null}
         </>
       )}
@@ -123,13 +118,13 @@ export function HomeRoute() {
   );
 }
 
-// ─── the brief ───────────────────────────────────────────────────────────────
+// --- the brief --------------------------------------------------------------
 
 /**
- * THE GREETING LINE AND THE CARDS. The three figures are the Wall's own
+ * The greeting line and the cards. The three figures are the Wall's own
  * derivations (`monthRevenue`, `yesterdayTotal`) and the brief's visitors;
- * "since 6 PM yesterday · N things changed" is the feed's window, the
- * time-blindness aid the research asks for — relative, exact on hover.
+ * "since 6 PM yesterday · N things changed" is the feed's window, relative,
+ * exact on hover.
  */
 function Brief({
   brief,
@@ -234,10 +229,9 @@ function sinceWords(since: string | null, nowMs: number): string {
   return since ? `since ${sinceClock(since, nowMs)}` : "since yesterday";
 }
 
-// ─── decide ──────────────────────────────────────────────────────────────────
+// --- decide -----------------------------------------------------------------
 
-/** How many rows Decide shows before its own expander: three, the number a
- * person can hold while reading the cards above (doc 14). */
+/** How many rows Decide shows before its own expander. */
 const DECIDE_ROWS = 3;
 
 interface WaitingRow {
@@ -274,14 +268,11 @@ function LiveDecidePanel({ nowMs }: { nowMs: number }) {
 }
 
 /**
- * DECIDE — every project's operator inbox, flattened, with the verb on the row
- * (doc 14 § Home; Linear Triage, Superhuman and Codex in the brief's prior
- * art). A gate offers Approve; an ask offers Answer and Dismiss; both go
- * through the Tasks board's own path, with its Undo toast.
- *
- * The three empty states are three different facts and never share a
- * sentence: the read has not answered yet, nothing has ever been read, or
- * there is genuinely nothing to decide. Only the third one is good news.
+ * Decide: every project's operator inbox, flattened, with the verb on the
+ * row. A gate offers Approve; an ask offers Answer and Dismiss; both go
+ * through the Tasks board's own path, with its Undo toast. The three empty
+ * states are three different facts: the read has not answered yet, nothing
+ * has ever been read, or there is genuinely nothing to decide.
  */
 export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undefined; failed: boolean; nowMs: number }) {
   const projects = work?.projects ?? [];
@@ -346,12 +337,12 @@ function DecideRow({ row, nowMs }: { row: WaitingRow; nowMs: number }) {
       marks={{ "data-subject": `task:${item.id}` }}
       to={`/tasks/${encodeURIComponent(item.id)}`}
       returnTo={`${location.pathname}${location.search}`}
-      // The Tasks board's own ask face (bead ro-ujb9.240): warn at every
-      // priority and a gate's △. Priority is the ORDER, never the colour.
+      // The Tasks board's own ask face: warn at every priority and a gate's △.
+      // Priority is the order, never the colour.
       {...askFace(item)}
       title={item.title}
-      // Business altitude (doc 14): the project and what the row asks, never
-      // the task's id — that is on the page the row opens.
+      // The project and what the row asks, never the task's id, which is on
+      // the page the row opens.
       caption={item.issueType === "gate" ? `${project} · needs your approval` : project}
       value={formatAge(ageMs(nowMs, item.updatedAt))}
       valueLabel="waiting"
@@ -361,13 +352,12 @@ function DecideRow({ row, nowMs }: { row: WaitingRow; nowMs: number }) {
   );
 }
 
-// ─── sites ───────────────────────────────────────────────────────────────────
+// --- sites ------------------------------------------------------------------
 
 /**
- * THE SITES, IN SEED ORDER, ONE HEALTH WORD EACH (doc 14 § Home). Never
- * sorted: the operator learns where each site is and it stays there whether
- * or not it had a good week. The comparison table is on Sites; this strip
- * says the one word and the one figure a glance needs.
+ * The sites, in seed order, one health word each. Never sorted: the operator
+ * learns where each site is and it stays there. The comparison table is on
+ * Sites; this strip says the one word and the one figure a glance needs.
  */
 function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: HomeBrief; nowMs: number }) {
   return (
@@ -414,13 +404,12 @@ function settledPeople(asset: AssetCard): number | null {
   return settled.at(-1)?.v ?? null;
 }
 
-// ─── one site ────────────────────────────────────────────────────────────────
+// --- one site ---------------------------------------------------------------
 
 /**
- * THE ONE SITE'S OWN LEAD (bead `ro-ujb9.127`): the Overview's strip and
- * chart for that site, read through the same view the Overview reads (so
- * opening the site is instant), over the default 28 days. The header row's end
- * is the site — its state marks and its name as the way to its page.
+ * The one site's own lead: the Overview's strip and chart for that site, read
+ * through the same view the Overview reads (so opening the site is instant),
+ * over the default 28 days.
  */
 function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: number; className?: string }) {
   const { data } = useAssetDetail(site.id, "overview");
@@ -453,11 +442,8 @@ function OneSiteLead({ site, nowMs, className }: { site: AssetCard; nowMs: numbe
   );
 }
 
-/**
- * How old the reading is — doc 14's Home header line. The age is the payload's
- * own `generatedAt` rather than a per-source freshness: the question here is
- * "am I looking at a stale tab".
- */
+/** How old the reading is. The age is the payload's own `generatedAt` rather
+ * than a per-source freshness: the question is "am I looking at a stale tab". */
 function Census({ assetCount, generatedAt, nowMs }: { assetCount: number; generatedAt: string; nowMs: number }) {
   return (
     <span className="text-xs text-muted-foreground" data-portfolio-census>
@@ -467,33 +453,26 @@ function Census({ assetCount, generatedAt, nowMs }: { assetCount: number; genera
   );
 }
 
-// ─── first run ───────────────────────────────────────────────────────────────
+// --- first run --------------------------------------------------------------
 
-/**
- * First-run steps: add a site, connect its first source, see its first number.
- *
- * EACH STEP IS ITS TITLE (bead `ro-ujb9.96.6.12`), and THE STEPS ARE DERIVED,
- * NOT LISTED (bead `ro-ujb9.123`): `firstRunSteps` ticks what the store shows
- * is done and makes the next one the screen's ONE primary action.
- */
+/** First-run steps: add a site, connect its first source, see its first
+ * number. `firstRunSteps` ticks what the store shows is done and makes the
+ * next one the screen's one primary action. */
 const FIRST_RUN_ICON: Record<FirstRunStepKey, typeof Plus> = {
   add: Plus,
   connect: Cable,
   number: Activity,
 };
 
-/**
- * WHAT A STRANGER SEES ON A FRESH INSTALL (bead `ro-vtf7`): one sentence
- * saying what this thing does, and the three steps to a first site, each a
- * glyph and a link rather than a paragraph.
- */
+/** What a stranger sees on a fresh install: one sentence saying what this
+ * thing does, and the three steps to a first site. */
 export function FirstRun({
   steps = firstRunSteps(null, []),
   footer,
 }: {
   steps?: FirstRunStep[];
-  /** A line under the steps: Home puts the clock proposal here (bead
-   * `ro-ujb9.134`), which draws nothing once the clock is chosen. */
+  /** A line under the steps: Home puts the clock proposal here, which draws
+   * nothing once the clock is chosen. */
   footer?: ReactNode;
 }) {
   return (

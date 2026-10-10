@@ -1,8 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The inbox's Undo window (bead ro-ujb9.96.7.11): an answer is HELD, never
-// reversed, because none of the three lane verbs has an inverse. These pin the
-// window, the take-back, the page-leaving flush and what a row reads.
+// The inbox's Undo window: an answer is held, never reversed, because none of
+// the three lane verbs has an inverse.
 
 const api = vi.hoisted(() => ({
   respondToTask: vi.fn(async () => undefined),

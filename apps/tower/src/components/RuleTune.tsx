@@ -30,23 +30,16 @@ import { ApiError } from "@/lib/api";
 import { FLAG_DEFAULT_VALIDATOR } from "@/lib/knob-validators";
 import { cn } from "@/lib/utils";
 
-/** `config/constants.json` `flag_defaults` key → the detector's own field name.
- * The three settings ARE the rule config; anything else in that object is not
- * something these rules read, and is left to `/settings`. */
+/** `config/constants.json` `flag_defaults` key → the detector's own field
+ * name. Anything else in that object is not something these rules read. */
 const CONFIG_FIELD: Record<string, keyof RuleConfig> = {
   alpha: "alpha",
   min_baseline_per_day: "minBaselinePerDay",
   low_volume_window_hours: "lowVolumeWindowHours",
 };
 
-/**
- * The settings rows a replay is a picture OF — the three the detector reads,
- * out of whatever else `flag_defaults` holds.
- *
- * Exported because `/settings#alert-rules` previews the same edit (bead
- * `ro-w35m`) and a second filter there would be a second answer to "which of
- * these settings does the preview actually cover".
- */
+/** The settings rows a replay is a picture of. Exported because
+ * `/settings#alert-rules` previews the same edit. */
 export function backtestableKnobs(knobs: readonly KnobFact[]): KnobFact[] {
   return knobs.filter((knob) => knob.key in CONFIG_FIELD);
 }
@@ -57,48 +50,20 @@ export interface TuneRuleActionProps {
   asset: string;
   /** `flags.rule_id`. A rule with no honest replay renders no trigger at all. */
   ruleId: string;
-  /** `flags.metric` — the preview follows the alert the operator is looking at. */
+  /** `flags.metric`: the preview follows the alert the operator is looking at. */
   metric?: string | null;
-  /**
-   * `flags.id` — the alert this panel was opened FROM, so a saved change can be
-   * recorded on it as `disposition='tune'` (bead `ro-van6`).
-   *
-   * Optional because the trigger is a rule's, not a row's: a surface that opens
-   * the panel with no alert in front of it edits the same settings and simply
-   * has nothing to disposition. What it must never do is invent a flag to
-   * disposition — the false-positive rate this record feeds is only worth
-   * reading if every `tune` in it came from an alert somebody was actually
-   * looking at.
-   */
+  /** `flags.id`, the alert this panel was opened from, so a saved change can
+   * be recorded on it as `disposition='tune'`. Optional because the trigger
+   * is a rule's, not a row's; a flag is never invented to disposition. */
   flagId?: number;
   className?: string;
 }
 
 /**
- * TUNE THIS RULE, from the alert it is being noisy on (bead `ro-u072`).
- *
- * WHY THE TRIGGER LIVES ON THE ROW. docs/15 flow E names six dispositions and
- * the OS shipped two; a rule-driven alert had no path from "this rule is noisy"
- * to a changed threshold except reading `config/constants.json`. `ro-kukv.6`
- * measured what that costs: four byte-identical rows aged 25–28 days that nobody
- * acted on.
- *
- * WHY IT OPENS A PANEL RATHER THAN LINKING TO `/settings`. The link already
- * exists and is not the missing piece — the missing piece is docs/15 principle 1,
- * *show, then ask*: a threshold typed on the settings page saves blind, and
- * nothing there can say what the new value would have done, because that page
- * has no asset in front of it. This panel does.
- *
- * WHAT IT IS NOT. It is not the per-asset rule editor doc 10 deliberately
- * removed on 2026-09-04. These three settings are PORTFOLIO-WIDE and the panel
- * leads with that fact as its first mark — an "Applies to every site" chip
- * above everything else — and ends in a link to `/settings#alert-rules`, which
- * remains where the rules live.
- *
- * A RULE WITH NO HONEST REPLAY GETS NO TRIGGER. `ingest-freshness`,
- * `asset-declared` and the watch-window verdicts are not steered by these
- * settings and are not reproducible from stored pulses; offering Tune on them
- * would promise a preview that could only be invented.
+ * Tune a rule from the alert it is being noisy on, with a replay of what the
+ * new values would have done to this asset before the save. The settings are
+ * portfolio-wide and the panel leads with that. A rule these settings do not
+ * steer gets no trigger, because its preview could only be invented.
  */
 export function TuneRuleAction({
   asset,
@@ -185,9 +150,8 @@ export function TuneRuleAction({
   );
 }
 
-/** The panel with its two reads wired up: the portfolio settings it edits, and
- * the replay it previews. Split from the presentational half below so the
- * gallery and the tests can render every state without a store. */
+/** The panel with its reads wired up, split from the presentational half so
+ * the gallery and the tests can render every state without a store. */
 function TuneRulePanelLive({
   asset,
   ruleId,
@@ -203,38 +167,23 @@ function TuneRulePanelLive({
   const { updateFlag } = useTowerApi();
   const queryClient = useQueryClient();
   const { data: settings } = useSettings();
-  // What this rule has already cost (bead `ro-ayxy`) — the same read, the same
-  // cache key and the same component `/settings#alert-rules` draws, so the panel
-  // an operator tunes FROM cannot show a different figure from the page they
-  // land on afterwards.
+  // The same read and cache key `/settings#alert-rules` draws from.
   const { data: stats } = useAlertRuleStats();
   const knobs = useMemo(
     () => backtestableKnobs(settings?.alertRules.knobs ?? []),
     [settings],
   );
 
-  // The values the operator is currently looking at, which is what the preview
-  // must be a picture of: the saved value until a field is edited, the edited
-  // value after, and `null` for a field holding something it would refuse.
+  // What the preview must be a picture of: the saved value until a field is
+  // edited, the edited value after, `null` for a value the field refuses.
   const [drafts, setDrafts] = useState<Record<string, JsonValue | null>>({});
   const preview = useRulePreview({ asset, ruleId, metric, knobs, drafts });
 
   /**
-   * The alert this panel was opened from now carries the sixth disposition
-   * (bead `ro-van6`) — `disposition='tune'`, with the setting and its two values
-   * as the note.
-   *
-   * IT IS RECORDED AFTER THE CHANGE, NEVER INSTEAD OF IT. The setting has
-   * already moved by the time this runs, so a refusal here gets its own line and
-   * never turns a save that worked into a save that failed — the same contract
-   * `useConfigSave`'s `record` keeps for timeline events. The row is refused
-   * (409) when it is no longer open, or when it already carries a different
-   * decision: an ack or a snooze is the operator's own record and this write may
-   * not overwrite it.
-   *
-   * THE ROW STAYS OPEN. Tuning the detector is not resolving the firing — see
-   * `worker/flag-scope.ts` — so the invalidations below repaint it with its
-   * "tuned" chip rather than removing it from the queue.
+   * Records `disposition='tune'` on the alert this panel was opened from,
+   * after the change and never instead of it: the setting has already moved,
+   * so a refusal here gets its own line and never turns a save that worked
+   * into one that failed. The row stays open; tuning is not resolving.
    */
   async function recordTune(tuned: TunedSetting) {
     if (flagId === null) return;
@@ -247,9 +196,7 @@ function TuneRulePanelLive({
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: ["wall"] }),
       queryClient.invalidateQueries({ queryKey: ["asset-detail", asset] }),
-      // The tune this write just recorded is one of the counts above (bead
-      // `ro-ayxy`): a figure that did not move after the operator acted would
-      // read as "that did not count".
+      // The tune just recorded is one of the counts the panel shows.
       queryClient.invalidateQueries({ queryKey: ["alert-rule-stats"] }),
     ]);
   }
@@ -270,18 +217,8 @@ function TuneRulePanelLive({
   );
 }
 
-/**
- * THE REPLAY, AS A PREVIEW STATE — the one implementation of "what would these
- * values have done to this asset", for every surface that asks.
- *
- * Extracted when `/settings#alert-rules` became the second asker (bead
- * `ro-w35m`). The alert row has an asset in front of it and the settings page
- * picks one, but everything after that choice is identical: the same three
- * settings become the same `RuleConfig`, the same debounced RPC answers it, and
- * the same four states describe what came back. Two copies of that would be two
- * answers to the one question the operator is being asked to trust a number
- * about.
- */
+/** The replay as a preview state: the one implementation of "what would
+ * these values have done to this asset", for every surface that asks. */
 export function useRulePreview({
   asset,
   ruleId,
@@ -293,8 +230,8 @@ export function useRulePreview({
   ruleId: string;
   metric: string | null;
   knobs: readonly KnobFact[];
-  /** The buffered value per setting key — `null` while a field holds something
-   * it would refuse. Keys the operator has not touched are simply absent. */
+  /** The buffered value per setting key, `null` while a field holds something
+   * it would refuse. Untouched keys are absent. */
   drafts: Record<string, JsonValue | null>;
 }): RuleTunePreview {
   const config = useMemo(() => ruleConfig(knobs, drafts), [knobs, drafts]);
@@ -307,15 +244,11 @@ export function useRulePreview({
   return { state: "loading" };
 }
 
-/** The preview's own state, so the panel renders one of four honest things and
- * never an empty box. */
 export type RuleTunePreview =
   | { state: "loading" }
   | { state: "ready"; backtest: RuleBacktest }
   | { state: "failed"; message: string }
-  /** A field is holding a value the detector would refuse — the field itself is
-   * already saying why, and asking anyway would answer about a value nobody can
-   * save. */
+  /** A field holds a value the detector would refuse; the field says why. */
   | { state: "invalid" };
 
 export interface RuleTunePanelProps {
@@ -324,26 +257,15 @@ export interface RuleTunePanelProps {
   metric: string | null;
   knobs: KnobFact[];
   preview: RuleTunePreview;
-  /**
-   * What every rule has cost (bead `ro-ayxy`), from which this panel reads its
-   * OWN rule's row.
-   *
-   * The whole payload rather than one row, so the lookup is
-   * `findRuleStat` on both surfaces instead of two callers deciding for
-   * themselves what a missing rule means. `null` — the gallery, a test, a
-   * deployment whose read failed — renders no figure at all: a panel that
-   * printed "no firings yet" because a fetch did not answer would be inventing
-   * evidence about the rule it is asking the operator to change.
-   */
+  /** What every rule has cost; the panel reads its own rule's row with
+   * `findRuleStat`. `null` renders no figure at all, because "no firings yet"
+   * from a fetch that did not answer would be invented evidence. */
   stats?: AlertRuleStatsPayload | null;
   onDraftChange: (key: string, value: JsonValue | null) => void;
-  /** A setting that LANDED, so the caller can record the tune on the alert it
-   * was opened from (bead `ro-van6`). Absent when there is no alert to
-   * disposition, and the panel then behaves exactly as it did before. */
+  /** A setting that landed, so the caller can record the tune on the alert
+   * it was opened from. */
   onSaved?: (tuned: TunedSetting) => void;
-  /** Write the op somewhere else — the gallery's escape hatch, exactly as
-   * `KnobEditor` takes one, so a demo is a real control that never touches the
-   * operator's repo. */
+  /** Write the op somewhere else; the gallery passes a fake. */
   onSave?: (op: SettingOp) => Promise<void>;
 }
 
@@ -364,19 +286,14 @@ export function RuleTunePanel({
         <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
           Tune rule
         </span>
-        {/* The rule NAMED, with its id in the hover — doc 14's tune row: an
-            id is a name for the code, not for the operator. */}
+        {/* The rule named, with its id in the hover. */}
         <span className="truncate text-[11px] text-muted-foreground" title={ruleId}>
           {ruleLabel(ruleId)}
         </span>
       </div>
 
-      {/* The scope is the LEAD fact, not small print: these three settings judge
-          the whole portfolio, and doc 10 removed the per-asset editor precisely
-          because a small note under one asset's fields did not say so loudly
-          enough. It is a chip at the top rather than a sentence (bead
-          `ro-ujb9.96.6.7`), stated once for the panel instead of once under
-          every field, and the replay below names its own asset in its heading. */}
+      {/* The scope is the lead fact, stated once for the panel rather than
+          under every field; the replay below names its own asset. */}
       <span
         className="inline-flex w-fit items-center gap-1.5 rounded-full border border-border px-2 py-0.5 text-xs font-medium text-foreground"
         data-rule-tune-scope
@@ -385,11 +302,8 @@ export function RuleTunePanel({
         Applies to every site
       </span>
 
-      {/* WHAT THIS RULE HAS ALREADY COST, before what a change would do (bead
-          `ro-ayxy`). The operator opening this panel has just decided one alert
-          was noise; the fact that changes the decision is whether they have
-          decided that about this rule five times already. It leads the replay
-          because it is a measurement and the replay is a projection. */}
+      {/* What this rule has already cost leads the replay: it is a
+          measurement, and the replay is a projection. */}
       {stats ? (
         <div className="flex flex-col gap-1" data-rule-tune-rate={ruleId}>
           <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
@@ -434,11 +348,8 @@ export function RuleTunePanel({
             onDraft={(value) => onDraftChange(knob.key, value)}
             {...(onSaved
               ? {
-                  // The two values are the reason the tune is recorded WITH, and
-                  // both are read here rather than composed downstream: `raw` is
-                  // the value this field was showing when the operator changed
-                  // it, which is the only place that "before" still exists once
-                  // the save has landed.
+                  // `raw` is the only place "before" still exists once the
+                  // save has landed.
                   onSaved: (value: JsonValue) => {
                     if (typeof knob.raw !== "number" || typeof value !== "number") return;
                     onSaved({ setting: knob.key, from: knob.raw, to: value });
@@ -460,13 +371,9 @@ export function RuleTunePanel({
   );
 }
 
-/** Four states, four sentences. A preview that could not be produced says so —
- * it never renders a strip of zeros, which would read as "this would never
- * fire" (docs/17 rule 6: missing says missing).
- *
- * Exported for `/settings#alert-rules` (bead `ro-w35m`): the same four states
- * arrive there, and a second set of sentences for them would be the settings
- * page and the alert row disagreeing about what a missing answer means. */
+/** A preview that could not be produced says so; it never renders a strip of
+ * zeros, which would read as "this would never fire". Exported for
+ * `/settings#alert-rules`. */
 export function RulePreview({ preview }: { preview: RuleTunePreview }) {
   if (preview.state === "ready") {
     return <BacktestStrip backtest={preview.backtest} />;
@@ -490,8 +397,7 @@ export function RulePreview({ preview }: { preview: RuleTunePreview }) {
   );
 }
 
-/** What a refused replay says out loud. Each code is a different next move, so
- * each gets its own sentence rather than one "could not load". */
+/** Each refusal code is a different next move, so each gets its own sentence. */
 export function previewRefusal(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "unsupported_rule") {
@@ -508,14 +414,8 @@ export function previewRefusal(err: unknown): string {
   return "The replay did not answer. The settings above are unchanged.";
 }
 
-/**
- * The settings the preview should be a picture of: the saved value for every
- * untouched field, the draft for an edited one.
- *
- * `null` when any field is missing or is holding a value it would refuse — the
- * panel then asks nothing, because an answer about a value nobody can save is
- * worse than no answer.
- */
+/** The saved value for every untouched field, the draft for an edited one;
+ * `null` when any field is missing or refused, and the panel asks nothing. */
 function ruleConfig(
   knobs: readonly KnobFact[],
   drafts: Record<string, JsonValue | null>,

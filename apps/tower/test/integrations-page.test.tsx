@@ -36,18 +36,8 @@ import {
   type EnvImportResult,
 } from "@shared/env-import";
 
-// The Integrations page (bead `ro-vu8d.2`, epic `ro-vu8d`).
-//
-// WHAT THESE ASSERTIONS PROTECT, in the order the operator meets them: the page
-// has its own address and its own nav entry (it was an alias for /health, which
-// put the page you MAKE a connection on at the address of the page that can only
-// observe one); each of the four connection states is legible without reading a
-// paragraph; each field kind is typed in the way its value actually arrives; a
-// saved credential is never echoed back; a test reports a real answer including
-// a refusal; and disconnect cannot happen by misclick.
-//
-// The API is mocked because ro-vu8d.1 lands in parallel — these tests ARE the
-// proof for this half of the contract.
+// The API is mocked: these tests are the proof for the page's half of the
+// credential contract.
 
 const api = vi.hoisted(() => ({
   save: vi.fn<(provider: string, fields: Record<string, string>) => Promise<void>>(),
@@ -64,9 +54,9 @@ const payload = vi.hoisted(() => ({
   health: undefined as import("@noticeos/contract").IntegrationHealthPayload | undefined,
 }));
 
-// Only the credential calls and the env-import pair are replaced; every other route in
-// `deskRoutes` imports this module too, and a bare factory would delete their
-// exports along with the network.
+// Only the credential calls and the env-import pair are replaced; every other
+// route in `deskRoutes` imports this module too, and a bare factory would
+// delete their exports along with the network.
 vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   saveProviderCredential: api.save,
@@ -105,9 +95,8 @@ beforeEach(() => {
   api.importEnv.mockReset();
   api.connect.mockReset();
   api.siteToken.mockReset();
-  // The page asks once whether this deployment can import at all. Unless a test
-  // says otherwise the answer is no, which is what every deployment but the
-  // operator's own dev server says.
+  // The page asks once whether this deployment can import at all. Unless a
+  // test says otherwise the answer is no.
   api.importable.mockReset();
   api.importable.mockResolvedValue({ importable: false, reason: null });
 });
@@ -138,13 +127,10 @@ function provider(
     docRef: "docs/11-integrations.md#the-catalog",
     scope: "shared",
     lanes: [id],
-    // Every provider has to answer the expiry question (bead `ro-vu8d.8`);
-    // `never` is the shape of a key with no stated lifetime, which is what most
-    // of these fixtures stand in for.
+    // `never` is the shape of a key with no stated lifetime.
     expiry: { known: "never" },
-    // And what pressing Test does (bead `ro-vu8d.18`). `free` is the shape of a
-    // cheap read-only call, which is what most of these fixtures stand in for
-    // and the one cost the card deliberately says nothing about.
+    // `free` is the shape of a cheap read-only call, the one cost the card
+    // deliberately says nothing about.
     test: { cost: "free" },
     fields,
     ...over,
@@ -258,19 +244,15 @@ function openRow(label: string): HTMLElement {
   return detail;
 }
 
-// --- the page's own address -------------------------------------------------
-
 describe("/integrations is a page, not an alias", () => {
   it("serves the Integrations page at /integrations and Health at /health", async () => {
     expect(await componentAt(deskRoutes, "/integrations")).toBe(IntegrationsRoute);
     expect(await componentAt(deskRoutes, "/health")).toBe(HealthRoute);
   });
 
-  it("no longer points both paths at one page, and does not redirect either", async () => {
-    // The alias's shape was the SAME element on two paths; re-aliasing it as a
-    // `Navigate` would be just as wrong, because /integrations is where the
-    // operator connects things now. Both are ruled out by requiring each path
-    // to hold its own route component.
+  it("gives each path its own page, and redirects neither", async () => {
+    // Each path must hold its own route component: an alias or a `Navigate`
+    // would both fail here.
     const integrations = await componentAt(deskRoutes, "/integrations");
     const health = await componentAt(deskRoutes, "/health");
     expect(integrations).not.toBe(health);
@@ -285,24 +267,19 @@ describe("/integrations is a page, not an alias", () => {
 
     const entry = NAV_ITEMS.find((item) => item.label === "Integrations");
     expect(entry?.to).toBe("/integrations");
-    // The three the operator actually types when they are looking for this.
     for (const word of ["connect", "credentials", "api key"]) {
       expect(entry?.keywords).toContain(word);
     }
-    // And the palette lists every nav item, so this one is reachable by ⌘K.
     expect(PAGE_ITEMS.map((item) => item.to)).toContain("/integrations");
   });
 
   it("stops Health claiming the word Integrations in the palette", () => {
-    // One word, one page (doc 14 rule 1). Health kept `integrations` as a
-    // keyword while it WAS the integrations page; leaving it there would send
-    // ⌘K "integrations" to two different destinations.
+    // One word, one page: leaving `integrations` as a Health keyword would
+    // send ⌘K "integrations" to two destinations.
     const health = NAV_ITEMS.find((item) => item.label === "System health");
     expect(health?.keywords ?? []).not.toContain("integrations");
   });
 });
-
-// --- the four states --------------------------------------------------------
 
 describe("what state a credential is in", () => {
   it("derives all four from the summary alone", () => {
@@ -326,8 +303,7 @@ describe("what state a credential is in", () => {
 
   it("does not shout about an error the next success already fixed", () => {
     // `lastError` carries no timestamp of its own, so a stale one has to be
-    // read against `lastOkAt` — otherwise a credential that failed once in
-    // August wears a red chip forever.
+    // read against `lastOkAt`.
     expect(
       connectionState(
         credential("bing-webmaster", {
@@ -365,8 +341,6 @@ describe("what state a credential is in", () => {
         lastOkAt: iso(4 * HOUR),
       }),
     );
-    // What the provider last answered, never more: accepted, not "Connected"
-    // (bead `ro-ujb9.96.7.3`).
     expect(screen.getByText("Key accepted")).toBeInTheDocument();
     expect(screen.queryByText("Connected")).toBeNull();
     expect(screen.getAllByText("set")).toHaveLength(2);
@@ -386,9 +360,7 @@ describe("what state a credential is in", () => {
 
   it("renders Legacy env with the import command where the import cannot run, labelled with where it runs", () => {
     // A deployed Worker has no secrets file to read, so the card keeps the
-    // command and labels where it runs: a button that 501s teaches the operator
-    // not to trust the page (bead `ro-vu8d.7`), and the reason is a code the
-    // card draws, not the deployment's sentence (bead `ro-ujb9.96.6.1`).
+    // command and labels where it runs; the reason is a code the card draws.
     renderCard(legacyEnv(), {
       envImport: {
         importable: false,
@@ -396,8 +368,6 @@ describe("what state a credential is in", () => {
         onImport: async () => {},
       },
     });
-    // Where the key lives is the explainer's fact; the status is what the
-    // provider last proved.
     expect(screen.getByText("Key accepted")).toBeInTheDocument();
     expect(document.querySelector("[data-legacy-env]")).toHaveTextContent("In the environment file");
     expect(document.querySelector("[data-import-command]")).toHaveTextContent(
@@ -422,8 +392,6 @@ describe("what state a credential is in", () => {
     const button = screen.getByRole("button", { name: /Import from this machine/ });
     fireEvent.click(button);
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    // The command block is REPLACED, not stacked beside the button: one move,
-    // said once.
     expect(document.querySelector("[data-import-command]")).not.toBeInTheDocument();
   });
 
@@ -441,7 +409,6 @@ describe("what state a credential is in", () => {
         "CREDENTIALS_KEY is not set.",
       ),
     );
-    // Still pressable: the reason it failed is usually one the operator can fix.
     expect(screen.getByRole("button", { name: /Import from this machine/ })).toBeEnabled();
   });
 
@@ -462,10 +429,8 @@ describe("what state a credential is in", () => {
   });
 
   it("says a freshly stored credential has not been tested yet, rather than nothing", () => {
-    // A PUT resets lastUsedAt / lastOkAt / lastError — what the old key proved
-    // says nothing about the new one — so this is the state of every card one
-    // second after Save. An empty verdict slot would read as a rendering gap;
-    // the hollow ring is the designed answer (docs/15 principle 2).
+    // A PUT resets lastUsedAt / lastOkAt / lastError, so this is the state of
+    // every card one second after Save.
     renderCard(
       status("dataforseo", DATAFORSEO_FIELDS, {
         source: "store",
@@ -473,24 +438,18 @@ describe("what state a credential is in", () => {
         updatedAt: iso(4000),
       }),
     );
-    // Saved is not proven: nobody has asked the provider yet.
     expect(screen.getByText("Not checked")).toBeInTheDocument();
     const verdict = document.querySelector('[data-verdict="stored-verdict"]');
     expect(verdict).toHaveAttribute("data-verdict-ok", "unknown");
     expect(verdict).toHaveTextContent("Not tested yet.");
-    // And the way to answer it is right there.
     expect(document.querySelector("[data-test-connection]")).not.toBeDisabled();
   });
 
   it("renders Not connected with Connect as its action, and offers no test", () => {
     renderCard(status("dataforseo", DATAFORSEO_FIELDS, {}));
     expect(screen.getByText("Not connected")).toBeInTheDocument();
-    // What you need is the form itself, one press away — never a second list
-    // restating its fields above it (bead `ro-ujb9.96.6.1`).
     expect(document.querySelector("[data-what-you-need]")).toBeNull();
     expect(document.querySelector("[data-connect-toggle]")).toHaveTextContent("Connect…");
-    // Nothing to test, and no connection to replace or disconnect, until
-    // something is stored.
     expect(document.querySelector("[data-test-connection]")).toBeDisabled();
     expect(document.querySelector("[data-connection-actions]")).toBeNull();
     expect(document.querySelector("[data-disconnect-open]")).toBeNull();
@@ -509,8 +468,6 @@ describe("what state a credential is in", () => {
       within(served as HTMLElement).getByRole("link", { name: /meals\.example/ }),
     ).toHaveAttribute("href", "/assets/meals.example/sources");
   });
-
-  // --- the property map the credential is handing back (bead `ro-90mr`) -----
 
   it("names each data source that is not mapped yet", () => {
     renderCard({
@@ -532,8 +489,6 @@ describe("what state a credential is in", () => {
     });
     const note = document.querySelector('[data-property-map="needed"]');
     expect(note).toHaveTextContent("2 data sources are not mapped yet");
-    // Each one links to the tab that fixes it — a count with no names is a card
-    // that says "go and look".
     expect(
       within(note as HTMLElement).getByRole("link", { name: /meals\.example/ }),
     ).toHaveAttribute("href", "/assets/meals.example/sources");
@@ -584,8 +539,6 @@ describe("what state a credential is in", () => {
   });
 });
 
-// --- what the notification channel carries (bead ro-vu8d.23) ---------------
-
 describe("the notification card says what will land in the channel", () => {
   const discordStatus = () =>
     status(
@@ -597,8 +550,6 @@ describe("the notification card says what will land in the channel", () => {
     );
 
   it("lists the sender's own declaration, so the card cannot over-promise", () => {
-    // The catalog row promised a digest, approvals-needed and kill-switch
-    // confirmations while nothing in the OS sent anything at all.
     renderCard(discordStatus());
     const block = document.querySelector("[data-what-lands]");
     expect(block).not.toBeNull();
@@ -607,7 +558,6 @@ describe("the notification card says what will land in the channel", () => {
         el.getAttribute("data-notified-condition"),
       ),
     ).toEqual(["open-error", "source-failing"]);
-    // The list is the whole of it: nothing beyond it is promised.
     expect(block).toHaveTextContent("What NoticeOS sends here");
     expect(document.querySelector("[data-notifications-blocked]")).toBeNull();
     expect(document.querySelector("[data-notifications-command]")).toBeNull();
@@ -618,8 +568,6 @@ describe("the notification card says what will land in the channel", () => {
     expect(document.querySelector("[data-what-lands]")).toBeNull();
   });
 });
-
-// --- what is left of a metered provider's budget (beads ro-vu8d.25, ro-qpas) -
 
 describe("a metered data source says how much budget is left today", () => {
   const meteredStatus = (
@@ -656,12 +604,9 @@ describe("a metered data source says how much budget is left today", () => {
   });
 
   it("prints what is left per asset, because the cap is per asset", () => {
-    // doc 14 flow C step 3's own example, finally rendered: the operator never
-    // wonders why a data source paused.
     renderCard(meteredStatus([{ asset: "meals.example", spent: 3 }]));
     const block = document.querySelector("[data-provider-meter]");
     expect(block).toHaveTextContent("7 of 10 calls left today");
-    // An asset that has spent nothing today still has its whole budget.
     expect(
       document.querySelector('[data-meter-line="nosh.example"]'),
     ).toHaveTextContent("10 of 10 calls left today");
@@ -669,15 +614,14 @@ describe("a metered data source says how much budget is left today", () => {
 
   it("lists only the assets that hold a key, because only they can spend", () => {
     renderCard(meteredStatus([]));
-    // fees.example declares the data source and has no token: a full bar beside it
-    // would read as budget it does not have.
+    // fees.example declares the data source and has no token: a full bar
+    // beside it would read as budget it does not have.
     expect(document.querySelector('[data-meter-line="fees.example"]')).toBeNull();
     expect(document.querySelectorAll("[data-meter-line]")).toHaveLength(2);
   });
 
   it("draws no account-credit line, because a daily call cap is not prepaid", () => {
-    // Bead `ro-qpas`: only a prepaid account has a credit to report, and an
-    // empty row here would invent one Clarity never states.
+    // Only a prepaid account has a credit to report.
     renderCard(meteredStatus([{ asset: "meals.example", spent: 3 }]));
     expect(document.querySelector("[data-account-credit]")).toBeNull();
   });
@@ -690,10 +634,8 @@ describe("a metered data source says how much budget is left today", () => {
   });
 
   it("shows nothing for a provider with no meter, and nothing with no reading", () => {
-    // An unmetered bar would read as a measured zero.
     renderCard(status("dataforseo", DATAFORSEO_FIELDS, { source: "store" }));
     expect(document.querySelector("[data-provider-meter]")).toBeNull();
-    // A store that could not answer costs this block and nothing else.
     renderCard(meteredStatus([], { meter: null }));
     expect(document.querySelector("[data-provider-meter]")).toBeNull();
   });
@@ -736,8 +678,7 @@ describe("the metered provider says how much of the month's cap is left", () => 
   });
 
   it("prints what is left of the portfolio's month, as one line", () => {
-    // Bead `ro-qpas`. The cap is portfolio-wide, so repeating the shape per
-    // asset would say the same thing five times against a cap none of them has.
+    // The cap is portfolio-wide, so it is not repeated per asset.
     renderCard(spendStatus({ spentUsd: 1.122_772, unknownPrices: 0 }));
     const block = document.querySelector("[data-provider-meter]");
     expect(block).toHaveTextContent("$23.88 of $25 left");
@@ -755,9 +696,8 @@ describe("the metered provider says how much of the month's cap is left", () => 
   });
 
   it("links the budget to where it is set, and says when a spent month resumes", () => {
-    // The cap is the operator's own setting and fails closed (bead
-    // `ro-ujb9.96.6.1`): the label goes to Settings, and a spent-out month
-    // wears the pause as a chip — never a paragraph under the bar.
+    // The cap is the operator's own setting and fails closed: the label goes
+    // to Settings, and a spent-out month wears the pause as a chip.
     const { unmount } = renderCard(spendStatus({ spentUsd: 1, unknownPrices: 0 }));
     expect(document.querySelector("[data-meter-cap-link]")).toHaveAttribute("href", "/settings#budget");
     expect(document.querySelector("[data-provider-meter]")).not.toHaveTextContent("Paused");
@@ -766,9 +706,8 @@ describe("the metered provider says how much of the month's cap is left", () => 
     expect(document.querySelector("[data-provider-meter]")).toHaveTextContent("Paused until Oct 1");
   });
 
-  it("prints the last-seen account credit with how old it is (bead `ro-qpas`)", () => {
-    // NEVER THE AMOUNT ALONE. The figure is a sighting, not a live reading, and
-    // an undated one would be read as what the account holds right now.
+  it("prints the last-seen account credit with how old it is", () => {
+    // The figure is a sighting, not a live reading, so it is never shown undated.
     renderCard(
       spendStatus({ spentUsd: 1, unknownPrices: 0 }, { usd: "18.72", seenAt: iso(2 * HOUR) }),
     );
@@ -776,12 +715,11 @@ describe("the metered provider says how much of the month's cap is left", () => 
     expect(credit).toHaveTextContent("Account credit");
     expect(credit).toHaveTextContent("$18.72");
     expect(credit).toHaveTextContent("seen 2h ago");
-    // The exact instant is on hover, like every other time on this desk.
     expect(credit).toHaveAttribute("title", iso(2 * HOUR));
     expect(credit).not.toHaveAttribute("data-account-credit-stale");
   });
 
-  it("prints the credit from the provider's own digits, never through a float (ro-ujb9.76.4.4)", () => {
+  it("prints the credit from the provider's own digits, never through a float", () => {
     // $1.005 is $1.01; the float 1.005 is 1.00499…, which rounds to $1.00.
     renderCard(spendStatus({ spentUsd: 1, unknownPrices: 0 }, { usd: "1.005", seenAt: iso(2 * HOUR) }));
     const credit = document.querySelector("[data-account-credit]");
@@ -789,10 +727,9 @@ describe("the metered provider says how much of the month's cap is left", () => 
     expect(credit).toHaveAttribute("data-account-credit", "1.005");
   });
 
-  it("says a sighting is too old to act on after two missed weekly refreshes (bead `ro-vu8d.27`)", () => {
-    // The weekly refresh is silent when refused, so an ageing number is the
-    // one an operator must not plan Monday's sweep on. The figure stays — hiding
-    // it would invent "no credit" — but the age carries the meaning now.
+  it("says a sighting is too old to act on after two missed weekly refreshes", () => {
+    // The weekly refresh is silent when refused. The figure stays (hiding it
+    // would invent "no credit"), but the age carries the meaning.
     renderCard(
       spendStatus({ spentUsd: 1, unknownPrices: 0 }, { usd: "18.72", seenAt: iso(15 * DAY) }),
     );
@@ -804,8 +741,7 @@ describe("the metered provider says how much of the month's cap is left", () => 
   });
 
   it("says plainly when no credit has been seen yet, rather than leaving it out", () => {
-    // An absent row would read as an account with no credit on it, which is the
-    // opposite of what is true: nobody has looked.
+    // An absent row would read as an account with no credit on it.
     renderCard(spendStatus({ spentUsd: 1, unknownPrices: 0 }));
     const credit = document.querySelector('[data-account-credit="none"]');
     expect(credit).toHaveTextContent("Account credit");
@@ -813,8 +749,6 @@ describe("the metered provider says how much of the month's cap is left", () => 
   });
 
   it("drops a sighting the card could only show undated", () => {
-    // A stored instant that will not parse is exactly the case where printing
-    // the number would print an undated one.
     renderCard(spendStatus({ spentUsd: 1, unknownPrices: 0 }, { usd: "18.72", seenAt: "this morning" }));
     expect(document.querySelector('[data-account-credit="none"]')).not.toBeNull();
     expect(document.querySelector("[data-provider-meter]")).not.toHaveTextContent("18.72");
@@ -830,16 +764,13 @@ describe("the metered provider says how much of the month's cap is left", () => 
   });
 
   it("draws nothing without a cap, or without a reading", () => {
-    // A cap of zero is a deployment that never set one; a full-width empty bar
-    // beside it would read as a measured ceiling.
+    // A cap of zero is a deployment that never set one.
     renderCard(spendStatus({ capUsd: 0 }));
     expect(document.querySelector("[data-provider-meter]")).toBeNull();
     renderCard(spendStatus(null));
     expect(document.querySelector("[data-provider-meter]")).toBeNull();
   });
 });
-
-// --- a per-asset credential's coverage (bead ro-vu8d.9) ---------------------
 
 describe("a per-asset credential says which assets it actually covers", () => {
   const clarityStatus = () =>
@@ -861,9 +792,7 @@ describe("a per-asset credential says which assets it actually covers", () => {
     );
 
   it("marks each asset held or waiting, in ONE list rather than two", () => {
-    // Partial coverage is the NORMAL state here — Clarity issues a token per
-    // project and an operator collects them one at a time — so the card has to
-    // say which of the assets it lists are actually covered.
+    // Partial coverage is the normal state: Clarity issues a token per project.
     renderCard(clarityStatus(), {
       assets: [
         { id: "meals.example", displayName: "meals.example", domain: "meals.example" },
@@ -880,8 +809,8 @@ describe("a per-asset credential says which assets it actually covers", () => {
       "data-asset-key",
       "missing",
     );
-    // A key stored for an asset nothing maps is NAMED, never hidden: it is a
-    // typo or an undeclared data source, and both are invisible otherwise.
+    // A key stored for an asset nothing maps is named, never hidden: it is a
+    // typo or an undeclared data source.
     expect(document.querySelector('[data-served-asset="stray.example"]')).toHaveAttribute(
       "data-asset-key",
       "set",
@@ -913,27 +842,18 @@ describe("a per-asset credential says which assets it actually covers", () => {
       }),
       assets: [{ id: "meals.example", lanes: ["clarity"] }],
     });
-    // The button says what it does — it checks which sites hold a key — so no
-    // sentence has to say what it does not do (bead `ro-ujb9.96.6.1`).
     const button = document.querySelector('[data-test-connection][data-test-cost="none"]');
     expect(button).toHaveTextContent("Check keys");
   });
 });
 
-// --- the form is the contract's, not a copy of it ---------------------------
-
 describe("the form is generated from the shipped schema", () => {
   it("draws an input for every field an operator can type, and none for the rest", () => {
-    // The point of bead `ro-vu8d.6`: `shared/integrations-page.ts` re-exports
-    // the contract rather than mirroring it, so a field added to a provider in
-    // `packages/contract` reaches this form with no edit in the Tower. This
-    // test is what makes that claim checkable — it walks the REAL catalog, so
-    // adding a field with no input fails here rather than shipping a form the
-    // operator cannot complete.
-    //
-    // A `managed` field is the exception, and it is asserted as one rather than
-    // skipped quietly: it is written by a FLOW (the Google sign-in), so a text
-    // box for it would invite somebody to paste something that cannot work.
+    // `shared/integrations-page.ts` re-exports the contract rather than
+    // mirroring it, so this walks the real catalog: adding a field with no
+    // input fails here. A `managed` field is the exception, asserted as one:
+    // it is written by a flow, so a text box for it would invite a paste that
+    // cannot work.
     expect(INTEGRATION_PROVIDERS.length).toBeGreaterThan(0);
     let managedSeen = 0;
 
@@ -945,17 +865,13 @@ describe("the form is generated from the shipped schema", () => {
         assets: [],
       });
       fireEvent.click(document.querySelector("[data-connect-toggle]") as HTMLElement);
-      // Where a value comes from is the field's own link, in the form — never
-      // a sentence under the input (bead `ro-ujb9.96.6.1`).
       const links = [...document.querySelectorAll<HTMLAnchorElement>("[data-provider-link]")].map((a) => a.href);
       for (const f of typed) {
         if (f.link) expect(links, `${shipped.id} should link ${f.name} to where it is issued`).toContain(f.link.url);
       }
       for (const f of shipped.fields) {
-        // An `asset-map` field is a GROUP of inputs — one per asset (bead
-        // `ro-vu8d.9`) — rather than a single control, so it is found by its
-        // group. It still has to be drawn and still has to declare its kind,
-        // which is what this walk is checking.
+        // An `asset-map` field is a group of inputs, one per asset, so it is
+        // found by its group.
         const input = document.querySelector(
           `[data-field="${f.name}"], [data-asset-map="${f.name}"]`,
         );
@@ -965,8 +881,6 @@ describe("the form is generated from the shipped schema", () => {
           continue;
         }
         expect(input, `${shipped.id} is missing an input for ${f.name}`).toBeInTheDocument();
-        // A secret field is masked or a textarea; it is never a readable text
-        // input, whatever the contract adds next.
         if (f.secret && f.kind === "password") {
           expect(input).toHaveAttribute("type", "password");
         }
@@ -974,16 +888,13 @@ describe("the form is generated from the shipped schema", () => {
       }
       unmount();
     }
-    // The rule above is only load-bearing while something exercises it.
     expect(managedSeen).toBeGreaterThan(0);
   });
 });
 
-// --- the form, one case per field kind --------------------------------------
-
 describe("the connect form is generated from the field schema", () => {
   /** The form: Connect… for a first connection, the connection's own Replace
-   * for a stored one (bead ro-ujb9.96.7.10). */
+   * for a stored one. */
   function openForm(s: IntegrationProviderStatus) {
     renderCard(s);
     fireEvent.click((document.querySelector("[data-connect-toggle]") ?? document.querySelector("[data-connection-replace]")) as HTMLElement);
@@ -1092,7 +1003,6 @@ describe("the connect form is generated from the field schema", () => {
     expect(
       document.querySelector('[data-field-error="GOOGLE_SIGNAL_ACCOUNTS"]'),
     ).toHaveTextContent("not valid JSON");
-    // A value the field knows is wrong never becomes a request.
     expect(api.save).not.toHaveBeenCalled();
   });
 
@@ -1143,10 +1053,9 @@ describe("the connect form is generated from the field schema", () => {
   });
 
   it("refuses a url field that is not an address, and names what one looks like", async () => {
-    // The commonest Discord mistake is copying the webhook's ID rather than the
-    // address behind Copy Webhook URL, so the refusal has to be more useful than
-    // "invalid" — and it has to land before the value leaves the browser
-    // (bead `ro-vu8d.18`).
+    // The commonest Discord mistake is copying the webhook's ID rather than
+    // the address behind Copy Webhook URL, so the refusal has to land before
+    // the value leaves the browser.
     api.save.mockResolvedValue(undefined);
     openForm(status("discord", [field({ name: "DISCORD_WEBHOOK_URL", kind: "url" })], {}));
     const input = document.querySelector('[data-field="DISCORD_WEBHOOK_URL"]') as HTMLElement;
@@ -1171,10 +1080,8 @@ describe("the connect form is generated from the field schema", () => {
   });
 
   it("draws one input per asset for a per-asset credential, and sends the whole map", async () => {
-    // Bead `ro-vu8d.9`. Clarity issues a token per project, so the form asks
-    // per asset rather than handing an operator a JSON box to write braces into
-    // around a secret. The asset ids are PRINTED, never typed — they come from
-    // the same merged list the card lists above.
+    // Clarity issues a token per project, so the form asks per asset. The
+    // asset ids are printed, never typed.
     api.save.mockResolvedValue(undefined);
     openForm(
       status(
@@ -1188,13 +1095,12 @@ describe("the connect form is generated from the field schema", () => {
         { scope: "per-asset" },
       ),
     );
-    // It opens EMPTY, like every other form here — the API returns no values.
     const mine = document.querySelector(
       '[data-asset-key-input="meals.example"]',
     ) as HTMLInputElement;
     expect(mine).toHaveValue("");
     expect(document.querySelector('[data-asset-key-input="nosh.example"]')).toBeInTheDocument();
-    // …and it says so, because a save replaces the map rather than merging.
+    // A save replaces the map rather than merging.
     expect(document.querySelector('[data-asset-map-replaces]')).toHaveTextContent(
       "Blank keys are removed on save",
     );
@@ -1277,8 +1183,6 @@ describe("the connect form is generated from the field schema", () => {
   });
 });
 
-// --- test and disconnect ----------------------------------------------------
-
 describe("testing a connection", () => {
   const connected = () =>
     status("dataforseo", DATAFORSEO_FIELDS, {
@@ -1307,7 +1211,6 @@ describe("testing a connection", () => {
       checkedAt: new Date(NOW - 5000).toISOString(),
     });
 
-    // A result and its values (bead ro-ujb9.96.6.19), never the ingest's sentence.
     await waitFor(() => {
       const verdict = document.querySelector('[data-verdict="probe-result"]');
       expect(verdict).toHaveAttribute("data-verdict-ok", "true");
@@ -1319,8 +1222,8 @@ describe("testing a connection", () => {
   });
 
   it("renders a failed probe as an answer, not as an error", async () => {
-    // ok:false is a 200 by contract — a wrong password is something the
-    // provider told us, and the operator needs the sentence, not a stack.
+    // ok:false is a 200 by contract: a wrong password is something the
+    // provider told us.
     api.test.mockResolvedValue({
       ok: false,
       message: "Refused",
@@ -1336,17 +1239,12 @@ describe("testing a connection", () => {
       expect(verdict).toHaveAttribute("data-verdict-ok", "false");
       expect(verdict).toHaveTextContent("Refused");
     });
-    // The one press that clears it, on the result itself.
     fireEvent.click(document.querySelector('[data-probe-fix="replace"]') as HTMLElement);
     expect(onReplace).toHaveBeenCalledTimes(1);
   });
 
-  // --- what the press will do, said first (bead `ro-vu8d.18`) ---------------
-
   it("keeps Test connection for a free probe, and names the message for one that reaches the channel", () => {
-    // Most providers make a cheap read-only call, which is what a Test button
-    // is assumed to be. The press that surprises is named on the button itself
-    // (bead `ro-ujb9.96.6.1`), before the press — no sentence beside it.
+    // The press that surprises is named on the button itself, before the press.
     const { unmount } = renderCard(
       status("dataforseo", DATAFORSEO_FIELDS, { source: "store" }),
     );
@@ -1361,8 +1259,6 @@ describe("testing a connection", () => {
       }),
       assets: [],
     });
-    // The operator's own channel is about to get a line in it; the button says
-    // so BEFORE the press, not the verdict afterwards.
     const button = document.querySelector('[data-test-connection][data-test-cost="side-effect"]');
     expect(button).toHaveTextContent("Send test message");
   });
@@ -1377,19 +1273,14 @@ describe("disconnecting", () => {
       [{ id: "meals.example", lanes: ["dataforseo"] }],
     );
 
-  // Bead ro-ujb9.96.7.10: on the connection itself, on every step, and asked
-  // once — naming the sites that stop and what is deleted, as values.
   it("sits on the connection, on every step, and names what stops before anything is removed", () => {
     renderCard(connected(), { guided: true });
-    // The first screen a connected provider opens on (Verify) carries it: no
-    // Settings step on the way.
     expect(screen.getByRole("button", { name: "Verify" })).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(screen.getByRole("button", { name: "Disconnect" }));
 
     const confirm = screen.getByRole("group", { name: "Disconnect dataforseo" });
     expect(within(confirm).getByRole("list", { name: "Sites that stop" })).toHaveTextContent("meals.example");
     expect(document.querySelector("[data-disconnect-effects]")).toHaveTextContent("Login deleted · no undo");
-    // No typed id: one press, which names the provider it removes.
     expect(confirm.querySelector("input")).toBeNull();
     expect(api.remove).not.toHaveBeenCalled();
 
@@ -1417,8 +1308,6 @@ describe("disconnecting", () => {
   });
 });
 
-// --- connecting in the panel (bead ro-ujb9.96.7.1) --------------------------
-
 describe("connecting in the panel", () => {
   const KEY_FIELD = field({ name: "BING_WEBMASTER_API_KEY", label: "API key", link: { url: "https://example.test/key", label: "Get a key" } });
   const CONNECT = { connect: { kind: "key" as const, credential: "api-key" as const } };
@@ -1433,17 +1322,14 @@ describe("connecting in the panel", () => {
     const row = document.querySelector<HTMLElement>('[data-integration-tile="bing-webmaster"]')!;
     fireEvent.click(within(row).getByRole("button", { name: "Connect bing-webmaster" }));
     const dialog = screen.getByRole("dialog", { name: "bing-webmaster" });
-    // No step, page change or "Choose assets" in between.
     expect(address()).toBe("/integrations");
     expect(document.querySelector("[data-provider-card]")).toBeNull();
 
     fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: "SEKRIT-row-key" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
     expect(api.connect).toHaveBeenCalledWith("bing-webmaster", { BING_WEBMASTER_API_KEY: "SEKRIT-row-key" });
-    // Saving without the provider's answer is not a thing this flow can do.
     expect(api.save).not.toHaveBeenCalled();
     expect(api.test).not.toHaveBeenCalled();
-    // Nothing is green while the provider is being asked.
     expect(within(dialog).getByRole("button", { name: "Checking" })).toBeDisabled();
     expect(row).toHaveAttribute("data-integration-status", "not-connected");
 
@@ -1474,8 +1360,6 @@ describe("connecting in the panel", () => {
     expect(screen.getByRole("dialog", { name: "bing-webmaster" })).toBeInTheDocument();
   });
 
-  // Bead ro-ujb9.96.7.10: a connected panel provider is managed on the
-  // connection itself — the panel, not a four-step page.
   const working = () => bing({ source: "store", fields: ["BING_WEBMASTER_API_KEY"], lastOkAt: iso(HOUR), lastUsedAt: iso(HOUR) });
   function manage() {
     renderPage(page([working()]));
@@ -1489,11 +1373,9 @@ describe("connecting in the panel", () => {
     const dialog = manage();
     expect(address()).toBe("/integrations");
     expect(document.querySelector("[data-provider-card]")).toBeNull();
-    // Its one status, in the panel's header.
     expect(dialog.querySelector('[data-status-for="integration:bing-webmaster"][data-connection]')).toHaveAttribute("data-connection", "key-accepted");
     expect(within(dialog).getByRole("button", { name: "Replace API key" })).toHaveAttribute("aria-pressed", "false");
     expect(within(dialog).getByRole("button", { name: "Disconnect" })).toBeEnabled();
-    // Nothing was asked of anyone by opening it.
     expect(api.connect).not.toHaveBeenCalled();
     expect(api.remove).not.toHaveBeenCalled();
   });
@@ -1503,16 +1385,13 @@ describe("connecting in the panel", () => {
     const dialog = manage();
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace API key" }));
     const key = within(dialog).getByLabelText("API key");
-    // It opens empty: nothing stored is ever shown back.
     expect(key).toHaveValue("");
     expect(key).toHaveFocus();
     fireEvent.change(key, { target: { value: "SEKRIT-new-key" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
-    // The tested save, never the untested one.
     expect(api.connect).toHaveBeenCalledWith("bing-webmaster", { BING_WEBMASTER_API_KEY: "SEKRIT-new-key" });
     expect(api.save).not.toHaveBeenCalled();
     await waitFor(() => expect(dialog.querySelector('[data-connect-state="accepted"]')).toHaveTextContent("Key accepted"));
-    // A rotation changes no site: the answer and Done, not the site list again.
     expect(dialog.querySelector('[data-connect-fact="sites"]')).toHaveTextContent("2");
     expect(dialog.querySelector("[data-site-picker]")).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Disconnect" })).toBeNull();
@@ -1528,7 +1407,6 @@ describe("connecting in the panel", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
     expect(await within(dialog).findByText("bing-webmaster refused this key")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("API key")).toHaveValue("");
-    // Nothing was removed or stored: the working key keeps collecting.
     expect(api.remove).not.toHaveBeenCalled();
     expect(api.save).not.toHaveBeenCalled();
   });
@@ -1544,7 +1422,6 @@ describe("connecting in the panel", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
 
-  // Bead ro-ujb9.96.7.9: Clarity's tokens are pasted per site, in the panel.
   it("connects Clarity in the panel: a token pasted on a site's row is saved at once, with no key form", async () => {
     api.siteToken.mockResolvedValue(undefined);
     const tokens = field({ name: "CLARITY_TOKENS", kind: "asset-map", label: "Project tokens" });
@@ -1558,7 +1435,6 @@ describe("connecting in the panel", () => {
       fireEvent.change(dialog.querySelector('[data-site-token-input="journey.example"]')!, { target: { value: "SEKRIT-clarity-token-0123456789" } });
     });
     expect(api.siteToken).toHaveBeenCalledWith("clarity", "journey.example", "SEKRIT-clarity-token-0123456789");
-    // Never the whole-map save that would replace another site's token.
     expect(api.save).not.toHaveBeenCalled();
     expect(api.connect).not.toHaveBeenCalled();
   });
@@ -1569,7 +1445,6 @@ describe("connecting in the panel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Replace API key" }));
     const dialog = screen.getByRole("dialog", { name: "bing-webmaster" });
     expect(within(dialog).getByLabelText("API key")).toHaveValue("");
-    // The page's own untested form never opens for it.
     expect(document.querySelector("[data-connect-form]")).toBeNull();
   });
 
@@ -1580,15 +1455,11 @@ describe("connecting in the panel", () => {
     fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: "SEKRIT-row-key" } });
     expect(within(dialog).getByRole("button", { name: "Connect" })).toBeDisabled();
     expect(document.querySelector('[data-blocker="key-missing"]')).not.toBeNull();
-    // The page's banner says why; the panel over it never says it again
-    // (bead ro-e70g — only a site's Data sources, with no banner, puts it in
-    // the panel).
+    // The page's banner says why; the panel over it never says it again.
     expect(document.querySelectorAll("[data-connect-blocked]")).toHaveLength(1);
     expect(dialog.querySelector("[data-connect-blocked]")).toBeNull();
   });
 });
-
-// --- the page itself --------------------------------------------------------
 
 describe("the page", () => {
   const stored = () =>
@@ -1599,11 +1470,6 @@ describe("the page", () => {
       lastUsedAt: iso(HOUR),
     });
 
-  /**
-   * ONE ROW PER PROVIDER, AND THE CARD IS THE ROW'S EVIDENCE (doc 14). The list
-   * says the state; "what you need" is setup instruction, and doc 14 puts it
-   * inside the expanded, unconnected provider rather than on the page.
-   */
   it("first run: every provider is one row saying Not connected", () => {
     renderPage(
       page([
@@ -1614,22 +1480,18 @@ describe("the page", () => {
 
     expect(document.querySelectorAll("[data-integration-tile]")).toHaveLength(2);
     expect(screen.getAllByText(/Not connected/)).toHaveLength(2);
-    // The page opens with its one answer (D44).
     expect(document.querySelector("[data-integrations-answer]")).toHaveTextContent("Nothing connected yet");
-    // Nothing is open, so no setup walkthrough is on the page.
     expect(document.querySelectorAll("[data-provider-card]")).toHaveLength(0);
     expect(document.querySelectorAll("[data-connect-form]")).toHaveLength(0);
 
-    // Opening one shows that provider's card, and only that one.
     const row = openRow("dataforseo");
     expect(row.querySelectorAll("[data-provider-card]")).toHaveLength(1);
     expect(row.querySelectorAll("[data-connect-toggle]")).toHaveLength(1);
     expect(document.querySelectorAll("[data-provider-card]")).toHaveLength(1);
   });
 
-  /** The audit measures the first screen against a block the page NAMES, and
-   * on this surface the answer is the list of providers, grouped by what each
-   * is for (bead `ro-ujb9.96.7.1`, mockup frame A1). */
+  /** The audit measures the first screen against a block the page names; here
+   * that is the list of providers, grouped by what each is for. */
   it("declares the grouped list as its hero", () => {
     renderPage(
       page([
@@ -1659,15 +1521,13 @@ describe("the page", () => {
     expect(accepted.textContent).toBe("dataforseoKey acceptedManage");
     const fresh = document.querySelector<HTMLElement>('[data-integration-tile="bing-webmaster"]')!;
     expect(fresh.textContent).toBe("bing-webmasterNot connectedConnect");
-    // No tooltip, summary or footer paragraph explains the states.
     expect(screen.queryByRole("button", { name: /About integration states/ })).toBeNull();
     expect(document.body.textContent).not.toMatch(/Connection saved|No recorded use|Ready to connect/);
   });
 
   it("asks once whether this deployment can import, and offers the button on every legacy card", async () => {
-    // The question is asked at PAGE level, not per card: it is a fact about the
-    // deployment, so four cards asking it would be four reads of one answer
-    // (bead `ro-vu8d.7`).
+    // The question is asked at page level, not per card: it is a fact about
+    // the deployment.
     api.importable.mockResolvedValue({ importable: true, reason: null });
     api.importEnv.mockResolvedValue({
       imported: [{ provider: "google", fields: ["GOOGLE_SIGNAL_ACCOUNTS"] }],
@@ -1718,9 +1578,7 @@ describe("the page", () => {
     expect(document.querySelector("[data-disconnect-open]")).not.toBeDisabled();
   });
 
-  it("says why Connect is off once on a provider's page: the banner, never again on the card (ro-ujb9.204)", () => {
-    // The banner is where the command that clears the blocker is, so it is
-    // where the reason lives; the card below it only keeps Connect disabled.
+  it("says why Connect is off once on a provider's page: the banner, never again on the card", () => {
     renderPage(
       page([status("dataforseo", DATAFORSEO_FIELDS, {})], {
         keyPresent: false,
@@ -1739,8 +1597,7 @@ describe("the page", () => {
   });
 
   it("keeps every provider listed while the bootstrap is incomplete", () => {
-    // A provider still reading its credential from the environment file is
-    // working, and the page says so rather than going blank on a setup step.
+    // A provider still reading its credential from the environment file is working.
     renderPage(
       page([status("google", [field({ name: "GOOGLE_SIGNAL_ACCOUNTS", kind: "json" })], {
         source: "env",
@@ -1748,7 +1605,6 @@ describe("the page", () => {
         lastUsedAt: iso(HOUR),
       })], { keyPresent: false, keyReason: "Set CREDENTIALS_KEY.", blockers: ["key-missing"] }),
     );
-    // Still listed, with the status its last use proved.
     expect(document.querySelector('[data-integration-tile="google"]')).toHaveAttribute("data-integration-status", "key-accepted");
     expect(
       openRow("google").querySelectorAll(
@@ -1760,8 +1616,8 @@ describe("the page", () => {
   it("carries no read-only deployment sentence anywhere — this surface always writes", () => {
     renderPage(page([stored()]));
     openRow("dataforseo");
-    // Credentials are STORE writes, so unlike every file-owned setting (D18)
-    // there is no 501 path and no deployment that renders this read-only.
+    // Credentials are store writes, so there is no 501 path and no deployment
+    // that renders this read-only.
     expect(document.body.textContent).not.toMatch(/deployment cannot save/i);
     expect(document.querySelector("[data-knob-read-only]")).toBeNull();
     expect(document.querySelector("[data-connection-replace]")).not.toBeDisabled();
@@ -1769,18 +1625,7 @@ describe("the page", () => {
   });
 });
 
-// --- signing in to Google (bead ro-vu8d.3) ----------------------------------
-
-/**
- * The Google card's second half, in the four states an operator meets it in.
- *
- * What each assertion protects is a different way of stranding somebody: a card
- * that offers a button before Google has been told this OS exists; a card that
- * offers one at an address Google will refuse; a card that goes on offering
- * setup after the connection is made; and a Disconnect that removes a
- * credential without saying it also reaches into the operator's own Google
- * account.
- */
+/** The Google card's second half, in the four states an operator meets it in. */
 describe("the Google card offers a sign-in", () => {
   const ORIGIN = "http://127.0.0.1:5173";
   const LAN = "http://192.168.1.20:5173";
@@ -1794,7 +1639,7 @@ describe("the Google card offers a sign-in", () => {
     account: "ops@example.test",
     auth: "oauth",
     properties: [
-      { lane: "ga4", ref: "412330001", label: "Meal Planner", detail: "Reindex Ventures" },
+      { lane: "ga4", ref: "412330001", label: "Meal Planner", detail: "Example Ventures" },
       { lane: "gsc", ref: "sc-domain:nosh.example", label: "sc-domain:nosh.example", detail: "siteOwner" },
     ],
   };
@@ -1847,7 +1692,6 @@ describe("the Google card offers a sign-in", () => {
     const panel = document.querySelector("[data-google-oauth]")!;
     expect(panel).toHaveAttribute("data-google-oauth", "app-missing");
     expect(document.querySelector("[data-oauth-console-steps]")).toBeInTheDocument();
-    // The one string that has to match on both sides, verbatim.
     expect(document.querySelector("[data-oauth-redirect-uri]")).toHaveTextContent(
       "http://127.0.0.1:5173/api/integrations/google/oauth/callback",
     );
@@ -1862,8 +1706,7 @@ describe("the Google card offers a sign-in", () => {
     const id = document.querySelector('[data-field="GOOGLE_OAUTH_CLIENT_ID"]')!;
     const secret = document.querySelector('[data-field="GOOGLE_OAUTH_CLIENT_SECRET"]')!;
     // The secret is masked; the client id is not, because Google publishes it
-    // to every browser that starts a sign-in and an operator has to be able to
-    // proof-read it against the console.
+    // to every browser that starts a sign-in.
     expect(secret).toHaveAttribute("type", "password");
     expect(id).toHaveAttribute("type", "text");
 
@@ -1885,13 +1728,11 @@ describe("the Google card offers a sign-in", () => {
       "data-google-oauth",
       "ready",
     );
-    // A LINK, not a fetch: the whole flow is a full-page trip to Google's
-    // consent screen and back. `asChild` merges the hook onto the anchor
-    // itself, so the element carrying it IS the link.
+    // A link, not a fetch: the whole flow is a full-page trip to Google's
+    // consent screen and back. `asChild` merges the hook onto the anchor itself.
     const start = document.querySelector("[data-oauth-start]")!;
     expect(start.tagName).toBe("A");
     expect(start).toHaveAttribute("href", GOOGLE_OAUTH_START_PATH);
-    // The service-account paste is still there. Nothing is being taken away.
     fireEvent.click(document.querySelector("[data-connect-toggle]") as HTMLElement);
     expect(
       document.querySelector('[data-field="GOOGLE_SIGNAL_ACCOUNTS"]'),
@@ -1939,16 +1780,13 @@ describe("the Google card offers a sign-in", () => {
 
   it("offers the loopback address as one press when Google will not return to this one", () => {
     // `os:up` binds the LAN by default and Google refuses every plain-http
-    // address that is not loopback, so this is the normal way to meet the wall.
+    // address that is not loopback.
     renderGoogle(googleStatus(), appStatus(true), LAN);
     expect(document.querySelector("[data-google-oauth]")).toHaveAttribute(
       "data-google-oauth",
       "redirect-unusable",
     );
-    // The state and the press — the same Tower on loopback, same port — never
-    // the rule behind them as a sentence (bead `ro-ujb9.96.6.1`).
     expect(document.querySelector("[data-oauth-redirect-blocked]")).toHaveTextContent("Google won't return to this address");
-    // The loopback address lands on Google's connect panel (bead ro-ujb9.96.7.7).
     expect(document.querySelector("[data-oauth-loopback]")).toHaveAttribute(
       "href",
       "http://127.0.0.1:5173/integrations?connect=google",
@@ -1985,12 +1823,10 @@ describe("the Google card offers a sign-in", () => {
     expect(document.querySelector("[data-oauth-account]")).toHaveTextContent(
       "Signed in as ops@example.test",
     );
-    // In words, never as scope URLs (doc 14 rule 8).
     const scopes = document.querySelector("[data-oauth-scopes]")!;
     expect(scopes).toHaveTextContent("Analytics — read only");
     expect(scopes).toHaveTextContent("Search Console — read only");
     expect(scopes.textContent).not.toContain("googleapis.com");
-    // The setup is done, so the card stops offering it.
     expect(document.querySelector("[data-oauth-console-steps]")).toBeNull();
   });
 
@@ -2018,7 +1854,6 @@ describe("the Google card offers a sign-in", () => {
     );
     const list = document.querySelector("[data-oauth-discovery]")!;
     expect(list).toHaveTextContent("Meal Planner");
-    // The GA4 ref an operator can match against Google's own UI.
     expect(list).toHaveTextContent("412330001");
     expect(list).toHaveTextContent("sc-domain:nosh.example");
     expect(document.querySelectorAll("[data-discovered]")).toHaveLength(2);
@@ -2043,8 +1878,6 @@ describe("the Google card offers a sign-in", () => {
       async () => ({ ...discovery, message: "0 GA4 properties and 0 sites.", properties: [] }),
     );
     fireEvent.click(document.querySelector("[data-oauth-discover]") as HTMLElement);
-    // Nothing visible is the wrong account: the count, and signing in as
-    // another one beside it.
     await waitFor(() =>
       expect(document.querySelector("[data-oauth-discovery-empty]")).toHaveTextContent(
         "0 Analytics properties · 0 Search Console sites",
@@ -2073,7 +1906,6 @@ describe("the Google card offers a sign-in", () => {
     expect(
       document.querySelector("[data-disconnect-confirm]"),
     ).toHaveTextContent("Google sign-in revoked");
-    // A sign-in is renewed by signing in again, never by pasting a secret.
     expect(document.querySelector("[data-connection-replace]")).toBeNull();
   });
 
@@ -2122,9 +1954,8 @@ describe("googleOAuthCardState", () => {
   };
 
   it("keeps saying connected from a browser Google would refuse to return to", () => {
-    // An operator connects once at the loopback address and then reads the card
-    // from the LAN like every other page. Being told the connection is
-    // impossible at that point would simply be false.
+    // An operator connects once at the loopback address and then reads the
+    // card from the LAN like every other page.
     const state = googleOAuthCardState(connected, app, "http://192.168.1.20:5173");
     expect(state.state).toBe("connected");
     expect(state.account).toBe("ops@example.test");
@@ -2163,15 +1994,13 @@ describe("coming back from Google", () => {
   });
 
   it("carries the one press that fixes a failure, as the toast's action", () => {
-    // What happened in a line, and the fix as a button (bead `ro-ujb9.96.6.1`).
     expect(googleOAuthNotice("redirect_unusable", "http://192.168.1.20:5173")?.action).toEqual({
       label: "Open on 127.0.0.1",
       href: "http://127.0.0.1:5173/integrations?connect=google",
       external: false,
     });
     expect(googleOAuthNotice("exchange_failed")?.action?.href).toBe("https://console.cloud.google.com/apis/credentials");
-    // Google not answering is not Google refusing: no console press, just
-    // try again (bead `ro-ujb9.96.6.25`).
+    // Google not answering is not Google refusing: no console press, just try again.
     expect(googleOAuthNotice("unreachable")).toEqual({ tone: "bad", message: "Google did not answer. Try again." });
     expect(googleOAuthNotice("no_refresh_token")?.action?.external).toBe(true);
     expect(googleOAuthNotice("denied")?.action).toBeUndefined();
@@ -2183,8 +2012,6 @@ describe("coming back from Google", () => {
     expect(notice?.message).not.toContain("<img");
   });
 });
-
-// --- /health still answers ---------------------------------------------------
 
 describe("/health kept everything that pointed at it", () => {
   function CurrentPath() {
@@ -2210,8 +2037,6 @@ describe("/health kept everything that pointed at it", () => {
     expect(paths).toContain("/integrations");
   });
 });
-
-// --- when it stops working (bead `ro-vu8d.8`, doc 14 flow C step 4) ---------
 
 describe("an expiring credential warns before it stops the collectors", () => {
   const DAY = 24 * 60 * 60 * 1000;
@@ -2241,13 +2066,12 @@ describe("an expiring credential warns before it stops the collectors", () => {
         expiry: { known: "operator" },
       }),
     });
-    // A date forty days out is provenance, not attention: the chip is drawn and
-    // reads the count, but nothing on the card is amber.
+    // A date forty days out is provenance, not attention.
     expect(container.querySelector("[data-expiry]")?.getAttribute("data-expiry")).toBe("ok");
     expect(screen.getByText("Expires in 40d")).toBeTruthy();
   });
 
-  it("turns warn-toned inside the fourteen-day window doc 14 named", () => {
+  it("turns warn-toned inside the fourteen-day window", () => {
     const { container } = renderCard({
       ...dated(9),
       provider: provider("dataforseo", DATAFORSEO_FIELDS, {
@@ -2256,8 +2080,8 @@ describe("an expiring credential warns before it stops the collectors", () => {
     });
     expect(container.querySelector("[data-expiry]")?.getAttribute("data-expiry")).toBe("warn");
     const chip = screen.getByText("Expires in 9d").closest("span")!;
-    // The warn token, never a colour of its own — an expiring credential is an
-    // ordinary warning and a rival scale would be a fourth severity.
+    // The warn token, never a colour of its own: a rival scale would be a
+    // fourth severity.
     expect(chip.parentElement?.className ?? "").toContain("warn");
   });
 
@@ -2270,15 +2094,14 @@ describe("an expiring credential warns before it stops the collectors", () => {
     });
     expect(container.querySelector("[data-expiry]")?.getAttribute("data-expiry")).toBe("expired");
     expect(screen.getByText("Expired")).toBeTruthy();
-    // The connection chip does not read Failing: nothing has FAILED yet, and
-    // the card must not invent a collector outcome it has no evidence for.
+    // Nothing has failed yet, so the connection chip does not read Failing.
     expect(screen.getByText("Not checked")).toBeTruthy();
     expect(screen.queryByText("Failing")).toBeNull();
   });
 
   it("shows 'No expiry date' where an expiry cannot be known, and offers no field for a guess", () => {
-    // The acceptance criterion of `ro-vu8d.8`: a provider whose expiry cannot be
-    // known says so rather than showing a fabricated date.
+    // A provider whose expiry cannot be known says so rather than showing a
+    // fabricated date.
     const { container } = renderCard(
       status(
         "calendar",
@@ -2289,7 +2112,6 @@ describe("an expiring credential warns before it stops the collectors", () => {
     expect(container.querySelector("[data-expiry]")?.getAttribute("data-expiry")).toBe("unstated");
     expect(container.querySelector("[data-expiry-value]")).toHaveTextContent("No expiry date");
     expect(container.querySelector("[data-expiry-edit]")).toBeNull();
-    // And no countdown at all — an absent chip, not a chip reading "unknown".
     expect(screen.queryByText(/^Expire/)).toBeNull();
   });
 
@@ -2343,9 +2165,8 @@ describe("an expiring credential warns before it stops the collectors", () => {
       { onSetExpiry: async (at) => void recorded.push(at) },
     );
 
-    // The assumption is STATED as a date with its fix beside it — Google
-    // publishes no API that says whether a consent screen is published, so the
-    // card shows the Testing date and the link that ends it.
+    // Google publishes no API that says whether a consent screen is published,
+    // so the card shows the Testing date and the link that ends it.
     expect(container.querySelector("[data-expiry-value]")).toHaveTextContent(new Date(NOW + 6 * DAY).toISOString().slice(0, 10));
     expect(screen.getByRole("link", { name: "Publish app" })).toHaveAttribute("href", "https://console.cloud.google.com/apis/credentials/consent");
     fireEvent.click(container.querySelector("[data-expiry-clear]")!);
@@ -2394,13 +2215,10 @@ describe("the sidebar points at an expiring credential without opening the page"
     );
     expect(rows.map((row) => row.provider)).toEqual(["bing-webmaster", "dataforseo"]);
     expect(expiringCredentialSeverity(rows)).toBe("error");
-    // Warn while nothing has passed yet: the severity scale, not a rival one.
     expect(expiringCredentialSeverity(rows.slice(1))).toBe("warn");
 
-    // ONE SENTENCE, wherever the dot appears (bead `ro-vu8d.19`). The sidebar
-    // entry and the small-screen bar that replaces it read it from here rather
-    // than composing their own — nobody compares two hovers, which is exactly
-    // why two spellings of one fact would survive.
+    // One sentence wherever the dot appears: the sidebar entry and the
+    // small-screen bar read it from here rather than composing their own.
     expect(expiringCredentialSummary(rows)).toBe(
       "2 credentials are expiring or expired",
     );
@@ -2410,8 +2228,6 @@ describe("the sidebar points at an expiring credential without opening the page"
     expect(expiringCredentialSummary([])).toBeNull();
   });
 });
-
-// --- a grant Google has stopped accepting (bead `ro-vu8d.14`) ---------------
 
 describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
   // The ingest's GOOGLE_OAUTH_REVOKED_MESSAGE, word for word.
@@ -2463,11 +2279,8 @@ describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
     expect(container.querySelector("[data-oauth-grant]")?.getAttribute("data-oauth-grant")).toBe(
       "revoked",
     );
-    // The identity survives, because it is what says WHICH account to sign back
-    // in as — it just stops wearing a tick.
+    // The identity survives, because it says which account to sign back in as.
     expect(screen.getByText(/ops@example\.test/)).toBeTruthy();
-    // And the verdict slot names the seven days rather than an enum or a
-    // network excuse, inside the failure budget; the ways out are presses.
     const verdict = container.querySelector('[data-verdict="stored-verdict"]');
     expect(verdict?.textContent).toContain("Testing-mode grants last 7 days");
     expect(REVOKED.split(/\s+/).length).toBeLessThanOrEqual(12);
@@ -2481,8 +2294,8 @@ describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
     });
     const restart = container.querySelector("[data-oauth-restart]")!;
     expect(restart.textContent).toContain("Sign in with Google again");
-    // Signing in again IS the fix for a sign-in, so nothing on the card offers
-    // a secret to paste in its place (bead ro-ujb9.96.7.10); Disconnect stays.
+    // Signing in again is the fix for a sign-in, so nothing on the card offers
+    // a secret to paste in its place; Disconnect stays.
     expect(container.querySelector("[data-connection-replace]")).toBeNull();
     expect(container.querySelector("[data-disconnect-open]")).not.toBeNull();
   });
@@ -2498,7 +2311,7 @@ describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
       }),
     );
     // When there is something to fix, the fix is not the same weight as Test
-    // connection (bead ro-vu8d.14): the default variant fills its surface.
+    // connection: the default variant fills its surface.
     expect(container.querySelector("[data-connection-replace]")?.className ?? "").toContain("bg-primary");
   });
 
@@ -2514,7 +2327,6 @@ describe("a revoked Google sign-in reads as broken, and the fix leads", () => {
       "Sign in again",
     );
     expect(screen.getByText(/Signed in as ops@example\.test/)).toBeTruthy();
-    // And Disconnect stays the quiet ghost it has always been.
     expect(container.querySelector("[data-disconnect-open]")?.className ?? "").not.toContain("bg-primary");
   });
 });
@@ -2565,11 +2377,8 @@ describe("integration discovery and guided setup", () => {
     renderCard(stored(), { guided: true });
     expect(screen.getByRole("button", { name: "Verify" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Test connection" })).toBeEnabled();
-    // No Settings step on the way to either (bead ro-ujb9.96.7.10).
     expect(document.querySelector("[data-disconnect-open]")).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Replace login" }));
-    // The replacement opens where it was asked for: the step stays put, and a
-    // save does not walk back through Choose sites.
     expect(screen.getByRole("button", { name: "Verify" })).toHaveAttribute("aria-pressed", "true");
     expect(screen.getByRole("button", { name: "Replace login" })).toHaveAttribute("aria-pressed", "true");
     const inputs = document.querySelectorAll<HTMLInputElement>('input[type="password"]');

@@ -1,10 +1,8 @@
-// A TEST'S CHANGES AND READBACK WINDOWS, ON POSTGRES (bead ro-ujb9.76.5.7).
-//
-// Changes (`noticeos.annotations`) and readback windows
-// (`noticeos.watch_windows`, their readings in `noticeos.watch_window_readings`)
-// live on Postgres. A test writes them as the application does, into the copy
-// a test opened with `createTestStore` (test/postgres-store.ts): it serves
-// this test alone.
+// A test's changes and readback windows. Changes (`noticeos.annotations`)
+// and readback windows (`noticeos.watch_windows`, their readings in
+// `noticeos.watch_window_readings`) are written as the application writes
+// them, into the copy a test opened with `createTestStore`
+// (test/postgres-store.ts): it serves this test alone.
 
 import type { WorkspaceStore } from "@noticeos/postgres";
 

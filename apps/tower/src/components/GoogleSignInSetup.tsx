@@ -42,24 +42,13 @@ type Upload =
   | { phase: "refused"; label: string };
 
 /**
- * GOOGLE, CONNECTED BY SIGNING IN (bead `ro-ujb9.96.7.7`; mockup frames
- * d-hosted, d-selfhost in docs/artifacts/ux-audit-2026-09-23/mockup/).
- *
- * `ConnectPanel`'s body for a provider that connects on its own consent screen.
- * Where the OAuth client is already there — hosted, the host's verified app —
- * it is one button: the two read-only grants as chips, and Continue with
- * Google. Where it is not — self-hosted — it is the one-time setup as three
- * presses into the Cloud console and one file: turn on the three APIs, create
- * a web client (this Tower's redirect address with Copy, at the top where it
- * is needed), and drop the `client_secret.json` Google hands back, whose two
- * values are stored and whose redirect list is checked against this address.
- * A self-hosted consent screen in Testing signs out after seven days: that is
- * a chip with Publish beside it. On an address Google will not return to, the
- * press is the loopback address instead.
- *
- * Registry justification: `ProviderCard`'s `GoogleSignIn` is the page's
- * five-step reference card with typed fields; the panel needed the same
- * sign-in as one screen and a file.
+ * `ConnectPanel`'s body for Google, which connects on its own consent screen.
+ * With the host's OAuth client it is one button. Self-hosted, it is the
+ * one-time setup: three console steps (the redirect address with Copy) and a
+ * dropped `client_secret.json` whose redirect list is checked against this
+ * address. A Testing consent screen signs out after seven days, so Publish
+ * sits beside that chip; on an address Google will not return to, the press
+ * uses the loopback address.
  */
 export function GoogleSignInSetup({ card, selfHosted, startHref, onStart, starting, publish, canConnect = true, onSaveClient }: GoogleSignInSetupProps) {
   const inputId = useId();

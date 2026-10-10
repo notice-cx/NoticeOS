@@ -8,9 +8,9 @@ import { formatTimestamp } from "../src/lib/format";
 import { MEDIAVINE_REPORTING_CLOCK } from "../shared/daily-revenue";
 import { seedRevenueHistory } from "./revenue-fixture";
 
-// D42: provider report days/readiness are independent of the saved operator
-// clock. Drive the ordinary standalone Worker against a disposable store:
-// Settings and ledger periods change without a rebuild, Mediavine days do not.
+// Provider report days and readiness are independent of the saved operator
+// clock: Settings and ledger periods change without a rebuild, Mediavine days
+// do not. Driven on the ordinary standalone Worker against a disposable store.
 
 // 2026-09-30 20:00 UTC is already 1 October on Kiritimati (UTC+14) and still the
 // morning of 30 September on Pago Pago (UTC−11): one instant, two different
@@ -84,8 +84,8 @@ function savedStore(savedZone: () => string): TowerEnv["INGEST"] {
 }
 
 let ctx: TestStore;
-/** This test's Postgres copy, where the config store's history lives (epic
- * ro-ujb9.76), or null where this run has no Postgres. */
+/** This test's Postgres copy, where the config store's history lives, or
+ * null where this run has no Postgres. */
 let pg: TestStore | null = null;
 const unavailable = postgresUnavailable();
 let zone = "Pacific/Kiritimati";
@@ -122,8 +122,7 @@ beforeEach(async () => {
   pg = ctx;
   // In both stores: the Worker reads the site list on Postgres (test/sites.ts).
   await addSites(ctx, [{ id: ASSET, displayName: "Sample", status: "live", senseOnly: 0, createdAt: NOW.toISOString() }]);
-  // Reports through 30 September: complete for both zones below (the money
-  // and the traffic on Postgres, beads ro-ujb9.76.5.5 and ro-ujb9.76.5.3).
+  // Reports through 30 September: complete for both zones below.
   if (pg) await seedRevenueHistory(pg.call, ASSET, NOW.toISOString(), "2026-09-30");
   env = { NOTICEOS_WORKSPACE_PROFILE: "standalone", INGEST: savedStore(() => zone), ...(pg ? { POSTGRES: { connectionString: pg.url } } : {}) };
 });
@@ -133,7 +132,7 @@ afterEach(async () => {
   pg = null;
 });
 
-describe("provider reporting days remain independent of Settings (D42, ro-ujb9.300)", () => {
+describe("provider reporting days remain independent of Settings", () => {
   it("keeps provider reports fixed while ledger periods and timestamps follow saved zones", async () => {
     // Soft, so one run names EVERY surface that did not follow, not just the first.
     const check = async (saved: string, expected: { month: string; timestamp: string }) => {
@@ -179,7 +178,7 @@ describe("provider reporting days remain independent of Settings (D42, ro-ujb9.3
   });
 });
 
-describe.skipIf(unavailable !== null)(`a clock nobody chose is offered from the browser (ro-ujb9.134)${unavailable === null ? "" : ` (skipped: no Postgres here, ${unavailable})`}`, () => {
+describe.skipIf(unavailable !== null)(`a clock nobody chose is offered from the browser${unavailable === null ? "" : ` (skipped: no Postgres here, ${unavailable})`}`, () => {
   const chosen = async () => (await read<{ clock: { chosen: boolean } }>("/api/settings")).clock.chosen;
   // The config store's history, as the ingest's writer records it
   // (workers/ingest/src/config-store.ts): the document's key, the ops, who.

@@ -17,14 +17,11 @@ import { storeChanges } from "./change-rows";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { addSites } from "./sites";
 
-// GET /api/alerts/history — the portfolio's settled alerts (bead `ro-ju7f`).
-//
-// Asserted against the REAL schema on a Postgres copy (bead ro-ujb9.76.5.2),
-// so the filters, the ordering, the paging window and the count all run the
-// SQL the Tower runs. The one thing these tests are really guarding is that a paged archive
-// stays HONEST: every row appears on exactly one page, the total describes the
-// filtered set rather than the page, and the rows say the same thing the asset
-// page's own history says about the same store.
+// GET /api/alerts/history, the portfolio's settled alerts, asserted against
+// the real schema on a Postgres copy. A paged archive stays honest: every row
+// appears on exactly one page, the total describes the filtered set rather
+// than the page, and the rows say the same thing the asset page's own history
+// says about the same store.
 
 const NOW = new Date("2026-09-04T12:00:00.000Z");
 const DAY = 86_400_000;
@@ -43,13 +40,12 @@ interface FlagSpec {
   disposition?: "ack" | "snooze" | "tune" | "incident" | "hypothesis" | null;
   dispositionAt?: string | null;
   dispositionNote?: string | null;
-  /** For `disposition: "snooze"` — when the condition returns (`ro-c7qq`). */
+  /** For `disposition: "snooze"`: when the condition returns. */
   snoozeUntil?: string | null;
   resolvedAt?: string | null;
 }
 
-/** A site in both of the test's stores (test/sites.ts): the page names sites
- * from the site list on Postgres. */
+/** A site in both of the test's stores (test/sites.ts). */
 async function insertAsset(
   raw: TestStore,
   id: string,
@@ -60,7 +56,7 @@ async function insertAsset(
   await addSites(raw, [{ id, domain, displayName, status: "live", senseOnly: 0, isOs, createdAt: "2026-07-01T00:00:00.000Z" }]);
 }
 
-/** One alert, on Postgres in the test's copy of its sites: its number. */
+/** One alert in the test's copy of its sites: its number. */
 async function insertFlag(db: TestStore, spec: FlagSpec): Promise<number> {
   return storeAlert(db.call, {
     asset: spec.asset,
@@ -85,7 +81,7 @@ beforeEach(async () => {
   test = await createTestStore();
   await insertAsset(test, "meals.example", "meals.example", "Meal Planner");
   await insertAsset(test, "nosh.example", "nosh.example", "Nosh");
-  // The OS row with the owner's pre-rename stored name (bead ro-ujb9.77.10).
+  // The OS row with a stored name no payload shows.
   await insertAsset(test, "root-os", null, "ReindexOS", 1);
 });
 
@@ -107,8 +103,7 @@ describe("the settled-alert read", () => {
       disposition: "ack",
       dispositionAt: at(6),
     });
-    // Still open, and still open with a snooze that has nothing to do with
-    // this read: neither belongs in history.
+    // Still open, and still open with a snooze: neither belongs in history.
     await insertFlag(test, { asset: "meals.example", firedAt: at(2) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
@@ -119,7 +114,7 @@ describe("the settled-alert read", () => {
   });
 
   it("orders by when each row CLOSED, not when it fired", async () => {
-    // The row that fired FIRST closed LAST. Ordering by fired_at would invert
+    // The row that fired first closed last. Ordering by fired_at would invert
     // this list, and "what settled most recently" is the question the page asks.
     const old = await insertFlag(test, {
       asset: "meals.example",
@@ -146,13 +141,9 @@ describe("the settled-alert read", () => {
       disposition: "ack",
       dispositionAt: at(1),
     });
-    // Dispositioned before `disposition_at` existed: it has no closing time at
-    // all and orders by its firing rather than dropping out of the list.
-    //
-    // Deliberately NOT `tune` (bead `ro-van6`): a tuned alert is still OPEN —
-    // tuning the detector is not resolving the firing — so it belongs to the
-    // open queue rather than to this settled read, and using it here would
-    // assert the opposite of `worker/flag-scope.ts`.
+    // Dispositioned with no closing time at all: it orders by its firing
+    // rather than dropping out of the list. Deliberately not `tune`: a tuned
+    // alert is still open (`worker/flag-scope.ts`).
     const undated = await insertFlag(test, {
       asset: "nosh.example",
       firedAt: at(5),
@@ -167,14 +158,12 @@ describe("the settled-alert read", () => {
 
   it("names the asset each row belongs to, with its domain", async () => {
     await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
-    // Asset #0 has no domain — the row still names it rather than blanking.
     await insertFlag(test, { asset: "root-os", firedAt: at(6), resolvedAt: at(5) });
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
     expect(payload.rows.map((row) => row.asset)).toEqual([
       { id: "nosh.example", domain: "nosh.example", displayName: "Nosh" },
-      // The OS by the product's name, never its stored one.
       { id: "root-os", domain: null, displayName: "NoticeOS" },
     ]);
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
@@ -303,7 +292,6 @@ describe("the settled-alert read", () => {
 
   it("attaches the timeline changes that sit in the 48h before a row fired", async () => {
     const fired = at(5);
-    // Another asset's deploy in the same window must not travel with this row.
     await storeChanges(test.call, [
       { asset: "meals.example", at: at(5.5), kind: "deploy", ref: "abc1234", note: "shipped the new search page" },
       { asset: "nosh.example", at: at(5.5), kind: "deploy", ref: "def5678", note: "someone else shipped" },
@@ -321,7 +309,7 @@ describe("the settled-alert read", () => {
 
     const payload = await buildAlertHistoryPayload(test.call, query(), { now: NOW });
 
-    // History is the audit trail: one row per FIRING, aged from its own
+    // History is the audit trail: one row per firing, aged from its own
     // firing, never grouped the way an open condition is.
     expect(payload.rows[0]!.flag.occurrences).toBe(1);
     expect(payload.rows[0]!.flag.firstFiredAt).toBe(payload.rows[0]!.flag.firedAt);
@@ -348,8 +336,8 @@ describe("the query string", () => {
       malformed: null,
     });
     expect(parse("asset=all&severity=all").asset).toBeNull();
-    // An EMPTY param is absence, not a mistake: `?offset=` is what a form that
-    // cleared its field produces, and it means the first page.
+    // An empty param is absence, not a mistake: `?offset=` is what a form that
+    // cleared its field produces.
     expect(parse("offset=&limit=").malformed).toBeNull();
   });
 
@@ -361,9 +349,8 @@ describe("the query string", () => {
   });
 
   it("clamps a page size it can read", () => {
-    // A readable number that is out of range is still readable — the same
-    // distinction /api/financials draws between a month with no rows and a
-    // value that is not a month.
+    // A readable number that is out of range is still readable, the same
+    // distinction /api/financials draws.
     expect(parse("limit=100000")).toMatchObject({
       limit: ALERT_HISTORY_MAX_LIMIT,
       malformed: null,
@@ -374,15 +361,14 @@ describe("the query string", () => {
   });
 
   it("refuses a page param it cannot read, keeping the value verbatim", () => {
-    // Bead `ro-oefa`: dropping these silently answered page one, which looks
-    // exactly like the page a working link lands on.
+    // Dropping these silently would answer page one, which looks exactly like
+    // the page a working link lands on.
     expect(parse("limit=abc").malformed).toEqual({ param: "limit", value: "abc" });
     expect(parse("offset=-4").malformed).toEqual({ param: "offset", value: "-4" });
     expect(parse("offset=1e99").malformed).toEqual({ param: "offset", value: "1e99" });
     expect(parse("offset=2.5").malformed).toEqual({ param: "offset", value: "2.5" });
     // `offset` leads when both are wrong: it is the one a shared link carries.
     expect(parse("offset=nonsense&limit=-4").malformed?.param).toBe("offset");
-    // The defaults ride along, so the route can still count what it refuses.
     expect(parse("offset=nonsense")).toMatchObject({
       offset: 0,
       limit: ALERT_HISTORY_PAGE,
@@ -390,9 +376,8 @@ describe("the query string", () => {
   });
 
   it("asks the bad value again rather than serializing the default over it", () => {
-    // Without this the browser would never SEE the refusal: the client rebuilds
-    // its URL from the parsed query, so a clamped default here would turn the
-    // corrupted link back into a request for page one.
+    // The client rebuilds its URL from the parsed query, so a clamped default
+    // here would turn the corrupted link back into a request for page one.
     const search = alertHistoryQueryString(parse("offset=nonsense"));
 
     expect(new URLSearchParams(search).get("offset")).toBe("nonsense");
@@ -407,7 +392,6 @@ describe("how long an alert was open", () => {
     expect(
       alertOpenMs({ firstFiredAt: at(5), resolvedAt: null, dispositionAt: at(4) }),
     ).toBe(DAY);
-    // Resolution wins when a row carries both: it is the later, final word.
     expect(
       alertOpenMs({ firstFiredAt: at(5), resolvedAt: at(1), dispositionAt: at(4) }),
     ).toBe(4 * DAY);
@@ -453,9 +437,9 @@ describe("the route", () => {
   });
 
   it("refuses a page param it cannot read, naming how much there is", async () => {
-    // Bead `ro-oefa` — the answer /api/financials gives a malformed `?period=`,
-    // and the count is this route's `periods[]`: a corrupted link comes back
-    // with the size of the archive it was trying to page into.
+    // The same answer /api/financials gives a malformed `?period=`: a
+    // corrupted link comes back with the size of the archive it was trying to
+    // page into.
     await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
     await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
 
@@ -472,8 +456,6 @@ describe("the route", () => {
   });
 
   it("counts the FILTERED archive in the refusal, not the whole store", async () => {
-    // The number the reader is offered has to describe the list they were
-    // paging through, exactly as the financials refusal names the months.
     await insertFlag(test, { asset: "nosh.example", firedAt: at(4), resolvedAt: at(3) });
     await insertFlag(test, { asset: "meals.example", firedAt: at(9), resolvedAt: at(8) });
 
@@ -483,19 +465,9 @@ describe("the route", () => {
   });
 });
 
-/**
- * OPEN, SNOOZED, SETTLED — every alert is in exactly one (beads `ro-c7qq`,
- * `ro-ujb9.194`).
- *
- * This read's predicate was once `resolved_at IS NOT NULL OR disposition IS NOT
- * NULL`, which listed an EXPIRED snooze here and on the Open view at once. It
- * then became "everything not open", which fixed that and filed every ACTIVE
- * snooze here instead — with the ✓ of a finished thing, while the Open view
- * listed the same row under Snoozed, and "Settled · 7d" counted it. A snooze is
- * put off, not decided. The three states now live together in
- * `@noticeos/contract`'s `flag-open.ts`, and what these tests pin is that each
- * row is in exactly one of them at any instant.
- */
+/** Open, snoozed, settled: every alert is in exactly one at any instant. A
+ * snooze is put off, not decided. The three states live together in
+ * `@noticeos/contract`'s `flag-open.ts`. */
 describe("a snoozed alert is in exactly one list", () => {
   const settledIds = async (now: Date): Promise<number[]> =>
     (
@@ -503,16 +475,12 @@ describe("a snoozed alert is in exactly one list", () => {
     ).rows.map((row) => row.flag.id);
 
   it("leaves an ACTIVE snooze out — it is parked, not settled", async () => {
-    // Bead `ro-ujb9.194` replaced "counts an ACTIVE snooze as settled": the
-    // row it listed here was also under Open's Snoozed panel, and it came back
-    // on its date as if nobody had settled anything — because nobody had.
     await insertFlag(test, {
       asset: "meals.example",
       firedAt: at(9),
       disposition: "snooze",
       dispositionAt: at(2),
       dispositionNote: "Snoozed by operator",
-      // Four days after NOW.
       snoozeUntil: new Date(NOW.getTime() + 4 * DAY).toISOString(),
     });
 
@@ -531,8 +499,8 @@ describe("a snoozed alert is in exactly one list", () => {
       snoozeUntil: at(1), // yesterday
     });
 
-    // The same row the Wall's attention rail now carries again. Listing it here
-    // as well would put one alert on two pages that contradict each other.
+    // The same row the Wall's attention rail carries: listing it here as well
+    // would put one alert on two pages that contradict each other.
     expect(await settledIds(NOW)).toEqual([]);
   });
 
@@ -557,8 +525,8 @@ describe("a snoozed alert is in exactly one list", () => {
     const hypothesis = await insertFlag(test, {
       asset: "meals.example", firedAt: at(7), disposition: "hypothesis", dispositionAt: at(6),
     });
-    // Parked, then fixed before its date: resolving is a decision that does not
-    // expire, whatever the row said before.
+    // Parked, then fixed before its date: resolving is a decision that does
+    // not expire.
     const parkedThenFixed = await insertFlag(test, {
       asset: "nosh.example", firedAt: at(6), disposition: "snooze", dispositionAt: at(5),
       snoozeUntil: new Date(NOW.getTime() + 4 * DAY).toISOString(), resolvedAt: at(4),
@@ -570,7 +538,7 @@ describe("a snoozed alert is in exactly one list", () => {
   });
 
   it("leaves a tuned alert out until it is settled another way", async () => {
-    // Tuning the rule is not answering the firing (bead `ro-van6`): open.
+    // Tuning the rule is not answering the firing: open.
     await insertFlag(test, { asset: "meals.example", firedAt: at(9), disposition: "tune", dispositionAt: at(8) });
     const tunedThenResolved = await insertFlag(test, {
       asset: "meals.example", firedAt: at(8), disposition: "tune", dispositionAt: at(7), resolvedAt: at(6),
@@ -580,7 +548,6 @@ describe("a snoozed alert is in exactly one list", () => {
   });
 
   it("puts every row in exactly one of open, snoozed and settled, at any instant", async () => {
-    // Every shape the store can hold, with dates on either side of NOW.
     const later = new Date(NOW.getTime() + 4 * DAY).toISOString();
     const shapes: FlagSpec[] = [];
     for (const disposition of [null, "ack", "snooze", "tune", "incident", "hypothesis"] as const) {
@@ -606,7 +573,6 @@ describe("a snoozed alert is in exactly one list", () => {
       const states = [open.includes(id), snoozed.includes(id), settled.includes(id)].filter(Boolean);
       expect(states, `flag ${id} ${JSON.stringify(shapes[index])}`).toHaveLength(1);
     });
-    // And the History read is the settled state, nothing more and nothing less.
     const history = await buildAlertHistoryPayload(
       test.call,
       query({ limit: ALERT_HISTORY_MAX_LIMIT }),
@@ -617,7 +583,7 @@ describe("a snoozed alert is in exactly one list", () => {
   });
 });
 
-describe("a settled outage reads back night by night (ro-ujb9.220)", () => {
+describe("a settled outage reads back night by night", () => {
   async function insertReading(db: TestStore, flagId: number, observedAt: string, error: string): Promise<void> {
     await storeReading(db.call, flagId, {
       observedAt,

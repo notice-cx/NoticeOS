@@ -84,9 +84,8 @@ function forgetFindingPreferences(preferences: ReturnType<typeof useOwnerPrefere
   }
 }
 
-/** Ranked archive findings plus the operator's reversible decisions about them.
- * The decisions live in the OS (db/0013), not in this browser; alert lifecycle
- * remains elsewhere and this list never mutates provider evidence. */
+/** Ranked archive findings plus the operator's reversible decisions about them,
+ * stored in the OS. This list never mutates provider evidence. */
 export function ExecutiveFindingsList({
   snapshot,
   recordedDecisions = [],
@@ -98,18 +97,14 @@ export function ExecutiveFindingsList({
   /** This asset's stored decisions (payload slice). A finding with no row
    * here has not been touched. */
   recordedDecisions?: AssetDecision[];
-  /** What the task hub holds for this asset (payload slice, bead `ro-248`).
-   * `null` means it could not be asked — no snapshot, not a spoke, or a poller
-   * one generation behind — and is why the absent case is never phrased as
-   * "nothing filed" anywhere in this list. */
+  /** What the task hub holds for this asset. `null` means it could not be
+   * asked, which is why absence is never phrased as "nothing filed". */
   handoffBeads?: HandoffBead[] | null;
-  /** Persist a decision. Optimistic: the list reorders immediately and rolls
-   * back if the write fails. Omitted in the component gallery, where there is
-   * no asset behind the demo snapshot. */
+  /** Persist a decision. Optimistic: the list reorders at once and rolls back
+   * if the write fails. Omitted in the component gallery. */
   onDecide?: FindingDecisionWriter;
-  /** Open the asset page's outcome-check composer, seeded from one finding
-   * (bead `ro-5e8.5`). Absent — the gallery — renders no action, rather than a
-   * button with no composer behind it. */
+  /** Open the asset page's outcome-check composer, seeded from one finding.
+   * Absent, no action renders. */
   onWatch?: (seed: WatchSeed) => void;
 }) {
   const demoReadonly = useDemoReadonly();
@@ -134,9 +129,8 @@ export function ExecutiveFindingsList({
   const decisionOf = (key: string): FindingDecision | null =>
     key in local ? (local[key] ?? null) : (stored.get(key) ?? null);
 
-  // The register's answer for these same keys. Filtered to `finding` because a
-  // query decision's key is a normalized search query, and a rule id that
-  // happened to equal one would otherwise borrow its bead.
+  // Filtered to `finding`: a query decision's key is a normalized search
+  // query, and a rule id equal to one would otherwise borrow its task.
   const filed = new Map(
     (handoffBeads ?? [])
       .filter((entry) => entry.kind === "finding")
@@ -144,10 +138,8 @@ export function ExecutiveFindingsList({
   );
   const beadOf = (key: string): HandoffBead | null => filed.get(key) ?? null;
 
-  // One-time lift of the per-device preferences this list used to keep. It runs
-  // only when the OS holds nothing for this asset, so a device that already
-  // synced never overwrites the shared state — and it stays silent, because the
-  // operator did not ask for a migration.
+  // Lifts browser-stored decisions into the OS once, only when the OS holds
+  // nothing for this asset, so a synced device never overwrites shared state.
   useEffect(() => {
     if (demoReadonly || migrated.current || !onDecide) return;
     migrated.current = true;
@@ -207,8 +199,7 @@ export function ExecutiveFindingsList({
     decide(key, decisionOf(key) === "marked" ? null : "marked");
   }
 
-  // Reversible by construction, and SHOWN to be: the dismissal answers with an
-  // Undo rather than a sentence promising one (bead `ro-ujb9.96.6.8`).
+  // Reversible, and shown to be: the dismissal answers with Undo.
   function dismissFinding(key: string) {
     if (demoReadonly) return;
     decide(key, "dismissed");
@@ -304,17 +295,9 @@ export function ExecutiveFindingsList({
   );
 }
 
-/** What the eight-card cut dropped (bead `ro-wwm`). The producer already names
- * every dropped card in `suppressedItems` — the OS may decide not to *show* a
- * finding but never not to *mention* it — and this is where the Tower keeps
- * that promise.
- *
- * A count and a reveal, not a second list. The cap is a display and attention
- * decision, so the answer to it is disclosure, not a longer wall of cards:
- * closed, this is one quiet line; opened, it is titles and their kind dot and
- * nothing else. These carry no evidence, no window, and no mark/dismiss
- * controls, because they are mentions. The summary says where the line was
- * drawn ("below the top 8"); the titles themselves show nothing was lost. */
+/** What the eight-card cut dropped, from the producer's `suppressedItems`: the
+ * OS may decide not to show a finding but never not to mention it. A count and
+ * a reveal of titles only, since these are mentions, not a second list. */
 function SuppressedFindings({
   items,
   shown,
@@ -356,12 +339,8 @@ function SuppressedFindings({
 }
 
 /**
- * THE RANKED LIST, GROUPED BY KIND (bead `ro-ujb9.96.6.8`). The order was
- * already marked-first, then kind, then the producer's rank; the headings make
- * that order visible and carry each kind's count, so neither a separate count
- * strip nor a kind word on every row is needed. The rank runs on unbroken
- * across the groups, because it is still one ranked list. Empty kinds render
- * nothing.
+ * The ranked list grouped by kind (marked first, then kind, then rank); the
+ * headings carry each kind's count. The rank runs unbroken across groups.
  */
 function FindingGroups({
   items,

@@ -4,8 +4,8 @@ import { EmptyState } from "@/components/EmptyState";
 import { Button } from "@/components/ui/button";
 
 // --- what the asset page shows instead of an asset -------------------------
-// A detail read that failed is the desk's shared `ReadFailed` (bead
-// `ro-ujb9.218`); the id that matched nothing is this page's own.
+// A detail read that failed is the desk's shared `ReadFailed`; the id that
+// matched nothing is this page's own.
 
 // --- unknown asset ---------------------------------------------------------
 /** The id that matched nothing, and the way back as a button rather than an

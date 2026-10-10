@@ -1,30 +1,10 @@
-// Where the Tower's settings come from, per request (epic `ro-syok`, db/0029).
-//
-// UNTIL NOW THEY CAME FROM THE BUNDLE. `apps/tower/vite.config.ts` reads twelve
-// config files at build time and injects them with `define`, which is why a
-// deployed Tower could render a setting and never save one: config is
-// version-controlled files (docs/06) and a Worker has no filesystem. The store
-// now holds each of those files as a whole JSON document, and this module is
-// what asks for them.
-//
-// STORE FIRST, BUNDLE SECOND, ALWAYS AN ANSWER. Every value below resolves from
-// the stored document when there is one and from the compiled copy when there is
-// not — so an install that has applied the migration and never seeded behaves
-// exactly as it did before, and one whose store is unreachable renders the page
-// instead of an error. `sources` says which of the two answered, per file, so
-// the Settings page can tell the operator where a value came from rather than
-// leaving them to guess which OS they are looking at.
-//
-// A STORED DOCUMENT IS UNTRUSTED SHAPE. It was written through the validating
-// pipeline, but it is a row rather than a compiled constant, and a page that
-// went blank because one document lost a key would be a worse failure than a
-// stale value. So every reader below is total: it takes the document, and
-// answers the compiled copy the moment the shape is not what it needs.
-//
-// ONE ROUND TRIP. The ingest reads all twelve in one RPC, and this resolves them
-// once per request — see `towerConfig` at the bottom, which memoizes for the
-// life of a request so eleven routes reading the same document do not become
-// eleven reads.
+// Where the Tower's settings come from, per request. Store first, bundle
+// second, always an answer: every value resolves from the stored document
+// when there is one and from the compiled copy (`vite.config.ts` `define`)
+// when there is not, and `sources` says which answered, per file. A stored
+// document is untrusted shape, so every reader below is total and answers the
+// compiled copy the moment the shape is not what it needs. The ingest reads
+// every document in one RPC, resolved once per request (`towerConfigResolver`).
 
 import type {
   Ga4EventParamsConfig,
@@ -71,13 +51,10 @@ export interface TowerConfigFallbacks {
   operatorRateUsdPerMin: number;
   osTimeZone: string;
   /** The assets declared as sending no nightly report (config/constants.json
-   * `no_nightly_report`, bead `ro-ujb9.96.8`); null or absent when none has
-   * ever been declared — the key is absent, so the first declaration creates
-   * it. Optional so a caller with nothing to declare need not say so. */
+   * `no_nightly_report`); null or absent when none has ever been declared. */
   noNightlyReport?: string[] | null;
-  /** The saved job schedules (config/constants.json `schedules`, bead
-   * `ro-ujb9.96.7.12`), verbatim; null or absent when none has been saved.
-   * Optional for the same reason as `noNightlyReport`. */
+  /** The saved job schedules (config/constants.json `schedules`), verbatim;
+   * null or absent when none has been saved. */
   schedules?: ScheduleOverrides | null;
   pullConfig: PullConfigEntry[];
   integrations: IntegrationsConfig;
@@ -151,8 +128,7 @@ export async function resolveTowerConfig(
       storeAvailable = true;
       storeFailure = null;
     } catch {
-      // The ingest not answering is its own visible condition; a settings page
-      // that went blank over it would be a worse failure than a stale value.
+      // The ingest not answering is its own visible condition; the page renders.
       reads = [];
     }
   }
@@ -167,40 +143,31 @@ export async function resolveTowerConfig(
 
   const constants = stored.get(TOWER_CONFIG_FILES.constants);
   const caps = container(constants, "monthly_caps");
-  // A document seeded before 2026-09-05 still carries `inference_usd` beside
-  // `data_usd` (D6, bead `ro-uj7x`). Reading only what is read keeps that store
-  // copy usable — an unknown key is ignored, never a reason to fall back.
+  // An unknown key (an older document's `inference_usd`) is ignored, never a
+  // reason to fall back.
   const monthlyCaps =
     caps !== null && typeof caps.data_usd === "number"
       ? { dataUsd: caps.data_usd }
       : fallbacks.monthlyCaps;
-  // Per key, like the cap and the rate beside it and like the ingest's own
-  // detector (`ruleConfigFromConstants`): a saved rule set that lacks a key
-  // shows — and runs on — the compiled one, and its Save creates the key
-  // (bead `ro-dk4u`).
+  // Per key, like the ingest's own detector (`ruleConfigFromConstants`): a
+  // saved rule set that lacks a key shows and runs on the compiled one, and
+  // its Save creates the key.
   const storedFlagDefaults = container(constants, "flag_defaults") as Record<string, number | string> | null;
   const flagDefaults = { ...fallbacks.flagDefaults, ...storedFlagDefaults };
   const rate = isObject(constants) ? constants.operator_rate_usd_per_min : undefined;
   const operatorRateUsdPerMin =
     typeof rate === "number" ? rate : fallbacks.operatorRateUsdPerMin;
-  // The operator's clock, through the one store-first read every day-boundary
-  // reader shares (bead `ro-ujb9.88`) — the ingest resolves its zone with the
-  // same function, so the two Workers cannot disagree about which day it is.
-  // `vite.config.ts` validates the compiled zone at BUILD time; a stored one has
-  // no build to fail, so a zone `Intl` cannot resolve falls back to the
-  // compiled copy rather than quietly moving every boundary to UTC.
+  // The operator's clock, through the one store-first read the ingest shares.
+  // A stored zone `Intl` cannot resolve falls back to the compiled copy rather
+  // than quietly moving every boundary to UTC.
   const osTimeZone = savedOsTimeZone(constants, fallbacks.osTimeZone);
-  // A SAVED constants document answers for itself, key absent included: absent
-  // there means nobody has declared, not "ask the build". Only an unseeded
-  // store falls back to the compiled copy — the ingest's own rule, so the two
-  // Workers count the same assets as owing a report.
+  // A saved constants document answers for itself, key absent included; only
+  // an unseeded store falls back to the compiled copy. The ingest's own rule.
   const noNightlyReport =
     constants === undefined ? (fallbacks.noNightlyReport ?? null) : noNightlyReportAssets(constants);
-  // The same rule for the saved schedules (bead `ro-ujb9.96.7.12`): a saved
-  // constants document answers for itself, key absent included. Passed through
-  // VERBATIM — a schedule save is guarded by exactly this object — and only its
-  // container shape is checked; what each entry may hold is the write door's
-  // `schedulesRefusal`, which every save runs.
+  // The same rule for the saved schedules, passed through verbatim because a
+  // schedule save is guarded by exactly this object; what each entry may hold
+  // is the write door's `schedulesRefusal`.
   const schedules =
     constants === undefined
       ? (fallbacks.schedules ?? null)
@@ -221,18 +188,15 @@ export async function resolveTowerConfig(
 
   const countersDoc = stored.get(TOWER_CONFIG_FILES.counters);
   const counterAssets = container(countersDoc, "assets");
-  // How often the cards are read is the counters job's schedule, above — not
-  // this document (bead ro-ujb9.222).
+  // How often the cards are read is the counters job's schedule, not this document.
   const counters =
     counterAssets !== null
       ? ({ assets: counterAssets } as unknown as CountersConfig)
       : fallbacks.counters;
 
-  // Read part by part (bead `ro-trai.45`): a saved part the Tower cannot read
-  // is left out and NAMED in `dashboard.refused`, with the value as stored, so
-  // the TV draws the default in its place and the editor says so and guards on
-  // what the store holds. Only a document that is not an object at all falls
-  // back to the compiled copy.
+  // Read part by part: a saved part the Tower cannot read is left out and
+  // named in `dashboard.refused`, with the value as stored. Only a document
+  // that is not an object at all falls back to the compiled copy.
   const dashboardDoc = stored.get(TOWER_CONFIG_FILES.dashboard);
   let dashboard = fallbacks.dashboard;
   if (dashboardDoc !== undefined) {
@@ -277,21 +241,17 @@ export async function resolveTowerConfig(
   const costs = list(stored.get(TOWER_CONFIG_FILES.recurringCosts), "costs");
   const recurringCosts = costs === null ? fallbacks.recurringCosts : (costs as RecurringCost[]);
 
-  // An EMPTY list is a real answer here and the compiled copy's own value: no
-  // entity is declared until somebody declares one. So the fallback is taken
-  // only when the container is not a list at all, never when it is short.
+  // An empty list is a real answer; the fallback is taken only when the
+  // container is not a list at all.
   const declared = list(stored.get(TOWER_CONFIG_FILES.entities), "entities");
   const entities = declared === null ? fallbacks.entities : (declared as EntityRow[]);
 
-  // THE HUB CONNECTION IS NOT CARRIED FORWARD FROM THE STORE. `vite.config.ts`
-  // strips `/hub` from a BUILD because it is this machine's internal topology,
-  // and a stored document must not be the way it gets out. So the spokes may
-  // come from the store and the connection is always the compiled answer, which
-  // is `null` in a deployed bundle by construction.
-  //
-  // The key is reached through a type rather than a string literal because
-  // `scripts/ui-lexicon.test.mjs` reads quoted words in shipped Worker code as
-  // operator copy, and this one is a JSON key in a config file (doc 14 rule 8).
+  // The hub connection is not carried forward from the store: it is this
+  // machine's internal topology, stripped from a build by `vite.config.ts`,
+  // so the projects may come from the store and the connection is always the
+  // compiled answer. The key is reached through a type rather than a string
+  // literal because `scripts/ui-lexicon.test.mjs` reads quoted words in
+  // shipped Worker code as operator copy.
   const beadsDoc = stored.get(TOWER_CONFIG_FILES.beads);
   const storedSpokes = isObject(beadsDoc)
     ? (beadsDoc as { spokes?: unknown }).spokes
@@ -328,11 +288,7 @@ export async function resolveTowerConfig(
   };
 }
 
-/**
- * One resolver per request. Eleven routes read the same documents; without this
- * a page load would be eleven RPC hops and eleven store reads for a set of rows
- * an operator changes a few times a week.
- */
+/** One resolver per request, so routes reading the same documents share one read. */
 export function towerConfigResolver(
   ingest: Pick<ConfigDocumentReader, "getConfigDocuments"> | null | undefined,
   fallbacks: TowerConfigFallbacks,
@@ -345,16 +301,11 @@ export function towerConfigResolver(
 }
 
 /**
- * HAS A SAVE EVER SET THE CLOCK? (bead `ro-ujb9.134`) The config change record
- * (`config_changes`, on Postgres since bead ro-ujb9.76.4.1) holds every
- * applied op, so a Settings save of the zone — or its Undo, which is a
- * decision too — is a row of the `constants` document whose ops name
- * `/os_time_zone`. A seed is recorded as a `document-seed` op with no pointer,
- * so a new installation's first seed does not count.
- *
- * Total like every reader here: a store that cannot answer is "unknown", which
- * the caller treats as chosen, so a first run never proposes a clock on a
- * guess.
+ * Has a save ever set the clock? The config change record (`config_changes`)
+ * holds every applied op, so a Settings save of the zone — or its Undo — is a
+ * row of the `constants` document whose ops name `/os_time_zone`. A seed is a
+ * `document-seed` op with no pointer, so it does not count. A store that
+ * cannot answer is "unknown", which the caller treats as chosen.
  */
 export async function timeZoneEverSaved(store: WorkspaceStore): Promise<boolean | null> {
   const key = configDocumentKey(TOWER_CONFIG_FILES.constants);

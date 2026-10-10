@@ -28,8 +28,8 @@ export const PALETTE_RECENT_KEY = storageKey(PALETTE_RECENT_NAME);
 const RECENT_LIMIT = 5;
 
 /**
- * A bead id as the operator types it: `ro-d298`, `ro-pbzu.1`. Two to four
- * letters of repo prefix, then digits, letters and dots.
+ * A task id as the operator types it, e.g. `abc-12x` or `abc-12x.1`: two to
+ * four letters of prefix, then digits, letters and dots.
  */
 const BEAD_ID = /^[a-z]{2,4}-[a-z0-9.]+$/;
 
@@ -50,8 +50,8 @@ function readRecent(preferences: ReturnType<typeof useOwnerPreferences>): string
     if (!Array.isArray(parsed)) return [];
     return parsed.filter((v): v is string => typeof v === "string").slice(0, RECENT_LIMIT);
   } catch {
-    // A private window, a cleared store, or JSON somebody hand-edited. Recents
-    // are a convenience; losing them is not an error worth showing anyone.
+    // A private window, a cleared store or hand-edited JSON: recents are a
+    // convenience, and losing them is not an error worth showing.
     return [];
   }
 }
@@ -69,14 +69,13 @@ export interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /**
    * `/dev/kitchen-sink` only: render the box in place, with no portal and no
-   * backdrop, so the gallery can show the list beside the shell's own palette.
-   * (The ⌘K binding is not this component's: the shell owns it, so the
-   * shortcut works before this file has been downloaded — bead `ro-ujb9.84`.)
+   * backdrop. The ⌘K binding belongs to the shell, so it works before this
+   * file is downloaded.
    */
   inline?: boolean;
   /**
-   * `/dev/kitchen-sink` only: the assets to list. Passing them also keeps the
-   * gallery off `useWall` entirely — the demo shows a fixture, not the store.
+   * `/dev/kitchen-sink` only: the assets to list, which also keeps the gallery
+   * off `useWall`.
    */
   assets?: AssetCard[];
   /** `/dev/kitchen-sink` only: the query the demo opens with. */
@@ -84,27 +83,10 @@ export interface CommandPaletteProps {
 }
 
 /**
- * Go-to-anything for the desk (bead `ro-d298`).
- *
- * [doc 10](../../../docs/10-control-tower.md) principle 4 has named a ⌘K
- * command palette since the Tower was a sketch. Alongside the sidebar,
- * it is the affordance a keyboard operator reaches for first, and
- * the one they reach for most is an asset — which is why assets are a group
- * here rather than a later phase.
- *
- * Scope is NAVIGATION, and only navigation: it moves the operator, it never
- * acts for them. Running commands from the palette (approve, snooze, file) is
- * doc 16's flow L — a larger thing that needs a verb vocabulary and a
- * confirmation story. What ships here is the half that is pure win.
- *
- * `AppShell` mounts it, so it exists on every desk page and on none of `/wall`:
- * the television renders outside the shell, has no keyboard, and stays
- * read-only by construction.
- *
- * IT IS FETCHED ON FIRST OPEN (bead `ro-ujb9.84`): the shell holds the ⌘K
- * binding and the Search button, and draws this — through
- * `lib/palette-launch.tsx` — the first time either is used, so no desk page
- * downloads cmdk before somebody asks for it.
+ * Go-to-anything for the desk. Navigation only: it moves the operator and never
+ * acts for them. `AppShell` mounts it on every desk page and never on `/wall`,
+ * and fetches it on first open (`lib/palette-launch.tsx`) so no page downloads
+ * cmdk before somebody asks for it.
  */
 export function CommandPalette({
   open,
@@ -155,11 +137,9 @@ interface BodyProps {
 }
 
 /**
- * The wall read, in its own component on purpose: the shell mounts the palette
- * on every desk page, and a palette nobody has opened must not start a poll.
- * `CommandDialog` renders nothing while closed, so this never mounts until the
- * box is on screen — and the gallery, which hands its own fixture in, never
- * mounts it at all.
+ * The wall read, in its own component so a palette nobody has opened never
+ * starts a poll: `CommandDialog` renders nothing while closed, and the gallery
+ * passes its own fixture and never mounts this.
  */
 function LivePaletteBody(props: BodyProps) {
   const wall = useWall();
@@ -204,10 +184,8 @@ function PaletteBody({
   );
 
   const trimmed = query.trim();
-  // Recents answer "take me back", which is only a question while the operator
-  // has not started typing. Once they do, cmdk's scoring is the better answer
-  // and a duplicate row above it is noise — so a remembered item is lifted OUT
-  // of its own group while it sits in Recent, and never rendered twice.
+  // Recents answer "take me back" only until the operator types; after that a
+  // remembered item is lifted out of its own group so it never renders twice.
   const recentItems = trimmed === "" ? recent.filter((value) => destinations.has(value)) : [];
   const recentSet = new Set(recentItems);
   const beadId = BEAD_ID.test(trimmed) ? trimmed : null;
@@ -221,8 +199,8 @@ function PaletteBody({
         placeholder="Search pages and sites…"
       />
       <CommandList>
-        {/* A bead id matches no page and no asset by design, and the row it DOES
-            produce is force-mounted below — so the empty state would be a lie. */}
+        {/* A task id matches no page or asset, and its row is force-mounted
+            below, so the empty state would be untrue. */}
         {beadId ? null : <CommandEmpty>No page or site matches.</CommandEmpty>}
 
         {recentItems.length > 0 ? (
@@ -278,8 +256,7 @@ function PaletteBody({
                   <PropertyFavicon domain={asset.id} displayName={asset.displayName} />
                   <span className="text-foreground">{asset.displayName}</span>
                   <span className="font-mono text-xs text-muted-foreground">{asset.id}</span>
-                  {/* Identity is the favicon; a dot appears only for open
-                      attention, exactly as on the cards (doc 10 principle 3). */}
+                  {/* Identity is the favicon; a dot appears only for open attention. */}
                   {asset.worstSeverity === "error" || asset.worstSeverity === "warn" ? (
                     <SeverityDot severity={asset.worstSeverity} size="sm" className="ml-auto" />
                   ) : null}
@@ -289,9 +266,8 @@ function PaletteBody({
         ) : null}
 
         {beadId ? (
-          // A typed id is a task, and a task has a page (`/tasks/:id`, D19).
-          // `forceMount` on both, because cmdk scores a row against the id the
-          // operator typed and this row's own words are not that id.
+          // A typed id opens its task page. `forceMount` on both, because cmdk
+          // scores the row's own words, which are not the typed id.
           <CommandGroup heading="Open task" forceMount>
             <CommandItem
               forceMount

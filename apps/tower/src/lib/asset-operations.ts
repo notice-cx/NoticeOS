@@ -42,8 +42,8 @@ export function createAssetOperations(writes: AssetWrites = { createAsset, creat
             confirmedPlan = attempt;
           } catch (error) {
             // The site the store names, never the id just typed: they differ
-            // where another site holds the domain (bead `ro-ujb9.76.4.6`). A
-            // refusal that names none offers no way to it.
+            // where another site holds the domain. A refusal that names none
+            // offers no way to it.
             if (error instanceof AssetExistsError) {
               return { kind: 'rejected', field: 'domain', message: 'Already added', existing: error.holder, existingStatus: error.existingStatus };
             }

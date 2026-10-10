@@ -1,4 +1,4 @@
-// The Tower's own sources, as the source-lint tests read them (issue #21).
+// The Tower's own sources, as the source-lint tests read them.
 import { readdirSync } from "node:fs";
 import path from "node:path";
 

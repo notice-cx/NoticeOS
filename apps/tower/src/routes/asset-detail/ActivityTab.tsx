@@ -40,21 +40,10 @@ import { PageAnswer } from "@/components/surface/PageAnswer";
 import { WatchComposer, WatchesStrip } from "@/routes/asset-detail/WatchComposer";
 
 /**
- * THE ACTIVITY TAB — what has already happened to this asset (`ro-pbzu.4`),
- * restyled to doc 14 under `ro-78qo.5`.
- *
- * THE TIMELINE IS THE ANSWER, so it is the declared hero and the first thing on
- * the tab. It was buried under two open composer buttons, a watches strip and a
- * paragraph, inside a card whose heading was the same weight as the P&L card
- * below it; the operator opening Activity is asking "what changed here", and the
- * answer was the fourth thing on the page.
- *
- * THE COMPOSERS ARE NOW BEHIND THE HEADER ACTION. Recording an event and
- * pre-registering how a change will be judged are both things an operator does
- * occasionally and reads never — two button rows shown on every visit are two
- * permanent invitations to a form. One "Record →" opens one composer, and the
- * choice of WHICH is inside it, which keeps the section's existing rule that
- * only one form is ever open: two open composers is two half-finished thoughts.
+ * The Activity tab: what has already happened to this asset. The timeline is
+ * the hero. The composers are behind the header action: one "Record →" opens
+ * one composer, and the choice of which is inside it, so only one form is
+ * ever open.
  */
 export function ActivityTab({
   data,
@@ -70,16 +59,11 @@ export function ActivityTab({
   return (
     <div className="flex flex-col gap-3.5">
       <TimelineSection data={data} nowMs={nowMs} seed={seed} onSeedDone={onSeedDone} />
-      {/* THE WEEKLY PANEL REVIEW'S OBLIGATION, re-homed (`ro-78qo.5`).
-          It rode inside the state block above the tabs, and doc 14's rebuilds
-          stood that block down — which would have left the asset page saying
-          nothing about the review again, the exact hole `ro-elf` opened this
-          component to fill: an overdue badge on the Wall means "open this page
-          and act", and the page you open must name what is owed. Activity is
-          where the asset's record and what is owed ON that record live, so it
-          sits under the timeline it is a review OF. It renders nothing at all
-          for an asset with no collection in the window, which is most of them,
-          and only the overdue row leaves the quiet surface. */}
+      {/* The weekly panel review's obligation: an overdue badge on the Wall
+          means "open this page and act", and the page must name what is owed.
+          It sits under the timeline it is a review of, renders nothing for an
+          asset with no collection in the window, and only the overdue row
+          leaves the quiet surface. */}
       <PanelReviewLine
         review={data.panelReview}
         latestPanelDate={data.latestPanelDate}
@@ -87,24 +71,20 @@ export function ActivityTab({
         className="px-1"
       />
       <ReclamationSection reclamation={data.reclamation} />
-      {/* NO "ABOUT THIS HISTORY" (doc 14 principle 3a, bead
-          `ro-ujb9.96.6.6`). The timeline's own Record action says it is written
-          by hand; a watch's progress and verdict are drawn on its row; link
-          outreach offers no control, which is what read-only looks like. */}
+      {/* No "about this history": the timeline's own Record action says it is
+          written by hand, a watch's progress and verdict are drawn on its row,
+          and link outreach offers no control. */}
     </div>
   );
 }
 
 // --- timeline: what changed, and what is being watched because of it -------
 /**
- * `seed` is a check somewhere ELSE on the page asking to open (bead `ro-5e8.5`):
- * a query row, a finding card. It opens the same composer in the same place
- * rather than growing a second form beside the row, because a watch belongs to
- * the asset's timeline and is reported by the strip below — a composer that
- * appeared inside the query table would register windows the operator then had
- * to go somewhere else to see. The page scrolls the form into view, since an
- * action whose whole effect happens off-screen reads as an action that did
- * nothing.
+ * `seed` is a check somewhere else on the page asking to open: a query row, a
+ * finding card. It opens the same composer in the same place, because a watch
+ * belongs to the asset's timeline and is reported by the strip below. The page
+ * scrolls the form into view, since an action whose whole effect happens
+ * off-screen reads as an action that did nothing.
  */
 function TimelineSection({
   data,
@@ -146,14 +126,12 @@ function TimelineSection({
   ]
     .filter((part): part is string => part !== null)
     .join(" · ");
-  // ONE ANSWER FIRST (D45): when this site last changed, and its bets in the
-  // Overview's own words (`betsFact`, one derivation).
+  // One answer first: when this site last changed, and its bets in the
+  // Overview's own words (`betsFact`).
   const lastChange = data.freshness.annotationAt ? ageMs(nowMs, data.freshness.annotationAt) : null;
-  // The freshest thing on this panel is its newest recorded change, and the age
-  // rides in the header beside the count exactly as it did in the old card's
-  // right slot — including the WORD it prints when nothing has ever been
-  // recorded, because an em dash there reads as a rendering failure rather than
-  // as "never" (`ro-kukv.12`, doc 14 rule 6).
+  // The age of the newest recorded change rides in the header beside the
+  // count, including the word it prints when nothing has ever been recorded,
+  // because an em dash there reads as a rendering failure rather than "never".
   const count = counted || undefined;
 
   return (
@@ -263,8 +241,8 @@ function TimelineSection({
         </ListPanel>
       </Hero>
 
-      {/* The strip is its own `ListPanel` now (`ro-78qo.5`), so it no longer
-          needs a `Panel` around it to carry a heading. */}
+      {/* The strip is its own `ListPanel`, so it needs no `Panel` around it to
+          carry a heading. */}
       <WatchesStrip watches={data.watches} beads={data.handoffBeads} />
     </>
   );
@@ -272,20 +250,14 @@ function TimelineSection({
 
 /** The four tones a change wears. An incident is the one kind of recorded event
  * that is bad news, so it is the one that is not muted; everything else is
- * history, not attention (doc 14: `info` is the row asking for nothing). */
+ * history, not attention. */
 const KIND_TONE: Partial<Record<AnnotationKind, ListRowTone>> = {
   incident: "error",
 };
 
-/**
- * One recorded change, as a doc 14 row.
- *
- * The glyph is the kind's own — `ANNOTATION_KIND`, the same table the alert
- * surfaces' change chip reads, so a deploy is one glyph and one word everywhere
- * (doc 14). It sits inside `ListRow`'s tone ring rather than beside a rule of
- * its own: the vertical line the old timeline drew was decoration on a list that
- * is already ordered, and it cost 24px a row.
- */
+/** One recorded change, as a row. The glyph is the kind's own
+ * (`ANNOTATION_KIND`, the same table the alert surfaces' change chip reads),
+ * inside `ListRow`'s tone ring. */
 function TimelineRow({
   item,
   beads,
@@ -297,22 +269,18 @@ function TimelineRow({
 }) {
   const meta = ANNOTATION_KIND[item.kind];
   const Icon = meta.icon;
-  // A lifecycle move (bead `ro-3085`) stores the two stages in its `ref`,
-  // because that is the row's identity and the field Restore reads. The ref is
-  // MACHINE text, so the row renders the sentence instead of it — one
-  // representation of the move, in words (doc 14, doc 14).
+  // A lifecycle move stores the two stages in its `ref`, because that is the
+  // row's identity and the field Restore reads. The ref is machine text, so
+  // the row renders the sentence instead of it.
   const move = parseLifecycleMoveRef(item.ref);
   const task = item.ref ? (beads ?? []).find((b) => b.beadId === item.ref) : undefined;
   // A move with no note IS the row's headline (below), so it is not repeated
   // as the row's evidence — and its machine ref is never shown.
   const evidence = (item.note ? move : null) ?? task ?? (move ? null : item.ref);
-  // THE ROW SAYS THE HEADLINE; THE REST IS INSIDE IT. Recorded notes run long —
-  // one site's is a hundred and forty words about two mis-specified bets —
-  // and doc 14 will not leave a paragraph on the page. The first sentence is the
-  // change; everything after it is the operator's reasoning, and reasoning is
-  // what a row opens to show.
-  // A lifecycle move carries no note, and its sentence IS what happened — so
-  // it is the headline, not the word "Config" over a row to open.
+  // The row says the headline; the rest is inside it. The first sentence of a
+  // note is the change; everything after it is the operator's reasoning. A
+  // lifecycle move carries no note, and its sentence is what happened, so it
+  // is the headline.
   const headline = item.note
     ? firstSentence(item.note)
     : move
@@ -332,11 +300,10 @@ function TimelineRow({
       valueLabel="ago"
     >
       {rest ? <p className="m-0 max-w-[68ch]">{rest}</p> : null}
-      {/* ONE representation of the ref (doc 14). A resolved bead IS the ref
-          rendered richer — id plus filed or shipped — and never a second marker
-          beside a mono string. A CLOSED bead here is still not a measured
-          outcome: the verdict comes from a watch window carrying the same id
-          (the task-key chain). */}
+      {/* One representation of the ref: a resolved task is the ref rendered
+          richer, never a second marker beside a mono string. A closed task
+          here is still not a measured outcome: the verdict comes from a watch
+          window carrying the same id. */}
       {evidence ? (
         <span className="flex flex-wrap items-center gap-2">
           {move && item.note ? (
@@ -368,7 +335,7 @@ function firstSentence(note: string): string {
   return note.slice(0, match.index + 1);
 }
 
-/** The six kinds db/0001 admits, in the words doc 14 maps them to. */
+/** The six annotation kinds the store admits, in the operator's words. */
 const ANNOTATION_KIND_OPTIONS: { value: AnnotationKind; label: string }[] = [
   { value: "deploy", label: "Deploy" },
   { value: "config", label: "Config change" },
@@ -380,22 +347,12 @@ const ANNOTATION_KIND_OPTIONS: { value: AnnotationKind; label: string }[] = [
 
 /**
  * Record one thing the operator did, so the next alert can say what changed
- * just before it. Backdating is the point, not an edge case: the July title
- * batch is annotated in July even when it is written down in August, so the
- * time field defaults to now but stays editable.
- *
- * IT ALSO ASKS WHICH TASK (bead `ro-4ko`). `annotations.ref` has accepted a bead
- * id since db/0001 and nothing ever wrote one, so every join from "task filed"
- * to "change recorded" was an operator remembering to paste it — and an unjoined
- * change is one whose effect can never be attributed. The chooser is the beads
- * this asset already has filed against it, from the same `beads_snapshots`
- * read the finding cards render. Picking one is optional and the default is
- * none: most changes are not a filed task, and a required field here would be
- * answered with whatever was at the top of the list.
- *
- * Choosing a bead does NOT mean the work is proven. It records what caused the
- * change; the verdict comes from a watch window on the same id, and there is no
- * auto-revert.
+ * just before it. Backdating is the point, so the time field defaults to now
+ * but stays editable. It also asks which task: the chooser is the tasks this
+ * asset already has filed against it, picking one is optional and the default
+ * is none, because a required field here would be answered with whatever was
+ * at the top of the list. Choosing a task records what caused the change; it
+ * does not mean the work is proven.
  */
 function AnnotationComposer({
   assetId,
@@ -403,9 +360,8 @@ function AnnotationComposer({
   onDone,
 }: {
   assetId: string;
-  /** Beads filed against this asset, or null when the register could not be
-   * asked. Both render the same: no chooser, because a list that could not be
-   * loaded and an asset with nothing filed are equally nothing to pick from. */
+  /** Tasks filed against this asset, or null when the register could not be
+   * asked. Both render the same: no chooser. */
   beads: HandoffBead[] | null;
   onDone: () => void;
 }) {
@@ -421,8 +377,8 @@ function AnnotationComposer({
   const validTime = !Number.isNaN(when.getTime());
   const futureTime = validTime && when.getTime() > Date.now() + 60_000;
   const canSave = note.trim().length > 0 && validTime && !futureTime && !saving;
-  // One entry per bead id: a bead filed from two surfaces appears twice in the
-  // slice, and a chooser offering the same id twice reads as two tasks.
+  // One entry per task id: a task filed from two surfaces appears twice in the
+  // slice.
   const tasks = [
     ...new Map((beads ?? []).map((bead) => [bead.beadId, bead])).values(),
   ];
@@ -473,7 +429,7 @@ function AnnotationComposer({
             ))}
           </select>
         </label>
-        {/* THE LABEL IS THE INSTRUCTION. "When it happened" asks for the
+        {/* The label is the instruction. "When it happened" asks for the
             moment of the change, not the moment of typing, and the picker
             stops at now — so no footnote has to say either. */}
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
@@ -534,10 +490,10 @@ function AnnotationComposer({
 }
 
 /**
- * The link-outreach funnel, in the words doc 14 maps `reclamation_targets` to.
- * `won` carries the reserved milestone accent because a reclaimed link is a
- * milestone-kind outcome; every other stage is deliberately quiet, and each one
- * is named in text, so the line never states anything by color alone (doc 14).
+ * The link-outreach funnel, in the operator's words for `reclamation_targets`.
+ * `won` carries the milestone accent because a reclaimed link is a
+ * milestone-kind outcome; every other stage is quiet, and each is named in
+ * text, so the line never states anything by color alone.
  */
 const RECLAMATION_STAGE: Record<
   ReclamationStatus,
@@ -565,13 +521,10 @@ const RECLAMATION_FUNNEL_STAGES: ReclamationStatus[] = [
 ];
 
 /**
- * Broken-link outreach for this asset (db/0015): who was pitched, who
- * answered, and which links actually changed.
- *
- * Read-only by construction. Status moves through the import script and
- * operator SQL, and a won link is a person confirming it on the page — so this
- * section offers no control that would imply otherwise, and stays silent for the
- * assets (most of them) running no campaign at all.
+ * Broken-link outreach for this asset: who was pitched, who answered, and
+ * which links actually changed. Read-only: status moves through the import
+ * script, so this offers no control, and it stays silent for assets running
+ * no campaign.
  */
 function ReclamationSection({ reclamation }: { reclamation: ReclamationSlice | null }) {
   if (!reclamation || reclamation.counts.length === 0) return null;

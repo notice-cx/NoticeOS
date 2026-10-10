@@ -64,8 +64,8 @@ describe("a confirmed save whose local export failed", () => {
       expect(await result.current({ ops: [op], label: "Countdown label" })).toBe(true);
     });
     expect(toasts.success).toHaveBeenCalledWith("Saved — Countdown label", expect.anything());
-    // The state, the command itself, and a button that copies it — no
-    // paragraph (bead ro-ujb9.96.6.3). It stays until dismissed.
+    // The state, the command itself, and a button that copies it. It stays
+    // until dismissed.
     expect(toasts.warning).toHaveBeenCalledWith("Local files not updated", expect.objectContaining({
       description: "pnpm config:export",
       action: expect.objectContaining({ label: "Copy command" }),

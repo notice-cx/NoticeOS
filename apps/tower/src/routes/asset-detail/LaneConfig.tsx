@@ -35,85 +35,46 @@ import { cn } from "@/lib/utils";
 
 // --- one lane's own configuration -----------------------------------------
 // The editable half of the Sources tab: what a lane is mapped to on this asset,
-// what posture it is in, and the two GA4 declarations. Moved out whole with the
-// per-tab split (bead `ro-78qo.2`).
+// what posture it is in, and the two GA4 declarations.
 
 /** The GA4 lane's own id in `config/integrations.json`'s catalog. */
 export const GA4_LANE_ID = "ga4";
 
 /**
- * WHAT THIS ASSET'S ENTRY FOR ONE DATA SOURCE SAYS, editable in place
- * (bead `ro-vu8d.4`).
- *
- * Until this landed, the per-asset half of an integration — which GA4 property,
- * which Search Console site, which DataForSEO scope, and whether the lane is
- * declined — was hand-edited JSON in `config/integrations.json`, which is to say
- * it was not editable by the operator this product is for.
- *
- * THREE THINGS, IN THIS ORDER, and the order is the question being answered:
- *
- *  1. **What is still owed** — the setup steps, derived from the asset's own
- *     state on every read. Nothing here is tickable, exactly as the asset's own
- *     checklist is not: a box somebody could tick without doing the work would
- *     be the one part of this card that can lie. Saved mappings and dated
- *     successful collections are different kinds of proof; neither verifies
- *     that today's provider account still grants the same access.
- *  2. **The mapping** — which property/site/scope this asset is. Only lanes
- *     that HAVE one render fields (`LANE_MAPPING`), and each wears one chip for
- *     what the collector reads today — "Mapped here", or the lane's fallback —
- *     and one for when a save applies (bead `ro-ujb9.96.6.4`), because a field
- *     whose consequence is overstated is worse than one with none.
- *  3. **What blocks it**, when the file says — one line, read-only. The one
- *     posture the operator decides (in use, or Not using) is the row's own
- *     action, `LanePostureAction` below (bead `ro-ujb9.96.7.13`). The
- *     observed chip in the header above is untouched by any of it — this system
- *     has never had a health toggle and does not grow one here.
- *
- * OPEN WHEN IT WANTS THE OPERATOR, closed when it does not: a lane that is
- * working with its mapping written down is a detail, and a lane that is not is
- * the reason they opened this tab.
+ * This asset's entry for one data source, editable in place: what is still
+ * owed (derived on every read, never tickable, because a saved mapping does
+ * not prove the provider account still grants access), the mapping, and what
+ * blocks it. There is no health toggle: the observed chip is untouched.
  */
 export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset: string }) {
   const { cell, mapping, mappingSource } = lane;
-  // When configuration saves are unavailable, this section answers that by
-  // rendering no control rather than four disabled ones — the mapping is worth
-  // reading either way, and a display with nothing to save needs no sentence
-  // explaining it. The save refusal is said once on the tab by SavesPaused.
+  // When configuration saves are unavailable this renders no control rather
+  // than four disabled ones; the refusal is said once on the tab by SavesPaused.
   const { writable, sources } = useConfigWritable();
-  // WHEN A SAVE HERE TAKES EFFECT, derived rather than stated (beads `ro-syok.7`,
-  // `ro-7xv2`). A deployment reading the stored document collects on the saved
-  // value at the next run; one still on the copy compiled into it does not until
-  // it restarts. The chip is picked with the same field the payload was built
-  // from — so the promise and the behaviour cannot disagree.
+  // When a save here takes effect, derived from the same field the payload
+  // was built from, so the promise and the behaviour cannot disagree.
   const mappingTiming = laneMappingTiming(sources["config/integrations.json"]);
   const fallback = LANE_MAPPING[cell.laneId]?.fallback ?? null;
-  // WHAT THE CONNECTED GOOGLE ACCOUNT CAN SEE (bead `ro-vu8d.17`), for the two
-  // lanes it can answer for. Asked only where it could be used: a deployment
-  // that cannot save, a lane with no mapping, and every non-Google lane never
-  // reach Google at all. Both Google cards share one query key, so a tab
-  // showing both makes one round trip.
+  // What the connected Google account can see, asked only where it could be
+  // used. Both Google cards share one query key, so a tab showing both makes
+  // one round trip.
   const pickerLane = GOOGLE_PICKER_LANES[cell.laneId];
   const discovery = useGoogleProperties(
     writable && pickerLane !== undefined && mapping.length > 0,
   );
   const picker = pickerLane === undefined ? null : lanePicker(pickerLane, discovery);
-  // WHAT THE CONNECTED POSTHOG ACCOUNT HOLDS (bead `ro-ujb9.96.7.24`): its
-  // projects and their saved funnels, so this row picks them as the connect
-  // panel did instead of asking for a project number and event names typed.
+  // What the connected PostHog account holds: its projects and their saved
+  // funnels, so this row picks them as the connect panel did.
   const posthog = cell.laneId === POSTHOG_LANE_ID;
   const account = useAccountSites(POSTHOG_LANE_ID, writable && posthog);
   const projects = posthog ? posthogProjects(account) : null;
   const inactive = cell.effective === "skipped" || cell.effective === "not-applicable";
   const lists = lane.mappingLists ?? [];
-  // WHAT BLOCKS IT, as the file says, one line (bead `ro-ujb9.96.7.13`). A
-  // declined source's reason is its row's caption, so it is not said again
-  // here; a decline reason left on a source in use again is history, not a
-  // blocker (`declineReason`).
+  // What blocks it, as the file says. A declined source's reason is its row's
+  // caption, so it is not said again here; a decline reason left on a source
+  // in use again is history, not a blocker (`declineReason`).
   const blocker = cell.declared !== "skipped" && cell.note !== null && cell.note.trim() !== "" && declineReason(cell.note) === null ? cell.note : null;
-  // NOTHING BUT THE MAPPING (bead `ro-ujb9.96.7.4`): the row's chip is the
-  // connection's one status, so the setup checklist that restated it in
-  // weaker words ("Provider account access: unverified") is gone, and a source
-  // with nothing mapped and nothing blocking has nothing to open.
+  // A source with nothing mapped and nothing blocking has nothing to open.
   if (mapping.length === 0 && lists.length === 0 && blocker === null) return null;
   const wantsAttention =
     !inactive && (
@@ -134,9 +95,8 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
 
       {mapping.length > 0 || lists.length > 0 ? (
         <div className="mt-2" data-lane-mapping={cell.laneId}>
-          {/* Said ONCE above the fields, as two states (bead
-              `ro-ujb9.96.6.4`): what the collector reads for this asset right
-              now, and when a save reaches it. */}
+          {/* Said once above the fields, as two states: what the collector
+              reads for this asset right now, and when a save reaches it. */}
           <div
             className="flex flex-wrap items-center gap-1.5 pb-1"
             data-lane-mapping-state={mappingSource}
@@ -165,12 +125,12 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
             ) : null}
           </div>
           {market && writable ? (
-            // One market, picked (bead `ro-ujb9.96.7.4`): a place and its
-            // language, never DataForSEO's numeric codes typed by hand.
+            // One market, picked: a place and its language, never numeric
+            // codes typed by hand.
             <DataForSeoMarketField asset={asset} mapping={mapping} />
           ) : writable && projects !== null && projects.state !== "unavailable" ? (
-            // One project, picked from the account (bead `ro-ujb9.96.7.24`);
-            // the typed fields below only when the account cannot be read.
+            // One project, picked from the account; the typed fields below
+            // only when the account cannot be read.
             <PosthogProjectField asset={asset} mapping={mapping} projects={projects} />
           ) : writable
             ? mapping.map((field) => (
@@ -256,13 +216,10 @@ function savedFunnels(projects: PosthogProjects, mapping: AssetIntegrationLane["
 }
 
 /**
- * A POSTHOG SITE'S PROJECT, PICKED (bead `ro-ujb9.96.7.24`): the connected
- * account's projects by name, number and region — the list the connect panel
- * matched — saved on the pick, region and number in one write, with Undo
- * beside it. It replaced a region select and a project number typed off
- * PostHog's address bar, each with its own Save. A project the account no
- * longer lists stays selected as itself, so opening the list never proposes
- * replacing it.
+ * A PostHog site's project, picked from the connected account's projects and
+ * saved on the pick, region and number in one write, with Undo beside it. A
+ * project the account no longer lists stays selected as itself, so opening
+ * the list never proposes replacing it.
  */
 function PosthogProjectField({
   asset,
@@ -348,13 +305,10 @@ function PosthogProjectField({
 }
 
 /**
- * A DATAFORSEO SITE'S MARKET, PICKED (bead `ro-ujb9.96.7.4`): one select of
- * places in their language ("United Kingdom · English"), saved the moment it
- * is picked, with Undo beside it — instead of the two register fields typed as
- * DataForSEO's numeric location code and language code under two sentences
- * explaining the codes. The write is the same two `laneFieldOp`s the fields
- * made, in one changeset; a pair the list does not name stays selectable as
- * itself.
+ * A DataForSEO site's market, picked: one select of places in their language,
+ * saved the moment it is picked, with Undo beside it. The write is two
+ * `laneFieldOp`s in one changeset; a pair the list does not name stays
+ * selectable as itself.
  */
 function DataForSeoMarketField({ asset, mapping }: { asset: string; mapping: AssetIntegrationLane["mapping"] }) {
   const saveField = useFieldConfigSave();
@@ -425,11 +379,9 @@ function DataForSeoMarketField({ asset, mapping }: { asset: string; mapping: Ass
   );
 }
 
-/**
- * The two lanes the connected Google account can answer for, mapped to the half
- * of `GooglePropertyDiscovery` each reads (bead `ro-vu8d.17`). Bing and
- * DataForSEO are typed: nothing lists their scopes for us.
- */
+/** The two lanes the connected Google account can answer for, mapped to the
+ * half of `GooglePropertyDiscovery` each reads. Bing and DataForSEO are typed:
+ * nothing lists their scopes. */
 const GOOGLE_PICKER_LANES: Record<string, "ga4" | "gsc" | undefined> = {
   ga4: "ga4",
   gsc: "gsc",
@@ -449,13 +401,10 @@ interface LanePickerState {
 
 /**
  * The discovery read, narrowed to one lane and to the states a field has to
- * draw: loading, a list, an empty list, and no answer at all.
- *
- * A FAILED READ IS NOT AN ERROR STATE HERE. The field underneath works without
- * it — typing the id is what the operator did before this existed — so the
- * honest degrade is a sentence and a text box, never a blocked field or a red
- * one. The payload is defended rather than trusted: it crosses a network, and a
- * field that threw on a surprising body would take the whole tab with it.
+ * draw. A failed read is not an error state here: the field underneath works
+ * without it, so the degrade is a sentence and a text box. The payload is
+ * defended rather than trusted, because a field that threw on a surprising
+ * body would take the whole tab with it.
  */
 function lanePicker(
   lane: "ga4" | "gsc",
@@ -467,7 +416,7 @@ function lanePicker(
   const loading = query.isPending || query.isFetching;
   const label = lane === "ga4" ? "GA4 properties" : "Search Console sites";
   // Why there is no list, as a state beside the field that still takes a typed
-  // value (bead `ro-ujb9.96.7.4`) — never a sentence telling the operator to type.
+  // value.
   const unavailable = loading
     ? null
     : query.isError || payload === undefined
@@ -481,33 +430,11 @@ function lanePicker(
 }
 
 /**
- * One mapping field — the GA4 property id, the Search Console or Bing site, a
- * DataForSEO location or language.
- *
- * The rule, the label and the sentence under the input all come from the
- * `asset-lane` declaration, and `validateRegisterField` refuses a value with the
- * exact sentence a 422 would have carried — so a typo'd property id names the
- * field's expected format rather than failing as a collector error
- * next Monday.
- *
- * WHERE THE ACCOUNT CAN ANSWER, IT ANSWERS (bead `ro-vu8d.17`). Typing a numeric
- * property id read off a browser URL is the most error-prone step in setting up
- * an asset, and the connected account already knows the list — so the two Google
- * fields become a picker whose `ref` is exactly what the field stores. Nothing
- * about the write changes: the same `file-json-set` at the same pointer, the
- * same validation, the same Undo in the toast.
- *
- * THE TEXT BOX NEVER GOES AWAY. A service-account install has no sign-in to ask,
- * a property the account cannot see is in no list, and a discovery that failed
- * must cost the operator nothing — so it stays, one disclosure below the picker,
- * writing through the same op.
- *
- * AND IT COMES BACK OFF (bead `ro-pkpz`). Mapping was a one-way door: emptying
- * the box is refused, because a field rule reads `""` as a blank string rather
- * than as "take this away", so an asset that should go back to reading its
- * fallback source could not be put back there from the Tower. Remove mapping is
- * that door's other side — one `file-json-delete` at the field's own pointer,
- * guarded by the value being removed, undone by writing it again.
+ * One mapping field, its rule and words from the `asset-lane` declaration.
+ * The text box never goes away, even beside a picker: a service-account
+ * install has no sign-in to ask, and a failed discovery must cost nothing.
+ * Remove is a `file-json-delete` guarded by the old value, because a field
+ * rule reads `""` as a blank string, not as "take this away".
  */
 function LaneMappingField({
   asset,
@@ -526,11 +453,10 @@ function LaneMappingField({
   const [removing, setRemoving] = useState(false);
   const field = fieldOf(LANE_REGISTER, name);
   if (field === null) return null;
-  // TWO READINGS OF ONE FIELD, and they are not the same fact (bead `ro-j71v`).
-  // `current` is what the CONTROL shows: an unmapped field renders as an empty
-  // box, which is what "not set" looks like. `value` is what the FILE holds, and
-  // `null` there means the key is not written down at all — which is what the
-  // op's guard has to say, because a first save is not a stale one.
+  // Two readings of one field: `current` is what the control shows (an
+  // unmapped field is an empty box), `value` is what the file holds, where
+  // `null` means the key is not written at all, which is what the op's guard
+  // has to say because a first save is not a stale one.
   const current: JsonValue = value === null ? "" : value;
   // The declaration picks the control, the same way it picks the refusal: an
   // enum is a list to choose from, a number is a number box, everything else is
@@ -555,10 +481,9 @@ function LaneMappingField({
     />
   );
 
-  // OFFERED ONLY WHERE THERE IS SOMETHING TO REMOVE, and only for a field the
-  // declaration marks optional: a required field has no absent state to go back
-  // to, and a field nothing has written is already where Remove would leave it.
-  // No confirm — the toast carries the way back (docs/15 principle 5).
+  // Offered only where there is something to remove, and only for a field the
+  // declaration marks optional: a required field has no absent state to go
+  // back to. No confirm; the toast carries the way back.
   const removeMapping =
     value === null || field.required === true
       ? null
@@ -613,9 +538,8 @@ function LaneMappingField({
     );
   }
 
-  // The value the file holds but the account does not list — a property shared
-  // with a different login, or a service-account install. It stays selected and
-  // is labelled for what it is, so opening the picker can never quietly propose
+  // The value the file holds but the account does not list stays selected and
+  // is labelled for what it is, so opening the picker never quietly proposes
   // replacing it.
   const unlisted =
     current !== "" && !picker.options.some((entry) => entry.ref === current)
@@ -624,9 +548,8 @@ function LaneMappingField({
   const options = [
     ...(current === "" ? [{ value: "", label: "Pick one…" }] : []),
     ...unlisted,
-    // The REF rides beside the name, because the ref is what gets stored and
-    // what a collector error will name — a list of pretty labels alone would
-    // hide the one string that matters.
+    // The ref rides beside the name, because the ref is what gets stored and
+    // what a collector error will name.
     ...picker.options.map((entry) => ({
       value: entry.ref,
       label: entry.detail
@@ -652,10 +575,9 @@ function LaneMappingField({
 }
 
 /**
- * One structured list field of a lane — today only PostHog's funnels (bead
- * `ro-ghis.1`). The whole list is one value at one pointer, so it is written by
- * the same `laneFieldOp` as a scalar field (a first write says the key was
- * absent), and judged by the same declared rule the write lane runs.
+ * One structured list field of a lane (PostHog's funnels). The whole list is
+ * one value at one pointer, so it is written by the same `laneFieldOp` as a
+ * scalar field and judged by the same declared rule the write lane runs.
  */
 function LaneMappingList({
   asset,
@@ -669,7 +591,7 @@ function LaneMappingList({
   name: string;
   value: unknown[] | null;
   /** The funnels the list picks from, read from the account; absent when it
-   * cannot be read and the list is typed (bead `ro-ujb9.96.7.24`). */
+   * cannot be read and the list is typed. */
   saved?: readonly PosthogFunnel[];
 }) {
   const field = fieldOf(LANE_REGISTER, name);
@@ -689,26 +611,10 @@ function LaneMappingList({
 }
 
 /**
- * THE ONE STATE DECISION THE FILE OWNS, AS ONE PRESS (bead `ro-ujb9.96.7.13`,
- * operator answer A, 2026-09-23).
- *
- * `live` and `degraded` are observed and `not-applicable` is the scope rule's,
- * so an operator decides exactly one thing here: is this asset using this
- * source. "Not using" opens the reason chips in place, and the chip pressed IS
- * the save — the reason and the posture in one changeset (`declineOps`), with
- * Undo in the toast. A declined source offers "Use again", one press back to
- * be set up.
- *
- * It replaced two fields and two Saves: a typed Reason the operator had to
- * start with "REASON:" (later written for them, bead `ro-ujb9.96.6.4`) and a
- * Posture select. The register's rule is unchanged — every decline carries its
- * reason — and the prefix is still the product's to write, never the
- * operator's to type (`shared/lane-decline.ts`).
- *
- * The row's own actions, under its evidence (doc 14: a row expands in place
- * to show its actions), so the verdict is read before the decision is offered.
- * A deployment that cannot save renders nothing: a control that cannot act is
- * not offered.
+ * The one state decision the file owns: is this asset using this source.
+ * `live` and `degraded` are observed and `not-applicable` is the scope rule's.
+ * The reason chip pressed is the save, reason and posture in one changeset
+ * (`declineOps`); the reason's prefix is `shared/lane-decline.ts`'s.
  */
 export function LanePostureAction({ asset, lane }: { asset: string; lane: AssetIntegrationLane }) {
   const { cell, catalog } = lane;
@@ -769,33 +675,12 @@ export function LanePostureAction({ asset, lane }: { asset: string; lane: AssetI
   );
 }
 /**
- * WHAT THIS ASSET HAS DECLARED ABOUT ITS GA4 PROPERTY, editable in place
- * (bead `ro-x5gu.3`).
- *
- * Two operator declarations lived only as JSON until now — the events this
- * asset calls value events (`config/value-events.json`) and the event
- * parameters already registered as custom dimensions on its GA4 property
- * (`config/ga4-custom-dimensions.json`). Both decide what the collectors do
- * with this asset, and both are FACTS ABOUT GA4 that only the operator holds,
- * so they belong on the GA4 lane's own card rather than in a settings page
- * across the desk: the card already answers "is this lane working", and this
- * answers "and what have we told it".
- *
- * NEITHER LIST TOUCHES GA4. The measurement channel is `forbidden`-class
- * (AGENTS.md) — operator-only, forever. Listing an event here does not make it
- * a GA4 key event, and listing a parameter does not register a custom
- * dimension; each list records a claim the OS then reads back against what GA4
- * reports. Each carries what reads it in a few words, and its empty state is
- * the state it leaves (bead `ro-ujb9.96.6.4`): "Conversion counts unchecked".
- *
- * The read-only sentence is said ONCE for the pair, above them, the way
- * /settings' Budget says it once above three fields instead of leaving each to
- * whisper it (doc 10).
- *
- * `ro-vu8d.4` adds this asset's GA4 provider mapping (its property id) to this
- * same card — the marked slot below is where it goes, above the declarations,
- * because which property we are talking to comes before what we have said
- * about it.
+ * What this asset has declared about its GA4 property, editable in place: the
+ * events it calls value events (`config/value-events.json`) and the event
+ * parameters registered as custom dimensions (`config/ga4-custom-dimensions.json`).
+ * Neither list touches GA4: the measurement channel is operator-only, and each
+ * list records a claim the OS then reads back against what GA4 reports. The
+ * read-only sentence is said once for the pair, above them.
  */
 export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetGa4Config }) {
   const { writable, reason } = useConfigWritable();
@@ -813,8 +698,8 @@ export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetG
           {reason ?? CONFIG_READ_ONLY_FALLBACK}
         </p>
       )}
-      {/* ro-vu8d.4: this asset's GA4 property mapping belongs here — which
-          property we are talking to comes before what we have said about it. */}
+      {/* This asset's GA4 property mapping belongs here: which property we are
+          talking to comes before what we have said about it. */}
       <CollectionEditor
         register="product-use-stages"
         params={{ asset }}
@@ -846,11 +731,9 @@ export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetG
 }
 
 /**
- * WHY A SOURCE DOES NOT APPLY, as a state (bead `ro-ujb9.96.6.4`). A cell the
- * scope rule answers (`since` empty) wears the rule as a chip — a portfolio
- * source on a content asset is the System's own, a content source on the
- * System is for content assets — and one nobody has decided says so; a
- * decided one shows its one-line reason.
+ * Why a source does not apply, as a state. A cell the scope rule answers
+ * (`since` empty) wears the rule as a chip, one nobody has decided says so,
+ * and a decided one shows its one-line reason.
  */
 function notApplicableWhy(lane: AssetIntegrationLane, asset: string, isOs: boolean): ReactNode {
   const { cell, catalog } = lane;

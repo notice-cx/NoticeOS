@@ -5,24 +5,11 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 /**
- * The vendored shadcn `Command` (doc 14's stack table: "cmdk via shadcn
- * `Command`"), copied in by hand like every other primitive in this folder and
- * adapted to this app's tokens — there is no `primary`/`secondary` color here,
- * and severity owns attention color, so a command list is `card` over
- * `background` with `muted` marking the highlighted row and nothing else.
- *
- * ONE DELIBERATE DIVERGENCE from upstream: `CommandDialog` is written here
- * rather than delegating to `cmdk`'s own `Command.Dialog`, which mounts a Radix
- * Dialog. `@radix-ui/react-dialog` is not a dependency of this app (only
- * `@radix-ui/react-slot` is, for `Button`), and the shell already owns a
- * portal + backdrop idiom for exactly this shape — `AppShell`'s navigation
- * drawer. Reusing it keeps the dependency decision to the one package doc 14
- * already sanctioned. What that costs, and what is paid back by hand: the focus
- * trap Radix would give us. The palette restores focus to where it came from
- * and closes on Escape and on the backdrop; it does not cycle Tab inside
- * itself, which for a list whose only control is one input is a gap nobody can
- * see. If a future dialog needs a real trap, that is the day Radix Dialog earns
- * its entry — not today.
+ * The vendored shadcn `Command`, on this app's tokens: `card` over `background`
+ * with `muted` marking the highlighted row. `CommandDialog` is written here
+ * rather than using cmdk's Radix-based `Command.Dialog`, since
+ * `@radix-ui/react-dialog` is not a dependency. It restores focus and closes on
+ * Escape and the backdrop, but does not trap Tab.
  */
 export const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -48,12 +35,8 @@ export interface CommandDialogProps
 }
 
 /**
- * The palette's chrome: a portal, a backdrop, and a centered box.
- *
- * Focus is the whole reason this is a component rather than three divs. Opening
- * it records what had focus and closing puts it back, because a palette that
- * drops focus on `<body>` makes the operator's next Tab start from the top of
- * the page — the exact cost a keyboard shortcut is supposed to save.
+ * The palette's chrome: a portal, a backdrop and a centred box. Closing puts
+ * focus back where it was, so the next Tab does not start from the top.
  */
 export function CommandDialog({
   open,
@@ -65,21 +48,16 @@ export function CommandDialog({
 }: CommandDialogProps) {
   const restoreRef = React.useRef<HTMLElement | null>(null);
   const capturedRef = React.useRef(false);
-  // The close callback is read through a ref so a caller that passes a fresh
-  // arrow function each render cannot tear the Escape listener down and back up
-  // — and, worse, run the focus restore in between.
+  // Read through a ref so a fresh callback each render cannot tear down the
+  // Escape listener and run the focus restore in between.
   const closeRef = React.useRef(onOpenChange);
   closeRef.current = onOpenChange;
-  // Whether the LATEST render was open — read by the cleanup below, which runs
-  // after the render that closed the box (bead `ro-ujb9.84`, see there).
+  // Whether the latest render was open, read by the cleanup below.
   const openRef = React.useRef(open);
   openRef.current = open;
 
-  // Captured during RENDER rather than in an effect. React applies the input's
-  // `autoFocus` while it commits it, which is before any effect here could
-  // look — by then `document.activeElement` is already the palette's own field,
-  // and "restore focus" would mean restoring it to the box we just closed. This
-  // render is the last moment the answer is still the operator's page.
+  // Captured during render: the input's `autoFocus` applies at commit, before
+  // any effect, so an effect would capture the palette's own field.
   if (open && !capturedRef.current) {
     capturedRef.current = true;
     restoreRef.current =
@@ -96,19 +74,13 @@ export function CommandDialog({
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
-      // Only a CLOSE gives focus back. React's StrictMode (development, which
-      // is what `os:up` serves) runs this cleanup and then the effect again
-      // straight away when a dialog MOUNTS already open — and the palette does,
-      // since it is fetched on its first open (bead `ro-ujb9.84`). That
-      // rehearsal is not a close: restoring on it pulled focus off the field
-      // this dialog had just given it, back onto whatever had it before. A real
-      // close re-renders with `open` false before this runs.
+      // Only a close restores focus. StrictMode runs this cleanup on a mount
+      // that is already open, and restoring then would pull focus off the field.
       if (openRef.current) return;
       const restore = restoreRef.current;
       restoreRef.current = null;
       capturedRef.current = false;
-      // Only if it is still in the document: navigating away from the palette
-      // is the common close, and the page that launched it is gone by now.
+      // Navigating away is the common close, so the opener may be gone.
       if (restore && restore.isConnected) restore.focus();
     };
   }, [open]);
@@ -202,9 +174,7 @@ export const CommandItem = React.forwardRef<
   <CommandPrimitive.Item
     ref={ref}
     className={cn(
-      // `max-sm:min-h-11`: the palette is a touch surface on a phone — the
-      // drawer's Search opens it — and a 37px row is under the thumb floor
-      // (bead `ro-md80`).
+      // The palette is a touch surface on a phone: rows meet the thumb floor.
       "relative flex cursor-default select-none items-center gap-2.5 rounded-md px-2.5 py-2 text-sm text-muted-foreground outline-none max-sm:min-h-11 data-[selected=true]:bg-muted data-[selected=true]:text-foreground data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
       className,
     )}

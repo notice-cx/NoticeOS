@@ -24,17 +24,14 @@ export const SETUP_STAGES: ReadonlySet<string> = new Set(["onboarding", "baselin
 export type SetupItemId = "identity" | "sources" | "first-report" | "baseline" | "pause-check";
 
 /** Resolved, still owed, or offered. The ring counts `done` of `done` +
- * `pending`, and a count needs a boolean, so an `optional` step — something the
- * site can set up but nobody owes — is listed and never counted: it cannot hold
- * the ring short of done. `unavailable` is a capability not implemented (D43),
- * not an offered action or a setup obligation. The WHY lives in its `note`; each
- * source's own status is its Data sources row, never repeated here (one status
- * per subject per screen, doc 14 principle 3b). */
+ * `pending`; an `optional` step — something the site can set up but nobody
+ * owes — is listed and never counted. `unavailable` is a capability not
+ * implemented, not an offered action or a setup obligation. */
 export type SetupItemState = "done" | "pending" | "optional" | "unavailable";
 
 export interface SetupChecklistItem {
   id: SetupItemId;
-  /** The operator's words (doc 14). */
+  /** The operator's words. */
   label: string;
   state: SetupItemState;
   /** The setup or historical-report fact behind this step, not a current
@@ -79,9 +76,9 @@ export interface SetupChecklistFacts {
   reportDays?: number | null;
   /** received_at of the LATEST nightly report; null when none has arrived. */
   latestReportAt: string | null;
-  /** The operator declared this asset sends no nightly report (bead
-   * `ro-ujb9.96.8`). With `latestReportAt` it decides whether the report is
-   * expected (`expectsNightlyReport`). */
+  /** The operator declared this asset sends no nightly report. With
+   * `latestReportAt` it decides whether the report is expected
+   * (`expectsNightlyReport`). */
   noNightlyReport?: boolean;
   nowMs: number;
 }
@@ -126,10 +123,9 @@ export function assetSetupChecklist(
   if (!isSettingUp(facts.status)) return null;
 
   // The first report and report coverage are the nightly obligation, and only
-  // a site that expects a report owes them (D29 amended, bead `ro-ujb9.121`).
-  // One that has never sent one is OFFERED the report — listed, never counted,
-  // so it cannot hold the ring short of done; one declared as sending none is
-  // not offered it at all.
+  // a site that expects a report owes them. One that has never sent one is
+  // offered the report — listed, never counted; one declared as sending none
+  // is not offered it at all.
   const declared = facts.noNightlyReport === true;
   const nightly: SetupChecklistItem[] = expectsNightlyReport(declared, facts.latestReportAt)
     ? [firstReportItem(facts), baselineItem(facts)]
@@ -164,17 +160,10 @@ export function assetSetupChecklist(
 }
 
 /**
- * ITEM 1 — identity. Done when the asset carries a NAME of its own rather than
- * echoing its id.
- *
- * The wizard's Identity step cannot produce a pending one: it refuses an empty
- * name and derives the id from the domain separately. A row seeded by hand or by
- * a migration can, and that asset shows up on every surface in the portfolio
- * calling itself `example.com` — which is the domain, not what the operator calls
- * the site. So the item is genuinely falsifiable, and on the normal path it is
- * the tick that makes the ring start at one quarter instead of empty: an asset
- * the operator just registered has done something, and a ring reading 0 of 4
- * would say the opposite.
+ * Item 1 — identity. Done when the asset carries a name of its own rather
+ * than echoing its id. A row seeded by hand can lack one, so the item is
+ * falsifiable; on the normal path it is the tick that makes the ring start at
+ * one quarter instead of empty.
  */
 function identityItem(facts: SetupChecklistFacts): SetupChecklistItem {
   const name = facts.displayName.trim();
@@ -183,8 +172,6 @@ function identityItem(facts: SetupChecklistFacts): SetupChecklistItem {
     id: "identity",
     label: "Identity",
     state: named ? "done" : "pending",
-    // The state, not a sentence about it: what the site is called now, and
-    // where there is no name of its own, that it shows as its id.
     note: named ? `Recorded as ${name} · ${facts.id}` : `No name · shows as ${facts.id}`,
     href: `/assets/${encodeURIComponent(facts.id)}/settings`,
     progress: null,
@@ -192,14 +179,10 @@ function identityItem(facts: SetupChecklistFacts): SetupChecklistItem {
 }
 
 /**
- * ITEM 2 — data sources. Done when every source is connected, switched off or
- * not applicable (flow A step 6's exit test), read from the same status each
- * source's Data sources row shows.
- *
- * The nightly-report slot is EXCLUDED even though it rides in the same
- * seven-slot inventory, because item 3 is exactly that lane. Counting it in both
- * would state one fact twice in one list (doc 14) and let a four-item ring move
- * two segments on one event.
+ * Item 2 — data sources. Done when every source is connected, switched off
+ * or not applicable, read from the same status each source's Data sources
+ * row shows. The nightly-report slot is excluded, because item 3 is exactly
+ * that lane.
  */
 function sourcesItem(facts: SetupChecklistFacts): SetupChecklistItem {
   const kinds = facts.sources
@@ -219,10 +202,10 @@ function sourcesItem(facts: SetupChecklistFacts): SetupChecklistItem {
 }
 
 /**
- * ITEM 3 — the first nightly report, listed once one has arrived: that arrival
- * is what makes the site expect its report (`expectsNightlyReport`), so the
- * step is done by then, and an asset whose reports later stopped still shows it
- * done and lets the freshness alert own the stopping (two facts, two surfaces).
+ * Item 3 — the first nightly report, listed once one has arrived: that
+ * arrival is what makes the site expect its report
+ * (`expectsNightlyReport`), so the step is done by then, and the freshness
+ * alert owns any later stopping.
  */
 function firstReportItem(facts: SetupChecklistFacts): SetupChecklistItem {
   return {
@@ -238,10 +221,9 @@ function firstReportItem(facts: SetupChecklistFacts): SetupChecklistItem {
 }
 
 /**
- * ITEM 3, BEFORE ANY REPORT — the nightly report as an OFFER. A site that has
- * never sent one expects none, so the step is optional: neutral, never counted,
- * never "to do". It links to the site's Data collection card, where the report's
- * address and the No report switch are.
+ * Item 3, before any report — the nightly report as an offer. A site that
+ * has never sent one expects none, so the step is optional: never counted,
+ * never "to do". It links to the site's Data collection card.
  */
 function nightlyReportOffer(facts: SetupChecklistFacts): SetupChecklistItem {
   return {
@@ -255,12 +237,9 @@ function nightlyReportOffer(facts: SetupChecklistFacts): SetupChecklistItem {
 }
 
 /** Recent coverage is measured from distinct stored report dates. Elapsed
- * time cannot prove that reports arrived, and coverage alone does not arm a rule.
- *
- * The note is the count the step is waiting on — "9 of 28 days" under
- * "Report coverage · 28 days" — or "Unknown" where the payload does not carry
- * it; how coverage is measured and what it does not decide are this module's
- * rules, not the operator's reading (bead `ro-ujb9.96.6.10`). */
+ * time cannot prove that reports arrived, and coverage alone does not arm a
+ * rule. The note is the count the step is waiting on, or "Unknown" where the
+ * payload does not carry it. */
 function baselineItem(facts: SetupChecklistFacts): SetupChecklistItem {
   const observed = facts.reportDays;
   const count = typeof observed === "number" && Number.isInteger(observed)

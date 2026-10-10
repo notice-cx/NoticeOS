@@ -11,19 +11,11 @@ import type {
   TowerConfig,
 } from "../worker/config-source";
 
-// `GET/PUT /api/config` — where a setting comes from, and where a Save lands.
-//
-// UNTIL 2026-09-05 THIS ROUTE EXISTED TO SAY NO. Config was version-controlled
-// files (docs/06), a Worker has no filesystem, so a deployed Tower answered
-// `{writable: false}` and 501 on a PUT — only the local dev server could save
-// (D18). Epic `ro-syok` gives the store a document per config file, so the
-// answer is now yes in every deployment. These cases pin the two halves that
-// makes: the write actually reaching the store, and every refusal still carrying
-// a sentence the operator can act on.
-//
-// The store's own behaviour is pinned against real D1 in
-// workers/ingest/test/config-store.test.ts. What is asserted here is the ROUTE:
-// what it sends, what statuses it maps a refusal to, and that the
+// `GET/PUT /api/config`: where a setting comes from, and where a Save lands.
+// The store holds a document per config file, so a Save is possible in every
+// deployment. The store's own behaviour is pinned in
+// workers/ingest/test/config-store.test.ts; what is asserted here is the
+// route: what it sends, what statuses it maps a refusal to, and that the
 // request/response contract `apps/tower/src/lib/api.ts` speaks did not move.
 
 const URL_ = "https://tower.example/api/config";
@@ -108,8 +100,7 @@ describe("PUT /api/config", () => {
       expect.objectContaining({ ops: OPS, actor: CONFIG_ACTOR, slug: "countdown-label" }),
     );
     // `archive` and `commit` are null: a store write has no changeset file and
-    // makes no commit. The client renders both absent honestly, which is why
-    // this route needed no change on the browser side.
+    // makes no commit.
     await expect(res.json()).resolves.toEqual({
       applied: 1,
       archive: null,
@@ -143,19 +134,16 @@ describe("PUT /api/config", () => {
         config: async () => towerConfig(),
       });
       expect(res.status).toBe(status);
-      // The body is the store's own, minus `ok` — the refusals name the actual
-      // problem and this route has nothing to add to them.
+      // The body is the store's own, minus `ok`.
       await expect(res.json()).resolves.toMatchObject({ error: answer.error });
     }
   });
 
   it("hands a /wall op to the store untouched, and passes its refusal back whole", async () => {
-    // THE ROUTE IS A DOOR TOO (bead `ro-lzmq.3`). It adds no validation of its
-    // own and must not: the layout rule lives in scripts/wall-layout.mjs, which
-    // the ingest's `applyConfigOps` runs through `validateSchemaAndSafety`. What
-    // this pins is that the route neither rewrites the op on the way in nor
-    // swallows the validator's sentence on the way out — the operator reads the
-    // same words here, in the terminal and under Save.
+    // The route adds no validation of its own: the layout rule lives in
+    // scripts/wall-layout.mjs, which the ingest's `applyConfigOps` runs through
+    // `validateSchemaAndSafety`. The route neither rewrites the op on the way
+    // in nor swallows the validator's sentence on the way out.
     const wallOp = {
       kind: "file-json-set",
       file: "config/tower.json",

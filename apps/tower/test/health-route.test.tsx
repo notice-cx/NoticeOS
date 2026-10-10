@@ -12,26 +12,21 @@ import type {
 import { emptyIntegrationsHistory, summarize } from "@shared/integrations";
 import { integrationProvider } from "@noticeos/contract";
 
-// /health after beads `ro-9mx` and `ro-034`. The page used to open on the
-// matrix, which answers "what state is everything in" — a question nobody
-// arrives with. It now opens on what to unblock next, the matrix is the audit
-// view underneath, and that matrix reads in layers: the OS's own connection,
-// then provider accounts, then each asset's own wiring.
-//
-// It answered at `/integrations` too until bead `ro-vu8d.2`, which gave that
-// path its own page. The two questions were only ever sharing an address: this
-// one observes connections, that one MAKES them.
+// /health opens on what to unblock next; the matrix is the audit view
+// underneath, and it reads in layers: the OS's own connection, then provider
+// accounts, then each asset's own wiring. `/integrations` is its own page:
+// this one observes connections, that one makes them.
 
 const state = vi.hoisted(() => ({
   data: null as IntegrationsMatrix | null,
   /** The credential summaries this page also reads, so it can say which
-   * providers are still on the environment file (bead `ro-vu8d.5`). */
+   * providers are still on the environment file. */
   providers: null as { providers: { provider: unknown; credential: Record<string, unknown> }[] } | null,
 }));
 
 vi.mock('@/hooks/useWorkflows', () => ({ useWorkflows: () => ({ data: undefined, isError: false }) }));
-// System health names the OS's own problems from the Wall's read (D45); these
-// cases are about the workflow and connection reads, so the Wall has none.
+// System health names the OS's own problems from the Wall's read; these cases
+// are about the workflow and connection reads, so the Wall has none.
 vi.mock('@/hooks/useWall', () => ({ useWall: () => ({ data: undefined, isError: false }) }));
 vi.mock('@/hooks/useGa4Realtime', () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useIntegrations", () => ({
@@ -57,10 +52,7 @@ import { componentAt } from "./route-table";
 
 describe("the page's own address", () => {
   it("answers at /health, and no longer at /integrations", async () => {
-    // `/integrations` was an alias for this page from bead `ro-034` until bead
-    // `ro-vu8d.2` gave that path its own page — the one where a credential is
-    // entered. This page still answers at `/health`, which is what every link
-    // the Tower emitted to the MATRIX points at.
+    // Every link the Tower emitted to the matrix points at `/health`.
     expect(await componentAt(deskRoutes, "/health")).toBe(HealthRoute);
     expect(await componentAt(deskRoutes, "/integrations")).toBe(IntegrationsRoute);
   });
@@ -139,10 +131,8 @@ function matrix(
   };
 }
 
-/**
- * The page over a matrix that is only about the daily history (bead
- * `ro-78qo.41`) — every other slice is the standing fixture's.
- */
+/** The page over a matrix that is only about the daily history; every other
+ * slice is the standing fixture's. */
 function renderHealth(over: Partial<IntegrationsMatrix>) {
   return renderRoute({ ...matrix({ "meals.example": [] }), ...over });
 }
@@ -172,13 +162,9 @@ function renderRoute(
 }
 
 /**
- * Open one of the page's collapsed panels (doc 14, bead `ro-78qo.16`).
- *
- * A panel MOUNTS ITS BODY ONLY WHEN OPEN. A closed `<details>` still lays its
- * contents out, so the 98-cell audit matrix inside one was still on the page's
- * measured height and on `surface:audit`'s prose count while nobody could see
- * it. A case about the matrix presses the header first, exactly as an operator
- * does.
+ * Open one of the page's collapsed panels. A panel mounts its body only when
+ * open (a closed `<details>` still lays its contents out), so a case about
+ * the matrix presses the header first.
  */
 function openPanel(mark: string): HTMLElement {
   const panel = document.querySelector(`[data-panel="${mark}"]`);
@@ -189,7 +175,7 @@ function openPanel(mark: string): HTMLElement {
   return panel;
 }
 
-describe("the Health page is layered (bead ro-034)", () => {
+describe("the Health page is layered", () => {
   const derived: DerivedLaneRow[] = [
     {
       catalog: {
@@ -257,8 +243,6 @@ describe("the Health page is layered (bead ro-034)", () => {
       ),
     );
 
-    // The audit view is the page's secondary read since doc 14 — opened here
-    // the way an operator opens it.
     const audit = openPanel("audit");
     const headings = [...audit.querySelectorAll('table th[scope="rowgroup"]')].map(
       (th) => th.textContent ?? "",
@@ -268,11 +252,8 @@ describe("the Health page is layered (bead ro-034)", () => {
     expect(headings[1]).toContain("Provider accounts");
     expect(headings[2]).toContain("The site's own wiring");
     // The order is the argument: the OS first, then accounts, then wiring.
-    // A heading is its label alone, never a sentence under it.
     expect(headings[0]).toBe("The OS itself");
 
-    // Each heading heads its own row group, so the lanes land under the layer
-    // they belong to rather than in one flat list with decoration in it.
     const groups = [...audit.querySelectorAll("table tbody")].map((body) =>
       [...body.querySelectorAll("tr td:first-child button")].map((b) => b.textContent),
     );
@@ -284,7 +265,7 @@ describe("the Health page is layered (bead ro-034)", () => {
   });
 });
 
-describe("/health — the page leads with what to unblock next (bead ro-9mx)", () => {
+describe("/health — the page leads with what to unblock next", () => {
   const blocked = matrix({
     "meals.example": [
       cell("meals.example", "gsc", "needs-setup"),
@@ -302,7 +283,6 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect([...strip.querySelectorAll("[data-kpi]")].map((kpi) => kpi.getAttribute("data-kpi"))).toEqual([
       "Sites failing", "Sites overdue", "Reports missing", "Sites working",
     ]);
-    // The retired register strip is gone: one set of words for one subject.
     for (const retired of ["Verified working", "Not verified", "Degraded", "Not set up"]) {
       expect(container.querySelector(`[data-kpi="${retired}"]`)).toBeNull();
     }
@@ -328,19 +308,14 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     [lane("uptime", "Uptime monitoring", "shared")],
   );
 
-  /**
-   * Bead ro-ujb9.133: Integrations has no card that connects uptime
-   * monitoring, so "Connect Uptime monitoring once" led nowhere and stayed on
-   * the page forever. A source nothing connects is no to-do while it is only
+  /** A source nothing on Integrations connects is no to-do while it is only
    * Not set up, and the grid draws no row for it; once a site uses it, it is
-   * listed like any other.
-   */
+   * listed like any other. */
   it("offers no to-do and no grid row for a source nothing on Integrations connects", () => {
     const { container, getByText, queryByText } = renderRoute(wiring);
     expect(queryByText("Connect Uptime monitoring once")).toBeNull();
     expect(getByText("Nothing to set up")).toBeInTheDocument();
-    // A provider's source belongs to the Connections panel alone: listing it
-    // here too would be the same site in a second vocabulary.
+    // A provider's source belongs to the Connections panel alone.
     expect(queryByText("Connect Google Search Console once")).toBeNull();
     expect(queryByText(/Microsoft Clarity/, { selector: "section[aria-label='Other sources'] *" })).toBeNull();
     expect(queryByText("Finish setup on Meal Planner")).toBeNull();
@@ -363,12 +338,9 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     const rows = list.querySelectorAll("li");
     expect(rows).toHaveLength(1);
     const row = rows[0]!;
-    // The grid's own status word leads the row (bead ro-ffbg), never
-    // "Review … degradation" — for uptime, what is down: the site (bead
-    // ro-ujb9.165).
+    // The grid's own status word leads the row; for uptime, what is down: the site.
     expect(row.textContent).toContain("Site down");
     expect(row.textContent).not.toContain("degradation");
-    // The site whose monitor failed, not the one that never had one.
     expect(row.textContent).toContain("Meal Planner");
     expect(row.textContent).not.toContain("Nosh");
     fireEvent.click(row.querySelector("button")!);
@@ -378,11 +350,8 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect(container.querySelector("table")?.textContent).toContain("Uptime");
   });
 
-  /**
-   * Bead ro-ujb9.96.15: a site the register holds no status for on a data
-   * source reads that source as not applicable, so it was hidden on the site
-   * and named nowhere. Each such site is one row, opening its Data sources.
-   */
+  /** A site the register holds no status for on a data source reads that
+   * source as not applicable; each such site is one row, opening its Data sources. */
   it("names each site that has no status for a data source, and opens its Data sources", () => {
     const { container } = renderRoute({
       ...inUse,
@@ -408,16 +377,10 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect(container.querySelector("section[aria-label='Other sources']")?.textContent).not.toContain("Set source status");
   });
 
-  /**
-   * Bead ro-ffbg: one screen called the nightly report "Daily asset report"
-   * in the grid and Other sources and "Nightly report" in Latest evidence, and
-   * asked the operator to "Review Daily asset report degradation". One name
-   * now — the lexicon's — and the grid's status word.
-   */
+  /** One name for the nightly report, the lexicon's, and the grid's status word. */
   it("names the nightly report once, and says a late one is overdue", () => {
     const late = "2026-08-01T06:00:00.000Z";
     const nightly: DerivedLaneRow = {
-      // The catalog row as the payload sends it; the client names it.
       catalog: { ...lane("nightly-report", "Daily site report", "per-property", "property"), derived: true, scope: "both" },
       cells: {
         "meals.example": {
@@ -432,10 +395,8 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect([...list.querySelectorAll("li")].map((row) => row.textContent)).toEqual([
       expect.stringContaining("Nightly report overdue"),
     ]);
-    // The page's summary counts it without calling an overdue report failing.
     expect(container.textContent).toContain("1 other source not working");
     expect(container.textContent).not.toContain("source failing");
-    // Latest evidence names it the same way.
     const evidence = [...container.querySelectorAll<HTMLElement>("span[title]")]
       .find((label) => label.title.startsWith("Daily site report ·") || label.title.startsWith("Nightly report ·"));
     expect(evidence?.textContent).toBe("Nightly report");
@@ -444,19 +405,10 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect(container.textContent).not.toMatch(/degradation|Daily site report|Daily asset report/);
   });
 
-  /**
-   * The audit measures the first screen against a block the page NAMES
-   * (`scripts/README.md`), and on this surface the answer is the counts, the
-   * sources' own freshness and the queue — not a chart.
-   */
-  /**
-   * EVERY FIGURE SHOWS ITS COMPOSITION, NOT A SERIES (doc 14's "every number
-   * that CAN have a series", bead `ro-78qo.6`). Not one of these five has a
-   * series: the store keeps the CURRENT state of every connection and no
-   * by-day record of any of it. What each has instead is how its total divides,
-   * which is what `data-composition` declares — and `ro-78qo.30` is the roll-up
-   * that would give the strip a real trend.
-   */
+  /** The audit measures the first screen against a block the page names. Not
+   * one of these five figures has a series: the store keeps the current state
+   * of every connection and no by-day record, so each declares how its total
+   * divides (`data-composition`). */
   it("declares its hero: the connections, with their counts", () => {
     const { container } = renderRoute(blocked);
 
@@ -473,16 +425,9 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     }
   });
 
-  /**
-   * A LABEL THAT FITS IS A LABEL A READER CAN COMPARE (doc 14).
-   *
-   * The catalog's name is the source's full one and earns every word in the
-   * audit matrix, where a row is named once. In a five-across strip it does
-   * not: "Google Analytics 4 (GA4 Data API)" truncated mid-word, three of five
-   * labels became guesses, and a row of comparable measures stopped comparing.
-   * The strip uses the short names desk copy already uses, with the full one on
-   * the hover.
-   */
+  /** The catalog's full name earns every word in the audit matrix; in a
+   * five-across strip it truncates mid-word, so the strip uses the short
+   * names with the full one on hover. */
   it("names each source in the strip the short way, with the full name on hover", () => {
     const { container } = renderRoute(
       matrix(
@@ -516,17 +461,12 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
       ),
     );
 
-    // The full name is the product's (integrationLabel), as the client names
-    // every catalog row it is sent.
     const label = container.querySelector('[title^="Google Analytics ·"]')!;
     expect(label.textContent).toBe("GA4");
   });
 
-  /**
-   * NO OWNER CHIP (doc 14 principle 4). This is a view surface: the register
-   * that declares the lanes is named in `About`, in words, rather than printed
-   * as a path the reader cannot act on from here.
-   */
+  /** A view surface names the register that declares the lanes in words,
+   * never as a path the reader cannot act on from here. */
   it("carries no owner chip and no config path", () => {
     const { container } = renderRoute(blocked);
 
@@ -534,7 +474,6 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
     expect(container.textContent).not.toContain("config/integrations.json");
   });
 
-  /** No paragraph to open: the page's states and counts read without one. */
   it("carries no About", () => {
     const { container } = renderRoute(blocked);
     expect(container.querySelector("[data-about]")).toBeNull();
@@ -543,14 +482,12 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
   it("keeps the matrix reachable, and closed", () => {
     const { container, getByText } = renderRoute(blocked);
     const closed = container.querySelector('[data-panel="audit"]')!;
-    // CLOSED MEANS NOT RENDERED, not merely hidden: a closed `<details>` still
-    // lays its contents out, which is how 98 cells stayed on this page's
-    // measured height with nobody able to see them.
+    // Closed means not rendered, not merely hidden: a closed `<details>` still
+    // lays its contents out.
     expect(closed.hasAttribute("data-panel-open")).toBe(false);
     expect(closed.querySelector("table")).toBeNull();
     expect(getByText("Every source, site by site")).toBeInTheDocument();
 
-    // Still reachable — a secondary view, not a removed one.
     const audit = openPanel("audit");
     expect(audit.textContent).toContain("Google Search Console");
     expect(audit.textContent).toContain("Meal Planner");
@@ -570,26 +507,24 @@ describe("/health — the page leads with what to unblock next (bead ro-9mx)", (
       }),
     );
     expect(getByText("Nothing to set up")).toBeInTheDocument();
-    // The audit view is unchanged by the portfolio being healthy — it is still
-    // there for the occasion someone wants the cross-asset comparison.
     expect(openPanel("audit").querySelector("table")).not.toBeNull();
   });
 });
 
-describe("which credentials are still on the environment file (bead ro-vu8d.5)", () => {
+describe("which credentials are still on the environment file", () => {
   const healthy = () =>
     matrix({
       "meals.example": [cell("meals.example", "gsc", "live")],
       "nosh.example": [cell("nosh.example", "gsc", "live")],
     });
 
-  /** A `StatusBanner` since doc 14 — one line, above the hero, and it renders
-   * nothing at all when the state it reports is closed. */
+  /** A `StatusBanner`: one line, above the hero, rendering nothing at all
+   * when the state it reports is closed. */
   const banner = (container: HTMLElement) => [...container.querySelectorAll('[role="status"]')].find(node => node.textContent?.includes('legacy credential')) ?? null;
 
   it("names them in one line, with where to move them", () => {
-    // The case this exists for: a portfolio that reads entirely green here, and
-    // depends on a gitignored file a fresh install would not have.
+    // A portfolio that reads entirely green here, and depends on a gitignored
+    // file a fresh install would not have.
     const { container } = renderRoute(healthy(), [
       ["google", "env"],
       ["bing-webmaster", "store"],
@@ -612,9 +547,8 @@ describe("which credentials are still on the environment file (bead ro-vu8d.5)",
   });
 
   it("is a note, never a lane state — the matrix keeps its five", () => {
-    // A lane can be Working while its credential is Legacy env, and that gap is
-    // the whole of epic ro-vu8d. Folding it into the matrix would either invent
-    // a sixth state or bury the fact in a cell nobody expands.
+    // A lane can be Working while its credential is Legacy env. Folding that
+    // into the matrix would invent a sixth state or bury it in a cell.
     const { container } = renderRoute(healthy(), [["google", "env"]]);
     expect(openPanel("audit").textContent).not.toContain("environment file");
     expect(banner(container)).not.toBeNull();
@@ -629,10 +563,8 @@ describe('source history shows available observations', () => {
     expect(getByText('View data · 4 days')).toBeInTheDocument();
     expect(container.querySelectorAll('[data-hero-point="Stalest source"]')).toHaveLength(2);
   });
-  it('draws no source-history card until it has three days to draw (D45)', () => {
+  it('draws no source-history card until it has three days to draw', () => {
     const { container } = renderHealth({ history: emptyIntegrationsHistory() });
-    // A chart too short to be a line is not a card of its own; it arrives
-    // with its third day.
     expect(container.querySelector('[data-source-history]')).toBeNull();
     expect(container.querySelector('[aria-label="Source history"]')).toBeNull();
   });

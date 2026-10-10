@@ -1,13 +1,10 @@
-// A NEW INSTALLATION'S POSTGRES STORE FOR ONE TEST (epic ro-ujb9.76) — the
-// Postgres fixture path used by Tower readers and Workers.
-//
-// Each call asks the run's copy service (test/postgres-global-setup.mjs) for
-// a copy of the template in a database of its own, and opens the one helper
-// on it the way the Tower Worker does, as noticeos_app over loopback TCP. The
-// copy holds the roles, every migration and the installation's one workspace,
-// and no sites: a test adds its own rows. `close()` closes the store and gives
-// the copy back: its connections are ended and its name is gone, and the copy
-// service hands it, emptied, to a later test (bead ro-ujb9.76.48).
+// A new installation's Postgres store for one test. Each call asks the run's
+// copy service (test/postgres-global-setup.mjs) for a copy of the template in
+// a database of its own, and opens the one helper on it the way the Tower
+// Worker does, as noticeos_app over loopback TCP. The copy holds the roles,
+// every migration and the installation's one workspace, and no sites: a test
+// adds its own rows. `close()` closes the store and gives the copy back,
+// emptied, to a later test.
 
 import { inject } from "vitest";
 import { openStore, openWorkspaceStore, type PostgresStore, type Transaction, type WorkspaceStore } from "@noticeos/postgres";

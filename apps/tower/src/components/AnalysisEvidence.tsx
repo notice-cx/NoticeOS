@@ -13,10 +13,8 @@ import {
 
 const EvidenceContext = createContext<{ context: RecommendationContext; nowMs: number } | null>(null);
 
-/** All asset recommendation surfaces read one request-scoped photograph.
- * Standalone/gallery callers without it remain explicitly unverified.
- * The tabs that show recommendations mount it around themselves (bead
- * `ro-ujb9.64`), so it only ever holds a read that carries every field below. */
+/** All asset recommendation surfaces read one request-scoped snapshot; the
+ * tabs that show recommendations mount it. Callers without it stay unverified. */
 export function RecommendationEvidenceProvider({ data, nowMs, children }: {
   data: Pick<AssetDetailPayload, "executive" | "recommendationEvidence" | "handoffBeads" | "operator" | "decisions" | "annotations">;
   nowMs: number;
@@ -39,11 +37,10 @@ export function useRecommendationAssessor() {
   return (subject: RecommendationSubject) => recommendationValidity(subject, value?.context ?? null, value?.nowMs ?? Date.now());
 }
 
-/** A row's applicability. PASSIVE (inside a closed row's summary, where a
- * nested button is not allowed) it is a state chip, drawn only when the row has
- * something to say: "not rechecked" is the default every saved recommendation
- * carries, and the list header already says it once. EXPANDED it is the
- * evidence popover: the per-source dates, linked tasks and releases as a table. */
+/** A row's applicability. Passive (inside a closed row's summary, where a
+ * nested button is not allowed) it is a state chip, drawn only when it differs
+ * from the default "not rechecked" the list header already states. Expanded it
+ * is the evidence popover. */
 export function RecommendationReview({ validity, subject, passive = false }: {
   validity: RecommendationValidity;
   /** The recommendation this is the applicability of: `finding:<key>`,
@@ -77,7 +74,7 @@ const VALIDITY_GLYPH: Record<RecommendationValidity["state"], typeof RefreshCw> 
 };
 
 /** The state as a neutral chip with its own glyph. Neutral on purpose: colour
- * is severity (doc 14), and a stale recommendation is not an alert. */
+ * is severity, and a stale recommendation is not an alert. */
 export function ValidityChip({ validity, subject }: { validity: RecommendationValidity; subject: StatusSubject }) {
   const Glyph = VALIDITY_GLYPH[validity.state];
   return <StateChip tone="neutral" label={validity.label} glyph={<Glyph className="size-3" />} subject={subject}
@@ -175,9 +172,8 @@ function monthDayRange(start: string, end: string): string {
 
 type AnalysisSnapshot = Pick<ExecutiveSnapshot, "generatedAt" | "windowStart" | "windowEnd"> & Partial<Pick<ExecutiveSnapshot, "items">>;
 
-/** The saved analysis's applicability as `AnalysisEvidence` states it. Exported
- * so a list on the same screen can tell whether its own state is already said
- * (one status per subject per screen, bead `ro-ujb9.96.6.5`). */
+/** The saved analysis's applicability as `AnalysisEvidence` states it, so a
+ * list on the same screen can tell whether its own state is already said. */
 export function useAnalysisValidity(snapshot: AnalysisSnapshot, nowMs = Date.now()): RecommendationValidity {
   const value = useContext(EvidenceContext);
   const clock = value?.nowMs ?? nowMs;
@@ -202,9 +198,8 @@ export function AnalysisEvidence({ snapshot, nowMs = Date.now() }: {
   const end = recommendationDate(snapshot.windowEnd, clock);
   return <span className="text-xs tabular-nums text-muted-foreground" data-analysis-evidence>
     <InfoTooltip label="About this saved analysis" trigger={
-      // Only an exception rides the line (bead `ro-ujb9.135`): with nothing
-      // known against the analysis, "· Not rechecked" beside its age read as
-      // a task. The state is still the first fact inside.
+      // Only an exception rides the line: "· Not rechecked" beside the age
+      // would read as a task. The state is still the first fact inside.
       <>{knownDate ? `Analysis ${formatAge(ageMs(clock, snapshot.generatedAt))} ago` : "Analysis date unknown"}{validity.state === "unverified" ? null : ` · ${validity.label}`}</>
     }>
       <RecommendationFacts validity={validity} subject="analysis:saved" heading={<>

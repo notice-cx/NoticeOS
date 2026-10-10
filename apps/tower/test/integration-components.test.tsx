@@ -43,7 +43,6 @@ describe("IntegrationSummaryStrip — shared-credential insight line", () => {
       <IntegrationSummaryStrip counts={COUNTS} sharedCredential={{ lanes: 1, cells: 4 }} />,
     );
     expect(container.textContent).toContain("1 integration connects once · 4 sites waiting");
-    // The register's totals are counts in the one vocabulary, never a sentence.
     expect(container.textContent).toContain("Not connected · 31");
     expect(container.textContent).toContain("Not using · 1");
     expect(container.textContent).not.toContain("1 integrations");
@@ -67,8 +66,8 @@ const DERIVED_LANE: DerivedLaneRow = {
     ...CATALOG_LANE,
     id: NIGHTLY_REPORT_LANE_ID,
     label: "Nightly report",
-    // The nightly report is the asset's own plumbing: its endpoint, its
-    // token, no third party — so it groups with the asset layer, not GSC's.
+    // The nightly report is the asset's own plumbing, so it groups with the
+    // asset layer, not GSC's.
     layer: "property",
     onFailure: "raises-alert",
     derived: true,
@@ -91,8 +90,8 @@ const DERIVED_LANE: DerivedLaneRow = {
   },
 };
 
-/** The L0 row as the worker builds it: one real cell on the OS's own column, the
- * scope rule's N/A on every content asset. */
+/** The L0 row as the worker builds it: one real cell on the OS's own column,
+ * the scope rule's N/A on every content asset. */
 const EGRESS_LANE: DerivedLaneRow = {
   catalog: {
     ...CATALOG_LANE,
@@ -166,10 +165,8 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
   }
 
   it("renders each layer's derived row FIRST, above that layer's declared catalog", () => {
-    // Since bead `ro-034` the rows are grouped by layer, so "derived leads" is a
-    // rule inside a layer rather than across the table: this fixture's GSC lane
-    // is a provider account and the nightly report is the asset's own wiring,
-    // which is a wider blast radius and a narrower one, in that order.
+    // This fixture's GSC lane is a provider account and the nightly report is the
+    // asset's own wiring, so they land in different layers.
     const { container } = renderMatrix();
     const groups = [...container.querySelectorAll("tbody")].map((body) => ({
       heading: body.querySelector('th[scope="rowgroup"]')?.textContent ?? "",
@@ -187,15 +184,11 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     const { container } = renderMatrix();
     const table = container.querySelector("table")!;
     const links = [...table.querySelectorAll("a")].map((a) => a.getAttribute("href"));
-    // Exactly one link: the declared cell. The live derived chip is plain text.
     expect(links).toEqual(["/assets/meals.example/sources"]);
     expect(within(table).getByText("Working").closest("a")).toBeNull();
   });
 
-  it("expands to the lane's facts, never doc 11's paragraphs", () => {
-    // Bead ro-ujb9.96.6.2: an opened source states what it costs, when it
-    // runs and what happens while it fails, as values — the cadence is the
-    // one its freshness is judged by, not a second copy of it.
+  it("expands to the lane's facts", () => {
     const { container } = renderMatrix();
     const table = container.querySelector("table")!;
     fireEvent.click(within(table).getByText("Nightly report"));
@@ -211,11 +204,9 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
   });
 
   it("keeps the OS's own lane off the asset cards on mobile", () => {
-    // The narrow view groups by ASSET, not by layer, so the L0 row has to
-    // stay out of an asset's card on its own — it does, through the same N/A
-    // drop every portfolio-scope lane already relies on. No layer headings are
-    // added here: a card that lists one asset's sources does not need three
-    // section headers to say whose they are.
+    // The narrow view groups by asset, not by layer, so the L0 row stays out
+    // of an asset's card through the same N/A drop every portfolio-scope lane
+    // relies on.
     const { container } = render(
       <MemoryRouter>
         <IntegrationMatrix
@@ -237,7 +228,6 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     expect(cards).toHaveLength(2);
     expect(cards[0]!.textContent).toContain("Internet connection");
     expect(cards[1]!.textContent).not.toContain("Internet connection");
-    // The desktop table still carries the row, under its own layer heading.
     const osGroup = container.querySelector("table tbody")!;
     expect(osGroup.querySelector('th[scope="rowgroup"]')!.textContent).toContain(
       "The OS itself",
@@ -245,13 +235,7 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     expect(osGroup.textContent).toContain("Internet connection");
   });
 
-  // THE PHONE ACCORDION'S ROWS ARE THUMB-SIZED (bead `ro-khoy`). `ro-md80` put
-  // a 44px floor under every button, field and nav row; /health did not move,
-  // because these rows are none of those — a 20px source name and a 26px chip
-  // in the middle of a row `p-3` had already made 50px tall. The fix claims
-  // that height rather than adding it, which is what keeps the page at the
-  // 2555px it measured at before. jsdom has no layout, so the classes are what
-  // is pinned; the browser number is in the commit.
+  // jsdom has no layout, so the classes are what is pinned.
   it("gives a phone the whole row to hit, and never widens the desk grid", () => {
     const { container } = renderMatrix();
     const accordion = container.querySelector("div.md\\:hidden")!;
@@ -263,17 +247,14 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     );
     expect(toggles.length).toBeGreaterThan(0);
 
-    // The row wrapper no longer holds the height the targets should own.
     const rowWrapper = toggles[0]!.parentElement!;
     expect(rowWrapper.className).toContain("px-3");
     expect(rowWrapper.className.split(/\s+/)).not.toContain("p-3");
 
-    // Every source name fills its row.
     for (const toggle of toggles) {
       expect(toggle.className).toContain("min-h-11");
     }
 
-    // The chip's link and the evidence glyph get 44px boxes at their drawn size.
     for (const link of accordion.querySelectorAll("a[href]")) {
       expect(link.className).toContain("max-md:min-h-11");
     }
@@ -281,10 +262,9 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
       expect(glyph.className).toContain("max-md:size-11");
     }
 
-    // And none of it reaches the grid beside it, which a pointer already hits.
-    // `MatrixCell` is shared, so the grid's links carry the same rules — the
-    // point is that every one of them is variant-prefixed and so cannot apply
-    // at a width where the grid is the visible view.
+    // None of it reaches the grid beside it: `MatrixCell` is shared, so every
+    // rule is variant-prefixed and cannot apply at a width where the grid is
+    // the visible view.
     const table = container.querySelector("table")!;
     for (const el of table.querySelectorAll("a[href], button")) {
       const bare = el.className.split(/\s+/);
@@ -297,9 +277,6 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
     const { container } = renderMatrix();
     const table = container.querySelector("table")!;
     fireEvent.click(within(table).getByLabelText(/Why this state/));
-    // The derived cell's own chip says where its state comes from; the popover
-    // is the evidence rows alone, with no explainer paragraph over them (bead
-    // `ro-ujb9.96.6.7`).
     expect(container.querySelector('[title^="Read from the store"]')).not.toBeNull();
     expect(within(document.body).getByRole("dialog").querySelector("p")).toBeNull();
     expect(container.textContent).not.toContain("merged over the declared value");
@@ -334,14 +311,7 @@ describe("HealthRoute — month-to-date data spend", () => {
     vi.unstubAllGlobals();
   });
 
-  /**
-   * Open the split, the way an operator does (doc 14, bead `ro-78qo.16`).
-   *
-   * The portfolio figure is in the strip on the first screen; the per-asset
-   * split and its meter are a collapsed panel, because they are read one row at
-   * a time by somebody who came looking for them. The panel MOUNTS ITS BODY
-   * ONLY WHEN OPEN, so a case about a row has to press the header.
-   */
+  /** The panel mounts its body only when open. */
   function openSpend(): HTMLElement {
     const panel = document.querySelector('[data-panel="spend"]');
     if (!(panel instanceof HTMLElement)) throw new Error("no spend panel");
@@ -352,8 +322,6 @@ describe("HealthRoute — month-to-date data spend", () => {
   }
 
   it("states the month's metered spend against the cap that stops it", async () => {
-    // provider_cost_usd has been indexed since 0011 with nothing in the Tower
-    // reading it: the operator could not see how close the lane was to its cap.
     const { container, findByText, findByRole } = renderRoute({
       ...MATRIX,
       dataSpend: {
@@ -368,8 +336,6 @@ describe("HealthRoute — month-to-date data spend", () => {
       },
     });
 
-    // The figure is on the first screen, in the strip — with the shape a
-    // figure cannot draw beside it: how much of the cap is spent.
     await findByRole("button", { name: /Credential expiry and data costs/ });
     openSpend();
     await findByText("$8.40");
@@ -382,13 +348,11 @@ describe("HealthRoute — month-to-date data spend", () => {
       "$8.40 of the $25 monthly cap is spent",
     );
 
-    // The cap needs no paragraph: the figure against the cap is the rule.
     expect(container.querySelector("[data-about]")).toBeNull();
   });
 
-  it("says which asset the month's data budget went on (bead ro-4cm)", async () => {
-    // The cap is portfolio-wide, but the decision it feeds is per-asset: "is
-    // this asset worth what its data costs" is unanswerable from a total.
+  it("says which asset the month's data budget went on", async () => {
+    // The cap is portfolio-wide, but the decision it feeds is per-asset.
     const { container, findByText, findByRole } = renderRoute({
       ...MATRIX,
       assets: [
@@ -411,16 +375,12 @@ describe("HealthRoute — month-to-date data spend", () => {
     openSpend();
     await findByText("$8.40");
     const rows = [...openSpend().querySelectorAll("[data-spend-asset]")];
-    // Biggest spender first, named the way the matrix columns name it — one
-    // asset is never two words on one page.
     expect(rows.map((row) => row.textContent)).toEqual(["Meal Planner$6.20", "Nosh$2.20"]);
-    // The split adds up to the headline the strip states.
     expect(container.textContent).toContain("of $25 in Jul");
   });
 
-  // Bead `ro-ukus`: research bought about no single property is real money on
-  // the same account and the cap gate counts it, so the split has to reach the
-  // headline rather than leaving an unexplained gap under it.
+  // Research bought about no single property is real money on the same
+  // account and the cap gate counts it, so the split has to reach the headline.
   it("names the research that belongs to no one asset, so the split adds up", async () => {
     const { container, findByText, findByRole } = renderRoute({
       ...MATRIX,

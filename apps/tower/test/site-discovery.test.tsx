@@ -1,13 +1,7 @@
-// The connect panel's site list and Start collecting (bead `ro-ujb9.96.7.2`).
-//
-// WHAT IS PROTECTED:
-//  - a domain match is a suggestion: ticked, never written before Start;
-//  - nothing is dropped: an asset the account lacks, a site no asset claims,
-//    an unverified site and an asset the lane does not collect are all rows;
-//  - Start writes exactly the operations the asset's Data sources tab writes
-//    (`laneFieldOp`, shared/lane-mapping-ops.ts), and nothing already saved;
-//  - a metered provider states its spend, from the OS's own records, first;
-//  - the `…/sites` and `…/collect` routes list and trigger, and hold nothing.
+// The connect panel's site list and Start collecting: a domain match is a
+// suggestion, ticked, never written before Start; nothing is dropped; Start
+// writes exactly the operations the asset's Data sources tab writes
+// (`laneFieldOp`, shared/lane-mapping-ops.ts), and nothing already saved.
 
 import { act, fireEvent, render, screen, within } from "./render";
 import { MemoryRouter } from "react-router-dom";
@@ -65,7 +59,7 @@ const PAYLOAD: SitesPayload = {
   domainMatch: ["bing-webmaster"],
 };
 
-/** Mediavine (bead ro-ujb9.96.7.6): the account's sites, each mapped by its id. */
+/** Mediavine: the account's sites, each mapped by its id. */
 const mediavineSite = (id: string, domain: string): DiscoveredSite => ({
   lane: "ad-network", ref: id, label: domain, host: domain, mapping: { mediavineSiteId: id }, ready: true,
 });
@@ -85,15 +79,10 @@ describe("matching an account's sites to the portfolio", () => {
     const byId = Object.fromEntries(plan.rows.map((row) => [row.asset.id, row]));
     expect(byId["journey.example"]).toMatchObject({ checked: true, excluded: null, lanes: [{ state: "matched", site: { ref: "https://journey.example/" } }] });
     expect(byId["mapped.example"]).toMatchObject({ checked: true, lanes: [{ state: "mapped" }] });
-    // The account holds nothing on second.example's domain: a row that says
-    // so, unticked, offering the one unclaimed site the operator may pick.
     expect(byId["second.example"]).toMatchObject({ checked: false, excluded: null, lanes: [{ state: "unlisted", site: null }] });
     expect(byId["second.example"]!.lanes[0]!.choices.map((site) => site.ref)).toEqual(["https://shop.example/"]);
-    // Declined on the Data sources tab: listed, never ticked.
     expect(byId["declined.example"]).toMatchObject({ checked: false, excluded: "not-using" });
-    // Sites no asset claims, the unverified one included — never dropped.
     expect(plan.others.map((site) => site.ref)).toEqual(["https://blog.journey.example/", "https://shop.example/"]);
-    // Ticked rows lead; the declined one comes last.
     expect(plan.rows.map((row) => row.asset.id)).toEqual(["journey.example", "mapped.example", "second.example", "declined.example"]);
   });
 
@@ -101,7 +90,6 @@ describe("matching an account's sites to the portfolio", () => {
     const plan = planSites(PAYLOAD, "journey.example");
     expect(plan.rows[0]).toMatchObject({ asset: { id: "journey.example" }, preselected: true, checked: true });
     const unlisted = planSites(PAYLOAD, "second.example");
-    // Nothing to collect it from yet, so it leads unticked rather than lying.
     expect(unlisted.rows[0]).toMatchObject({ asset: { id: "second.example" }, preselected: true, checked: false });
   });
 
@@ -133,7 +121,6 @@ describe("Start writes what the Data sources tab writes", () => {
     const plan = planSites(PAYLOAD);
     const { ops, assets } = startPlan(plan, initialSelection(plan));
     expect(assets).toEqual(["journey.example", "mapped.example"]);
-    // The very function LaneConfig.tsx saves a Site field with.
     expect(ops).toEqual([laneFieldOp("journey.example", "bing-webmaster", "siteUrl", null, "https://journey.example/")]);
     expect(ops[0]).toEqual({
       kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/journey.example/bing-webmaster/siteUrl",
@@ -148,7 +135,6 @@ describe("Start writes what the Data sources tab writes", () => {
     const { ops, assets } = startPlan(plan, picked);
     expect(assets).toContain("second.example");
     expect(ops).toContainEqual(laneFieldOp("second.example", "bing-webmaster", "siteUrl", null, "https://shop.example/"));
-    // A picked site is claimed: it leaves the unmatched list.
     expect(unclaimedSites(plan, picked).map((site) => site.ref)).toEqual(["https://blog.journey.example/"]);
   });
 
@@ -156,14 +142,13 @@ describe("Start writes what the Data sources tab writes", () => {
     const plan = planSites(PAYLOAD);
     const unticked = { checked: new Set<string>(), picks: {} };
     expect(startPlan(plan, unticked)).toEqual({ ops: [], assets: [], declined: [] });
-    // …and both rows the scheduled job collects anyway say so (bead ro-ujb9.96.7.18).
+    // Both rows the scheduled job collects anyway say so.
     const byId = Object.fromEntries(plan.rows.map((row) => [row.asset.id, rowDecision(row, unticked)]));
     expect(byId).toEqual({ "journey.example": "undecided", "mapped.example": "undecided", "second.example": null, "declined.example": null });
   });
 
-  // UNTICKED IS NOT DECLINED (bead ro-ujb9.96.7.18): a matched row the operator
-  // unticks and gives a reason is saved as the Data sources row's own Not
-  // using — the same ops `LanePostureAction` writes — in the same Start press.
+  // Unticked is not declined: a matched row the operator unticks and gives a
+  // reason is saved as the Data sources row's own Not using, in the same press.
   it("saves an unticked matched row given a reason as Not using, in the same press", () => {
     const withNote: SitesPayload = {
       ...PAYLOAD,
@@ -182,18 +167,16 @@ describe("Start writes what the Data sources tab writes", () => {
     const { ops, assets, declined } = startPlan(plan, chosen);
     expect(assets).toEqual(["mapped.example"]);
     expect(declined).toEqual(["journey.example"]);
-    // The very ops the Data sources row writes, guarded by what the file holds.
     expect(ops).toEqual(declineOps("journey.example", "bing-webmaster", { status: "needs-setup", note: "" }, "Replaced by another tool"));
     expect(ops).toEqual([
       { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/journey.example/bing-webmaster/note", expect: "", value: "REASON: Replaced by another tool" },
       { kind: "file-json-set", file: "config/integrations.json", pointer: "/assets/journey.example/bing-webmaster/status", expect: "needs-setup", value: "skipped" },
     ]);
-    // Ticked again, the decline is gone.
     expect(rowDecision(plan.rows[0]!, { ...chosen, checked: new Set([...chosen.checked, "journey.example"]) })).toBe("collect");
   });
 });
 
-describe("Mediavine's sites (bead ro-ujb9.96.7.6)", () => {
+describe("Mediavine's sites", () => {
   it("ticks the site on the asset's domain and the one already mapped, and Start writes only the new site id", () => {
     const plan = planSites(MEDIAVINE_PAYLOAD);
     expect(plan.rows.map((row) => [row.asset.id, row.checked, row.lanes[0]!.state])).toEqual([
@@ -207,8 +190,6 @@ describe("Mediavine's sites (bead ro-ujb9.96.7.6)", () => {
   it("treats a domain match as a suggestion: unticked, it is simply not collected and asks for no reason", () => {
     const plan = planSites(MEDIAVINE_PAYLOAD);
     const unticked = { checked: new Set<string>(), picks: {} };
-    // Nothing collects an unmapped Mediavine site on schedule; the mapped one
-    // is still collected until a reason says otherwise.
     expect(plan.rows.map((row) => [row.asset.id, row.scheduled, rowDecision(row, unticked)])).toEqual([
       ["journey.example", false, null], ["mapped.example", true, "undecided"],
     ]);
@@ -234,7 +215,6 @@ describe("the spend a metered provider states before its first collection", () =
   it("averages one site's recorded week from the cost records and bounds a first run by the reserve", async () => {
     const ctx = await createTestStore();
     await addSites(ctx, ["a.test", "b.test"].map((id) => ({ id, displayName: id, status: "live" })));
-    // Two sweeps for one site ($0.40 and $0.60) and one for another ($0.50).
     const runs: TestArchiveRun[] = [];
     for (const [site, date, cost] of [["a.test", "2026-09-14", 0.4], ["a.test", "2026-09-21", 0.6], ["b.test", "2026-09-21", 0.5]] as const) {
       for (const share of [0.5, 0.5]) {
@@ -335,8 +315,6 @@ describe("the picker", () => {
     renderPicker();
     const rows = screen.getAllByRole("listitem").filter((item) => item.hasAttribute("data-site-row"));
     expect(rows.map((row) => row.getAttribute("data-site-row"))).toEqual(["journey.example", "mapped.example", "second.example", "declined.example"]);
-    // second.example: the account lists nothing on its domain, and one site
-    // no asset claims is offered to pick.
     expect(within(rows[2]!).getByRole("combobox", { name: "Site for Second" })).toBeTruthy();
     expect(within(rows[3]!).getByText("Not using")).toBeTruthy();
     expect(screen.getByText("https://blog.journey.example/")).toBeTruthy();
@@ -366,8 +344,6 @@ describe("the picker", () => {
     const { onStart } = renderPicker();
     const row = () => document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
     fireEvent.click(within(row()).getByRole("checkbox"));
-    // Unticked, the job would still collect it: the row says so, and offers
-    // the reasons — none chosen for the operator.
     expect(row().dataset.siteDecision).toBe("undecided");
     expect(within(row()).getByText("Still collected")).toBeTruthy();
     const chips = within(row()).getByRole("group", { name: "Why not use Journey?" });
@@ -398,7 +374,6 @@ describe("the picker", () => {
     const row = document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
     fireEvent.click(within(row).getByRole("checkbox"));
     fireEvent.click(within(row).getByRole("button", { name: "Replaced by another tool" }));
-    // Mapped stays unticked and undecided: still collected, and not saved.
     expect((document.querySelector('[data-site-row="mapped.example"]') as HTMLElement).dataset.siteDecision).toBe("undecided");
     const press = screen.getByRole("button", { name: /^Save/ });
     expect(press.textContent).toBe("Save · 1 not using");
@@ -410,7 +385,7 @@ describe("the picker", () => {
   });
 
   it("gives Start the focus when its list arrives, unless the operator moved it while the list loaded", () => {
-    // The panel's own control beside a list still being read (bead ro-ujb9.77.11).
+    // The panel's own control beside a list still being read.
     const panel = (payload: SitesPayload | undefined) => (
       <MemoryRouter>
         <button type="button">Replace API key</button>
@@ -480,7 +455,6 @@ describe("the picker", () => {
     );
     const second = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
     fireEvent.click(within(second).getByRole("checkbox"));
-    // Unticked is not declined: the Monday sweep still bills it.
     expect(document.querySelector("[data-spend-week]")?.textContent).toBe("≈ $1.00");
     expect(within(second).getByText("Still collected")).toBeTruthy();
     fireEvent.click(within(second).getByRole("button", { name: "Don't use this product" }));
@@ -489,7 +463,7 @@ describe("the picker", () => {
   });
 });
 
-// --- PostHog: one account key, its projects, their saved funnels (bead ro-ujb9.96.7.8)
+// --- PostHog: one account key, its projects, their saved funnels
 
 describe("PostHog's projects in the panel", () => {
   const POSTHOG = integrationProvider("posthog")!;
@@ -523,7 +497,6 @@ describe("PostHog's projects in the panel", () => {
       "/assets/journey.example/posthog/host",
       "/assets/journey.example/posthog/projectId",
     ]);
-    // …but an empty list is no choice, and takes the project's.
     const empty = planSites(payload([asset("journey.example", { cells: cell({ funnels: [] }) })]));
     expect(startPlan(empty, initialSelection(empty)).ops.at(-1)).toEqual(laneFieldOp("journey.example", "posthog", "funnels", [], [SIGNUP] as never));
   });
@@ -542,7 +515,7 @@ describe("PostHog's projects in the panel", () => {
   });
 });
 
-describe("Google's two kinds of site on one row (bead ro-ujb9.96.7.7)", () => {
+describe("Google's two kinds of site on one row", () => {
   const GOOGLE = integrationProvider("google")!;
   const ga4 = (id: string, host: string | null, label = host ?? "Untitled"): DiscoveredSite => ({
     lane: "ga4", ref: id, label, host, mapping: { propertyId: id }, ready: true,
@@ -587,7 +560,6 @@ describe("Google's two kinds of site on one row (bead ro-ujb9.96.7.7)", () => {
     const row = document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
     expect(row.getAttribute("data-site-state")).toBe("matched matched");
     expect(row.querySelector("[data-site-detail]")?.textContent).toBe("GA4 313598867 · sc-domain:journey.example");
-    // The row the account names nothing for picks its property by name.
     const second = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
     expect(within(second).getByRole("combobox", { name: "GA4 property for Second" })).toBeTruthy();
     expect(document.querySelector('[data-other-site="402211876"]')?.textContent).toContain("another.example");

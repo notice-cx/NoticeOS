@@ -6,17 +6,10 @@ import { operatorState } from "@/lib/operator-posture";
 import { withSystemIssues } from "@/lib/wall-system-state";
 import { needsYouRows, type WallIssue, type WallIssueSeverity } from "@/lib/wall-issues";
 
-// NEEDS YOU (docs/14-design.md § Needs you, D28, bead `ro-trai.4`): the top
-// three things that need the operator, errors first then newest, each with its
-// site, one line and its age — every row staying put until it resolves. It
-// replaces the alert rail's rotation, which showed one item of six at a time
-// behind a ten-second cursor.
-//
-// Registry justification: `AttentionRail` rotates one alert at a time and knows
-// only alerts; `ListPanel` is the desk's list with links and actions. Nothing
-// listed alerts, failing sources, late reports and overdue reviews together,
-// still, at TV size. The list itself is `lib/wall-issues` — the same one a
-// site row's issue mark reads, so the two can never disagree.
+// The top three things that need the operator, errors first then newest, each
+// with its site, one line and its age, staying put until it resolves. The list
+// is `lib/wall-issues`, the same one a site row's issue mark reads, so the two
+// never disagree.
 
 export interface NeedsYouProps {
   /** Every open problem, in `wallIssues` order. */
@@ -30,7 +23,7 @@ export interface NeedsYouProps {
 
 const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
 
-/** The severity as a shape, not only a colour (doc 14): a circle for an error,
+/** The severity as a shape, not only a colour: a circle for an error,
  * a triangle for a warning — the desk's `SeverityDot` shapes, one map. */
 export function IssueGlyph({ severity, className }: { severity: WallIssueSeverity; className?: string }) {
   const Glyph = SEVERITY_SHAPE[severity];
@@ -53,7 +46,7 @@ function urgentLabel(operator: OperatorPosture | null | undefined, nowMs: number
     return operator.urgentMeasuredProjects > 0 ? `${operator.urgent}+ urgent tasks` : "Tasks unknown";
   }
   // A count is a count however old the photograph (`operatorLabel`); only a
-  // stale ZERO is unknown rather than calm.
+  // stale zero is unknown rather than calm.
   if (operator.urgent > 0) return `${operator.urgent} urgent ${operator.urgent === 1 ? "task" : "tasks"}`;
   return state.stale ? "Tasks stale" : null;
 }

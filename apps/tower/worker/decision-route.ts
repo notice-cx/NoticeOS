@@ -1,11 +1,6 @@
-// POST/DELETE /api/assets/:id/decisions — the second sanctioned write in the
-// Tower, and the first one that records the operator's own judgement rather
-// than a flag's lifecycle.
-//
-// Kept out of index.ts so the guard and validation are unit-testable without
-// the Worker's ambient `Env`. Two methods rather than a `restore` pseudo-status:
-// `status` maps 1:1 onto the db/0013 CHECK, and a verb smuggled into that
-// column would make the API and the schema disagree about what a status is.
+// POST/DELETE /api/assets/:id/decisions — the operator's own judgement on an
+// item. DELETE restores rather than a `restore` pseudo-status, so `status`
+// maps 1:1 onto the column's CHECK.
 
 import {
   DECISION_KEY_MAX,
@@ -29,16 +24,12 @@ interface ValidBody {
 }
 
 /**
- * Handle one decisions request. `asset` has already been extracted from the
- * path by the caller. Returns the same error vocabulary the flag route uses:
  * 403 forbidden · 415 unsupported_media_type · 400 bad_request ·
  * 422 invalid_decision · 404 asset_not_found · 500 decision_write_failed.
  */
 export async function handleDecisionsRequest(
   request: Request,
   url: URL,
-  /** This call's store: the site and its item dispositions are on Postgres
-   * (beads ro-ujb9.76.4.2, ro-ujb9.76.5.8). */
   store: WorkspaceStore,
   asset: string,
   nowIso: string,

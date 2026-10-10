@@ -24,22 +24,17 @@ import {
 import { formatMoney } from "@/lib/format";
 
 /**
- * WHAT THE OVERVIEW'S SIX NUMBERS ARE MADE OF (doc 14, bead `ro-78qo.3`).
- *
- * The arithmetic every desk surface shares — windows, rolling averages, the
- * period delta and its honesty flag — is `shared/surface.ts`. What is here is
- * only what this page's own numbers need on top of it: two providers read as
- * one measurement, a daily count of people that may not be summed, this month's
- * side of the ledger, and how long the newest alert has been running.
+ * What the Overview's six numbers are made of. The arithmetic every desk
+ * surface shares is `shared/surface.ts`; what is here is only what this page's
+ * own numbers need on top of it: two providers read as one measurement, a
+ * daily count of people that may not be summed, this month's side of the
+ * ledger, and how long the newest alert has been running.
  */
 
 /** Add two providers' daily series date by date. A date only one of them has
- * reported carries only that one: a provider's latency is never a zero
- * (doc 14), and the About says so where the number is read.
- *
- * The rule moved to `shared/wall.ts` for bead `ro-78qo.35`: the wall payload
- * needs the same merge for /assets' comparison table, and a worker cannot
- * import a browser module. This is the name this page has always called it. */
+ * reported carries only that one: a provider's latency is never a zero. The
+ * rule lives in `shared/wall.ts` because the wall payload needs the same
+ * merge and a worker cannot import a browser module. */
 export const combineByDate = combineSeriesByDate;
 
 /** The shape `periodDelta` and `HeroChart` both read, for one metric that may be
@@ -72,11 +67,10 @@ export function mergeTrends(trends: readonly SignalTrend[]): MergedTrend {
 export type Aggregate = "sum" | "mean";
 
 /**
- * `mean` is not a stylistic choice. Sessions, clicks and impressions are events
- * and add up over a month. Active users is a daily count of DISTINCT people, and
- * a person who visits on Monday and Tuesday is one person — so a 28-day "total"
- * would be a number nobody could act on, in the same family of mistake doc 14
- * bans when it says never to sum hourly users into a daily figure.
+ * `mean` is not a stylistic choice. Sessions, clicks and impressions are
+ * events and add up over a month. Active users is a daily count of distinct
+ * people, and a person who visits on Monday and Tuesday is one person, so a
+ * 28-day "total" would be a number nobody could act on.
  */
 export function aggregate(points: readonly SeriesPoint[], kind: Aggregate): number {
   const total = points.reduce((sum, point) => sum + point.v, 0);
@@ -93,11 +87,9 @@ export function settledSeries(
     : series.filter((point) => point.t < provisionalFrom);
 }
 
-/**
- * The trailing average across the visible window, drawn with the days BEFORE it
- * so the first point of a 7-day range is already an average rather than a stub
- * (doc 14's pre-roll rule: average the whole series, then window).
- */
+/** The trailing average across the visible window, drawn with the days before
+ * it so the first point of a 7-day range is already an average rather than a
+ * stub: average the whole series, then window. */
 export function averageOverRange(
   trend: MergedTrend,
   days: number,
@@ -110,25 +102,17 @@ export function averageOverRange(
   return windowSeries(averageSeries(settled, window), days);
 }
 
-/** doc 14: fewer than three complete days in the window is a dash and no
- * sparkline — three points is the least a direction can be read from. */
+/** Fewer than three complete days in the window is a dash and no sparkline:
+ * three points is the least a direction can be read from. */
 export const MIN_POINTS = 3;
 
 /**
- * ONE METRIC OVER ONE WINDOW — and the ONE derivation the asset page has for it
- * (bead `ro-78qo.4`).
- *
- * The Overview's KPI strip and the Growth tab's chart pairs state the same four
- * measures about the same asset over the same range, and until this existed they
- * built them separately: Growth read Google alone where the strip read Google
- * and Bing as one measurement, so one asset page printed 16,905 search clicks in
- * one place and 25,452 in another. Both numbers were arithmetically fine and one
- * of them was a lie, which is exactly the failure doc 14's "one representation
- * per fact" is about.
- *
- * So the merge, the settled window, the aggregate, the delta and the
- * three-point floor all live here, and both surfaces render what this returns.
- * A page cannot disagree with itself about a number it does not compute twice.
+ * One metric over one window, and the one derivation the asset page has for
+ * it: the Overview's KPI strip and the Growth tab's chart pairs state the same
+ * four measures over the same range, so the merge, the settled window, the
+ * aggregate, the delta and the three-point floor all live here and both
+ * surfaces render what this returns. A page cannot disagree with itself about
+ * a number it does not compute twice.
  */
 export interface MetricWindow {
   /** Every provider's series added date by date. */
@@ -214,12 +198,9 @@ function withComparedValues(
 }
 
 /**
- * THE CHART THE OVERVIEW OPENS ON (bead `ro-ujb9.124`).
- *
- * The operator's own pick while it has a series to draw; otherwise the first
- * metric, in the strip's own order, that has one. A site whose first source is
- * Bing opens on its search clicks, not on an empty users chart beside them.
- * `null` when no metric has a series: there is no chart to open on.
+ * The chart the Overview opens on: the operator's own pick while it has a
+ * series to draw; otherwise the first metric, in the strip's own order, that
+ * has one. `null` when no metric has a series.
  */
 export function leadMetric<K extends string>(
   metrics: readonly { key: K; selectable: boolean }[],
@@ -291,7 +272,7 @@ export interface LedgerMonth {
   period: string;
   net: number | null;
   currency: string | null;
-  /** Which half of the honesty split this net is (docs/02). Never both. */
+  /** Which half of the honesty split this net is. Never both. */
   booking: "booked" | "forecast";
   /** What the net is made of, at the same size as the figure. */
   composition: string;
@@ -301,13 +282,8 @@ export interface LedgerMonth {
   series: SeriesPoint[];
 }
 
-/**
- * THIS MONTH'S NET, and which of the two books it came out of.
- *
- * `booked` when anything has reconciled, else `forecast`. Never the sum, and
- * never a forecast quoted as though it had settled — the KPI prints the word
- * beside the figure.
- */
+/** This month's net, and which of the two books it came out of: `booked`
+ * when anything has reconciled, else `forecast`. Never the sum. */
 export function ledgerMonth(ledger: LedgerSlice): LedgerMonth | null {
   const current = ledger.periods[0];
   if (!current) return null;

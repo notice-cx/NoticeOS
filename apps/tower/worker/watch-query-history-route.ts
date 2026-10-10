@@ -1,11 +1,6 @@
-// GET /api/assets/:id/watch-query-history — the narrow on-demand read behind a
-// query-scoped watch composer (bead `ro-5e8.8`).
-//
-// The asset payload must stay bounded: one asset's retained GSC query
-// archive can contain tens of thousands of rows. The Tower therefore asks
-// ingest for one exact query and metric only while that composer is open. R2
-// stays canonical, the browser sees no bucket binding, and the query series
-// crosses the same private Service Binding as registration.
+// GET /api/assets/:id/watch-query-history — one exact query and metric for an
+// open query-scoped watch composer. One asset's GSC query archive can hold tens
+// of thousands of rows, so the asset payload never carries it.
 
 import {
   WATCH_QUERY_MAX_CHARS,

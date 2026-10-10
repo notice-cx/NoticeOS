@@ -2,9 +2,9 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 export interface KnobRowProps {
-  /** Plain-language name (doc 14 principle 9 — words first). */
+  /** Plain-language name. */
   label: string;
-  /** The current EFFECTIVE value. */
+  /** The effective value. */
   value: React.ReactNode;
   /** One-line "what this means" so the page needs no external manual. */
   explain?: React.ReactNode;
@@ -13,12 +13,7 @@ export interface KnobRowProps {
   className?: string;
 }
 
-/**
- * One knob made legible where it acts (doc 14 principle 10): a plain-language
- * label, the effective value, a one-line explainer, and scope.
- * Reused across the wiring panel (sense
- * mode, cadence, auth) and the anomaly-rules card.
- */
+/** One knob made legible where it acts: label, effective value, explainer and scope. */
 export function KnobRow({ label, value, explain, scope, className }: KnobRowProps) {
   return (
     <div

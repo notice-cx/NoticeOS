@@ -5,11 +5,8 @@ import type { CountdownConfig } from "@shared/dashboard";
 import { countdownParts, countdownProximity } from "@/lib/countdown";
 import { cn } from "@/lib/utils";
 
-// THE COUNTDOWN'S FACE, and nothing that edits it (bead `ro-ujb9.82`). The
-// desk's configurable `CountdownWidget` (DashboardWidgets.tsx) wraps it with
-// its Configure button and form. The seven-segment clock and the TV-sized
-// countdown panel that lived here went with the pre-D28 Wall (bead
-// `ro-trai.20`): the TV's time and countdown are its top strip.
+// The countdown's face and nothing that edits it; `CountdownWidget`
+// (DashboardWidgets.tsx) wraps it with its Configure button and form.
 
 function deadline(value: JsonValue): string {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
@@ -25,13 +22,7 @@ function deadline(value: JsonValue): string {
   }).format(parsed);
 }
 
-/**
- * The countdown as it is configured — the face every surface draws.
- *
- * The two slots are the desk's: `action` takes the header's right-hand corner
- * (where a read-only face says "Countdown") and `editor` sits under the
- * measures. This file imports nothing that saves.
- */
+/** The countdown as it is configured. This file imports nothing that saves. */
 export function CountdownFace({
   config,
   nowMs,

@@ -17,7 +17,7 @@ export interface ReadFailedProps {
   title: string;
   /** What this state is about, drawn as `data-status-for`. */
   subject: StatusSubject;
-  /** A fact naming WHICH one, ahead of the reason (the asset page's id). */
+  /** A fact naming which one, ahead of the reason (the asset page's id). */
   detail?: ReactNode;
   error: unknown;
   retrying: boolean;
@@ -27,19 +27,10 @@ export interface ReadFailedProps {
 }
 
 /**
- * A PAGE WHOSE FIRST READ FAILED (bead `ro-ujb9.218`; the asset page's since
- * bead `ro-78qo.2`).
- *
- * Home, Sites, Alerts, Tasks and the Wall said "Waiting for the store…" when
- * their read failed — a patient wait over a problem (the 2026-07 audit's finding 15: a failed read
- * never looks like loading or empty). This is the one state every page draws
- * instead: the error dot, what could not be loaded, why as a fact (the HTTP
- * status, or no answer), and Try again. No sentence. The asset page drew the
- * same state privately; it uses this one now.
- *
- * A page that already HAS a reading keeps it through a failed poll (TanStack
- * keeps `data`), so this is only ever the first read — and the TV's own poll
- * keeps trying underneath it, so the Wall recovers by itself.
+ * A page whose first read failed: the error dot, what could not be loaded, why
+ * as a fact, and Try again. A failed read never looks like loading or empty.
+ * A page with a reading keeps it through a failed poll, so this is only ever
+ * the first read; the Wall's poll keeps trying underneath it.
  */
 export function ReadFailed({
   title,

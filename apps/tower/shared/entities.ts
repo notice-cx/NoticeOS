@@ -1,16 +1,7 @@
-// WHICH LEGAL ENTITY OWNS AN ASSET — the reads and the writes, in one place
-// (bead `ro-aodz`).
-//
-// The fact lives in `config/entities.json` as an EDGE stored once, on the
-// entity: a row owns a list of asset ids, and an asset's owner is read back out
-// of those lists. `config/entities.README.md` says why that direction and not
-// the other; this module is what every surface asks, so the three that show it —
-// `/settings`, an asset's Identity card, and the add-asset wizard's review —
-// cannot each grow their own idea of what "owned" means.
-//
-// It imports nothing from React and nothing from `src/`, exactly like
-// `shared/asset-wizard.ts` beside it, so "the ops a move would send" is a value
-// a test can assert rather than something that only exists inside a click.
+// Which legal entity owns an asset: the reads and the writes, in one place. The
+// fact lives in `config/entities.json` as an edge stored on the entity (a row
+// owns a list of asset ids; `config/entities.README.md` says why), and every
+// surface that shows it asks this module.
 
 import type { FileJsonSetGuardedOp, FileJsonSetOp, JsonValue } from "./changeset";
 import { CONFIG_REGISTERS, resolveContainer } from "./config-registers";
@@ -39,11 +30,8 @@ export function entityAssets(row: EntityRow | null | undefined): string[] {
  * The entity that owns this asset, or `null` — *nobody has said yet*, which is
  * the starting state of every asset and not a gap in the data.
  *
- * The FIRST row wins where two claim the same asset. No surface can create
- * that: `/settings` does not offer an entity's asset list, and the asset's own
- * card moves it as one change off the old list and onto the new
- * (`entityMoveOps`). A file hand-edited into it should still render something
- * definite rather than flickering between two answers.
+ * The first row wins where two claim the same asset (only a hand-edited file
+ * can), so the answer is definite.
  */
 export function entityOfAsset(
   rows: readonly EntityRow[] | null | undefined,
@@ -70,18 +58,10 @@ function assetsPointer(index: number): string {
 }
 
 /**
- * TAKING ONE ASSET OFF WHOEVER OWNS IT — one op, or `null` when nobody does.
- *
- * The membership is a STRING IN ANOTHER ROW'S LIST, so removing it is a set on
- * that row's `assets` (guarded on the list as it was read), never a delete of a
- * row: the entity outlives every asset it owns. That is why an asset cannot
- * leave `config/entities.json` the way it leaves the seven per-asset registers,
- * and why a delete had to be taught this op rather than given one more file to
- * clear through `ADDABLE_CONTAINERS` (bead `ro-xzxg`).
- *
- * It is the half of {@link entityMoveOps} that a DELETE needs on its own: an
- * asset that is going away is moving to nobody, and the caller wants the one op
- * rather than a list it has to unpack.
+ * Taking one asset off whoever owns it: one op, or `null` when nobody does.
+ * The membership is a string in another row's list, so removing it is a guarded
+ * set on that row's `assets`, never a row delete: the entity outlives every
+ * asset it owns. A site delete uses this alone; {@link entityMoveOps} builds on it.
  */
 export function entityReleaseOp(
   rows: readonly EntityRow[] | null | undefined,
@@ -101,25 +81,11 @@ export function entityReleaseOp(
 }
 
 /**
- * MOVING ONE ASSET BETWEEN ENTITIES, as the ops that do it.
- *
- * Up to two sets in ONE changeset: off the row that has it, onto the row the
- * operator picked. Two ops rather than one because the edge is stored on the
- * entity — which is the whole design (`config/entities.README.md`) — and one
- * changeset rather than two because an asset that left one entity and never
- * reached the other is a state no operator asked for.
- *
- * Each set guards on the list it was rendered from, so a move made against a
- * stale page is refused rather than silently dropping whatever somebody else
- * added. A row that has never owned anything carries no `assets` key at all, so
- * its first asset is an `expectAbsent` set — the same first-write permission a
- * data source's first mapping uses, licensed at exactly one place: a declared
- * OPTIONAL field of a row that already exists.
- *
- * `toSlug` of `null` is *not declared*: the asset comes off its entity's list
- * and goes onto nobody's. Picking the entity that already owns it writes
- * nothing, which is what makes an unchanged Save a no-op rather than a
- * pointless commit.
+ * Moving one asset between entities: up to two sets in one changeset, off the
+ * row that has it and onto the row picked, so the asset is never left between.
+ * Each set guards on the list it was rendered from; a row that has never owned
+ * anything has no `assets` key, so its first asset is an `expectAbsent` set.
+ * `toSlug` of `null` means nobody; picking the current owner writes nothing.
  */
 export function entityMoveOps(
   rows: readonly EntityRow[],
@@ -131,8 +97,6 @@ export function entityMoveOps(
   if (from === to) return [];
 
   const ops: FileJsonSetOp[] = [];
-  // The way OFF is one op and one op only, so a move and a delete cannot come
-  // to two different ideas of what leaving an entity's list looks like.
   const off = entityReleaseOp(rows, assetId);
   if (off !== null) ops.push(off);
 

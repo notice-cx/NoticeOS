@@ -1,6 +1,6 @@
 import { formatInt } from "@/lib/format";
 
-/** "2 open alerts, both warnings" — the one sentence /alerts and a site's Alerts tab open with (D45). */
+/** "2 open alerts, both warnings": the one sentence /alerts and a site's Alerts tab open with. */
 export function alertsLine(items: readonly { severity: string }[]): string {
   const errors = items.filter((item) => item.severity === "error").length;
   const warnings = items.length - errors;

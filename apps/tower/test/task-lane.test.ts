@@ -17,16 +17,13 @@ import {
   toLiveTask,
 } from "../vite/task-lane";
 
-// The Tower's write path to the portfolio's task hub (D19, bead `ro-l1ed.1`).
-// It spawns a CLI with the operator's own credentials against the register of
-// every open commitment in the portfolio — so what is asserted here is the three
-// guards, in the order they run, and the exact argv that reaches `bd`.
+// The Tower's write path to the portfolio's task hub. It spawns a CLI with
+// the operator's own credentials, so what is asserted is the three guards, in
+// the order they run, and the exact argv that reaches `bd`.
 //
-// THE FAKE `bd`. Every case below runs against a real subprocess: a script
-// placed FIRST on this process's PATH that records its argv to a file and
-// prints canned JSON per subcommand. That is what makes "refused before the
-// spawn" an assertion rather than a claim — a verb the lane will not run leaves
-// the argv log untouched, and the test can see that it does.
+// Every case runs against a real subprocess: a fake `bd` placed first on this
+// process's PATH that records its argv to a file and prints canned JSON per
+// subcommand. A verb the lane will not run leaves the argv log untouched.
 
 const SPOKES = {
   hub: { host: "127.0.0.1", port: 3308, user: "root", dataDir: ".local/beads-dolt" },
@@ -36,7 +33,7 @@ const SPOKES = {
   ],
 };
 
-/** One bead as `bd list --json` reports it, with every field the lane reads. */
+/** One task as `bd list --json` reports it, with every field the lane reads. */
 const LIST_ROW = {
   id: "ro-aaa",
   title: "A bead the board renders",
@@ -63,7 +60,6 @@ const HUMAN_ROW = { ...LIST_ROW, labels: ["human"] };
 
 const CANNED: Record<string, string> = {
   list: JSON.stringify([LIST_ROW, SECOND_ROW]),
-  // Only the first is claimable — the merge has to mark exactly one row.
   ready: JSON.stringify([{ id: "ro-aaa" }]),
   show: JSON.stringify([LIST_ROW]),
   comments: JSON.stringify([
@@ -302,8 +298,7 @@ describe("which repo bd runs in", () => {
     expect(reply.status).toBe(404);
     expect(reply.body.error).toBe("unknown_project");
     expect(String(reply.body.detail)).toContain("other.example");
-    // The door to the fix is the page that edits the projects, never a file
-    // that no longer decides anything (bead ro-ujb9.215).
+    // The door to the fix is the page that edits the projects, never a file.
     expect(String(reply.body.detail)).toContain("Settings → Task projects");
     expect(String(reply.body.detail)).not.toContain("config/beads.json");
     expect(await spawned()).toEqual([]);
@@ -416,7 +411,7 @@ describe("the reads", () => {
     }
   });
 
-  it("returns one bead with its conversation", async () => {
+  it("returns one task with its conversation", async () => {
     await reset();
     const reply = await ask("GET", "/api/tasks/ro-aaa");
     expect(reply.status).toBe(200);
@@ -802,7 +797,7 @@ describe("the pieces underneath", () => {
     expect(await fixtureProjects()).toEqual(SPOKES.spokes);
   });
 
-  it("takes the prefix off an id, including a child bead's", () => {
+  it("takes the prefix off an id, including a child task's", () => {
     expect(prefixOf("ro-l1ed.1")).toBe("ro");
     expect(prefixOf("pft-abc")).toBe("pft");
     expect(prefixOf("nonsense")).toBe("");
@@ -811,9 +806,9 @@ describe("the pieces underneath", () => {
   it("reads a parent off the dependency edge when bd sends no parent field", () => {
     const task = toLiveTask({ ...LIST_ROW, parent: undefined }, new Set<string>());
     expect(task.parent).toBe("ro-epic");
-    // A plain `bd list` edge carries neither the other bead's title nor its
-    // status; `bd show` embeds the whole issue and carries both. Same edge, two
-    // shapes, and the null says which read this one came from.
+    // A plain `bd list` edge carries neither the other task's title nor its
+    // status; `bd show` embeds the whole issue and carries both. The null says
+    // which read this one came from.
     expect(task.dependencies).toEqual([
       { id: "ro-epic", type: "parent-child", title: null, status: null },
       { id: "ro-bbb", type: "blocks", title: null, status: null },
@@ -821,10 +816,9 @@ describe("the pieces underneath", () => {
   });
 
   it("keeps what a show read knows that a list read does not", () => {
-    // `bd show` embeds the whole issue on each edge and stamps `started_at`.
-    // Both are what a task PAGE needs and a board row does not: a blocker's own
-    // status decides whether it is still in the way, and a claim has to be
-    // dated by when it was claimed rather than by the last edit.
+    // `bd show` embeds the whole issue on each edge and stamps `started_at`:
+    // a blocker's own status decides whether it is still in the way, and a
+    // claim is dated by when it was claimed.
     const task = toLiveTask(
       {
         id: "ro-aaa",
@@ -841,10 +835,10 @@ describe("the pieces underneath", () => {
     ]);
   });
 
-  it("titles a human gate with the ask it holds, the way the snapshot does (bead ro-ujb9.201)", () => {
+  it("titles a human gate with the ask it holds, the way the snapshot does", () => {
     // `bd gate create -r` writes the ask into the description; the title is
     // always "Gate: human". The runner's snapshot reads it through the same
-    // helper (scripts/os-up.test.mjs pins that os-up's reader IS this one).
+    // helper (scripts/os-up.test.mjs pins that).
     const gate = {
       id: "ro-g1",
       title: "Gate: human",
@@ -853,17 +847,16 @@ describe("the pieces underneath", () => {
       description: "Ad-hoc gate blocking ro-aaa\n\nReason: Approve the price change",
     };
     expect(toLiveTask(gate, new Set<string>()).title).toBe("Approve the price change");
-    // No reason: the gate keeps its own title rather than a label nobody gave it.
     expect(toLiveTask({ ...gate, description: "Ad-hoc gate blocking ro-aaa" }, new Set<string>()).title).toBe("Gate: human");
-    // Only a HUMAN gate is an ask: a timer gate and a task that happens to say
-    // "Reason:" keep their titles.
+    // Only a human gate is an ask: a timer gate and a task that happens to
+    // say "Reason:" keep their titles.
     expect(toLiveTask({ ...gate, await_type: "timer" }, new Set<string>()).title).toBe("Gate: human");
     expect(
       toLiveTask({ id: "ro-t", title: "Write the FAQ", await_type: null, description: "Reason: users ask" }, new Set<string>()).title,
     ).toBe("Write the FAQ");
   });
 
-  it("renders a bead bd describes in a status this build has never seen", () => {
+  it("renders a task bd describes in a status this build has never seen", () => {
     const task = toLiveTask({ id: "ro-x", status: "marinating" }, new Set<string>());
     expect(task.status).toBe("marinating");
     expect(task.title).toBe("ro-x");
@@ -897,8 +890,8 @@ describe("saved project routing", () => {
   });
 
   it("answers a folder pnpm start made, with no host inventory at all, as a project with no checkout linked", async () => {
-    // bead ro-ujb9.174: the folder is not a checkout, so it has neither its own
-    // task-host.json nor the product's default beside it.
+    // The folder is not a checkout, so it has neither its own task-host.json
+    // nor the product's default beside it.
     await reset();
     const started = await fs.mkdtemp(path.join(root, "started-"));
     const readProjects = () => readSpokes(started, {

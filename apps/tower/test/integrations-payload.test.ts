@@ -51,17 +51,16 @@ const NOW = new Date("2026-07-05T12:00:00.000Z");
 const NOW_MS = NOW.getTime();
 const HOUR = 3_600_000;
 
-// config/pull.json shape: meals is fetched nightly, nom is fetched nightly,
-// areas is configured but switched off. Everything else pushes (or nothing).
+// config/pull.json shape: meals and nosh are fetched nightly, areas is
+// configured but switched off. Everything else pushes (or nothing).
 const PULL_CONFIG: PullConfigEntry[] = [
   { asset: "meals.example", url: "https://meals.example/api/internal/metrics", enabled: true, format: "prometheus" },
   { asset: "nosh.example", url: "https://nosh.example/api/admin/overview", enabled: true, format: "envelope" },
   { asset: "areas.example", url: "https://areas.example/api/metrics", enabled: false, format: "envelope" },
 ];
 
-// config/serp-panel.json's shape, key set only: meals.example is the one asset
-// with a tracked panel, so it is the one asset due SIX weekly DataForSEO
-// families. Tests that care hand in their own.
+// config/serp-panel.json's key set: meals.example is the one asset with a
+// tracked panel, so the one asset due six weekly DataForSEO families.
 const SERP_PANEL = { assets: { "meals.example": {} } };
 
 const deps = (
@@ -75,15 +74,13 @@ const deps = (
   serpPanel,
 });
 
-// A compact but representative register: five lanes that exercise every merge
-// branch (uptime from its own check, the two revenue-mapped families, a split
-// affiliate pair, and a collected lane). Declared states are synthetic
-// where the seed has nothing live — the whole point is to test the merge, so we
-// hand it a declared-live lane to downgrade.
+// Five lanes that exercise every merge branch: uptime from its own check, the
+// two revenue-mapped families, a split affiliate pair, and a collected lane.
+// Declared states are synthetic so the merge has a declared-live lane to downgrade.
 const CATALOG = [
   { id: "gsc", label: "Google Search Console", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" as const },
   { id: "uptime", label: "Uptime / monitoring", docRef: "docs/11-integrations.md#the-catalog", scope: "both" as const, credential: "shared" as const },
-  // ad-network is marked per-property here to prove the insight EXCLUDES per-property lanes.
+  // ad-network is per-property here to prove the insight excludes per-property lanes.
   { id: "ad-network", label: "Ad network reporting", docRef: "docs/11-integrations.md#the-catalog", credential: "per-property" as const },
   { id: "affiliate-cj", label: "Affiliate — CJ", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" as const },
   { id: "affiliate-amazon", label: "Affiliate — Amazon", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" as const },
@@ -134,17 +131,14 @@ const INTEGRATIONS: IntegrationsConfig = {
   },
 };
 
-/** A site in both of the test's stores (test/sites.ts): the matrix names its
- * columns from the site list on Postgres. */
+/** A site in both of the test's stores (test/sites.ts). */
 async function insertAsset(raw: TestStore, id: string, name: string, isOs: number) {
   await addSites(raw, [{ id, displayName: name, status: "onboarding", senseOnly: 1, isOs, createdAt: "2026-07-01T00:00:00.000Z" }]);
 }
 
-/** One FAILED collector attempt at a chosen instant — the fixture the evidence
- * floor is measured against. A failure, because the fact the floor must not
- * erase is a lane's last bad news (db/README:235); a success when asked (the
- * store never rewrites a run). On Postgres, where the collectors write them
- * (bead ro-ujb9.76.5.3), in this test's own copy of its sites. */
+/** One failed collector attempt at a chosen instant, the fixture the evidence
+ * floor is measured against: the fact the floor must not erase is a lane's
+ * last bad news. A success when asked (the store never rewrites a run). */
 async function insertSignalRun(
   ctx: TestStore,
   id: string,
@@ -155,17 +149,16 @@ async function insertSignalRun(
 ) {
   const failed = status === "error";
   await writeSignalRun(ctx.call, {
-    id, asset, integration, credentialRef: "studio-signals", propertyRef: asset, finishedAt, status,
+    id, asset, integration, credentialRef: "example-signals", propertyRef: asset, finishedAt, status,
     providerRows: 0, observationCount: 0,
     errorCode: failed ? "provider_403" : null,
     errorMessage: failed ? "The service account lost access to the asset." : null,
   });
 }
 
-/** The ONE self-flag the egress gate files, as workers/ingest/src/egress.ts
- * writes it: on asset #0's row, `fired_at` dating the FIRST down verdict, and
- * the beacons that failed carried verbatim in `rule_inputs`. On Postgres (bead
- * ro-ujb9.76.5.2), in the test's own copy of its sites. */
+/** The one self-flag the egress gate files, as workers/ingest/src/egress.ts
+ * writes it: on asset #0's row, `fired_at` dating the first down verdict, and
+ * the beacons that failed carried verbatim in `rule_inputs`. */
 async function insertEgressFlag(
   ctx: TestStore,
   asset: string,
@@ -185,10 +178,8 @@ async function insertEgressFlag(
   });
 }
 
-/** One recorded probe round, on Postgres where the lane reads it (bead
- * ro-ujb9.76.5.1). Rows exist ONLY for runs where something already failed,
- * which is why a table with none of them is the healthy shape. Written into the
- * test's own copy of its sites (test/sites.ts), which then serves no other test. */
+/** One recorded probe round. Rows exist only for runs where something already
+ * failed, which is why a table with none of them is the healthy shape. */
 async function insertEgressCheck(
   ctx: TestStore,
   observedAt: string,
@@ -203,9 +194,8 @@ async function insertEgressCheck(
   );
 }
 
-/** One home-page reading, as workers/ingest/src/hygiene.ts writes it — the
- * OS's own uptime check (bead ro-ujb9.165). On Postgres (bead
- * ro-ujb9.76.5.8), in the test's own copy of its sites (test/sites.ts). */
+/** One home-page reading, as workers/ingest/src/hygiene.ts writes it: the
+ * OS's own uptime check. */
 async function insertHomeCheck(
   ctx: TestStore,
   asset: string,
@@ -222,9 +212,8 @@ async function insertHomeCheck(
   );
 }
 
-/** nom's home page answering 503 to the OS's own check twenty minutes ago —
- * its uptime's own evidence (bead ro-ujb9.165), never the report's alert.
- * Written by the tests that read it (test/sites.ts). */
+/** nosh's home page answering 503 to the OS's own check twenty minutes ago:
+ * its uptime's own evidence, never the report's alert. */
 async function insertNomDown(ctx: TestStore) {
   await insertHomeCheck(ctx, "nosh.example", new Date(NOW_MS - 20 * 60_000).toISOString(), "error", {
     url: "https://nosh.example/", http_status: 503, error: "non-200 response (503)",
@@ -232,9 +221,8 @@ async function insertNomDown(ctx: TestStore) {
 }
 
 
-/** Revenue in the ledger, on Postgres where the money ledger lives (bead
- * ro-ujb9.76.6.1): into the test's own copy of its sites, so only the tests
- * that read revenue evidence book it (test/money.ts). */
+/** Revenue in the ledger, booked only by the tests that read revenue evidence
+ * (test/money.ts). */
 async function insertRevenue(
   ctx: TestStore,
   id: number,
@@ -245,8 +233,7 @@ async function insertRevenue(
   amount: number,
   source: string | null,
 ) {
-  // `amount_minor` alone, exactly as `/api/revenue` writes it: db/0020 dropped
-  // the `amount REAL` mirror 0018 had kept, so cents is the whole money column.
+  // `amount_minor` alone, exactly as `/api/revenue` writes it.
   await bookLedger(ctx.call, [
     {
       id,
@@ -263,32 +250,25 @@ async function insertRevenue(
 }
 
 async function seed(raw: TestStore) {
-  // The OS row keeps the owner's pre-rename stored name; the Health page
-  // never shows it (bead ro-ujb9.77.10).
+  // The OS row's stored name is one the Health page never shows.
   await insertAsset(raw, "root-os", "ReindexOS", 1);
   await insertAsset(raw, "meals.example", "Meal Planner", 0);
   await insertAsset(raw, "nosh.example", "Nosh", 0);
   await insertAsset(raw, "areas.example", "Area Lookup", 0);
   await insertAsset(raw, "fees.example", "Fee Codes", 0);
-
-  // nom: its home page's failing check (insertNomDown) and its open
-  // ingest-freshness alert (`seedReports`) are on Postgres, written by the
-  // tests that read them.
-
 }
 
 /** The seed's revenue, booked by the tests that read revenue evidence. */
 async function seedRevenue(ctx: TestStore) {
-  // meals: recent ads + affiliate(CJ) revenue → supporting evidence for both lanes.
+  // meals: recent ads + affiliate(CJ) revenue, supporting evidence for both lanes.
   await insertRevenue(ctx, 1, "meals.example", "2026-06", "ads", 498.1, "raptive-report");
   await insertRevenue(ctx, 2, "meals.example", "2026-06", "affiliate", 168.2, "cj-export");
-  // areas: ONLY old revenue (before the 3-month window) → must NOT support.
+  // areas: only old revenue (before the 3-month window), so it must not support.
   await insertRevenue(ctx, 3, "areas.example", "2026-01", "ads", 50, "adsense-report");
 }
 
-/** `seed`'s nightly reports and nom's open ingest-freshness alert, on Postgres
- * (bead ro-ujb9.76.5.2): written by the tests that read them, so the rest of
- * `seed` stays a copy the file's other tests share. */
+/** `seed`'s nightly reports and nosh's open ingest-freshness alert, written by
+ * the tests that read them. */
 async function seedReports(ctx: TestStore) {
   const store = ctx.call;
   await storeAlert(store, {
@@ -299,9 +279,9 @@ async function seedReports(ctx: TestStore) {
     message: "0 pulses in 36h",
     ruleId: "ingest-freshness",
   });
-  // Nightly reports — the derived lane's whole evidence base. root-os and
-  // meals reported inside the cadence (live); nom's last one is 3 days old
-  // (degraded); areas + fees.example have never reported (needs-setup).
+  // Nightly reports: root-os and meals reported inside the cadence (live);
+  // nosh's last one is 3 days old (degraded); areas + fees.example have never
+  // reported (needs-setup).
   const report = (asset: string, date: string, receivedAt: string) => ({ asset, date, receivedAt, envelope: '{"metrics":{}}' });
   await storeReports(store, [
     report("root-os", "2026-07-05", new Date(NOW_MS - 2 * HOUR).toISOString()),
@@ -361,8 +341,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       source: "Search Console collector succeeded",
       at: GSC_SUCCESS.finishedAt,
     });
-    // Facts, not a sentence: rows, the dates they cover, and where the
-    // provider's still-open days begin.
     expect(r.evidence[0]!.detail).toBe("28 daily rows · 2026-06-08 → 2026-07-05 · provisional from 2026-07-04");
   });
 
@@ -389,8 +367,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
   });
 
   it("names the monthly cap when the metered lane stopped before spending", () => {
-    // A guardrail that worked reads nothing like a provider outage, and the
-    // evidence has to say which one happened.
+    // A guardrail that worked reads nothing like a provider outage.
     const r = mergeLane("live", "dataforseo", {
       revenueRows: [],
       signalRuns: [
@@ -408,17 +385,13 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       polarity: "against",
       source: "DataForSEO collector stopped at the monthly data cap",
     });
-    // The OS's own cap, not a provider failure: the source line says so, and
-    // the one fact is when collection resumes — never a config file to edit.
     expect(r.evidence[0]!.detail).toBe("Resumes 2026-08-01");
     expect(r.evidence[0]!.detail).not.toContain("config/");
   });
 
   it("refuses a stored success phrase as the reason a lane is red", () => {
-    // 2026-08-03: meals.example's backlinks families were stored as
-    // dataforseo_http_500 with the message "Ok." — DataForSEO's success text —
-    // and the lane's evidence line read, in full, "Ok." Rows like that are
-    // permanent, so the read side names the code instead of repeating them.
+    // A provider can store an HTTP-500 row whose message is its own success
+    // text ("Ok."); such rows are permanent, so the read side names the code.
     const r = mergeLane("live", "dataforseo", {
       revenueRows: [],
       signalRuns: [
@@ -505,9 +478,8 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       detail: "10 report families · 2026-07-04",
     });
 
-    // A failing archive is an honest problem for the SAME lane, but the fresh
-    // 15-minute collector above is the more direct observation of the feed, so
-    // the lane stays working and the archive line says what broke.
+    // The fresh 15-minute collector is the more direct observation of the
+    // feed, so the lane stays working and the archive line says what broke.
     const failing = mergeLane("live", "gsc", {
       revenueRows: [],
       signalRuns: [GSC_SUCCESS],
@@ -536,8 +508,8 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
   });
 
   it("stays quiet about the archive on a lane the operator scoped out, or one with no collector", () => {
-    // Nothing is collecting: the run evidence already says so, and a second
-    // "no archive either" line would be noise rather than information.
+    // A second "no archive either" line over a lane that is not collecting
+    // would be noise.
     expect(
       mergeLane("needs-setup", "ga4", {
         revenueRows: [],
@@ -554,7 +526,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
         nowMs: NOW_MS,
       }).evidence,
     ).toHaveLength(1);
-    // Collecting live, but never archived — that gap IS the finding.
     const gap = mergeLane("live", "gsc", {
       revenueRows: [],
       signalRuns: [GSC_SUCCESS],
@@ -634,7 +605,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.evidence[0]).toMatchObject({
       polarity: "against",
       source: "Search Console collector is stale",
-      // The age is the row's; the one fact is the cadence it is judged by.
       detail: "Due every 15 min",
     });
   });
@@ -657,8 +627,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.effective).toBe("needs-setup");
     expect(r.evidence).toHaveLength(1);
     expect(r.evidence[0]!.polarity).toBe("supporting");
-    // The manual path is what happened (the source line); the sum and its
-    // latest month are the facts.
     expect(r.evidence[0]!.source).toBe("Ads revenue added by hand");
     expect(r.evidence[0]!.detail).toBe("$498.10 · latest 2026-06");
   });
@@ -677,7 +645,6 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(mergeLane("skipped", "affiliate-cj", withRev)).toEqual({ effective: "skipped", evidence: [] });
     expect(mergeLane("not-applicable", "affiliate-cj", withRev)).toEqual({ effective: "not-applicable", evidence: [] });
     expect(mergeLane("needs-setup", "ad-network", NO_EVIDENCE)).toEqual({ effective: "needs-setup", evidence: [] });
-    // a live uptime whose check was not read stays live
     expect(mergeLane("live", "uptime", NO_EVIDENCE)).toEqual({ effective: "live", evidence: [] });
   });
 });
@@ -691,7 +658,6 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     expect(r.effective).toBe("live");
     expect(r.evidence).toHaveLength(1);
     expect(r.evidence[0]).toMatchObject({ polarity: "supporting", source: "Last nightly report accepted", at });
-    // Working and when are the chip and the age: nothing further to say.
     expect(r.evidence[0]!.detail).toBe("");
   });
 
@@ -699,14 +665,12 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     const at = new Date(NOW_MS - 49 * HOUR).toISOString();
     const r = nightlyReportState(NOW_MS, at, pull);
     expect(r.effective).toBe("degraded");
-    // The one fact a late report adds: what its age is judged against.
     expect(r.evidence[0]).toMatchObject({ polarity: "against", at, detail: "Due daily" });
-    // 48h is the boundary (2 x 24h) — one hour inside it is still live.
+    // 48h is the boundary (2 x 24h); one hour inside it is still live.
     expect(nightlyReportState(NOW_MS, new Date(NOW_MS - 47 * HOUR).toISOString(), pull).effective).toBe("live");
   });
 
-  // D29 amended (ro-ujb9.121): a site that has never sent a report expects
-  // none, so its lane is no to-do — Health lists no "Finish setup" for it.
+  // A site that has never sent a report expects none, so its lane is no to-do.
   it("not applicable when nothing ever arrived, still naming the fetch it has", () => {
     const never = nightlyReportState(NOW_MS, null, null);
     expect(never.effective).toBe("not-applicable");
@@ -720,7 +684,6 @@ describe("nightlyReportState — the derived lane, pure over store evidence", ()
     const configured = nightlyReportState(NOW_MS, null, pull);
     expect(configured.effective).toBe("not-applicable");
     expect(configured.evidence[0]!.detail).toBe(`Fetched nightly · ${pull.url}`);
-    // No config file is named on screen: the fetch is set in the Tower.
     for (const r of [never, disabled, configured]) expect(r.evidence[0]!.detail).not.toContain("config/");
   });
 
@@ -747,8 +710,7 @@ describe("buildCardDataSources — compact working/degraded/unconfigured inputs"
     expect(sources.map(({ id, label, state }) => ({ id, label, state }))).toEqual([
       { id: NIGHTLY_REPORT_LANE_ID, label: "Nightly report", state: "live" },
       { id: "gsc", label: "Google Search Console", state: "needs-setup" },
-      // Uptime is Not set up and nothing on Integrations connects it: no slot
-      // (bead ro-ujb9.133).
+      // Uptime is Not set up and nothing on Integrations connects it: no slot.
     ]);
   });
 
@@ -864,13 +826,12 @@ describe("buildIntegrationsMatrix", () => {
     const nomUptime = m.cells["nosh.example"]![1]!;
     expect(nomUptime.declared).toBe("live");
     expect(nomUptime.effective).toBe("degraded");
-    // Its own check, not the overdue report (bead ro-ujb9.165).
+    // Its own check, not the overdue report.
     expect(nomUptime.evidence).toEqual([{
       polarity: "against", source: "Home page did not answer", detail: "HTTP 503",
       at: new Date(NOW_MS - 20 * 60_000).toISOString(),
     }]);
 
-    // nom gsc: needs-setup, no revenue → unchanged, clean.
     const nomGsc = m.cells["nosh.example"]![0]!;
     expect(nomGsc.effective).toBe("needs-setup");
     expect(nomGsc.evidence[0]).toMatchObject({
@@ -886,24 +847,21 @@ describe("buildIntegrationsMatrix", () => {
     const myCj = m.cells["meals.example"]![3]!;
     expect(myCj.evidence[0]!.polarity).toBe("supporting");
 
-    // meals amazon is skipped, no amazon revenue → no evidence.
     const myAmazon = m.cells["meals.example"]![4]!;
     expect(myAmazon.declared).toBe("skipped");
     expect(myAmazon.evidence).toEqual([]);
   });
 
-  // --- the evidence floor (bead ro-48p.1) ------------------------------------
   // The latest-attempt reads stop at SIGNAL_EVIDENCE_FLOOR_DAYS so their cost
-  // stops tracking the size of an append-only log that only grows. That bound is
-  // only safe while a lane it drops stays VISIBLE and says why — a lane that
-  // quietly left the matrix would read as an asset that never wired Search
-  // Console at all, which is the one way this fix could break the product.
+  // stops tracking an append-only log. A lane the floor drops must stay
+  // visible and say why; one that quietly left the matrix would read as an
+  // asset that never wired the lane.
   const daysBeforeNow = (days: number) =>
     new Date(NOW_MS - days * 24 * HOUR).toISOString();
 
   it("keeps a lane dormant for over a year in the matrix, its old failure intact", async () => {
-    // db/README:235 — integration health uses the latest ATTEMPT, so an old
-    // failure has to stay visible. A year of silence is inside the floor.
+    // Integration health uses the latest attempt, so an old failure has to
+    // stay visible. A year of silence is inside the floor.
     await insertSignalRun(ctx, "gsc-dormant", "meals.example", "gsc", daysBeforeNow(399));
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
@@ -922,12 +880,9 @@ describe("buildIntegrationsMatrix", () => {
     await insertSignalRun(ctx, "gsc-ancient", "meals.example", "gsc", daysBeforeNow(401));
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
-    // Still one cell per catalog lane, in catalog order: nothing vanished.
     expect(m.cells["meals.example"]).toHaveLength(m.catalog.length);
     const gsc = m.cells["meals.example"]![0]!;
     expect(gsc.laneId).toBe("gsc");
-    // And the row states the span it looked over instead of claiming the
-    // asset never wired the lane.
     expect(gsc.evidence[0]).toMatchObject({
       polarity: "against",
       source: "Search Console collector has no recent run",
@@ -937,10 +892,8 @@ describe("buildIntegrationsMatrix", () => {
   });
 
   it("states the manual lane's total in exact cents", async () => {
-    // The evidence line is a money claim about real rows, so it is added in
-    // `amount_minor` (db/0018) like every other ledger total — 498.10 + 574.15 +
-    // 271.20 = $1,343.45, not a figure a reader would have to take on faith
-    // (ro-wtt).
+    // The evidence line is added in `amount_minor`: 498.10 + 574.15 + 271.20
+    // = $1,343.45.
     await seedRevenue(ctx);
     await insertRevenue(ctx, 20, "meals.example", "2026-06", "ads", 574.15, "raptive-report");
     await insertRevenue(ctx, 21, "meals.example", "2026-06", "ads", 271.2, "raptive-report");
@@ -963,8 +916,8 @@ describe("buildIntegrationsMatrix", () => {
     await insertNomDown(ctx);
     await seedReports(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
-    // 35 cells: 5 assets × (5 catalog lanes + the two derived rows, the nightly
-    // report and the OS's own egress).
+    // 35 cells: 5 assets × (5 catalog lanes + the two derived rows, the
+    // nightly report and the OS's own egress).
     expect(m.summary.total).toBe(35);
     const sum =
       m.summary.counts.live +
@@ -973,11 +926,11 @@ describe("buildIntegrationsMatrix", () => {
       m.summary.counts.skipped +
       m.summary.counts["not-applicable"];
     expect(sum).toBe(35);
-    // No declared lane is live (nom's uptime degraded); the three live cells are
-    // all derived — root-os and meals reported inside the cadence, and no
-    // lane run has ever had to check whether the OS could get out.
+    // No declared lane is live (nosh's uptime degraded); the three live cells
+    // are derived: root-os and meals reported inside the cadence, and no lane
+    // run has ever had to check whether the OS could get out.
     expect(m.summary.counts.live).toBe(3);
-    // nom uptime (declared) + nom's stale nightly report (derived).
+    // nosh uptime (declared) + nosh's stale nightly report (derived).
     expect(m.summary.counts.degraded).toBe(2);
     expect(m.summary.needsAttention).toBe(m.summary.counts["needs-setup"] + m.summary.counts.degraded);
   });
@@ -986,7 +939,6 @@ describe("buildIntegrationsMatrix", () => {
     await seedReports(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
 
-    // Two derived rows, L0 first: the OS's own egress, then the nightly report.
     expect(m.derivedLanes.map((l) => l.catalog.id)).toEqual([
       EGRESS_LANE_ID,
       NIGHTLY_REPORT_LANE_ID,
@@ -994,24 +946,22 @@ describe("buildIntegrationsMatrix", () => {
     const lane = m.derivedLanes.find((l) => l.catalog.id === NIGHTLY_REPORT_LANE_ID)!;
     expect(lane.catalog.id).toBe(NIGHTLY_REPORT_LANE_ID);
     expect(lane.catalog.derived).toBe(true);
-    // Its state can never come from the register file — that is the whole
-    // point: it is not a catalog row, and it states facts, not a sentence.
+    // Not a catalog row, so its state can never come from the register file.
     expect(lane.catalog).toMatchObject({ usage: { cost: "free" as const }, onFailure: "raises-alert" });
     expect(lane.catalog).not.toHaveProperty("whatLiveMeans");
     expect(m.catalog.map((c) => c.id)).not.toContain(NIGHTLY_REPORT_LANE_ID);
-    // One cell per matrix column, so the row renders across every asset.
     expect(Object.keys(lane.cells)).toEqual(m.assets.map((a) => a.id));
 
     expect(lane.cells["root-os"]!.effective).toBe("live");
     expect(lane.cells["meals.example"]!.effective).toBe("live");
     expect(lane.cells["nosh.example"]!.effective).toBe("degraded");
-    // Never sent a report, so none is expected (D29 amended, ro-ujb9.121).
+    // Never sent a report, so none is expected.
     expect(lane.cells["areas.example"]!.effective).toBe("not-applicable");
     expect(lane.cells["fees.example"]!.effective).toBe("not-applicable");
 
-    // The evidence is the last ACCEPTED report — nom's newest, not its oldest.
+    // The evidence is the last accepted report: nosh's newest, not its oldest.
     expect(lane.cells["nosh.example"]!.evidence[0]!.at).toBe(new Date(NOW_MS - 71 * HOUR).toISOString());
-    // areas is in config/pull.json but switched off; fees.example isn't in it at all.
+    // areas is in config/pull.json but switched off; fees.example is not in it at all.
     expect(lane.cells["areas.example"]!.evidence[0]!.detail).toMatch(/^Nightly fetch off · /);
     expect(lane.cells["fees.example"]!.evidence[0]!.detail).toBe("No nightly fetch set up");
   });
@@ -1029,9 +979,9 @@ describe("buildIntegrationsMatrix", () => {
     expect(m.summary.total).toBe(
       declaredCells.length + derivedCells.length + egressCells.length,
     );
-    // needsAttention counts the 1 unhealthy derived cell (nom degraded) and
-    // NOT the 2 live ones, nor the sites that never sent a report and so
-    // expect none (areas, fees.example — not applicable since ro-ujb9.121).
+    // needsAttention counts the 1 unhealthy derived cell (nosh degraded) and
+    // not the 2 live ones, nor the sites that never sent a report (areas,
+    // fees.example).
     const derivedAttention = derivedCells.filter(
       (c) => c.effective === "needs-setup" || c.effective === "degraded",
     ).length;
@@ -1047,7 +997,6 @@ describe("buildIntegrationsMatrix", () => {
       ),
     ).toHaveLength(0);
     expect(m.summary.needsAttention).toBe(declaredAttention + derivedAttention);
-    // The derived lane is per-property, so it stays out of the credential insight.
     expect(m.sharedCredential).toEqual({ lanes: 3, cells: 9 });
   });
 
@@ -1056,7 +1005,6 @@ describe("buildIntegrationsMatrix", () => {
     const clarityless = m.catalog.find((c) => c.id === "uptime")!;
     expect(clarityless.usage).toEqual({ cost: "free" });
     expect(clarityless.onFailure).toBe("raises-alert");
-    // Facts only: what live means per lane is doc 11's, never the row's.
     expect(clarityless).not.toHaveProperty("whatLiveMeans");
   });
 
@@ -1071,15 +1019,14 @@ describe("buildIntegrationsMatrix", () => {
     expect(
       m.derivedLanes.find((l) => l.catalog.id === NIGHTLY_REPORT_LANE_ID)!.catalog.layer,
     ).toBe("property");
-    // The test register carries no `layer` key at all, so these fell through to
-    // the conservative default rather than claiming a shared tier.
+    // The test register carries no `layer` key, so these fall through to the
+    // conservative default.
     expect(m.catalog.find((c) => c.id === "gsc")!.layer).toBe("property");
   });
 });
 
-// Bead ro-ujb9.96.7.31: each data source's day (the source history, on
-// Postgres since bead ro-ujb9.76.5.6) is recorded by the hourly tick's Tower
-// step, never by a page load.
+// Each data source's day is recorded by the hourly tick's Tower step, never
+// by a page load.
 describe("the Source history, recorded by the hourly tick", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -1093,7 +1040,6 @@ describe("the Source history, recorded by the hourly tick", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     expect(await stored()).toEqual([]);
-    // The table is there and holds no day yet: "0 of 3 days", not "unavailable".
     expect(m.history).toMatchObject({ days: 0, sources: [] });
   });
 
@@ -1107,7 +1053,6 @@ describe("the Source history, recorded by the hourly tick", () => {
 
     const after = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     expect(after.history.days).toBe(1);
-    // The recorded day sums to the counts the page states.
     for (const state of ["live", "degraded", "needs-setup", "skipped", "not-applicable"] as const) {
       expect(after.history.states[state].at(-1)!.v, state).toBe(page.summary.counts[state]);
     }
@@ -1117,18 +1062,14 @@ describe("the Source history, recorded by the hourly tick", () => {
   });
 
   it("takes the matrix's inputs from the resolved settings, and nothing else", () => {
-    // A resolved config carries every setting; the matrix gets its five.
     const settings = { ...deps(INTEGRATIONS), noNightlyReport: ["areas.example"], osTimeZone: "UTC", entities: [] };
     expect(integrationsDeps(settings, NOW)).toEqual({ ...deps(INTEGRATIONS), noNightlyReport: ["areas.example"], now: NOW });
   });
 });
 
-// ---------------------------------------------------------------------------
-// L0 — the OS's own egress (bead `ro-034`). Every one of these is a read over
-// what workers/ingest/src/egress.ts actually stores; the copy is asserted where
-// the sentence is the deliverable, because "the OS reported its own blindness as
-// six other people's outage" is a wording failure as much as a logic one.
-// ---------------------------------------------------------------------------
+// L0, the OS's own egress: every one of these is a read over what
+// workers/ingest/src/egress.ts actually stores. The copy is asserted where the
+// sentence is the deliverable.
 describe("the L0 egress lane", () => {
   let ctx: TestStore;
   beforeEach(async () => {
@@ -1162,15 +1103,13 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
       source: "Reference sites that did not answer",
-      // Dated from the FIRST down verdict, so the row ages from when the
+      // Dated from the first down verdict, so the row ages from when the
       // connection went rather than from the last time the gate re-asked.
       at: "2026-07-04T02:30:00.000Z",
     });
-    // Verbatim: the argument for not blaming the assets is that two
-    // unrelated sites failed exactly the way the assets did.
+    // Verbatim: two unrelated sites failed exactly the way the assets did.
     expect(cell.evidence[0]!.detail).toContain("www.cloudflare.com/cdn-cgi/trace: internal error; reference = 9f2a");
     expect(cell.evidence[0]!.detail).toContain("www.google.com/generate_204: internal error; reference = 3b71");
-    // The sites the collectors checked nothing on, named as values.
     expect(cell.evidence[1]).toMatchObject({
       polarity: "against",
       source: "Sites not measured",
@@ -1178,9 +1117,9 @@ describe("the L0 egress lane", () => {
     });
   });
 
-  it("goes back to LIVE once the connection answers, while the alert waits on re-collection (ro-aed0.5)", async () => {
+  it("goes back to LIVE once the connection answers, while the alert waits on re-collection", async () => {
     // The flag outlives the outage until every collector that missed an asset
-    // has re-run. The uplink is this row's subject, and the uplink is fine.
+    // has re-run; the uplink is this row's subject, and the uplink is fine.
     await insertEgressFlag(ctx, "root-os", "2026-07-04T02:30:00.000Z", {
       ...OUTAGE_INPUTS,
       unmeasuredAssets: ["nosh.example"],
@@ -1205,12 +1144,10 @@ describe("the L0 egress lane", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
     const top = matrixUnblockers(m)[0]!;
 
-    // A regression leads the list, and this one's fix is not in the OS at all.
     expect(top.kind).toBe("degraded");
     expect(top.key).toBe(EGRESS_LANE_ID);
     expect(top.action).toBe("Check this machine's internet connection");
     expect(top.action).not.toContain("credential");
-    // The row carries the action and what it unlocks; no sentence rides it.
     expect(top).not.toHaveProperty("detail");
   });
 
@@ -1221,19 +1158,17 @@ describe("the L0 egress lane", () => {
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
       source: "No internet check recorded",
-      // No probe means no timestamp to age: there is no reading, and the lane
-      // says so rather than implying a stale one — as the title alone.
+      // No probe means no timestamp to age: there is no reading.
       detail: "",
       at: null,
     });
-    // And no verification: absent probes never read as Working.
     expect(cell.evidence[0]!.verification).toBeUndefined();
   });
 
   it("stays LIVE on an old probe round and reports what it found", async () => {
-    // Ten days is far past every cadence in the OS. It is NOT staleness here:
-    // the gate probes only after a fetch already failed, so an old row means
-    // nothing has needed to ask since — the opposite of a lane going quiet.
+    // Ten days is far past every cadence, but it is not staleness here: the
+    // gate probes only after a fetch already failed, so an old row means
+    // nothing has needed to ask since.
     await insertEgressCheck(ctx, new Date(NOW_MS - 10 * 24 * HOUR).toISOString(), 1, [
       { url: "https://www.cloudflare.com/cdn-cgi/trace", status: 200 },
     ]);
@@ -1250,8 +1185,8 @@ describe("the L0 egress lane", () => {
 
   it("reads the NEWEST round, and says so plainly when that round was down", async () => {
     // A down round with no open flag: the gate recorded the verdict and the
-    // flag was closed afterwards (a beacon answered, or an operator resolved
-    // it). The lane is not red — but it does not pretend the round went well.
+    // flag was closed afterwards. The lane is not red, but it does not
+    // pretend the round went well.
     await insertEgressCheck(ctx, "2026-07-01T02:30:00.000Z", 1, [
       { url: "https://www.cloudflare.com/cdn-cgi/trace", status: 200 },
     ]);
@@ -1264,7 +1199,6 @@ describe("the L0 egress lane", () => {
     expect(cell.effective).toBe("live");
     expect(cell.evidence[0]!.source).toBe("Internet check failed");
     expect(cell.evidence[0]!.at).toBe("2026-07-04T02:30:00.000Z");
-    // The readings, verbatim, as values.
     expect(cell.evidence[0]!.detail).toContain("www.google.com/generate_204: internal error");
   });
 
@@ -1299,7 +1233,6 @@ describe("the L0 egress lane", () => {
     await insertEgressFlag(ctx, "root-os", "2026-07-04T02:30:00.000Z", OUTAGE_INPUTS);
     const l = await lane();
 
-    // One cell per column, so the row renders across the matrix…
     expect(Object.keys(l.cells)).toEqual([
       "root-os",
       "meals.example",
@@ -1307,23 +1240,21 @@ describe("the L0 egress lane", () => {
       "areas.example",
       "fees.example",
     ]);
-    // …but only asset #0 has an uplink of the OS's to report on. An asset's
-    // own host is not this machine, and the register's own rule says so.
+    // Only asset #0 has an uplink of the OS's to report on.
     for (const assetId of ["meals.example", "nosh.example", "areas.example", "fees.example"]) {
       expect(l.cells[assetId]!.effective).toBe("not-applicable");
       expect(l.cells[assetId]!.evidence).toEqual([]);
     }
     expect(l.catalog.scope).toBe("portfolio");
-    // The lane states its lazy gate as facts — it runs after a failed fetch,
-    // at most once per five minutes, and pauses the asset checks — so nobody
-    // reads an empty egress_checks table as a lane that stopped reporting.
+    // The lane states its lazy gate as facts, so nobody reads an empty
+    // egress_checks table as a lane that stopped reporting.
     expect(l.catalog.usage).toEqual({ cost: "free", trigger: "failed-fetch", limit: "1 check per 5 min" });
     expect(l.catalog.onFailure).toBe("pauses-asset-checks");
   });
 
   it("degrades to a lane that says less when the stored evidence is unreadable", async () => {
-    // rule_inputs is written by another Worker. A truncated or re-shaped payload
-    // must cost the operator a sentence, never a page.
+    // rule_inputs is written by another Worker. A truncated or re-shaped
+    // payload must cost the operator a sentence, never a page.
     expect(
       egressState({ firedAt: "2026-07-04T02:30:00.000Z", ruleInputs: "{not json" }, null),
     ).toEqual({
@@ -1332,7 +1263,6 @@ describe("the L0 egress lane", () => {
         {
           polarity: "against",
           source: "Reference sites that did not answer",
-          // No readings: the title and its age are all there is to show.
           detail: "",
           at: "2026-07-04T02:30:00.000Z",
         },
@@ -1341,11 +1271,9 @@ describe("the L0 egress lane", () => {
   });
 });
 
-describe("what to unblock next (bead ro-9mx)", () => {
-  // The matrix answers "what state is everything in". This answers the question
-  // the operator actually has — "what should I fix first" — in ACTIONS, because
-  // a grid makes dozens of cells look independently actionable when one
-  // credential unlocks nine of them (the 2026-07 audit's finding 12).
+describe("what to unblock next", () => {
+  // The matrix answers "what state is everything in"; this answers "what
+  // should I fix first" in actions, because one credential can unlock nine cells.
   const catalog = [
     { id: "gsc", label: "Google Search Console", docRef: "docs/11", scope: "property" as const, layer: "provider" as const, usage: { cost: "free" as const }, onFailure: "keeps-last-data" as const, credential: "shared" as const, derived: false },
     { id: "clarity", label: "Microsoft Clarity", docRef: "docs/11", scope: "property" as const, layer: "provider" as const, usage: { cost: "free" as const }, onFailure: "keeps-last-data" as const, credential: "per-property" as const, derived: false },
@@ -1376,8 +1304,6 @@ describe("what to unblock next (bead ro-9mx)", () => {
       action: "Connect Google Search Console once",
       cells: 2,
     });
-    // Asset order is the register's own, so every list on the page reads the
-    // same way round.
     expect(list[0]!.unlocks).toEqual(["Meal Planner", "Nosh"]);
   });
 
@@ -1404,27 +1330,21 @@ describe("what to unblock next (bead ro-9mx)", () => {
       "property-setup",
       "property-setup",
     ]);
-    // Current degraded evidence leads the setup backlog whether it is partial,
-    // stale, or fully failed.
     expect(list[0]).toMatchObject({ key: "uptime", action: "Site down", cells: 1 });
-    // A per-property install is grouped by the asset you would be sitting in
-    // front of — the unit of the visit — and names the lanes, not the asset.
+    // A per-property install is grouped by the asset, the unit of the visit,
+    // and names the lanes.
     expect(list[2]).toMatchObject({ kind: "property-setup", key: "meals.example", cells: 1 });
     expect(list[2]!.unlocks).toEqual(["Microsoft Clarity"]);
   });
 
-  /**
-   * Bead ro-ujb9.133: a source no provider card on Integrations connects is no
-   * to-do while it is only Not set up — "Connect Uptime once" led nowhere. A
-   * source a provider connects is still offered, and one in use is listed.
-   */
+  /** A source no provider card on Integrations connects is no to-do while it
+   * is only Not set up; one in use is still listed. */
   it("offers a source only when something on Integrations connects it, or it is in use", () => {
     expect(withoutConnectPath(at("meals.example", "uptime", "needs-setup"))).toBe(true);
     expect(withoutConnectPath(at("meals.example", "uptime", "degraded"))).toBe(false);
     expect(withoutConnectPath(at("meals.example", "uptime", "skipped"))).toBe(false);
     expect(withoutConnectPath(at("meals.example", "gsc", "needs-setup"))).toBe(false);
     expect(withoutConnectPath(at("meals.example", "clarity", "needs-setup"))).toBe(false);
-    // No row at all while nothing arrived; money added by hand keeps the row.
     expect(unusedWithoutConnectPath(at("meals.example", "uptime", "needs-setup"))).toBe(true);
     expect(unusedWithoutConnectPath({
       ...at("meals.example", "uptime", "needs-setup"),
@@ -1466,8 +1386,8 @@ describe("what to unblock next (bead ro-9mx)", () => {
     });
     expect(list.map((u) => [u.key, u.cells])).toEqual([["gsc", 2], ["dataforseo", 1]]);
   });
-  // What the COMMITTED register reads into is a seed check, in
-  // integrations-seed.test.ts (bead ro-ujb9.92).
+  // What the committed register reads into is a seed check, in
+  // integrations-seed.test.ts.
 });
 
 describe("credential scope (shared vs per-property)", () => {
@@ -1478,8 +1398,8 @@ describe("credential scope (shared vs per-property)", () => {
   });
 
   it("passes the credential scope through to catalog rows, and none of the register's prose", async () => {
-    // A store written before the prose was retired may still carry it until
-    // its changeset is applied (bead `ro-ujb9.96.6.20`); no row renders it.
+    // A stored catalog may still carry the retired prose until its changeset is
+    // applied; no row renders it.
     const legacy = INTEGRATIONS.catalog.map((row) => ({
       ...row, liveMeans: "legacy", credentialNote: "legacy", perProperty: "legacy",
     }));
@@ -1495,8 +1415,8 @@ describe("credential scope (shared vs per-property)", () => {
 
   it("computes the shared-credential insight: M lanes unlock K needs-setup cells", async () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
-    // shared lanes with ≥1 needs-setup: gsc(3), uptime(3), affiliate-cj(3); amazon has 0.
-    // ad-network is per-property (3 needs-setup) → EXCLUDED from the insight.
+    // shared lanes with ≥1 needs-setup: gsc(3), uptime(3), affiliate-cj(3);
+    // amazon has 0. ad-network is per-property, so excluded from the insight.
     expect(m.sharedCredential).toEqual({ lanes: 3, cells: 9 });
   });
 
@@ -1519,9 +1439,8 @@ describe("credential scope (shared vs per-property)", () => {
 });
 
 // A full register, frozen: test/fixture-config/integrations.json, never the
-// checkout's config/ (bead ro-ujb9.92). What these assert about the matrix must
-// not move when an operator saves a setting; the checks OF the committed file
-// live in integrations-seed.test.ts.
+// checkout's config/. The checks of the committed file live in
+// integrations-seed.test.ts.
 describe("a full register renders completely", () => {
   const fullRegister = structuredClone(frozenRegister) as IntegrationsConfig;
 
@@ -1531,20 +1450,17 @@ describe("a full register renders completely", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     const egress = m.derivedLanes.find((l) => l.catalog.id === EGRESS_LANE_ID)!;
 
-    // The OS row is read out of the store (`assets.is_os`), never written down —
-    // the same discipline the gate itself uses on the write side.
+    // The OS row is read out of the store (`assets.is_os`), never written down.
     expect(egress.cells["root-os"]!.effective).toBe("live");
     for (const asset of m.assets.filter((a) => !a.isOs)) {
       expect(egress.cells[asset.id]!.effective).toBe("not-applicable");
     }
   });
 
-  // The committed register's own checks — derived not-applicable cells stay
-  // out of the file, every source declared on every asset (beads ro-9mx,
-  // ro-qodp) — are in integrations-seed.test.ts.
+  // The committed register's own checks are in integrations-seed.test.ts.
   it("names the assets owing an entry the moment a data source is added", async () => {
-    // Reproduce the bead exactly: one more catalog row, added the way /settings
-    // adds one — declared, and given to nobody.
+    // One more catalog row, added the way /settings adds one: declared, and
+    // given to nobody.
     const withNewSource: IntegrationsConfig = {
       ...fullRegister,
       catalog: [
@@ -1568,16 +1484,14 @@ describe("a full register renders completely", () => {
     expect(gap.laneId).toBe("affiliate-impact");
     expect(gap.label).toBe("Impact");
     // Every site but the OS, which the scope rule already answers for a
-    // property source — a derived cell is never a gap, which is the whole
-    // reason the register is allowed to be sparse.
+    // property source: a derived cell is never a gap.
     expect(gap.assets).toEqual(m.assets.filter((a) => !a.isOs).map((a) => a.id));
     expect(gap.assets).not.toContain("root-os");
   });
 
   it("counts a portfolio source against the OS and an asset with no entry at all", () => {
-    // The two shapes the file can be short in, over a fixture rather than the
-    // committed register: a source only the OS can carry, and an asset the
-    // wizard filed into the store but not into this file.
+    // The two shapes the file can be short in: a source only the OS can
+    // carry, and an asset the wizard filed into the store but not into this file.
     const catalog = [
       { id: "discord-webhooks", label: "Discord", scope: "portfolio" as const },
       { id: "ga4", label: "GA4", scope: "property" as const },
@@ -1599,24 +1513,21 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    // The fixture intentionally has no signal_runs. Collector-backed lanes
-    // therefore render unconfigured even when the file records prior proof;
-    // a live health claim requires current store evidence.
+    // The fixture has no signal_runs, so collector-backed lanes render
+    // unconfigured even when the file records prior proof.
     expect(m.sharedCredential).toEqual({ lanes: 9, cells: 42 });
     // 58 before PostHog, plus its collector-backed cell on each of the five
-    // seeded content assets, none of which has a run in this fixture — less
-    // the nightly-report cell of the six sites with no report in it, which
-    // expect none (D29 amended, ro-ujb9.121).
+    // seeded content assets, less the nightly-report cell of the six sites
+    // with no report in it.
     expect(m.summary.counts["needs-setup"]).toBe(57);
     expect(m.summary.counts.degraded).toBe(0);
     // The one live cell is L0: no lane run in this fixture ever had to check
-    // whether the OS could reach the internet, which is the healthy shape.
+    // whether the OS could reach the internet.
     expect(m.summary.counts.live).toBe(1);
   });
 
   /** One successful archive manifest, parameterized on the fields these tests
-   * vary: who, which provider/report, when it was requested, what it cost. On
-   * Postgres, where the collectors write them (bead ro-ujb9.76.5.4). */
+   * vary: who, which provider/report, when it was requested, what it cost. */
   async function insertDump(
     ctx: TestStore,
     id: string,
@@ -1657,32 +1568,24 @@ describe("a full register renders completely", () => {
     });
   });
 
-  it("says WHICH asset the month's data budget went on (bead ro-4cm)", async () => {
-    // provider_cost_usd rides every manifest row and every row names its asset
-    // (db/0010, indexed by db/0011), so the split needed no new instrumentation
-    // — only asking for it. Until now the OS could state its data budget and
-    // not the per-property number an ROI decision actually needs.
+  it("says WHICH asset the month's data budget went on", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertDump(ctx, "dfs-a", "nosh.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:00:00.000Z", 0.4);
     await insertDump(ctx, "dfs-b", "meals.example", "dataforseo", "ranked-keywords", "2026-07-05", "2026-07-05T10:01:00.000Z", 1.1);
     await insertDump(ctx, "dfs-c", "meals.example", "dataforseo", "serp-panel", "2026-07-05", "2026-07-05T10:02:00.000Z", 2.35);
-    // Outside the month, and a free lane inside it: neither may reach the split.
     await insertDump(ctx, "dfs-jun", "nosh.example", "dataforseo", "ranked-keywords", "2026-06-28", "2026-06-28T10:00:00.000Z", 9);
     await insertDump(ctx, "ga4-jul", "areas.example", "ga4", "daily-traffic", "2026-07-05", "2026-07-05T12:15:00.000Z", 0);
 
     const spend = (await buildIntegrationsMatrix(ctx.call, deps(fullRegister))).dataSpend;
-    // Biggest spender first — the order the ROI question is asked in.
     expect(spend.byAsset).toEqual([
       { asset: "meals.example", spentUsd: 3.45, unknownPrices: 0 },
       { asset: "nosh.example", spentUsd: 0.4, unknownPrices: 0 },
     ]);
-    // The headline IS the split, added up: the two cannot disagree by a float.
     expect(spend.byAsset.reduce((total, row) => total + row.spentUsd, 0)).toBe(
       spend.spentUsd,
     );
     expect(spend.spentUsd).toBeCloseTo(3.85, 10);
-    // An asset whose month cost nothing is absent, not a zero row.
     expect(spend.byAsset.map((row) => row.asset)).not.toContain("areas.example");
   });
 
@@ -1690,8 +1593,7 @@ describe("a full register renders completely", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     const m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
-    // An untouched budget is a fact worth stating; an absent field would make
-    // the meter guess.
+    // An untouched budget is a fact; an absent field would make the meter guess.
     expect(m.dataSpend).toEqual({
       period: "2026-07",
       spentUsd: 0, unknownPrices: 0,
@@ -1713,21 +1615,20 @@ describe("a full register renders completely", () => {
       const index = m.catalog.findIndex((lane) => lane.id === laneId);
       return m.cells["meals.example"]![index]!.evidence;
     };
-    // No collector run in the fixture, but the archive itself is evidence: the
-    // largest collector in the OS finally says something on the page.
+    // No collector run in the fixture, but the archive itself is evidence.
     expect(laneEvidence("ga4")[1]).toMatchObject({
       polarity: "supporting",
       source: "Nightly archive succeeded",
       detail: "2 report families · 2026-07-04",
     });
     expect(laneEvidence("bing-webmaster")[1]!.detail).toBe("1 report families · 2026-07-04");
-    // Search Console archived nothing and is not collecting, so it says nothing
-    // extra — a lane may only speak from its own observations (doc 19 #13).
+    // Search Console archived nothing and is not collecting, so it says
+    // nothing extra: a lane may only speak from its own observations.
     expect(laneEvidence("gsc")).toHaveLength(1);
   });
 
-  // PostHog (bead ro-ghis.1) is collector-backed: its cell is derived from the
-  // daily archive's own manifests, not from the posture the file declares.
+  // PostHog is collector-backed: its cell is derived from the daily archive's
+  // own manifests, not from the posture the file declares.
   it("derives PostHog health from the newest attempt of each report family", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
@@ -1746,10 +1647,8 @@ describe("a full register renders completely", () => {
       source: "PostHog collector succeeded",
       detail: "6 report families · 60 rows · to 2026-07-04",
     });
-    // No run at all for another asset: set up, not failing.
     expect(m.cells["nosh.example"]![index(m)]!.effective).toBe("needs-setup");
 
-    // A later budget refusal on one family turns the lane amber and names it.
     await writeArchiveRun(ctx.call, {
       id: "ph-exceptions-429", asset: "meals.example", integration: "posthog", report: "exceptions",
       credential_ref: "POSTHOG_KEYS", property_ref: "us:596607", report_date: "2026-07-05",
@@ -1765,9 +1664,8 @@ describe("a full register renders completely", () => {
     expect(cell.evidence[0]!.detail).toContain("exceptions: PostHog refused the query");
   });
 
-  // Clarity (bead ro-at7t) is collector-backed the same way. Its 04:30 export
-  // writes one manifest per asset per day and nothing in the Tower read them,
-  // so a rejected token left the lane on whatever the file declared.
+  // Clarity is collector-backed the same way: its export writes one manifest
+  // per asset per day.
   it("derives Clarity health from its daily export's own manifests", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
@@ -1785,10 +1683,8 @@ describe("a full register renders completely", () => {
       detail: "10 behavior rows · 3 days to 2026-07-04",
       verification: { kind: "collection-success", laneId: "clarity" },
     });
-    // An asset whose export never ran (no token) stays not set up, not failing.
     expect(m.cells["nosh.example"]![index(m)]!.effective).toBe("needs-setup");
 
-    // The next day's export is refused: the lane turns degraded and says why.
     await writeArchiveRun(ctx.call, {
       id: "clarity-401", asset: "meals.example", integration: "clarity", report: "url-3d",
       credential_ref: "store:CLARITY_TOKENS", report_date: "2026-07-05",
@@ -1808,7 +1704,6 @@ describe("a full register renders completely", () => {
       },
     ]);
 
-    // The same verdict on the card's source strip, which the Wall and Home draw.
     const runs = await loadLatestSignalRuns(ctx.call, { panelAssets: new Set(), nowMs: NOW.getTime() }, "meals.example");
     const strip = buildCardDataSources({
       assetId: "meals.example",
@@ -1824,10 +1719,8 @@ describe("a full register renders completely", () => {
       observedAt: "2026-07-05T04:30:01.000Z",
     });
 
-    // A lane the operator switched off keeps that decision: an asset that moved
-    // to another product-analytics source (meals.example replaced Clarity with
-    // PostHog on 2026-09-07) is not judged on an export it no longer wants.
-    // The last attempt stays readable as evidence, as on every collected lane.
+    // A lane the operator switched off keeps that decision; the last attempt
+    // stays readable as evidence.
     const retired = structuredClone(fullRegister);
     retired.assets["meals.example"]!.clarity = { status: "skipped", note: "Replaced by PostHog.", since: "2026-09-07" };
     m = await buildIntegrationsMatrix(ctx.call, deps(retired));
@@ -1836,11 +1729,9 @@ describe("a full register renders completely", () => {
   });
 
   // Bing's six families do not share one cadence: `queries` and `pages` are
-  // current top-result snapshots Microsoft rebuilds weekly, collected once a week
-  // since ro-93u, while the other four are daily provider series. So on six days
-  // out of seven the lane's newest date covers only four families — and the
-  // sentence has to say four, without treating the weekly pair as a fault
-  // (ro-90a).
+  // weekly snapshots, the other four daily series. On six days out of seven
+  // the lane's newest date covers only four families, and the sentence has to
+  // say four without treating the weekly pair as a fault.
   it("counts only the Bing families the date it names covers, and stays green over the weekly two", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
@@ -1848,7 +1739,6 @@ describe("a full register renders completely", () => {
     for (const [index, report] of daily.entries()) {
       await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-07-05", `2026-07-05T11:0${index}:00.000Z`, 0);
     }
-    // Collected on the weekly cadence six days ago; not due again until tomorrow.
     for (const report of ["queries", "pages"]) {
       await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-06-29", "2026-06-29T11:10:00.000Z", 0);
     }
@@ -1858,21 +1748,18 @@ describe("a full register renders completely", () => {
     const archive = m.cells["meals.example"]![index]!.evidence[1]!;
 
     // A weekly family trailing by six days is the cadence working, so the line
-    // is still supporting: not the stale line, not the failure line, and the
-    // DataForSEO completeness test stays where it is.
+    // is still supporting.
     expect(archive).toMatchObject({
       polarity: "supporting",
       source: "Nightly archive succeeded",
     });
     expect(archive.detail).toBe("4 of 6 report families · 2026-07-05 · pages and queries 2026-06-29");
-    // The overstatement the line used to make: all six claimed for today's date.
     expect(archive.detail).not.toMatch(/^6 report families/);
   });
 
   it("keeps the plain count when every family carries the date the line names", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    // The seventh day: the weekly pair came due and landed with the daily four.
     for (const report of ["rank-traffic", "crawl-stats", "crawl-issues", "feeds", "queries", "pages"]) {
       await insertDump(ctx, `bwt-${report}`, "meals.example", "bing-webmaster", report, "2026-07-05", "2026-07-05T11:00:00.000Z", 0);
     }
@@ -1884,12 +1771,10 @@ describe("a full register renders completely", () => {
     );
   });
 
-  // --- the weekly DataForSEO snapshot, per asset ---------------------------
-  // The collector writes SIX families for an asset config/serp-panel.json
-  // covers and five for every other, so "is this week complete" is a per-property
-  // question. The five domain families land in seconds and the ~40-call tracked
-  // panel lands minutes later, so a snapshot is legitimately split for the length
-  // of one sweep.
+  // The collector writes six families for an asset config/serp-panel.json
+  // covers and five for every other. The five domain families land in seconds
+  // and the ~40-call tracked panel minutes later, so a snapshot is
+  // legitimately split for the length of one sweep.
   const DOMAIN_REPORTS = [
     "ranked-keywords",
     "backlinks-summary",
@@ -1933,9 +1818,8 @@ describe("a full register renders completely", () => {
   it("counts six report families for an asset with a tracked SERP panel", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    // A complete-looking week by the old portfolio constant: five families, one
-    // snapshot date, nothing stale. The panel is simply absent — which for
-    // meals.example is a family that has never been collected, not a full week.
+    // Five families, one snapshot date, nothing stale. The panel is absent,
+    // which for meals.example is a family never collected, not a full week.
     await insertDataForSeo(ctx,
       "meals.example",
       whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T10:01:00.000Z"),
@@ -1963,8 +1847,7 @@ describe("a full register renders completely", () => {
       whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T10:01:00.000Z"),
     );
     // A panel row from before the operator removed nosh.example from
-    // config/serp-panel.json. It is not a family this asset is due any more,
-    // so it may not hold the lane red forever on a date nobody will refresh.
+    // config/serp-panel.json: not a family this asset is due any more.
     await insertDataForSeo(ctx, "nosh.example", [
       {
         report: "serp-panel",
@@ -1988,9 +1871,8 @@ describe("a full register renders completely", () => {
   it("reads the panel's in-flight tail as a sweep in progress, not a torn week", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    // Monday, two minutes ago: the five domain families carry this week's date
-    // and the panel — ~40 sequential provider calls — is still running, so its
-    // newest stored attempt is last week's.
+    // Monday, two minutes ago: the five domain families carry this week's
+    // date and the panel is still running, so its newest attempt is last week's.
     await insertDataForSeo(ctx, "meals.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T11:58:00.000Z"),
       {
@@ -2004,8 +1886,8 @@ describe("a full register renders completely", () => {
       "meals.example",
     );
     expect(cell.effective).toBe("live");
-    // The success line names one snapshot date, so it counts only what belongs
-    // to it — the five that have landed, never the sixth still on 2026-06-28.
+    // The success line counts only what belongs to its date: the five that
+    // have landed, never the sixth still on 2026-06-28.
     expect(cell.evidence[0]).toMatchObject({
       polarity: "supporting",
       source: "DataForSEO collector succeeded",
@@ -2016,8 +1898,7 @@ describe("a full register renders completely", () => {
   it("still names a family genuinely missing from the week once the sweep is over", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
-    // The same shape, two hours later: the sweep that would have refreshed the
-    // panel is long finished, so the panel is missing, not late.
+    // Two hours later: the sweep is long finished, so the panel is missing, not late.
     await insertDataForSeo(ctx, "meals.example", [
       ...whole(DOMAIN_REPORTS, "2026-07-05", "2026-07-05T09:58:00.000Z"),
       {
@@ -2034,8 +1915,6 @@ describe("a full register renders completely", () => {
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
       source: "DataForSEO collector failed",
-      // Names the family, not merely that the dates disagree: the operator has
-      // to know it is the panel that stopped.
       detail: "serp-panel missing from 2026-07-05",
     });
   });
@@ -2117,8 +1996,7 @@ describe("a full register renders completely", () => {
       "posthog",
       "dataforseo",
     ]);
-    // Uptime is Not set up and nothing on Integrations connects it: no slot
-    // (bead ro-ujb9.133).
+    // Uptime is Not set up and nothing on Integrations connects it: no slot.
     expect(sources.filter(({ state }) => state === "needs-setup")).toHaveLength(6);
   });
 });
@@ -2129,10 +2007,9 @@ describe("buildAssetIntegrations", () => {
       revenueRows: [{ currency: 'USD', family: "ads", source: "raptive-report", note: null, amountMinor: 49810, period: "2026-06" }],
     };
     const section = buildAssetIntegrations("meals.example", INTEGRATIONS, ev);
-    // No seed-file path: nothing on a site's page names it (bead ro-ujb9.96.6.23).
     expect(section).not.toHaveProperty("owner");
     // Uptime and CJ are Not set up and nothing on Integrations connects them:
-    // no row to answer (bead ro-ujb9.133). The declined Amazon row stays.
+    // no row to answer. The declined Amazon row stays.
     expect(section.lanes.map((l) => l.cell.laneId)).toEqual(["gsc", "ad-network", "affiliate-amazon"]);
     const ad = section.lanes.find((l) => l.cell.laneId === "ad-network")!;
     expect(ad.catalog.usage.cost).toBe("free");
@@ -2141,9 +2018,8 @@ describe("buildAssetIntegrations", () => {
     expect(section.summary.total).toBe(3);
   });
 
-  // The per-asset mapping (bead `ro-vu8d.4`). `LANE_MAPPING` decides which
-  // lanes have one; every other lane gets an empty list and no card section, so
-  // an ad-network card never grows a property-id field to leave blank.
+  // `LANE_MAPPING` decides which lanes have a mapping; every other lane gets
+  // an empty list and no card section.
   it("carries the mapping only for the lanes that declare one", () => {
     const ev: LaneEvidence = { revenueRows: [] };
     const withMapping: IntegrationsConfig = {
@@ -2161,18 +2037,12 @@ describe("buildAssetIntegrations", () => {
     expect(gsc.mapping).toEqual([{ name: "siteUrl", value: "sc-domain:meals.example" }]);
     expect(gsc.mappingSource).toBe("register");
     expect(section.lanes.find((l) => l.cell.laneId === "affiliate-amazon")!.mapping).toEqual([]);
-    // A state, never a sentence, rides the payload (bead `ro-ujb9.96.6.4`).
     expect(gsc).not.toHaveProperty("mappingReads");
   });
 
-  /**
-   * WHICH SOURCE ANSWERS FOR THIS ASSET (bead `ro-vu8d.16`).
-   *
-   * The collectors read the register where it holds a value and their old
-   * source where it does not, so the card cannot print one sentence for both:
-   * a mapped lane is steered by the save, an unmapped one is not, and the
-   * payload says which — same rule as `workers/ingest/src/lane-mapping.ts`.
-   */
+  /** The collectors read the register where it holds a value and their old
+   * source where it does not, so the payload says which answers, same rule as
+   * `workers/ingest/src/lane-mapping.ts`. */
   it("says whether the register or the lane's old source answers, per asset", () => {
     const ev: LaneEvidence = { revenueRows: [] };
     const mapped: IntegrationsConfig = {
@@ -2195,7 +2065,6 @@ describe("buildAssetIntegrations", () => {
     )!;
     expect(without.mappingSource).toBe("fallback");
 
-    // A lane with no mapping at all has no claim to make either way.
     const amazon = buildAssetIntegrations("meals.example", INTEGRATIONS, ev).lanes.find(
       (l) => l.cell.laneId === "affiliate-amazon",
     )!;
@@ -2203,9 +2072,7 @@ describe("buildAssetIntegrations", () => {
     expect(amazon.mapping).toEqual([]);
   });
 
-  // An unmapped lane reads as unmapped rather than as an empty string. The
-  // lane carries no setup checklist: the row's status is the proof (bead
-  // ro-ujb9.96.7.4).
+  // An unmapped lane reads as unmapped rather than as an empty string.
   it("reads an unmapped field as unmapped, with no setup checklist beside it", () => {
     const ev: LaneEvidence = { revenueRows: [] };
     const section = buildAssetIntegrations("meals.example", INTEGRATIONS, ev);
@@ -2214,8 +2081,6 @@ describe("buildAssetIntegrations", () => {
     expect(gsc).not.toHaveProperty("setup");
   });
 });
-
-// --- what is left of a metered provider's day (bead ro-vu8d.25) -------------
 
 describe("loadMeteredCallsToday", () => {
   const NOW = new Date("2026-09-05T09:00:00.000Z");
@@ -2231,8 +2096,8 @@ describe("loadMeteredCallsToday", () => {
         id, asset: row.asset, integration: "clarity", report: "url-3d", credential_ref: "CLARITY_TOKENS",
         report_date: row.requestedAt.slice(0, 10), finished_at: row.requestedAt,
         status: failed ? "error" : "success", provider_rows: 5,
-        // A failed call archives no pages, so `request_count` is 0 on it — the
-        // reason this counts ROWS.
+        // A failed call archives no pages, so `request_count` is 0 on it,
+        // which is why this counts rows.
         request_count: failed ? 0 : 1,
         object_key: `raw/microsoft/clarity/${id}.json.gz`, object_bytes: 100,
         error_code: "clarity_token_rejected", error_message: "Clarity rejected the project token (HTTP 401).",
@@ -2247,7 +2112,6 @@ describe("loadMeteredCallsToday", () => {
       { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z" },
       { asset: "meals.example", requestedAt: "2026-09-05T06:00:00.000Z" },
       { asset: "nosh.example", requestedAt: "2026-09-05T04:30:00.000Z" },
-      // Yesterday's budget is not today's.
       { asset: "nosh.example", requestedAt: "2026-09-04T04:30:00.000Z" },
     ]);
 
@@ -2265,8 +2129,7 @@ describe("loadMeteredCallsToday", () => {
     await insertClarity(ctx, [
       { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z", status: "error" },
     ]);
-    // Summing `request_count` would report this as budget still available —
-    // the one direction a quota display must not err in.
+    // Summing `request_count` would report this as budget still available.
     expect((await loadMeteredCallsToday(ctx.call, "clarity", NOW)).assets).toEqual([
       { asset: "meals.example", spent: 1 },
     ]);
@@ -2277,8 +2140,6 @@ describe("loadMeteredCallsToday", () => {
     await seedAssets(ctx);
     expect((await loadMeteredCallsToday(ctx.call, "clarity", NOW)).assets).toEqual([]);
   });
-
-  // --- and the other window: dollars against the month (bead ro-qpas) -------
 
   /** One DataForSEO report and what it cost, on the same manifest rows. */
   async function insertReport(
@@ -2306,12 +2167,10 @@ describe("loadMeteredCallsToday", () => {
     await seedAssets(ctx);
     await insertReport(ctx, "dfs-1", "meals.example", "2026-09-01T12:45:00.000Z", 1.122_772);
     await insertReport(ctx, "dfs-2", "nosh.example", "2026-09-03T12:45:00.000Z", 0.41);
-    // Last month's spend is not this month's budget.
     await insertReport(ctx, "dfs-old", "meals.example", "2026-08-30T12:45:00.000Z", 9);
 
     const reading = await loadProviderMeter(ctx.call, SPEND_METER, NOW, 25);
     const spend = await loadDataForSeoSpend(ctx.call, NOW);
-    // One representation, no second sum: the card's figure IS the summary's.
     expect(reading).toEqual({
       window: "portfolio-month",
       period: "2026-09",
@@ -2321,9 +2180,8 @@ describe("loadMeteredCallsToday", () => {
     expect(spend.spentUsd).toBeCloseTo(1.532_772, 10);
   });
 
-  // Bead `ro-sq42`: the Wall's SYSTEM band states a DAY's pace and this page a
-  // MONTH's, and both come out of this one function so the two surfaces cannot
-  // sum the same table into two different answers.
+  // The Wall's SYSTEM band states a day's pace and this page a month's; both
+  // come out of this one function.
   it("windows the same sum to a day for the Wall's pace", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
@@ -2337,14 +2195,13 @@ describe("loadMeteredCallsToday", () => {
       { asset: "meals.example", spentUsd: 0.4, unknownPrices: 0 },
       { asset: "nosh.example", spentUsd: 0.15, unknownPrices: 0 },
     ]);
-    // Same rows, wider window: yesterday is in the month and not in the day.
     const month = await loadDataForSeoSpend(ctx.call, NOW);
     expect(month.spentUsd).toBeCloseTo(7.55, 10);
   });
 
   /** Ad-hoc research: the same DataForSEO account, a different table. `actor`
-   * is what keeps the two halves disjoint — a row the collector wrote for
-   * itself is already counted from its manifest row. */
+   * keeps the two halves disjoint: a row the collector wrote for itself is
+   * already counted from its manifest row. */
   async function insertResearch(
     ctx: TestStore,
     id: string,
@@ -2360,23 +2217,17 @@ describe("loadMeteredCallsToday", () => {
     }]);
   }
 
-  // Bead `ro-ukus`: every desk meter summed `signal_dump_runs` alone while the
-  // gate that fails the portfolio closed summed that PLUS `research_log`, so
-  // the desk could read comfortably under the cap on a month the collector then
-  // refused to spend in. The error ran in the one direction a budget display
-  // must not: it under-reported.
+  // The cap gate sums `signal_dump_runs` plus `research_log`; a meter that
+  // summed the first alone would under-report.
   it("counts the ad-hoc research the cap gate counts, not just the collected reports", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     await insertReport(ctx, "dfs-1", "meals.example", "2026-09-01T12:45:00.000Z", 1.1);
     await insertResearch(ctx, "r1", "meals.example", "2026-09-02T09:00:00.000Z", 0.24);
     await insertResearch(ctx, "r2", "nosh.example", "2026-09-02T09:30:00.000Z", 0.4);
-    // Portfolio-level research names no property (db/0025 keeps that NULL
-    // rather than inventing a ghost asset id).
+    // Portfolio-level research names no property.
     await insertResearch(ctx, "r3", null, "2026-09-03T09:00:00.000Z", 0.06);
-    // The collector's own research is already in its manifest row above.
     await insertResearch(ctx, "r4", "meals.example", "2026-09-03T10:00:00.000Z", 5, "collector");
-    // Last month is not this month's budget.
     await insertResearch(ctx, "r5", "meals.example", "2026-08-31T23:59:59.000Z", 9);
 
     const spend = await loadDataForSeoSpend(ctx.call, NOW);
@@ -2386,17 +2237,15 @@ describe("loadMeteredCallsToday", () => {
       { asset: "nosh.example", spentUsd: 0.4, unknownPrices: 0 },
     ]);
     expect(spend.unattributedUsd).toBeCloseTo(0.06, 10);
-    // The headline is still something the operator can add up from the split.
     expect(
       spend.byAsset.reduce((total, row) => total + row.spentUsd, 0) +
         spend.unattributedUsd,
     ).toBeCloseTo(spend.spentUsd, 10);
   });
 
-  // The four surfaces that draw this money: `/health`'s spend summary and
-  // `/settings`' budget meter both read the matrix's `dataSpend`, the provider
-  // card reads `loadProviderMeter`, and the Wall reads the same sum one window
-  // over. One body, so one figure.
+  // `/health`'s spend summary and `/settings`' budget meter read the matrix's
+  // `dataSpend`, the provider card reads `loadProviderMeter`, and the Wall
+  // reads the same sum one window over.
   it("gives /health, /settings, the provider card and the Wall one figure", async () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
@@ -2418,7 +2267,6 @@ describe("loadMeteredCallsToday", () => {
       spentUsd: month.spentUsd, unknownPrices: month.unknownPrices,
       capUsd: 25,
     });
-    // Everything happened today, so the Wall's pace is the whole month so far.
     expect(day.spentUsd).toBeCloseTo(month.spentUsd, 10);
     expect(matrix.dataSpend).toMatchObject({
       period: "2026-09",
@@ -2430,8 +2278,8 @@ describe("loadMeteredCallsToday", () => {
     const ctx = await createTestStore();
     await seedAssets(ctx);
     const reading = await loadProviderMeter(ctx.call, SPEND_METER, NOW, 40);
-    // An untouched month is a fact worth stating; the cap is whatever
-    // `monthly_caps.data_usd` says today, never a copy in the catalog.
+    // The cap is whatever `monthly_caps.data_usd` says today, never a copy in
+    // the catalog.
     expect(reading).toEqual({
       window: "portfolio-month",
       period: "2026-09",
@@ -2469,8 +2317,8 @@ describe("loadMeteredCallsToday", () => {
     await insertClarity(ctx, [
       { asset: "meals.example", requestedAt: "2026-09-05T04:30:00.000Z" },
     ]);
-    // The declaration is what decides which reading comes back, so a second
-    // metered provider never became a second `if` in the route.
+    // The declaration decides which reading comes back, so a second metered
+    // provider is not a second `if` in the route.
     expect(
       await loadProviderMeter(ctx.call,
         { window: "asset-day", perAssetPerDay: 10, unit: "call", countedFrom: "clarity" },
@@ -2511,17 +2359,14 @@ describe("one integration evidence read for compact and detailed views", () => {
   });
 
   it("loads only compact evidence for cards and reuses existing ledger and flag reads for detail", async () => {
-    // Every statement: the ledger, Mediavine, the home-page checks, the signal
-    // runs and the report runs are all read on Postgres (beads ro-ujb9.76.6.1,
-    // ro-ujb9.76.5.5, ro-ujb9.76.5.8, ro-ujb9.76.5.3, ro-ujb9.76.5.4).
+    // Every statement is read on Postgres.
     const queries: string[] = [];
     const compact = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "compact" });
     compact.cards("meals.example", context);
     compact.cards("nosh.example", context);
-    // The signal runs, the report runs, and each site's newest home-page
-    // check (its uptime slot, bead ro-ujb9.165).
+    // The signal runs, the report runs, and each site's newest home-page check.
     expect(queries).toHaveLength(3);
-    // The alerts too (bead ro-ujb9.76.5.2): no statement names them.
+    // No statement names the alerts either.
     expect(queries.join("\n")).not.toMatch(/financial_ledger|mediavine|flags/);
     queries.length = 0;
     const full = await loadIntegrationEvidence(recordingStore(ctx.call, queries), { ...deps(INTEGRATIONS), presentation: "full", assetId: "meals.example", reuse: { revenueRows: new Map() } });
@@ -2539,7 +2384,7 @@ describe("one integration evidence read for compact and detailed views", () => {
   });
 });
 
-// Bead ro-ujb9.165: uptime is the OS's own hourly home-page check.
+// Uptime is the OS's own hourly home-page check.
 describe("uptime — the site's own home-page check", () => {
   const AT = "2026-07-05T11:40:00.000Z";
   const up: HomeCheck = { observedAt: AT, status: "ok", httpStatus: 200, egressDown: false };
@@ -2550,16 +2395,14 @@ describe("uptime — the site's own home-page check", () => {
       evidence: [{ polarity: "supporting", source: "Home page answered", detail: "", at: AT,
         verification: { kind: "collection-success", laneId: "uptime" } }],
     });
-    // A 200 the check declined to word-count is still an answer.
     expect(uptimeState("needs-setup", { ...up, status: "error" }).effective).toBe("live");
   });
 
-  it("reads Up with the failed try when the page answered only the retry (bead ro-ujb9.180)", () => {
+  it("reads Up with the failed try when the page answered only the retry", () => {
     expect(uptimeState("needs-setup", { ...up, failedTries: 1 })).toMatchObject({
       effective: "live",
       evidence: [{ polarity: "supporting", detail: "1 failed try", verification: { kind: "collection-success" } }],
     });
-    // Down is two failed tries; its detail stays what the page answered.
     expect(uptimeState("live", { ...up, status: "error", httpStatus: 503, failedTries: 2 }).evidence[0]).toMatchObject({
       polarity: "against", detail: "HTTP 503" });
   });

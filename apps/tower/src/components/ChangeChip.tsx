@@ -16,16 +16,9 @@ export interface ChangeChipProps {
 }
 
 /**
- * The "something changed just before this" chip on an alert.
- *
- * A metric drop is a fact; a metric drop sitting next to a deploy from fourteen
- * hours earlier is an insight, and it is the one thing on the line that tells an
- * operator where to start looking. The correlation is done payload-side; this
- * only renders it, and renders NOTHING when nothing correlates — the common case
- * has to stay silent or the chip becomes chrome (doc 10 noise control).
- *
- * Deliberately not colored: it is context, not a state. Severity belongs to the
- * dot at the head of the line, and nothing else on the line may repeat it.
+ * The "something changed just before this" chip on an alert. The payload does
+ * the correlation; this renders nothing when nothing correlates, so the common
+ * case stays silent. Uncoloured: it is context, and severity belongs to the dot.
  */
 export function ChangeChip({ changes, firedAt, to, interactive = false, className }: ChangeChipProps) {
   const label = changesLabel(changes, firedAt, CORRELATION_WINDOW_HOURS);

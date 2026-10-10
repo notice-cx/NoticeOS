@@ -75,14 +75,13 @@ describe("validateTimeZone (constants.json os_time_zone)", () => {
 
   it("refuses anything the build boundary would also refuse", () => {
     // The field asks the same question the contract asks of the committed
-    // value, so a zone that saves is a zone that builds (bead ro-py40).
+    // value, so a zone that saves is a zone that builds.
     expect(validateTimeZone("").ok).toBe(false);
     expect(validateTimeZone("   ").ok).toBe(false);
     expect(validateTimeZone("America/Atlantis").ok).toBe(false);
     expect(validateTimeZone("Pacific Time").ok).toBe(false);
-    // The runtime's tz database is the authority, and it DOES know the legacy
-    // aliases — "PST" is a link to PST8PDT. Refusing them here would refuse a
-    // zone the build then accepts, which is the one thing this must not do.
+    // The runtime's tz database is the authority and it knows the legacy aliases
+    // ("PST" links to PST8PDT); refusing them would refuse a zone the build accepts.
     expect(validateTimeZone("PST").ok).toBe(true);
   });
 });
@@ -99,9 +98,9 @@ describe("countdown inputs", () => {
   });
 
   it("trims a useful display label and rejects empty/oversized labels", () => {
-    expect(validateDisplayLabel("  SF Trip  ")).toEqual({
+    expect(validateDisplayLabel("  Team offsite  ")).toEqual({
       ok: true,
-      value: "SF Trip",
+      value: "Team offsite",
     });
     expect(validateDisplayLabel("   ").ok).toBe(false);
     expect(validateDisplayLabel("x".repeat(81)).ok).toBe(false);

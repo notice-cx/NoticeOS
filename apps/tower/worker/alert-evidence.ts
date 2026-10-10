@@ -27,12 +27,9 @@ export interface ReviewedCondition<F extends EvidenceFlagRow> extends ConditionG
  * evidence must NOT fall back to an older good report. Read failures propagate:
  * the payload is unavailable, never a clean queue.
  *
- * The reports are on Postgres (bead ro-ujb9.76.5.2): the latest is the newest
- * day's newest revision, and its id is the DAY's number (`day_number`), as an
- * alert's `pulseId` is — so an alert raised from an earlier revision of the
- * same day still reads as that report's, as it did when D1 kept one row per
- * day. The readback windows are on Postgres too (bead ro-ujb9.76.5.7): one
- * statement for every window the alerts name, where D1 went 80 at a time. */
+ * The latest is the newest day's newest revision, and its id is the day's
+ * number (`day_number`), as an alert's `pulseId` is, so an alert raised from an
+ * earlier revision of the same day still reads as that report's. */
 export async function reviewAlertConditions<F extends EvidenceFlagRow>(
   store: WorkspaceStore, rows: readonly F[], nowMs: number,
 ): Promise<ReviewedCondition<F>[]> {

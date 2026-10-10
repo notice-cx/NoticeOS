@@ -3,20 +3,9 @@ import { createContext, useContext, useRef, type ComponentProps, type RefObject 
 import { cn } from "@/lib/utils";
 
 /**
- * THE DESK'S ANCHORED POPOVER — shadcn's `Popover` on Radix (doc 14's stack),
- * dressed in this theme's tokens (bead `ro-ujb9.219`).
- *
- * What Radix gives every caller, so none re-implements it: opening moves
- * keyboard focus into the panel; Escape, a press outside and focus leaving
- * close it and hand focus back to the trigger (unless it went to another
- * control); the panel is portalled, placed against its trigger and kept inside
- * the viewport as the page scrolls — a scroll moves it, it never closes it.
- * `role="dialog"` with the trigger's `aria-expanded` and `aria-controls` wired.
- *
- * Registry justification: `EvidencePopover` was a hand-rolled portal with no
- * focus management and a scroll listener that closed it; `InfoTooltip` is a
- * hover/focus/tap tooltip for label-length facts, not a dialog. No primitive in
- * `components/ui/` placed a focusable panel against its trigger.
+ * The desk's anchored popover: shadcn's `Popover` on Radix in this theme's
+ * tokens. Radix owns focus into the panel, Escape/outside/focus-out closing,
+ * placement and the dialog roles; a scroll moves the panel, never closes it.
  */
 const TriggerContext = createContext<RefObject<HTMLButtonElement | null> | null>(null);
 
@@ -61,13 +50,9 @@ export function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         collisionPadding={collisionPadding}
-        /* FOCUS IS NEVER DROPPED ON THE PAGE. Radix returns focus to the
-           trigger on Escape but, after a press outside, leaves it wherever
-           the press put it — which on a bare stretch of page is nowhere: the
-           body, and a keyboard starts again from the top. So a close that
-           leaves focus on the body (or in the panel that just went) sends it
-           back to the trigger; a press or a Tab that landed on another control
-           keeps it there. */
+        /* Radix leaves focus where an outside press put it, which on bare page
+           is the body. A close that leaves focus on the body or in the gone
+           panel returns it to the trigger; focus on another control stays. */
         onCloseAutoFocus={(event) => {
           onCloseAutoFocus?.(event);
           if (event.defaultPrevented) return;

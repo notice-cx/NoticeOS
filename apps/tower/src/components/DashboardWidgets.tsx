@@ -16,16 +16,13 @@ import {
 } from "@/lib/knob-validators";
 import { cn } from "@/lib/utils";
 
-// THE COUNTDOWN ON THE DESK: its face with the Configure button, and its
-// settings form, which Settings and the Wall editor's strip pane both render.
-// The face itself is `TimeFaces.tsx`. The clock row this file also drew — the
-// seven-segment clock, the meetings panel and the countdown side by side —
-// went with the pre-D28 Wall (bead `ro-trai.20`); the TV's time and meetings
-// are its top strip.
+// The countdown on the desk: its face with the Configure button, and its
+// settings form, which Settings and the Wall editor both render. The face
+// itself is `TimeFaces.tsx`.
 
 const OWNER = "config/tower.json";
-/** The whole countdown, at one pointer: added and taken away together,
- * because the emoji, the words and the moment are one landmark (ro-py40). */
+/** The whole countdown at one pointer: the emoji, the words and the moment are
+ * one landmark, added and removed together. */
 const COUNTDOWN_POINTER = "/countdown";
 
 function configOp(
@@ -71,7 +68,7 @@ export function CountdownWidget({
   nowMs: number;
   interactive?: boolean;
   /** Passed to the editor it opens: `false` where the page says once that
-   * saves are paused (bead `ro-p8qq`). */
+   * saves are paused. */
   statesReadOnly?: boolean;
   /** Placement from the page that owns it. */
   className?: string;
@@ -107,31 +104,12 @@ export function CountdownWidget({
 }
 
 /**
- * The countdown's three settings, saved together.
- *
- * One form and one guarded store write (D18, bead `ro-pbzu.5`). The emoji,
- * words and moment describe one Wall landmark, so separate saves could leave
- * its label describing an event the date no longer points at. The whole set
- * applies or none of it does, and Undo restores all three.
- *
- * Editing does not preview: the fields hold the operator's drafts and the widget
- * above keeps showing what is actually configured, until the save lands and the
- * refreshed store reads return the new values (`useConfigSave` invalidates them).
- *
- * EXPORTED since bead `ro-lzmq.2`, for the one caller that must show this exact
- * form somewhere else: the Wall editor's settings pane, when the selected widget
- * is the countdown. The contract marks that widget `configuredAt: "/countdown"`
- * precisely so the editor renders the form that already owns those three values
- * instead of growing a second one — two forms for one landmark is the failure
- * doc 14's one-representation rule exists to prevent, and it would be a
- * particularly bad one here, since the two would sit a click apart.
- *
- * A SAVED COUNTDOWN THE TOWER REFUSED (bead `ro-trai.45`) is neither: the
- * store holds a `/countdown` nobody can draw. The form starts from whatever of
- * it still reads, and its Save replaces the whole landmark guarded by the value
- * as stored — an insert would be refused because the key exists, and a
- * per-field set by fields that may not be there. Remove takes it away the same
- * way.
+ * The countdown's three settings, saved as one guarded write: the emoji, words
+ * and moment describe one landmark, so the set applies whole and Undo restores
+ * all three. The fields hold drafts; the widget shows what is configured until
+ * the save lands. Exported for the Wall editor's settings pane, so one form
+ * owns the three values. A saved countdown the Tower refused starts the form
+ * from whatever still reads, and Save replaces it guarded by the stored value.
  */
 export function CountdownEditor({
   config,
@@ -147,21 +125,12 @@ export function CountdownEditor({
   refused?: DashboardRefusal | null;
   nowMs: number;
   /**
-   * The frame is already drawn, so do not draw a second one (bead `ro-mgqo`).
-   *
-   * The Wall editor's panel heads EVERY widget configured elsewhere with that
-   * widget's name and the owning file's chip — it has to, because it says the
-   * same thing when there is no countdown yet and no form to name itself. This
-   * form arriving with its own copy of that heading, its own copy of the same
-   * chip and its own rule above them put the identical pair one line apart in a
-   * 19rem pane: one fact, two renderings, which is the thing doc 14's
-   * one-representation rule forbids. `/settings` and Home embed nothing and
-   * keep the header.
+   * The frame is already drawn: the Wall editor heads every widget with its
+   * name and owning file, so the form omits its own copy of that heading.
    */
   embedded?: boolean;
-  /** Whether the form also says why it cannot be saved while saves are paused
-   * (bead `ro-p8qq`). `/settings` says it once for the page (`SavesPaused`)
-   * and passes `false`; the form's Save is dark either way. */
+  /** Whether the form also says why it cannot be saved while saves are paused.
+   * A page that says it once passes `false`; Save is dark either way. */
   statesReadOnly?: boolean;
 }) {
   const save = useConfigSave();
@@ -193,11 +162,8 @@ export function CountdownEditor({
     if (!checkedTarget.ok) return setError(checkedTarget.error);
     setError(null);
     setSaving(true);
-    // THE FIRST ONE IS AN INSERT, and the whole landmark at once (bead
-    // `ro-fqag`). `config/tower.json` in a clone that has never counted down to
-    // anything carries no `countdown` key, and a set never creates one — so
-    // three per-field sets, which is what an EDIT is, could not have made the
-    // first countdown. One op, three fields, exactly as ro-py40 says they move.
+    // The first one is an insert of the whole landmark: a fresh config has no
+    // `countdown` key, and a set never creates one.
     const value = { emoji: checkedEmoji.value, label: checkedLabel.value, targetAt: checkedTarget.value };
     const write = config
       ? save({
@@ -342,8 +308,7 @@ export function CountdownEditor({
           {saving ? "Saving…" : "Save"}
         </Button>
         {config || refused ? (
-          // No "are you sure": the save happens and the toast carries the way
-          // back (docs/15 principle 5), which here is the same landmark put back
+          // No confirmation: the toast carries the way back, the same landmark
           // with the same three values.
           <Button
             type="button"

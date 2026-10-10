@@ -1,41 +1,14 @@
-// POST /api/assets — an asset row is born.
-//
-// WHY THIS IS A ROUTE AT ALL. Until 2026-09-04 an asset was born as a seed
-// MIGRATION plus a handful of hand edits to config files. The add-asset wizard
-// (epic `ro-z349`) needs a create. Bead `ro-z349.1`.
-//
-// THERE IS NO DELETE. A site is never deleted: the store is history, and
-// `retired` is the one exit (db/postgres/README.md, choice 5). The operator
-// removed the Delete card and its `DELETE /api/assets/:id` on 2026-09-29 (bead
-// `ro-ujb9.76.4.5`); Archive, a column write (asset-column-route.ts), is the
-// way out, and adding the domain again answers `409 asset_exists` naming the
-// archived site.
-//
-// AND WHY IT IS THE SAME CLASS AS THE EXISTING WRITES. What crosses here is a
-// ROW, never a schema change: migrations stay an explicit operator-only sequence
-// (AGENTS.md), and nothing in this file or below it writes one. Inserting an
-// `assets` row creates a join key and the label hanging off it. Same posture as
-// the column write beside it (asset-column-route.ts): same-origin only, proxied
-// to the worker that owns the table over the private INGEST Service Binding, no
-// credential crossing into a LAN-served, unauthenticated app.
-//
-// What is here is browser-facing only: the same-origin guard, the JSON envelope
-// and the mapping from ingest's results to this route's error vocabulary. The id
-// shape, the lifecycle enum and the display-name length are checked in
-// workers/ingest/src/asset-state.ts, against the site row's declared fields
-// (`SITE_ROW_FIELDS`, scripts/config-registers.mts) — it re-checks every field
-// because an HTTP body is untrusted wherever it entered, and its refusal (the
-// `detail` below) names the field by its label.
+// POST /api/assets — create an asset row (a row, never a schema change). There
+// is no delete: a site is never deleted; Archive (asset-column-route.ts) is the
+// way out, and adding an archived domain again answers `409 asset_exists`.
+// Browser-facing only: ingest (workers/ingest/src/asset-state.ts) validates
+// every field against `SITE_ROW_FIELDS` and names the refused one.
 
 import type { CreateAssetInput, CreateAssetResult } from "@noticeos/contract";
 import { JSON_HEADERS, crossOrigin, isJsonRequest, jsonError } from "./http";
 
-/**
- * The ingest RPC this route calls. `env.INGEST` satisfies it structurally;
- * declaring the surface here rather than importing the binding's type keeps this
- * file free of Workers globals and lets a test bind a double — the same trick
- * `AssetColumnWriter` uses next door.
- */
+/** Declared here rather than imported from the binding so this file stays free
+ * of Workers globals. */
 export interface AssetLifecycleWriter {
   createAsset(input: CreateAssetInput, originalProof?: Request): Promise<CreateAssetResult>;
 }
@@ -49,17 +22,11 @@ function invalid(result: { issues: { path: string; message: string }[] }): Respo
 }
 
 /**
- * Create one asset.
- *
- * `201` with the row the store actually wrote (read back, not echoed) · `409
+ * `201` with the row the store wrote (read back, not echoed) · `409
  * asset_exists` naming the site that holds the id or the domain ·
- * `422 invalid_asset` naming the field ·
- * `403` cross-origin · `415` non-JSON · `400` unparseable · `500` when the
- * binding itself failed.
- *
- * The body is `{id, displayName, domain?, status?, senseOnly?}`. It is passed
- * through as a CLAIM rather than validated here: ingest is the validator, and a
- * second copy of the id regex in this file would be a second answer.
+ * `422 invalid_asset` naming the field · `403` cross-origin · `415` non-JSON ·
+ * `400` unparseable · `500` when the binding failed. The body passes through as
+ * a claim; ingest is the validator.
  */
 export async function handleCreateAssetRequest(
   request: Request,
@@ -99,8 +66,7 @@ export async function handleCreateAssetRequest(
     return invalid(result);
   }
 
-  // 201 with a Location, because this route made a resource and the caller's
-  // next move is to open it — the wizard navigates to the new asset's page.
+  // 201 with a Location: the wizard navigates to the new asset's page.
   return Response.json(
     { ok: true, asset: result.asset },
     {

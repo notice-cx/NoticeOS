@@ -9,25 +9,19 @@ import {
   type RecurringCost,
 } from "@shared/financials";
 
-// /financials after bead `ro-69vb`. The page used to describe the current
-// calendar month and nothing else, so on the first days of a month its three
-// period-scoped blocks all read $0.00 directly under a trajectory table showing
-// a real August — and no past month could be opened at all. The month is now a
-// URL, the page opens on the latest one holding rows, and the header says so
-// when that is not this month.
+// The month is a URL, the page opens on the latest one holding rows, and the
+// header says so when that is not this month.
 
 const state = vi.hoisted(() => ({
   data: undefined as FinancialsPayload | undefined,
-  /** What the read failed with, when it failed (bead `ro-dm67`). */
+  /** What the read failed with, when it failed. */
   error: null as unknown,
   /** Every period the route asked the hook for, in order. */
   asked: [] as (string | null | undefined)[],
 }));
 
-// The page EDITS its own inputs since bead `ro-x5gu.2`, so the toast the write
-// lane answers with is part of the route now. Sonner is mocked rather than
-// mounted: the Undo is a callback, and calling it directly is what proves the
-// second write's shape.
+// Sonner is mocked rather than mounted: the Undo is a callback, and calling it
+// directly is what proves the second write's shape.
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
 
@@ -44,8 +38,7 @@ vi.mock("@/hooks/useFinancials", () => ({
 }));
 
 // How many sites the installation has (the sidebar's read): unknown unless a
-// case says, which leaves the page to count the month's rows (bead
-// ro-ujb9.129).
+// case says, which leaves the page to count the month's rows.
 const wall = vi.hoisted(() => ({ sites: null as number | null }));
 vi.mock("@/hooks/useWall", () => ({
   useWall: () => ({
@@ -111,8 +104,8 @@ function Location() {
   return <span data-testid="search">{useLocation().search}</span>;
 }
 
-/** The page as it renders when the read was REFUSED — no payload, an error
- * carrying the months that do exist (bead `ro-dm67`). */
+/** The page as it renders when the read was refused: no payload, an error
+ * carrying the months that do exist. */
 function renderRefusal(error: unknown, entry: string) {
   state.error = error;
   return renderPage(undefined, entry);
@@ -137,19 +130,15 @@ function renderPage(data: FinancialsPayload | undefined, entry = "/financials") 
 
 const picker = () => screen.getByRole("combobox", { name: "Accounting period" });
 
-/* A signed estimated adjustment is still unchecked money: it is counted by its
-   size in Reconciled's "estimated" half (bead ro-ujb9.96.6.9), where it used to
-   be flagged by an "includes estimates" suffix on Net — the same fact in two
-   KPIs. A signed sum would have hidden it: 100 booked + (−10) estimated reads
-   as a fully reconciled 90. */
+/* A signed estimated adjustment is still unchecked money, counted by its size
+   in Reconciled's "estimated" half. A signed sum would hide it: 100 booked +
+   (−10) estimated reads as a fully reconciled 90. */
 it('counts signed estimated adjustments as unconfirmed money, never on the net', () => {
   const { container } = renderPage(payload({ months: [{ period: '2026-08',
     booked: { currency: 'USD', revenue: 100, cost: 0, net: 100 },
     estimated: { currency: 'USD', revenue: -10, cost: 0, net: -10 },
     total: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
   }] }));
-  // Confirmed is what has been checked against a statement: the booked side,
-  // by its size. The answer's net never says "estimate".
   expect(container.querySelector('[data-money-confirmed] dd')).toHaveTextContent('$100');
   expect(container.querySelector('[data-money-answer] h2')).not.toHaveTextContent('estimate');
 });
@@ -163,14 +152,11 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
   } }));
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
   expect(daily).toHaveTextContent('Aug 1, 2026 – Aug 31, 2026');
-  // The partial day is the chart's own key, with its count — not a sentence.
   expect(daily.querySelector('[data-legend-partial]')).toHaveTextContent('1 partial day');
   expect(daily.querySelector('[data-hero-bar][data-partial]')).not.toBeNull();
   expect(daily).not.toHaveTextContent('partial reports');
   expect(daily.querySelector('[data-hero-bar]')).toHaveAttribute('data-value', '12.34');
   expect(daily).not.toHaveTextContent('$200.00');
-  // Each source carries its own coverage, and the one that missed days wears
-  // the warn ink on its count.
   const nom = daily.querySelector('[data-source-coverage-asset="nosh.example"]')!;
   expect(nom).toHaveTextContent(/Nosh\s*0\/1 days/);
   expect(nom.querySelector('.text-warn')).toHaveTextContent('0/1 days');
@@ -180,8 +166,8 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
   expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).toBeNull();
 });
 
-/* Bead `ro-rd6r`: a source's count runs from its first report, so a site that
-   joined mid-window is measured on the days it owed, not on the whole month. */
+/* A source's count runs from its first report, so a site that joined
+   mid-window is measured on the days it owed, not on the whole month. */
 it('counts each source against the days since it first reported', () => {
   renderPage(payload({ dailyRevenue: {
     from: '2026-09-01', to: '2026-09-03', reportedThrough: '2026-09-03',
@@ -225,13 +211,9 @@ it('shows only the missing site as short when two sites share a display name', (
   expect(within(daily).getByRole('status')).not.toHaveTextContent('second.example');
 });
 
-/**
- * The config write lane, stubbed.
- *
- * A GET is the deployment's writability answer; anything else is a changeset,
- * recorded so a case can assert the exact ops it sent. Nothing here writes a
- * file — the point is the SHAPE of what the page asks for.
- */
+/** The config write lane, stubbed. A GET is the deployment's writability
+ * answer; anything else is a changeset, recorded so a case can assert the
+ * exact ops it sent. */
 interface LaneCall {
   method: string;
   body: { ops: unknown[]; slug?: string } | null;
@@ -240,9 +222,8 @@ interface LaneCall {
 function stubLane(
   writable: { writable: boolean; reason: string | null } = { writable: true, reason: null },
   reply: { status: number; body: unknown } = { status: 200, body: { applied: 1, archive: null, commit: null } },
-  /** The assets the integration matrix answers with — the picker behind the
-   * Asset column (bead `ro-x5gu.10`). Undefined leaves that read unanswered,
-   * which is how the cases above see no picker and no candidate refusal. */
+  /** The assets the integration matrix answers with, the picker behind the
+   * Asset column. Undefined leaves that read unanswered. */
   assets?: string[],
 ): LaneCall[] {
   const calls: LaneCall[] = [];
@@ -299,8 +280,6 @@ describe("/financials — picking a period", () => {
     expect(
       screen.getAllByRole("option").map((option) => option.textContent),
     ).toEqual(["August 2026", "July 2026", "June 2026"]);
-    // The shown month is what the control reads, so nothing else in the header
-    // has to repeat it.
     expect(picker()).toHaveValue("2026-08");
   });
 
@@ -316,9 +295,8 @@ describe("/financials — picking a period", () => {
     expect(state.asked.at(-1)).toBeNull();
   });
 
-  // A month has to be a LINK: the operator's whole workflow here is checking a
-  // figure against a receipt with somebody else, and "open financials, then
-  // change the dropdown to June" is not something you can send.
+  // A month has to be a link: "open financials, then change the dropdown to
+  // June" is not something you can send.
   it("puts a chosen month in the URL and asks the store for it", () => {
     renderPage(payload());
 
@@ -330,16 +308,7 @@ describe("/financials — picking a period", () => {
 });
 
 describe("/financials — saying which month it is showing", () => {
-  /**
-   * THE SUBTITLE IS THE PAGE\'S QUESTION, NOT A FACT ABOUT THE QUERY (doc 14).
-   *
-   * It used to read "latest month with rows" whenever the ledger\'s newest month
-   * was not the calendar one — a sentence about how the payload picked a period,
-   * which is the sort of thing a database says and an operator never asks. The
-   * selector opposite names the month in full and a reader standing in September
-   * can see it; what nothing on the page said was what the page is FOR.
-   */
-  it("answers the page's question instead of asking it, on every month (D45)", () => {
+  it("answers the page's question instead of asking it, on every month", () => {
     const { container } = renderPage(payload());
     expect(container.querySelector("[data-page-header]")?.textContent).not.toContain("Am I making money");
     expect(container.querySelector("[data-money-answer] h2")?.textContent).toMatch(/^August net [+−-]?\$/u);
@@ -352,11 +321,6 @@ describe("/financials — saying which month it is showing", () => {
   });
 });
 
-// Bead `ro-dm67`. A bookmark to last quarter's month is exactly the link a
-// finance page receives. It used to land on "The ledger did not answer" — a
-// sentence about a broken database — with the selector gone too, because the
-// selector is drawn from a payload that never arrived, so the only way out was
-// editing the URL.
 describe("/financials — a month the ledger cannot answer", () => {
   const refusal = (
     code: "period_not_found" | "period_malformed",
@@ -387,8 +351,6 @@ describe("/financials — a month the ledger cannot answer", () => {
       "July 2026",
       "June 2026",
     ]);
-    // The newest month is what the page opens on by itself, so it is the bare
-    // URL — following it leaves no stale month to bookmark a second time.
     expect(links[0]).toHaveAttribute("href", "/financials");
     expect(links[1]).toHaveAttribute("href", "/financials?period=2026-07");
   });
@@ -396,9 +358,8 @@ describe("/financials — a month the ledger cannot answer", () => {
   it("keeps the selector, valued at the month that is not there", () => {
     renderRefusal(refusal("period_not_found", 404), "/financials?period=2020-01");
 
-    // The bug was the selector vanishing with the payload. Its value is the
-    // requested month rather than a real one, so picking any real month is a
-    // change the control actually fires.
+    // The selector's value is the requested month rather than a real one, so
+    // picking any real month is a change the control actually fires.
     expect(picker()).toHaveValue("2020-01");
     fireEvent.change(picker(), { target: { value: "2026-07" } });
     expect(screen.getByTestId("search")).toHaveTextContent("?period=2026-07");
@@ -414,9 +375,6 @@ describe("/financials — a month the ledger cannot answer", () => {
     expect(picker()).toHaveValue("last-quarter");
   });
 
-  /* A ledger holding no month at all has nothing to fall back to, so it is the
-     first run: the next step, not a sentence saying there is none (bead
-     ro-ujb9.96.6.9). */
   it("answers with the first-run step when the ledger holds no month", () => {
     renderRefusal(refusal("period_not_found", 404, []), "/financials?period=2020-01");
 
@@ -429,8 +387,7 @@ describe("/financials — a month the ledger cannot answer", () => {
     expect(screen.queryByRole("combobox", { name: "Accounting period" })).toBeNull();
   });
 
-  /** A read that failed for any other reason is still a broken ledger, and the
-   * page must keep saying so rather than inventing a missing month. */
+  /** A read that failed for any other reason is still a broken ledger. */
   it("still shows the ledger error for a failure that is not about the month", () => {
     renderRefusal(new Error("GET /api/financials failed: 500"), "/financials");
 
@@ -439,9 +396,6 @@ describe("/financials — a month the ledger cannot answer", () => {
     expect(screen.queryByText(/Nothing recorded for/)).toBeNull();
   });
 
-  /* A refresh that fails after the ledger answered once keeps the figures on
-     screen (bead ro-ujb9.96.6.9) — the old hint promised exactly that in a
-     sentence while the page blanked to the error. */
   it("keeps the last-good figures when a later refresh fails", () => {
     state.error = new Error("GET /api/financials failed: 500");
     const { container } = renderPage(payload());
@@ -451,9 +405,7 @@ describe("/financials — a month the ledger cannot answer", () => {
   });
 });
 
-// The other half of the same bead: the refusal has to REACH the page carrying
-// the months. Losing `periods[]` in the fetch layer is what left the route with
-// nothing but a generic failure to render.
+// The refusal has to reach the page carrying the months.
 describe("fetchFinancials — a refusal keeps the months", () => {
   const refusalResponse = (body: unknown, status: number) =>
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json(body, { status })));
@@ -506,10 +458,8 @@ describe("/financials — what the selector does not touch", () => {
       }),
     );
 
-    // Both months, in calendar order — the trajectory is the one block that is
-    // about the ledger rather than about the chosen period. It is behind the
-    // month panel since doc 14: the chart above answers "is this getting better
-    // or worse", and this table answers "what exactly did July book".
+    // Both months, in calendar order: the trajectory is the one block about
+    // the ledger rather than the chosen period.
     const months = openPanel("months");
     expect(within(months).getByText("2026-07")).toBeInTheDocument();
     expect(within(months).getByText("2026-08")).toBeInTheDocument();
@@ -523,9 +473,8 @@ describe("/financials — what the selector does not touch", () => {
     expect(screen.queryByRole("combobox", { name: "Accounting period" })).toBeNull();
   });
 
-  /* THE FIRST RUN IS THE TWO STEPS (bead ro-ujb9.96.6.9). Revenue is connected
-     on another page, so it is a link; costs are declared on this one, so the
-     registers are open in place instead of a sentence saying to configure them. */
+  /* Revenue is connected on another page, so it is a link; costs are declared
+     on this one, so the registers are open in place. */
   it("offers the revenue link and opens the cost registers on a first run", () => {
     stubLane();
     const { container } = renderPage(
@@ -544,14 +493,11 @@ describe("/financials — what the selector does not touch", () => {
   });
 });
 
-// /financials after bead `ro-me00`, under doc 14's 2026-09-04 rule and doc 19
-// finding 8. Every block now answers its question with a shape before a
-// sentence: the trajectory as bars around a visible zero, each asset's slice of
-// the month's revenue as a proportion, and where a cost figure came from as a
-// glyph. Nothing here is decoration — each visual states something the figure
-// beside it cannot.
+// Every block answers its question with a shape before a sentence: the
+// trajectory as bars around a visible zero, each asset's slice of the month's
+// revenue as a proportion, and where a cost figure came from as a glyph.
 
-describe("/financials — the first screen answers the whole question (doc 14)", () => {
+describe("/financials — the first screen answers the whole question", () => {
   const threeMonths = () =>
     payload({
       months: [
@@ -576,9 +522,8 @@ describe("/financials — the first screen answers the whole question (doc 14)",
       ],
     });
 
-  /** The audit measures the first screen against a block the page NAMES. A
-   * surface that declares no hero cannot be certified at all
-   * (`scripts/README.md`), so the mark is part of the contract, not styling. */
+  /** The audit measures the first screen against a block the page names, so
+   * the mark is part of the contract, not styling. */
   it("declares the monthly summary and keeps accounting history in its disclosure", () => {
     const { container } = renderPage(threeMonths());
 
@@ -590,8 +535,8 @@ describe("/financials — the first screen answers the whole question (doc 14)",
     expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).not.toBeNull();
   });
 
-  /** ONE ANSWER FIRST (D45): the month's net in a sentence, then revenue,
-   * cost and what is confirmed beside it — no strip of four equal boxes. */
+  /** The month's net in a sentence, then revenue, cost and what is confirmed
+   * beside it. */
   it("states the selected month as its net in a sentence, with revenue, cost and what is confirmed", () => {
     const { container } = renderPage(threeMonths());
 
@@ -615,20 +560,8 @@ describe("/financials — the first screen answers the whole question (doc 14)",
     expect(container.querySelector('[data-panel="cost-breakdown"]')).toBeNull();
   });
 
-  /**
-   * REVENUE AND COST, NOT NET (bead `ro-78qo.28`). `HeroChart`'s scale is
-   * zero-based, so June at −$224.42 would be drawn below the plot floor. Two
-   * lines that never go negative say the same thing truthfully — the distance
-   * between them IS the net — and the Net figure keeps its own sparkline.
-   */
-  /**
-   * NET IS A LINE NOW (bead `ro-78qo.28`). The chart used to draw revenue and
-   * cost with a footnote saying the distance between them was the net, because
-   * the scale was zero-based and a month at −$224 had nowhere to go. It takes a
-   * signed domain since that bead, so the page's headline figure is something
-   * the operator can point at — and the footnote goes, because a third toggle
-   * says it without a sentence.
-   */
+  /** The chart takes a signed domain, so the net is a line of its own and no
+   * footnote is needed. */
   it("draws revenue, cost and net as three toggles and no explanatory footnote", () => {
     const { container } = renderPage(threeMonths());
 
@@ -685,11 +618,9 @@ describe("/financials — the first screen answers the whole question (doc 14)",
     expect(within(june).getByText("-$224.42")).toBeInTheDocument();
   });
 
-  /** The month the store is standing in is not finished: the chart caps it with
-   * a hollow point and the strip withholds the month-on-month deltas, because a
-   * month four days in is always short. The state is said ONCE, as the header's
-   * "Month to date" chip (bead ro-ujb9.96.6.9); where the delta would sit, the
-   * last closed month's whole figure stands as the reference. */
+  /** The open month is capped with a hollow point and the strip withholds the
+   * month-on-month deltas, because a month four days in is always short. The
+   * state is said once, as the header's "Month to date" chip. */
   it("marks the open month provisional and withholds its deltas", () => {
     const { container } = renderPage(
       payload({
@@ -718,11 +649,9 @@ describe("/financials — the first screen answers the whole question (doc 14)",
     fireEvent.click(screen.getByRole("button", { name: "About Monthly performance" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are provisional");
     expect(container.querySelector("[data-month-to-date]")).toHaveTextContent("Month to date");
-    // An open month is "so far", and never compared with a finished one.
     expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/so far$/u);
     expect(container.querySelector("[data-money-answer]")!.textContent).not.toMatch(/%/);
     expect(container).not.toHaveTextContent("still open");
-    // The month table marks the row, with the chart's hollow mark.
     expect(container.querySelector('[data-panel="months"] [data-month-open]')).toHaveTextContent("to date");
   });
 
@@ -731,9 +660,8 @@ describe("/financials — the first screen answers the whole question (doc 14)",
     expect(container.querySelector("[data-month-to-date]")).toBeNull();
   });
 
-  /** Everything read one cell at a time is a collapsed panel, and closed is the
-   * whole point: the audit measures what a reader SEES, and so does the reader
-   * (doc 14 principle 3). */
+  /** Everything read one cell at a time is a collapsed panel: the audit
+   * measures what a reader sees. */
   it("keeps the month table, the cost breakdown and the registers closed", () => {
     const { container } = renderPage(threeMonths());
 
@@ -743,24 +671,21 @@ describe("/financials — the first screen answers the whole question (doc 14)",
       "cost-breakdown",
       "costs",
     ]);
-    // Closed means NOT RENDERED, not merely hidden: a closed `<details>` still
-    // lays its contents out, which is how the first cut of this page measured
-    // 3,795px at 1440 with a 1,350px column on screen.
+    // Closed means not rendered, not merely hidden: a closed `<details>` still
+    // lays its contents out.
     expect(panels.every((panel) => !panel.hasAttribute("data-panel-open"))).toBe(true);
     expect(container.querySelector("[data-collection-editor]")).toBeNull();
     expect(container.querySelector("table")).not.toBeNull(); // the by-asset one
 
-    // The two registers ARE config files, which is exactly what the audit's
-    // opt-out declares — the chip rule is about a view surface printing an
-    // owner it cannot act on, not about an editor that writes the file.
+    // The two registers are config files, which is what the audit's opt-out
+    // declares: the chip rule is about a view surface printing an owner it
+    // cannot act on, not about an editor that writes the file.
     expect(
       container.querySelector('[data-panel="costs"]')!.hasAttribute("data-config-surface"),
     ).toBe(true);
   });
 
-  /** doc 14 principle 3a (bead ro-ujb9.96.6.9): no paragraph anywhere — no
-   * About, no known-gaps panel, no explanation tooltip on the strip or the
-   * by-asset table. Each fact is drawn on the figure it qualifies instead. */
+  /** No paragraph anywhere: each fact is drawn on the figure it qualifies. */
   it("carries no About, no known-gaps panel and no explanation tooltips", () => {
     const { container } = renderPage(threeMonths());
 
@@ -789,9 +714,7 @@ describe("/financials — each asset's slice of the month", () => {
     );
   });
 
-  /** A share of nothing is not a small share. With no revenue at all, an empty
-   * track on every row would be a proportion of a denominator that does not
-   * exist. */
+  /** A share of nothing is not a small share. */
   it("draws no share bar when the period earned nothing", () => {
     const { container } = renderPage(
       payload({
@@ -812,15 +735,10 @@ describe("/financials — each asset's slice of the month", () => {
     expect(container.querySelectorAll("[data-revenue-share]")).toHaveLength(0);
   });
 
-  /**
-   * THE NAME IS THE CARD'S ONE WAY OUT (bead `ro-zmyq`). Below `sm` this table
-   * is a stack of cards and this link is the only control on each of them,
-   * drawn at 20px — not a button, a field, a palette row or a nav row, which is
-   * how it survived `ro-md80`'s sweep and `ro-9smi`'s. jsdom has no layout, so
-   * the SHAPE is asserted: the box grows and a negative margin of half the
-   * growth gives the cell back the height it had, which is why the six cards
-   * cost the page nothing.
-   */
+  /** Below `sm` this table is a stack of cards and this link is the only
+   * control on each. jsdom has no layout, so the shape is asserted: the box
+   * grows and a negative margin of half the growth gives the cell back the
+   * height it had. */
   it("gives each asset name a thumb-sized target the cards do not pay for", () => {
     const { container } = renderPage(payload());
 
@@ -831,15 +749,11 @@ describe("/financials — each asset's slice of the month", () => {
     expect(link.className).toContain("max-sm:min-h-11");
     expect(link.className).toContain("max-sm:inline-flex");
     expect(link.className).toContain("max-sm:-my-3");
-    // The desk owes nothing: a pointer hits 20px exactly.
     expect(link.className).not.toContain(" inline-flex");
   });
 
-  /**
-   * WHICH ASSET IS GETTING BETTER (bead `ro-78qo.29`, doc 14). The share bar
-   * beside it answers which one is carrying THIS month, which on a portfolio
-   * where one asset is nearly all the revenue is known before the page loads.
-   */
+  /** The share bar beside it answers which asset is carrying this month; this
+   * answers which one is getting better. */
   it("draws each asset's net month by month, muted and unsmoothed", () => {
     const { container } = renderPage(payload());
 
@@ -849,22 +763,16 @@ describe("/financials — each asset's slice of the month", () => {
     expect(spark.getAttribute("aria-label")).toBe(
       "Meal Planner net by month, 2026-06 to 2026-08",
     );
-    // Net's movement carries no verdict — an asset with no revenue source
-    // wired has not failed at anything — so the line is `text-muted-foreground`
+    // Net's movement carries no verdict, so the line is `text-muted-foreground`
     // and never the positive/negative scale.
     expect(cell!.querySelector(".text-muted-foreground")).not.toBeNull();
-    // Three monthly points, drawn as they are. A trailing average over six
-    // months would smooth away the only thing there is to see. The line is one
-    // move and two curved segments, each ending ON a month's reading.
+    // Three monthly points, drawn as they are: one move and two curved
+    // segments, each ending on a month's reading.
     expect(spark.querySelector("[data-chart-line]")!.getAttribute("d")!.match(/[MC]/g)).toHaveLength(3);
   });
 
-  /**
-   * The month the STORE is standing in is four days old and still being
-   * counted, so the loudest ink on the line must not read as settled. August is
-   * closed and gets a solid cap; September, once it has a row, gets a hollow
-   * one.
-   */
+  /** The open month is still being counted, so the loudest ink on the line
+   * must not read as settled. */
   it("caps a closed month's line solid and the open month's hollow", () => {
     const august = renderPage(payload());
     expect(
@@ -908,8 +816,7 @@ describe("/financials — each asset's slice of the month", () => {
     ).toBe("hollow");
   });
 
-  /** Two points are a slope, not a trend. The cell says so rather than drawing
-   * a line the ledger cannot support. */
+  /** Two points are a slope, not a trend. */
   it("prints a dash, with its reason, for an asset with under three months", () => {
     const { container } = renderPage(
       payload({
@@ -928,17 +835,14 @@ describe("/financials — each asset's slice of the month", () => {
 
     const cell = container.querySelector("[data-property-trend]");
     expect(cell).toBeNull();
-    // The reason opens from a key or a tap, not a hover-only title (ro-ujb9.14).
+    // The reason opens from a key or a tap, not a hover-only title.
     expect(screen.getByRole("button", { name: "No trend: Needs 3 months of history" })).toHaveTextContent("—");
   });
 
-  /**
-   * A SPARKLINE HAS NO AXIS (bead `ro-78qo.37`). It spaces its points by their
-   * POSITION, so a series carrying only the months that booked something would
-   * draw January, June and August as three consecutive months — a claim about
-   * which months these are that the ledger never made. The payload carries the
-   * asset's whole axis with a null in each hole, and the line breaks over them.
-   */
+  /** A sparkline spaces its points by position, so a series carrying only the
+   * months that booked something would draw January, June and August as three
+   * consecutive months. The payload carries the whole axis with a null in
+   * each hole, and the line breaks over them. */
   it("breaks the line over a month the asset booked nothing in", () => {
     const { container } = renderPage(
       payload({
@@ -963,21 +867,14 @@ describe("/financials — each asset's slice of the month", () => {
     const path = container
       .querySelector("[data-property-trend] svg [data-chart-line]")!
       .getAttribute("d")!;
-    // TWO RUNS, NOT ONE. A second `M` is the break: May–June is drawn, July is
-    // not, and August starts a new stroke rather than continuing a line across
-    // a month nothing was recorded in.
+    // Two runs, not one: a second `M` is the break.
     expect(path.match(/M/g)).toHaveLength(2);
-    // Four positions on the axis, three of them readings.
     expect(
       container.querySelector("[data-property-trend] svg")!.getAttribute("aria-label"),
     ).toBe("Meal Planner net by month, 2026-05 to 2026-08");
   });
 
-  /**
-   * THE FLOOR COUNTS READINGS, NOT POSITIONS. An axis of ten months holding two
-   * figures is still two figures, and the three-point floor is about what the
-   * ledger recorded rather than how far apart it recorded it.
-   */
+  /** The floor counts readings, not positions. */
   it("still dashes when the axis is long but holds under three readings", () => {
     const { container } = renderPage(
       payload({
@@ -1000,15 +897,12 @@ describe("/financials — each asset's slice of the month", () => {
     );
 
     expect(container.querySelector("[data-property-trend]")).toBeNull();
-    // The reason opens from a key or a tap, not a hover-only title (ro-ujb9.14).
+    // The reason opens from a key or a tap, not a hover-only title.
     expect(screen.getByRole("button", { name: "No trend: Needs 3 months of history" })).toHaveTextContent("—");
   });
 
-  /**
-   * The figures in this row are August's. A line running into September under
-   * them would be two periods drawn as one unit — the same rule the strip's own
-   * sparklines are held to.
-   */
+  /** The figures in this row are August's; a line running into September
+   * under them would be two periods drawn as one unit. */
   it("stops the line at the month the row's figures describe", () => {
     const { container } = renderPage(
       payload({
@@ -1047,9 +941,8 @@ describe("/financials — each asset's slice of the month", () => {
 });
 
 describe("/financials — where a cost figure came from", () => {
-  /* The chip is the operator's own word for the kind, so it needs no glossary
-     tooltip; the source is the name he gave the subscription, not the key the
-     row is filed under (bead ro-ujb9.96.6.9). */
+  /* The chip is the operator's own word for the kind; the source is the name
+     the operator gave the subscription, not the key the row is filed under. */
   it("names each cost's kind and source in plain words, with nothing behind them", () => {
     stubLane();
     const { container } = renderPage(
@@ -1073,19 +966,10 @@ describe("/financials — where a cost figure came from", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// /financials EDITS ITS OWN INPUTS (bead `ro-x5gu.2`).
-//
-// Every cost figure on this page is built from two config files, and until this
-// landed the only way to correct one was a text editor: the page showed the
-// consequence and hid the cause. The Costs section is those two registers,
-// editable through the same write lane a knob uses — one changeset per action,
-// each carrying its exact inverse, and a row the schema refuses never becoming
-// a request at all.
-//
-// The lane is STUBBED: no file is written, and what is asserted is the shape of
-// what the page asked for.
-// ---------------------------------------------------------------------------
+// The Costs section is the two cost registers, editable through the same
+// write lane a knob uses: one changeset per action, each carrying its exact
+// inverse, and a row the schema refuses never becoming a request. The lane is
+// stubbed: what is asserted is the shape of what the page asked for.
 
 const RECURRING: RecurringCost[] = [
   {
@@ -1140,16 +1024,10 @@ const withCosts = (overrides: Partial<FinancialsPayload> = {}) =>
     ...overrides,
   });
 
-/** One register's table. Both are on screen, and a column label ("Asset")
- * belongs to both — so nothing below is looked up on the page as a whole. */
 /**
- * Open one of the page's collapsed panels (doc 14, bead `ro-78qo.16`).
- *
- * A panel MOUNTS ITS BODY ONLY WHEN OPEN — the whole reason the rebuilt page
- * measures 1,350px rather than 3,795 — so a case about a register, the month
- * table or the cost breakdown has to press the header first, exactly as an
- * operator does. Idempotent, so a helper can call it without knowing whether a
- * case already has.
+ * Open one of the page's collapsed panels. A panel mounts its body only when
+ * open, so a case about a register, the month table or the cost breakdown has
+ * to press the header first. Idempotent.
  */
 function openPanel(mark: string): HTMLElement {
   const panel = document.querySelector(`[data-panel="${mark}"]`);
@@ -1213,12 +1091,8 @@ function onlyOp(calls: LaneCall[], index = 0): Record<string, unknown> {
 }
 
 describe("/financials — the Costs section writes the files it reads", () => {
-  // An `asset-id` field checked its SHAPE and nothing else (bead `ro-x5gu.10`),
-  // so "meals.fod" booked a recurring cost against an asset no row in the
-  // store has: the money left the by-asset split while the total went on
-  // including it. The candidate list is the integration matrix's — the whole
-  // roster, not this period's ledger split, so an asset that has booked nothing
-  // yet is still offerable.
+  // The candidate list is the integration matrix's: the whole roster, not this
+  // period's ledger split, so an asset that has booked nothing is offerable.
   it("refuses an asset id the OS does not have, and offers the ones it does", async () => {
     const calls = stubLane(undefined, undefined, [
       "root-os",
@@ -1263,9 +1137,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
       amountUsdPerMonth: 60,
       from: "2026-09",
     };
-    // The two optional fields left blank are DROPPED rather than written as
-    // empty strings — an omitted `to` means "still live", and `""` is a month
-    // nobody can parse.
+    // The two optional fields left blank are dropped rather than written as
+    // empty strings: an omitted `to` means "still live".
     expect(onlyOp(calls)).toEqual({
       kind: "file-json-insert",
       file: "config/recurring-costs.json",
@@ -1277,7 +1150,7 @@ describe("/financials — the Costs section writes the files it reads", () => {
     toasts.success.mock.calls[0]?.[1]?.action.onClick();
     await waitFor(() => expect(calls).toHaveLength(2));
     // Guarded by the row itself, so an Undo pressed after somebody else moved
-    // that index is refused rather than deleting their work instead.
+    // that index is refused rather than deleting their work.
     expect(onlyOp(calls, 1)).toEqual({
       kind: "file-json-delete",
       file: "config/recurring-costs.json",
@@ -1286,10 +1159,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
     });
   });
 
-  // A PRICE CHANGE IS A NEW ROW, NOT AN EDIT (bead `ro-ujb9.96.6.17`). Every
-  // month already booked was booked at the amount, so the cell is the value
-  // under a lock — Stripe's rule for a price — and the change is the row's To,
-  // a control on the same row, guarded by what it was rendered from.
+  // A price change is a new row, not an edit: every month already booked was
+  // booked at the amount, so the cell is locked and the change is the row's To.
   it("fixes a subscription's amount once added and closes the row with its To", async () => {
     const calls = stubLane();
     renderPage(withCosts());
@@ -1315,11 +1186,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
     });
   });
 
-  // WHAT THE ROW COSTS A MONTH IS ARITHMETIC, NOT A FIELD (bead `ro-x5gu.11`).
-  // A domain order is a prepaid annual term, so the figure the ledger actually
-  // books is the price over twelve — which the read-only schedule table this
-  // section replaced printed per row, and the editable one could not. It is a
-  // computed column now: beside the editable ones, carrying no control.
+  // A domain order is a prepaid annual term, so the figure the ledger books is
+  // the price over twelve: a computed column beside the editable ones.
   it("prints each order's amortized month beside the fields, with nothing to edit", () => {
     stubLane();
     renderPage(withCosts());
@@ -1352,9 +1220,8 @@ describe("/financials — the Costs section writes the files it reads", () => {
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     toasts.success.mock.calls[0]?.[1]?.action.onClick();
     await waitFor(() => expect(calls).toHaveLength(2));
-    // The row comes back WHERE IT WAS (bead `ro-asj9`). This table is drawn in
-    // FILE ORDER, so an appended undo would silently reorder the list around a
-    // row nothing had changed.
+    // The row comes back where it was: this table is drawn in file order, so
+    // an appended undo would silently reorder the list.
     expect(onlyOp(calls, 1)).toEqual({
       kind: "file-json-insert",
       file: "config/domain-costs.json",
@@ -1363,12 +1230,9 @@ describe("/financials — the Costs section writes the files it reads", () => {
     });
   });
 
-  /**
-   * The month totals above and the months behind the period picker are both
-   * built from these files, so a save that left the ledger read on screen would
-   * show figures the page no longer agrees with. The write lane throws that
-   * read away once the dev server has restarted around the changed file.
-   */
+  /** The month totals and the months behind the period picker are built from
+   * these files, so the write lane throws the ledger read away once the dev
+   * server has restarted around the changed file. */
   it("throws the ledger read away after a save, so the month recomputes", async () => {
     const calls = stubLane();
     renderPage(withCosts());
@@ -1387,7 +1251,7 @@ describe("/financials — the Costs section writes the files it reads", () => {
 });
 
 describe("/financials — a row the schema refuses never becomes a request", () => {
-  /** Each case spoils exactly ONE field of an otherwise valid row, so the
+  /** Each case spoils exactly one field of an otherwise valid row, so the
    * sentence it gets back can only be about that field. */
   const refuses = async (
     register: string,
@@ -1423,16 +1287,14 @@ describe("/financials — a row the schema refuses never becomes a request", () 
   it("refuses something that is not an asset id", async () => {
     await refuses(
       "recurring-costs",
-      { ...NEW_COST, Site: "My Plate" },
+      { ...NEW_COST, Site: "Menu Plate" },
       "Site must be a site id",
     );
   });
 
-  /**
-   * Uniqueness is the one rule a JSON pointer cannot express, so it is checked
-   * in the browser against the rows the payload already carries: a duplicate
-   * `id` is part of the ledger's idempotency key and would re-book every month.
-   */
+  /** Uniqueness is the one rule a JSON pointer cannot express, so it is
+   * checked in the browser: a duplicate `id` is part of the ledger's
+   * idempotency key and would re-book every month. */
   it("refuses an id already in the list, before anything is sent", async () => {
     await refuses(
       "recurring-costs",
@@ -1469,9 +1331,8 @@ describe("/financials — the Costs section on a deployment that cannot write", 
         "This build has no filesystem, so file-owned settings are read-only.",
       ),
     );
-    // ONE copy for the whole screen (bead ro-p8qq): the sentence is a fact
-    // about the BUILD, not about a table, so the page says it once above the
-    // tables and each table shows only its lock.
+    // One copy for the whole screen: the sentence is a fact about the build,
+    // not about a table.
     const paused =
       document.querySelectorAll("[data-saves-paused]").length +
       document.querySelectorAll("[data-collection-read-only]").length +
@@ -1480,12 +1341,9 @@ describe("/financials — the Costs section on a deployment that cannot write", 
     expect(document.querySelector("[data-saves-paused]")).toHaveTextContent("Saves paused");
     expect(document.querySelectorAll("[data-collection-locked]")).toHaveLength(2);
 
-    // The rows stay readable — a deployment that cannot write is not one that
-    // cannot show what the files hold.
     expect(
       within(editor("recurring-costs")).getByText("Claude Code (Max)"),
     ).toBeInTheDocument();
-    // No Save that could not work, and no way to open an Add form.
     expect(screen.queryByRole("button", { name: "Save" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Add" })).toBeNull();
   });
@@ -1498,29 +1356,26 @@ describe("/financials — what the two files declare, by asset", () => {
     openPanel("costs");
 
     const lines = [...container.querySelectorAll("[data-declared-asset]")];
-    // Biggest first, and only what is live in the shown month: the retired plan
-    // closed in May, so meals.example's line is its amortizing domain alone.
+    // Biggest first, and only what is live in the shown month: the retired
+    // plan closed in May, so meals.example's line is its amortizing domain alone.
     expect(lines.map((line) => line.getAttribute("data-declared-asset"))).toEqual([
       "root-os",
       "meals.example",
     ]);
     expect(lines[0]).toHaveTextContent("$200.00");
     expect(lines[1]).toHaveTextContent("$0.39");
-    // Identity is the glyph here as everywhere else in this Tower.
     expect(
       lines.map((line) =>
         line.querySelector("[data-property-favicon]")?.getAttribute("data-property-favicon"),
       ),
     ).toEqual(["root-os", "meals.example"]);
-    // The share is the shape beside the figure, and it says what it means.
     expect(
       lines[1]?.querySelector("[data-segment-bar]")?.getAttribute("aria-label"),
     ).toBe("Meal Planner is 0.2% of the declared monthly cost");
   });
 
   /** The cash already spent, and how much of the list is still being spread
-   * across the shown month — two facts no row states, and the reason the
-   * read-only schedule table this section replaced is not missed. */
+   * across the shown month: two facts no row states. */
   it("states the orders' total and how many still amortize into this month", () => {
     stubLane();
     const { container } = renderPage(withCosts());
@@ -1528,13 +1383,11 @@ describe("/financials — what the two files declare, by asset", () => {
 
     const terms = container.querySelector("[data-domain-terms]")?.textContent;
     expect(terms).toBe("1 order · $4.63 paid · 1 amortizing this month");
-    // The amortization RULE is no sentence here (bead `ro-ujb9.96.6.17`): the
-    // Per month column shows each order's share and its first → last month.
     expect(terms).not.toContain("12 months");
   });
 
-  /** A share of nothing is not a small share: with nothing declared for the
-   * month there is no denominator, so the strip is absent rather than empty. */
+  /** With nothing declared for the month there is no denominator, so the
+   * strip is absent rather than empty. */
   it("draws no run-rate strip when the two files declare nothing for the month", () => {
     stubLane();
     const { container } = renderPage(
@@ -1542,15 +1395,13 @@ describe("/financials — what the two files declare, by asset", () => {
     );
 
     expect(container.querySelector("[data-declared-run-rate]")).toBeNull();
-    // Both tables are still there, each saying what an empty register means.
     expect(editor("recurring-costs")).toBeInTheDocument();
     expect(editor("domain-costs")).toBeInTheDocument();
   });
 });
 
-// What the page does not know is drawn where it applies (bead ro-ujb9.96.6.9):
-// the three paragraphs under "What this page does not know" became a dash in
-// the row, the Reconciled bar, and a chip on the domain order.
+// What the page does not know is drawn where it applies: a dash in the row,
+// the Reconciled bar, and a chip on the domain order.
 describe("/financials — what the page does not know, on the figure it qualifies", () => {
   it("prints a dash, not $0.00, for an asset nothing reported revenue for", () => {
     const { container } = renderPage(
@@ -1581,8 +1432,6 @@ describe("/financials — what the page does not know, on the figure it qualifie
     expect(dash.querySelector("[title]")).toBeNull();
     fireEvent.focus(within(dash as HTMLElement).getByRole("button", { name: /no revenue reported$/ }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("No revenue reported");
-    // No share bar for a row with no revenue row: a share of nothing reported
-    // is not a small share.
     expect(container.querySelector('[data-revenue-share="areas.example"]')).toBeNull();
     expect(container.querySelector('[data-revenue-unreported="meals.example"]')).toBeNull();
   });
@@ -1611,8 +1460,8 @@ describe("/financials — what the page does not know, on the figure it qualifie
     );
     openPanel("costs");
 
-    // currentPeriod is 2026-09: nosh.example's term ends this month, meals.example's
-    // runs to 2027-02 and says nothing.
+    // currentPeriod is 2026-09: nosh.example's term ends this month,
+    // meals.example's runs to 2027-02 and says nothing.
     expect(container.querySelector('[data-domain-renews="nosh.example"]')).toHaveTextContent(
       "Renews Oct 2026",
     );
@@ -1620,14 +1469,9 @@ describe("/financials — what the page does not know, on the figure it qualifie
   });
 });
 
-/**
- * Bead ro-ujb9.129: with one site and $82 of revenue the page stated $82.00
- * five times — Net, the daily chart, the by-site row, "Sites, direct" and the
- * total — under "Overhead · allocated to none $0.00". A table whose every row
- * equals its total reads as a broken report, and one site has nothing to
- * allocate.
- */
-describe("/financials — one site states its money once (ro-ujb9.129)", () => {
+/** With one site, a table whose every row equals its total reads as a broken
+ * report, and one site has nothing to allocate. */
+describe("/financials — one site states its money once", () => {
   const site = (asset: string, displayName: string, revenue: number) => ({
     asset, displayName, isOs: false, revenueReported: true,
     figure: { currency: 'USD', revenue, cost: 0, net: revenue },
@@ -1655,12 +1499,9 @@ describe("/financials — one site states its money once (ro-ujb9.129)", () => {
     expect(screen.queryByRole("heading", { name: "By site" })).toBeNull();
     expect(container.querySelector("table")).toBeNull();
     expect(container.textContent).not.toMatch(/Sites, direct|Overhead|Total net|allocated/);
-    // The headings name revenue, never the portfolio's, and no per-site
-    // coverage line restates the figure's own "1 of 31 days reported".
     const revenue = screen.getByRole("region", { name: "Daily revenue" });
     expect(revenue.querySelector("[data-source-coverage]")).toBeNull();
     expect(container.textContent).not.toMatch(/portfolio/i);
-    // The month's money is the answer's, stated there.
     expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$82");
   });
 
@@ -1684,7 +1525,7 @@ describe("/financials — one site states its money once (ro-ujb9.129)", () => {
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
     expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
-    // No overhead: "Sites, direct" would be the total again (D45).
+    // No overhead: "Sites, direct" would be the total again.
     expect(rowNames(container).slice(1)).toEqual(["Total net"]);
     expect(container.querySelector("[data-source-coverage]")).not.toBeNull();
   });

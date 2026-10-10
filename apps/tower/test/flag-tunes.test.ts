@@ -8,16 +8,9 @@ import { storeAlert } from "./alert-rows";
 import { type TestStore, createTestStore } from "./postgres-store";
 import { addSites } from "./sites";
 
-// A ROW PER TUNE (bead `ro-6d1t`).
-//
-// The store recorded THAT an alert was tuned and WHICH setting last moved
-// (bead `ro-bkcl`, in `flags.disposition_note`); a second tune on the same row
-// overwrote the first note, so "the operator has tuned this rule five times
-// this quarter" had no answer. `flag_tunes` is one row per tune.
-//
-// On Postgres (bead ro-ujb9.76.5.2) every store has the table from its first
-// migration, so the D1 store without db/0030 — which tuned as before and
-// answered "cannot say" — is a state no store reaches.
+// A row per tune. `flags.disposition_note` records which setting last moved;
+// `flag_tunes` is one row per tune, so "the operator has tuned this rule five
+// times this quarter" has an answer.
 
 const NOW = "2026-09-04T12:00:00.000Z";
 const DAY = 86_400_000;
@@ -72,8 +65,7 @@ describe("the record per tune", () => {
       from: 0.01,
       to: 0.05,
     });
-    // The same row, tuned again on a DIFFERENT setting. Before this table the
-    // second note overwrote the first and the pair counted once.
+    // The same row, tuned again on a different setting.
     await applyFlagAction(store, id, "tune", at(2), null, {
       setting: "min_baseline_per_day",
       from: 3,
@@ -102,8 +94,8 @@ describe("the record per tune", () => {
       },
     ]);
 
-    // And the note still carries the LAST setting, unchanged: this is an
-    // addition beside the old record, never a replacement of it.
+    // The note still carries the last setting: a tune row is added beside the
+    // note, never in place of it.
     const [flag] = await store.read((tx) =>
       tx.query<{ disposition_note: string }>(`SELECT disposition_note FROM noticeos.flags WHERE flag_number = $1`, [id]),
     );
@@ -129,9 +121,8 @@ describe("the record per tune", () => {
     const payload = await buildAlertRuleStatsPayload(store, { now: new Date(NOW) });
     const stat = findRuleStat(payload, "flow-poisson-low");
     expect(stat?.tunes).toBe(5);
-    // One ALERT, tuned five times: the old count is unchanged and still counts
-    // alerts. The two numbers answer different questions and neither replaces
-    // the other.
+    // One alert, tuned five times: the alert count is unchanged. The two
+    // numbers answer different questions.
     expect(stat?.tunedOpen).toBe(1);
     expect(stat?.tuned).toBe(0);
   });
@@ -146,7 +137,7 @@ describe("the record per tune", () => {
   it("leaves a tune older than the window out of the count", async () => {
     const id = await insertFlag(store, { ruleId: "flow-poisson-low", firedAt: at(10) });
     // Tuned before the quarter began (a tune is never rewritten, so it is
-    // recorded then). The window is on when the TUNE happened.
+    // recorded then). The window is on when the tune happened.
     await applyFlagAction(store, id, "tune", at(200), null, {
       setting: "alpha",
       from: 0.01,
@@ -159,9 +150,8 @@ describe("the record per tune", () => {
 
   it("files one row per DECISION, not one per alert a grouped rule touched", async () => {
     // `ingest-freshness` is a recurring condition: one disposition lands on
-    // every open firing at once, which is why the alert counts are a floor. A
-    // count of TUNES has to be a count of what the operator did, and they did
-    // one thing.
+    // every open firing at once. A count of tunes has to be a count of what
+    // the operator did, and they did one thing.
     const first = await insertFlag(store, { ruleId: "ingest-freshness", firedAt: at(6) });
     await insertFlag(store, { ruleId: "ingest-freshness", firedAt: at(4) });
 

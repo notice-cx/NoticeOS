@@ -13,7 +13,7 @@ import { buildWallPayload } from '../worker/wall-payload';
 import { generateDemoScenario } from '../../../scripts/demo-scenario.mjs';
 
 const NOW = new Date('2026-09-09T15:00:00Z');
-/** Explicit Mediavine report clock; Settings cannot replace it (D42). */
+/** Explicit Mediavine report clock; Settings cannot replace it. */
 const ZONE = MEDIAVINE_REPORTING_CLOCK;
 function history(modify?: (date: string, value: number) => number) {
   const revenue: RevenueDay[] = [];
@@ -85,9 +85,9 @@ describe('monthly revenue projection', () => {
     expect(projectRevenue(NOW, ZONE, revenue, { ...traffic, collectedAt: '2026-09-05T00:00:00Z' }).status).toBe('waiting-traffic');
     expect(projectRevenue(NOW, ZONE, revenue, { ...traffic, series: traffic.series.slice(0, -1) }).status).toBe('waiting-traffic');
   });
-  it('projects while GA4 still settles yesterday, but not when the collector has stalled (ro-eqda)', () => {
+  it('projects while GA4 still settles yesterday, but not when the collector has stalled', () => {
     const { revenue, traffic } = history();
-    // Yesterday (2026-09-08) collected but provisional until D+2 (ro-wo0j).
+    // Yesterday (2026-09-08) collected but provisional until D+2.
     expect(projectRevenue(NOW, ZONE, revenue, { ...traffic, provisionalFrom: '2026-09-08' }).status).toBe('ready');
     // A provisional boundary three days back is a stalled collector, not settling.
     expect(projectRevenue(NOW, ZONE, revenue, { ...traffic, provisionalFrom: '2026-09-06' })).toMatchObject({ status: 'waiting-traffic', projectedMinor: null });

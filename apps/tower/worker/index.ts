@@ -1,24 +1,15 @@
 import { CLOUDFLARE_D1_BACKUP_PATH } from '@noticeos/contract/cloudflare-d1';
 import { withAppRelease } from '../shared/app-release';
 import { snapshotRpcData } from "./rpc-data";
-// Tower API Worker over the ONE central store. Reads dominate; the only direct
-// writes are two narrow operator lanes — a disposition/resolution on an
-// existing flag, and the operator's own decisions about one asset's queries
-// and findings. Neither rewrites a row of provider evidence. Four further
-// operator writes are not made here at all — the timeline annotation, the
-// pre-registered outcome check, an asset's editable settings columns, and the
-// birth of an asset row itself — but proxied over the private INGEST
-// Service Binding to the worker that owns those tables (annotation-route.ts,
-// watch-window-route.ts, asset-column-route.ts, asset-lifecycle-route.ts). None
-// of them is a MIGRATION: the schema stays operator-only (AGENTS.md). One READ
-// takes the same binding for the same reason — the alert-rule replay
-// (rule-backtest-route.ts) needs the seasonal baselines ingest assembles.
-// Configuration saves also use the private INGEST binding: the guarded write
-// lands in the store without a changeset file or Git commit (D22).
-// /api/tasks/* and /api/gates/* use a host-only lane for the Dolt task hub
-// on the operator's Mac (D19, tasks-route.ts). Only /api/*
-// reaches here (run_worker_first in wrangler.jsonc); every other path is served
-// as a static asset with SPA fallback and never costs a Worker invocation.
+// Tower API Worker over the one central store. Reads dominate; the only
+// direct writes are a disposition on an existing flag and the operator's own
+// decisions about one asset's queries and findings. Other operator writes
+// (annotations, watch windows, asset columns, asset rows, configuration
+// saves) are proxied over the private INGEST Service Binding to the worker
+// that owns those tables; the alert-rule replay reads over the same binding.
+// /api/tasks/* and /api/gates/* use a host-only lane for the task hub
+// (tasks-route.ts). Only /api/* reaches here (run_worker_first in
+// wrangler.jsonc); every other path is a static asset with SPA fallback.
 
 import { BROWSER_SESSION_PATH, handleBrowserSessionRequest } from './browser-session-route';
 import { handleAuthRequest, type AuthEntryBindings } from './auth-route';
@@ -95,31 +86,16 @@ import {
   integrationProvider,
 } from "@noticeos/contract";
 
-// The settings compiled into this bundle, the fallback under every stored
-// setting, are gathered in compiled-config.ts.
-//
-// True only for `vite` (dev), false for `vite build` — so the local runner's
-// lane is compiled OUT of every deployed bundle rather than merely guarded in
-// it. See shared/runner-lane.ts.
+// True only for `vite` (dev), false for `vite build`, so the local runner's
+// lane is compiled out of every deployed bundle. See shared/runner-lane.ts.
 declare const __RUNNER_LANE__: boolean;
 
 /**
- * The bindings this switch actually reaches for, declared STRUCTURALLY — the
- * same structural boundary every route file beside this one uses, for the
- * same two reasons: it keeps the module free of the Workers ambient globals (so
- * the test project, which excludes them, can typecheck and drive it — bead
- * `ro-ap7n`), and it lets a test bind a double instead of a Worker RPC stub no
- * unit test can construct.
- *
- * `INGEST` is the INTERSECTION of the slices the routes below declare for
- * themselves, so it stays derived rather than restated: a route that starts
- * calling a new RPC widens its own interface and this one follows. `ASSETS` is
- * absent because nothing here touches it — static assets never reach the Worker
- * (`run_worker_first`, see the file header).
- *
- * The real `Env` still has to satisfy it: `satisfies ExportedHandler<Env>` at
- * the bottom is the deployment contract, and it is what fails if a binding is
- * renamed in wrangler.jsonc.
+ * The bindings this switch reaches for, declared structurally so the module
+ * stays free of the Workers ambient globals and a test can bind a double.
+ * `INGEST` is the intersection of the slices the routes declare for
+ * themselves. `ASSETS` is absent because static assets never reach the Worker.
+ * `satisfies ExportedHandler<Env>` at the bottom is the deployment contract.
  */
 export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, DemoPresentationBindings {
   /** The operational store's Hyperdrive binding (wrangler.jsonc; the port
@@ -157,19 +133,14 @@ export type CallEnv = TowerEnv & { readonly STORE: WorkspaceStore };
 async function route(request: Request, env: CallEnv): Promise<Response> {
   const url = new URL(request.url);
 
-  // Every setting this request reads, resolved once (epic `ro-syok`). Eleven
-  // routes below read the same documents; a resolver per request is what stops
-  // one page load becoming eleven store reads. Nothing is asked for until a
-  // route actually awaits it, so the paths that read no config — the runner
-  // lane, the proxied ingest RPCs — still cost nothing.
+  // Every setting this request reads, resolved once and lazily: nothing is
+  // asked for until a route awaits it.
   const config = towerConfigResolver(env.INGEST, compiledConfig());
   const storedRead = await handleStoredRead(request, { store: env.STORE, config, compiledTimeZone: compiledConfig().osTimeZone });
   if (storedRead !== null) return storedRead;
 
-  // The local runner's private lane into the ingest Worker, which locally has
-  // no listener of its own: both Workers share the runner's runtime.
-  // First, and behind a compile-time flag: nothing below should ever have to
-  // wonder whether a `/api/runner/…` path might mean something else.
+  // The local runner's private lane into the ingest Worker, first and behind
+  // a compile-time flag.
   if (__RUNNER_LANE__ && url.pathname.startsWith(RUNNER_PATH_PREFIX)) {
     return handleRunnerRequest(request, url, env.INGEST, (cron) => runTowerCron(cron, { STORE: env.STORE, INGEST: env.INGEST, config }));
   }
@@ -184,52 +155,36 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
 
   // Save availability and per-document sources come from the configuration
   // store. The local lane answers this path before the Worker; deployed saves
-  // use the private INGEST binding. Both paths guard the saved value (D22).
+  // use the private INGEST binding. Both paths guard the saved value.
   if (url.pathname === "/api/config") {
     return handleConfigRequest(request, { ingest: env.INGEST, config });
   }
 
-  // The task hub, which this runtime cannot reach: a Dolt server on the
-  // operator's Mac, spoken to by a `bd` binary there is no process here to
-  // spawn. Locally these paths never arrive — the task lane answers them in
-  // the dev server (apps/tower/vite/task-lane.ts, `enforce: "pre"`) and the
-  // operator creates, claims, closes and answers work for real (D19). What is
-  // left here is the deployed answer: `live: false` with the reason, and 501
-  // on everything else, so the board falls back to the `/api/work` snapshot
-  // instead of offering actions that cannot land.
+  // The task hub, which this runtime cannot reach. Locally the task lane
+  // answers these paths in the dev server (apps/tower/vite/task-lane.ts);
+  // what is left here is the deployed answer: `live: false` with the reason,
+  // and 501 on everything else.
   if (isTasksPath(url.pathname)) {
     return handleTasksRequest(url);
   }
 
-  // The asset COLLECTION: creating one. `/api/assets` with no id is the only
-  // path that means "all of them", and POST is the only verb it answers —
-  // anything else falls through to the 404 at the bottom rather than being
-  // mistaken for a drill-down with an empty id (bead ro-z349.1).
+  // The asset collection: creating one. POST is the only verb it answers;
+  // anything else falls through to the 404 rather than being mistaken for a
+  // drill-down with an empty id.
   if (url.pathname === "/api/assets" && request.method === "POST") {
     return handleCreateAssetRequest(request, url, env.INGEST);
   }
 
-  // The name a site gives itself, for the add screen (bead
-  // `ro-ujb9.96.7.5`). Reads no store and no config: a public page's title.
+  // The name a site gives itself, for the add screen: a public page's title.
   if (url.pathname === SITE_NAME_PATH) {
     return handleSiteNameRequest(request, url);
   }
 
-  // ONE asset, two verbs on one URL, because it is one resource and D20
-  // makes `/api/assets/:id` its name:
-  //
-  //   PATCH  — the STORE-owned settings (lifecycle stage, automation mode,
-  //            display name), written over the ingest Service Binding so they
-  //            save in every deployment (D18).
-  //   GET    — answered by the shared stored-read dispatcher above.
-  //
-  // No DELETE: a site is never deleted, only archived (bead `ro-ujb9.76.4.5`).
-  // Any other verb is refused, never read as the GET: a page loaded before the
-  // Delete card went must not take a 200 for "deleted".
-  //
-  // So the method is part of the match. Matched BEFORE the sub-path routes is
-  // safe because this pattern rejects a slash in the id, and ids contain dots,
-  // never slashes — `/api/assets/x/decisions` cannot land here.
+  // One asset, two verbs on one URL: PATCH writes the store-owned settings
+  // over the ingest Service Binding; GET is answered by the shared stored-read
+  // dispatcher. No DELETE: a site is only ever archived, and any other verb is
+  // refused, never read as the GET. Matching before the sub-path routes is
+  // safe because this pattern rejects a slash in the id.
   const assetMatch = url.pathname.match(/^\/api\/assets\/([^/]+)$/);
   const orderMatch = url.pathname.match(/^\/api\/assets\/([^/]+)\/order$/);
   if (orderMatch) return handleAssetOrderRequest(request, url, env.INGEST, orderMatch[1]!);
@@ -256,9 +211,9 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
     );
   }
 
-  // Operator decisions on this asset's queries and findings. Matched
-  // BEFORE the drill-down read below, which treats the whole path remainder
-  // as the asset id (ids contain dots, never slashes).
+  // Operator decisions on this asset's queries and findings. Matched before
+  // the drill-down read below, which treats the whole path remainder as the
+  // asset id.
   const decisionsMatch = url.pathname.match(/^\/api\/assets\/(.+)\/decisions$/);
   if (decisionsMatch) {
     return handleDecisionsRequest(
@@ -285,9 +240,9 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
     );
   }
 
-  // Pre-registered outcome checks the operator opens from the asset page
-  // (bead `ro-71r`) — proxied to ingest over the same Service Binding, and
-  // validated by the same writer the operator-bearer lane uses.
+  // Pre-registered outcome checks the operator opens from the asset page,
+  // proxied to ingest and validated by the same writer the operator-bearer
+  // lane uses.
   const watchWindowsMatch = url.pathname.match(
     /^\/api\/assets\/(.+)\/watch-windows$/,
   );
@@ -321,35 +276,24 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   }
 
   // "How often would this rule have fired in the last 30 days with these
-  // settings?" (bead `ro-u072`) — the preview docs/15 principle 1 asks a rule
-  // edit to show before it saves. READ-ONLY despite the POST: the question's
-  // key is a whole settings object the operator is still typing, and the
-  // replay writes no flag, no disposition and no config. It is proxied to
-  // ingest because the seasonal baseline it must be judged against is
-  // assembled from the `pulses` table that Worker owns.
+  // settings?" Read-only despite the POST: the replay writes no flag, no
+  // disposition and no config. Proxied to ingest because the seasonal
+  // baseline is assembled from the `pulses` table that Worker owns.
   if (url.pathname === "/api/alerts/backtest") {
     return handleRuleBacktestRequest(request, url, env.INGEST);
   }
 
   // Portfolio integration matrix (desk-only surface; the Wall never links here).
   if (url.pathname === "/api/integrations/health") {
-    // Reads only: the hourly tick records the strip's four counts
-    // (tower-cron.ts, bead ro-ujb9.96.7.29).
+    // Reads only: the hourly tick records the strip's counts (tower-cron.ts).
     return handleIntegrationHealthRequest(request, env.INGEST, env.STORE, new Date());
   }
 
   // The Integrations page's own surface: which providers the OS holds a
-  // credential for, and connecting / testing / disconnecting one (epic
-  // `ro-vu8d`). Deliberately its own paths under the same noun — the exact
-  // match above is the lane MATRIX the Health page renders, which answers a
-  // different question and must not change shape because a credential did.
-  //
-  // Matched BEFORE the `:provider` patterns below, because "providers" is a
-  // path segment here and would otherwise read as a provider id.
-  // Signing in to Google (bead `ro-vu8d.3`). Matched BEFORE the `:provider`
-  // patterns below, because `google` is a provider id and
-  // `/api/integrations/google/oauth/start` would otherwise read as one of
-  // them with a nonsense tail.
+  // credential for, and connecting / testing / disconnecting one. Its own
+  // paths under the same noun; the exact match above is the lane matrix.
+  // Signing in to Google is matched before the `:provider` patterns below,
+  // because `google` is a provider id.
   if (url.pathname === GOOGLE_OAUTH_START_PATH) {
     return handleGoogleOAuthStartRequest(request, url, env.INGEST);
   }
@@ -363,13 +307,11 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
     return handleMediavineRequest(request, url, env.INGEST);
   }
 
-  // Moving the legacy env credentials into the store (bead `ro-vu8d.7`).
-  // Matched BEFORE the `:provider` patterns for the same reason as
-  // "providers": `import-env` is a path segment here, not a provider id.
-  // Locally this never arrives — the import lane answers it in the dev server
-  // (apps/tower/vite/env-import-lane.ts, `enforce: "pre"`), where the
-  // operator's secrets file actually is. What is left here is the deployed
-  // answer: `importable: false` with the reason, so the card keeps the command.
+  // Moving the legacy env credentials into the store. Matched before the
+  // `:provider` patterns because `import-env` is a path segment, not a
+  // provider id. Locally the import lane answers it in the dev server
+  // (apps/tower/vite/env-import-lane.ts); what is left here is the deployed
+  // answer, `importable: false` with the reason.
   if (url.pathname === ENV_IMPORT_PATH) {
     return handleEnvImportRequest(request);
   }
@@ -382,16 +324,13 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
       cfg.integrations,
       new Date(),
       // What is left of a metered provider's ceiling, from the manifest rows
-      // this OS wrote (beads `ro-vu8d.25`, `ro-qpas`) — never a fresh provider
-      // call, which on a ten-a-day cap would spend the thing it measures. The
-      // dollar cap is the operator's own setting, so it is passed in from the
-      // same constants `/settings` edits rather than declared in the catalog.
+      // this OS wrote — never a fresh provider call, which would spend the
+      // thing it measures. The dollar cap comes from the same constants
+      // `/settings` edits.
       (meter, now) => loadProviderMeter(env.STORE, meter, now, cfg.monthlyCaps.dataUsd),
     );
   }
-  // The connect panel's site list and Start collecting (bead
-  // `ro-ujb9.96.7.2`), Mediavine's included since it joined the panel
-  // (`ro-ujb9.96.7.6`).
+  // The connect panel's site list and Start collecting.
   const sitesMatch = url.pathname.match(SITES_PATH);
   if (sitesMatch) {
     return handleSitesRequest(
@@ -803,10 +742,9 @@ const towerHandler = {
   },
 
   /** A deployed Tower's cron trigger (wrangler.jsonc): its own steps of a
-   * tick, the ones that count with its models (tower-cron.ts, bead
-   * `ro-ujb9.96.7.29`). Locally the runner reaches the same function through
-   * the ingest door, and the LAN never reaches this handler (runner-door.ts
-   * refuses `/cdn-cgi/`). */
+   * tick (tower-cron.ts). Locally the runner reaches the same function
+   * through the ingest door, and the LAN never reaches this handler
+   * (runner-door.ts refuses `/cdn-cgi/`). */
   async scheduled(controller: { readonly cron: string }, env: TowerEnv, ctx: CallContext): Promise<void> {
     if (demoViewer() !== null) return;
     requireStandaloneWorkspace(env);

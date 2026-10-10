@@ -3,9 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { isLookupHost, siteNameFromHtml } from "@shared/site-name";
 import { handleSiteNameRequest } from "../worker/site-name-route";
 
-// The name a site gives itself, for Add a site (bead `ro-ujb9.96.7.5`). A
-// nicety that must never be a door: every refusal and failure answers null with
-// 200, and the only host it will fetch is the public one the operator typed.
+// The name a site gives itself, for Add a site. A nicety that must never be
+// a door: every refusal and failure answers null with 200, and the only host
+// it will fetch is the public one the operator typed.
 
 describe("the site's own name, out of its home page", () => {
   it("prefers the name the site declares for itself", () => {
