@@ -2594,7 +2594,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <tr class="border-b border-border transition-colors hover:bg-muted/40">
 <th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground" title="rebuilt daily at no provider cost">Daily refresh</th>
 <th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground" title="why it is on or off">Reason</th>
-<th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground" title="the task tracking this decision: ro-2zk.2">Task</th>
+<th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground" title="the id of the task that tracks this decision">Task</th>
 <th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground" title="when the decision was taken, YYYY-MM-DD">Since</th>
 <th class="h-9 px-3 text-left align-middle font-semibold uppercase tracking-wider text-muted-foreground w-px">
 </th>
