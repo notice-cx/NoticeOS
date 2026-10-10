@@ -26,6 +26,8 @@ import {
   validateCredentialFields,
 } from '../src/credentials.js';
 import { probeCredential } from '../src/credential-probes.js';
+import { handleRotateCredentialKey } from '../src/routes/rotate-key.js';
+import { OPERATOR_TOKEN } from './fixtures.js';
 import { DISCORD_TEST_MESSAGE } from '@noticeos/contract/provider-requests';
 import { INTEGRATION_PROVIDER_IDS, integrationProvider } from '@noticeos/contract';
 import { runBingSignals } from '../src/bing-signals.js';
@@ -1124,6 +1126,25 @@ describe('rotating the bootstrap key', () => {
     expect(refused.reason).toBe(ROTATE_NEEDS_PREVIOUS_KEY);
     expect(refused.reason).toContain(PREVIOUS_KEY_BINDING);
     expect(refused.rotated).toBe(0);
+  });
+
+  it('answers the route 401 without the operator, 409 outside the two-key window, 200 inside it', async () => {
+    await storeTwo();
+    const post = (target: IngestEnv, token: string) =>
+      handleRotateCredentialKey(
+        new Request('http://ingest.local/api/credentials/rotate-key', {
+          method: 'POST',
+          headers: token ? { authorization: `Bearer ${token}` } : {},
+        }),
+        target,
+      );
+    expect((await post(env, '')).status).toBe(401);
+    const refused = await post(env, OPERATOR_TOKEN);
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ ok: false, refusal: 'previous-key-missing', rotated: 0 });
+    const done = await post(rotatedEnv(), OPERATOR_TOKEN);
+    expect(done.status).toBe(200);
+    expect(await done.json()).toMatchObject({ ok: true, rotated: 2 });
   });
 
   it('re-seals every row under the new key, bumps the version, and moves the bytes', async () => {

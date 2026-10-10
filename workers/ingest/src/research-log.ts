@@ -114,16 +114,7 @@ export async function findPriorResearch(
   );
   if (!found) return null;
   const row = { ...found, costUsd: Number(found.costUsd), boughtAt: javascriptInstant(found.boughtAt) };
-  const boughtMs = Date.parse(row.boughtAt);
-  return {
-    ...row,
-    // An unparseable stamp must not read as "bought today" and win a reuse it
-    // did not earn. NaN floors to 0 through Math.max, so it is clamped to the
-    // other end: treated as ancient, and the caller re-buys.
-    ageDays: Number.isFinite(boughtMs)
-      ? Math.floor((nowMs - boughtMs) / MS_PER_DAY)
-      : windowDays,
-  };
+  return { ...row, ageDays: Math.floor((nowMs - Date.parse(row.boughtAt)) / MS_PER_DAY) };
 }
 
 /** Record a paid call. Every path that spends provider money writes one. */

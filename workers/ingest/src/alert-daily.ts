@@ -86,10 +86,7 @@ export async function rollUpAlertDay(
       cell.open += 1;
       if (row.severity === 'error') cell.errors += 1;
       else if (row.severity === 'warn') cell.warnings += 1;
-      // An unreadable `fired_at` is left out of the median rather than counted
-      // as age zero.
-      const firedMs = Date.parse(row.firedAt ?? '');
-      if (Number.isFinite(firedMs)) cell.ages.push((nowMs - firedMs) / 3_600_000);
+      cell.ages.push((nowMs - Date.parse(row.firedAt)) / 3_600_000);
     }
 
     for (const [asset, cell] of byAsset) {
