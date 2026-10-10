@@ -17,10 +17,9 @@
 //
 // It reads product source, `scripts/` (a generated `.mjs` is judged as its
 // authored `.mts`), the product defaults in `config/`, the prose beside them,
-// the operator docs (dated records in `docs/reports/`, `docs/briefs/` and
-// `docs/artifacts/` keep their words and are not read), and the test code,
-// which is judged for names only: a time-zone test's data is a zone. The one
-// test that must spell the product's old slug is `OLD_NAME_TEST`.
+// the operator docs (dated records in `docs/reports/` and `docs/artifacts/`
+// keep their words and are not read), and the test code, which is judged
+// for names only: a time-zone test's data is a zone. The one test that must spell the product's old slug is `OLD_NAME_TEST`.
 //
 // A name matches case-insensitively, as a whole name: a domain anywhere,
 // including inside a URL, a subdomain or a file name; a dot-less id only where
@@ -78,7 +77,7 @@ export const PRODUCT_DOCS = Object.freeze([
  * prose except the dated records below. */
 export const DOCS_DIR = 'docs';
 /** Dated records: they keep the words they were written in. */
-export const DATED_DOCS = Object.freeze(['docs/reports/', 'docs/briefs/', 'docs/artifacts/']);
+export const DATED_DOCS = Object.freeze(['docs/reports/', 'docs/artifacts/']);
 const DOCS_PROSE = /^docs\/.+\.md$/;
 /** The product's defaults: every config document and host file a fresh clone
  * ships, directly in this directory. */

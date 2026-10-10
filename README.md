@@ -53,7 +53,7 @@ migrated automatically.
 
 [Startup options and recovery](scripts/README.md#a-new-installation-in-one-command-pnpm-start)
 cover a different folder or port. For an existing installation, read the
-[upgrade policy](docs/release-policy.md) before changing its code or database.
+[upgrade policy](docs/reference/release-policy.md) before changing its code or database.
 
 ## Get your first useful view
 
@@ -71,7 +71,7 @@ and [bootstrap credential setup](docs/06-operations.md#bootstrap-secrets-vs-inte
 People and agents coordinate the same tasks across NoticeOS and the projects
 it manages, with status, ownership, dependencies, approval gates and evidence.
 New installations include a NoticeOS task project, so Tasks works before you
-add a website. [Connect a project](docs/project-setup.md) walks through asset
+add a website. [Connect a project](docs/guides/connect-a-project.md) walks through asset
 setup, shared tasks, repository access, agent instructions and data sources.
 
 Use the **Tasks** page today. A supported task API, installable Claude Code/Codex
@@ -96,7 +96,7 @@ connect real providers. Follow the demo guide for setup, updates and recovery.
 Customer account hosting and invitation-based onboarding are not part of this
 preview release. Local qualification does not establish a deployed public service.
 See the [workspace ownership contract](docs/23-configuration-ownership.md),
-[security policy](SECURITY.md) and [release policy](docs/release-policy.md).
+[security policy](SECURITY.md) and [release policy](docs/reference/release-policy.md).
 
 ## Contribute
 

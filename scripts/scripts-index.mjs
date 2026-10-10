@@ -100,7 +100,7 @@ export function withBlock(readme, block) {
 }
 
 /** The documentation site's commands page: the same block under a page heading. */
-export const DOCS_PAGE = 'apps/docs/reference/commands.md';
+export const DOCS_PAGE = 'docs/reference/commands.md';
 
 export function renderDocsPage(block) {
   return [

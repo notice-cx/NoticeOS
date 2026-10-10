@@ -222,4 +222,4 @@ backup/recovery evidence is retained.
 
 For project-wide maintenance and authorization rules, see
 [the operations guide](../../docs/06-operations.md) and
-[release policy](../../docs/release-policy.md).
+[release policy](../../docs/reference/release-policy.md).

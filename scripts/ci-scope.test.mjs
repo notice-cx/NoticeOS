@@ -15,7 +15,7 @@ import { main, needsRuntime, unreadByRuntime } from './ci-scope.mjs';
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 test('documentation is docs/ and Markdown at the root', () => {
-  for (const file of ['docs/14-design.md', 'docs/artifacts/wall-build-2026-09-23/laptop/shot.png', 'docs/briefs/2026-10-08-home-overview-redesign.md',
+  for (const file of ['docs/14-design.md', 'docs/artifacts/wall-build-2026-09-23/laptop/shot.png', 'docs/guides/add-your-first-site.md', 'docs/.vitepress/config.mts',
     'AGENTS.md', 'README.md', 'CONTRIBUTING.md']) {
     assert.equal(unreadByRuntime(file), true, file);
   }

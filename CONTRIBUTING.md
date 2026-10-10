@@ -187,5 +187,5 @@ hub is not required to contribute. Use the public repository's issue and pull
 request mechanisms when they are available. Report vulnerabilities privately
 through the [security policy](SECURITY.md).
 
-See the [release policy](docs/release-policy.md) for installation, upgrade and
+See the [release policy](docs/reference/release-policy.md) for installation, upgrade and
 publication boundaries.

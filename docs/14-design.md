@@ -40,7 +40,7 @@ them by name. The identity lives in `apps/tower/public/brand/notice.css`
 (canvas, surface, raised, ink, muted, line, the accent, success, danger,
 warning, cyan, violet, the two fonts, radii and two motion durations), shared
 with the standalone reference page `public/design-system.html` and described
-in `docs/brand/README.md`. `apps/tower/src/index.css` maps that identity to the
+in [brand](brand.md). `apps/tower/src/index.css` maps that identity to the
 application's aliases, redefines them for `.light`, and exposes everything
 through `@theme inline` as `--color-*`, `--text-*` and `--spacing-*`
 utilities. A hex or pixel literal in a component is the smell to look for in

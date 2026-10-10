@@ -31,11 +31,11 @@ the same report it demands of every asset.
 | `packages/mediavine/` | the Mediavine publisher-portal client the revenue collector uses |
 | `workers/ingest/` | the ingest Worker: the report endpoint, the collectors, the scheduled lanes, the store's write routes |
 | `apps/tower/` | the Control Tower (Vite + React + TS + Tailwind v4 + shadcn): the desk pages, the TV Wall and its Worker |
-| `apps/docs/` | the hosted documentation site (VitePress), written for the operator |
+| `docs/` | the documentation site (VitePress): the guides, screens and operations pages for the operator, and the numbered design library beside them |
 | `config/` | the product's defaults: every config document a fresh clone seeds, generic (no sites, no task projects, UTC), each with a README beside it. Runtime settings live in the store after seeding. |
 | `installation/` | this installation's own files, found through `scripts/installation.mts` (`NOTICEOS_INSTALLATION_DIR`, default `./installation`): exported config documents, the applied-changeset archive, host-only settings. The public release leaves it out. |
 
-Workspaces glob from `apps/*`, `workers/*`, `packages/*`. The recursive
+Workspaces glob from `apps/*`, `workers/*`, `packages/*`, plus `docs`. The recursive
 `typecheck` / `test` / `build` scripts must stay green with zero workspaces
 present.
 
@@ -89,10 +89,10 @@ present.
   derivation per fact, names a newcomer understands, the smallest change that
   leaves the design clearer.
 - **Documentation that restates code is generated from it.** The command index
-  in `scripts/README.md` and `apps/docs/reference/commands.md` comes from
+  in `scripts/README.md` and `docs/reference/commands.md` comes from
   `package.json` and each script's header (`pnpm scripts:index -- --write`);
   the "what the Tower may edit here" blocks in `config/*.README.md` and
-  `apps/docs/reference/configuration.md` come from
+  `docs/reference/configuration.md` come from
   `scripts/config-registers.mts` (`pnpm config:docs -- --write`); the Postgres
   README's revision matrix comes from `db/postgres/model.json`. A test fails
   when a generated block is stale. Prose beside a block says why, never what.
@@ -148,8 +148,9 @@ isolated browser journeys; the journey harness then the UX flow walker (a
 report; it fails only when a flow cannot be walked); and `pnpm test:task-store`
 against a real Dolt server in Docker. The `build` job is the required verdict.
 A PR that changes only documentation no runtime suite reads (`docs/` and root
-Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone; a push to
-`main` runs everything.
+Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
+`docs` workflow builds the site whenever `docs/` changes; a push to `main` runs
+everything and publishes the site.
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
@@ -269,6 +270,6 @@ branch someone else has.
   Dolt stores; the application container consumes an existing installation; the
   [demo profile](deploy/demo/README.md) packages compiled code and synthetic
   stores behind an HTTPS proxy. Customer hosting is outside that preview; see
-  the [release policy](docs/release-policy.md).
+  the [release policy](docs/reference/release-policy.md).
 - Outcome evidence: test and build success do not establish the business
   outcomes of doc 07; those come from an installation's own observations.

@@ -30,7 +30,6 @@ export const LEGACY_NAMES = Object.freeze(['com.reindexos.local']);
 export const HISTORICAL_PATHS = Object.freeze({
   'docs/reports/': 'Dated reports: a record of what was found under the name of the day.',
   'docs/artifacts/': 'Dated evidence: captures, measurements and the scripts that took them.',
-  'docs/briefs/': 'Dated briefs handed to agents, kept as written.',
 });
 
 /** Blocks that name the old product on purpose. */
@@ -202,7 +201,7 @@ test('every historical entry still names a tracked record', () => {
   for (const prefix of Object.keys(HISTORICAL_PATHS)) {
     // The public source deliberately omits private reports and evidence, so a
     // dated folder may be absent from a checkout; a named file may not.
-    if (/^docs\/(?:reports|artifacts|briefs)\/$/u.test(prefix) && !FILES.some((file) => file.startsWith(prefix))) continue;
+    if (/^docs\/(?:reports|artifacts)\/$/u.test(prefix) && !FILES.some((file) => file.startsWith(prefix))) continue;
     assert.ok(FILES.some((file) => file.startsWith(prefix)), `${prefix} matches no tracked file; remove it from HISTORICAL_PATHS`);
   }
 });

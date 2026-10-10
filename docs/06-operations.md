@@ -447,7 +447,7 @@ for no benefit to anyone using the product:
 | an older checkout's path | the maintainer's checkout | the task hub keeps its Dolt data inside it and the service runs from it |
 | the Dolt hub databases and the `ro-` task prefix | the task hub | every task id and every project's link to the hub |
 | the private repository's remote | the maintainers' repository | agents never rename or move a repository or a remote |
-| the old name in `docs/reports`, `docs/artifacts`, `docs/briefs` and the frozen migration source in `installation/recovery/d1-cutover` | dated records | they keep the words they were written in |
+| the old name in `docs/reports`, `docs/artifacts` and the frozen migration source in `installation/recovery/d1-cutover` | dated records | they keep the words they were written in |
 <!-- legacy-names:end -->
 
 ## The task hub
