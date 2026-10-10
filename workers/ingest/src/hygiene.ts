@@ -8,6 +8,7 @@
 import { javascriptInstant } from '@noticeos/postgres';
 import { appendReadingToOpen, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
 import { EgressGate, type EgressRunOutcome } from './egress.js';
+import { sha256Hex } from './shared.js';
 
 // --- vocabulary -------------------------------------------------------------
 
@@ -489,11 +490,6 @@ export function stableSample(urls: string[], size: number): string[] {
   });
   hashed.sort((a, b) => (a.hash === b.hash ? (a.url < b.url ? -1 : 1) : a.hash - b.hash));
   return hashed.slice(0, size).map((entry) => entry.url);
-}
-
-async function sha256Hex(text: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
-  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
 

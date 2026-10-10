@@ -15,7 +15,6 @@ import { connectCredential } from '../src/credential-connect.js';
 import { putCredential, resolveCredential } from '../src/credentials.js';
 import { runCollectNow } from '../src/dispatch.js';
 import {
-  POSTHOG_ACCOUNT_TIMEOUT_MS,
   discoverPosthogProjects,
   insightFunnel,
   projectHost,
@@ -23,6 +22,7 @@ import {
   savedFunnels,
 } from '../src/posthog-account.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
+import { WATCHED_REQUEST_TIMEOUT_MS } from '../src/shared.js';
 import { discoverSites } from '../src/site-discovery.js';
 import { ARCHIVE_RUNS, emptyTables, forgetCredentials, pgCount, reset } from './helpers.js';
 
@@ -79,7 +79,7 @@ describe('the key alone finds its region and projects', () => {
     expect(calls.map((call) => call.url).sort()).toEqual(['https://eu.posthog.com/api/projects/?limit=100', 'https://us.posthog.com/api/projects/?limit=100']);
     // Every call is bounded and carries the key only as the bearer.
     expect(calls.every((call) => call.timed && call.authorization === `Bearer ${KEY}`)).toBe(true);
-    expect(POSTHOG_ACCOUNT_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
+    expect(WATCHED_REQUEST_TIMEOUT_MS).toBeLessThanOrEqual(10_000);
   });
 
   it('is a refusal when both clouds refuse, and no answer when one of them cannot be reached', async () => {

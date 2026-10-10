@@ -3,6 +3,7 @@ import { MediavineClient, MediavineError, type Session, type Site } from '@notic
 import type { MediavineResult } from '@noticeos/contract';
 import { javascriptInstant } from '@noticeos/postgres';
 import { assertCredentialOwner, recordCredentialOutcome, resolveCredential, saveMediavineSession, type ResolvedCredential } from './credentials.js';
+import { claimLease, releaseLease } from './integration-leases.js';
 
 export interface MediavineOptions { nowMs?: number; fetchImpl?: typeof fetch; beforeRequest?: () => Promise<void>; assertLease?: () => Promise<void> }
 export function mediavineMessage(error: unknown): string {
@@ -12,27 +13,20 @@ export function mediavineMessage(error: unknown): string {
  * whole account, kept between leases, since it also carries the cooldown, the
  * sign-in block and the cached site list. */
 export const MEDIAVINE_LEASE = 'mediavine';
-/** A lease given back ended at the epoch, so a taker on any clock finds it free. */
-const RELEASED = new Date(0);
 /**
  * One lease covers login, refresh, reports, probes and credential changes
- * across Worker instances. Taking it is one statement: the row is created
- * held, or taken over when it has expired (and, unless `localOnly`, no
- * cooldown or sign-in block holds it). Postgres locks the row, so of two
- * takers at once the second waits for the first and then finds it held.
+ * across Worker instances. Unless `localOnly`, a cooldown or sign-in block
+ * also holds it.
  */
 export async function withMediavineLease<T>(env: IngestEnv, work: (assertLease: () => Promise<void>) => Promise<T>, options: MediavineOptions = {}, localOnly = false): Promise<T> {
   const now = options.nowMs ?? Date.now();
   const started = Date.now();
   const owner = crypto.randomUUID();
-  const taken = await env.STORE.write((tx) => tx.execute(
-    `INSERT INTO noticeos.integration_leases AS l (workspace_id, lease_key, owner, expires_at)
-     VALUES ($1::uuid, $2, $3, $4::timestamptz)
-     ON CONFLICT (workspace_id, lease_key) DO UPDATE SET owner = excluded.owner, expires_at = excluded.expires_at
-      WHERE l.expires_at <= $5::timestamptz
-        AND ($6::boolean OR ((l.cooldown_until IS NULL OR l.cooldown_until <= $5::timestamptz) AND NOT l.auth_blocked))`,
-    [tx.workspaceId, MEDIAVINE_LEASE, owner, new Date(now + 600_000), new Date(now), localOnly]));
-  if (taken !== 1) {
+  const taken = await claimLease(env.STORE, {
+    key: MEDIAVINE_LEASE, owner, nowMs: now, expiresAtMs: now + 600_000,
+    takeoverAlso: { sql: '($6::boolean OR ((l.cooldown_until IS NULL OR l.cooldown_until <= $5::timestamptz) AND NOT l.auth_blocked))', param: localOnly },
+  });
+  if (!taken) {
     const [held] = await env.STORE.read((tx) => tx.query<{ auth_blocked: boolean; last_error: string | null }>(
       'SELECT auth_blocked, last_error FROM noticeos.integration_leases WHERE lease_key = $1', [MEDIAVINE_LEASE]));
     if (!localOnly && held?.auth_blocked) throw new MediavineError('auth', held.last_error ?? 'Reconnect your Mediavine account.');
@@ -64,9 +58,7 @@ export async function withMediavineLease<T>(env: IngestEnv, work: (assertLease: 
     // The row stays: it carries the cooldown, the block and the site list. Its
     // owner is kept too (a lease owner is never blank); an ended lease is free
     // whoever last held it.
-    await env.STORE.write((tx) => tx.execute(
-      'UPDATE noticeos.integration_leases SET expires_at = $1::timestamptz WHERE lease_key = $2 AND owner = $3',
-      [RELEASED, MEDIAVINE_LEASE, owner]));
+    await releaseLease(env.STORE, MEDIAVINE_LEASE, owner);
   }
 }
 export async function mediavineClient(env: IngestEnv, options: MediavineOptions = {}, captured?: ResolvedCredential): Promise<MediavineClient> {

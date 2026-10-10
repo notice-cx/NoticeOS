@@ -5,6 +5,7 @@
 
 import { storedProviderCost } from '@noticeos/contract';
 import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
+import { sha256Hex } from './shared.js';
 
 export const RESEARCH_PROVIDERS = ['dataforseo'] as const;
 export type ResearchProvider = (typeof RESEARCH_PROVIDERS)[number];
@@ -65,11 +66,7 @@ export function canonicalJson(value: unknown): string {
 }
 
 export async function researchParamsHash(params: unknown): Promise<string> {
-  const bytes = new TextEncoder().encode(canonicalJson(params));
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return [...new Uint8Array(digest)]
-    .map((byte) => byte.toString(16).padStart(2, '0'))
-    .join('');
+  return sha256Hex(canonicalJson(params));
 }
 
 /**
@@ -150,9 +147,3 @@ export async function recordResearch(
     ),
   );
 }
-
-/**
- * Re-exported rather than declared: the exclusion it drives lives beside the
- * one metered-spend sum in `@noticeos/contract`.
- */
-export { RESEARCH_COLLECTOR_ACTOR as COLLECTOR_ACTOR } from '@noticeos/contract';

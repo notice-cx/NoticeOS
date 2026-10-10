@@ -10,11 +10,12 @@
 // checks inbound pulses against.
 
 import type { Metric, PulseEnvelope } from '@noticeos/contract';
-import { ingestPulseEnvelope, type WritePulseResult } from './db.js';
+import { ingestPulseEnvelope, pulseDay, type WritePulseResult } from './db.js';
 import { EgressGate, type EgressRunOutcome } from './egress.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
 import { appendReading, holdCondition, raiseAlertUnlessOpen, readOpenAlert, resolveOpen } from './alert-store.js';
 import pullConfigJson from '../../../config/pull.json';
+import { isRecord } from './shared.js';
 
 /** rule id stamped on the flag raised when an asset's nightly pull fails. */
 export const PULL_FAILED_RULE_ID = 'asset-pull-failed';
@@ -48,7 +49,6 @@ export type PullAssetConfig = PrometheusPullConfig | EnvelopePullConfig;
 const PULL_CONFIG = pullConfigJson as PullAssetConfig[];
 
 const iso = (ms: number): string => new Date(ms).toISOString();
-const pulseDay = (generatedAt: string): string => new Date(generatedAt).toISOString().slice(0, 10);
 
 // --- Prometheus text parsing ------------------------------------------------
 
@@ -190,10 +190,6 @@ async function prometheusToEnvelope(
 }
 
 // --- envelope format (the endpoint already speaks the contract) -------------
-
-function isRecord(v: unknown): v is Record<string, unknown> {
-  return typeof v === 'object' && v !== null && !Array.isArray(v);
-}
 
 /** A provider's own error shape ({ error, message }) — e.g. a site's 401/502/503. */
 interface ProviderError {

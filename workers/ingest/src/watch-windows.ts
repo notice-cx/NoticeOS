@@ -21,6 +21,7 @@ import {
 import type { Transaction, WorkspaceStore } from '@noticeos/postgres';
 import { readPanelManifest, readPanelObject } from './panel-source.js';
 import { appendReadings, markChecked, markClosed, readOpenWindows } from './watch-window-store.js';
+import { asRecord, shiftUtcDay, utcDay, utcDayStartMs } from './shared.js';
 
 export const WATCH_REF_KINDS = ['annotation', 'decision', 'manual'] as const;
 export type WatchRefKind = (typeof WATCH_REF_KINDS)[number];
@@ -170,15 +171,9 @@ export interface WatchScopeSelector {
   value: string;
 }
 
-const isoDay = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
-
-function addDays(date: string, days: number): string {
-  return isoDay(Date.parse(`${date}T00:00:00.000Z`) + days * DAY_MS);
-}
-
 /** Inclusive day count between two 'YYYY-MM-DD' dates. */
 export function daySpan(start: string, end: string): number {
-  return Math.round((Date.parse(`${end}T00:00:00.000Z`) - Date.parse(`${start}T00:00:00.000Z`)) / DAY_MS) + 1;
+  return Math.round((utcDayStartMs(end) - utcDayStartMs(start)) / DAY_MS) + 1;
 }
 
 function round(value: number, digits: number): number {
@@ -271,12 +266,6 @@ export function watchScopeLabel(selector: WatchScopeSelector): string {
 
 function normalizeQuery(value: string): string {
   return value.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
 }
 
 async function loadScopedArchive(
@@ -474,7 +463,7 @@ export async function readWatchQueryHistory(
     readChangeDays(env, asset, input.first_day, input.last_day),
   ]);
   const values = Array.from({ length: span }, (_, offset) =>
-    daily.get(addDays(input.first_day, offset)) ?? null,
+    daily.get(shiftUtcDay(input.first_day, offset)) ?? null,
   );
   return {
     integration: 'gsc',
@@ -688,7 +677,7 @@ export async function runWatchWindows(
   nowMs: number = Date.now(),
 ): Promise<WatchWindowEvaluation> {
   const now = new Date(nowMs).toISOString();
-  const today = isoDay(nowMs);
+  const today = utcDay(nowMs);
 
   const open = await env.STORE.read((tx) => readOpenWindows(tx));
 
@@ -751,9 +740,9 @@ function pastFinalCheck(window: WatchWindowRow, today: string): boolean {
   const offsets = parseOffsets(window.check_offsets_json);
   const final = offsets[offsets.length - 1];
   if (final === undefined) return false;
-  const registered = Date.parse(`${window.registered_at.slice(0, 10)}T00:00:00.000Z`);
+  const registered = utcDayStartMs(window.registered_at.slice(0, 10));
   if (!Number.isFinite(registered)) return false;
-  return isoDay(registered + final * DAY_MS) <= today;
+  return utcDay(registered + final * DAY_MS) <= today;
 }
 
 async function evaluateWindow(
@@ -772,7 +761,7 @@ async function evaluateWindow(
   const fresh: WatchReading[] = [];
   const alreadyRead = new Set(readings.map((reading) => reading.offset_days));
   const due = offsets.filter(
-    (offset) => !alreadyRead.has(offset) && addDays(registeredDate, offset) <= today,
+    (offset) => !alreadyRead.has(offset) && shiftUtcDay(registeredDate, offset) <= today,
   );
   if (due.length === 0) return;
   result.evaluated += 1;
@@ -818,11 +807,11 @@ async function evaluateWindow(
   let subject = label;
 
   for (const offset of due) {
-    const checkDate = addDays(registeredDate, offset);
+    const checkDate = shiftUtcDay(registeredDate, offset);
     // The post window matches the baseline's length and ends on the check date.
     // On an interim offset shorter than the baseline it reaches back past the
     // change; `pre_change_days` records how far.
-    const postStart = addDays(checkDate, -(baselineDays - 1));
+    const postStart = shiftUtcDay(checkDate, -(baselineDays - 1));
     const post = await aggregate(postStart, checkDate);
     const deltaPct =
       baseline.days === 0 || post.days === 0 || baseline.per_day === 0

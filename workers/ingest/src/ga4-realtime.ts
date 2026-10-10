@@ -52,6 +52,7 @@ import {
   SignalError,
 } from './signal-store.js';
 import { isolateState } from './isolate-state.js';
+import { arrayField, asRecord, stringField } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 10_000;
 const TOKEN_REUSE_MS = 50 * 60 * 1_000;
@@ -702,26 +703,4 @@ function errorResult(
     errorCode: error.code,
     ...(error instanceof Ga4ReadError ? { nextAttemptAt: error.nextAttemptAt, ...(error.rateLimit ? { rateLimit: error.rateLimit } : {}) } : {}),
   };
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function stringField(
-  record: Record<string, unknown> | null,
-  field: string,
-): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function arrayField(
-  record: Record<string, unknown> | null,
-  field: string,
-): unknown[] {
-  const value = record?.[field];
-  return Array.isArray(value) ? value : [];
 }

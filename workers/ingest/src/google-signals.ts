@@ -27,21 +27,16 @@ import { countOf, failureWords } from './integration-health-store.js';
 import {
   type GoogleAuth,
   type GoogleOAuthGrant,
-  type GoogleServiceAccount,
   GOOGLE_OAUTH_REVOKED_CODE,
   GOOGLE_OAUTH_REVOKED_MESSAGE,
   GOOGLE_SCOPES,
-  arrayField,
-  asRecord,
   decodeServiceAccount,
   googleAccessToken,
   googleAuthCacheKey,
   googleGrantHint,
   isGoogleAuthExpiry,
-  mintGoogleAccessToken,
   providerError,
   responseJson,
-  stringField,
 } from './google-auth.js';
 import { resolveGoogleCredential } from './google-oauth.js';
 import { type ConfigSourceMap, configSourceLine } from './config-store.js';
@@ -85,17 +80,7 @@ import {
   type SignalProviderResult,
   type SignalTarget,
 } from './signal-store.js';
-
-// Re-exported so a collector that imports the Google vocabulary from here
-// keeps working.
-export {
-  GOOGLE_SCOPES,
-  mintGoogleAccessToken,
-  providerError,
-  responseJson,
-  type GoogleAuth,
-  type GoogleServiceAccount,
-} from './google-auth.js';
+import { arrayField, asRecord, stringField, utcDay } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 20_000;
 /**
@@ -866,7 +851,7 @@ export const GA4_SETTLE_DAYS = 2;
 export function ga4ProvisionalFrom(windowEnd: string): string {
   const date = new Date(`${windowEnd}T00:00:00.000Z`);
   date.setUTCDate(date.getUTCDate() - (GA4_SETTLE_DAYS - 1));
-  return formatDate(date);
+  return utcDay(date);
 }
 
 async function collectGsc(
@@ -960,7 +945,7 @@ function collectionWindow(
   startDate.setUTCDate(
     startDate.getUTCDate() - (LIVE_SIGNAL_WINDOW_DAYS - 1),
   );
-  return { start: formatDate(startDate), end };
+  return { start: utcDay(startDate), end };
 }
 
 function errorOutcome(target: GooglePropertyTarget, error: SignalError): GoogleSignalOutcome {
@@ -1020,10 +1005,6 @@ function validateTimeZone(timeZone: string, asset: string): void {
   }
 }
 
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
-
 /** Daily Search Analytics omits dates with no rows. A bounded date-only query
  * cannot be truncated, so those omissions are honest zeroes. */
 function fillDailyObservations(
@@ -1043,7 +1024,7 @@ function fillDailyObservations(
     time <= Date.parse(`${window.end}T00:00:00.000Z`);
     time += 86_400_000
   ) {
-    const date = formatDate(new Date(time));
+    const date = utcDay(new Date(time));
     for (const metric of metrics) {
       filled.push({ date, metric, value: values.get(`${date}\0${metric}`) ?? 0 });
     }

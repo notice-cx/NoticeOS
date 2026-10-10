@@ -9,6 +9,7 @@
 // capture whole.
 
 import { javascriptInstant, type Transaction } from '@noticeos/postgres';
+import { isRecord } from './shared.js';
 
 /**
  * How many closed beads one project's snapshot list can hold: a mirror of the
@@ -229,10 +230,6 @@ async function backfillFromSnapshots(tx: Transaction): Promise<number> {
     }
   }
   return rows;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function whole(value: unknown): number | undefined {

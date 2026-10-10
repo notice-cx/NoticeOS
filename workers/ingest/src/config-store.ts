@@ -31,6 +31,7 @@ import {
 // The compiled fallback excludes the coordination document and reads no
 // installation files.
 import { collectorDefaultDocument } from '../../../scripts/config-defaults.mjs';
+import { isRecord } from './shared.js';
 
 /** Every file the store may hold a document for. Derived from the register
  * declarations, so a new register is storable without a code change here. */
@@ -576,10 +577,6 @@ export interface CollectorConfigs {
   /** Per file: the stored document, or `undefined` to keep the compiled copy. */
   documents: Readonly<Partial<Record<CollectorConfigFile, unknown>>>;
   sources: ConfigSourceMap;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 /** Whether a stored document is the shape this file's readers index into. */

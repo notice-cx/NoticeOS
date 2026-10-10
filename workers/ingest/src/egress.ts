@@ -12,6 +12,7 @@
 
 import { type OpenAlert, appendReading, holdCondition, raiseAlertUnlessOpen, readOpenAlert } from './alert-store.js';
 import { readOsAssetId } from './os-asset.js';
+import { isRecord } from './shared.js';
 
 /** The one flag the OS files against itself when it cannot reach the network.
  * It lives on asset #0's row: the subject of this alert is the OS. The
@@ -316,7 +317,7 @@ export class EgressGate {
 
   /** The open self-flag, or null when none is open (or there is no OS row). */
   private async openFlag(): Promise<OpenAlert | null> {
-    const asset = await osAssetId(this.env);
+    const asset = await readOsAssetId(this.env);
     return asset === null ? null : await readOpenEgressFlag(this.env, asset);
   }
 
@@ -336,7 +337,7 @@ export class EgressGate {
     covers: (asset: string, part: string | null) => boolean,
   ): Promise<{ fired: number; refreshed: number; resolved: number }> {
     const none = { fired: 0, refreshed: 0, resolved: 0 };
-    const asset = await osAssetId(this.env);
+    const asset = await readOsAssetId(this.env);
     if (asset === null) return none;
 
     return this.env.STORE.write(async (tx) => {
@@ -405,9 +406,6 @@ export class EgressGate {
   }
 }
 
-/** Asset #0's id, from the store. A store with no OS row gets no flag. */
-const osAssetId = readOsAssetId;
-
 /** The open os-egress-down alert, as its newest reading states it. */
 async function readOpenEgressFlag(env: IngestEnv, asset: string): Promise<OpenAlert | null> {
   return env.STORE.read((tx) => readOpenAlert(tx, asset, EGRESS_DOWN_RULE_ID));
@@ -421,7 +419,7 @@ export async function openEgressLaneRecord(
   env: IngestEnv,
   lane: EgressLaneId,
 ): Promise<EgressLaneRecord | null> {
-  const asset = await osAssetId(env);
+  const asset = await readOsAssetId(env);
   if (asset === null) return null;
   const open = await readOpenEgressFlag(env, asset);
   if (open === null) return null;
@@ -549,10 +547,6 @@ function readLaneRecord(value: unknown): EgressLaneRecord | null {
     if (Object.keys(parts).length > 0) record.parts = parts;
   }
   return record;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 // ---------------------------------------------------------------------------

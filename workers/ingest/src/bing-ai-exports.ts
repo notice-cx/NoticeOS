@@ -283,13 +283,6 @@ export function decodeBase64(value: string): Uint8Array {
   return bytes;
 }
 
-export async function sha256Hex(bytes: Uint8Array): Promise<string> {
-  const owned = new Uint8Array(new ArrayBuffer(bytes.byteLength));
-  owned.set(bytes);
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', owned));
-  return [...digest].map((byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
 export interface BingAiDumpInput {
   file: string;
   exportDate: string;

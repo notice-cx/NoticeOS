@@ -1,12 +1,9 @@
 import { env } from 'cloudflare:test';
-import { DATAFORSEO_BASE_REPORTS } from '@noticeos/contract';
+import { DATAFORSEO_BASE_REPORTS, SERP_PANEL_DEVICES } from '@noticeos/contract';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSignalCollect } from '../src/routes/signal-collect.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
-import {
-  SERP_PANEL_DEVICES,
-  dataForSeoFamiliesFor,
-} from '../src/dataforseo-dumps.js';
+import { dataForSeoFamiliesFor } from '../src/dataforseo-dumps.js';
 import serpPanelConfig from './fixture-config/serp-panel.json';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { ARCHIVE_RUNS, call, pgAll, pgCount, pgFirst, reset, storeArchiveRun } from './helpers.js';

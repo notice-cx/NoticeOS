@@ -8,7 +8,8 @@
 // refresh token or a code, and `providerError` truncates Google's message.
 
 import { createHash } from 'node:crypto';
-import { SignalError } from './signal-store.js';
+import { asRecord, stringField } from './shared.js';
+import { SignalError, boundedResponseJson } from './signal-store.js';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 
@@ -228,45 +229,8 @@ export function decodeServiceAccount(
 // Reading what Google answered
 // ---------------------------------------------------------------------------
 
-export async function responseJson(response: Response): Promise<unknown> {
-  const declaredLength = Number(response.headers.get('content-length'));
-  if (Number.isFinite(declaredLength) && declaredLength > MAX_RESPONSE_BYTES) {
-    await response.body?.cancel();
-    throw new SignalError(
-      'response_too_large',
-      `Google response exceeded ${MAX_RESPONSE_BYTES} bytes.`,
-    );
-  }
-  if (!response.body) return {};
-
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let bytes = 0;
-  let text = '';
-  try {
-    while (true) {
-      const chunk = await reader.read();
-      if (chunk.done) break;
-      bytes += chunk.value.byteLength;
-      if (bytes > MAX_RESPONSE_BYTES) {
-        await reader.cancel();
-        throw new SignalError(
-          'response_too_large',
-          `Google response exceeded ${MAX_RESPONSE_BYTES} bytes.`,
-        );
-      }
-      text += decoder.decode(chunk.value, { stream: true });
-    }
-    text += decoder.decode();
-  } finally {
-    reader.releaseLock();
-  }
-  if (!text) return {};
-  try {
-    return JSON.parse(text);
-  } catch {
-    throw new SignalError('response_invalid_json', 'Google returned invalid JSON.');
-  }
+export function responseJson(response: Response): Promise<unknown> {
+  return boundedResponseJson(response, 'Google', MAX_RESPONSE_BYTES);
 }
 
 export function providerError(prefix: string, status: number, body: unknown): SignalError {
@@ -288,25 +252,6 @@ export function isGoogleAuthExpiry(error: unknown): boolean {
 // ---------------------------------------------------------------------------
 // Small shared readers and encoders
 // ---------------------------------------------------------------------------
-
-export function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-export function stringField(
-  record: Record<string, unknown> | null,
-  field: string,
-): string | null {
-  const value = record?.[field];
-  return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-export function arrayField(record: Record<string, unknown> | null, field: string): unknown[] {
-  const value = record?.[field];
-  return Array.isArray(value) ? value : [];
-}
 
 export function decodeBase64(value: string): Uint8Array<ArrayBuffer> {
   const binary = atob(value.replace(/\s+/g, ''));

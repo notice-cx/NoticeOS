@@ -3,8 +3,8 @@ import {
   INSIGHT_MAX_ITEMS,
   INSIGHT_PAYLOAD_MAX_BYTES,
   insightSnapshotId,
-  sha256Hex,
 } from '../src/insight-snapshots.js';
+import { sha256Hex } from '../src/shared.js';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { INSIGHT_SNAPSHOTS, call, pgCount, pgRows, reset } from './helpers.js';
 

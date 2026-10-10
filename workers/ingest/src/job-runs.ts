@@ -21,13 +21,13 @@ import { javascriptInstant } from '@noticeos/postgres';
 import {
   FUTURE_SKEW_MS,
   Issues,
-  asObject,
   enumValue,
   nonNegativeInteger,
   optionalString,
   pastInstant,
   requiredString,
 } from './routes/validate.js';
+import { asRecord } from './shared.js';
 
 /** How much history the table keeps; the same number as `JOB_RUN_RETENTION_DAYS`
  * in scripts/job-runs.mjs. The mirror cannot outlive the record it mirrors. */
@@ -157,7 +157,7 @@ export async function writeJobRuns(
 
   const parsed: StoredRun[] = [];
   for (let i = 0; i < input.runs.length; i++) {
-    const raw = asObject(input.runs[i]);
+    const raw = asRecord(input.runs[i]);
     if (!raw) {
       issues.add(`runs.${i}`, 'invalid_type', `runs.${i} must be an object`);
       continue;

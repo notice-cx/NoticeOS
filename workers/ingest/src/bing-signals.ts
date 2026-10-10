@@ -51,6 +51,7 @@ import {
   egressExplains,
   watchTransport,
 } from './egress.js';
+import { asRecord, utcDay } from './shared.js';
 
 export interface BingSignalOutcome {
   asset: string;
@@ -324,7 +325,7 @@ function collectionWindow(nowMs: number): SignalDateWindow {
   const start = new Date(
     end.getTime() - (LIVE_SIGNAL_WINDOW_DAYS - 1) * 86_400_000,
   );
-  return { start: formatDate(start), end: formatDate(end) };
+  return { start: utcDay(start), end: utcDay(end) };
 }
 
 function windowThroughLatestObservation(
@@ -399,14 +400,4 @@ function finiteValue(value: unknown): number {
     );
   }
   return number;
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
-}
-
-function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }

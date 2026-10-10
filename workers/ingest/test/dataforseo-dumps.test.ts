@@ -3,6 +3,10 @@ import {
   DATAFORSEO_BASE_REPORTS,
   DATAFORSEO_PANEL_REPORT,
   DATAFORSEO_PERIODIC_REPORTS,
+  MAX_REPORT_COST_USD as REPORT_RESERVE_USD,
+  SERP_PANEL_CALL_USD as CALL_USD,
+  SERP_PANEL_DEVICES,
+  SERP_PANEL_QUERY_LIMIT as PANEL_CEILING,
   dataForSeoReportsFor,
 } from '@noticeos/contract';
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from 'vitest';
@@ -10,10 +14,6 @@ import {
   DATAFORSEO_REPORT_CADENCE_DAYS,
   DATAFORSEO_REPORTS,
   DATAFORSEO_CHECKPOINT_PREFIX,
-  MAX_REPORT_COST_USD as REPORT_RESERVE_USD,
-  SERP_PANEL_CALL_USD as CALL_USD,
-  SERP_PANEL_DEVICES,
-  SERP_PANEL_QUERY_LIMIT as PANEL_CEILING,
   dataForSeoFamiliesFor,
   retryAfterWaitMs,
   runDataForSeoDumps,

@@ -28,7 +28,6 @@ import {
   type WatchThresholds,
 } from '../watch-windows.js';
 import {
-  asObject,
   enumValue,
   finiteNumber,
   isoDate,
@@ -38,7 +37,9 @@ import {
   ASSET_ID_MAX,
   FUTURE_SKEW_MS,
   Issues,
+  readJsonObject,
 } from './validate.js';
+import { asRecord } from '../shared.js';
 
 export const WATCH_REF_MAX = 256;
 export const WATCH_NOTE_MAX = 1000;
@@ -59,16 +60,8 @@ export async function handleWatchWindows(
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
-  if (!body) {
-    return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
-  }
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
 
   const result = await writeWatchWindow(env, body as unknown as CreateWatchWindowInput, nowMs);
   if (!result.ok) {
@@ -252,7 +245,7 @@ function validOffsets(issues: Issues, value: unknown): number[] | null {
 
 function validThresholds(issues: Issues, value: unknown): WatchThresholds | null {
   if (value === undefined || value === null) return null;
-  const object = asObject(value);
+  const object = asRecord(value);
   if (!object) {
     issues.add('thresholds', 'invalid_type', 'thresholds must be an object');
     return null;
@@ -261,7 +254,7 @@ function validThresholds(issues: Issues, value: unknown): WatchThresholds | null
   for (const side of ['ship', 'kill'] as const) {
     const raw = object[side];
     if (raw === undefined || raw === null) continue;
-    const threshold = asObject(raw);
+    const threshold = asRecord(raw);
     if (!threshold) {
       issues.add(`thresholds.${side}`, 'invalid_type', `thresholds.${side} must be an object`);
       continue;
@@ -291,7 +284,7 @@ function validScope(
   integration: WatchIntegration | null,
 ): WatchScopeInput | null {
   if (value === undefined || value === null) return null;
-  const scope = asObject(value);
+  const scope = asRecord(value);
   if (!scope) {
     issues.add('scope', 'invalid_type', 'scope must be an object');
     return null;

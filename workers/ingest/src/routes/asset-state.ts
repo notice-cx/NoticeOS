@@ -10,6 +10,7 @@ import { authenticateOperator } from '../auth.js';
 import { readAssetState, writeAssetColumn } from '../asset-state.js';
 import { ASSET_ID_RE } from '../panel-source.js';
 import { json } from '../responses.js';
+import { readJsonBody } from './validate.js';
 
 export async function handleAssetState(request: Request, env: IngestEnv): Promise<Response> {
   if (!(await authenticateOperator(request, env.OPERATOR_TOKEN))) {
@@ -33,16 +34,12 @@ export async function handleAssetStateEdit(
     return json({ error: 'unauthorized' }, 401);
   }
 
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
+  const read = await readJsonBody(request);
+  if (read instanceof Response) return read;
 
   // A claim, not a check: `writeAssetColumn` validates the asset, the column and
   // the value before it touches the store.
-  const result = await writeAssetColumn(env, parsed, nowMs);
+  const result = await writeAssetColumn(env, read.value, nowMs);
 
   if (!result.ok) {
     if (result.error === 'expect_mismatch') {

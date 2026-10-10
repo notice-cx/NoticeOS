@@ -6,10 +6,6 @@
 
 import type { WorkspaceStore } from '@noticeos/postgres';
 
-/** The order sites are listed in, the Tower's and the collectors' alike
- * (`@noticeos/contract` site-order.ts). */
-export { SITE_ORDER } from '@noticeos/contract';
-
 /** Whether the store holds a site with this id, retired or not. */
 export async function assetKnown(store: WorkspaceStore, asset: string): Promise<boolean> {
   const rows = await store.read((tx) => tx.query(`SELECT 1 AS known FROM noticeos.assets WHERE asset_id = $1`, [asset]));

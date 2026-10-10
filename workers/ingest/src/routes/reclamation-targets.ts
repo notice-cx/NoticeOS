@@ -21,7 +21,8 @@ import {
   readOpenReclamationTargets,
 } from '../reclamation-targets.js';
 import { json } from '../responses.js';
-import { Issues, asObject, enumValue, optionalString, requiredString } from './validate.js';
+import { asRecord } from '../shared.js';
+import { Issues, enumValue, optionalString, readJsonObject, requiredString } from './validate.js';
 
 /** Enough for any campaign; a bound, not a quota. */
 export const RECLAMATION_TARGETS_MAX = 5_000;
@@ -45,7 +46,7 @@ function optionalInstant(issues: Issues, value: unknown, path: string): string |
 }
 
 function target(issues: Issues, value: unknown, path: string): ReclamationTargetInput | null {
-  const body = asObject(value);
+  const body = asRecord(value);
   if (!body) {
     issues.add(path, 'invalid_type', `${path} must be an object`);
     return null;
@@ -83,14 +84,8 @@ export async function handleReclamationTargets(request: Request, env: IngestEnv)
   if (!(await authenticateOperator(request, env.OPERATOR_TOKEN))) {
     return json({ error: 'unauthorized' }, 401);
   }
-  let parsed: unknown;
-  try {
-    parsed = await request.json();
-  } catch (err) {
-    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
-  }
-  const body = asObject(parsed);
-  if (!body) return json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
+  const body = await readJsonObject(request);
+  if (body instanceof Response) return body;
 
   const issues = new Issues();
   const asset = requiredString(issues, body.asset, 'asset', DOMAIN_MAX);

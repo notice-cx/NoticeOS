@@ -12,6 +12,8 @@ export interface Issue {
 /** Asset ids are domains or short slugs ('example.com', 'home-os'). */
 import { ASSET_ID_MAX } from '@noticeos/contract/configuration';
 import { fieldRefusal, type RegisterField } from '../../../../scripts/config-registers.mjs';
+import { json } from '../responses.js';
+import { asRecord } from '../shared.js';
 export { ASSET_ID_MAX } from '@noticeos/contract/configuration';
 export { SITE_ROW_FIELDS } from '../../../../scripts/config-registers.mjs';
 /** Tolerance for a caller's clock running ahead of ours; not a scheduling window. */
@@ -30,10 +32,20 @@ export class Issues {
   }
 }
 
-/** A JSON object body, or null when the body is anything else. */
-export function asObject(body: unknown): Record<string, unknown> | null {
-  if (body === null || typeof body !== 'object' || Array.isArray(body)) return null;
-  return body as Record<string, unknown>;
+/** The request's JSON body, or the 400 that refuses one that does not parse. */
+export async function readJsonBody(request: Request): Promise<{ value: unknown } | Response> {
+  try {
+    return { value: await request.json() };
+  } catch (err) {
+    return json({ error: 'bad_request', detail: `could not parse body: ${String(err)}` }, 400);
+  }
+}
+
+/** The request's JSON object body, or the 400 that refuses anything else. */
+export async function readJsonObject(request: Request): Promise<Record<string, unknown> | Response> {
+  const read = await readJsonBody(request);
+  if (read instanceof Response) return read;
+  return asRecord(read.value) ?? json({ error: 'bad_request', detail: 'body must be a JSON object' }, 400);
 }
 
 export function requiredString(

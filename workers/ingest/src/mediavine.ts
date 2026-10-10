@@ -8,6 +8,7 @@ import { applyConfigOps, getConfigDocument, forgetConfigCache } from './config-s
 import { credentialSummary, deleteCredential, putCredential, recordCredentialOutcome, saveMediavineSession } from './credentials.js';
 import { javascriptInstant } from '@noticeos/postgres';
 import { MEDIAVINE_LEASE, mediavineClient, mediavineMessage, withMediavineLease, type MediavineOptions } from './mediavine-connection.js';
+import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
 
 interface Lane { mediavineSiteId?: string; mediavineEnabled?: boolean; status?: string; revenueHolidayCalendar?: MediavineSettings['holidayCalendar'] }
 interface Register { assets?: Record<string, Record<string, Lane>> }
@@ -102,8 +103,6 @@ export async function putMediavineCredential(env: IngestEnv, input: PutCredentia
     }, {}, true);
   } catch (error) { return { ok: false, error: 'store_unavailable', message: mediavineMessage(error) }; }
 }
-/** A person is watching the panel's Checking. */
-const CONNECT_TIMEOUT_MS = 10_000;
 
 /**
  * The connect panel's press for Mediavine: sign in with the typed login and
@@ -128,7 +127,7 @@ export async function connectMediavine(
         session: null,
         saveSession: async (value) => { session = value; },
         fetchImpl: ((input: RequestInfo | URL, init?: RequestInit) =>
-          transport(input, { ...init, signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS) })) as typeof fetch,
+          transport(input, { ...init, signal: AbortSignal.timeout(WATCHED_REQUEST_TIMEOUT_MS) })) as typeof fetch,
         ...(options.nowMs === undefined ? {} : { now: () => now }),
       });
       let sites: Site[];

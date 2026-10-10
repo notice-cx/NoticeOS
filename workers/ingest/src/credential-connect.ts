@@ -23,9 +23,8 @@ import { observeIntegration, tryHealthConnection } from './integration-health-co
 import { PROBE_CAPABILITY } from './probe-capability.js';
 import { SignalError } from './signal-store.js';
 import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
+import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
 
-/** A person is watching a spinner. */
-const CONNECT_TIMEOUT_MS = 10_000;
 
 export interface ConnectOptions {
   fetchImpl?: typeof fetch;
@@ -185,7 +184,7 @@ async function askDataForSeo(fields: Record<string, string>, fetchImpl: typeof f
     return { verdict: 'refused' };
   }
   try {
-    const read = await readDataForSeoAccount(authorization, fetchImpl, CONNECT_TIMEOUT_MS);
+    const read = await readDataForSeoAccount(authorization, fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
     if (read.ok) return { verdict: 'accepted', facts: { creditUsd: read.usd } };
     if (read.reason === 'unauthorized' || read.reason === 'refused') return { verdict: 'refused' };
     return read.status === 403 ? { verdict: 'refused' } : { verdict: 'unreachable' };
@@ -202,7 +201,7 @@ async function askDataForSeo(fields: Record<string, string>, fetchImpl: typeof f
 async function askPosthog(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
   const key = fields[POSTHOG_ACCOUNT_KEY_SLOT];
   if (!key) return { verdict: 'refused' };
-  const read = await readPosthogAccount(key, fetchImpl, CONNECT_TIMEOUT_MS);
+  const read = await readPosthogAccount(key, fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
   if (read.verdict !== 'accepted') return { verdict: read.verdict };
   return { verdict: 'accepted', facts: { projects: read.projects.length, region: read.region } };
 }
@@ -210,5 +209,5 @@ async function askPosthog(fields: Record<string, string>, fetchImpl: typeof fetc
 /** Bound Bing's call by the panel's patience rather than the collector's. */
 function withTimeout(fetchImpl: typeof fetch): typeof fetch {
   return ((input: RequestInfo | URL, init?: RequestInit) =>
-    fetchImpl(input, { ...init, signal: AbortSignal.timeout(CONNECT_TIMEOUT_MS) })) as typeof fetch;
+    fetchImpl(input, { ...init, signal: AbortSignal.timeout(WATCHED_REQUEST_TIMEOUT_MS) })) as typeof fetch;
 }

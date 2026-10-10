@@ -37,14 +37,12 @@ import {
   type GoogleAuth,
   type GoogleOAuthGrant,
   GOOGLE_SCOPES,
-  arrayField,
-  asRecord,
   base64UrlBytes,
   decodeBase64Url,
   providerError,
   responseJson,
-  stringField,
 } from './google-auth.js';
+import { arrayField, asRecord, stringField } from './shared.js';
 
 const REQUEST_TIMEOUT_MS = 20_000;
 
