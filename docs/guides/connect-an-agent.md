@@ -20,10 +20,10 @@ You need:
 The Tower serves MCP at `/api/mcp` on its own address, the one you open the Tower at. Register that address with the agent. `X-NoticeOS-Actor` names the agent: the board records its changes and claims under that name, and without it they are recorded as `agent`.
 
 ```sh
-claude mcp add --transport http noticeos http://127.0.0.1:5173/api/mcp --header 'X-NoticeOS-Actor: claude'
+claude mcp add --scope user --transport http noticeos http://127.0.0.1:5173/api/mcp --header 'X-NoticeOS-Actor: claude'
 ```
 
-Use your Tower's port in place of `5173`. Run at a terminal, `pnpm os:mcp`, or `~/noticeos/noticeos mcp` without a checkout, prints this line for your installation.
+You need not look up the port: run at a terminal, `pnpm os:mcp`, or `~/noticeos/noticeos mcp` without a checkout, prints this line with your installation's, and says why when it prints another. `--scope user` registers it once for every repository on this machine, so an agent in a site's own checkout sees its tasks too.
 
 Any other MCP client that speaks HTTP takes the same address and header, for example in a project's `.mcp.json`:
 
@@ -36,8 +36,8 @@ Any other MCP client that speaks HTTP takes the same address and header, for exa
 The Tower answers every tool only while it listens on this machine alone, the default. An installation that opens it to its network (`NOTICEOS_TOWER_BIND` in `installation.env`) keeps changes on this machine: there, `/api/mcp` answers only the site reports, and an agent here runs the server itself, over its standard input and output:
 
 ```sh
-claude mcp add noticeos -- node /absolute/noticeos-checkout/scripts/stack-control.mjs mcp --actor claude
-claude mcp add noticeos -- ~/noticeos/noticeos mcp --actor claude    # installed with Docker alone
+claude mcp add --scope user noticeos -- node /absolute/noticeos-checkout/scripts/stack-control.mjs mcp --actor claude
+claude mcp add --scope user noticeos -- ~/noticeos/noticeos mcp --actor claude    # installed with Docker alone
 ```
 
 ## What the agent can do

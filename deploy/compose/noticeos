@@ -102,16 +102,18 @@ case $verb in
       printf '%s\n' 'noticeos mcp is the MCP server an agent starts itself, so at a terminal it does not run.'
       bind=$(sed -n 's/^NOTICEOS_TOWER_BIND="\(.*\)"$/\1/p' "$dir/installation.env")
       port=$(sed -n 's/^NOTICEOS_TOWER_PORT="\([0-9]*\)"$/\1/p' "$dir/installation.env")
+      why='Where the Tower listens is unknown (installation.env names no NOTICEOS_TOWER_PORT), so connect this command instead'
       case ${bind:-127.0.0.1} in
         127.*) if [ -n "$port" ]; then
-          printf '%s\n' 'The Tower serves the same tools on this machine:' \
-            "  claude mcp add --transport http noticeos http://${bind:-127.0.0.1}:$port/api/mcp --header 'X-NoticeOS-Actor: $actor'"
+          printf '%s\n' 'The Tower serves the same tools on this machine; connect it for every repository:' \
+            "  claude mcp add --scope user --transport http noticeos http://${bind:-127.0.0.1}:$port/api/mcp --header 'X-NoticeOS-Actor: $actor'"
           exit 0
         fi ;;
+        *) why="The Tower listens on $bind, beyond this machine, so its own MCP address serves only site reports; connect this command instead" ;;
       esac
       command=$dir/noticeos
       case $command in *[!A-Za-z0-9_./-]*) command="'$command'" ;; esac
-      printf '%s\n' 'Connect it to an agent:' "  claude mcp add noticeos -- $command mcp --actor $actor"
+      printf '%s\n' "$why:" "  claude mcp add --scope user noticeos -- $command mcp --actor $actor"
       exit 0
     fi
     app=$(docker ps --quiet --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=noticeos)
