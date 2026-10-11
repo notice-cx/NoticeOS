@@ -201,10 +201,12 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
       '--file',path.join(context.directory,'deploy/compose/Dockerfile'), '--iidfile',iid,
       '--label',`${REVISION_LABEL}=${source.commit}`, '--label',`${SCHEMA_LABEL}=${source.schema}`,
       '--label',`${SOURCE_LABEL}=${manifest}`, '--tag',`noticeos-local:${source.commit}`,context.directory],
-    { env: ownEnv(env), timeoutMs: 600_000 }); }
+    // The build's own output is the only account of a failure. It is safe to
+    // show: the context holds the public allowlist only, and no build arguments.
+    { env: ownEnv(env), timeoutMs: 600_000, inherit: true }); }
     catch { retain = true; fail(`Application image build did not terminate reliably. Existing services were untouched. Build context retained at ${parent}.`); }
     retain = result.timedOut === true;
-    if (result.code !== 0) fail(`Application image build failed. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
+    if (result.code !== 0) fail(`Application image build failed; Docker's output above says why. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
     const image = await imageMetadata(run, selector, regular(iid,256).toString().trim(), env);
     if (image.revision !== source.commit || image.schema !== source.schema || image.source !== manifest) fail('Prepared image metadata does not match its committed source.');
     return { commit: source.commit, image: image.id, source: manifest, schemaHash: source.schema, platform };
@@ -233,10 +235,10 @@ export async function buildDevelopmentImage({ root = ROOT, dockerHost, platform,
     try { result = await run('docker', ['--host',selector.dockerHost,'build','--platform',platform,
       '--file',path.join(context.directory,'deploy/compose/Dockerfile'), '--iidfile',iid,
       '--label',`${IMAGE_KIND_LABEL}=development-dependencies`, '--tag','noticeos-dev:latest',context.directory],
-    { env: ownEnv(env), timeoutMs: 600_000 }); }
+    { env: ownEnv(env), timeoutMs: 600_000, inherit: true }); }
     catch { retain = true; fail(`Development image build did not terminate reliably. Existing services were untouched. Build context retained at ${parent}.`); }
     retain = result.timedOut === true;
-    if (result.code !== 0) fail(`Development image build failed. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
+    if (result.code !== 0) fail(`Development image build failed; Docker's output above says why. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
     const image = await imageMetadata(run, selector, regular(iid,256).toString().trim(), env);
     return { image: image.id, platform: image.platform };
   } finally { if (!retain) fs.rmSync(parent, { recursive: true, force: true }); }

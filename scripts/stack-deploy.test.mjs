@@ -4,7 +4,7 @@ import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { buildApplicationImage, prepareDeployment, applyDeployment, readDeploymentPlan, main } from './stack-deploy.mjs';
+import { buildApplicationImage, buildDevelopmentImage, prepareDeployment, applyDeployment, readDeploymentPlan, main } from './stack-deploy.mjs';
 import { runCommand } from './run-command.mjs';
 
 const OLD = 'sha256:' + 'b'.repeat(64);
@@ -44,8 +44,10 @@ function fixture(t) {
     const step=args.slice(2); calls.push(step);
     if(step[0]==='build') {
       const context=step.at(-1); contexts.push(path.dirname(context));
+      assert.equal(options.inherit,true,'a build shows Docker\'s own output');
       if(control.buildThrows) throw new Error('PRIVATE-SENTINEL');
       if(control.buildTimeout) return {code:124,timedOut:true,stdout:''};
+      if(control.buildFails) return {code:1,stdout:''};
       assert.equal(fs.existsSync(path.join(context,'installation')),false); assert.equal(fs.existsSync(path.join(context,'.beads')),false);
       const version=JSON.parse(fs.readFileSync(path.join(context,'container-source.json'),'utf8')).version;
       assert.equal(version.commit,git('rev-parse','HEAD'));assert.equal(version.modified,false);
@@ -221,4 +223,15 @@ test('an update refused for an unhealthy service names it, its logs, and for the
   assert.ok(!f.calls.some(call=>call[0]==='build'));assert.equal(f.writes().length,0);
   f.containers.noticeos.State={Status:'running',Health:{Status:'healthy'}};f.containers.dolt.State={Status:'exited',Health:{Status:''}};
   await assert.rejects(f.prepare(),(error)=>/^dolt is exited; an update needs/.test(error.message)&&!/The database/.test(error.message));
+});
+test('a development image is built from the checkout as it is, showing Docker\'s output, with no source provenance',async t=>{
+  const f=fixture(t);
+  const built=await buildDevelopmentImage({...f.options,dockerHost:f.selector.dockerHost,platform:'linux/arm64'});
+  assert.deepEqual(built,{image:NEW,platform:'linux/arm64'});
+  const build=f.calls.find(call=>call[0]==='build');
+  assert.ok(build.includes('cx.noticeos.image-kind=development-dependencies'));
+  assert.ok(!build.some(word=>word.startsWith('org.opencontainers.image.revision=')),'never mistaken for an os:update image');
+  assert.ok(f.contexts.every(dir=>!fs.existsSync(dir)));
+  f.control.buildFails=true;
+  await assert.rejects(buildDevelopmentImage({...f.options,dockerHost:f.selector.dockerHost,platform:'linux/arm64'}),/Docker's output above says why/);
 });
