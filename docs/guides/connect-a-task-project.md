@@ -83,7 +83,9 @@ This link is what lets the product read the checkout's tasks, run local task act
 
 ## Work from the checkout
 
-People and agents use `bd` in the project checkout. On a source installation, point it at the installation's credential file first:
+Agents on this machine reach the project's tasks through the installation's MCP server, with no task tool of their own; see [Connect an agent](/guides/connect-an-agent). A person without `bd` installed runs it inside the app with `pnpm os:bd -- <command>`.
+
+People and agents can also use `bd` in the project checkout. On a source installation, point it at the installation's credential file first:
 
 ```sh
 export BEADS_CREDENTIALS_FILE=/absolute/noticeos-installation/dolt/credentials
@@ -125,6 +127,7 @@ Never start a second task database server, use `br`, or run `bd dolt push` or `b
 
 ## Next steps
 
+- [Connect an agent](/guides/connect-an-agent)
 - [Connect data sources](/guides/connect-data-sources)
 - [Tasks](/tower/tasks)
 - [Tasks and agents](/concepts/tasks-and-agents)
