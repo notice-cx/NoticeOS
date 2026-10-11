@@ -47,6 +47,8 @@ test('an agent registers, its person approves it once, and its token reaches eac
   try {
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
+    // pool.end() resolves before its sockets close, so stopping Postgres right after can still reach a closing client.
+    admin.on('error', () => undefined);
     // 0014 is exactly what the maintained generator builds for these plugins.
     const before = path.join(root, 'before'); mkdirSync(before);
     for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !name.startsWith('0014_'))) {
@@ -76,6 +78,7 @@ test('an agent registers, its person approves it once, and its token reaches eac
 
     // A person with a session, operator of one workspace and viewer of another.
     enginePool = new Pool({ connectionString: url.href, max: 1 });
+    enginePool.on('error', () => undefined);
     const fixture = betterAuth({
       database: kyselyAdapter(new Kysely({ dialect: new PostgresDialect({ pool: enginePool }) }).withSchema('noticeos_identity'), { type: 'postgres', transaction: true }),
       baseURL: origin, trustedOrigins: [origin], secret: sessionSecret, telemetry: { enabled: false }, logger: { disabled: true },
