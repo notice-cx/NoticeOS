@@ -9,4 +9,5 @@ volumes:
     name: ${NOTICEOS_DOLT_VOLUME:?Name the task data volume}
 networks:
   installation:
+    external: false
     name: ${NOTICEOS_NETWORK:?Name the installation network}

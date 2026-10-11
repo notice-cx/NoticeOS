@@ -10,4 +10,5 @@ volumes:
     name: ${NOTICEOS_POSTGRES_VOLUME:?Name the Postgres data volume}
 networks:
   installation:
+    external: false
     name: ${NOTICEOS_NETWORK:?Name the installation network}
