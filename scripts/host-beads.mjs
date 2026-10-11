@@ -10,6 +10,11 @@ import { runCommand } from './run-command.mjs';
 import { readDoltProfile, readDoltCredentials, isDoltProjectName } from './dolt-profile.mjs';
 
 const refuse = () => { throw new Error('Bundled task client refused its declaration or resources.'); };
+/** A resource the client needs is missing; unlike a refused declaration, the message says which. */
+class Unavailable extends Error {}
+/** The declaration names the stack's project through one of its networks: the layout's, or a legacy stack's default. */
+const NETWORK = /^(.+)_(?:installation|default)$/u;
+const declaredProject = network => typeof network === 'string' ? NETWORK.exec(network)?.[1] ?? null : null;
 const absolute = value => typeof value === 'string' && path.isAbsolute(value) && !/[\0\r\n,]/u.test(value);
 const actorName = value => typeof value === 'string' && value.trim().length > 0 && value.length <= 128 && !/[\0\r\n]/u.test(value);
 const INPUT_LIMIT = 1024 * 1024;
@@ -226,7 +231,7 @@ export function readHostBeadsPlan(file) {
   try {
     const input = JSON.parse(privateFile(file));
     if (input.format !== 'noticeos-host-beads-v1' || !/^sha256:[0-9a-f]{64}$/u.test(input.image ?? '') ||
-      !(typeof input.network === 'string' && input.network.endsWith('_default') && isDoltProjectName(input.network.slice(0, -'_default'.length))) || !absolute(input.clientProfile) ||
+      !isDoltProjectName(declaredProject(input.network)) || !absolute(input.clientProfile) ||
       !actorName(input.fallbackActor) ||
       !Array.isArray(input.spokes) || !input.spokes.length || input.spokes.length > 64 || input.spokes.some(spoke => !absolute(spoke)) ||
       new Set(input.spokes).size !== input.spokes.length) refuse();
@@ -234,7 +239,7 @@ export function readHostBeadsPlan(file) {
     const client = readDeclaredTaskClient(input.clientProfile);
     privateFile(client.credentialsFile); directory(client.clientHome);
     if (client.host !== 'dolt' || client.port !== 3306 || client.user !== 'noticeos') refuse();
-    return { format: input.format, image: input.image, network: input.network, client, spokes: [...input.spokes], fallbackActor: input.fallbackActor };
+    return { format: input.format, image: input.image, network: input.network, project: declaredProject(input.network), client, spokes: [...input.spokes], fallbackActor: input.fallbackActor };
   } catch { refuse(); }
 }
 
@@ -289,6 +294,26 @@ export function hostBeadsArguments(plan, cwd, args, { actor = plan.fallbackActor
     '--entrypoint', '/usr/local/bin/bd', plan.image, ...args];
 }
 
+/**
+ * The network the project's running task server is on, asked of Docker each
+ * time: a stack moved into the installation layout keeps its project but
+ * moves Dolt from <project>_default to <project>_installation, and a
+ * declaration written before the move still names the old one.
+ */
+export async function taskNetwork(run, project, { cwd, env }) {
+  const listed = await run('docker', ['ps', '--quiet', '--filter', `label=com.docker.compose.project=${project}`,
+    '--filter', 'label=com.docker.compose.service=dolt'], { cwd, env, timeoutMs: 30_000 });
+  if (listed.code !== 0) throw new Unavailable(`Bundled task client could not reach Docker at ${env.DOCKER_HOST}. Start Docker; a sandboxed shell cannot reach it, so run bd outside the sandbox.`);
+  const ids = listed.stdout.split('\n').map(line => line.trim()).filter(Boolean);
+  if (ids.length !== 1 || !/^[0-9a-f]{12,64}$/u.test(ids[0])) throw new Unavailable(`Bundled task client found no running task server in the ${project} stack; pnpm os:status shows it.`);
+  const inspected = await run('docker', ['inspect', '--format', '{{json .NetworkSettings.Networks}}', ids[0]], { cwd, env, timeoutMs: 30_000 });
+  let networks = [];
+  try { networks = inspected.code === 0 ? Object.keys(JSON.parse(inspected.stdout)) : []; } catch { /* reported below */ }
+  const network = [`${project}_installation`, `${project}_default`].find(name => networks.includes(name));
+  if (!network) throw new Unavailable(`Bundled task client found the ${project} task server on no network of its stack; pnpm os:status shows it.`);
+  return network;
+}
+
 export async function runHostBeads(file, args, { cwd = process.cwd(), env = process.env, run = runCommand, stdin = process.stdin } = {}) {
   const plan = readHostBeadsPlan(file);
   const selectedSpoke = selectHostBeadsSpoke(plan, cwd, args); cwd = selectedSpoke.cwd; args = selectedSpoke.args;
@@ -300,15 +325,14 @@ export async function runHostBeads(file, args, { cwd = process.cwd(), env = proc
   if (lint.lint && lint.json && !lint.help) return { code: 1, stdout: '',
     stderr: 'Task lint JSON does not report checked tasks. Use bd lint <id> without --json.\n' };
   const input = await hostBeadsInput(args, { cwd, stdin });
-  const command = hostBeadsArguments(plan, cwd, input.args, { actor: env.BEADS_ACTOR ?? plan.fallbackActor });
-  if (input.stdin !== null) command.splice(1, 0, '-i');
   const selected = Object.fromEntries(['PATH', 'HOME', 'TMPDIR', 'LANG', 'DOCKER_HOST', 'DOCKER_CONTEXT', 'DOCKER_CONFIG']
     .filter(key => env[key] !== undefined).map(key => [key, env[key]]));
   const endpoint = await localDockerEndpoint(run, { env: selected, cwd });
   if (!endpoint) refuse();
   const frozen = { ...selected, DOCKER_HOST: endpoint }; delete frozen.DOCKER_CONTEXT;
-  const network = await run('docker', ['network', 'inspect', plan.network, '--format', '{{.Name}}'], { cwd, env: frozen, timeoutMs: 30_000 });
-  if (network.code !== 0 || network.stdout.trim() !== plan.network) refuse();
+  const network = await taskNetwork(run, plan.project, { cwd, env: frozen });
+  const command = hostBeadsArguments({ ...plan, network }, cwd, input.args, { actor: env.BEADS_ACTOR ?? plan.fallbackActor });
+  if (input.stdin !== null) command.splice(1, 0, '-i');
   const result = await run('docker', command, { cwd, env: frozen, timeoutMs: 300_000, ...(input.stdin !== null ? { stdin: input.stdin } : {}) });
   const password = privateFile(plan.client.credentialsFile).split('\n').find(line => line.startsWith('password=')).slice('password='.length);
   const output = { ...result, stdout: (result.stdout ?? '').replaceAll(password, '[redacted]'), stderr: (result.stderr ?? '').replaceAll(password, '[redacted]') };
@@ -343,12 +367,12 @@ export function prepareHostBeads(file) {
     const clientProfile = path.join(input.directory, 'client.json');
     fs.writeFileSync(clientProfile, JSON.stringify({ host: 'dolt', port: 3306, user: 'noticeos', credentialsFile, clientHome }) + '\n', { mode: 0o600, flag: 'wx' });
     const plan = path.join(input.directory, 'plan.json');
-    fs.writeFileSync(plan, JSON.stringify({ format: 'noticeos-host-beads-v1', image: input.image, network: `${profile.project}_default`, clientProfile, spokes: input.spokes, fallbackActor: input.fallbackActor }) + '\n', { mode: 0o600, flag: 'wx' });
+    fs.writeFileSync(plan, JSON.stringify({ format: 'noticeos-host-beads-v1', image: input.image, network: `${profile.project}_installation`, clientProfile, spokes: input.spokes, fallbackActor: input.fallbackActor }) + '\n', { mode: 0o600, flag: 'wx' });
     const quote = value => "'" + value.replaceAll("'", "'\\''") + "'";
     const wrapper = path.join(input.directory, 'bd');
     const script = fileURLToPath(import.meta.url);
     fs.writeFileSync(wrapper, `#!/bin/sh\nexec ${quote(fs.realpathSync(process.execPath))} ${quote(script)} --plan ${quote(plan)} -- "$@"\n`, { mode: 0o700, flag: 'wx' });
-    return { format: 'noticeos-host-beads-v1', wrapper, plan, image: input.image, network: `${profile.project}_default`, hostEntrypointChanged: false };
+    return { format: 'noticeos-host-beads-v1', wrapper, plan, image: input.image, network: `${profile.project}_installation`, hostEntrypointChanged: false };
   } catch { refuse(); }
 }
 
@@ -361,7 +385,10 @@ export async function main(argv = process.argv.slice(2), options = {}) {
     if (argv.length < 4 || argv[0] !== '--plan' || argv[2] !== '--') refuse();
     const result = await runHostBeads(argv[1], argv.slice(3), options);
     stdout.write(result.stdout ?? ''); stderr.write(result.stderr ?? ''); return result.code;
-  } catch { stderr.write('Bundled task client refused. Use its protected declaration from an allowed project.\n'); return 1; }
+  } catch (error) {
+    stderr.write(error instanceof Unavailable ? `${error.message}\n` : 'Bundled task client refused. Use its protected declaration from an allowed project.\n');
+    return 1;
+  }
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

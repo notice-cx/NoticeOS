@@ -42,7 +42,7 @@ It is **not** a public hosted service. A standalone installation has no user log
 
 ## What you get today
 
-- A **standalone installation** from source, with its own Postgres database and its own task database, started in one command. See [Install from source](/start/install-from-source).
+- A **standalone installation**, with its own Postgres database and its own task database, set up with one Docker command or from source. See [Install with Docker](/start/install-with-docker) and [Install from source](/start/install-from-source).
 - An **application container** for an installation you have already prepared. See [Run with Docker](/start/run-with-docker).
 - A **public demo package** with synthetic sites and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
@@ -56,6 +56,6 @@ It is **not** a public hosted service. A standalone installation has no user log
 
 ## Where to go next
 
-The first useful view is a site's Overview after one data source is connected. [Install in five minutes](/start/quickstart) takes you there; [Install from source](/start/install-from-source) explains what the start command creates.
+The first useful view is a site's Overview after one data source is connected. [Install in five minutes](/start/quickstart) takes you there; [Install with Docker](/start/install-with-docker) explains what its one command creates.
 
 For the design behind all of this, read the architecture note in [doc 01, Architecture](../01-architecture.md).

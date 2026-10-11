@@ -4,17 +4,17 @@ import { actionArgs, main, readSelector, validateSelector, parseServices, stackC
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres','dolt',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
-function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40), development=false } = {}) {
+function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revision = null, main = 'a'.repeat(40), development=false, at = selector } = {}) {
   const calls = []; let inspections = 0; let output = '';
   const run = async (command, args, options) => {
     assert.ok(options.timeoutMs <= 130000 || ['logs','exec'].includes(args[9]));
     if (command === 'git') return { code:0, stdout:main };
     assert.equal(command, 'docker');
     if (args[2] === 'inspect') {
-      assert.deepEqual(args, ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',inventory[0].ID]);
-      return { code:0, stdout:JSON.stringify({ 'com.docker.compose.project':selector.project,'com.docker.compose.service':'noticeos','org.opencontainers.image.revision':revision,...(development?{'cx.noticeos.runtime':'development','cx.noticeos.checkout':'/fixture/source'}:{}) }) };
+      assert.deepEqual(args, ['--host',at.dockerHost,'inspect','--format','{{json .Config.Labels}}',inventory[0].ID]);
+      return { code:0, stdout:JSON.stringify({ 'com.docker.compose.project':at.project,'com.docker.compose.service':'noticeos','org.opencontainers.image.revision':revision,...(development?{'cx.noticeos.runtime':'development','cx.noticeos.checkout':'/fixture/source'}:{}) }) };
     }
-    assert.deepEqual(args.slice(0, 9), ['--host',selector.dockerHost,'compose','--project-name',selector.project,'-f',selector.files[0],'--env-file',selector.envFile]);
+    assert.deepEqual(args.slice(0, 9), ['--host',at.dockerHost,'compose','--project-name',at.project,'-f',at.files[0],'--env-file',at.envFile]);
     assert.equal(options.env.DO_NOT_FORWARD, undefined);
     const step = args.slice(9); calls.push(step);
     if (['logs','exec'].includes(step[0])) assert.equal(options.inherit, true, 'logs and jobs use the terminal');
@@ -46,12 +46,28 @@ test('status accepts NDJSON and prints only sanitized service state', async () =
   assert.equal(unknown.get('noticeos').state, 'unknown'); assert.equal(unknown.get('noticeos').health, null);
   assert.match(own.output(), /app source: unknown/u);
 });
+test('status names the installation folder first, and a stack not yet in one folder by its settings file', async () => {
+  const folder = { ...selector, envFile: '/srv/one installation/installation.env' };
+  const own = fixture({ at: folder }); await stackControl('status', folder, own);
+  assert.equal(own.output().split('\n')[0], 'installation: /srv/one installation');
+  const legacy = fixture(); await stackControl('status', selector, legacy);
+  assert.equal(legacy.output().split('\n')[0], `installation: legacy, its settings in ${selector.envFile}; pnpm os:convert-legacy moves it into one folder`);
+});
 test('status distinguishes the deployed source from main without reporting an unknown image as current', async () => {
   for (const [revision,expected] of [['a'.repeat(40),'current'],['b'.repeat(40),'main differs'],['PRIVATE-SENTINEL','unknown']]) {
     const own=fixture({revision}); await stackControl('status',selector,own);
     assert.ok(own.output().includes(`update: ${expected}`));
     assert.ok(!own.output().includes('PRIVATE-SENTINEL'));
     assert.equal(own.writes().length,0);
+  }
+});
+test('from an installation\'s image, main is the newest published version, asked of the registry rather than git', async () => {
+  for (const [published, expected] of [['a'.repeat(40), 'current'], ['c'.repeat(40), 'main differs'], [null, 'unknown']]) {
+    const own = fixture({ revision: 'a'.repeat(40) });
+    const run = async (command, args, options) => command === 'git' ? assert.fail('git was asked') : own.run(command, args, options);
+    await stackControl('status', selector, { ...own, run, env: { NOTICEOS_CLI_IMAGE: 'ghcr.io/example/noticeos:main', NOTICEOS_DIR: '/fixture' }, published: async () => published });
+    assert.ok(own.output().includes(`main: ${published ?? 'unavailable'}\n`), own.output());
+    assert.ok(own.output().includes(`update: ${expected}`), own.output());
   }
 });
 test('development status reports mounted HEAD rather than the dependency image revision',async()=>{
@@ -97,9 +113,9 @@ test('help performs no configuration or Docker access and CLI failures remain re
   assert.equal(await main(['status','--config','/fixture/stack.json'], { out, err: out, io, run }), 1);
   assert.ok(!output.includes('PRIVATE-SENTINEL'));
 });
-test('status says whether the database has every migration in this checkout, in the check\'s own words', async () => {
+test('status says whether the database has every migration this code carries, in the check\'s own words', async () => {
   const current = fixture(); await stackControl('status', selector, current);
-  assert.match(current.output(), /database: has every migration in this checkout/u);
+  assert.match(current.output(), /database: has every migration this code carries/u);
   const behind = fixture(); await stackControl('status', selector, { ...behind, database: async () => ({ ok: false, line: 'it is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date' }) });
   assert.match(behind.output(), /database: it is 1 migration behind this code; pnpm os:migrate -- --apply/u);
 });

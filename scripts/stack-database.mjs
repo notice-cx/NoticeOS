@@ -97,7 +97,7 @@ export async function stackDatabaseCurrent(selector, { root, run = runCommand, e
   const applied = new Set(String(result.stdout ?? '').split('\n').map((line) => line.trim()).filter(Boolean).map(Number));
   const behind = codeMigrationVersions(path.join(root, 'db', 'postgres', 'migrations')).filter((version) => !applied.has(version));
   if (behind.length > 0) {
-    return { ok: false, line: `it is ${behind.length} migration${behind.length === 1 ? '' : 's'} behind this checkout; pnpm os:migrate -- --apply brings it up to date` };
+    return { ok: false, line: `it is ${behind.length} migration${behind.length === 1 ? '' : 's'} behind this code; pnpm os:migrate -- --apply brings it up to date` };
   }
   return { ok: true };
 }

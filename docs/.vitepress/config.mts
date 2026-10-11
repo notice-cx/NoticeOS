@@ -89,6 +89,7 @@ export default defineConfig({
         items: [
           { text: 'What NoticeOS is', link: '/start/what-is-noticeos' },
           { text: 'Install in five minutes', link: '/start/quickstart' },
+          { text: 'Install with Docker', link: '/start/install-with-docker' },
           { text: 'Install from source', link: '/start/install-from-source' },
           { text: 'Run with Docker', link: '/start/run-with-docker' },
           { text: 'Try the demo', link: '/start/try-the-demo' },

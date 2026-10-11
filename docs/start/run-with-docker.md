@@ -11,7 +11,9 @@ This page covers how an installation runs once it exists: its folder, the comman
 
 NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It **never** creates or migrates a database.
 
-The stack has one definition for every installation, `deploy/compose/stack.yaml` in the checkout. An installation is a folder that definition reads: [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:convert-legacy` moves a legacy one into it. Nobody writes a Compose file.
+The stack has one definition for every installation, `deploy/compose/stack.yaml`. An installation is a folder that definition reads: [one Docker command](/start/install-with-docker) or [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:convert-legacy` moves a legacy one into it. Nobody writes a Compose file.
+
+An installation set up with Docker alone has no checkout. Its folder keeps a copy of the definition, and its `noticeos` launcher runs each command: where this page says `pnpm os:apply -- --confirm apply`, run `~/noticeos/noticeos apply --confirm apply`.
 
 ## The installation folder
 
@@ -22,8 +24,11 @@ The stack has one definition for every installation, `deploy/compose/stack.yaml`
 | `spokes/` | Task repositories, mounted at `/spokes` |
 | `postgres-secrets/`, `dolt-secrets/` | The database logins |
 | `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
+| `noticeos` | Without a checkout: the launcher every command runs through |
+| `stack.json` | Without a checkout: the selector that points the commands at this folder |
+| `stack/` | Without a checkout: the stack definition, copied from the image the app runs |
 
-The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
+The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it. Without a checkout, the folder's `stack.json` does. `pnpm os:status` prints the folder on its first line.
 
 Three ports reach beyond the stack's network: the Tower's, and Postgres and the task database for the operator's tools. All three listen on `127.0.0.1`; only the Tower's can be [opened to your network](#open-the-tower-to-your-network). Provider credentials are connected in the Tower, not in files.
 
@@ -36,9 +41,9 @@ Three ports reach beyond the stack's network: the Tower's, and Postgres and the 
    pnpm os:apply
    ```
 
-   It lists each change (a port, a setting such as `TOWER_ALLOWED_HOSTS`, the app's user, a folder) and the services it recreates.
+   Without a checkout, run `~/noticeos/noticeos apply`. It lists each change (a port, a setting such as `TOWER_ALLOWED_HOSTS`, the app's user, a folder) and the services it recreates.
 
-3. Type `apply` to apply it. Without a terminal, run `pnpm os:apply -- --confirm apply`.
+3. Type `apply` to apply it. Without a terminal, run `pnpm os:apply -- --confirm apply` (`~/noticeos/noticeos apply --confirm apply`).
 
 Only the services whose settings changed are recreated: the databases first, with the app and backup worker stopped meanwhile, then the backup worker, then the app. Each waits for health. If one does not become healthy, the stack returns to the settings it last ran healthy with. `installation.env` keeps your edit, so you can fix it and apply again.
 
@@ -86,11 +91,21 @@ pnpm os:restart
 pnpm os:logs
 ```
 
+Without a checkout, run the same commands through the folder's launcher:
+
+```sh
+~/noticeos/noticeos status
+~/noticeos/noticeos restart
+~/noticeos/noticeos logs --lines 200
+```
+
 Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes. An edit to `installation.env` takes effect with [`pnpm os:apply`](#change-a-setting).
 
 Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure. [Daily operations](/operate/daily-operations) covers the rest.
 
 ## Update the app from main
+
+An installation without a checkout updates with `~/noticeos/noticeos update`, which moves the image and the stack definition together; see [Install with Docker](/start/install-with-docker#update-and-roll-back). The rest of this section is for a checkout.
 
 Committing to `main` changes source; it changes nothing running. `pnpm os:restart` restarts the same image. To run new code:
 

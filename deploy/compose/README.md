@@ -49,6 +49,51 @@ on live source is planned from the prepared stack `os:dev` recorded: it returns
 to that image for the move (`os:prod`'s step) and follows the checkout again
 afterwards (`os:dev`'s).
 
+## Install with Docker alone
+
+An installation needs no checkout, Node or pnpm:
+
+```sh
+docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
+```
+
+The image prints its launcher, [`noticeos`](noticeos) (`entrypoint.mjs launcher`),
+and `sh` runs it. `setup` takes `os:setup`'s options (`--dir`, `--offsite`,
+`--tower-port`, `--project`, `--without-backup`); `--image` and `--build`
+need a checkout. Afterwards the folder's own launcher runs every command:
+
+```sh
+~/noticeos/noticeos status    # status, logs, start, stop, restart, apply, backup, capacity, run-job, update, rollback, migrate
+```
+
+Each is its `pnpm os:*` twin with the same options and no `--`, run by
+[`scripts/noticeos-cli.mjs`](../../scripts/noticeos-cli.mjs) in a short-lived
+container that mounts only the Docker socket and the installation folder at
+its own path (setup also the offsite folder), and writes as the host user.
+`setup`, `update` and `migrate` run main's newest published image; the other
+commands run the image the app runs. `NOTICEOS_IMAGE` names another image for
+those three and `NOTICEOS_DOCKER_SOCKET` another socket. The image carries the
+Docker CLI and Compose for this; the app itself never reaches Docker.
+
+Setup from the image pins the app to that very image, tests host ports by
+asking Docker to publish them, and adds to the folder the launcher, its
+selector `stack.json` and `stack/`, a copy of the stack definition taken from
+the image. `migrate` reaches Postgres on the installation's network, and
+`status` reads `main:` as the newest published commit, asked of the registry.
+
+`noticeos update` ([`scripts/image-update.mjs`](../../scripts/image-update.mjs))
+moves the image and the definition copied out of it together, after you type
+`update` (`--confirm update` without a terminal). The new definition is staged
+in `stack.next/`; `stack/` becomes it, `stack.previous/` keeps the one before,
+and `NOTICEOS_APP_IMAGE` names the new image. Every service whose declaration
+changed is recreated as `os:apply` recreates it, under the same lock; a
+service that does not become healthy returns the definition, the image line
+and the services to the version before. It refuses an unapplied edit to
+`installation.env`, a service that is not healthy, migrations the database
+lacks (`noticeos migrate --apply` first), changed Postgres roles and an image
+without commit and schema labels. `noticeos rollback` returns to the version
+before, refused across a schema change.
+
 To build an image by hand, create the build context with the repository's explicit public source allowlist:
 
 ```sh
@@ -69,7 +114,7 @@ docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/
 
 | Variable | Value |
 |---|---|
-| `NOTICEOS_APP_IMAGE` | The local image ID setup or `os:convert-legacy` recorded; `os:update` pins later ones |
+| `NOTICEOS_APP_IMAGE` | The local image ID setup or `os:convert-legacy` recorded; `os:update` pins later ones, and `noticeos update` rewrites this line |
 | `NOTICEOS_STATE_DIR` | The installation folder's `state/` |
 | `NOTICEOS_SPOKES_DIR` | The folder holding the linked task repositories; `spokes/` unless the installation keeps them elsewhere |
 | `NOTICEOS_NETWORK` | The installation network, `<project>_installation`, which the project creates |
@@ -77,6 +122,13 @@ docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/
 | `NOTICEOS_TOWER_PORT` | The Tower's host port |
 | `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the private mounted files: the account that ran setup |
 | `TOWER_ALLOWED_HOSTS` | Additional hostnames for Tower, separated by commas or spaces |
+| `NOTICEOS_COMMANDS` | Only without a checkout: the launcher the commands run through, `${NOTICEOS_INSTALLATION}/noticeos` |
+
+[`compose.yaml`](compose.yaml) also hands the app the installation as the host
+sees it, `NOTICEOS_HOST_*`: the folder, the Tower's address and port, the
+database ports and the launcher. The Tower shows them read-only under
+**Settings** > **Installation**; an app recreated before they existed shows
+the apply command there instead.
 
 The state mount appears at `/state`. Settings exports and host task links live
 in `/state/installation`; bootstrap secrets use the existing
@@ -124,7 +176,7 @@ must be listed in `TOWER_ALLOWED_HOSTS`, because the app runs in a container and
 does not know the host's own name. Keep the hostname allowlist; never set it to
 allow every host.
 
-The app has no Docker socket. Vite's configuration cache uses an ephemeral
+The app has no Docker socket; only the launcher's short-lived containers do. Vite's configuration cache uses an ephemeral
 tmpfs; other runtime caches use the state mount. Optional development metadata
 and telemetry requests are disabled. The health check requires a fresh,
 supervised runner, an armed scheduler, and both internal health endpoints.
@@ -153,6 +205,9 @@ pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
 pnpm os:capacity     # the store's size and growth per table; -- --json
 ```
+
+Without a checkout, run each as `~/noticeos/noticeos <command>`, with the same
+options and no `--` ([above](#install-with-docker-alone)).
 
 Start, stop and restart never create containers, build or pull images, apply
 migrations or remove volumes. A failed step stops the sequence; read status
@@ -188,6 +243,9 @@ applies nothing. `pnpm os:migrate` reads the Postgres port the stack publishes
 from Compose, so a port moved this way needs no other edit.
 
 ## Update the app from main
+
+This section is for a checkout. An installation without one updates with
+`noticeos update` ([above](#install-with-docker-alone)).
 
 A production app runs a fixed image. Committing to `main` changes source;
 `pnpm os:restart` restarts the existing image. Neither activates new code.

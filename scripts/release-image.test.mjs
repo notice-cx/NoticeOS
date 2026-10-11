@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { RELEASE_REPOSITORY, mainImage, pullReleaseImage } from './stack-deploy.mjs';
+import { RELEASE_REPOSITORY } from './published-image.mjs';
+import { mainImage, pullReleaseImage } from './stack-deploy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const COMMIT = 'a'.repeat(40);
@@ -58,7 +59,7 @@ test('with nothing published it builds here and says why; --build never asks the
 
 test('the release workflow publishes to the repository the commands pull from, only after CI passes on main', () => {
   const workflow = readFileSync(path.join(ROOT, '.github/workflows/release-image.yml'), 'utf8');
-  assert.ok(!workflow.includes(RELEASE_REPOSITORY), 'the workflow reads the repository from scripts/stack-deploy.mjs rather than restating it');
+  assert.ok(!workflow.includes(RELEASE_REPOSITORY), 'the workflow reads the repository from scripts/published-image.mjs rather than restating it');
   assert.match(workflow, /RELEASE_REPOSITORY/u);
   assert.match(workflow, /workflows: \[CI\]/u);
   assert.match(workflow, /conclusion == 'success'/u);

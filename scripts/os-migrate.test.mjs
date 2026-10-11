@@ -35,14 +35,14 @@ function stack(t, { ownerUrl = OWNER_URL, port = null } = {}) {
 }
 
 /** main() with the engine replaced by a recorder. */
-async function runMigrate(argv, { interactive = false, typed = '', code = 0, docker } = {}) {
+async function runMigrate(argv, { interactive = false, typed = '', code = 0, docker, env = {} } = {}) {
   const calls = [];
   const out = [];
   const err = [];
   const result = await main(argv, {
     out: { write: (text) => out.push(text) },
     err: { write: (text) => err.push(text) },
-    env: { PATH: process.env.PATH },
+    env: { PATH: process.env.PATH, ...env },
     interactive,
     question: async () => typed,
     ...(docker ? { docker } : {}),
@@ -86,6 +86,12 @@ test('the owner connects on the port the stack publishes now, not the one owner.
   assert.deepEqual(atPublishedPort(remote, 5440), remote);
   const local = { url: OWNER_URL, database: 'noticeos', where: 'x' };
   assert.deepEqual(atPublishedPort(local, null), local);
+});
+
+test('run from an installation\'s image, the owner reaches Postgres on the installation\'s network', async (t) => {
+  const { selector, docker } = stack(t, { port: 5440 });
+  const { calls } = await runMigrate(['--config', selector], { docker, env: { NOTICEOS_CLI_IMAGE: 'ghcr.io/example/noticeos:main', NOTICEOS_DIR: path.dirname(selector) } });
+  assert.equal(calls[0].url, OWNER_URL.replace('@127.0.0.1:5432/', '@postgres:5432/'));
 });
 
 test('at a terminal, --apply shows the plan, asks for the name once, and applies with what was typed', async (t) => {
@@ -136,7 +142,7 @@ test('the stack\'s database is checked over its own container socket, read-only,
   assert.deepEqual(asked[0], ['exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'noticeos', '-qAtX', '-v', 'ON_ERROR_STOP=1',
     '-c', 'SET default_transaction_read_only = on', '-c', 'SELECT version FROM noticeos_migrations.applied ORDER BY version']);
   assert.deepEqual(await stackDatabaseCurrent(declared, { root, run: answering({ code: 0, stdout: '1\n' }) }),
-    { ok: false, line: 'it is 2 migrations behind this checkout; pnpm os:migrate -- --apply brings it up to date' });
+    { ok: false, line: 'it is 2 migrations behind this code; pnpm os:migrate -- --apply brings it up to date' });
   const down = await stackDatabaseCurrent(declared, { root, run: answering({ code: 2, stdout: '', stderr: 'PRIVATE' }) });
   assert.deepEqual(down, { ok: false, line: 'the stack\'s Postgres did not answer which migrations it has; pnpm os:logs -- postgres shows why' });
   const thrown = await stackDatabaseCurrent(declared, { root, run: async () => { throw new Error('PRIVATE'); } });

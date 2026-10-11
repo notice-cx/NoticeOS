@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { installationChoices, installationPaths, installationSelector, readInstallationEnv, renderInstallationEnv, stackFiles } from './installation-layout.mjs';
+import { copyStack, installationChoices, installationPaths, installationSelector, readInstallationEnv, renderInstallationEnv, stackFiles, STACK_EXECUTABLES, STACK_SOURCES } from './installation-layout.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGE = `sha256:${'a'.repeat(64)}`;
@@ -60,6 +60,24 @@ test('a hand-edited file that is not in the written form is refused by name', (t
   assert.equal(readInstallationEnv(tempFile(t, older)).NOTICEOS_TOWER_BIND, undefined);
 });
 
+test('an installation that runs from its image says how its commands run; one from a checkout does not', (t) => {
+  const image = readInstallationEnv(tempFile(t, renderInstallationEnv({ ...base, launcher: true })));
+  assert.equal(image.NOTICEOS_COMMANDS, '/srv/one installation/noticeos');
+  assert.equal(readInstallationEnv(tempFile(t, renderInstallationEnv(base))).NOTICEOS_COMMANDS, undefined);
+});
+
+test('the stack sources Postgres runs as programs are exactly the executable ones in git, and the copy keeps that', (t) => {
+  const listed = spawnSync('git', ['ls-files', '-s', '--', ...STACK_SOURCES], { cwd: ROOT, encoding: 'utf8' });
+  assert.equal(listed.status, 0, listed.stderr);
+  const rows = listed.stdout.trim().split('\n').map((line) => [line.split(/\s+/u)[0], line.split('\t')[1]]);
+  assert.deepEqual(rows.map(([, file]) => file).sort(), [...STACK_SOURCES].sort(), 'every stack source is committed');
+  assert.deepEqual(rows.filter(([mode]) => mode === '100755').map(([, file]) => file), [...STACK_EXECUTABLES]);
+  const target = mkdtempSync(path.join(os.tmpdir(), 'nos-stack-'));
+  t.after(() => rmSync(target, { recursive: true, force: true }));
+  copyStack(ROOT, path.join(target, 'stack'));
+  for (const file of STACK_SOURCES) assert.equal(statSync(path.join(target, 'stack', file)).mode & 0o111 ? 'x' : '-', STACK_EXECUTABLES.includes(file) ? 'x' : '-', file);
+});
+
 test('the selector names the stack definition, the backup layer when there is one, and the folder\'s file', () => {
   const selector = installationSelector({ dir: '/srv/x', project: 'noticeos', dockerHost: 'unix:///var/run/docker.sock', root: ROOT });
   assert.deepEqual(selector.files, stackFiles(ROOT));
@@ -91,4 +109,22 @@ test('Compose resolves the stack from installation.env alone: one network it cre
   assert.deepEqual(full.services.noticeos.ports.map((row) => [row.host_ip, row.published]), [['127.0.0.1', '5173']]);
   assert.equal(full.services.noticeos.user, '501:20');
   assert.deepEqual(Object.keys(resolve(stackFiles(ROOT, { backup: false })).services).sort(), ['dolt', 'noticeos', 'postgres']);
+});
+
+test('Compose resolves an image installation\'s stack from its own copy alone: every file it reads is in the folder', { skip: compose.status !== 0 && 'no docker compose' }, (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'nos-image-installation-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  copyStack(ROOT, path.join(dir, 'stack'));
+  const envFile = path.join(dir, 'installation.env');
+  writeFileSync(envFile, renderInstallationEnv({ ...base, dir, launcher: true }));
+  const result = spawnSync('docker', ['compose', '--project-name', 'noticeos', ...stackFiles(path.join(dir, 'stack')).flatMap((file) => ['-f', file]),
+    '--env-file', envFile, 'config', '--format', 'json'], { encoding: 'utf8', env: { PATH: process.env.PATH, HOME: process.env.HOME } });
+  assert.equal(result.status, 0, result.stderr);
+  const model = JSON.parse(result.stdout);
+  const sources = Object.values(model.services).flatMap((service) => service.volumes ?? []).filter((mount) => mount.type === 'bind').map((mount) => mount.source);
+  const stackFilesRead = sources.filter((source) => source.startsWith(path.join(dir, 'stack') + '/'));
+  assert.ok(stackFilesRead.length >= 8, 'the databases read their configuration and scripts from the copy');
+  for (const source of stackFilesRead) assert.ok(existsSync(source), `${source} is in the copy`);
+  for (const source of sources) assert.ok(source.startsWith(dir + '/'), `${source} is in the installation folder`);
+  assert.equal(result.stdout.includes(ROOT + '/'), false, 'nothing is read from the checkout');
 });

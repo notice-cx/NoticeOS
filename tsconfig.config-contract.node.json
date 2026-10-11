@@ -11,6 +11,7 @@
   },
   "include": [
     "scripts/hosted-scheduler.mts",
+    "scripts/published-image.mts",
     "scripts/hosted-demo.mts",
     "scripts/hosted-demo-runtime.mts",
     "scripts/hosted-demo-server.mts",

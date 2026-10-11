@@ -4,6 +4,7 @@ import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertRuleStatsPayload } from "@shared/alert-rules";
 import type { IntegrationsMatrix } from "@shared/integrations";
+import type { InstallationFacts } from "@shared/installation";
 import type { SettingsPayload } from "@shared/settings";
 import { configSaveReply } from "./config-save-reply";
 import * as configDeclarations from "@shared/config-registers";
@@ -30,6 +31,12 @@ const state = vi.hoisted(() => ({
   /** The task board, where the hourly reconciliation's finding reaches this
    * page. Null is a board that has not answered, and the page marks nothing. */
   work: null as WorkPayload | null,
+  /** The installation as its host sees it; null is a lane that has not answered. */
+  installation: null as InstallationFacts | null,
+}));
+
+vi.mock("@/hooks/useInstallation", () => ({
+  useInstallation: () => ({ data: state.installation ?? undefined, isError: false, isFetching: false, error: null, refetch: () => {} }),
 }));
 
 vi.mock("@/hooks/useSettings", () => ({
@@ -290,6 +297,7 @@ beforeEach(() => {
   state.ruleStats = null;
   state.ruleStatsError = false;
   state.work = null;
+  state.installation = null;
   toasts.success.mockReset();
   toasts.error.mockReset();
 });
@@ -334,6 +342,40 @@ describe("/settings", () => {
     expect(calls.some((call) => call.method !== "GET")).toBe(false);
   });
 
+  it("shows where the installation lives, who can reach it, its version and the command that updates it", () => {
+    stubFetch();
+    const facts: InstallationFacts = { folder: "/srv/noticeos", tower: { address: "0.0.0.0", port: 5180 }, postgresPort: 5432, taskPort: 3307,
+      launcher: "/srv/noticeos/noticeos", commit: "a".repeat(40), live: false, published: "b".repeat(40) };
+    state.installation = facts;
+    const { container, unmount } = renderPage("installation");
+    const section = within(container.querySelector("#installation") as HTMLElement);
+    expect(section.getByText("/srv/noticeos")).toBeVisible();
+    expect(section.getByText("0.0.0.0:5180")).toBeVisible();
+    expect(section.getByText("Every device on your network.")).toBeVisible();
+    expect(section.getByText("Postgres 5432 · Tasks 3307")).toBeVisible();
+    expect(section.getByText("a".repeat(12))).toBeVisible();
+    expect(section.getByText("Newer version published")).toBeVisible();
+    expect(container.querySelector('[data-installation-command="update"]')).toHaveTextContent("/srv/noticeos/noticeos update");
+    expect(container.querySelector('[data-installation-command="status"]')).toHaveTextContent("/srv/noticeos/noticeos status");
+    expect(section.getByText("never")).toBeVisible();
+    unmount();
+
+    // From a checkout, current, with the stack not yet told its folder.
+    state.installation = { ...facts, folder: null, tower: { address: "127.0.0.1", port: 5173 }, launcher: null, published: facts.commit };
+    const checkout = renderPage("installation");
+    const own = within(checkout.container.querySelector("#installation") as HTMLElement);
+    expect(own.getByText("Current")).toBeVisible();
+    expect(own.getByText("This machine only.")).toBeVisible();
+    expect(checkout.container.querySelector('[data-installation-command="apply"]')).toHaveTextContent("pnpm os:apply");
+    expect(checkout.container.querySelector('[data-installation-command="status"]')).toHaveTextContent("pnpm os:status");
+    expect(checkout.container.querySelector('[data-installation-command="update"]')).toBeNull();
+    checkout.unmount();
+
+    state.installation = { ...facts, live: true, published: null };
+    const live = renderPage("installation");
+    expect(within(live.container.querySelector("#installation") as HTMLElement).getByText("Live source")).toBeVisible();
+  });
+
   it("opens one focused section at a time and preserves its hash link", () => {
     stubFetch();
     const { container } = renderPage();
@@ -367,6 +409,7 @@ describe("/settings", () => {
       "/settings#tv-dashboard",
       "/settings#entities",
       "/settings#task-hub",
+      "/settings#installation",
     ]);
   });
 
@@ -395,7 +438,7 @@ describe("/settings", () => {
       taskSourceMock.connected = null;
       state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], hub: null } });
       const fresh = renderPage("general");
-      expect(links()).toEqual(["/settings#general", "/settings#alert-rules", "/settings#data-collection", "/settings#tv-dashboard", "/settings#entities", "/settings#task-hub"]);
+      expect(links()).toEqual(["/settings#general", "/settings#alert-rules", "/settings#data-collection", "/settings#tv-dashboard", "/settings#entities", "/settings#task-hub", "/settings#installation"]);
       fresh.unmount();
       const connecting = renderPage("task-hub");
       expect(connecting.container.querySelector("#task-hub")).not.toBeNull();

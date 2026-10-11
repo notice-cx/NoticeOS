@@ -9,6 +9,8 @@ This page gets you from a symptom to the one command or setting that fixes it.
 
 Start every investigation with the state, not the port: `pnpm os:status`. When the cause is unclear, read `pnpm os:logs -- --lines 200` before restarting anything.
 
+An installation without a checkout runs each command on this page through its folder's launcher, with no `--`: `~/noticeos/noticeos status`, `~/noticeos/noticeos logs --lines 200`. Its messages name the launcher where this page names `pnpm os:*`.
+
 ## Service states
 
 **A service is `exited` or `created`.**
@@ -24,7 +26,7 @@ The scheduler's heartbeat is old, the Tower or the data receiver does not answer
 A database did not pass its own health check. Read `pnpm os:logs -- postgres` or `-- dolt`, then `pnpm os:restart`.
 
 **`database:` says the database is behind.**
-The checkout carries migrations the database has not applied. Applying them is your own step; see [Upgrade](/start/upgrade#apply-database-changes).
+The code the app runs carries migrations the database has not applied. Applying them is your own step; see [Upgrade](/start/upgrade#apply-database-changes).
 
 **The app keeps restarting.**
 The scheduler refused to start. The log says why; see Scheduler refusals.
@@ -70,7 +72,7 @@ Expected while another runtime holds the data port: a standalone data receiver w
 
 ## `pnpm os:setup` and `pnpm os:convert-legacy` refusals
 
-Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`. Setup's checks run before it makes anything.
+Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`; from the Docker install, with the new folder's `noticeos setup:`. Setup's checks run before it makes anything.
 
 **"… already selects an installation; pnpm os:status shows it, and pnpm os:convert-legacy moves a legacy one into the layout".**
 This checkout already has an installation. Use it, or move it with `pnpm os:convert-legacy`.
@@ -83,6 +85,12 @@ Another installation uses that project name. Choose another with `--project`, or
 
 **"setup needs a local Docker engine on a Unix socket".**
 Start Docker, or select its local context, and run setup again.
+
+**"Docker runs on …; NoticeOS images are built for amd64 and arm64".**
+Use a machine whose Docker runs `linux/amd64` or `linux/arm64`.
+
+**"an installation without a checkout runs the image its launcher fetched; --image and --build need a checkout".**
+Leave those out, or [install from source](/start/install-from-source).
 
 **"port N is in use; choose another".**
 The port you named with `--tower-port` is taken. Name another, or leave it out and setup picks the next free one.
@@ -169,7 +177,69 @@ The previous image would run older code on the newer schema. Restoring a backup 
 Run `pnpm os:prod` first.
 
 **An `os:*` command says the selector is invalid or a service is unexpected.**
-`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. Without a checkout, the selector is the folder's `stack.json`, which setup wrote. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+
+## The `noticeos` launcher
+
+Each line starts with `noticeos:`. The launcher runs nothing when it refuses.
+
+**"could not fetch ghcr.io/notice-cx/noticeos:main; check the connection and that Docker is running".**
+The launcher fetches main's newest image before `setup`, `update` and `migrate`. Check the connection, that Docker is running and that your account can run `docker`. When those are fine, the image is not public yet, and only its owner can change that. The one-line install stops at its first step for the same reasons, with Docker's own message.
+
+**"Docker is not installed; install Docker Desktop or Docker Engine first".**
+Install Docker, start it, and run the command again.
+
+**"… holds no installation.env; run the noticeos in your installation's folder".**
+The launcher was copied out of its folder. Run the `noticeos` inside the installation folder, such as `~/noticeos/noticeos status`.
+
+**"the offsite folder … does not exist; a missing sync folder is never made here".**
+Mount or create the sync folder first, then run setup again.
+
+**"a folder with a comma in its path cannot be shared with Docker; choose another".**
+Choose an installation or offsite folder without a comma.
+
+**"the installation's network is missing; … start brings the stack up".**
+`migrate` reaches Postgres on the installation's network. Run `~/noticeos/noticeos start`, then migrate again.
+
+**"neither the app nor installation.env names the installation's image".**
+The app container is gone and `installation.env` has lost its `NOTICEOS_APP_IMAGE` line. Copy that line back from `stack-apply/applied.env` in the folder, the settings the stack last ran with.
+
+## `noticeos update` and `rollback` refusals
+
+Each line starts with `noticeos update:` or `noticeos rollback:`. A refusal changes nothing.
+
+**"Nothing to update: the app runs …, the newest published version."**
+Not a refusal. The installation is current.
+
+**"installation.env has an edit that is not applied yet: … apply applies it, or undo it; then try again."**
+Run `~/noticeos/noticeos apply`, or undo the edit, then update again.
+
+**"… is …; update needs every service running and healthy."**
+A service is stopped, starting or unhealthy. Read `~/noticeos/noticeos logs <service>`, fix the service, then update again.
+
+**"the new version carries database changes the database does not have yet: …"**
+Expected. Take a backup, run `~/noticeos/noticeos migrate --apply`, then update again. See [Install with Docker](/start/install-with-docker#apply-database-changes-first).
+
+**"the new version changes the Postgres roles; that is operator maintenance".**
+Follow the Postgres host guide on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/host/README.md.
+
+**"… carries no commit or schema; it is not a published NoticeOS image."**
+`NOTICEOS_IMAGE` names an image that was not published from `main`. Unset it to update from the published one.
+
+**"no version before this one is recorded; there is nothing to roll back to."**
+No update has run since setup.
+
+**"the database schema changed since the version before; a rollback would run older code on it."**
+The previous version would run older code on the newer schema. Restoring a backup is a separate procedure with its own approval.
+
+**"Another app operation holds the stack lock."**
+An apply, update or rollback is running. Let it finish, then try again.
+
+**"Starting … failed; Docker's output above says why. The stack runs … again, as it did before."**
+A service did not become healthy on the new version, so the definition, the image line and the services returned to the version before. Read Docker's output and `~/noticeos/noticeos logs <service>`.
+
+**"… The earlier settings did not come back either; … status and … logs show where it stands."**
+Neither version started. Read `~/noticeos/noticeos status` and `~/noticeos/noticeos logs <service>`.
 
 ## Data and credentials
 

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { readInstallationEnv } from './installation-layout.mjs';
+import { readInstallationEnv, STACK_SOURCES } from './installation-layout.mjs';
 import { folderRefusal, main, parseOptions, setup } from './os-setup.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -86,6 +86,53 @@ test('a new installation is written in the layout, private, with the app reachin
   assert.deepEqual(selector, { project: 'noticeos', files: [path.join(box.root, 'deploy/compose/stack.yaml'), path.join(box.root, 'deploy/compose/backup.compose.yaml')],
     envFile: path.join(box.dir, 'installation.env'), dockerHost: 'unix:///var/run/docker.sock' });
   assert.match(shown, /NoticeOS is running: http:\/\/127\.0\.0\.1:5173\//u);
+});
+
+test('from its image, with no checkout, setup runs that image and leaves the folder its stack, selector and launcher', async (t) => {
+  const box = sandbox(t);
+  // The image carries the stack definition and the launcher where a checkout has them.
+  for (const file of [...STACK_SOURCES, 'deploy/compose/noticeos']) cpSync(path.join(ROOT, file), path.join(box.root, file));
+  const docker = fakeDocker();
+  const probes = [];
+  const run = async (command, args, options) => {
+    if (args.includes('image') && args.includes('inspect')) return { code: args.at(-1) === 'ghcr.io/example/noticeos:main' ? 0 : 1, stdout: `${IMAGE}\n` };
+    const published = args[args.indexOf('--publish') + 1];
+    if (args.includes('--publish')) {
+      probes.push(published);
+      return published === '127.0.0.1:5173:9' ? { code: 125, stderr: 'Bind for 127.0.0.1:5173 failed: port is already allocated' } : { code: 0, stdout: '' };
+    }
+    return docker.run(command, args, options);
+  };
+  const selectorFile = path.join(box.dir, 'stack.json');
+  const env = { PATH: process.env.PATH, NOTICEOS_CLI_IMAGE: 'ghcr.io/example/noticeos:main', NOTICEOS_DIR: box.dir };
+  let shown = '';
+  const own = { ...deps(docker, box.root, { write: (text) => { shown += text; } }), run, env, free: async () => assert.fail('the container tested its own ports') };
+  assert.equal(await setup(parseOptions(['--dir', box.dir, '--config', selectorFile]), own), 0);
+
+  assert.deepEqual(probes.slice(0, 3), ['127.0.0.1:5173:9', '127.0.0.1:5174:9', '127.0.0.1:5432:9'], 'Docker tests the host\'s ports');
+  const values = readInstallationEnv(path.join(box.dir, 'installation.env'));
+  assert.equal(values.NOTICEOS_APP_IMAGE, IMAGE, 'the app runs the image setup ran from, by ID');
+  assert.equal(values.NOTICEOS_TOWER_PORT, '5174');
+  assert.equal(values.NOTICEOS_COMMANDS, path.join(box.dir, 'noticeos'));
+  for (const file of STACK_SOURCES) assert.ok(existsSync(path.join(box.dir, 'stack', file)), file);
+  assert.equal(statSync(path.join(box.dir, 'noticeos')).mode & 0o777, 0o755);
+  const selector = JSON.parse(readFileSync(selectorFile, 'utf8'));
+  assert.deepEqual(selector.files, [path.join(box.dir, 'stack/deploy/compose/stack.yaml'), path.join(box.dir, 'stack/deploy/compose/backup.compose.yaml')]);
+  assert.ok(docker.calls.filter(({ args }) => args.includes('compose')).every(({ args }) => args.includes(path.join(box.dir, 'stack/deploy/compose/stack.yaml'))));
+  assert.ok(existsSync(path.join(box.dir, 'stack-apply', 'applied.env')), 'the first settings are recorded for apply and update');
+  assert.match(shown, /NoticeOS is running: http:\/\/127\.0\.0\.1:5174\//u);
+
+  // From the image there is no checkout to move a legacy stack in with, so no refusal offers it.
+  const taken = sandbox(t);
+  for (const file of [...STACK_SOURCES, 'deploy/compose/noticeos']) cpSync(path.join(ROOT, file), path.join(taken.root, file));
+  const occupied = async (command, args, options) => args.includes('ps') && args.includes('--filter') ? { code: 0, stdout: 'abc123\n' } : run(command, args, options);
+  await assert.rejects(setup(parseOptions(['--dir', taken.dir, '--config', path.join(taken.dir, 'stack.json')]), { ...own, root: taken.root, run: occupied }),
+    (error) => /already has containers for the project noticeos; choose another with --project\.$/u.test(error.message));
+
+  const again = sandbox(t);
+  for (const file of [...STACK_SOURCES, 'deploy/compose/noticeos']) cpSync(path.join(ROOT, file), path.join(again.root, file));
+  await assert.rejects(setup(parseOptions(['--dir', again.dir, '--image', IMAGE, '--config', path.join(again.dir, 'stack.json')]), { ...own, root: again.root }),
+    /--image and --build need a checkout/u);
 });
 
 test('anything that is not new refuses before a file, volume or container is made', async (t) => {

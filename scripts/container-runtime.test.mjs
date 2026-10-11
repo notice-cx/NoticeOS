@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
-import { containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
+import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 
@@ -122,4 +122,20 @@ test('container Vite serve supplies the refresh runtime even when ambient NODE_E
     else process.env.NODE_ENV = previous;
     fs.rmSync(fixture, { recursive: true, force: true });
   }
+});
+
+test('the image prints its launcher for a Docker-only install, before it checks any installation', async () => {
+  let printed = '';
+  const code = await containerMain(['launcher'], { out: { write: (bytes) => { printed += String(bytes); } }, err: { write: () => assert.fail('it refused') },
+    environment: () => assert.fail('the installation was checked') });
+  assert.equal(code, 0);
+  assert.equal(printed, fs.readFileSync(fileURLToPath(new URL('../deploy/compose/noticeos', import.meta.url)), 'utf8'));
+  assert.match(printed, /^#!\/bin\/sh\n/u);
+});
+
+test('the app sees the installation as the host does, and nothing else of the host\'s', () => {
+  const source = fs.readFileSync(fileURLToPath(new URL('../deploy/compose/compose.yaml', import.meta.url)), 'utf8');
+  const passed = [...source.matchAll(/^ {6}(NOTICEOS_HOST_[A-Z_]+):/gmu)].map((match) => match[1]);
+  assert.ok(passed.length > 0);
+  assert.deepEqual([...HOST_FACTS].sort(), passed.sort(), 'each fact compose.yaml passes reaches the Tower');
 });

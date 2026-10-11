@@ -6,10 +6,14 @@ import test from 'node:test';
 import { execFileSync } from 'node:child_process';
 import { prepareContainerContext, publicContainerPath } from './container-context.mjs';
 import { sourceVersion } from './source-version.mjs';
+import { STACK_SOURCES } from './installation-layout.mjs';
+// The Docker CLI's and Compose's notices travel in the image beside the other tools'.
+const NOTICES = ['docker-cli-28.5.2-LICENSE.txt', 'docker-cli-28.5.2-NOTICE.txt', 'docker-compose-2.40.3-LICENSE.txt', 'docker-compose-2.40.3-NOTICE.txt'].map(file => `deploy/compose/licenses/${file}`);
 
 const required = ['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md',
   'deploy/compose/licenses/beads-1.3.1-LICENSE.txt', 'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/sources.json',
-  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs'];
+  'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs',
+  ...NOTICES, ...STACK_SOURCES, 'deploy/compose/noticeos'];
 function fixture(t) {
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-container-context-'));
   const root = path.join(parent, 'source'); fs.mkdirSync(root);
@@ -81,4 +85,9 @@ test('every workspace pnpm-workspace.yaml declares sends its manifest, or the im
     : [`${glob}/package.json`]).filter(file => fs.existsSync(path.join(root, file)));
   assert.ok(manifests.includes('docs/package.json'));
   for (const file of manifests) assert.equal(publicContainerPath(file), true, `${file} is a workspace the lockfile records`);
+});
+
+test('an installation without a checkout finds its stack definition and launcher in the image', () => {
+  for (const file of [...STACK_SOURCES, 'deploy/compose/noticeos', ...NOTICES]) assert.equal(publicContainerPath(file), true, file);
+  for (const file of ['deploy/compose/private.json', 'db/postgres/host/secrets/postgres', 'db/dolt/host/README.md']) assert.equal(publicContainerPath(file), false, file);
 });

@@ -43,6 +43,8 @@ licenses below. Keep distribution notices when repackaging the image.
 | --- | --- | --- |
 | Beads | 1.3.1 | [MIT](deploy/compose/licenses/beads-1.3.1-LICENSE.txt) |
 | Dolt | 2.4.0 | [Apache-2.0](deploy/compose/licenses/dolt-2.4.0-LICENSE.txt) |
+| Docker CLI | 28.5.2 | [Apache-2.0](deploy/compose/licenses/docker-cli-28.5.2-LICENSE.txt), [NOTICE](deploy/compose/licenses/docker-cli-28.5.2-NOTICE.txt) |
+| Docker Compose | 2.40.3 | [Apache-2.0](deploy/compose/licenses/docker-compose-2.40.3-LICENSE.txt), [NOTICE](deploy/compose/licenses/docker-compose-2.40.3-NOTICE.txt) |
 
 [Pinned source URLs and checksums](deploy/compose/licenses/sources.json)
 identify these exact license texts. The image also retains installed Node

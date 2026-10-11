@@ -12,12 +12,14 @@ This page gets you from a running installation to a newer release without losing
 The release policy, in plain words:
 
 - A package version number or a green build is **not** a qualified release. A release is identified by its source commit, its toolchain, its schema and the checks that actually ran.
-- A new installation from source starts empty. An existing installation keeps its own configuration and its own maintenance steps.
+- A new installation starts empty. An existing installation keeps its own configuration and its own maintenance steps.
 - The application container starts an installation you prepared. It never creates or migrates a database.
 - Changing the code and changing the database are **two separate steps**. A restart, a merge or an app update never applies a migration.
 - Rolling the app back keeps the updated database. It does not reverse a migration.
 
 You need a backup with a restore path you have tested, and the target release's own instructions.
+
+This page shows each command as you run it from a checkout. An installation [set up with Docker alone](/start/install-with-docker) runs the same commands through its folder's launcher, with no `--`: `pnpm os:migrate -- --apply` is `~/noticeos/noticeos migrate --apply`.
 
 ## Check what runs and back up
 
@@ -27,14 +29,14 @@ You need a backup with a restore path you have tested, and the target release's 
    pnpm os:status
    ```
 
-   It prints each service's health, whether the database has every migration this checkout carries, the commit the app runs and whether `main` is ahead.
+   It prints each service's health, whether the database has every migration this code carries, the commit the app runs and whether `main` is ahead. Without a checkout, `main` is the newest published version.
 2. Check for pending database changes. This reads only:
 
    ```sh
    pnpm os:migrate
    ```
 
-   It finds the stack's database from `.local/stack.json` and never prints a password.
+   It finds the stack's database from the stack's selector and never prints a password. Without a checkout, it runs from the newest published image, so it lists that version's migrations.
 
 3. Take a backup with a restore path you have tested:
 
@@ -69,6 +71,8 @@ The app keeps running while you migrate: migrations are additive unless the rele
 
 ## Upgrade the app
 
+### From a checkout
+
 1. In the checkout, on a clean `main`, run:
 
    ```sh
@@ -79,9 +83,23 @@ The app keeps running while you migrate: migrations are additive unless the rele
 
 The update fetches the image CI published for `main`'s commit, used only when it was built from exactly this checkout's source, or builds it here when none is published yet. `-- --build` always builds here. Everything keeps running meanwhile. It then replaces only the app container and waits up to 90 seconds for health. If health does not return, it puts the previous image back by itself. It stops, changing nothing, when `main` carries a migration the database has not applied; run Apply database changes first. Without a terminal it prints `pnpm os:update -- --apply <plan>` for you to run later.
 
+After a pull that changes the stack definition, `pnpm os:status` prints a `settings:` line until `pnpm os:apply` recreates what changed; the update does so for the app. While the app runs without the current settings, **Settings** > **Installation** shows the apply command in place of the folder.
+
+### Without a checkout
+
+1. Read the plan:
+
+   ```sh
+   ~/noticeos/noticeos update
+   ```
+
+2. Type `update` to apply it, or run `~/noticeos/noticeos update --confirm update`.
+
+It moves to main's newest published version: the image and the stack definition copied out of it, together. It recreates every service whose declaration changed, databases first, each waiting for health, and returns to the version before when one does not become healthy. It stops, changing nothing, when that version carries a migration the database lacks: run `~/noticeos/noticeos migrate --apply` first. See [Install with Docker](/start/install-with-docker#update-and-roll-back).
+
 ## Roll back
 
-- **App:** `pnpm os:rollback` prepares a plan for the previous image and applies it after you type `rollback`. It is refused when the database schema changed since that image.
+- **App:** `pnpm os:rollback` prepares a plan for the previous image and applies it after you type `rollback`. Without a checkout, `~/noticeos/noticeos rollback` returns to the version before the last update. Both are refused when the database schema changed since then.
 - **Database:** there is no automatic reversal. A rollback of the app runs the older code against the newer schema, which is only safe when the release notes say that app version is eligible. Restoring a backup is a separate procedure with its own approval.
 
 ## Upgrade the demo
@@ -98,6 +116,7 @@ The demo has its own updater, `deploy/demo/update.sh`, which builds the target c
 
 - The update stops at a migration the database has not applied: expected. Run Apply database changes, then update again.
 - The apply exits non-zero: 1 is failed and rolled back, 2 is refused with nothing changed, 3 means no Postgres tools on this machine.
+- `noticeos update` says `installation.env` has an edit that is not applied yet: run `~/noticeos/noticeos apply`, or undo the edit, then update again.
 - The update says the published image "was not built from this checkout's source": nothing changed. Run `pnpm os:update -- --build` to build it here.
 - The update refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again. See [Troubleshooting](/operate/troubleshooting#update-refusals).
 

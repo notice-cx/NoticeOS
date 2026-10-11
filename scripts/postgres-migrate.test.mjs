@@ -241,7 +241,9 @@ const ENGINE = 'scripts/postgres-apply.mjs';
 const FIRST_START = 'scripts/start-postgres.mjs';
 const DEVELOPMENT_START = 'scripts/start-development.mjs';
 const HOSTED_DEMO_SETUP = new Set(['scripts/hosted-demo-setup.mts', 'scripts/hosted-demo-setup.mjs']);
-const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START]);
+/** `noticeos migrate`, an installation without a checkout's way of typing the operator command (scripts/noticeos-cli.mjs). */
+const LAUNCHER_DISPATCH = 'scripts/noticeos-cli.mjs';
+const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START, LAUNCHER_DISPATCH]);
 /** pnpm os:setup and its one-off container step: a provably new, empty installation. */
 const SETUP = ['scripts/os-setup.mjs', 'scripts/os-setup-container.mjs'];
 const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START, ...SETUP]);

@@ -1,37 +1,33 @@
 ---
 title: "Install in five minutes"
-description: "Go from a clone of the repository to the first number on a site's Overview in five steps."
+description: "Go from a machine with Docker to the first number on a site's Overview, with one command and no checkout."
 ---
 
 # Install in five minutes
 
-This page gets you from a clone of the repository to the first number on a site's Overview.
+This page gets you from a machine with Docker to the first number on a site's Overview.
 
 ## Before you begin
 
-You need three things on the machine:
+You need one thing on the machine:
 
-- Node.js 24.21.0 LTS
-- pnpm 12.8.1
-- Docker: a running local engine with Docker Compose
+- Docker: Docker Desktop or Docker Engine, running
+
+To work on NoticeOS itself or build its image yourself, [install from source](/start/install-from-source) instead.
 
 ## Steps
 
-1. In a terminal, in the repository checkout, run the install with the pinned dependencies:
+1. Set up the installation, then open **http://127.0.0.1:5173/**:
 
    ```sh
-   pnpm install --frozen-lockfile
+   docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
    ```
 
-2. Set up the installation, then open **http://127.0.0.1:5173/**:
+2. On **Home**, select **Add your first site**. In the **Add a site** dialog, type the domain in the **Domain** field and select **Add site**. You land on the new site's **Data sources** tab.
+3. On the **Data sources** tab, select **Connect** on a source, paste what the provider issued, select **Connect**, then select **Start collecting**. Google signs you in instead of taking a key.
+4. Open the site's **Overview** to see its first number.
 
-   ```sh
-   pnpm os:setup
-   ```
-
-3. On **Home**, select **Add your first site**. In the **Add a site** dialog, type the domain in the **Domain** field and select **Add site**. You land on the new site's **Data sources** tab.
-4. On the **Data sources** tab, select **Connect** on a source, paste what the provider issued, select **Connect**, then select **Start collecting**. Google signs you in instead of taking a key.
-5. Open the site's **Overview** to see its first number.
+Setup keeps the installation in `~/noticeos`; `~/noticeos/noticeos status` shows it. [Install with Docker](/start/install-with-docker) covers the options, the daily commands and updates.
 
 ## Verify
 

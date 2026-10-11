@@ -36,6 +36,7 @@ import { envImportLane } from "./vite/env-import-lane";
 import { lucideIcons } from "./vite/lucide-icons";
 import { reconnectPage } from "./vite/reconnect-page";
 import { taskLane } from "./vite/task-lane";
+import { installationLane } from "./vite/installation-lane";
 import { scheduledJobsLane } from "./vite/scheduled-jobs-lane";
 import { ingestDoor } from "./vite/runner-door";
 import { readDemoViewerLaunch } from "../../scripts/demo-viewer-installation.mjs";
@@ -184,6 +185,8 @@ export default defineConfig(({ command }) => {
     // plugin dispatches it into the Worker, where the built answer lives.
     ...(serverProfile === "standalone" ? [configWriteLane()] : []),
     ...(serverProfile === "standalone" ? [taskLane({ demoViewer: demoLaunch?.installation.viewer ?? null }), scheduledJobsLane()] : []),
+    // Live source is a checkout's, updated with git; only a fixed version has a newer one to compare.
+    ...(serverProfile === "standalone" ? [installationLane({ commit: appSourceVersion?.commit ?? null, live: process.env.NOTICEOS_IMMUTABLE_APP !== "1" })] : []),
     ...(serverProfile === "standalone" ? [envImportLane()] : []),
     // Position does not order this one: its `configureServer` hook is
     // `order: "post"`, so its error handler lands after the Cloudflare

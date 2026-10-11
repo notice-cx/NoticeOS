@@ -14,7 +14,7 @@ Standalone access relies on a trusted network or access layer; it is not a
 public login-protected hosted product.
 
 The [application container](../../deploy/compose/README.md) starts an already
-prepared installation; `pnpm os:setup` prepares a new one. The container itself
+prepared installation; `pnpm os:setup`, or its launcher's `setup`, prepares a new one. The container itself
 does not initialize or migrate either database.
 Its declared platform and fixture checks are evidence for those exact inputs,
 not a promise that every host or architecture has been exercised.
@@ -30,6 +30,18 @@ the checkout prepares for that commit; otherwise they refuse. When nothing is
 published for the commit, or the registry is unreachable, they build the image
 locally from the same inputs. A fork's commits are not published there, so a
 fork builds locally.
+
+An installation also needs no checkout:
+`docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup`
+sets one up from main's newest published image, which its app then runs
+([Install with Docker](../start/install-with-docker.md)). With no checkout
+there is no source to check that image against: the launcher runs what the
+`main` tag names, and `noticeos update` moves to whatever it names later,
+refusing an image without commit and schema labels. The release workflow annotates
+each published index with its commit (`org.opencontainers.image.revision`), so
+the newest published version is read from one manifest. Others can fetch the
+image only while its package on GitHub's registry is public, a setting its
+owner makes once.
 
 Hosted identity, scoped browser/task APIs and journaled scheduling have local
 disposable qualification. The
@@ -87,7 +99,9 @@ existing database through fresh-install setup.
 The [app update](../../scripts/README.md#merging-is-not-deploying-osupdate)
 checks main's published image against the checkout, or builds it locally,
 replaces only the stack's app container and refuses a release whose
-migrations the database has not applied. App rollback keeps the updated
+migrations the database has not applied. Without a checkout, `noticeos update`
+moves the image and the stack definition copied out of it together, recreates
+each service whose declaration changed, and refuses the same releases. App rollback keeps the updated
 database; it does not reverse a migration, and it is refused across a schema
 change. Restore and database engine upgrades have separate procedures and must
 not be inferred from an app rollback command. The local stack commands are

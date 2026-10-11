@@ -6,6 +6,10 @@ import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
 import { probeTcp } from '../../scripts/runner/host-tools.mjs';
 import { ContainerRefusal, developmentDependencies } from './development.mjs';
 
+/** The installation as the host sees it (compose.yaml), shown read-only on the Tower's Settings > Installation. */
+export const HOST_FACTS = ['NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_TOWER_ADDRESS', 'NOTICEOS_HOST_TOWER_PORT',
+  'NOTICEOS_HOST_POSTGRES_PORT', 'NOTICEOS_HOST_TASK_PORT', 'NOTICEOS_HOST_LAUNCHER'];
+
 export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient, checkDependencies = developmentDependencies } = {}) {
   const mode = env.NOTICEOS_CONTAINER_MODE ?? 'prepared';
   if (!['prepared', 'development'].includes(mode)) throw new ContainerRefusal('Choose prepared or development container mode.');
@@ -28,7 +32,7 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
   if (typeof bindings.CREDENTIALS_KEY !== 'string' || !bindings.CREDENTIALS_KEY.trim() ||
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new ContainerRefusal('The prepared bootstrap credentials are incomplete.');
   const selected = {};
-  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS']) if (env[key] !== undefined) selected[key] = env[key];
+  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS', ...HOST_FACTS]) if (env[key] !== undefined) selected[key] = env[key];
   // The standalone runtime serves through Vite; its React transforms need development mode.
   return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'development',
     // Docker forwards published ports to the container interface, not its loopback.
@@ -60,9 +64,11 @@ export function containerCommand(argv) {
   return null;
 }
 
-export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr } = {}) {
+export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr, out = process.stdout } = {}) {
+  // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
+  if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>", capacity [--json], setup or seed-settings.\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>", capacity [--json], setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();

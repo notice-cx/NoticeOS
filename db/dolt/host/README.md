@@ -301,7 +301,10 @@ to the plan. Other alias pairs are unsupported.
 
 [`host-beads.mjs`](../../../scripts/host-beads.mjs) is an optional agent adapter
 for the application's bundled Beads client. Its protected declaration pins a
-local image ID, target network, credentials, allowed projects and fallback actor.
+local image ID, the stack's project (as `<project>_installation`, or a legacy
+`<project>_default`), credentials, allowed projects and fallback actor. Each run
+asks Docker which network the project's running Dolt is on, so a declaration
+written before the stack moved into the installation layout keeps working.
 Explicit `--actor` and caller `BEADS_ACTOR` retain the caller's identity. It mounts
 the selected project's `.beads` folder and shared `.beads.gate.lock`, works while
 the application is stopped, and uses no host `bd` fallback:
