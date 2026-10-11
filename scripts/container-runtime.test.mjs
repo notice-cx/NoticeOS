@@ -45,8 +45,11 @@ test('the container runs the runner, or one named job beside it, and nothing els
   assert.deepEqual(containerCommand(['capacity', '--json']), ['scripts/os-capacity.mjs', '--json']);
   assert.deepEqual(containerCommand(['setup']), ['scripts/os-setup-container.mjs']);
   assert.deepEqual(containerCommand(['seed-settings']), ['scripts/config-seed.mjs']);
+  assert.deepEqual(containerCommand(['mcp']), ['scripts/local-mcp.mjs']);
+  assert.deepEqual(containerCommand(['mcp', '--actor', 'agent-1']), ['scripts/local-mcp.mjs', '--actor', 'agent-1']);
+  assert.deepEqual(containerCommand(['bd', 'list', '--json']), ['scripts/local-bd.mjs', 'list', '--json']);
   for (const argv of [['shell'], ['backup', '--now'], ['run-job'], ['run-job', '$(id)'], ['run-job', '0 6 * * *', 'x'], ['capacity', '--all'],
-    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json']]) {
+    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json'], ['mcp', '--http'], ['mcp', '--actor'], ['bd']]) {
     assert.equal(containerCommand(argv), null, argv.join(' '));
   }
 });

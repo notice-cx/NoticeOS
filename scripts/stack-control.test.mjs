@@ -138,6 +138,15 @@ test('a backup, one schedule or the capacity report runs inside the running app 
   await assert.rejects(stackControl('backup', selector, stopped), /pnpm os:start/u);
   assert.deepEqual(stopped.writes(), []);
 });
+test('the MCP server and the task client run inside the running app, over this terminal\'s own input and output', async () => {
+  for (const [action, args, job] of [['mcp', [], ['mcp']], ['mcp', ['--actor', 'agent-1'], ['mcp', '--actor', 'agent-1']],
+    ['bd', ['--project', 'ex', 'ready', '--json'], ['bd', '--project', 'ex', 'ready', '--json']]]) {
+    const own = fixture(); await stackControl(action, selector, { ...own, args });
+    assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs',...job]], action);
+  }
+  assert.throws(() => actionArgs('mcp', ['--http']), /pnpm os:mcp -- --actor <name>/u);
+  assert.throws(() => actionArgs('bd', []), /pnpm os:bd -- list/u);
+});
 test('the command line takes the action\'s arguments and --config in any order', async () => {
   let output = ''; const out = { write: value => { output += value; } };
   const io = { lstatSync: () => ({ isFile: () => true, isSymbolicLink: () => false, size: 100 }), readFileSync: () => JSON.stringify(selector) };

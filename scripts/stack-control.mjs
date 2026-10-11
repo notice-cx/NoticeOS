@@ -3,7 +3,7 @@
 //
 // The one-off jobs run inside the app container with the runner's own
 // environment (deploy/compose/entrypoint.mjs): one backup, one schedule, the
-// capacity report.
+// capacity report, the MCP server and the task client.
 //
 //   pnpm os:status      Where the installation is, what runs, its health, the database's migrations, and whether main is ahead.
 //   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
@@ -13,6 +13,8 @@
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
+//   pnpm os:mcp         The MCP server for agents on this machine, over stdio; `-- --actor <name>` names the agent.
+//   pnpm os:bd -- <arguments>  Run bd in the installation's task project; `--project <prefix>` picks one of several.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
 import * as fs from 'node:fs';
@@ -25,13 +27,13 @@ import { runCommand } from './run-command.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'capacity'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'capacity', 'mcp', 'bd'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
 /** How long a job run inside the app container may take. */
-const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, capacity: 180_000 };
+const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, capacity: 180_000, mcp: Infinity, bd: 600_000 };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
-       stack-control.mjs backup | run-job "<cron>" | capacity [--json]`;
+       stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>`;
 function refuse(message) { throw new Error(message); }
 export function validateSelector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -118,6 +120,14 @@ export function actionArgs(action, args) {
   if (action === 'capacity') {
     if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
     return { job: ['capacity', ...args] };
+  }
+  if (action === 'mcp') {
+    if (!(args.length === 0 || args.length === 2 && args[0] === '--actor')) refuse('Name the agent, if at all, as: pnpm os:mcp -- --actor <name>');
+    return { job: ['mcp', ...args] };
+  }
+  if (action === 'bd') {
+    if (!args.length) refuse('Name the task command: pnpm os:bd -- list');
+    return { job: ['bd', ...args] };
   }
   if (args.length) refuse(HELP);
   return action === 'backup' ? { job: ['backup'] } : {};

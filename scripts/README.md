@@ -20,6 +20,8 @@
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
 | `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
+| `os:mcp` | The MCP server for agents on this machine, over stdio; `-- --actor <name>` names the agent. | `scripts/stack-control.mjs mcp` |
+| `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
 
 ### Change the database
 

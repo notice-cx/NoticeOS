@@ -136,6 +136,22 @@ test('update and migrate run main\'s newest image; migrate joins the installatio
   assert.match(lost.stderr, /network is missing/u);
 });
 
+test('mcp and bd run inside the running app itself, with this terminal\'s input, and say so when it is stopped', (t) => {
+  const own = box(t);
+  const dir = own.installation();
+  const mcp = own.launch(path.join(dir, 'noticeos'), ['mcp', '--actor', 'agent-1'], { env: { FAKE_APP: 'c0ffee' } });
+  assert.equal(mcp.status, 0, mcp.stderr);
+  assert.ok(mcp.calls.some(call => call[0] === 'ps' && call.includes('label=com.docker.compose.project=nos-test') && !call.includes('--all')));
+  assert.deepEqual(mcp.calls.at(-1), ['exec', '--interactive', 'c0ffee', 'node', 'deploy/compose/entrypoint.mjs', 'mcp', '--actor', 'agent-1']);
+  assert.equal(mcp.run, null, 'no second container');
+  const bd = own.launch(path.join(dir, 'noticeos'), ['bd', 'ready', '--json'], { env: { FAKE_APP: 'c0ffee' } });
+  assert.deepEqual(bd.calls.at(-1), ['exec', '--interactive', 'c0ffee', 'node', 'deploy/compose/entrypoint.mjs', 'bd', 'ready', '--json']);
+  const stopped = own.launch(path.join(dir, 'noticeos'), ['mcp']);
+  assert.equal(stopped.status, 1);
+  assert.match(stopped.stderr, /the app is not running; .*noticeos start starts it/u);
+  assert.equal(stopped.calls.some(call => call[0] === 'exec'), false);
+});
+
 test('outside an installation folder, or with no or an unknown command, it says what to do and runs nothing', (t) => {
   const own = box(t);
   const stray = path.join(own.base, 'stray');

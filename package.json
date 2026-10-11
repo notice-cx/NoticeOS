@@ -29,6 +29,8 @@
     "os:backup": "node scripts/stack-control.mjs backup",
     "os:run-job": "node scripts/stack-control.mjs run-job",
     "os:capacity": "node scripts/stack-control.mjs capacity",
+    "os:mcp": "node scripts/stack-control.mjs mcp",
+    "os:bd": "node scripts/stack-control.mjs bd",
     "db:new-migration": "node scripts/postgres-migrate.mjs new",
     "db:try-migrations": "node scripts/postgres-migrate.mjs",
     "db:try-tower": "node scripts/start.mjs",
