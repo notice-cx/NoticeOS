@@ -16,6 +16,8 @@ const PUBLIC_PATHS = [
   /^apps\/tower\/(?:package\.json|index\.html|vite\.config\.ts|wrangler\.jsonc|tsconfig\.[a-z]+\.json|components\.json)$/u,
   /^workers\/ingest\/(?:src\/[^\0]+|package\.json|wrangler\.jsonc|tsconfig\.json)$/u,
   /^packages\/(?:contract|mediavine|postgres)\/(?:src\/[^\0]+|package\.json|tsconfig(?:\.build)?\.json)$/u,
+  // Every workspace's manifest, or the image's frozen install refuses the lockfile.
+  /^docs\/package\.json$/u,
   /^scripts\/[^/]+\.(?:mjs|mts)$/u,
   /^scripts\/runner\/[^/]+\.mjs$/u,
   /^config\/[^/]+\.json$/u,

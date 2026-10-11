@@ -71,3 +71,14 @@ test('existing, missing-input or in-checkout contexts refuse without writes', t 
   assert.throws(() => prepareContainerContext({ ...own, files: required }), /new absolute/);
   assert.equal(fs.readFileSync(path.join(own.destination, 'sentinel'), 'utf8'), 'retained');
 });
+
+test('every workspace pnpm-workspace.yaml declares sends its manifest, or the image cannot install the lockfile', () => {
+  const root = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
+  const globs = [...fs.readFileSync(path.join(root, 'pnpm-workspace.yaml'), 'utf8').matchAll(/^\s+-\s+"([^"]+)"\s*$/gmu)].map(match => match[1]);
+  assert.ok(globs.length >= 4, 'the workspace list was read');
+  const manifests = globs.flatMap(glob => glob.endsWith('/*')
+    ? fs.readdirSync(path.join(root, glob.slice(0, -2)), { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => `${glob.slice(0, -2)}/${entry.name}/package.json`)
+    : [`${glob}/package.json`]).filter(file => fs.existsSync(path.join(root, file)));
+  assert.ok(manifests.includes('docs/package.json'));
+  for (const file of manifests) assert.equal(publicContainerPath(file), true, `${file} is a workspace the lockfile records`);
+});
