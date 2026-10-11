@@ -659,8 +659,9 @@ same code, so every guarantee of [a run](#applying-it-the-development-profile)
 holds: the lock, one transaction, a hash per file, the refusal of a changed,
 missing or out-of-order migration, and the bootstrap's lock. It finds the
 database from the stack selector `.local/stack.json` (or `--config <file>`):
-the owner's address is `owner.url` in the stack's Postgres secrets folder, or
-in the folder `--secrets <folder>` names.
+the owner's address is `owner.url` beside the `noticeos_owner` secret file
+the stack's resolved Compose declaration names, or in the folder
+`--secrets <folder>` names.
 
 ```sh
 pnpm os:migrate                                                  # only reads

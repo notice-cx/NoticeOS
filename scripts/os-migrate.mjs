@@ -6,9 +6,8 @@
 //                      The installation's one workspace, once.
 //
 // It reads the stack selector (.local/stack.json, or --config) and finds the
-// owner's address where the stack's Postgres keeps it: the
-// NOTICEOS_POSTGRES_SECRETS folder its env file names, resolved as Compose
-// resolves it, or `secrets` beside the Compose file that declares it.
+// owner's address beside the owner's secret in the stack's resolved Compose
+// declaration (`owner.url`, which `pnpm db:create-secrets` writes there).
 // --secrets <folder> names that folder instead. The address never reaches
 // the command line, a log or the screen.
 
@@ -19,6 +18,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { USAGE, main as migrate } from './postgres-apply.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
+import { runCommand } from './run-command.mjs';
 import { readSelector } from './stack-control.mjs';
 import { secretAddress, stackSecretsDir } from './stack-database.mjs';
 
@@ -44,6 +44,7 @@ export async function main(argv = process.argv.slice(2), {
   interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY),
   question = ask,
   run = migrate,
+  docker = runCommand,
 } = {}) {
   let values;
   try {
@@ -77,7 +78,7 @@ export async function main(argv = process.argv.slice(2), {
   try {
     const folder = values.secrets !== undefined
       ? path.resolve(values.secrets)
-      : stackSecretsDir(readSelector(values.config ?? DEFAULT_SELECTOR), io);
+      : await stackSecretsDir(readSelector(values.config ?? DEFAULT_SELECTOR), { run: docker, env });
     target = secretAddress(folder, 'owner.url', io);
   } catch (error) {
     err.write(`refused: ${error.message}; name the folder with --secrets <folder>\n`);
