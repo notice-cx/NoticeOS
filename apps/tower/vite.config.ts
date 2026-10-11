@@ -29,6 +29,7 @@ import { parseDashboardConfig } from "./shared/dashboard";
 import { logicalTaskProjects, type TaskHubConnection } from "./shared/settings";
 import { taskProjectSetupHub } from "./vite/task-project-setup";
 import { towerAllowedHosts } from "./vite/allowed-hosts";
+import { TOWER_DENY } from "./vite/served-files";
 import { checkedDefault } from "./vite/checked-default";
 import { configWriteLane } from "./vite/config-write-lane";
 import { envImportLane } from "./vite/env-import-lane";
@@ -160,6 +161,8 @@ export default defineConfig(({ command }) => {
     // The Tower is exposed on the LAN: keep Vite's DNS-rebinding protection
     // and admit only this machine's own names plus any the operator adds.
     allowedHosts: towerAllowedHosts(),
+    // Never the installation's secrets, records or stores (vite/served-files.ts).
+    fs: { deny: TOWER_DENY },
     // No error overlay: Vite broadcasts internal server errors to every client,
     // and a kiosk wall has nobody to press dismiss. Errors still reach the log.
     // An immutable app has no editable source; release detection owns display
