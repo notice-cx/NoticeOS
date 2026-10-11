@@ -200,6 +200,9 @@ test('ordinary fields retain literal labels/handoff metadata and explicit clear/
   const created = plan(A, request({ kind: 'create', title: 'Linked task', parent: 'tt-abc',
     labels: ['noticeos-handoff', 'asset:example', '--sql=literal'], acceptance: '--file=literal', metadata }));
   assert.ok(created.argv.includes('--parent=tt-abc'));
+  // A child carries only the labels it names, never its parent's human label.
+  assert.equal(created.argv[created.argv.indexOf('--parent=tt-abc') + 1], '--no-inherit-labels');
+  assert.equal(plan(A, request({ kind: 'create', title: 'Top level' })).argv.includes('--no-inherit-labels'), false);
   assert.ok(created.argv.includes('--labels=noticeos-handoff,asset:example,--sql=literal'));
   assert.deepEqual(JSON.parse(created.argv.find(arg => arg.startsWith('--metadata=')).slice(11)), metadata);
   const update = plan(A, request({ kind: 'update', taskId: 'tt-a', assignee: '--file=literal', parent: '',

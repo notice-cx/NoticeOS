@@ -8,7 +8,7 @@ import { createHash } from 'node:crypto';
 import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, isHumanDecision,
+import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
   type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
@@ -73,7 +73,8 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
         for (const taskId of decisionGuardTargets(operation)) {
           const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
           const row = (Array.isArray(shown) ? shown[0] : shown) as Record<string, unknown> | undefined;
-          if (row?.id !== taskId || isHumanDecision(row)) refuse();
+          if (row?.id !== taskId) refuse();
+          if (isHumanDecision(row)) throw new HumanDecisionRefused(taskId);
         }
         // The actor is the admitted principal, inserted before every command token.
         return client([plan.argv[0]!, plan.argv[1]!, `--actor=${context.principalId}`, ...plan.argv.slice(2)]);

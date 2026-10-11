@@ -243,6 +243,29 @@ test('a project\'s tasks come a page of summaries at a time, most urgent first, 
   assert.equal((await call(f, 'get_task', { workspace: A, project: P, task: first.tasks[0].id })).structuredContent.task.title, 'Now');
 });
 
+test('a project with hundreds of ready tasks reads in small pages that hold each task once, in order', async () => {
+  const f = fixture();
+  // As large as a real project's ready list, each task with a long body the list leaves out.
+  for (let n = 1; n <= 300; n++) {
+    f.tasks.set(`tt-${n}`, { id: `tt-${n}`, title: `Task ${n}`, status: 'open', priority: n % 5,
+      created_at: new Date(Date.UTC(2026, 0, 1) + n * 60_000).toISOString(), description: 'x'.repeat(2048), acceptance_criteria: 'y'.repeat(512) });
+  }
+  const seen = [];
+  let offset = 0, pages = 0;
+  while (offset !== null) {
+    const result = await call(f, 'list_tasks', { workspace: A, project: P, ready: true, offset });
+    assert.ok(result.content[0].text.length < 25_000, `page ${pages + 1} is ${result.content[0].text.length} characters`);
+    const page = result.structuredContent;
+    assert.equal(page.total, 300);
+    seen.push(...page.tasks);
+    offset = page.nextOffset; pages += 1;
+  }
+  assert.equal(pages, 6);
+  assert.equal(new Set(seen.map(task => task.id)).size, 300, 'every task once');
+  assert.ok(seen.every((task, i) => i === 0 || seen[i - 1].priority < task.priority
+    || seen[i - 1].priority === task.priority && seen[i - 1].createdAt < task.createdAt), 'most urgent first, then oldest');
+});
+
 test('refusals are readable tool errors and never reveal which check refused', async () => {
   const f = fixture();
   const error = async (name, args) => { const result = await call(f, name, args); assert.equal(result.isError, true); return result.content[0].text; };
