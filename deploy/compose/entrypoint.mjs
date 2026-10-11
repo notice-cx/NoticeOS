@@ -44,14 +44,28 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
     GIT_TERMINAL_PROMPT: '0' };
 }
 
-export async function main() {
+/** What the container runs: the runner with no job named, or one job beside
+ * it (`pnpm os:backup`, `os:run-job`, `os:capacity` exec it here), each with
+ * the environment the runner itself gets. Null for anything else. */
+export function containerCommand(argv) {
+  const [job, ...rest] = argv;
+  if (job === undefined) return ['scripts/os-up.mjs'];
+  if (job === 'backup' && rest.length === 0) return ['scripts/os-up.mjs', '--backup'];
+  if (job === 'run-job' && rest.length === 1 && /^[0-9*/,\- ]{9,64}$/u.test(rest[0])) return ['scripts/os-up.mjs', '--tick', rest[0]];
+  if (job === 'capacity' && (rest.length === 0 || rest.length === 1 && rest[0] === '--json')) return ['scripts/os-capacity.mjs', ...rest];
+  return null;
+}
+
+export async function main(argv = process.argv.slice(2)) {
+  const command = containerCommand(argv);
+  if (command === null) { process.stderr.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>" or capacity [--json].\n'); return 2; }
   let env;
   try {
     env = containerEnvironment();
     if (!await probeTcp('dolt', 3306, 5000)) throw new Error('The declared task service is unavailable.');
   }
   catch { process.stderr.write('NoticeOS container refused: prepare its mounted installation and internal service credentials.\n'); return 1; }
-  const child = spawn(process.execPath, ['scripts/os-up.mjs'], { cwd: '/opt/noticeos', env, stdio: 'inherit' });
+  const child = spawn(process.execPath, command, { cwd: '/opt/noticeos', env, stdio: 'inherit' });
   const forward = signal => { if (child.exitCode === null && child.signalCode === null) child.kill(signal); };
   const onTerm = () => forward('SIGTERM');
   const onInt = () => forward('SIGINT');

@@ -37,7 +37,7 @@ import { startPlan } from './start.mjs';
 //     query statistics and the builtin C.UTF-8 order, keeps its data on a
 //     named volume whose name follows the project (so a test project never
 //     shares an installation's), comes back by itself, takes every secret as
-//     a file `pnpm postgres:secrets` writes and none as a value, and names no
+//     a file `pnpm db:create-secrets` writes and none as a value, and names no
 //     path of one machine; pg_hba.conf lets the superuser in on the
 //     container's own socket only and the three NoticeOS logins over TCP only
 //     to noticeos, only by password; first-start.sh refuses a secret that is
@@ -46,8 +46,8 @@ import { startPlan } from './start.mjs';
 //   - LIVE, on a throwaway cluster: first-start.sh builds the roles, their
 //     logins, the database and query statistics as the image runs it, the
 //     profile's pg_hba.conf then decides who gets in, and `pnpm
-//     postgres:migrate` runs with psql alone by the URL
-//     `pnpm postgres:secrets` wrote, then DATABASE_URL reaches the one
+//     os:migrate` runs with psql alone by the URL
+//     `pnpm db:create-secrets` wrote, then DATABASE_URL reaches the one
 //     workspace through the Workers' store helper. No password is in the
 //     query statistics, their text file or the server's log.
 
@@ -158,7 +158,7 @@ test('compose.yaml keeps the data on a named volume that follows the project nam
   assert.equal(serviceValue('stop_grace_period'), '60s');
 });
 
-test('compose.yaml takes every secret as a file pnpm postgres:secrets writes, and none as a value', () => {
+test('compose.yaml takes every secret as a file pnpm db:create-secrets writes, and none as a value', () => {
   assert.deepEqual(listUnder('secrets'), VERIFIERS);
   const topLevel = composeLines.indexOf('secrets:');
   assert.ok(topLevel > 0, 'the top-level secrets');
@@ -205,11 +205,11 @@ test('first-start.sh is executable, sets passwords only from the verifier files,
   // No psql on PATH: a run that got past the check would fail differently.
   const result = spawnSync('bash', [FIRST_START], { env: { PATH: '/usr/bin:/bin', NOTICEOS_SECRETS_DIR: secrets }, encoding: 'utf8' });
   assert.equal(result.status, 1, result.stderr);
-  assert.match(result.stderr, /noticeos_owner is not a SCRAM-SHA-256 verifier; make the secret files with pnpm postgres:secrets/u);
+  assert.match(result.stderr, /noticeos_owner is not a SCRAM-SHA-256 verifier; make the secret files with pnpm db:create-secrets/u);
   assert.equal(`${result.stdout}${result.stderr}`.includes(plain), false, 'the value is never repeated');
 });
 
-test('git ignores the secrets folder pnpm postgres:secrets writes', () => {
+test('git ignores the secrets folder pnpm db:create-secrets writes', () => {
   const ignored = spawnSync('git', ['check-ignore', '-q', 'db/postgres/host/secrets/database.url'], { cwd: REPO_ROOT });
   assert.equal(ignored.status, 0);
 });
@@ -254,7 +254,7 @@ const FROZEN_REAL = migrationFiles()
   .map((file) => `${createHash('sha256').update(readFileSync(file)).digest('hex')}  migrations/${path.basename(file)}\n`)
   .join('');
 
-test('the first start and pg_hba.conf on a throwaway cluster: the logins, what is refused, pnpm postgres:migrate with psql alone, DATABASE_URL, and no password kept anywhere', async (t) => {
+test('the first start and pg_hba.conf on a throwaway cluster: the logins, what is refused, pnpm os:migrate with psql alone, DATABASE_URL, and no password kept anywhere', async (t) => {
   await live(t, async () => {
     const tools = findPostgres();
     if (!tools) throw new PostgresUnavailable('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');

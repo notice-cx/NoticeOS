@@ -4,7 +4,7 @@ import test from 'node:test';
 import { DEFAULT_DOOR, doorIsHeld } from './ingest-door.mjs';
 
 // The door probe every script that must not run beside a live runtime asks
-// (ingest-dev.mjs, start.mjs, os-control.mjs).
+// (ingest-dev.mjs, start.mjs).
 
 /** A socket that behaves the way `net.connect` does for a port with, or without,
  * a listener — enough of one for doorIsHeld, without binding anything. */

@@ -1,4 +1,4 @@
-// runner/job-record.mjs — the managed runner's job-run record: one line per
+// runner/job-record.mjs — the stack's runner's job-run record: one line per
 // lane per firing in `.local/logs/job-runs.jsonl`, read back at startup, and
 // shipped to the store's `job_runs` through this runner's door. The record's
 // shape and rules are scripts/job-runs.mjs, shared with `pnpm start`'s
@@ -138,7 +138,7 @@ export function jobRunsUrl(config) {
 }
 
 /** Armed by `supervise()` once there is a runtime to ask about. Until then —
- * `pnpm os:up --backup` by hand, or a test driving one lane — shipping is inert
+ * `pnpm os:backup` by hand, or a test driving one lane — shipping is inert
  * and the firing is disk-only, which is the same outcome as a door that is
  * simply down. */
 const jobRunShipState = { runtime: null, pending: [], skipping: null };

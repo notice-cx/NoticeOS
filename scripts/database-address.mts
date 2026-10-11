@@ -13,7 +13,7 @@
 // argument, a file or a Worker binding. Nothing here applies schema: the
 // check reads, as the application login, which migrations the database has.
 // `readRecordedMigrations` is the one way the OS reads
-// noticeos_migrations.applied, for every start and for `pnpm os:deploy`.
+// noticeos_migrations.applied, for every start.
 
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -219,7 +219,7 @@ export async function checkDatabase(address: DatabaseAddress, options: CheckOpti
   if (behind.length > 0) {
     return refused(
       `the database ${DATABASE_URL} in ${where} names is ${behind.length} migration${behind.length === 1 ? '' : 's'} behind this code; ` +
-        'pnpm postgres:migrate apply brings it up to date (db/postgres/README.md)',
+        'pnpm os:migrate -- --apply brings it up to date (db/postgres/README.md)',
     );
   }
   return { ok: true };
@@ -235,7 +235,7 @@ function checkFailure(error: unknown, named: string, where: string): string {
   const code = errorCode(error);
   const message = error instanceof Error ? error.message : '';
   if (name === 'NoSingleWorkspace') {
-    return `${named} has no workspace yet; pnpm postgres:migrate bootstrap creates it (db/postgres/README.md)`;
+    return `${named} has no workspace yet; pnpm os:migrate -- --bootstrap creates it (db/postgres/README.md)`;
   }
   if (name === 'TransactionRefused') {
     return `${DATABASE_URL} in ${where} logs in as another role; NoticeOS logs in as ${APPLICATION_LOGIN} (${DATABASE_SETUP})`;
@@ -250,7 +250,7 @@ function checkFailure(error: unknown, named: string, where: string): string {
     return `${named} does not exist (${DATABASE_SETUP} creates it)`;
   }
   if (NO_SCHEMA.has(code)) {
-    return `${named} has no NoticeOS schema its login can read; pnpm postgres:migrate apply creates it (db/postgres/README.md)`;
+    return `${named} has no NoticeOS schema its login can read; pnpm os:migrate -- --apply creates it (db/postgres/README.md)`;
   }
   const said = /^[0-9A-Z]{5}$/u.test(code) || /^E[A-Z_]+$/u.test(code) ? ` (${code})` : '';
   return `${named} could not be checked${said}; see ${DATABASE_SETUP}`;
@@ -293,15 +293,4 @@ export async function towerDatabase(options: TowerDatabaseOptions): Promise<{ re
   const checked = await checkDatabase(reading.address, options);
   if (!checked.ok) return checked;
   return { ok: true, env: databaseEnv(reading.address) };
-}
-
-/**
- * Which migrations this installation's database records, read through the
- * address every start reads: what `pnpm os:deploy` holds a commit's Postgres
- * migrations against. Never throws, and never repeats the address.
- */
-export async function recordedMigrations(options: AddressSource & Pick<CheckOptions, 'open'>): Promise<RecordedMigrations> {
-  const reading = await readAddress(options);
-  if (!reading.ok) return reading;
-  return readRecordedMigrations(reading.address, options);
 }

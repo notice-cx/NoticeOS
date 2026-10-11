@@ -1,6 +1,6 @@
 // Every list-shaped config register, declared once: which file holds it, the
 // JSON pointer of its container, the container's shape, which field identifies
-// a row, and what each field may hold. `pnpm config:generate` writes the
+// a row, and what each field may hold. `pnpm generate` writes the
 // plain-ESM `config-registers.mjs` and `config-registers.d.mts` beside this
 // file; the Tower re-exports the same object through
 // `apps/tower/shared/config-registers.ts`, so the browser and the write lane

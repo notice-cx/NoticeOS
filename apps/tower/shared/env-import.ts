@@ -11,9 +11,10 @@ export const ENV_IMPORT_PATH = "/api/integrations/import-env";
  *
  * `elsewhere`: a deployed Worker has no filesystem; the import runs on the
  * machine that runs the OS.
- * `no-file`: no `workers/ingest/.dev.secrets.json` yet, so the card shows the
- * migrate command first. Importing a raw `.dev.vars` would store Google's
- * service-account pointers without the key, outranking a working binding.
+ * `no-file`: no `workers/ingest/.dev.secrets.json` on this machine, so there
+ * is nothing to import. A raw `.dev.vars` is never imported: it would store
+ * Google's service-account pointers without the key, outranking a working
+ * binding.
  */
 export type EnvImportBlock = "elsewhere" | "no-file";
 
@@ -23,10 +24,6 @@ export interface EnvImportAvailability {
   importable: boolean;
   reason: EnvImportBlock | null;
 }
-
-/** The command that turns a hand-written `.dev.vars` into the secrets file the
- * import reads — shown first when there is no file. */
-export const ENV_MIGRATE_COMMAND = "pnpm dev:secrets:migrate";
 
 /** One provider that moved into the store, with the field names that moved. */
 export interface EnvImportMoved {
@@ -57,7 +54,7 @@ export interface EnvImportResult {
  * machine with no secrets file. The card never presses Import in either state
  * (the GET's `reason` hides the button); these answer a caller that does. */
 export const ENV_IMPORT_ELSEWHERE_DETAIL = "Run the import on the machine that runs the OS.";
-export const ENV_IMPORT_NO_FILE_DETAIL = `No secrets file on this machine — run ${ENV_MIGRATE_COMMAND} first.`;
+export const ENV_IMPORT_NO_FILE_DETAIL = "No secrets file on this machine, so there is nothing to import.";
 
 /** One line for a toast: what the press actually moved, named. */
 export function envImportSummary(result: EnvImportResult): string {

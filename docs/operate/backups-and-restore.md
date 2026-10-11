@@ -11,7 +11,7 @@ This page gets you a nightly backup to trust and a restore you have rehearsed be
 
 - An absolute offsite folder that a sync client (Google Drive, Dropbox, iCloud Drive, a mounted share) carries off the machine, with its parent already existing.
 - The task database service running; task databases are backed up online.
-- For a Compose stack, the separate backup worker from `deploy/compose/backup.compose.yaml`, with the same stages and retention. Its setup is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
+- For the Docker stack, the backup worker from `deploy/compose/backup.compose.yaml`, with the same stages and retention. Its setup is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
 
 ### What is backed up
 
@@ -30,7 +30,7 @@ Each part is consistent on its own, not as one transaction across all of them. O
 
 ### When it runs
 
-The macOS service takes a backup nightly at **04:00 UTC**. A `pnpm start` installation runs the backup job only once its own `installation/host-backup.json` (inside the start folder) names an offsite folder. Until then the job is listed but does not run.
+The Docker stack takes a backup nightly at **04:00 UTC**; `pnpm os:backup` takes one now. A `pnpm start` installation runs the backup job only once its own `installation/host-backup.json` (inside the start folder) names an offsite folder. Until then the job is listed but does not run.
 
 ## Set where it goes and how long it is kept
 
@@ -82,7 +82,7 @@ Restore into **isolated stores first**, never over the live ones.
 4. **Task databases:** restore into a new, empty task service. The helper refuses to overwrite an existing service or volume. Steps: https://github.com/notice-cx/NoticeOS/blob/main/db/dolt/host/README.md#backup-and-recovery.
 5. Check row counts, ledger totals and archive references before you point an app at the restored stores.
 
-Replacing the live stores is a separate operator decision: stop the service first (`pnpm os:stop` or `pnpm stack:stop`), restore, then start it again. A restore does not run migrations and a migration does not restore; keep the two steps apart.
+Replacing the live stores is a separate operator decision: stop the stack first (`pnpm os:stop`), restore, then start it again (`pnpm os:start`). A restore does not run migrations and a migration does not restore; keep the two steps apart.
 
 For a demo installation, the procedure is a stopped backup of its four volumes; see [Try the demo](/start/try-the-demo).
 

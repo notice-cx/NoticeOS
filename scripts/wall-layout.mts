@@ -3,7 +3,7 @@
 // and every door a layout can be written through share it;
 // `apps/tower/shared/wall-layout.ts` is the typed re-export.
 //
-// Authored TypeScript: `pnpm config:generate` writes the plain-ESM
+// Authored TypeScript: `pnpm generate` writes the plain-ESM
 // `wall-layout.mjs` and the `wall-layout.d.mts` beside it. No `node:` imports:
 // the portable generation project gives this file no Node types.
 //
@@ -19,7 +19,7 @@
 //
 // Widths are weights, not columns: a row's widgets share its width in
 // proportion to their `width` (the `fr` a CSS grid track takes), because the
-// Wall must fit one fixed 1920×1080 screen (`pnpm wall:fit`). A widget also
+// Wall must fit one fixed 1920×1080 screen (`pnpm audit:wall-fit`). A widget also
 // carries a floor (`minWidthRem`) below which its content clips; the renderer
 // applies it as the track's minimum.
 //

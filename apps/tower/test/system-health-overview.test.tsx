@@ -100,7 +100,7 @@ describe('System Health status evidence', () => {
       expect(screen.getByText('Collection, service checks, task-board refreshes and backups')).toBeVisible();
     });
   });
-  // Under launchd the unpublished-commit check can be refused by a site's
+  // Under a service the unpublished-commit check can be refused by a site's
   // remote. That is on the screen, by site and reason, every run.
   describe('sites the unpublished-commit check could not read', () => {
     const pushRun = (failed: { asset: string; reason: string }[]) => {

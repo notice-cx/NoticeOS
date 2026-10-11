@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -48,7 +48,6 @@ import {
 import {
   EXIT_RUNTIME_COPY,
   ingestDoorEnv,
-  managedOrphanDecision,
   runnerArmDecision,
   runtimeCopyRefusal,
 } from './runner/lifecycle.mjs';
@@ -165,8 +164,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 
 test('supervision can never apply an operator-only migration', () => {
   const source = readFileSync(path.join(REPO_ROOT, 'scripts', 'os-up.mjs'), 'utf8');
-  assert.doesNotMatch(source, /d1[\s'",]+migrations[\s'",]+apply/u);
-  assert.doesNotMatch(source, /postgres-migrate\.mjs|['"]postgres:migrate['"]/u);
+  assert.doesNotMatch(source, /postgres-migrate\.mjs|['"]os:migrate['"]/u);
   assert.match(source, /Postgres migrations are operator-only — startup applies none/u);
 });
 
@@ -186,7 +184,7 @@ test('the persistent runner log rotates at a hard byte bound and caps history', 
   }
 });
 
-test('os:up binds the Tower to loopback by default, including an empty setting', () => {
+test('the runner binds the Tower to loopback by default, including an empty setting', () => {
   for (const value of [undefined, '', '  ']) assert.equal(resolveTowerExposure([], value), false);
   assert.deepEqual(towerChild({ exposeTowerToLan: false, database: {} }).args.slice(-2), ['--host', '127.0.0.1']);
 });
@@ -195,7 +193,7 @@ test('--local opts out of LAN exposure', () => {
   assert.equal(resolveTowerExposure(['--local'], undefined), false);
 });
 
-test('the launchd-compatible false environment value opts out', () => {
+test('a false environment value opts out', () => {
   assert.equal(resolveTowerExposure([], 'false'), false);
   assert.equal(resolveTowerExposure([], '0'), false);
 });
@@ -244,10 +242,7 @@ test('the refusal says what it would have cost and how to clear it', () => {
   assert.match(d.text, /TWICE/);
   assert.match(d.text, /bills a metered lane twice/);
   assert.match(d.text, /no children, no crons, no migrations/);
-  assert.match(d.text, /pnpm os:status/);
-  assert.match(d.text, /pnpm os:doctor/);
-  assert.match(d.text, /pnpm os:restart/);
-  assert.match(d.text, /foreground pnpm os:up terminal/);
+  assert.match(d.text, /Stop the other runner first/);
 });
 
 test('the guard asks about the pinned ingest port, not a hardcoded one', () => {
@@ -255,7 +250,6 @@ test('the guard asks about the pinned ingest port, not a hardcoded one', () => {
   // the port map is one source of truth even though recovery is now repo-owned.
   const d = runnerArmDecision({ ingestPortAnswers: true }, { ingestHost: '127.0.0.1', ingestPort: 9999 });
   assert.match(d.text, /127\.0\.0\.1:9999/);
-  assert.match(d.text, /pnpm os:status/);
 });
 
 test('a crashed runner leaves nothing behind that could refuse the next one', () => {
@@ -268,51 +262,6 @@ test('the occupied-door refusal prevents duplicate schedulers before anything st
   const d = runnerArmDecision({ ingestPortAnswers: true }, CONFIG);
   assert.match(d.text, /TWO schedulers/);
   assert.match(d.text, /no children, no crons, no migrations/);
-});
-
-test('a forced managed-runner exit may recover only its fresh, positively identified child group', () => {
-  const previous = {
-    managed: true,
-    pid: 800,
-    towerPid: 900,
-    updatedAt: '2026-08-04T11:59:30.000Z',
-  };
-  assert.deepEqual(
-    managedOrphanDecision({
-      previous,
-      previousRunnerAlive: false,
-      owners: [{ pid: 941, pgid: 900 }],
-      nowMs: Date.parse('2026-08-04T12:00:00.000Z'),
-    }),
-    {
-      recover: true,
-      group: 900,
-      reason: 'managed predecessor 800 is gone; its child group 900 owns the door',
-    },
-  );
-});
-
-test('orphan recovery never kills a manual, live, stale, foreign, or unprovable process', () => {
-  const fresh = {
-    managed: true,
-    pid: 800,
-    towerPid: 900,
-    updatedAt: '2026-08-04T11:59:30.000Z',
-  };
-  const input = {
-    previous: fresh,
-    previousRunnerAlive: false,
-    owners: [{ pid: 941, pgid: 900 }],
-    nowMs: Date.parse('2026-08-04T12:00:00.000Z'),
-  };
-  assert.equal(managedOrphanDecision({ ...input, previous: { ...fresh, managed: false } }).recover, false);
-  assert.equal(managedOrphanDecision({ ...input, previousRunnerAlive: true }).recover, false);
-  assert.equal(
-    managedOrphanDecision({ ...input, previous: { ...fresh, updatedAt: '2026-08-04T11:00:00.000Z' } }).recover,
-    false,
-  );
-  assert.equal(managedOrphanDecision({ ...input, owners: [{ pid: 941, pgid: 777 }] }).recover, false);
-  assert.equal(managedOrphanDecision({ ...input, owners: null }).recover, false);
 });
 
 // The ingest door: one runtime serves both Workers, so the ingest's address is
@@ -832,7 +781,7 @@ test('a door that is down costs the store nothing — the record catches up next
 });
 
 test('an unarmed runner writes to disk and ships nothing', async () => {
-  // `pnpm os:up --backup` by hand: there is no runtime to ask, so the firing is
+  // `pnpm os:backup` by hand: there is no runtime to ask, so the firing is
   // disk-only and the next startup's catch-up carries it.
   const ship = shipDeps({ state: { runtime: null, pending: [], skipping: null } });
   assert.equal(await shipJobRuns(record(), ship.deps), null);
@@ -935,8 +884,6 @@ test('the ownership probe asks about the pinned door port, in machine format', (
     '-F',
     'pg',
   ]);
-  // The refusal routes the operator through the standard diagnosis command.
-  assert.match(runnerArmDecision({ ingestPortAnswers: true }, CONFIG).text, /pnpm os:doctor/);
 });
 
 test('lsof field output reads back as pid + process group', () => {
@@ -1003,7 +950,7 @@ test('ancestry never loops, whatever ps says', () => {
   const looped = parseProcessParents(' 10 11\n 11 10\n');
   assert.equal(isDescendantOf(10, 900, looped), false);
   assert.equal(isDescendantOf(10, 11, looped), true);
-  // pid 1 is the top: launchd is not "our tree" however far up you walk.
+  // pid 1 is the top: init is not "our tree" however far up you walk.
   assert.equal(isDescendantOf(941, 1, parseProcessParents(' 941 1\n')), false);
 });
 
@@ -1089,7 +1036,7 @@ test('a reachable hub reports where it is, once', () => {
 });
 
 test('a down hub warns with the command that fixes it', () => {
-  // os:up cannot restart the hub, so the line has to hand over the fix.
+  // The runner cannot restart the hub, so the line has to hand over the fix.
   const line = beadsHubHealthLine(false, { beadsHubHost: '127.0.0.1', beadsHubPort: 3308 });
   assert.equal(line.level, 'WARN');
   assert.match(line.text, /brew services start dolt/);
@@ -1211,7 +1158,7 @@ test('an explicit binary override outranks anything on disk', () => {
   assert.equal(resolveBin('  ', ['/opt/homebrew/bin/dolt'], exists, 'dolt'), '/opt/homebrew/bin/dolt');
 });
 
-test('binary resolution prefers a known install over launchd’s bare PATH', () => {
+test('binary resolution prefers a known install over a service’s minimal PATH', () => {
   const only = (want) => (candidate) => candidate === want;
   assert.equal(
     resolveBin(undefined, ['/opt/homebrew/bin/dolt', '/usr/local/bin/dolt'], only('/usr/local/bin/dolt'), 'dolt'),
@@ -3794,7 +3741,7 @@ const FACTS = {
 };
 
 test('a push state we could not read files nothing and closes nothing', () => {
-  // launchd's environment may have no SSH agent. An unread remote is the one
+  // The runner's environment may have no SSH agent. An unread remote is the one
   // input that can produce BOTH mistakes: a bead about work that is already
   // live, and a close on work that is still sitting on this Mac.
   assert.deepEqual(pushStateDecision({ ...FACTS, fetchOk: false }).action, 'skip');
@@ -4151,7 +4098,7 @@ test('a spoke in sync with nothing open is completely silent', async () => {
 });
 
 test('a fetch that failed files nothing, closes nothing, and says so once', async () => {
-  // launchd's environment may have no SSH agent. Unknown push state is the one
+  // The runner's environment may have no SSH agent. Unknown push state is the one
   // input that can produce both mistakes at once.
   const { lines, ran, deps } = pushDeps({
     fetchResult: { code: 128, stdout: '', stderr: 'fatal: could not read Username for https://github.com' },
@@ -4200,7 +4147,7 @@ test('a spoke with no origin/main is unreadable, not up to date', async () => {
   assert.deepEqual(result.failed, [{ asset: 'northwind.example', reason: 'git-read-failed' }]);
 });
 
-// Under launchd a fetch can be refused (no SSH agent, no key) and the push
+// Under a service a fetch can be refused (no SSH agent, no key) and the push
 // state goes unread. The run record names each such spoke and a reason code,
 // never git's own text, and the recorded step fails, so System health and the
 // job's run page show it.
@@ -4235,7 +4182,7 @@ test('an unread push state is named per spoke in the run record, by reason', asy
   ]);
   assert.doesNotMatch(JSON.stringify(result), /github\.com|publickey/u, 'git’s own text stays in the log');
 
-  // As the managed service records it: the step fails, and its output names
+  // As the stack's runner records it: the step fails, and its output names
   // each unread spoke with its reason in words.
   const verdict = stepResult(result);
   assert.equal(verdict.state, 'failed');
@@ -4499,8 +4446,8 @@ test('a verdict reaches its bead in the spoke that owns it, then is stamped', as
   // from the spoke's own repo or the hub cannot resolve the id.
   assert.deepEqual(spawned, [
     // Resolved from the HOME checkout the inventory is relative to: a runner
-    // running from a runtime copy must not look for ../meadow.example beside
-    // that copy.
+    // running from a code folder must not look for ../meadow.example beside
+    // that folder.
     ['-C', '/home/operator/meadow.example', 'comment', 'md-w1n.2', 'Watch window kill_confirmed — meadow.example\n\nReading: …'],
   ]);
   // Read, then post — the stamp is the LAST thing that happens.
@@ -4592,7 +4539,7 @@ test('the startup line names every provider still resolved from the environment 
       ]),
     ),
     'credentials: 2 of 3 still resolve from the environment file (google, dataforseo) — ' +
-      'Import them on /integrations, or run pnpm dev:secrets:import',
+      'Import them on /integrations',
   );
 });
 
@@ -4990,22 +4937,21 @@ test('the lane files into whichever project the store names as the OS', async ()
   assert.ok(lines.some((line) => line.includes('the store names no OS asset')));
 });
 
-// --- starting from a runtime copy ---------------------------------------------
+// --- starting from a code folder apart from home ------------------------------
 //
-// The managed service runs a runtime copy of the code. Before that runner starts
-// anything, its copy must be linked to home's state. The following Postgres
-// validation independently refuses a missing login or unprepared database.
+// The container image keeps its code apart from the installation's state.
+// Before that runner starts anything, its code folder must be linked to home's
+// state. The following Postgres validation independently refuses a missing
+// login or unprepared database.
 
-test('a runner copy requires shared links and no legacy D1 files', async () => {
+test('a code folder apart from home requires shared links', async () => {
   const home = mkdtempSync(path.join(tmpdir(), 'os-up-home-'));
   try {
-    const copy = path.join(home, '.local', 'runtime', 'runtime-a');
-    // Postgres validation is the next startup step, independent of D1 files.
+    const copy = path.join(home, 'code');
     assert.equal(await runtimeCopyRefusal({ codeRoot: copy, homeRoot: home }), null);
-    assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false);
-    assert.equal(existsSync(path.join(copy, '.local')), true, 'the copy was linked to home’s .local');
+    assert.equal(lstatSync(path.join(copy, '.local')).isSymbolicLink(), true, 'the code folder was linked to home’s .local');
 
-    // A conflicting real directory in the copy: refused, nothing deleted.
+    // A conflicting real directory in the code folder: refused, nothing deleted.
     const conflicted = await runtimeCopyRefusal({
       codeRoot: copy,
       homeRoot: home,
@@ -5025,10 +4971,10 @@ test('a runner copy requires shared links and no legacy D1 files', async () => {
   }
 });
 
-test('the runner records which code it is, for os:status and os:deploy', () => {
+test('the runner records which home and commit it runs, in its heartbeat', () => {
   const source = readFileSync(path.join(REPO_ROOT, 'scripts', 'os-up.mjs'), 'utf8');
   const state = source.slice(source.indexOf('const runnerState = {'), source.indexOf('};', source.indexOf('const runnerState = {')));
-  for (const field of ['codeRoot: REPO_ROOT', 'homeRoot: HOME_ROOT', 'commit: null']) {
+  for (const field of ['homeRoot: HOME_ROOT', 'commit: null']) {
     assert.ok(state.includes(field), `the heartbeat no longer carries ${field}`);
   }
   assert.match(source, /runnerState\.commit = codeCommit\(\);/u);
@@ -5038,7 +4984,7 @@ test('the runner records which code it is, for os:status and os:deploy', () => {
 });
 
 // An expression no scheduled job runs on is refused by the dispatch and runs
-// nothing; the runner and `pnpm os:cron` say so by name.
+// nothing; the runner and `pnpm os:run-job` say so by name.
 test('a refused cron fire is failed by its name, in the run record and the log', async () => {
   const lines = [];
   const refused = await fireScheduledTrigger('http://127.0.0.1:8599', '7 7 7 7 7', {
@@ -5056,11 +5002,11 @@ test('a refused cron fire is failed by its name, in the run record and the log',
   assert.equal(doorErrorCode('{"error":"Bearer abc def"}'), null, 'only a code-shaped value is repeated');
 });
 
-test('os:cron names the refusal and lists the expressions it does run', () => {
+test('os:run-job names the refusal and lists the expressions it does run', () => {
   const line = tickRefusal('0 * * * * *', 'unknown_cron');
   assert.match(line, /^tick: refused "0 \* \* \* \* \*" — unknown_cron: no scheduled job runs on it; nothing ran\./u);
   assert.match(line, /"0 \* \* \* \*" \(Data freshness checks\)/u);
-  assert.doesNotMatch(line, /Search review tasks/u, 'a job the runner runs itself is not an expression os:cron fires');
+  assert.doesNotMatch(line, /Search review tasks/u, 'a job the runner runs itself is not an expression os:run-job fires');
   assert.equal(tickRefusal('0 * * * *', 'scheduled_failed'), null);
   assert.equal(tickRefusal('0 * * * *', null), null);
 });

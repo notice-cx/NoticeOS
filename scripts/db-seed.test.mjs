@@ -13,11 +13,11 @@ import { ADDRESS_FILE, SECRETS_DIR_VARIABLE } from './postgres-secrets.mjs';
 import { TEST_PORTS, parsePortRange, postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { FOLDER_MARK, MANAGED_PORTS, startPlan } from './start.mjs';
 
-// `pnpm seed:local` on the Postgres build: the invented rows of
+// `pnpm db:seed-demo` on the Postgres build: the invented rows of
 // db/fixtures/dev-seed.json go into the Postgres tables the Tower reads, of a
 // throwaway installation `pnpm start` made, in one transaction as the
 // application login; the store must be empty of them first and say it is for
-// development; nothing reaches D1. The last test starts a real `pnpm start`,
+// development. The last test starts a real `pnpm start`,
 // seeds it and reads the totals, one report and the money back through its
 // Tower.
 
@@ -143,7 +143,7 @@ test('a folder pnpm start did not make is refused, naming the command that makes
   assert.deepEqual(lines, [`[seed] refusing to seed: ${home} is not an installation pnpm start made; make one first: pnpm start -- --dir ${home}`]);
 });
 
-test('the checkout itself is refused: the managed service’s installation is never seeded', async (t) => {
+test('the checkout itself is refused: the NoticeOS stack’s installation is never seeded', async (t) => {
   const { code, lines } = await printed(t, () => seedLocal({ dir: REPO_ROOT }));
   assert.equal(code, 1);
   assert.match(lines.join('\n'), /holds this checkout/u);
@@ -169,12 +169,12 @@ test('the fixture names only tables and columns the seed writes, and only invent
   }
 });
 
-test('no statement reaches D1: the seed names no wrangler, no local store and no D1 binding', () => {
+test('the seed writes through Postgres only: it names no wrangler, no local store and no ingest door', () => {
   const code = readFileSync(SEED, 'utf8')
     .split('\n')
     .filter((line) => !line.trim().startsWith('//') && !line.trim().startsWith('*') && !line.trim().startsWith('/**'))
     .join('\n');
-  assert.doesNotMatch(code, /wrangler|--persist-to|\.wrangler|d1 execute|env\.DB\b|run-command|ingest-door/u);
+  assert.doesNotMatch(code, /wrangler|--persist-to|\.wrangler|run-command|ingest-door/u);
 });
 
 // ─── On a throwaway cluster ─────────────────────────────────────────────────

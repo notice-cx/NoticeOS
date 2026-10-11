@@ -729,7 +729,7 @@ function Figure({ value, unit, data, second = false }: { value: string; unit: st
   return (
     <span className="inline-flex min-w-0 flex-wrap items-baseline gap-x-2 whitespace-nowrap" data-focus-figure={data}>
       {/* `leading-tight`: the hero step's own line is tighter than the
-          glyphs, which would paint 3px past the box (`wall:fit --strict`). */}
+          glyphs, which would paint 3px past the box (`audit:wall-fit --strict`). */}
       <span className={`${second ? "text-2xl font-semibold" : "text-wall-hero-sm leading-tight font-bold"} tracking-tight tabular-nums`}>
         {value}
       </span>

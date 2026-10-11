@@ -1,13 +1,33 @@
 #!/usr/bin/env node
-// Control an existing Docker Compose installation: status, start, stop and restart of its app only.
+// Run the installation's Docker Compose stack: status, logs, start, stop, restart, and one-off jobs in the app.
+//
+// The one-off jobs run inside the app container with the runner's own
+// environment (deploy/compose/entrypoint.mjs): one backup, one schedule, the
+// capacity report.
+//
+//   pnpm os:status      What runs, its health, the database's migrations, and whether main is ahead.
+//   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
+//   pnpm os:start       Start the stack: databases, then backup, then the app, each healthy first.
+//   pnpm os:stop        Stop the app, then backup, then the databases.
+//   pnpm os:restart     Restart the stack in the same order, waiting for each layer's health.
+//   pnpm os:backup      Run one backup now, inside the app container.
+//   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
+//   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
+//
+// The stack is the one `.local/stack.json` (or --config) selects.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCommand } from './run-command.mjs';
+import { stackDatabaseCurrent } from './stack-database.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'capacity'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
-const HELP = 'Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]';
+/** How long a job run inside the app container may take. */
+const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, capacity: 180_000 };
+const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
+       stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
+       stack-control.mjs backup | run-job "<cron>" | capacity [--json]`;
 function refuse(message) { throw new Error(message); }
 export function validateSelector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -53,9 +73,35 @@ export function parseServices(stdout, project) {
   for (const service of ['noticeos', 'postgres', 'dolt']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
   return seen;
 }
-export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env,
-  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..') } = {}) {
+/** The action's own arguments, checked before Docker is asked anything. */
+export function actionArgs(action, args) {
+  if (action === 'logs') {
+    const parsed = { follow: false, lines: 200, service: null };
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      if (['--follow', '-f'].includes(arg) && !parsed.follow) parsed.follow = true;
+      else if (arg === '--lines' && /^[1-9][0-9]{0,4}$/u.test(args[i + 1] ?? '')) parsed.lines = Number(args[++i]);
+      else if (SERVICES.includes(arg) && parsed.service === null) parsed.service = arg;
+      else refuse(HELP);
+    }
+    return parsed;
+  }
+  if (action === 'run-job') {
+    if (args.length !== 1 || !/^[0-9*/,\- ]{9,64}$/u.test(args[0])) refuse('Name one cron expression: pnpm os:run-job -- "0 6 * * *"');
+    return { job: ['run-job', args[0]] };
+  }
+  if (action === 'capacity') {
+    if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
+    return { job: ['capacity', ...args] };
+  }
+  if (args.length) refuse(HELP);
+  return action === 'backup' ? { job: ['backup'] } : {};
+}
+
+export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env, args = [],
+  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent } = {}) {
   if (!ACTIONS.includes(action)) refuse(HELP);
+  const own = actionArgs(action, args);
   const selector = validateSelector(input);
   const prefix = ['--host', selector.dockerHost, 'compose', '--project-name', selector.project,
     ...selector.files.flatMap(file => ['-f', file]), '--env-file', selector.envFile];
@@ -67,12 +113,31 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     if (result.code !== 0) refuse(`${label} failed; no later stack steps ran.`);
     return result.stdout;
   };
+  // Logs and jobs write straight to this terminal; nothing is collected here.
+  const attached = async (args, label, timeoutMs) => {
+    let result;
+    try { result = await run('docker', [...prefix, ...args], { env: ownEnv, timeoutMs, inherit: true }); }
+    catch { refuse(`${label} did not complete.`); }
+    if (result.code !== 0) refuse(`${label} failed (exit ${result.code}).`);
+  };
   const inventory = () => call(['ps','--all','--format','json'], 'Stack inspection', 20000).then(text => parseServices(text, selector.project));
   const original = await inventory();
+  if (action === 'logs') {
+    await attached(['logs', '--tail', String(own.lines), ...(own.follow ? ['--follow'] : []), ...(own.service ? [own.service] : [])], 'Reading the logs', own.follow ? Infinity : 60000);
+    return;
+  }
+  if (own.job) {
+    const app = original.get('noticeos');
+    if (app.state !== 'running') refuse('The app is not running; start it first: pnpm os:start');
+    await attached(['exec', '-T', 'noticeos', 'node', 'deploy/compose/entrypoint.mjs', ...own.job], `The ${action} job`, JOB_TIMEOUT_MS[action]);
+    return;
+  }
   if (action === 'status') {
     for (const service of SERVICES.filter(name => original.has(name))) {
       const row = original.get(service); out.write(`${service}: ${row.state}${row.health ? ', ' + row.health : ''}\n`);
     }
+    const current = await database(selector, { root });
+    out.write(`database: ${current.ok ? 'has every migration in this checkout' : current.line}\n`);
     let running = null; let main = null;
     try {
       const inspected = await run('docker', ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',original.get('noticeos').id], { env: ownEnv, timeoutMs: 20000 });
@@ -87,7 +152,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
         const head = await run('git', ['rev-parse','--verify','HEAD^{commit}'], { cwd:root,env:ownEnv,timeoutMs:20000 });
         const commit = head.stdout?.trim();
         if (head.code !== 0 || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(commit ?? '')) refuse('Development source inspection failed.');
-        out.write(`mode: development (mounted checkout)\napp source: ${commit}\nupdate: live source; deployments unnecessary\n`);
+        out.write(`mode: development (mounted checkout)\napp source: ${commit}\nupdate: live source; pnpm os:prod returns to the image\n`);
         return;
       }
       const source = await run('git', ['rev-parse','--verify','main^{commit}'], { cwd: root, env: ownEnv, timeoutMs: 20000 });
@@ -95,7 +160,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     } catch { refuse('Application revision inspection failed; raw output is withheld.'); }
     out.write(`app source: ${running ?? 'unknown (image predates revision labels)'}\n`);
     out.write(`main: ${main ?? 'unavailable'}\n`);
-    out.write(`update: ${!running || !main ? 'unknown' : running === main ? 'current' : 'main differs; prepare stack:deploy'}\n`);
+    out.write(`update: ${!running || !main ? 'unknown' : running === main ? 'current' : 'main differs; pnpm os:update moves the app to it'}\n`);
     return;
   }
   const backup = original.has('backup') ? ['backup'] : [];
@@ -117,9 +182,13 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
   if (argv.length === 1 && ['--help','-h'].includes(argv[0])) { out.write(HELP + '\n'); return 0; }
   try {
     const action = argv[0]; const args = argv.slice(1).filter(word => word !== '--');
-    if (!ACTIONS.includes(action) || (args.length && (args.length !== 2 || args[0] !== '--config' || !path.isAbsolute(args[1])))) refuse(HELP);
-    const file = args[1] ?? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.local/stack.json');
-    await stackControl(action, readSelector(file, options.io), { ...options, out }); return 0;
+    if (!ACTIONS.includes(action)) refuse(HELP);
+    const at = args.indexOf('--config');
+    if (at !== -1 && !path.isAbsolute(args[at + 1] ?? '')) refuse(HELP);
+    const file = at === -1 ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.local/stack.json') : args[at + 1];
+    const own = at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
+    actionArgs(action, own);
+    await stackControl(action, readSelector(file, options.io), { ...options, out, args: own }); return 0;
   } catch (error) { err.write(`${error.message}\n`); return 1; }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

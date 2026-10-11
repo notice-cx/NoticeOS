@@ -3,7 +3,7 @@
 The committed migrations define the indexes; this document explains their
 read or integrity purpose. It does not change the frozen schema. Constraint
 indexes, including primary and unique keys, are listed in
-[constraints.md](constraints.md); `pnpm postgres:consumers` reads the current
+[constraints.md](constraints.md); `pnpm db:consumers` reads the current
 [SQL consumers](consumers.md) for each table directly from source.
 
 Every primary key enforces row identity and supports incoming foreign-key
@@ -16,7 +16,7 @@ The signal observation unique key is `(workspace_id, run_seq, series_id,
 observed_date)`: it both refuses duplicate observations and supports the
 foreign key to a run. `signal_observations_series_date` instead leads with the
 measurement series, supporting its foreign key and the actual series/date
-readers. The retired SQLite duplicate run/date index has no Postgres counterpart.
+readers.
 The measurement-series unique key supplies asset/provider/resource lookup;
 the signal-run primary key supplies observation-to-run joins. The separate
 unique `(workspace_id, run_id)` key supports external run identity.

@@ -1,12 +1,25 @@
 #!/usr/bin/env node
-// Application-only Docker updates: prepare a sealed image/plan, then apply it.
+// Move the installation's app to main, or back to the previous image, after you confirm the plan.
+//
+// It builds a sealed image and plan, shows it, then applies it. Only the app
+// container changes; databases, Dolt and backup stay in place, and no
+// migration is ever applied here.
+//
+//   pnpm os:update      Build main into an image, show the plan, and apply it after you confirm.
+//   pnpm os:rollback    Move the app back to the previous image, after you confirm.
+//   pnpm os:update -- --apply <plan>  Apply a plan prepared earlier.
+//
+// When main carries migrations the database has not applied, the update stops
+// and names `pnpm os:migrate`.
 import { createHash, randomUUID } from 'node:crypto';
 import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { prepareContainerContext, publicContainerPath } from './container-context.mjs';
 import { readSelector, validateSelector, parseServices } from './stack-control.mjs';
+import { stackDatabaseCurrent } from './stack-database.mjs';
 import { runCommand } from './run-command.mjs';
 
 const REVISION = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
@@ -17,8 +30,9 @@ export const SCHEMA_LABEL = 'cx.noticeos.schema';
 const SOURCE_LABEL = 'cx.noticeos.source';
 const GIB = 1024 ** 3;
 const SCHEMA_PATH = /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json)$/u;
+const ROLES_PATH = 'db/postgres/roles.sql';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HELP = 'Usage: stack-deploy.mjs [--prepare | --apply ABSOLUTE_PLAN | --rollback] [--config ABSOLUTE_SELECTOR] [--baseline-commit COMMIT] [--image sha256:ID]\n       stack-deploy.mjs --build-only --docker-host unix:///absolute/socket --platform linux/arm64|linux/amd64';
+const HELP = 'Usage: pnpm os:update [-- --prepare] [-- --config ABSOLUTE_SELECTOR] [-- --baseline-commit COMMIT] [-- --image sha256:ID]\n       pnpm os:update -- --apply ABSOLUTE_PLAN\n       pnpm os:rollback [-- --prepare]\n       stack-deploy.mjs --build-only --docker-host unix:///absolute/socket --platform linux/arm64|linux/amd64';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
   ? Object.fromEntries(Object.entries(item).sort(([a],[b]) => a.localeCompare(b))) : item, 2) + '\n';
@@ -195,12 +209,12 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
 
 /** Prepare a reviewable deployment without changing any service. */
 export async function prepareDeployment({ root = ROOT, selectorFile, baselineCommit = null, rollback = false, preparedImage = null,
-  run = runCommand, env = process.env, out = process.stdout } = {}) {
+  run = runCommand, env = process.env, out = process.stdout, database = stackDatabaseCurrent } = {}) {
   const selector = readSelector(selectorFile);
   const inputHashes = inputSeal(selectorFile, selector);
   const before = await snapshot(run, selector, env);
   const model = await composition(run, selector, env);
-  if (model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') fail('This stack follows live source. Use stack:dev --disable before a prepared-image deployment.');
+  if (model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') fail('The app runs from live source. Run pnpm os:prod first, then update.');
   const old = await imageMetadata(run, selector, before.noticeos.image, env);
   const source = await currentSource(run, root);
   const dir = directory(selectorFile);
@@ -209,15 +223,22 @@ export async function prepareDeployment({ root = ROOT, selectorFile, baselineCom
     const previous = readJson(regular(path.join(dir, 'previous.json')).toString(), 'Previous deployment');
     if (previous.schema !== 'noticeos-stack-previous/1' || previous.selectorFile !== selectorFile || previous.activeImage !== old.id) fail('No matching previous application deployment is recorded.');
     const image = await imageMetadata(run, selector, previous.image, env);
-    if ((image.schema && image.schema !== source.schema) || previous.schemaHash !== source.schema) fail('A schema change requires an operator maintenance plan, not application rollback.');
+    if ((image.schema && image.schema !== source.schema) || previous.schemaHash !== source.schema) fail('The database schema changed since the previous image; a rollback would run older code on it. Nothing was changed.');
     if (image.revision && image.revision !== previous.commit || image.source && image.source !== previous.source) fail('The previous image does not match its recorded provenance.');
     target = { commit: previous.commit, image: image.id, source: previous.source, legacySource: previous.source === null, schemaHash: source.schema };
   } else {
     const baseline = old.schema ?? (baselineCommit ? (await sourceTree(run, root, baselineCommit)).schema : null);
     if (baseline === null) fail('The running image has no schema revision. For this first update, name its recorded source with --baseline-commit.');
-    if (baseline !== source.schema) fail('Postgres schema or role changes require a separate operator maintenance plan. Deployment applies no migrations.');
     if (!old.revision && baselineCommit) old.revision = (await sourceTree(run, root, baselineCommit)).commit;
     if (!old.revision) fail('Name the recorded running source with --baseline-commit so rollback has an exact source revision.');
+    if (baseline !== source.schema) {
+      // Roles are set at the database's first start, so a change to them is
+      // operator maintenance; migrations are applied with pnpm os:migrate first.
+      const roles = tree => tree.files.find(row => row.file === ROLES_PATH)?.object ?? null;
+      if (roles(await sourceTree(run, root, old.revision)) !== roles(source)) fail('main changes the Postgres roles; that is operator maintenance (db/postgres/host/README.md). Nothing was changed.');
+      const current = await database(selector, { root });
+      if (!current.ok) fail(`main carries database changes the database does not have yet: ${current.line}. Then run the update again; it applies no migrations. Nothing was changed.`);
+    }
     if (preparedImage) {
       const image = await imageMetadata(run, selector, preparedImage, env);
       if (image.revision !== source.commit || image.schema !== source.schema || !image.source || image.platform !== old.platform) fail('Prepared image does not match main and the current platform/schema.');
@@ -348,8 +369,14 @@ async function snapshotForRecovery(run,selector,env) {
 export { snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
   composition as stackComposition, compose as stackCompose, atomic as stackAtomic,
   inputSeal as stackInputSeal, sameInputs as stackSameInputs };
+const ask = async (question) => {
+  const prompt = createInterface({ input: process.stdin, output: process.stdout });
+  try { return (await prompt.question(question)).trim(); } finally { prompt.close(); }
+};
 export async function main(argv=process.argv.slice(2),options={}) {
   const out=options.out ?? process.stdout; const err=options.err ?? process.stderr;
+  const interactive=options.interactive ?? Boolean(process.stdin.isTTY && process.stdout.isTTY);
+  const question=options.question ?? ask;
   if (argv.length===1 && ['--help','-h'].includes(argv[0])) {out.write(HELP+'\n');return 0;}
   try {
     let selectorFile=path.join(ROOT,'.local/stack.json');
@@ -381,9 +408,15 @@ export async function main(argv=process.argv.slice(2),options={}) {
     } else if(apply) await applyDeployment(apply,options);
     else {
       const plan=await prepareDeployment({...options,selectorFile,baselineCommit,rollback,preparedImage,out});
-      out.write(`Prepared ${plan.commit.slice(0,12)} for ${plan.selector.project}; existing services were untouched.\n`);
+      const verb=rollback?'rollback':'update';
+      out.write(`Prepared ${plan.commit.slice(0,12)} for ${plan.selector.project}; nothing has changed yet.\n`);
+      out.write(`Image: ${plan.image}\nPrevious: ${plan.previous.image}\nOnly the app container is replaced; databases and backups stay in place.\n`);
       const quote=value=>"'"+value.replaceAll("'", "'\\''")+"'";
-      out.write(`Image: ${plan.image}\nPrevious: ${plan.previous.image}\nReview and approve this application-only update, then run:\npnpm stack:deploy -- --apply ${quote(plan.file)}\n`);
+      if(interactive && !seen.has('--prepare')) {
+        const typed=await question(`Type ${verb} to apply it, or press Enter to stop: `);
+        if(typed===verb) {await applyDeployment(plan.file,options);return 0;}
+        out.write(`Nothing was changed. To apply this plan later: pnpm os:update -- --apply ${quote(plan.file)}\n`);
+      } else out.write(`To apply it: pnpm os:update -- --apply ${quote(plan.file)}\n`);
     }
     return 0;
   } catch(error) {err.write(`${error.message}\n`);return 1;}

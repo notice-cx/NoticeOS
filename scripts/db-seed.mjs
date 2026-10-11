@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// `pnpm seed:local`: a new installation's store filled with invented history.
+// `pnpm db:seed-demo`: a new installation's store filled with invented history.
 //
-//   pnpm seed:local                     # the installation `pnpm start` keeps in .local/start
-//   pnpm seed:local -- --dir <folder>   # the one it keeps in <folder>
+//   pnpm db:seed-demo                     # the installation `pnpm start` keeps in .local/start
+//   pnpm db:seed-demo -- --dir <folder>   # the one it keeps in <folder>
 //
 // It writes db/fixtures/dev-seed.json in one transaction, through the one
 // helper (packages/postgres), as the application login, so every row passes
 // the grants and row security a Worker's write passes and a failure keeps
 // nothing. It reaches the installation `pnpm start` made in the folder through
 // DATABASE_URL in that folder's secrets file, checked as `pnpm start` checks
-// it; never the checkout's own secrets and never the managed service's
+// it; never the checkout's own secrets and never the NoticeOS stack's
 // installation. No local store file is opened.
 //
 // It refuses, writing nothing, when the folder is not one `pnpm start` made;
@@ -25,7 +25,8 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { DATABASE_URL, checkDatabase, readDatabaseAddress } from './database-address.mjs';
 import { readDevSecretBindings } from './dev-secrets.mjs';
-import { invokedDirectly, samePath } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
+import { samePath } from './os-runtime.mjs';
 import { DEVELOPMENT, PROFILE_SETTING } from './postgres-profile.mjs';
 import { startPlan } from './start.mjs';
 

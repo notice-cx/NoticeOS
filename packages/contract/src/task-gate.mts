@@ -4,7 +4,7 @@
 // `Ad-hoc gate blocking <id>\n\nReason: <text>`. Every reader that shows a
 // gate titles it with that reason through this one module.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and `.d.mts`
 // beside it.
 
 /** A gate's reason is free text an operator typed, and the route caps a title

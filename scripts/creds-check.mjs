@@ -1104,8 +1104,8 @@ function feedSlot(feed) {
 function freshLinkFix(feed) {
   return (
     `fix: put a current "Secret address in iCal format" in ${feedSlot(feed)} (Google` +
-    ' Calendar → Settings → that calendar → Integrate calendar), then' +
-    ' `pnpm dev:secrets:sync` and restart ingest.'
+    ' Calendar → Settings → that calendar → Integrate calendar), then run' +
+    ' `pnpm os:restart`.'
   );
 }
 
@@ -1412,7 +1412,7 @@ export async function probeStoreLane(lane, store, { fetchImpl = fetch } = {}) {
           state: 'fail',
           label: lane.label,
           detail: `the OS answered nothing at ${url} — ${r.networkError}`,
-          sub: ['fix: the credential is stored; re-run once `pnpm os:up` is serving again.'],
+          sub: ['fix: the credential is stored; re-run once NoticeOS is serving again (`pnpm os:status`).'],
         },
       ],
       proofs: [],
@@ -1425,7 +1425,7 @@ export async function probeStoreLane(lane, store, { fetchImpl = fetch } = {}) {
           state: 'fail',
           label: lane.label,
           detail: `the OS refused the test with HTTP ${r.status}`,
-          sub: [`fix: check the os:up log for ${lane.provider}.`],
+          sub: [`fix: check \`pnpm os:logs\` for ${lane.provider}.`],
         },
       ],
       proofs: [],
@@ -1665,7 +1665,7 @@ async function main() {
       : c.dim(
           `  env only: ${secretSource ?? 'none on this machine'}` +
             ` — the OS is not answering at ${store.origin}, so a credential connected in the` +
-            ' product is invisible here. Start `pnpm os:up` for the full answer.',
+            ' product is invisible here. Start NoticeOS (`pnpm os:start`) for the full answer.',
         ),
   );
   if (secretsError !== null && !store.reachable) {

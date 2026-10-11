@@ -9,18 +9,13 @@ import {
   HOME_ENV,
   SHARED_STATE,
   ensureSharedStateLinks,
-  homeOfRuntimeSlot,
   invokedDirectly,
-  plistRunsFrom,
-  postgresConfigRefusal,
   resolveHomeRoot,
   runtimeChildEnv,
-  runtimeLayout,
   statePaths,
 } from './os-runtime.mjs';
 
-// Where the live OS's code runs from vs where its state stays. Temp
-// directories only.
+// Where the OS's code runs from vs where its state stays. Temp directories only.
 
 const dirs = [];
 after(() => {
@@ -32,20 +27,14 @@ function tempDir(prefix) {
   return dir;
 }
 
-test('home is the environment’s word, else the runtime layout, else the code’s own checkout', () => {
-  const home = '/Users/op/dev/reindex-os';
-  const copy = path.join(home, '.local', 'runtime', 'runtime-b');
-  assert.equal(homeOfRuntimeSlot(copy), home);
-  assert.equal(homeOfRuntimeSlot(home), null);
-  assert.equal(homeOfRuntimeSlot(path.join(home, '.local', 'runtime', 'current')), null, 'only the two copies');
-  assert.equal(resolveHomeRoot(copy, {}), home);
-  assert.equal(resolveHomeRoot(home, {}), home);
-  assert.equal(resolveHomeRoot(copy, { [HOME_ENV]: '/elsewhere' }), '/elsewhere');
-  assert.equal(resolveHomeRoot(home, { [HOME_ENV]: '   ' }), home);
+test('home is the environment’s word, else the code’s own folder', () => {
+  assert.equal(resolveHomeRoot('/opt/noticeos', {}), '/opt/noticeos');
+  assert.equal(resolveHomeRoot('/opt/noticeos', { [HOME_ENV]: '/state' }), '/state');
+  assert.equal(resolveHomeRoot('/opt/noticeos', { [HOME_ENV]: '   ' }), '/opt/noticeos');
 });
 
 test('from home, every state path is the one a runner has always used', () => {
-  const home = '/Users/op/dev/reindex-os';
+  const home = '/state';
   const state = statePaths(home);
   assert.equal(state.persistState, path.join(home, '.wrangler', 'state'));
   assert.equal(state.logFile, path.join(home, '.local', 'logs', 'os-up.log'));
@@ -61,7 +50,7 @@ test('from home, every state path is the one a runner has always used', () => {
 
 test('links are created once, left alone when right, and never replace real data', async () => {
   const home = tempDir('os-runtime-home-');
-  const copy = path.join(runtimeLayout(home).dir, 'runtime-a');
+  const copy = path.join(tempDir('os-runtime-code-'), 'noticeos');
   mkdirSync(path.join(copy, 'workers', 'ingest'), { recursive: true });
 
   const first = await ensureSharedStateLinks({ codeRoot: copy, homeRoot: home });
@@ -70,7 +59,7 @@ test('links are created once, left alone when right, and never replace real data
   const second = await ensureSharedStateLinks({ codeRoot: copy, homeRoot: home });
   assert.deepEqual([second.created, second.linked.length, second.conflicts], [[], SHARED_STATE.length, []]);
 
-  // A copy that grew its own store: reported, never deleted.
+  // A code folder that grew its own store: reported, never deleted.
   rmSync(path.join(copy, '.wrangler'));
   mkdirSync(path.join(copy, '.wrangler', 'state'), { recursive: true });
   const third = await ensureSharedStateLinks({ codeRoot: copy, homeRoot: home });
@@ -82,19 +71,9 @@ test('links are created once, left alone when right, and never replace real data
   assert.deepEqual(await ensureSharedStateLinks({ codeRoot: home, homeRoot: home }), { created: [], linked: [], conflicts: [] });
 });
 
-test('the installed plist says whether the service runs the runtime copy or the checkout', () => {
-  const home = '/Users/op/dev/reindex-os';
-  const plist = (runner) => `<plist><array><string>/opt/homebrew/bin/node</string><string>${runner}</string></array></plist>`;
-  assert.equal(plistRunsFrom(plist(`${home}/.local/runtime/current/scripts/os-up.mjs`), home), 'runtime');
-  assert.equal(plistRunsFrom(plist(`${home}/scripts/os-up.mjs`), home), 'checkout');
-  assert.equal(plistRunsFrom(plist('/elsewhere/scripts/os-up.mjs'), home), 'other');
-  assert.equal(plistRunsFrom(null, home), 'missing');
-});
-
-test('a script run through the runtime link still knows it was invoked', () => {
-  // launchd runs <home>/.local/runtime/current/scripts/os-up.mjs; node resolves
-  // the link for import.meta.url but not for argv[1]. A plain comparison made
-  // the runner exit silently under launchd.
+test('a script run through a symbolic link still knows it was invoked', () => {
+  // Node resolves the link for import.meta.url but not for argv[1]; a plain
+  // comparison would make the script exit silently.
   const dir = tempDir('os-runtime-link-');
   const real = path.join(dir, 'runtime-a', 'scripts', 'os-up.mjs');
   mkdirSync(path.dirname(real), { recursive: true });
@@ -105,19 +84,4 @@ test('a script run through the runtime link still knows it was invoked', () => {
   assert.equal(invokedDirectly(real, pathToFileURL(real).href), true);
   assert.equal(invokedDirectly(path.join(dir, 'other.mjs'), pathToFileURL(real).href), false);
   assert.equal(invokedDirectly(undefined, pathToFileURL(real).href), false);
-});
-
-test('runtime configs require Postgres and refuse legacy, mixed or unknown stores', () => {
-  const postgres = { hyperdrive: [{ binding: 'POSTGRES', id: 'fixture' }] };
-  assert.equal(postgresConfigRefusal(JSON.stringify(postgres)), null);
-  assert.equal(postgresConfigRefusal(JSON.stringify({ ...postgres, d1_databases: [] })), null);
-  for (const config of [
-    { d1_databases: [{ binding: 'DB', database_id: 'fixture' }] },
-    { ...postgres, d1_databases: [{ binding: 'OTHER', database_id: 'fixture' }] },
-    { ...postgres, d1_databases: {} },
-    {}, { hyperdrive: [{ binding: 'OTHER' }] }, null, [], 'not-json',
-  ]) {
-    const text = typeof config === 'string' ? config : JSON.stringify(config);
-    assert.equal(typeof postgresConfigRefusal(text), 'string', text);
-  }
 });

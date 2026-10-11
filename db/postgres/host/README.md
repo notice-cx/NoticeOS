@@ -9,7 +9,7 @@ roles ([`../roles.sql`](../roles.sql)) with their logins; an empty `noticeos`
 database that sorts text by code point (the builtin `C.UTF-8` locale); query
 statistics on. It stops
 before the schema: the migrations go in with the operator-only
-`pnpm postgres:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
+`pnpm os:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
 or the approved first-run path for a new, empty installation.
 
 ## A new installation
@@ -24,7 +24,7 @@ the secret-generation, Compose-start, migration and bootstrap steps below,
 performed through the same helpers; no manual command sequence is needed.
 
 This is the narrow fresh-install exception. Existing folders, data, secrets, explicit database/profile settings
-and the managed service keep the operator-directed path. A failed setup leaves
+and the Docker stack keep the operator-directed path. A failed setup leaves
 its own resources in place for explicit recovery; it never deletes or
 automatically migrates them on retry. The exact checks are documented in
 [scripts/README.md](../../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
@@ -34,15 +34,15 @@ automatically migrates them on retry. The exact checks are documented in
 | [`compose.yaml`](compose.yaml) | The service: image, volume, port, health check, restart |
 | [`pg_hba.conf`](pg_hba.conf) | Who may connect, and how |
 | [`first-start.sh`](first-start.sh) | What the first start builds: roles, logins, database, statistics |
-| `secrets/` | Made by `pnpm postgres:secrets`; never committed |
+| `secrets/` | Made by `pnpm db:create-secrets`; never committed |
 
 ## The passwords you keep: three, one of them a bootstrap secret
 
 | Login | Used by | Its password lives |
 |---|---|---|
-| `noticeos_app` | the Workers and the runner | `secrets/database.url`; from the switch on, **the bootstrap secret `DATABASE_URL`** ([doc 06](../../../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)) |
-| `noticeos_owner` | your `pnpm postgres:migrate` and the import's load | `secrets/owner.url`, readable by your account only |
-| `noticeos_maint` | the import's reading back, maintenance | `secrets/maint.url`, readable by your account only |
+| `noticeos_app` | the Workers and the runner | `secrets/database.url`, which is **the bootstrap secret `DATABASE_URL`** ([doc 06](../../../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)) |
+| `noticeos_owner` | your `pnpm os:migrate` | `secrets/owner.url`, readable by your account only |
+| `noticeos_maint` | maintenance | `secrets/maint.url`, readable by your account only |
 | `postgres` (the superuser) | the image itself, backup, restore | **none**: it logs in only on the container's own socket |
 
 The server holds only a verifier of each password (SCRAM-SHA-256), never the
@@ -69,7 +69,7 @@ or the query statistics; the proof looked in each.
 `db/postgres/host/secrets/` (your account only); nothing is printed.
 
 ```sh
-pnpm postgres:secrets
+pnpm db:create-secrets
 ```
 
 **2. The first start.** Makes the data volume, then the roles, their logins,
@@ -88,11 +88,11 @@ docker compose -f db/postgres/host/compose.yaml ps
 # Version, sort order, statistics, time zone, data checksums   → 18.6 …|b|C.UTF-8|pg_stat_statements|UTC|on
 docker compose -f db/postgres/host/compose.yaml exec postgres psql -U postgres -d noticeos -Atc "SELECT current_setting('server_version'), datlocprovider, datlocale, current_setting('shared_preload_libraries'), current_setting('TimeZone'), current_setting('data_checksums') FROM pg_database WHERE datname = current_database()"
 # The owner logs in from this machine, with psql alone         → … PostgreSQL 18.6 …, as noticeos_owner; 1 pending
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
+pnpm os:migrate -- --secrets db/postgres/host/secrets
 ```
 
-The `$(cat …)` form hands the password to the command in its environment:
-it is not on the command line, in the shell's history or on the screen.
+`os:migrate` reads the owner's address from the secrets folder itself: the
+password is never on the command line, in the shell's history or on the screen.
 
 ## The schema (the operator's step, not this profile's)
 
@@ -104,11 +104,11 @@ never as the superuser.
 ```sh
 # a. The baseline is already frozen; status checks the committed hashes below.
 # b. Read what would happen                                             → 1 pending
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL
-# c. Apply, in one transaction; the database's name is typed twice
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
+pnpm os:migrate -- --secrets db/postgres/host/secrets
+# c. Apply, in one transaction; it shows the plan and asks for the database's name
+pnpm os:migrate -- --apply --secrets db/postgres/host/secrets
 # d. The one workspace, once
-NOTICEOS_OWNER_URL="$(cat db/postgres/host/secrets/owner.url)" pnpm postgres:migrate bootstrap --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos --slug main --name "My sites"
+pnpm os:migrate -- --bootstrap --secrets db/postgres/host/secrets --slug main --name "My sites"
 ```
 
 **e. The application's address.** The one line of
@@ -123,8 +123,8 @@ profile as described above and takes `database.url` once. An existing start
 folder whose secrets file has no `DATABASE_URL` still takes it from the
 operator-prepared profile (a folder named with `NOTICEOS_POSTGRES_SECRETS`
 is read the same way compose.yaml reads it). It says which file it took it
-from and never prints the address. The managed service never copies it:
-this installation's address is the operator's copy above.
+from and never prints the address. The Docker stack never copies it: its
+address is the operator's copy above.
 
 ## Backup and restore
 
@@ -175,8 +175,8 @@ holds neither. Replacing any live store requires explicit operator approval.
 
 ## Afterwards
 
-- **After the Mac restarts**, the container app starts at sign-in and brings
-  the service back (`restart: unless-stopped`). A server that crashes is
+- **After the machine restarts**, the Docker engine brings the service back
+  once it starts (`restart: unless-stopped`). A server that crashes is
   brought back the same way, in about 2 seconds.
 - **A minor update within PostgreSQL 18** (about every three months) is a commit that changes the
   `image:` line of `compose.yaml` (tag and digest). Then:
@@ -197,16 +197,17 @@ holds neither. Replacing any live store requires explicit operator approval.
 
 Only before anything is stored: `docker compose -f db/postgres/host/compose.yaml down --volumes`,
 then delete `db/postgres/host/secrets/` and begin again at step 1.
-`pnpm postgres:secrets` never replaces a secret file, because the service's
+`pnpm db:create-secrets` never replaces a secret file, because the service's
 logins were made from it.
 
-### When the runner, the Tower and the task hub join
+### In the Docker stack
 
-They become services of this same Compose project (`noticeos`), beside
-`postgres`, and reach it as `postgres:5432` on the project's own network.
-Nothing here is renamed: the project, the service, the volume
-(`noticeos_postgres-data`) and the secrets stay. The loopback port can close
-once nothing outside the project uses it.
+The app (`noticeos`) and the task hub run beside `postgres` on the
+installation's network, and the app reaches it as `postgres:5432`
+([Docker guide](../../../deploy/compose/README.md)); its `DATABASE_URL` names
+that host. Nothing here is renamed: the service, the volume
+(`noticeos_postgres-data`) and the secrets stay. The loopback port is what
+`pnpm os:migrate` uses from the checkout.
 
 ## How it is proved
 
@@ -224,4 +225,4 @@ once nothing outside the project uses it.
   holds the files' guarantees and runs `first-start.sh` and `pg_hba.conf` on
   a throwaway cluster; [`scripts/postgres-secrets.test.mjs`](../../../scripts/postgres-secrets.test.mjs)
   holds the secret files; [`scripts/postgres-apply.test.mjs`](../../../scripts/postgres-apply.test.mjs)
-  runs `pnpm postgres:migrate` with psql alone.
+  runs `pnpm os:migrate` with psql alone.

@@ -41,7 +41,7 @@ export const DATABASE_URL: 'DATABASE_URL';
 export const DEFAULT_DEV_SECRETS: string;
 
 /**
- * The whole of `pnpm dev:secrets:import` minus the printing: read the readable
+ * The whole import, as the Tower's Import button runs it: read the readable
  * local secret source and PUT each complete provider through a running Tower.
  * Reports by NAME — no value is returned or logged.
  */

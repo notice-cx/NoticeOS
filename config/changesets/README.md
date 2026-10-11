@@ -8,7 +8,7 @@ exactly as doc 06 wants.
 **Two entry points apply one.**
 
 1. **The Tower.** A settings field has a Save. Pressing it
-   PUTs the ops to `/api/config`, where a local write lane inside the `os:up`
+   PUTs the ops to `/api/config`, where a local write lane inside the app's
    dev server applies them, archives the changeset here, and commits it — then
    the toast offers Undo. Most changesets in this directory now arrive this way.
    See [`apps/tower/vite/config-write-lane.ts`](../../apps/tower/vite/config-write-lane.ts).
@@ -519,9 +519,8 @@ been chosen, and the way back is the Undo in its toast (principle 5).
   the loopback door — the read the `expect` guard makes and the write the apply
   makes, both through the one runtime that owns the local R2 state. Shelling
   out to `wrangler … --local --persist-to` would start a second runtime over
-  it and corrupt it, and this tool is run by hand *beside a live `os:up`*. So
-  a local run needs `pnpm os:up` running; `--remote` still uses wrangler,
-  because a deployed store has no local file to share. Values are checked against the enum/type here and again at the
+  it and corrupt it, and this tool is run by hand *beside a live runner*. So
+  a run needs the app running; `--remote` is refused. Values are checked against the enum/type here and again at the
   route, since an HTTP body is untrusted.
 
 ## Where a Save is refused

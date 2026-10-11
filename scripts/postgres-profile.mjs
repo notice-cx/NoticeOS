@@ -2,7 +2,7 @@
 //
 // A database made for development says so itself: `ALTER DATABASE … SET
 // noticeos.profile = 'development'`. The development profile's tools use only
-// such a database, the operator's `pnpm postgres:migrate` refuses one, and the dev seed writes invented rows
+// such a database, the operator's `pnpm os:migrate` refuses one, and the dev seed writes invented rows
 // into nothing else. The mark is named here alone, apart from the profile's
 // runner, so a tool that only reads the mark (the dev seed) need not load the
 // runner, which nothing but its own commands may load (the runner's guard

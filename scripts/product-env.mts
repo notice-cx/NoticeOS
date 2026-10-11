@@ -1,17 +1,16 @@
 // The environment variables NoticeOS reads, by their NoticeOS names.
 //
-// Every variable the product itself defines is named NOTICEOS_*. A running
-// installation may still set the name an earlier release read (the managed
-// service's launchd plist is installed once and is operator-only to change),
-// and those keep working: the NoticeOS name wins when it is set, the legacy
-// one is read when it is not. Writers (the runner, `pnpm start`, the plist template a new
-// `pnpm os:install` renders) set only the NoticeOS names.
+// Every variable the product itself defines is named NOTICEOS_*. An operator's
+// shell may still set the name an earlier release read, and those keep
+// working: the NoticeOS name wins when it is set, the legacy one is read when
+// it is not. Writers (the runner, `pnpm start`, the container image) set only
+// the NoticeOS names.
 //
 // The four bootstrap secrets (CREDENTIALS_KEY, OPERATOR_TOKEN, ASSET_TOKENS,
 // DATABASE_URL) carry no product name and are not here; docs/06-operations.md
 // § Bootstrap secrets names them.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the runner, the
+// Authored TypeScript: `pnpm generate` writes the `.mjs` the runner, the
 // scripts and the Tower's dev server import, and the `.d.mts` beside it.
 
 export interface ProductEnvVariable {
@@ -22,12 +21,10 @@ export interface ProductEnvVariable {
 }
 
 export const PRODUCT_ENV = Object.freeze({
-  /** The home checkout the managed service's state lives in (scripts/os-runtime.mjs). */
-  home: Object.freeze({ name: "NOTICEOS_HOME", legacy: "REINDEX_OS_HOME" }),
+  /** The home folder the installation's state lives in (scripts/os-runtime.mjs). */
+  home: Object.freeze({ name: "NOTICEOS_HOME" }),
   /** The installation's own folder (scripts/installation.mts). */
   installationDir: Object.freeze({ name: "NOTICEOS_INSTALLATION_DIR", legacy: "REINDEX_OS_INSTALLATION_DIR" }),
-  /** "1" when launchd runs the runner as the managed service (scripts/os-up.mjs). */
-  managed: Object.freeze({ name: "NOTICEOS_MANAGED", legacy: "REINDEX_OS_MANAGED" }),
   /** Where both Worker configs are read from when an installation runs out of a folder of its own (`pnpm start`). */
   workerConfigRoot: Object.freeze({ name: "NOTICEOS_WORKER_CONFIG_ROOT", legacy: "REINDEX_OS_WORKER_CONFIG_ROOT" }),
   /** A second name for OPERATOR_TOKEN, read by the CLI imports after OPERATOR_TOKEN itself. */

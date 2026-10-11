@@ -1,8 +1,11 @@
 #!/usr/bin/env node
-// Generated Postgres model docs: the revision-rule matrix
-// from model.json, constraints from a disposable migrated cluster, and the
-// schema-qualified SQL consumer inventory. No legacy schema is loaded.
-// --write regenerates the model and constraints; --consumers reads current source.
+// Generated Postgres model docs: the revision-rule matrix from model.json, constraints and consumers.
+//
+// Constraints come from a disposable migrated cluster and the consumer
+// inventory from the schema-qualified SQL in current source. --write
+// regenerates the model and constraints.
+//
+//   pnpm db:consumers   Which source reads and writes each table.
 
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -262,7 +265,7 @@ export function consumersMarkdown(found) {
   const lines = [
     '# Database consumers of the Postgres store',
     '',
-    'Current source references, read by `pnpm postgres:consumers`.',
+    'Current source references, read by `pnpm db:consumers`.',
     'Every file whose SQL names each schema-qualified table or view.',
     'A keyword match, so a comment that reads like SQL can appear.',
     '',

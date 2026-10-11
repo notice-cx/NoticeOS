@@ -4,7 +4,7 @@
 // identically through it: `pnpm config:apply`, the Tower's local write lane
 // (apps/tower/vite/config-write-lane.ts) and the ingest Worker's
 // `applyConfigOps`. This module re-exports every name the documents module
-// owns. `pnpm config:generate` writes the plain Node `.mjs` and the `.d.mts`.
+// owns. `pnpm generate` writes the plain Node `.mjs` and the `.d.mts`.
 //
 // `repoRoot` is a parameter on every filesystem function, so a test runs the
 // whole pipeline over a throwaway repo. A document is named by its store key,

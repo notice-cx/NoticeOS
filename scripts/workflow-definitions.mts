@@ -1,6 +1,6 @@
 // The workflow each scheduled job runs, as the stages its trace records.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Tower and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepDefinition, WorkflowStepKind } from '../packages/contract/src/workflows.js';

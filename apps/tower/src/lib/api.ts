@@ -1470,7 +1470,7 @@ async function fetchEnvImportAvailabilityRequest(fetch: ApiTransport,
 
 /**
  * Move every complete provider in this machine's secrets file into the store,
- * what `pnpm dev:secrets:import` does, as a button. The whole file moves. The
+ * through `importDevSecrets` (scripts/dev-secrets.mjs). The whole file moves. The
  * answer names providers and field names, so the toast can report what moved
  * without ever holding a value.
  */

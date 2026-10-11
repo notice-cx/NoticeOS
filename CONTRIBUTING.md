@@ -27,11 +27,12 @@ receive provider credentials or select host paths. The
 [configuration ownership contract](docs/23-configuration-ownership.md) defines
 workspace and deployment ownership.
 
-For committed generated modules, edit the authored `.mts` file, then run:
+For committed generated files (compiled `.mts` pairs, the config docs blocks
+and the command index), edit the source, then run:
 
 ```sh
-pnpm config:generate
-pnpm config:check
+pnpm generate
+pnpm generate -- --check
 ```
 
 The generator's two TypeScript projects declare which sources produce `.mjs`

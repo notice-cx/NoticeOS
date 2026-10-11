@@ -24,7 +24,7 @@ import { openTaskCatalogSetup } from '../packages/postgres/src/task-catalog.mjs'
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { readDemoArtifact, type HostedDemoServerOptions } from './hosted-demo-server.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 
 type Tool = { path: string; sha256: string };
 export interface HostedDemoSetupRequest {

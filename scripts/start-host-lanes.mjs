@@ -1,7 +1,7 @@
 // start-host-lanes.mjs — the host lanes an installation `pnpm start` runs,
 // once it has set them up.
 //
-// The managed service runs every host lane on the host it owns
+// The NoticeOS stack's runner runs every host lane on the host it owns
 // (scripts/os-up.mjs). A started installation runs the two a stranger's
 // installation can set up from its own Tower and folder, each only once it is
 // set up:
@@ -35,7 +35,7 @@ export const STARTED_HOST_JOBS = SCHEDULED_JOBS.filter((job) => job.id === TASK_
 
 const HOUR_MS = 60 * 60 * 1000;
 /** A started installation is down whenever its person is not running it, so a
- * missed night's backup is paid at the next start, as the managed service does
+ * missed night's backup is paid at the next start, as the stack's runner does
  * (scripts/runner/scheduler.mjs STARTUP_CATCHUP_POLICIES). */
 export const BACKUP_CATCHUP = Object.freeze({
   job: BACKUP_LANE,
@@ -44,7 +44,7 @@ export const BACKUP_CATCHUP = Object.freeze({
   maxAgeMs: 36 * HOUR_MS,
 });
 
-/** The managed runner's pieces these lanes reuse, loaded only once a lane runs. */
+/** The stack's runner's pieces these lanes reuse, loaded only once a lane runs. */
 async function managedRunner() {
   const [{ CONFIG }, { bdBin, probeTcp }, { runBd }, { runBeadsPoll }] = await Promise.all([
     import('./runner/config.mjs'),
@@ -141,7 +141,7 @@ export function createStartedHostLanes({
       return false;
     },
     /** The lane's body and how its result becomes a job-run outcome — the
-     * managed service's own mapping for each (scripts/os-up.mjs hostLanes). */
+     * stack's runner's own mapping for each (scripts/os-up.mjs hostLanes). */
     run(id) {
       if (id === TASK_BOARD_LANE) return { fn: taskBoard, outcomeOf: (result) => (result === null ? 'skipped' : 'ran') };
       if (id === BACKUP_LANE) return { fn: backUp, outcomeOf: backupRunOutcome };

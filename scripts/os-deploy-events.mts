@@ -1,21 +1,14 @@
 // The OS's own deploys, as events the store can hold.
 //
-// `pnpm os:deploy` records every move of the live OS on the host that runs it
-// (`record()` in scripts/os-deploy.mjs). The Tower reads only the store, so a
-// deploy reaches the Wall feed as an ordinary annotation of kind `deploy` on
-// the OS asset: its time, its commit as `ref`, and one fixed note that says
-// which of three things happened. This module is that mapping and its reverse,
-// shared by the side that forwards (the local runner) and the side that reads
-// (the Tower's feed), so the two can never disagree about what a note means.
-//
-// WHERE DEPLOYS COME FROM IS AN ADAPTER. `OsDeploySource` is the one thing a
-// forwarder needs: "which deploys have been recorded". This machine's adapter
-// reads the host's deploy log (scripts/os-deploy-forward.mjs); an install with
-// no host log uses `NO_DEPLOY_SOURCE`, and a cloud install supplies its own
-// source or posts the same annotation from its pipeline. Nothing here names a
-// path, a host or an installation.
+// The Tower reads only the store, so a deploy reaches the Wall feed as an
+// ordinary annotation of kind `deploy` on the OS asset (POST /api/annotations):
+// its time, its commit as `ref`, and one fixed note that says which of three
+// things happened. This module is that mapping and its reverse, shared by
+// whatever posts a deploy and the Tower's feed that reads it, so the two can
+// never disagree about what a note means. Nothing here names a path, a host or
+// an installation.
 
-/** One line of the host's deploy log, as `record()` writes it. */
+/** One recorded move of the OS's code. */
 export interface OsDeployRecord {
   at: string;
   action: 'deploy' | 'rollback';
@@ -26,14 +19,6 @@ export interface OsDeployRecord {
   slot?: string;
   result: 'prepared' | 'failed' | 'healthy';
 }
-
-/** What a forwarder reads deploys from. */
-export interface OsDeploySource {
-  read(): Promise<OsDeployRecord[]>;
-}
-
-/** An install with no deploy log: nothing to forward, never an error. */
-export const NO_DEPLOY_SOURCE: OsDeploySource = { read: async () => [] };
 
 export type OsDeployOutcome = 'deployed' | 'rolled-back' | 'failed';
 

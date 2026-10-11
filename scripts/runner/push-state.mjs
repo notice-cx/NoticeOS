@@ -78,7 +78,7 @@ const PUSH_STATE_LOG_SEP = '\x1f';
 /**
  * Spawn one `git` invocation and collect it. Same contract as `runBd`: a
  * non-zero exit is data — "this spoke's push state is unreadable" — never an
- * exception. Under launchd there is no terminal and no SSH agent, and a
+ * exception. Under a service there is no terminal and often no SSH agent, and a
  * `git fetch` that asks for something (a passphrase, an unknown host key)
  * blocks until the timeout; `GIT_TERMINAL_PROMPT=0` and ssh's `BatchMode=yes`
  * turn every such question into an immediate non-zero exit. An operator who
@@ -472,7 +472,7 @@ export async function runPushStateFiler(deps = {}) {
         'fetch',
         `push state: ${asset} — \`git fetch ${PUSH_STATE_REMOTE} ${PUSH_STATE_BRANCH}\` failed ` +
           `(${pushStateDetail(fetched)}); the push state is UNKNOWN, so nothing was filed or ` +
-          `closed for this spoke. launchd's environment may have no SSH agent. ` +
+          `closed for this spoke. The runner's environment may have no SSH agent. ` +
           `(silent until it changes)`,
       );
       continue;

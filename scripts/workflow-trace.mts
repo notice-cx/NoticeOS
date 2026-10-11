@@ -1,6 +1,6 @@
 // Portable instrumentation: no I/O, raw payloads, credentials or execution policy.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the ingest Worker and local runner import and the `.d.mts` beside it.
 
 import type { WorkflowStepRun } from '../packages/contract/src/workflows.js';

@@ -468,7 +468,7 @@ function workPayload(projects: WorkProject[], capturedAt: string | null = "2026-
   };
 }
 
-/** The page a stranger sees the first time they run `os:up` against an empty
+/** The page a stranger sees the first time they start NoticeOS against an empty
  * store. */
 describe("Home — a fresh install", () => {
   /** An empty store: no asset rows, so no alerts and no assets either. */

@@ -5,7 +5,7 @@
 // the first comment line of each script file is its one-line description. A
 // hand-kept table of the same facts drifts the day a script is added or
 // renamed, so scripts/README.md carries this index between two markers and
-// `pnpm scripts:index --check` (run by scripts/scripts-index.test.mjs) fails
+// `pnpm generate -- --check` (run by scripts/scripts-index.test.mjs) fails
 // when the committed block no longer matches what the code says.
 //
 //   node scripts/scripts-index.mjs            print the index
@@ -33,31 +33,68 @@ export function authoredSource(root, file) {
   return existsSync(path.join(root, authored)) ? authored : file;
 }
 
-/** The first line of a script's header comment, as one sentence without the file's own name. */
+/** The first sentence of a script's header comment, without the file's own
+ * name; a sentence wrapped over several comment lines is joined. */
 export function headerLine(source, file) {
   const lines = source.split('\n');
   let index = 0;
   if (lines[0]?.startsWith('#!')) index = 1;
+  const words = [];
   for (; index < lines.length; index += 1) {
     const line = lines[index].trim();
-    if (!line) continue;
+    if (!line && !words.length) continue;
     const text = line.replace(/^\/\/\s?/u, '').replace(/^\/\*\*?\s?/u, '').replace(/^\*\s?/u, '').replace(/\*\/\s*$/u, '').trim();
     if (!text || text.startsWith('import ') || text.startsWith('export ') || text.startsWith('const ')) break;
-    const base = path.basename(file).replace(/\.(?:mjs|mts)$/u, '');
-    return text.replace(new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\.(?:mjs|mts)\\s*[—:-]\\s*`, 'u'), '').replace(/\s+$/u, '');
+    words.push(text);
+    if (/[.?!]$/u.test(text) || words.length === 4) break;
   }
-  return '';
+  const base = path.basename(file).replace(/\.(?:mjs|mts)$/u, '');
+  const text = words.join(' ')
+    .replace(new RegExp(`^${base.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\.(?:mjs|mts)\\s*[—:-]\\s*`, 'u'), '')
+    .replace(/^`pnpm [\w:-]+`:\s*/u, '');
+  const sentence = /^.*?[.?!](?=\s|$)/u.exec(text)?.[0] ?? text;
+  return sentence.charAt(0).toUpperCase() + sentence.slice(1).trimEnd();
 }
 
-/** One row per package script: name, command, the script's own one line. */
+/** What a composite command (no script file of its own) does. */
+const COMPOSITE = {
+  typecheck: 'Typecheck every workspace.',
+  test: 'Every workspace\'s unit tests.',
+  build: 'Build every workspace.',
+  'test:scripts': 'The root suite: every scripts/*.test.mjs.',
+  'test:task-store': 'The task-store suite against a real Dolt server in Docker.',
+  'test:journeys': 'The Tower\'s browser journeys, then the flow walker.',
+};
+
+/**
+ * A command's own line in its script's header, for a script that serves more
+ * than one command: a comment line `pnpm <name> [args]` followed by two or more
+ * spaces and a sentence starting with a capital. Null when the header has none.
+ */
+export function usageLine(source, name) {
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+  const pattern = new RegExp(`^//\\s+pnpm ${escaped}(?=\\s)[^\\n]*?\\s{2,}([A-Z][^\\n]*)$`, 'u');
+  for (const line of source.split('\n')) {
+    const trimmed = line.trim();
+    if (trimmed && !trimmed.startsWith('//') && !trimmed.startsWith('#!')) break;
+    const match = pattern.exec(trimmed);
+    if (match) return match[1].trim();
+  }
+  return null;
+}
+
+/** One row per package script: name, command, the script's own line for it. */
 export function indexRows(root = REPO_ROOT) {
   const manifest = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
   return Object.entries(manifest.scripts ?? {}).map(([name, command]) => {
     const file = scriptFile(command);
-    let description = '';
+    let description = COMPOSITE[name] ?? '';
     if (file) {
       const source = authoredSource(root, file);
-      description = existsSync(path.join(root, source)) ? headerLine(readFileSync(path.join(root, source), 'utf8'), source) : '(missing file)';
+      if (existsSync(path.join(root, source))) {
+        const text = readFileSync(path.join(root, source), 'utf8');
+        description = usageLine(text, name) ?? headerLine(text, source);
+      } else description = '(missing file)';
     }
     return { name, command, file, description };
   });
@@ -65,21 +102,37 @@ export function indexRows(root = REPO_ROOT) {
 
 const cell = (text) => text.replace(/\|/gu, '\\|').replace(/\s+/gu, ' ').trim();
 
+/** The index's sections, by what a person is doing; the first prefix that matches wins. */
+export const GROUPS = [
+  { title: 'Run the installation', prefixes: ['os:'] },
+  { title: 'Change the database', prefixes: ['db:'] },
+  { title: 'Settings and credentials', prefixes: ['config:', 'creds:'] },
+  { title: 'Signals and imports', prefixes: ['signals:', 'bing-ai:', 'reclamation:', 'mediavine', 'pulse:'] },
+  { title: 'Check the code and the screens', prefixes: ['check:', 'audit:'] },
+  { title: 'Tests', prefixes: ['test'] },
+  { title: 'The repository', prefixes: [''] },
+];
+
+export function groupOf(name) {
+  return GROUPS.find(({ prefixes }) => prefixes.some((prefix) => prefix === '' || name === prefix || name.startsWith(prefix)));
+}
+
 export function renderIndex(rows) {
-  const lines = [
-    START,
-    '',
-    '| `pnpm …` | Runs | The script\'s own first line |',
-    '|---|---|---|',
-    ...rows.map(({ name, command, file, description }) => {
-      const runs = file ? `${file}${command.slice(command.indexOf(file) + file.length).trimEnd()}` : `${cell(command).slice(0, 80)}${command.length > 80 ? '…' : ''}`;
-      return `| \`${name}\` | \`${cell(runs)}\` | ${cell(description) || '—'} |`;
-    }),
-    '',
-    `Generated by \`pnpm scripts:index -- --write\` from \`package.json\` and each script's header; \`scripts/scripts-index.test.mjs\` fails when this block is stale.`,
+  const row = ({ name, command, file, description }) => {
+    const runs = file ? `${file}${command.slice(command.indexOf(file) + file.length).trimEnd()}` : `${cell(command).slice(0, 80)}${command.length > 80 ? '…' : ''}`;
+    return `| \`${name}\` | ${cell(description) || '—'} | \`${cell(runs)}\` |`;
+  };
+  const lines = [START, ''];
+  for (const group of GROUPS) {
+    const members = rows.filter((entry) => groupOf(entry.name) === group);
+    if (!members.length) continue;
+    lines.push(`### ${group.title}`, '', '| `pnpm …` | What it does | Runs |', '|---|---|---|', ...members.map(row), '');
+  }
+  lines.push(
+    `Generated by \`pnpm generate\` from \`package.json\` and each script's header; \`scripts/scripts-index.test.mjs\` fails when this block is stale.`,
     '',
     END,
-  ];
+  );
   return lines.join('\n');
 }
 
@@ -111,7 +164,7 @@ export function renderDocsPage(block) {
     '',
     '# Commands',
     '',
-    'Every command is a `pnpm` script in the repository\'s `package.json`. Run one from a checkout as `pnpm <name>`; pass a script\'s own options after `--`, for example `pnpm os:logs -- --lines 200`. The procedures behind the commands that need one are in [`scripts/README.md`](https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md).',
+    'Every command is a `pnpm` script in the repository\'s `package.json`. Run one from a checkout as `pnpm <name>`; pass a script\'s own options after `--`, for example `pnpm os:migrate -- --apply`. The procedures behind the commands that need one are in [`scripts/README.md`](https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md).',
     '',
     block,
     '',
@@ -137,7 +190,7 @@ export function main(argv = process.argv.slice(2), root = REPO_ROOT) {
     } else if (argv.includes('--check')) {
       if (!target.current(text)) {
         stale += 1;
-        process.stderr.write(`${target.file}: the command index is stale; run pnpm scripts:index -- --write\n`);
+        process.stderr.write(`${target.file}: the command index is stale; run pnpm generate\n`);
       }
     } else if (target.file === README) {
       process.stdout.write(`${renderIndex(indexRows(root))}\n`);

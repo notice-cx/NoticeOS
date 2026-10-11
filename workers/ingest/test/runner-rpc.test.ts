@@ -2,7 +2,7 @@
 // real Cloudflare cron.
 //
 // The ingest has no listener of its own locally: it runs as an auxiliary
-// Worker inside the Tower's workerd, so `os:up` fires this RPC through the
+// Worker inside the Tower's workerd, so the runner fires this RPC through the
 // Tower's private Service Binding instead of GETting
 // `/cdn-cgi/handler/scheduled` at a second process. If that path ever
 // dispatched differently from `scheduled()`, every local rehearsal would be

@@ -1,72 +1,92 @@
 <!-- scripts-index:start -->
 
-| `pnpm …` | Runs | The script's own first line |
-|---|---|---|
-| `start` | `scripts/start.mjs` | `pnpm start`: NoticeOS on this machine, in one command. |
-| `typecheck` | `pnpm -r --if-present run typecheck` | — |
-| `test` | `pnpm -r --if-present run test` | — |
-| `build` | `pnpm -r --if-present run build` | — |
-| `prepare` | `scripts/install-git-hooks.mjs` | Install the repository's git hooks on `pnpm install`. |
-| `ux:gate` | `scripts/ux-gate.mjs` | The UX text report: how much reading each Tower screen asks for. |
-| `ux:flows` | `apps/tower/e2e/flow-gate.mjs` | The flow walker: walk every declared operator flow in a real browser and |
-| `neutral:gate` | `scripts/neutral-code-gate.mjs` | Product code names no installation's own sites, accounts or clock. |
-| `os:up` | `scripts/os-up.mjs` | The local runner and supervisor. |
-| `os:status` | `scripts/os-control.mjs status` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:logs` | `scripts/os-control.mjs logs` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:restart` | `scripts/os-control.mjs restart` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:deploy` | `scripts/os-control.mjs deploy` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:doctor` | `scripts/os-control.mjs doctor` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:capacity` | `scripts/os-control.mjs capacity` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:stop` | `scripts/os-control.mjs stop` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:start` | `scripts/os-control.mjs start` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:install` | `scripts/os-control.mjs install` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:uninstall` | `scripts/os-control.mjs uninstall` | Stable operator/agent control surface for the local NoticeOS service. |
-| `os:backup` | `scripts/os-up.mjs --backup` | The local runner and supervisor. |
-| `os:cron` | `scripts/os-up.mjs --tick` | The local runner and supervisor. |
-| `dev:secrets:migrate` | `scripts/dev-secrets.mjs migrate` | The readable local secret source → Wrangler's dotenv input. |
-| `dev:secrets:sync` | `scripts/dev-secrets.mjs sync` | The readable local secret source → Wrangler's dotenv input. |
-| `dev:secrets:import` | `scripts/dev-secrets.mjs import` | The readable local secret source → Wrangler's dotenv input. |
-| `pulse:relay` | `scripts/pulse-relay.mjs` | relay a pull-mode site's live pulse into the LOCAL ingest worker. |
-| `tower:viewport-audit` | `scripts/tower-viewport-audit.mjs` | Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review. |
-| `wall:fit` | `scripts/wall-fit-check.mjs` | Does the Wall still fit the TV? Measures the live Tower's /wall at the TV |
-| `surface:audit` | `scripts/surface-audit.mjs` | Does a desk surface still meet the design doc? Measures the live Tower's |
-| `config:apply` | `scripts/config-apply.mjs` | Apply a config changeset in the operator's terminal. |
-| `config:seed` | `scripts/config-seed.mjs` | Load the config documents into the store. |
-| `config:export` | `scripts/config-export.mjs` | Write the store's config documents into this installation's folder. |
-| `creds:check` | `scripts/creds-check.mjs` | Prove each credential the OS is using with one cheap real probe per lane. |
-| `mediavine` | `scripts/mediavine.mjs` | The Mediavine publisher-portal client in the terminal: status, sites and a revenue sync for one site. |
-| `creds:rotate-key` | `scripts/creds-rotate-key.mjs` | Re-seal every stored credential under a new CREDENTIALS_KEY. |
-| `signals:collect` | `scripts/signal-collect.mjs` | Collect one property's DataForSEO families now, instead of waiting for |
-| `signals:download` | `scripts/signal-dumps-download.mjs` | Download the latest immutable raw-signal object for each selected report day. |
-| `signals:history` | `scripts/signal-history.mjs` | The provider history as analytical files. |
-| `signals:analyze-history` | `scripts/signal-history-analyze.mjs` | The analysis, read from the history files. |
-| `signals:refresh` | `scripts/signal-panels-refresh.mjs` | keep every rostered property's panel dir current. |
-| `signals:publish-insights` | `scripts/signal-insights-publish.mjs` | Publish one compact executive snapshot into the store's presentation |
-| `signals:event-params` | `scripts/ga4-event-params.mjs` | GA4 event-parameter report for one asset: the manual companion to the daily |
-| `bing-ai:import` | `scripts/bing-ai-import.mjs` | Drop a Bing AI Performance export anywhere, run one command, and it becomes evidence. |
-| `reclamation:import` | `scripts/reclamation-import.mjs` | Load a campaign's static target CSV into the store's link-outreach targets, |
-| `reclamation:open-targets` | `scripts/reclamation-open-targets.mjs` | A site's OPEN link-outreach targets, written to the file the |
-| `test:scripts` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
-| `test:task-store` | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` | — |
-| `test:journeys` | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` | — |
-| `postgres:dev` | `scripts/postgres-migrate.mjs` | The Postgres migration runner, development profile only. |
-| `postgres:migrate` | `scripts/postgres-apply.mjs` | The Postgres migrations, applied to an installation's own database. |
-| `postgres:consumers` | `scripts/postgres-docs.mjs --consumers` | Generated Postgres model docs: the revision-rule matrix |
-| `postgres:secrets` | `scripts/postgres-secrets.mjs` | The Postgres service's secret files: `pnpm postgres:secrets`, run once by |
-| `seed:local` | `scripts/db-seed.mjs` | `pnpm seed:local`: a new installation's store filled with invented history. |
-| `config:generate` | `scripts/generate-config-contract.mjs` | Compile every checked TypeScript source that ships as a committed `.mjs` + `.d.mts` pair; `--check` fails when a pair is stale. |
-| `config:check` | `scripts/generate-config-contract.mjs --check` | Compile every checked TypeScript source that ships as a committed `.mjs` + `.d.mts` pair; `--check` fails when a pair is stale. |
-| `scripts:index` | `scripts/scripts-index.mjs` | The command index, generated from package.json and each script's own header. |
-| `config:docs` | `scripts/config-docs.mjs` | The config registers' documentation, generated from their declaration. |
-| `project:prepare` | `scripts/project-context.mjs` | Prepare repository context only. Task provisioning and provider access have |
-| `stack:status` | `scripts/stack-control.mjs status` | Control an existing Docker Compose installation: status, start, stop and restart of its app only. |
-| `stack:start` | `scripts/stack-control.mjs start` | Control an existing Docker Compose installation: status, start, stop and restart of its app only. |
-| `stack:stop` | `scripts/stack-control.mjs stop` | Control an existing Docker Compose installation: status, start, stop and restart of its app only. |
-| `stack:restart` | `scripts/stack-control.mjs restart` | Control an existing Docker Compose installation: status, start, stop and restart of its app only. |
-| `stack:deploy` | `scripts/stack-deploy.mjs` | Application-only Docker updates: prepare a sealed image/plan, then apply it. |
-| `stack:dev` | `scripts/stack-development.mjs` | Opt-in live source for an existing local stack. Stores and image dependencies stay put. |
+### Run the installation
 
-Generated by `pnpm scripts:index -- --write` from `package.json` and each script's header; `scripts/scripts-index.test.mjs` fails when this block is stale.
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
+| `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
+| `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
+| `os:stop` | Stop the app, then backup, then the databases. | `scripts/stack-control.mjs stop` |
+| `os:restart` | Restart the stack in the same order, waiting for each layer's health. | `scripts/stack-control.mjs restart` |
+| `os:update` | Build main into an image, show the plan, and apply it after you confirm. | `scripts/stack-deploy.mjs` |
+| `os:rollback` | Move the app back to the previous image, after you confirm. | `scripts/stack-deploy.mjs --rollback` |
+| `os:migrate` | What is applied and pending; `-- --apply` applies it after you type the database's name. | `scripts/os-migrate.mjs` |
+| `os:dev` | Run the app from this checkout's live source; edits refresh it. | `scripts/stack-development.mjs` |
+| `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
+| `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
+| `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
+| `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
+
+### Change the database
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
+| `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
+| `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
+| `db:seed-demo` | A new installation's store filled with invented history. | `scripts/db-seed.mjs` |
+| `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
+
+### Settings and credentials
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `config:apply` | Apply a config changeset in the operator's terminal. | `scripts/config-apply.mjs` |
+| `config:seed` | Load the config documents into the store. | `scripts/config-seed.mjs` |
+| `config:export` | Write the store's config documents into this installation's folder. | `scripts/config-export.mjs` |
+| `creds:check` | Prove each credential the OS is using with one cheap real probe per lane. | `scripts/creds-check.mjs` |
+| `creds:rotate-key` | Re-seal every stored credential under a new CREDENTIALS_KEY. | `scripts/creds-rotate-key.mjs` |
+
+### Signals and imports
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `signals:collect` | Collect one property's DataForSEO families now, instead of waiting for Monday — or its PostHog families, `--families 'posthog-*'`, with an optional fixed `--start/--end` window. | `scripts/signal-collect.mjs` |
+| `signals:download` | Download the latest immutable raw-signal object for each selected report day. | `scripts/signal-dumps-download.mjs` |
+| `signals:history` | The provider history as analytical files. | `scripts/signal-history.mjs` |
+| `signals:analyze-history` | The analysis, read from the history files. | `scripts/signal-history-analyze.mjs` |
+| `signals:refresh` | Keep every rostered property's panel dir current. | `scripts/signal-panels-refresh.mjs` |
+| `signals:publish-insights` | Publish one compact executive snapshot into the store's presentation boundary. | `scripts/signal-insights-publish.mjs` |
+| `signals:event-params` | GA4 event-parameter report for one asset: the manual companion to the daily GA4 archive lane, for event params the archive does not export. | `scripts/ga4-event-params.mjs` |
+| `bing-ai:import` | Drop a Bing AI Performance export anywhere, run one command, and it becomes evidence. | `scripts/bing-ai-import.mjs` |
+| `reclamation:import` | Load a campaign's static target CSV into the store's link-outreach targets, carrying whatever send state the campaign recorded elsewhere. | `scripts/reclamation-import.mjs` |
+| `reclamation:open-targets` | A site's OPEN link-outreach targets, written to the file the reclamation-match rule reads (`pnpm signals:analyze-history -- --reclamation-targets <file>`, scripts/signal-insights.mjs). | `scripts/reclamation-open-targets.mjs` |
+| `mediavine` | The Mediavine publisher-portal client in the terminal: status, sites and a revenue sync for one site. | `scripts/mediavine.mjs` |
+| `pulse:relay` | Relay a pull-mode site's live pulse into the LOCAL ingest worker. | `scripts/pulse-relay.mjs` |
+
+### Check the code and the screens
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `check:neutral` | Product code names no installation's own sites, accounts or clock. | `scripts/neutral-code-gate.mjs` |
+| `audit:copy` | The UX text report: how much reading each Tower screen asks for. | `scripts/ux-gate.mjs` |
+| `audit:flows` | The flow walker: walk every declared operator flow in a real browser and report what each one costs (actions, screens, page changes, explanatory words, empty steps, repeated checks, duplicate statuses, ungrouped lists). | `apps/tower/e2e/flow-gate.mjs` |
+| `audit:viewport` | Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review. | `scripts/tower-viewport-audit.mjs` |
+| `audit:wall-fit` | Does the Wall still fit the TV? | `scripts/wall-fit-check.mjs` |
+| `audit:surfaces` | Does a desk surface still meet the design doc? | `scripts/surface-audit.mjs` |
+
+### Tests
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `test` | Every workspace's unit tests. | `pnpm -r --if-present run test` |
+| `test:scripts` | The root suite: every scripts/*.test.mjs. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:task-store` | The task-store suite against a real Dolt server in Docker. | `node --import ./scripts/script-tests-setup.mjs --test-global-setup=./scripts/scr…` |
+| `test:journeys` | The Tower's browser journeys, then the flow walker. | `pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/…` |
+
+### The repository
+
+| `pnpm …` | What it does | Runs |
+|---|---|---|
+| `start` | NoticeOS on this machine, in one command. | `scripts/start.mjs` |
+| `typecheck` | Typecheck every workspace. | `pnpm -r --if-present run typecheck` |
+| `build` | Build every workspace. | `pnpm -r --if-present run build` |
+| `prepare` | Install the repository's git hooks on `pnpm install`. | `scripts/install-git-hooks.mjs` |
+| `generate` | Regenerate every committed file the code writes: compiled `.mts` pairs, the config docs and the command index. | `scripts/generate.mjs` |
+| `project:prepare` | Prepare repository context only. | `scripts/project-context.mjs` |
+
+Generated by `pnpm generate` from `package.json` and each script's header; `scripts/scripts-index.test.mjs` fails when this block is stale.
 
 <!-- scripts-index:end -->
 
@@ -80,14 +100,6 @@ installation runs, what a cron may catch up, how the store is migrated and
 backed up, what the gates refuse.
 
 # Prepare public source
-
-Docker installation commands (`stack:status`, `stack:start`, `stack:stop`,
-`stack:restart`, `stack:deploy`, `stack:dev`) use the installation's explicit
-local selector; the [Docker guide](../deploy/compose/README.md#deploy-changes-from-main)
-describes how independently verified main becomes a running image, and
-[mounted-source development](../deploy/compose/README.md#follow-a-checkout-during-local-development)
-describes `pnpm stack:dev`. The `os:*` commands below are the macOS service
-adapter.
 
 ```sh
 node scripts/public-source.mjs --commit <full-commit-hash> --destination /absolute/new-public-source
@@ -126,9 +138,9 @@ compiled to `.dev.vars`), generated Worker configs, saved-settings exports
 (`installation/`) and log. Operational data lives in the Postgres database
 named by the folder's `DATABASE_URL`; deleting the folder does not reset it
 ([secret boundary](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)).
-It is **not the managed service** below: it never opens the checkout's
-`.wrangler/state`, `installation/` or secret files, refuses the managed
-service's ports (5173, 8791, 3308), refuses a folder it did not make, and
+It is **not the Docker stack** the `os:*` commands run: it never opens the
+checkout's `.wrangler/state`, `installation/` or secret files, refuses the
+stack's ports (5173, 8791, 3308), refuses a folder it did not make, and
 allows one start per folder (`scripts/start.test.mjs` trips each of those).
 Prerequisites are Node 24.21.0 LTS, pnpm 12.8.1, local Docker Compose, `psql`
 and Beads CLI (`bd`) **1.3.1**, checked before any state is created.
@@ -155,14 +167,14 @@ With the address in the secrets file, every start checks it as the application l
 (`scripts/database-address.mts`): the database answers, the login is
 `noticeos_app`, every migration this code has is applied, the one workspace
 exists; anything else stops the start in one sentence naming the fix
-(`pnpm postgres:migrate apply` or `bootstrap`) and never repeats the address,
+(`pnpm os:migrate -- --apply` or `bootstrap`) and never repeats the address,
 which rides only in the Tower's environment
-(`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`). Startup creates no
-D1 store and has no `--migrate` flag.
+(`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`). Startup has no
+`--migrate` flag.
 
 It keeps collecting on its schedule (`scripts/start-schedule.mjs`): it fires
 the ingest's crons at its own door on the schedules saved in its store, with
-the managed service's catch-up policy (`scripts/job-runs.mjs`), and of the
+the runner's catch-up policy (`scripts/job-runs.mjs`), and of the
 runner's host lanes runs only the task board refresh and the backup
 (`scripts/start-host-lanes.mjs`); its status says `hostLanes: false`.
 
@@ -181,40 +193,34 @@ register, Git exclusions, a shared lock for an existing `.beads/`); it never
 initializes a database, changes credentials, saves settings or calls a
 service, and refuses tracked task state or conflicting instruction blocks.
 
-# The local runner (`os-up`)
+# The runner (`os-up`)
 
-One plain-Node supervisor (`scripts/os-up.mjs`, no build step) brings up
-**one** dev server hosting **both** Workers against Postgres and local R2
-state, fires the ingest crons that nothing else fires locally, health-checks
-the independently hosted task hub, and takes a nightly backup with an offsite
-copy (`config/host-backup.README.md`). Each responsibility is a module under
-`scripts/runner/` with its own `scripts/runner-<module>.test.mjs`.
+The app container runs one plain-Node supervisor, `scripts/os-up.mjs` (no
+build step), started by `deploy/compose/entrypoint.mjs`. It brings up **one**
+dev server hosting **both** Workers against Postgres and local R2 state, fires
+the ingest crons, health-checks the stack's task hub, and takes a nightly
+backup with an offsite copy (`config/host-backup.README.md`). Each
+responsibility is a module under `scripts/runner/` with its own
+`scripts/runner-<module>.test.mjs`. Running it directly on a host is not
+supported; the `os:*` commands reach it through the stack
+`.local/stack.json` selects ([Docker guide](../deploy/compose/README.md)):
 
 ```
-pnpm os:up                    # start everything; Tower binds to loopback
-pnpm os:up -- --host          # expose the unauthenticated Tower to the network
-pnpm os:up -- --local         # keep loopback, overriding OS_UP_HOST
-pnpm os:status                # stopped / starting / healthy / unhealthy / stale (-- --json for machines)
-pnpm os:logs -- --lines 200   # recent combined, redacted runner + child output (--follow to tail)
-pnpm os:restart               # restart the managed service and wait for health
-pnpm os:deploy                # move the live OS to main (-- --check, -- --rollback)
-pnpm os:doctor                # bounded status + logs + scheduled-lane evidence + capacity
+pnpm os:status                # each service's state and health, the database's migrations, the app's commit
+pnpm os:logs -- --lines 200   # recent redacted output (-- --follow to tail, -- <service> for one)
+pnpm os:restart               # the whole stack, in dependency order, waiting for health
 pnpm os:capacity              # store size and growth per table, read-only
-pnpm os:stop                  # stop for maintenance, keeping its plist; waits for 8791 to free
-pnpm os:start                 # power the installed service back up
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
-pnpm os:cron -- "0 * * * *"   # fire one cron against the running ingest, then exit
+pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now
 ```
 
-`os:up` is for a foreground development session. The office Mac's normal
-state is the launchd service installed by `pnpm os:install`, running a runtime
-copy of the code that only `pnpm os:deploy` moves
-([below](#merging-is-not-deploying--pnpm-osdeploy)); agents use `os:status`,
-`os:logs`, `os:doctor`, `os:restart` and `os:deploy` and never need its label,
-plist path or process tree. `os:stop` / `os:start` are the operator's
-maintenance pair. `healthy` requires the supervisor, heartbeat and HTTP
-endpoints plus successful PostgreSQL and task-database readiness reads; status
-never exposes credentials, addresses or raw database errors.
+`os:backup`, `os:run-job` and `os:capacity` run inside the app container with
+the runner's own environment. The container is `healthy` when the runner
+reports itself healthy with a heartbeat at most 60 s old, its Tower ready and
+its scheduler armed; a configured backup worker answers; and the Tower and
+the ingest door both answer inside the container
+(`deploy/compose/health.mjs`). Status never exposes credentials, addresses or
+raw database errors.
 
 ## Shared configuration code
 
@@ -224,8 +230,9 @@ siblings are TypeScript output, so Node scripts run without a build and a
 TypeScript import of the `.mjs` resolves to the `.mts` source.
 `tsconfig.config-contract.json` compiles the portable modules with no ambient
 types; `tsconfig.config-contract.node.json` adds Node types for the runner and
-terminal adapters. **Edit the `.mts`, then run `pnpm config:generate`**;
-`pnpm config:check` rejects stale output and runs in `pnpm -r typecheck`.
+terminal adapters. **Edit the `.mts`, then run `pnpm generate`**;
+`pnpm generate -- --check` rejects stale output, and the contract package's
+typecheck runs the same check.
 `config-store-client` and `dev-secrets` stay hand-written because they move
 credentials (`scripts/declaration-lockstep.test.mjs`).
 
@@ -237,12 +244,12 @@ Background operations → Edit schedule**.
 - **One runner at a time** — it first checks whether the ingest door already
   answers; if so it starts nothing, prints the `lsof` naming the owner, and
   exits 3.
-- **No migrations at managed startup** — supervision, restart, crash recovery
-  and catch-up never invoke `pnpm postgres:migrate`; the fresh-install
-  exception belongs only to `pnpm start`.
+- **No migrations at startup** — supervision, restart, crash recovery,
+  catch-up and `pnpm os:update` never invoke `pnpm os:migrate`; the
+  fresh-install exception belongs only to `pnpm start`.
 - **Starts on its Postgres, or not at all** — it reads `DATABASE_URL` from
-  home's secrets file and checks it as the application login, read-only
-    (`scripts/runner/database.mjs`); an unusable address or a database behind
+  the installation's secrets file and checks it as the application login,
+  read-only (`scripts/runner/database.mjs`); an unusable address or a database behind
   this code's migrations writes one `REFUSING to start` line naming the fix,
   never the address, and exits 5.
 - **Supervises one child** — the Tower's `vite` dev server, whose single
@@ -252,7 +259,7 @@ Background operations → Edit schedule**.
   snapshot poll; it does not host it.
 - **Photographs the task hub every minute** into the central store, which is
   what the Tower's `/tasks` board renders.
-- **Schedules the ingest crons** and fires them locally.
+- **Schedules the ingest crons** and fires them at its own ingest door.
 - **Nightly backup** at 04:00 UTC with host-configured retention, then an
   offsite copy.
 - **Clean shutdown** on SIGINT/SIGTERM: stops the schedulers, group-kills the
@@ -298,13 +305,13 @@ and missing output is unavailable, never an invented zero
 
 | Service | Port | Notes |
 |---|---|---|
-| tower + ingest (`vite`) | **5173** | one workerd runtime hosting both Workers; loopback by default |
-| ingest door | **8791** | a second loopback listener from `apps/tower/vite/runner-door.ts` serving the ingest's routes and cron fires; loopback-only because the scheduled endpoint is unauthenticated |
-| task hub (`dolt sql-server`) | declared profile; legacy **3308** | independent Compose service selected by `NOTICEOS_DOLT_HOME` |
+| tower + ingest (`vite`) | **5173** in the app container | one workerd runtime hosting both Workers; published only on the host's `127.0.0.1:${NOTICEOS_TOWER_PORT}` |
+| ingest door | **8791** in the app container | a second loopback listener from `apps/tower/vite/runner-door.ts` serving the ingest's routes and cron fires; never published, because the scheduled endpoint is unauthenticated |
+| task hub (`dolt sql-server`) | **3306** on the installation network | the stack's `dolt` service, declared in `/state/task-client.json` |
 
 The port constants are the `CONFIG` block of `scripts/runner/config.mjs`;
-`os:cron` reads the same constant, and the runner passes the door address to
-the dev server as `OS_UP_INGEST_DOOR_HOST` / `OS_UP_INGEST_DOOR_PORT`.
+`os:run-job` reads the same constant, and the runner passes the door address
+to the dev server as `OS_UP_INGEST_DOOR_HOST` / `OS_UP_INGEST_DOOR_PORT`.
 
 ## One runtime
 
@@ -333,16 +340,18 @@ What to do when one of these checks fails:
 [Runtime log lines](../docs/operate/troubleshooting.md#runtime-log-lines).
 
 Standalone has no user login: anyone who can reach the Tower can read and
-change its data. The default is `127.0.0.1`; `--host` or `OS_UP_HOST=true`
-enables network access, `--local` or `OS_UP_HOST=false` keeps loopback, and
-neither exposes the ingest door. Vite's host check stays enabled
-(`apps/tower/vite/allowed-hosts.ts`; an operator-managed alias goes in
-`TOWER_ALLOWED_HOSTS`) and is not user authentication.
+change its data. Inside the container the Tower listens on the container
+interface so Docker can forward the published port; the Compose port binding
+keeps the host side on `127.0.0.1`, and the ingest door is never published.
+Vite's host check stays enabled (`apps/tower/vite/allowed-hosts.ts`; an
+operator-managed alias goes in `TOWER_ALLOWED_HOSTS`) and is not user
+authentication.
 
 ### Standalone access through an SSH tunnel
 
 Use an operator-managed SSH endpoint with verified host keys and public-key
-login whose account permits local forwarding only to `127.0.0.1:5173`
+login whose account permits local forwarding only to the Tower's loopback
+port (`NOTICEOS_TOWER_PORT`; 5173 below), as `127.0.0.1:5173`
 (`AuthenticationMethods publickey`, `PasswordAuthentication no`,
 `KbdInteractiveAuthentication no`, `AllowTcpForwarding local`,
 `PermitOpen 127.0.0.1:5173`, `GatewayPorts no`, `MaxSessions 0`); NoticeOS
@@ -359,22 +368,21 @@ also bind only to loopback. The disposable proof is an opt-in of
 
 ## One runner at a time
 
-Two `os:up` processes is a billing event: both arm the same `triggers.crons`
-and fire at `127.0.0.1:8791`, so whichever ingest is bound there runs every
-schedule twice. The runner therefore probes the door first and refuses with
-exit code **3** (2 is "bad flags") if anything answers, printing
+Two runners is a billing event: both arm the same `triggers.crons` and fire
+at `127.0.0.1:8791`, so whichever ingest is bound there runs every schedule
+twice. The runner therefore probes the door first and refuses with exit code
+**3** (2 is "bad flags") if anything answers, printing
 `lsof -nP -iTCP:8791 -sTCP:LISTEN`; the dev server likewise exits if it cannot
-bind the door. If status says an unmanaged runtime answers, stop its
-foreground `pnpm os:up` terminal first — the control command refuses to guess
-which unknown process tree is safe to kill. The guard is the bound socket, not
-a pidfile, because a socket cannot go stale.
+bind the door. `os:backup` and `os:run-job` run beside the runner in the same
+container and arm nothing. The guard is the bound socket, not a pidfile,
+because a socket cannot go stale.
 
 ## Cron behavior
 
 - The cron list is read from `workers/ingest/wrangler.jsonc` `triggers.crons`
-  once, at startup, from the code the runner runs: under the managed service a
-  new cron arrives with the next `pnpm os:deploy`, a foreground `os:up` needs a
-  restart, and `pnpm os:cron -- "<expr>"` fires one by hand meanwhile.
+  once, at startup, from the code the runner runs: a new cron arrives with the
+  next `pnpm os:update` (or `pnpm os:restart` when the app runs live source),
+  and `pnpm os:run-job -- "<expr>"` fires one by hand meanwhile.
 - Default expressions run in UTC; stored overrides can name an IANA timezone
   via [`croner`](https://www.npmjs.com/package/croner).
 - On each occurrence the runner fires
@@ -409,14 +417,15 @@ burst; it holds only the lanes in its own plan and every other lane ticks
 normally. A recorded failure counts as a firing. Hub health and the portfolio
 snapshot already run at startup and are not replayed. Unknown cron
 expressions are excluded (the ingest refuses one as `unknown_cron`, which
-`pnpm os:cron` prints with the expressions it does run). Manual migrations,
-seed/config apply, restore, kill-switch, remote deploy, auth/billing/consent,
+`pnpm os:run-job` prints with the expressions it does run). Manual migrations,
+seed/config apply, restore, kill-switch, app update, auth/billing/consent,
 analytics-pipeline edits, holdout changes and guardrail edits are not
 catch-up lanes at all.
 
-> ⚠️ Local cron firing only happens while `os-up` is running. The office
-> installation uses launchd precisely so a closed terminal, a crash or a login
-> does not silently stop the crons.
+> ⚠️ Cron firing only happens while the app container runs. Its
+> `restart: unless-stopped` policy brings the runner back after a crash or a
+> reboot; a stack stopped with `pnpm os:stop` fires nothing until
+> `pnpm os:start`.
 
 ## The beads task hub
 
@@ -428,12 +437,13 @@ signals: a second store beside the ledger. The contract — how a project joins,
 the spoke config standard, filing conventions — is
 [`config/beads.README.md`](../config/beads.README.md); hosting and recovery of
 the Compose service are [`db/dolt/host/README.md`](../db/dolt/host/README.md).
-`NOTICEOS_DOLT_HOME` selects a Compose hub by the home containing
-`dolt/profile.json`; a missing or malformed profile refuses startup and backup
-and never falls back to the legacy native hub.
+In the stack the hub is the `dolt` service, declared to the app in
+`/state/task-client.json`; a missing or malformed declaration refuses startup
+and backup.
 
-The hub is not an `os:up` child: every repository needs its tracker while the
-runner is stopped. The runner probes it, backs it up nightly, and runs these
+The hub is not the runner's child: it is its own service, so every repository
+keeps its tracker while the app is stopped. The runner probes it, backs it up
+nightly, and runs these
 lanes against it, each a module under `scripts/runner/` with its cadence in
 `CONFIG`:
 
@@ -629,114 +639,55 @@ project; the helper refuses to overwrite an existing service or volume. A
 legacy native hub is restored by putting the backed-up database directory back
 under its data dir with the native service stopped under operator approval.
 
-## launchd service — the office Mac's normal state
+## Merging is not deploying (`os:update`)
 
-The repo owns a launch-agent template at `scripts/launchd/local-service.plist`.
-Its label is `com.noticeos.local`, or, on a Mac with a service installed
-before the rename, that service's own `com.reindexos.local`
-(`scripts/resource-names.mts`). One idempotent command resolves the absolute
-Node path, the runtime copy's `current` link and this checkout (as
-`NOTICEOS_HOME`), writes the user-agent plist atomically, loads it with
-`RunAtLoad` + `KeepAlive`, and waits for classified health:
+A production app runs a prepared image, so a merge to `main` changes nothing
+that runs. `pnpm os:update` (`scripts/stack-deploy.mjs`) is the step after a
+verified merge:
 
-```sh
-pnpm os:install
-```
+1. **Prepare**, with services still running: build `main` from the
+   allowlisted public source into an image labelled with its revision, source
+   manifest and Postgres schema fingerprint, and write a private,
+   content-addressed plan beside the selector. If `main` carries a migration
+   the database has not applied, it stops here and names `pnpm os:migrate`;
+   if `main` changes the Postgres roles, that is operator maintenance.
+2. **Confirm**: it prints the plan and applies it after you type `update`.
+   Without a terminal it prints `pnpm os:update -- --apply <plan>` instead.
+3. **Apply**: recreate only `noticeos`, with no dependency restart, pull or
+   migration, and wait up to 90 s for health. A failed wait restores the
+   previous image by itself while the stores and mounts still match.
 
-Re-running it replaces and reloads the same agent. It refuses until a runtime
-copy exists (`pnpm os:deploy` prepares one) and when an unmanaged foreground
-runtime answers. `pnpm os:uninstall` stops this exact agent and removes only
-its plist; runtime data, logs and runtime copies remain.
+`pnpm os:rollback` is the same flow back to the recorded previous image, and
+is refused across a schema change. `pnpm os:status` shows the commit the app
+runs and whether `main` is ahead. The full contract, including the image-only
+build and recovery journals, is the
+[Docker guide](../deploy/compose/README.md#update-the-app-from-main).
 
-### Merging is not deploying — `pnpm os:deploy`
-
-A service that ran the dev server from this checkout would hot-reload
-production on every merge, so the service runs a **runtime copy**:
-
-```
-.local/runtime/runtime-a    ┐ two git worktrees (detached, locked), used in turn
-.local/runtime/runtime-b    ┘
-.local/runtime/current   →  the live one; the plist runs current/scripts/os-up.mjs
-```
-
-A merge changes this checkout and never the runtime copy. `pnpm os:deploy` is
-the step after a verified merge:
-
-1. **Verify**, refusing with nothing changed: the commit is on `main` (its
-   HEAD, or `-- <commit>` that main contains); it moves forward from the
-   commit running now (back is `-- --rollback`); both runtime copies are
-   clean; both Worker configs declare Postgres without D1 bindings. It refuses
-   a `db/postgres/migrations` file the installation's database has not
-   applied, printing `pnpm os:stop` → `pnpm postgres:migrate apply …` →
-      `pnpm os:start`, and one applied with another SHA-256; a migration the
-   database has and the commit does not carry is named and allowed. CI
-   results are not visible here, so "verified" does not claim them.
-2. **Prepare the idle copy** while the live one keeps serving; a failure here
-   changes nothing live.
-3. **Switch once**: point `current` at the prepared copy and restart through
-   the same health wait `os:restart` uses (90 s, `DEPLOY_HEALTH_WAIT_MS`). A
-   failed wait prints status and the recent log, then goes back by itself with
-   one more restart, at most once and never after `-- --rollback`.
-4. **Record** the move in `.local/logs/deploys.jsonl`, which the runner
-   forwards to the store as annotations on the OS asset
-   (`scripts/os-deploy-forward.mjs`) for the Wall feed.
-
-`-- --check` runs step 1 and stops. `-- --rollback` points `current` back at
-the other installed copy with one restart. With the service stopped, a deploy
-moves the link and starts nothing; `pnpm os:start` runs it.
-
-**State stays home; only code moves.** In each runtime copy `.wrangler`,
-`.local`, `workers/ingest/.dev.secrets.json` and `workers/ingest/.dev.vars`
-are symbolic links to this checkout's paths (`NOTICEOS_HOME` in the plist),
-so a Save in the Tower still commits here; a runner in a runtime copy
-re-checks its links and Postgres connection before it starts anything (exit 4
-otherwise). [`os-runtime.mjs`](os-runtime.mjs) owns these rules and
-[`os-deploy.mjs`](os-deploy.mjs) the deploy. `pnpm os:status` shows the
-commit the runner reports and how far `main` is ahead.
-
-**Cut-over, once, by the operator.** An older install runs the checkout
-itself (`os:status` says `runs from this folder, so every merge reloads it`):
-
-```sh
-pnpm os:deploy    # prepares .local/runtime/current from main; the running service is untouched
-pnpm os:install   # rewrites the plist to run the runtime copy: one restart, waits for health
-```
-
-
-
-### Stop for maintenance is not uninstall
-
-`pnpm os:stop` and `pnpm os:start` move the **installed** service between
-loaded and not; neither writes or deletes the plist. That is the pair a
-migration uses. `os:stop` does not return success until the ingest door is
-actually free, polling up to 12 s (`STOP_WAIT_MS`); a port still held is a
-foreground `pnpm os:up` or an orphan, and it says so and exits nonzero. Both
-verbs are idempotent; `os:start` does not wait for health, `pnpm os:status`
-is the health check.
+`pnpm os:dev` instead runs the app from this checkout's live source, so UI and
+Worker edits refresh without an update; `pnpm os:prod` returns to the image it
+ran before, and `pnpm os:update` refuses while development is on
+([mounted-source development](../deploy/compose/README.md#follow-a-checkout-during-local-development)).
 
 ### Agent recovery contract
 
-1. Run `pnpm os:status`. Do not infer health from a listening port. `healthy`
-   requires launchd + fresh heartbeat + ingest + Tower and successful
-   PostgreSQL and task-database readiness reads; `stale` means the endpoints
-   answer but the supervisor stopped proving life.
-2. Run `pnpm os:logs -- --lines 200`; add `--follow` only while reproducing.
-3. Run `pnpm os:doctor` before a restart when the cause is unclear; its output
-   is bounded (200 log lines, 100 job records) and redacted.
-4. `pnpm os:restart` is safe for ordinary runner/Tower code already authorized
-   by the task: it targets only the loaded repo-managed service, waits up to
-   45 s, and fails with recent output if health does not return. Ask the
-   operator first for a forever-forbidden surface, a possibly unapplied
-   migration, or an unmanaged runtime. Merged work reaches the live OS only
-   through `pnpm os:deploy`, under the same rule.
-5. `pnpm os:install` / `pnpm os:uninstall` alter the login service and are
-   run only for an operator-directed task; `pnpm os:stop` / `pnpm os:start`
-   are the operator's maintenance pair, not a recovery step an agent reaches
-   for.
+1. Run `pnpm os:status`. Do not infer health from a listening port. The app
+   is `healthy` only when its runner, scheduler, Tower and ingest door all
+   pass the container's health check.
+2. Run `pnpm os:logs -- --lines 200`; add `-- --follow` only while
+   reproducing, and name one service to narrow it.
+3. `pnpm os:restart` is safe for ordinary runner/Tower code already authorized
+   by the task: it restarts the stack in dependency order, waits for each
+   layer's health, and stops at the first failure. Ask the operator first for
+   a forever-forbidden surface or a possibly unapplied migration. Merged work
+   reaches a production app only through `pnpm os:update`, under the same
+   rule.
+4. `pnpm os:migrate -- --apply` is never an agent's step. `pnpm os:start`,
+   `pnpm os:stop`, `pnpm os:dev`, `pnpm os:prod` and `pnpm os:rollback` are
+   operator-directed.
 
 ## Notes
 
-- `.local/` (logs, backups, runtime copies) is runtime state: git-ignored,
+- `.local/` (the stack selector, logs, backups, update plans) is runtime state: git-ignored,
   never committed.
 - **The root suite never reads the checkout's own `config/`.**
   `pnpm test:scripts` preloads `scripts/script-tests-setup.mjs` into every
@@ -762,39 +713,44 @@ is the health check.
 
 # Database migrations
 
-Postgres is the only supported operational database. Legacy D1 migration and
-import commands are retired; the completed transition tools are frozen in the
-private recovery source ([db/postgres/README.md](../db/postgres/README.md)).
+Postgres is the only operational database.
 
-## The Postgres store's counterpart (`postgres:migrate`)
+## Bringing the database up to date (`os:migrate`)
 
-`pnpm postgres:migrate` (`scripts/postgres-apply.mjs`) applies
-`db/postgres/migrations/` to an installation's own Postgres database. It is
-operator-only; neither restart nor deploy applies migrations. An approved
-maintenance operation uses this explicit sequence, with `NOTICEOS_OWNER_URL`
-supplied in the protected environment for the approved target:
+`pnpm os:migrate` (`scripts/os-migrate.mjs`, over the engine in
+`scripts/postgres-apply.mjs`) applies `db/postgres/migrations/` to the
+installation's own Postgres database. It finds the database itself: the stack
+selector `.local/stack.json` (or `--config`) names the Compose files, and the
+owner's address is `owner.url` in the stack's Postgres secrets folder (or
+`--secrets <folder>`). It is operator-only; nothing else ever applies a
+migration, and neither restart nor update does.
 
 ```sh
-pnpm postgres:migrate status --database noticeos --url-from NOTICEOS_OWNER_URL    # only reads
-pnpm os:stop
-pnpm postgres:migrate apply --database noticeos --url-from NOTICEOS_OWNER_URL --confirm noticeos
-pnpm os:start
+pnpm os:status                # what runs, whether main is ahead, whether the database is behind
+pnpm os:backup                # a backup you can restore
+pnpm os:migrate               # only reads: what is applied, what is pending
+pnpm os:migrate -- --apply    # shows the plan, asks for the database's name
+pnpm os:update                # then move the app to main
 ```
 
-It runs the development runner's own code (`pnpm postgres:dev`, development
-databases only) with the same lock, single transaction and per-file hashes,
-refuses a development database, needs the name typed twice, runs as
-`noticeos_owner` only, and applies only migrations
+The app keeps running while you migrate: migrations are additive unless the
+release's own instructions say otherwise
+([release policy](../docs/reference/release-policy.md#upgrade-an-existing-installation)).
+It runs the development command's own code (`pnpm db:try-migrations`,
+development databases only) with the same lock, single transaction and
+per-file hashes, refuses a development database, asks for the database's
+name, runs as `noticeos_owner` only, and applies only migrations
 `db/postgres/frozen-migrations.sha256` lists; nothing at runtime, restart or
-deploy can load it (`scripts/postgres-migrate.test.mjs`). The rest, with the
-one-workspace `bootstrap`, is in
+update can load it (`scripts/postgres-migrate.test.mjs`).
+`pnpm os:migrate -- --bootstrap --slug main --name "My sites"` creates the
+installation's one workspace, once. The rest is in
 [db/postgres/README.md](../db/postgres/README.md#applying-it-to-an-installations-own-database).
 
 ---
 
-# Dev fixtures (`seed:local`)
+# Dev fixtures (`db:seed-demo`)
 
-`pnpm seed:local` (`scripts/db-seed.mjs`) fills a new installation's store
+`pnpm db:seed-demo` (`scripts/db-seed.mjs`) fills a new installation's store
 with invented history so a developer sees a populated Tower
 ([`db/fixtures/dev-seed.json`](../db/fixtures/dev-seed.json)).
 
@@ -802,7 +758,7 @@ with invented history so a developer sees a populated Tower
 # Terminal 1: a foreground-owned, loopback-only development runtime
 pnpm start -- --development --dir .local/development --no-open
 # Terminal 2: populate that runtime with synthetic rows
-pnpm seed:local -- --dir .local/development
+pnpm db:seed-demo -- --dir .local/development
 ```
 
 The development command needs local PostgreSQL server binaries on PATH: it
@@ -814,7 +770,7 @@ so run the seed again.
 The seed writes every row in one transaction as the application login and
 opens no local store file, so it runs beside a started Tower. It refuses,
 writing nothing: a folder `pnpm start` did not make; a database not marked
-`noticeos.profile = 'development'` (`pnpm postgres:migrate` refuses a marked
+`noticeos.profile = 'development'` (`pnpm os:migrate` refuses a marked
 one: a database is seedable or real, never both); and a store that already
 holds data in `pulses`, `flags`, `ledger_entries`, `counter_readings` or
 `annotations`, or a site on one of the fixture's ids or domains, because a
@@ -835,18 +791,16 @@ through, and with the door held it spawns nothing and prints what to stop.
 
 # Local secret source
 
-The structured secret source is the gitignored
-`workers/ingest/.dev.secrets.json`, edited as formatted JSON; object and
-array values are serialized to the string bindings the Worker parses.
-`pnpm os:up` syncs it to the generated `workers/ingest/.dev.vars` before
-launching the dev server; `pnpm dev:secrets:sync` rebuilds `.dev.vars` on
-demand. One key never goes there: `DATABASE_URL`, which the runner and
-`pnpm start` hand to the dev server's environment alone
+The structured secret source is the installation's private
+`workers/ingest/.dev.secrets.json` (`/state/workers/ingest/.dev.secrets.json`
+in the app container), edited as formatted JSON; object and array values are
+serialized to the string bindings the Worker parses. The runner compiles it
+to the generated `.dev.vars` beside it at every start, so after an edit run
+`pnpm os:restart`. One key never goes there: `DATABASE_URL`, which the runner
+and `pnpm start` hand to the dev server's environment alone
 ([doc 06](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)).
-`pnpm dev:secrets:migrate` lifts an older dotenv-only install's JSON-looking
-values into nested JSON, writes both files mode `0600`, never prints values,
-and refuses to overwrite an existing structured source;
-`pnpm dev:secrets:import` moves the legacy bindings into the store once.
+The Import button on a Legacy env card in **Integrations** moves the legacy
+bindings into the store once; there is no import command.
 
 # Credentials (`creds:check`)
 
@@ -869,7 +823,7 @@ values, only slot names, presence and probe samples.
 bindings, still read and the fallback for installs that have not moved
 ([doc 06](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)
 separates them from the bootstrap secrets); **Import from this machine** on
-any Legacy env card (or `pnpm dev:secrets:import`) moves the file across.
+any Legacy env card moves the file across.
 
 | Slot (env var) | Lane | Where to get it |
 |---|---|---|
@@ -877,7 +831,7 @@ any Legacy env card (or `pnpm dev:secrets:import`) moves the file across.
 | `ASSET_TOKENS` | self-report pull and pulse push | JSON map property → that property's `ASSET_TOKEN` ([doc 11](../docs/11-integrations.md#credential-naming--the-asset_token-convention)) |
 | `BING_WEBMASTER_API_KEY` | Bing Webmaster | Bing Webmaster Tools → Settings → API access |
 | `DATAFORSEO_LOGIN` / `DATAFORSEO_PASSWORD` | DataForSEO | `app.dataforseo.com` → API Access: the API login/password, not the account email |
-| `GOOGLE_SIGNAL_ACCOUNTS` | GA4 + Search Console | nested object service-account label → `service_account_b64` + `properties` (each with `ga4_property_id`, `gsc_site_url`, optional `time_zone`); grant the service-account email GA4 Viewer and GSC Full-user access. `pnpm dev:secrets:sync` extracts each key to a generated `GOOGLE_SERVICE_ACCOUNT_<ALIAS>` binding; do not add those names yourself. |
+| `GOOGLE_SIGNAL_ACCOUNTS` | GA4 + Search Console | nested object service-account label → `service_account_b64` + `properties` (each with `ga4_property_id`, `gsc_site_url`, optional `time_zone`); grant the service-account email GA4 Viewer and GSC Full-user access. The runner extracts each key to a generated `GOOGLE_SERVICE_ACCOUNT_<ALIAS>` binding at start; do not add those names yourself. |
 | `CLARITY_TOKENS` | Microsoft Clarity | JSON map asset → project data-export token (per asset, no portfolio credential) |
 | `POSTHOG_KEYS` | PostHog | JSON map asset → personal API key with read access to Query and Project |
 | `DISCORD_WEBHOOK_URL` | Discord | Server Settings → Integrations → Webhooks; the URL is the credential |
@@ -944,7 +898,7 @@ container, use the
 Collect and read back one property's local archive:
 
 ```bash
-pnpm os:cron -- "15 12 * * *"                                  # or "45 12 * * 1" for the weekly lane
+pnpm os:run-job -- "15 12 * * *"                               # or "45 12 * * 1" for the weekly lane
 pnpm signals:download -- --asset example.com                   # --integration / --report / --from / --to filter
 pnpm signals:history -- --asset example.com --in .local/signal-dumps/downloads/example.com --out .local/signal-dumps/history/example.com
 pnpm signals:analyze-history -- --asset example.com --history .local/signal-dumps/history/example.com --out .local/signal-dumps/reports/example.com
@@ -987,7 +941,7 @@ CSVs stay local.
 
 ## Collect one property now (`signals:collect`)
 
-`pnpm os:cron -- "45 12 * * 1"` fires the whole weekly lane for every
+`pnpm os:run-job -- "45 12 * * 1"` fires the whole weekly lane for every
 property; a baseline for one property on its launch day is collected at its
 own price:
 
@@ -1113,17 +1067,17 @@ no `bounced` status: a hard bounce stays `sent` with the bounce in
 
 ---
 
-# `wall:fit` — does the Wall still fit the TV?
+# `audit:wall-fit` — does the Wall still fit the TV?
 
 The Wall's contract is that it fits a 1920×1080 CSS viewport: the kiosk has
 nobody at it to scroll. That contract breaks on data growth alone, so this
 measures the fit instead of waiting for the television to report it.
 
 ```bash
-pnpm wall:fit                                  # 1920×1080 against the local Tower
-pnpm wall:fit -- --samples 6                   # late data lands; take more frames, the worst wins
-pnpm wall:fit -- --strict --viewports laptops  # the screens that draw the TV's layout scaled
-pnpm wall:fit -- --help
+pnpm audit:wall-fit                                  # 1920×1080 against the local Tower
+pnpm audit:wall-fit -- --samples 6                   # late data lands; take more frames, the worst wins
+pnpm audit:wall-fit -- --strict --viewports laptops  # the screens that draw the TV's layout scaled
+pnpm audit:wall-fit -- --help
 ```
 
 Exit `0` fits, `1` content spills past the viewport, `2` it could not be
@@ -1144,16 +1098,16 @@ inner clip cuts off sideways. The first sample is routinely shorter than the
 rest, so read the spread, not one frame. Chrome cannot start inside the Claude
 Code Bash sandbox; run it with the sandbox disabled.
 
-# `surface:audit` — does a desk surface still meet doc 14?
+# `audit:surfaces` — does a desk surface still meet doc 14?
 
 [doc 14](../docs/14-design.md)'s acceptance list is a list of measurements —
 the first screen answers the surface's question without scrolling, no
 paragraph past one sentence outside `About`, no owner chip or config path on
 a view surface, every number that can have a series shows one, the 44px floor
-holds at 390 — and `pnpm surface:audit` measures them against the live Tower
+holds at 390 — and `pnpm audit:surfaces` measures them against the live Tower
 at 1440×900 and 390×844 (`--help` for routes, `--asset`, `--strict`,
 `--json`). Exit `0` every route meets doc 14, `1` offenders named per route,
-`2` it could not be measured; like `wall:fit` it needs a running Tower and a
+`2` it could not be measured; like `audit:wall-fit` it needs a running Tower and a
 browser, is not part of `pnpm test`, and is read-only. The page does no
 judging: `collectSurface` returns plain descriptors and every rule runs in
 node over them, which is what lets `surface-audit.test.mjs` drive the same
@@ -1168,7 +1122,7 @@ overwrites the live Tower's registration), and pass its `--url`.
 
 # UX text report — how much reading each screen asks for
 
-`pnpm ux:gate` (`scripts/ux-gate.mjs`) extracts every string the Tower can
+`pnpm audit:copy` (`scripts/ux-gate.mjs`) extracts every string the Tower can
 show a person — `apps/tower/{src,shared,worker}` plus every module and config
 document those import, and the ingest Worker behind the service binding —
 counts the words in each, and lists the long ones, longest first. "Long" is
@@ -1179,15 +1133,15 @@ exits 0. The reader (`extractVisibleStrings`) is shared with
 `scripts/ui-lexicon.test.mjs`, which does fail on system jargon.
 
 ```sh
-pnpm ux:gate                 # every long string the Tower renders
-pnpm ux:gate -- --summary    # per-file counts only
-pnpm ux:gate -- --files apps/tower/src/routes/HealthRoute.tsx
-pnpm ux:gate -- --json       # machine-readable
+pnpm audit:copy                 # every long string the Tower renders
+pnpm audit:copy -- --summary    # per-file counts only
+pnpm audit:copy -- --files apps/tower/src/routes/HealthRoute.tsx
+pnpm audit:copy -- --json       # machine-readable
 ```
 
 # UX flow walker — what each operator flow costs
 
-`pnpm ux:flows` (`apps/tower/e2e/flow-gate.mjs`, the end of
+`pnpm audit:flows` (`apps/tower/e2e/flow-gate.mjs`, the end of
 `pnpm test:journeys` and CI's `flow-gate` job) drives every operator flow
 declared in `apps/tower/e2e/ux-flows.mjs` in a real browser, at desktop and
 phone, on isolated fixture servers, and reports what each flow costs
@@ -1199,10 +1153,10 @@ in `ux-walk.mjs` stop seeing what they are built to see. A changed flow
 changes its script in the same commit.
 
 ```sh
-pnpm ux:flows                                  # walk every flow
-pnpm ux:flows -- --flows connect-bing,inbox    # just these
-pnpm ux:flows -- --viewports phone             # one viewport
-pnpm ux:flows -- --json                        # machine-readable
+pnpm audit:flows                                  # walk every flow
+pnpm audit:flows -- --flows connect-bing,inbox    # just these
+pnpm audit:flows -- --viewports phone             # one viewport
+pnpm audit:flows -- --json                        # machine-readable
 ```
 
 # The pre-commit hook
@@ -1227,7 +1181,7 @@ from the documents `pnpm config:export` writes into the installation folder
 (every register in `scripts/config-registers.mjs` keyed by an asset id or a
 domain), from the `neutral-names.json` inventory there, and from the Google
 account each source's `ref` in `integrations.json` routes through.
-`pnpm neutral:gate -- --names` prints the list and where each name was read.
+`pnpm check:neutral -- --names` prints the list and where each name was read.
 
 **What it reads.** Product source (`apps/tower/{src,shared,worker,vite}`,
 `workers/ingest/src`, `packages/contract/src`), the product defaults in
@@ -1250,7 +1204,7 @@ documented reporting zone, `reportingTimeZones` in
 |---|---|
 | Commit | `.githooks/pre-commit` → `node scripts/neutral-code-gate.mjs --staged` (a staged config document or migration rechecks every product and test file) |
 | CI | `scripts/neutral-code-gate.test.mjs` in `pnpm test:scripts`: zero offenders on the checkout, and planted names fail |
-| By hand | `pnpm neutral:gate`, or `-- --files <paths>` |
+| By hand | `pnpm check:neutral`, or `-- --files <paths>` |
 
 There is no baseline and no allowance file: a name that must appear is read
 from the store with a generic default.

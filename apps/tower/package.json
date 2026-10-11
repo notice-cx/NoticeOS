@@ -17,7 +17,7 @@
     "test:journey-harness": "node --test e2e/harness.test.mjs",
     "test:ux-flows": "node e2e/flow-gate.mjs",
     "typecheck:journeys": "tsc -p e2e/tsconfig.json",
-    "db:seed:local": "node ../../scripts/db-seed.mjs"
+    "db:seed-demo": "node ../../scripts/db-seed.mjs"
   },
   "dependencies": {
     "@noticeos/contract": "workspace:*",

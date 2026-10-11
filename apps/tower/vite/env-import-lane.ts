@@ -1,6 +1,6 @@
 // The env-import lane: what "Import from this machine" on a Legacy env card
-// presses. It calls `importDevSecrets` (the function `pnpm dev:secrets:import`
-// runs) in process rather than spawning anything. The request carries no
+// presses. It calls `importDevSecrets` (scripts/dev-secrets.mjs) in process
+// rather than spawning anything. The request carries no
 // argument: the file on this machine is the whole input, and the answer names
 // providers and field names, never a value.
 

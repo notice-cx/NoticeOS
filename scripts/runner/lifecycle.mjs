@@ -1,16 +1,11 @@
 // runner/lifecycle.mjs — whether this runner may start, and whether it is
-// stopping. One runner at a time (the ingest door is the lock), a runtime copy
-// that is not linked to home's state starts nothing, a managed predecessor's
-// orphaned child may be cleaned up only when positively identified, and every
-// lane asks isShuttingDown() before it starts work.
+// stopping. One runner at a time (the ingest door is the lock), a code folder
+// that is not linked to home's state starts nothing, and every lane asks
+// isShuttingDown() before it starts work.
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { ensureSharedStateLinks, linkConflictLines, samePath } from '../os-runtime.mjs';
-import { CONFIG, RUNNER_STATE_FILE } from './config.mjs';
-import { listListenerOwners } from './door-ownership.mjs';
-import { probeTcp } from './host-tools.mjs';
-import { log } from './log.mjs';
 
 let shuttingDown = false;
 
@@ -23,8 +18,6 @@ export function isShuttingDown() {
 export function beginShutdown() {
   shuttingDown = true;
 }
-
-export const MANAGED_ORPHAN_MAX_AGE_MS = 120_000;
 
 /**
  * What a runner whose code is not the home checkout must prove before it
@@ -68,7 +61,7 @@ export async function runtimeCopyRefusal({ codeRoot, homeRoot, liveSourceRoot = 
  * here first" are different answers, and a wrapper should be able to tell. */
 export const EXIT_ALREADY_RUNNING = 3;
 
-/** A runner in a runtime copy that is not linked to home's state — it started
+/** A runner in a code folder that is not linked to home's state — it started
  * nothing. */
 export const EXIT_RUNTIME_COPY = 4;
 
@@ -106,92 +99,11 @@ export function runnerArmDecision({ ingestPortAnswers }, config) {
     level: 'ERROR',
     text:
       `REFUSING to start: something already answers on ${where}, which is this repo's ingest door — ` +
-      `another os:up, or a vite/workerd orphaned by one that crashed. Starting anyway would point TWO ` +
+      `another runner, or a vite/workerd orphaned by one that crashed. Starting anyway would point TWO ` +
       `schedulers at that one ingest and fire every cron TWICE, which bills a metered lane twice. ` +
-      `Nothing was started here: no children, no crons, no migrations. Run pnpm os:status, ` +
-      `then pnpm os:doctor. If it is the managed service, keep ` +
-      `this copy stopped and use pnpm os:restart. If status says unmanaged, stop that foreground ` +
-      `pnpm os:up terminal; no command here will guess which unknown process tree is safe to kill.`,
+      `Nothing was started here: no children, no crons, no migrations. Stop the other runner first; ` +
+      `no command here will guess which unknown process tree is safe to kill.`,
   };
-}
-
-/**
- * A launchd restart after SIGKILL can leave the detached Tower group alive.
- * Only a fresh heartbeat from a managed predecessor, whose runner is now dead
- * and whose recorded child group owns the door, licenses cleanup. Anything
- * less remains an unknown process and the normal single-instance guard wins.
- */
-export function managedOrphanDecision(
-  { previous, previousRunnerAlive, owners, nowMs = Date.now() },
-  maxAgeMs = MANAGED_ORPHAN_MAX_AGE_MS,
-) {
-  if (!previous?.managed || !Number.isInteger(previous?.pid) || !Number.isInteger(previous?.towerPid)) {
-    return { recover: false, reason: 'no managed predecessor identity' };
-  }
-  const updatedAt = Date.parse(previous.updatedAt ?? '');
-  if (!Number.isFinite(updatedAt) || nowMs - updatedAt > maxAgeMs || nowMs < updatedAt) {
-    return { recover: false, reason: 'managed predecessor heartbeat is not fresh' };
-  }
-  if (previousRunnerAlive) return { recover: false, reason: 'the recorded predecessor still runs' };
-  if (!Array.isArray(owners)) return { recover: false, reason: 'door ownership could not be read' };
-  const owned = owners.filter((owner) => owner.pgid === previous.towerPid);
-  if (owned.length === 0) return { recover: false, reason: 'the door is not held by the recorded child group' };
-  return {
-    recover: true,
-    group: previous.towerPid,
-    reason: `managed predecessor ${previous.pid} is gone; its child group ${previous.towerPid} owns the door`,
-  };
-}
-
-function processAnswers(pid) {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export async function readPreviousRunnerState() {
-  try {
-    return JSON.parse(await fs.readFile(RUNNER_STATE_FILE, 'utf8'));
-  } catch {
-    return null;
-  }
-}
-
-async function waitForDoorToClose(timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (!(await probeTcp(CONFIG.ingestHost, CONFIG.ingestPort))) return true;
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  return !(await probeTcp(CONFIG.ingestHost, CONFIG.ingestPort));
-}
-
-export async function recoverManagedOrphan(previous) {
-  const owners = await listListenerOwners(CONFIG.ingestPort);
-  const decision = managedOrphanDecision({
-    previous,
-    previousRunnerAlive: Number.isInteger(previous?.pid) && processAnswers(previous.pid),
-    owners,
-  });
-  if (!decision.recover) return false;
-
-  log('WARN', `recovering forced-exit orphan — ${decision.reason}`);
-  try {
-    process.kill(-decision.group, 'SIGTERM');
-  } catch {
-    return false;
-  }
-  if (await waitForDoorToClose(5_000)) return true;
-  log('WARN', `managed child group ${decision.group} ignored SIGTERM; escalating to SIGKILL`);
-  try {
-    process.kill(-decision.group, 'SIGKILL');
-  } catch {
-    return false;
-  }
-  return waitForDoorToClose(2_000);
 }
 
 /**

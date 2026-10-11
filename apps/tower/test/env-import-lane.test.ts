@@ -14,8 +14,7 @@ import {
 // credential store. It runs in the dev server's Node process, reads the file
 // holding every provider secret on the machine, and is reachable from a
 // browser, so what is asserted is every way it refuses, that what it PUTs is
-// what `pnpm dev:secrets:import` would have PUT (it calls that same
-// function), and that no answer it gives ever carries a value.
+// what `importDevSecrets` PUTs (it calls that same function), and that no answer it gives ever carries a value.
 
 const created: string[] = [];
 
@@ -222,7 +221,7 @@ describe("the env-import lane", () => {
   });
 
   it("aims the PUTs at the address the browser reached it on, not a fixed loopback", async () => {
-    // `os:up` serves the wall and the phone on the LAN name; a hard-coded
+    // The Tower serves the wall and the phone on the LAN name; a hard-coded
     // 127.0.0.1 origin would make the Worker's same-origin check refuse every
     // credential the button moved from those.
     const root = await tempRepo({ BING_WEBMASTER_API_KEY: "key" });

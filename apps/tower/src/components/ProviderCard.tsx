@@ -38,12 +38,11 @@ import {
 } from "@shared/integrations-page";
 import { acceptedAs, exactUsd, probeOutcomeLabel } from "@noticeos/contract/integrations";
 import { siteNoun } from "@shared/site-noun";
-import { ENV_MIGRATE_COMMAND, type EnvImportBlock } from "@shared/env-import";
+import { type EnvImportBlock } from "@shared/env-import";
 import { ageMs, formatAge } from "@shared/freshness";
 import { connectionStatus, type ConnectionStatus } from "@shared/connection-status";
 import { providerName, secretNoun } from "@shared/connect-panel";
 import { ConnectionActions } from "@/components/ConnectionActions";
-import { CopyCommand } from "@/components/CopyCommand";
 import { WhatLands } from "@/components/WhatLands";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { Meter } from "@/components/Meter";
@@ -58,15 +57,11 @@ import { formatPeriodMonth, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 import { ProviderCredentialForm, ProviderLink } from "@/components/provider-card/ProviderCredentialForm";
-import { GoogleSignIn, StepNumber, type ProviderOAuthPanel } from "@/components/provider-card/GoogleSignIn";
+import { GoogleSignIn, type ProviderOAuthPanel } from "@/components/provider-card/GoogleSignIn";
 import { GoogleStartPress } from './provider-card/GoogleStartPress';
 import { messageOf } from "@/components/provider-card/errors";
 
 export type { ProviderOAuthPanel } from "@/components/provider-card/GoogleSignIn";
-
-/** The fallback where the import lane does not run: one constant, so the
- * button and the command cannot disagree. */
-export const SECRETS_IMPORT_COMMAND = "pnpm dev:secrets:import";
 
 /** Where a provider's `docRef` resolves: the public source repository. */
 const SOURCE_REPOSITORY = "https://github.com/notice-cx/NoticeOS";
@@ -1295,21 +1290,13 @@ function LegacyEnvExplainer({
           ) : null}
         </div>
       ) : (
-        <ol className="flex flex-col gap-1.5" data-import-reason={panel?.reason ?? undefined}>
+        <div className="flex flex-wrap items-center gap-2" data-import-reason={panel?.reason ?? undefined}>
           {panel?.reason === "no-file" ? (
-            <li className="flex flex-wrap items-center gap-2">
-              <StepNumber n={1} />
-              <CopyCommand command={ENV_MIGRATE_COMMAND} mark={{ "data-import-command": "migrate" }} />
-            </li>
-          ) : null}
-          <li className="flex flex-wrap items-center gap-2">
-            {panel?.reason === "no-file" ? <StepNumber n={2} /> : null}
-            <CopyCommand command={SECRETS_IMPORT_COMMAND} mark={{ "data-import-command": "import" }} />
-            {panel?.reason === "elsewhere" ? (
-              <StateChip tone="na" label="On the OS machine" glyph={<Terminal className="size-3" />} subject="setup:secrets-import" />
-            ) : null}
-          </li>
-        </ol>
+            <StateChip tone="na" label="No secrets file here" glyph={<Terminal className="size-3" />} subject="setup:secrets-import" />
+          ) : (
+            <StateChip tone="na" label="Import on the OS machine" glyph={<Terminal className="size-3" />} subject="setup:secrets-import" />
+          )}
+        </div>
       )}
     </div>
   );

@@ -3,21 +3,21 @@
 // and hands it to its one Tower child's environment and nowhere else; a
 // missing or unusable address stops it before anything starts.
 //
-// The last test is a rehearsal of the managed service: a runner process whose
+// The last test is a rehearsal of the stack's runner: a runner process whose
 // home is a throwaway folder supervises the runner's own Tower child
 // (`towerChild`, `startChild` from scripts/os-up.mjs) on a throwaway Postgres
 // whose application login has a planted password, saves a setting through the
 // Tower, and then looks for the password everywhere the runner wrote. What it
 // does not start is the runner's scheduler and host lanes, and its
-// single-instance guard: those are pinned to the managed service's own ports
+// single-instance guard: those are pinned to the NoticeOS stack's own ports
 // and task hub, which a test must never touch. Its Worker configs are written
 // into its home beside its secrets (as `pnpm start` writes them), where a
-// runtime copy links them.
+// code folder links them.
 
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import net from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -86,7 +86,7 @@ test("the address is read from home's secrets file, and a missing one is refused
 });
 
 // Taking the Compose profile's address is `pnpm start`'s, for a new folder.
-// The managed service never takes it: a home without
+// The stack's runner never takes it: a home without
 // DATABASE_URL is refused even beside a profile that holds one.
 test("the runner never takes the Compose profile's address, and leaves home's secrets file as it was", (t) => {
   const missing = homeWith(t, { OPERATOR_TOKEN: 'x' });
@@ -122,7 +122,7 @@ test('the runner checks its database before it writes a heartbeat or starts a ch
     return index;
   };
   const checked = at('const database = await runnerDatabase();');
-  assert.ok(at('runtimeCopyRefusal(') < checked, 'after the single-instance and runtime-copy guards');
+  assert.ok(at('runtimeCopyRefusal(') < checked, 'after the single-instance and code-folder guards');
   assert.ok(checked < at("status: 'starting',"), 'before the heartbeat says starting');
   assert.ok(checked < at('startChild(c)'), 'before the child starts');
   // The refusal is in the log file before the process ends: the managed
@@ -131,7 +131,7 @@ test('the runner checks its database before it writes a heartbeat or starts a ch
   // The address goes to the Tower child and nowhere else in the runner.
   assert.deepEqual([...supervise.matchAll(/database\.env/gu)].length, 1);
   assert.match(supervise, /towerChild\(\{ exposeTowerToLan, database: database\.env \}\)/u);
-  assert.equal(EXIT_NO_DATABASE, 5, 'distinct from 2, 3 (already running) and 4 (runtime copy)');
+  assert.equal(EXIT_NO_DATABASE, 5, 'distinct from 2, 3 (already running) and 4 (unlinked code folder)');
 });
 
 // ─── The rehearsal ──────────────────────────────────────────────────────────
@@ -151,7 +151,7 @@ async function cluster(t) {
 }
 
 /** Two free neighbouring loopback ports, the Tower's and its door's, below
- * every OS's ephemeral range and never the managed service's. */
+ * every OS's ephemeral range and never the NoticeOS stack's. */
 async function freePair() {
   const hold = (port) =>
     new Promise((resolve) => {
@@ -215,7 +215,6 @@ function rehearse(t, { home, port }) {
     CI: '1',
   };
   delete env[LOCAL_CONNECTION_VARIABLE];
-  delete env.NOTICEOS_MANAGED;
   const child = spawn(process.execPath, ['--input-type=module', '-e', REHEARSAL], { cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   const run = { child, output: '' };
   child.stdout.on('data', (chunk) => (run.output += chunk));
@@ -257,14 +256,14 @@ console.log(JSON.stringify({ status: answer.status, refused: answer.body?.refuse
   throw new Error(`the rehearsal's settings could not be seeded: ${last}`);
 }
 
-test("a managed runtime with no D1 files starts on the Postgres home's secrets file names, saves a setting there through the Tower, and never shows the address", { timeout: 420_000 }, async (t) => {
+test("a runner starts on the home's secrets file names, saves a setting there through the Tower, and never shows the address", { timeout: 420_000 }, async (t) => {
   const pg = await cluster(t);
   if (!pg) return;
   const planted = await plantedDatabase(pg);
   const port = await freePair();
   const token = randomBytes(24).toString('base64url');
 
-  // A home as the managed service keeps it: secrets, and the Worker configs
+  // A home as the stack keeps it: secrets, and the Worker configs
   // beside them. First with no address: the runner refuses and starts nothing.
   const { home, secretsFile } = homeWith(t, { CREDENTIALS_KEY: randomBytes(32).toString('base64'), OPERATOR_TOKEN: token });
   for (const relative of WORKER_CONFIGS) {
@@ -291,7 +290,6 @@ test("a managed runtime with no D1 files starts on the Postgres home's secrets f
   }
   await seed({ home, port, token });
 
-  assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false, 'managed startup needs no legacy D1 store');
   const tower = `http://localhost:${port}/`;
   const { zone, clock } = await saveClockThroughTower(tower);
   assert.deepEqual(clock, { owner: 'config/constants.json', timeZone: zone, chosen: true });

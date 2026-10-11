@@ -917,7 +917,7 @@ export function measureExpression(options) {
 
 const HELP = `Measure the live Tower's desk surfaces against docs/14-design.md.
 
-The Tower must be running (pnpm os:up, or apps/tower's dev server) and a local
+The Tower must be running (pnpm os:start, or apps/tower's dev server) and a local
 Chrome must be launchable. Read-only: it navigates and measures, nothing else.
 
 Exit 0 = every route meets doc 14, 1 = offenders (named per route),
@@ -1209,7 +1209,7 @@ async function main() {
 
   if (unmeasurable.length > 0) {
     console.error(
-      `Could not measure ${unmeasurable.length} route/viewport pair(s). Is the Tower running (pnpm os:up)?`,
+      `Could not measure ${unmeasurable.length} route/viewport pair(s). Is the Tower running (pnpm os:status)?`,
     );
     for (const reason of unmeasurable) console.error(`  ${reason}`);
     process.exitCode = 2;

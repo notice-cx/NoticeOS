@@ -1,23 +1,23 @@
 // start-schedule.mjs — the schedule of an installation `pnpm start` runs.
 //
-// The managed service's runner (scripts/os-up.mjs) fires the ingest's crons at
+// The NoticeOS stack's runner (scripts/os-up.mjs) fires the ingest's crons at
 // its door and keeps their record under the home checkout. A started
 // installation keeps collecting the same way, on its own: this fires the
 // ingest's crons (workers/ingest/wrangler.jsonc triggers.crons) at ITS door with
 // ITS operator token, and keeps the job-run record, the Workflows history and
 // the scheduler status in ITS folder — the files its Tower reads under
 // NOTICEOS_HOME (apps/tower/vite/scheduled-jobs-lane.ts, workflow-history.ts).
-// It never names the managed service's door, store or `.local/`.
+// It never names the stack's door, store or `.local/`.
 //
 // The ingest's crons, and of the runner's host lanes only the two a started
 // installation can set up itself — the task board refresh and the backup —
 // once it has (scripts/start-host-lanes.mjs). The rest — the
 // task hub's health, the task filers, spoke push state, the local signal
-// panels — need the host the managed service runs on. Its status says
+// panels — need the host the stack's runner runs on. Its status says
 // `hostLanes: false` and lists only the jobs it runs, and the Tower then lists
 // only those (apps/tower/shared/workflows.ts installedWorkflows).
 //
-// The same record, catch-up policy and saved schedules as the managed service
+// The same record, catch-up policy and saved schedules as the stack's runner
 // (scripts/job-runs.mjs, scripts/scheduled-job-runner.mjs). A started
 // installation is down whenever its person is not running it, so each start
 // pays the latest missed obligation of every lane once, cheapest cadence first.
@@ -46,7 +46,7 @@ import { WORKFLOW_SESSION_ID, createWorkflowHistory } from './workflow-history.m
 import { BACKUP_CATCHUP, STARTED_HOST_JOBS, TASK_BOARD_LANE, createStartedHostLanes } from './start-host-lanes.mjs';
 
 /** How often the saved schedules are re-read and the status republished —
- * the managed runner's cadence; the Tower calls a status older than 45 s stale. */
+ * the stack's runner's cadence; the Tower calls a status older than 45 s stale. */
 export const SCHEDULE_REFRESH_MS = 15_000;
 
 /** The ingest jobs a started installation runs: every cron its Worker config

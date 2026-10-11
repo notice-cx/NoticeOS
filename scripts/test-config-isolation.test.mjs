@@ -314,7 +314,7 @@ test('only a root script test is a script test', () => {
   assert.equal(scriptTestFile(path.join(REPO_ROOT, 'scripts/os-up.test.mjs')), 'scripts/os-up.test.mjs');
   assert.equal(scriptTestFile(pathToFileURL(path.join(REPO_ROOT, 'scripts/os-up.test.mjs'))), 'scripts/os-up.test.mjs');
   assert.equal(scriptTestFile(path.join(REPO_ROOT, 'scripts/os-up.mjs')), null, 'a script run on its own');
-  assert.equal(scriptTestFile(path.join(REPO_ROOT, 'scripts/launchd/x.test.mjs')), null);
+  assert.equal(scriptTestFile(path.join(REPO_ROOT, 'scripts/runner/x.test.mjs')), null);
   assert.equal(scriptTestFile(path.join(REPO_ROOT, 'apps/tower/test/a.test.mjs')), null);
   assert.equal(scriptTestFile(undefined), null, 'the node --test runner has no test file of its own');
 });

@@ -20,7 +20,7 @@
 // endpoint on the way out and authenticates the pulse on the way in. See the
 // ASSET_TOKEN convention in docs/11-integrations.md.
 //
-// Run: pnpm pulse:relay [-- --asset <id>]   (ingest must be up — pnpm os:up)
+// Run: pnpm pulse:relay [-- --asset <id>]   (ingest must be up — pnpm os:start)
 
 import fs from 'node:fs/promises';
 import path from 'node:path';

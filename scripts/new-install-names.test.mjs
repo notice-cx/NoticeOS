@@ -5,17 +5,14 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { RESOURCE_NAMES_FILE } from './installation.mjs';
-import { renderLaunchAgent } from './os-control.mjs';
-import { openedRawSignalsBucket } from './os-deploy.mjs';
 import { stripJsonc } from './jsonc.mjs';
-import { NEW_INSTALL_NAMES, applyResourceNames, readResourceNames, serviceLabel } from './resource-names.mjs';
+import { NEW_INSTALL_NAMES, applyResourceNames, readResourceNames } from './resource-names.mjs';
 import { workerConfig } from './start.mjs';
 
 // A new installation is born with NoticeOS names.
 //
 // What `pnpm start` sets up for a stranger — its Workers, database and bucket —
-// what `pnpm os:install` installs on a Mac that has no service yet, the names
-// the Postgres profile will create, and the product defaults a fresh clone
+// the names the Postgres profile will create, and the product defaults a fresh clone
 // seeds all carry the product's name and none of the old one. The owner's
 // installation keeps the names its live resources were made under
 // (docs/06-operations.md § Legacy names); this proves a new one never
@@ -45,7 +42,6 @@ test("pnpm start's Workers, database and bucket are born with NoticeOS names", (
     const named = JSON.stringify(config).replaceAll(REPO_ROOT, '<checkout>');
     assert.doesNotMatch(named, OLD, `${file} generated for a new installation`);
     assert.match(config.name, /^noticeos-(?:tower|ingest)$/u);
-    assert.equal(config.d1_databases, undefined);
     assert.ok(config.hyperdrive.some(database => database.binding === 'POSTGRES'));
     for (const bucket of config.r2_buckets ?? []) assert.equal(bucket.bucket_name, NEW_INSTALL_NAMES.rawSignalsBucket);
     for (const service of config.services ?? []) assert.equal(service.service, NEW_INSTALL_NAMES.ingestWorker);
@@ -60,7 +56,6 @@ test('the Worker configs a stranger deploys name the NoticeOS Workers, database 
     assert.doesNotMatch(text, OLD, file);
     const config = JSON.parse(stripJsonc(text));
     assert.ok([NEW_INSTALL_NAMES.towerWorker, NEW_INSTALL_NAMES.ingestWorker].includes(config.name), file);
-    assert.equal(config.d1_databases, undefined);
     assert.ok(config.hyperdrive.some(database => database.binding === 'POSTGRES'));
     for (const bucket of config.r2_buckets ?? []) assert.equal(bucket.bucket_name, NEW_INSTALL_NAMES.rawSignalsBucket, file);
   }
@@ -95,8 +90,6 @@ test('an installation made under the old names keeps its archives; historical da
     const { r2_buckets: _cr, ...original } = config;
     assert.deepEqual(rest, original, file);
   }
-  // The deploy check asks for the same bucket.
-  assert.equal(openedRawSignalsBucket(ingestText(), names), OWNER_NAMES.rawSignalsBucket);
 
 });
 
@@ -107,7 +100,6 @@ test('a new installation has no names file and runs on the checked-in names', (t
   const config = JSON.parse(stripJsonc(ingestText()));
   applyResourceNames(config, names);
   assert.deepEqual(config, JSON.parse(stripJsonc(ingestText())), 'nothing changes');
-  assert.equal(openedRawSignalsBucket(ingestText(), names), NEW_INSTALL_NAMES.rawSignalsBucket);
 });
 
 test('a names file that cannot be read stops the Tower rather than opening an empty bucket', (t) => {
@@ -120,21 +112,6 @@ test('a names file that cannot be read stops the Tower rather than opening an em
     const root = installationWith(t, text);
     assert.throws(() => readResourceNames({ root, env: {} }), problem, text);
   }
-});
-
-test('a Mac with no service installed gets the NoticeOS label; one installed before the rename keeps its own', () => {
-  assert.equal(serviceLabel(false), 'com.noticeos.local');
-  assert.equal(serviceLabel(true), 'com.reindexos.local');
-  const template = readFileSync(path.join(REPO_ROOT, 'scripts', 'launchd', 'local-service.plist'), 'utf8');
-  const fresh = renderLaunchAgent(template, {
-    label: serviceLabel(false),
-    nodePath: '/opt/homebrew/bin/node',
-    nodeBinDir: '/opt/homebrew/bin',
-    runtimeRoot: '/Users/someone/noticeos/.local/runtime/current',
-    homeRoot: '/Users/someone/noticeos',
-  });
-  assert.match(fresh, /<key>Label<\/key>\s*<string>com\.noticeos\.local<\/string>/u);
-  assert.doesNotMatch(fresh, OLD);
 });
 
 test('the Postgres database and role a new installation creates are named for NoticeOS', () => {

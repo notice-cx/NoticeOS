@@ -35,71 +35,64 @@ Nightly, same contract as everyone else ([doc 02](02-signal-contract.md)):
 The Tower renders asset #0 first. If the OS is unhealthy, nothing else it
 displays is trustworthy.
 
-## Local runner operability contract
+## Running the installation
 
-A standalone installation on an always-on macOS host uses this adapter (the
-Compose stack and the hosted path replace it elsewhere). Its normal
-runtime is the repo-generated launchd user agent (`RunAtLoad` + `KeepAlive`), not
-a terminal somebody must remember to keep open. `pnpm os:install` installs or
-refreshes that service idempotently; `pnpm os:uninstall` is its bounded restore
-path. The beads Dolt hub remains a separate service (Homebrew or Compose) and is
-never started or stopped by this agent.
-
-Agents and operators use one repo-owned interface:
+NoticeOS runs as one Docker Compose stack of four services: `noticeos` (the
+app: Tower, ingest and the runner), `postgres`, `dolt` and an optional
+`backup` worker ([Docker guide](../deploy/compose/README.md)). A development
+stack's app runs a checkout's live source; a production stack's app runs a
+prepared image. Running the runner directly on a host is not supported.
+`.local/stack.json` selects the stack, and agents and operators use one
+repo-owned interface:
 
 | Question / action | Command | Contract |
 |---|---|---|
-| Is the OS trustworthy? | `pnpm os:status` | Classifies `stopped`, `starting`, `healthy`, `unhealthy`, or `stale`; `-- --json` is machine-readable. A port alone never earns healthy. |
-| What just happened? | `pnpm os:logs -- --lines 200` | Reads recent combined runner/child output; `--follow` follows it during a repro. |
-| What evidence should I hand off? | `pnpm os:doctor` | Prints a bounded report: status, 200 log lines, 100 scheduled-lane records, and the store's capacity. |
+| Is the OS trustworthy? | `pnpm os:status` | Each service's Docker state and health, whether the database has every migration this checkout carries, the app's commit and whether `main` is ahead. A port alone never earns healthy. |
+| What just happened? | `pnpm os:logs -- --lines 200` | Recent logs from every service, or `-- <service>`; `-- --follow` follows them during a repro. |
 | How big is the store, and how fast is it growing? | `pnpm os:capacity` | Rows, bytes and daily growth per table, insight snapshots, the raw archive and lane durations, asked of the running OS; metadata only ([doc 26](26-storage-capacity.md)). `-- --json` is the raw answer. |
-| Recover the managed runner | `pnpm os:restart` | Restarts only the loaded repo-owned service, waits 45 seconds for health, and includes recent output on failure. |
-| Put merged work live | `pnpm os:deploy` | Moves the runtime copy to a verified `main` commit with one restart and a health wait, going back by itself if that fails; `-- --check` changes nothing, `-- --rollback` returns. |
+| Recover the app | `pnpm os:restart` | Restarts the stack in dependency order, waiting for each layer's health; a failed step stops the sequence. |
+| Put merged work live | `pnpm os:update` | Builds `main` into an image, shows the plan and applies it after you type `update`, replacing only the app container and going back by itself if health does not return; `pnpm os:rollback` returns to the previous image. |
 
-**Merging is not deploying.** The service runs a runtime copy of the code under
-`.local/runtime/` that a merge never touches, so work landing on `main` no longer
-reloads the live OS. `pnpm os:deploy` is the step after a verified merge: it
-refuses a commit not on `main`, a move backwards, a hand-edited runtime copy, a
-commit that would open a different or empty store, and a commit carrying a
-migration its store has not applied (on Postgres, or applied with another
-hash). If the new commit does not come back
-healthy, the deploy returns to the previous runtime copy by itself — once, with
-one more restart — and prints what failed and whether the previous commit is
-healthy again. Only code moves — the store, `.local/`,
-the secret files and the task inventory stay in the operator's checkout. How it
-works, and the one-time cut-over, are in
-[`scripts/README.md`](../scripts/README.md#merging-is-not-deploying--pnpm-osdeploy).
-`pnpm os:status` shows which commit runs and how far `main` is ahead.
+**Merging is not deploying.** A production app runs a fixed image that a merge
+never touches. `pnpm os:update` is the step after a verified merge: it stops,
+naming `pnpm os:migrate`, when `main` carries a migration the database has not
+applied, and treats a change to the Postgres roles as operator maintenance.
+Only the app container changes; the databases, the backup worker and the
+installation's state mount stay in place. How it works is in
+[`scripts/README.md`](../scripts/README.md#merging-is-not-deploying-osupdate).
 
-The runner writes a heartbeat every 30 seconds. Healthy requires the launchd
-service running, a heartbeat no older than 90 seconds, and HTTP success from
-both the loopback ingest and Tower. Persistent output scrubs common credential
+The app container is healthy when the runner reports itself healthy with a
+heartbeat at most 60 seconds old, its Tower ready and its scheduler armed; a
+configured backup worker answers; and the Tower and the ingest door both
+answer inside the container. Persistent output scrubs common credential
 shapes before writing and the commands scrub again when reading. Log lines are
-capped at 64 KiB; the combined log rotates at 5 MiB with five historical files;
-scheduled-lane JSONL retains 30 days. launchd does not create a duplicate log.
+capped at 64 KiB; the runner log rotates at 5 MiB with five historical files;
+scheduled-lane JSONL retains 30 days.
 
-Status, logs, and diagnostics are read-only. A routine restart or deploy after
-authorized ordinary runner/Tower work is within that work's scope. Operator approval is
-required before restarting when a pending change affects auth, billing,
-security headers, DB migrations, consent, analytics/tracking, holdouts, or
-guardrail thresholds, or when the command reports an unmanaged runtime. The
-restart command deliberately refuses to kill an unknown process tree.
-After a forced supervisor exit, a replacement may terminate only the child
-process group positively named by a fresh managed heartbeat; a stale, manual,
-live-parent, foreign, or unreadable owner remains untouched.
+Status, logs and capacity are read-only. A routine restart or update after
+authorized ordinary runner/Tower work is within that work's scope. Operator
+approval is required before restarting or updating when a pending change
+affects auth, billing, security headers, DB migrations, consent,
+analytics/tracking, holdouts, or guardrail thresholds.
 
-Managed startup, restart and deploy never apply a migration. Postgres is the
-only supported operational store; its maintenance sequence is operator-only.
-On Postgres it is `pnpm os:stop` → `pnpm postgres:migrate apply …` →
-`pnpm os:start`
-([`db/postgres/README.md`](../db/postgres/README.md#applying-it-to-an-installations-own-database)),
-and `pnpm os:deploy` refuses a commit whose Postgres migrations the database
-has not applied, or applied with another hash.
+Startup, restart and update never apply a migration. Postgres is the only
+operational store; applying a migration is operator-only:
+
+1. `pnpm os:status`: what runs, whether `main` is ahead, whether the database
+   is behind.
+2. `pnpm os:backup`: a backup you can restore.
+3. `pnpm os:migrate`, then `pnpm os:migrate -- --apply`
+   ([`db/postgres/README.md`](../db/postgres/README.md#applying-it-to-an-installations-own-database)).
+4. `pnpm os:update`.
+
+The app keeps running during step 3: migrations are additive unless the
+release's own instructions say otherwise
+([release policy](reference/release-policy.md#upgrade-an-existing-installation)).
 
 For a provably new, empty installation only, `pnpm start` may create its own
 isolated Compose Postgres, apply the committed frozen schema and bootstrap
 one workspace ([approved exception](../AGENTS.md#hard-invariants)). Existing
-installations, the managed service
+installations, the Docker stack
 and production remain operator-only. The checks and first-run steps are in
 [scripts/README.md](../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
 
@@ -115,7 +108,7 @@ explicitly marks when the pass is done. A recorded failure counts as an attempt 
 causing a restart loop. Hub health and the beads snapshot already execute at
 startup and need no replay. Unknown cron expressions are excluded, and the
 Worker refuses one anyway (`unknown_cron`, running nothing). Migrations, restore,
-seed/config apply, deployment, kill-switch work, and every forever-forbidden
+seed/config apply, app updates, kill-switch work, and every forever-forbidden
 surface are not catch-up jobs. The policy executes already-approved collection
 definitions; it cannot edit the measurement channel.
 
@@ -192,16 +185,18 @@ running to read cannot be the thing that lets you run:
 | `DATABASE_URL` | the address of the installation's own Postgres: the application login's connection string, `postgresql://noticeos_app:<password>@127.0.0.1:5432/noticeos?sslmode=disable` ([db/postgres/host](../db/postgres/host/README.md) sets one up). The store cannot hold its own address. |
 
 **Where they are kept.** Locally, all four are in the installation's secrets
-file, `workers/ingest/.dev.secrets.json`: the home checkout's for the managed
-service, the start folder's own for `pnpm start`. The first three reach the
+file, `workers/ingest/.dev.secrets.json`: under the stack's state mount
+(`/state/workers/ingest/.dev.secrets.json` in the app container), or the
+start folder's own for `pnpm start`. The first three reach the
 Workers as bindings (compiled into `.dev.vars`). `DATABASE_URL` never does: the
 runner and `pnpm start` read it at every start, check it as the application
 login, and hand it to the dev server's environment and nowhere else, as the
 POSTGRES binding's local address
 (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`,
 [`scripts/database-address.mts`](../scripts/database-address.mts)).
-`pnpm os:deploy` reads it through the runner's same reader, only to read the
-database's migration record, and prints no part of it. A new
+`pnpm os:status` reads the stack's application address from its Postgres secrets
+folder, only to read the database's migration record, and prints no part of
+it. A new
 `pnpm start` folder creates its isolated Compose profile under its own
 `postgres/secrets/` and takes the application address from `database.url`.
 An existing installation can take its address once from an operator-prepared
@@ -224,8 +219,8 @@ resolves the store first.
 **Env bindings remain the legacy fallback for existing installs.** A provider
 with no stored row falls back entirely to its binding and keeps working — the
 card wears a neutral *Legacy env* chip and offers **Import from this machine**,
-which moves the whole secrets file across in one press
-(`pnpm dev:secrets:import` is the same code where there is no dev server). `os:up`
+which moves the whole secrets file across in one press; there is no import
+command. The runner
 names any provider still on env in one line at startup, and `/health` says so in
 one line too. The fallback is not deprecated and nothing forces the move; what
 it costs is portability, because a fresh install would need those secrets copied
@@ -233,17 +228,16 @@ by hand.
 
 #### The legacy local source
 
-Locally, an operator who has not moved edits the formatted, gitignored
+Locally, an operator who has not moved edits the formatted, private
 `workers/ingest/.dev.secrets.json`. Nested maps such as
 `GOOGLE_SIGNAL_ACCOUNTS` remain real JSON instead of minified dotenv strings.
-`os:up` compiles that source to `.dev.vars` immediately before Wrangler starts.
+The runner compiles that source to `.dev.vars` at every start, so an edit
+takes effect with `pnpm os:restart`.
 Google's property routing remains in `GOOGLE_SIGNAL_ACCOUNTS`, while each
 encoded service-account key is extracted to its own bounded
 `GOOGLE_SERVICE_ACCOUNT_*` binding. This keeps the readable account-centric
 source without exceeding a Worker text-binding limit. The generated file is
-not an additional source of truth. `pnpm
-dev:secrets:migrate` converts an existing flat file once, and `pnpm
-dev:secrets:sync` rebuilds it on demand. Deployed Workers receive the routing
+not an additional source of truth. Deployed Workers receive the routing
 map and per-account credentials as separate encrypted string secrets.
 
 ## Vendor failure & degradation policy
@@ -376,7 +370,7 @@ property has ever produced a warning.
   document from the store when it is there and fall back to the copy compiled
   into them when it is not. A reachable, initialized Postgres store with an
   unseeded document uses that compiled copy; an unavailable store fails the read
-  rather than pretending it is unseeded. `os:up` says which state it is in,
+  rather than pretending it is unseeded. The runner says which state it is in,
   once, at startup. The measurement channel still does not move: a guardrail
   threshold is operator-only whichever table it sits in, and this changes where
   a value is read, never who may change one.
@@ -409,7 +403,6 @@ one is absent, and each old spelling lives in exactly one module:
 
 | Old name | New name | Where it still turns up | Read by |
 |---|---|---|---|
-| `REINDEX_OS_HOME`, `REINDEX_OS_MANAGED` | `NOTICEOS_HOME`, `NOTICEOS_MANAGED` | a launchd plist installed before the rename (reinstalling it is operator-only) | `scripts/product-env.mts` |
 | `REINDEX_OS_INSTALLATION_DIR`, `REINDEX_OS_WORKER_CONFIG_ROOT`, `REINDEX_OPERATOR_TOKEN` | `NOTICEOS_INSTALLATION_DIR`, `NOTICEOS_WORKER_CONFIG_ROOT`, `NOTICEOS_OPERATOR_TOKEN` | an operator's shell or script | `scripts/product-env.mts` |
 | `reindex_key`, `reindex_kind`, `reindex_asset`, `reindex_rule`, `reindex_source`, the `reindex-handoff` label | `noticeos_*`, `noticeos-handoff` | handoff tasks in every project's tracker | `packages/contract/src/task-metadata.mts` |
 | `reindex_panel_asset`, `reindex_panel_date`, `reindex_push_asset`, `reindex_task_map_asset` | `noticeos_*` | panel-review, unpushed-work and task-map tasks | `packages/contract/src/task-metadata.mts` |
@@ -423,16 +416,12 @@ one place, [`scripts/resource-names.mts`](../scripts/resource-names.mts), and
 |---|---|---|
 | the Tower and ingest Workers | `noticeos-tower`, `noticeos-ingest` | the checkout's Worker configs, for every installation |
 | the Postgres database and R2 bucket | `noticeos`, `noticeos-raw-signals` | the checkout's Worker configs — what a stranger deploys and what `pnpm start` sets up |
-| the managed service on a Mac with none installed | `com.noticeos.local` | `pnpm os:install` |
 | the Postgres database and role | `noticeos`, `noticeos_app` | the Postgres profile |
 
-Wrangler reaches the database by its binding, `DB`, so the same migrate,
-seed and config commands work on a store of either vintage. A store made under
-other names keeps them in its installation folder's `resource-names.json`
+A store made under other names keeps them in its installation folder's
+`resource-names.json`
 ([`config/resource-names.README.md`](../config/resource-names.README.md)); the
-Tower's dev server applies them over both Worker configs, and `pnpm os:deploy`
-refuses a commit that would open a raw-signal bucket other than the one the
-local store holds its archives under.
+Tower's dev server applies them over both Worker configs.
 
 **Kept as they are.** Renaming these would move or orphan live data, change a
 service only the operator may change, or break a link another system holds,
@@ -441,12 +430,11 @@ for no benefit to anyone using the product:
 | Name | What it is | Why it stays |
 |---|---|---|
 | the product's old slug, as an id | asset #0's id (the OS's own historical row) | an id every stored row, pulse and token keys on. The row is always shown as NoticeOS, known by `is_os`, never by this id; the `ReindexOS` its `display_name` still stores is legacy data nothing displays |
-| `reindex-os-central`, `reindex-os-raw-signals` | the retired D1 database and current R2 bucket an older store was made under, named in that installation's own `resource-names.json`, never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only |
-| `com.reindexos.local` | the launchd label of a service installed before the rename | installing, renaming or removing the service is operator-only; `pnpm os:*` finds it by its installed plist and keeps using it |
-| an older checkout's path | the maintainer's checkout | the task hub keeps its Dolt data inside it and the service runs from it |
+| `reindex-os-raw-signals` | the R2 bucket an older store was made under, named in that installation's own `resource-names.json`, never in the checked-in Worker configs | the local R2 store is kept under the bucket's name; resource names are operator-only |
+| an older checkout's path | the maintainer's checkout | the task hub keeps its Dolt data inside it |
 | the Dolt hub databases and the `ro-` task prefix | the task hub | every task id and every project's link to the hub |
 | the private repository's remote | the maintainers' repository | agents never rename or move a repository or a remote |
-| the old name in `docs/reports`, `docs/artifacts` and the frozen migration source in `installation/recovery/d1-cutover` | dated records | they keep the words they were written in |
+| the old name in `docs/reports` and `docs/artifacts` | dated records | they keep the words they were written in |
 <!-- legacy-names:end -->
 
 ## The task hub
@@ -459,12 +447,10 @@ its own. The saved asset ↔ prefix ↔ database map lives in the store; the
 [task contract](../config/beads.README.md) defines those identities.
 
 **The declared task service hosts the hub independently of the runner.**
-New installations use the [Compose profile](../db/dolt/host/README.md).
-A native application selects a prepared Compose hub through
-`NOTICEOS_DOLT_HOME`, which names the home containing its protected
-`dolt/profile.json`. Health checks and backups use that profile. A missing or
-invalid selected profile fails explicitly and never selects the old native
-hub. The runner observes the endpoint at startup, on its 15-minute health tick
+It is the stack's `dolt` service ([Compose profile](../db/dolt/host/README.md)),
+declared to the app in its protected `/state/task-client.json`. Health checks
+and backups use that declaration. A missing or invalid declaration fails
+explicitly. The runner observes the endpoint at startup, on its 15-minute health tick
 and before snapshot polls; it logs state changes and backs up the declared
 service nightly. It does not start, stop or supervise the task service.
 

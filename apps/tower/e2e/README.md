@@ -63,7 +63,7 @@ A Wall journey answers `/api/wall` and
 the same fixture's `WallFixtureVariant`s — one, two, three,
 six, seven and eight sites, and on fire — at 1920×1080 and fails if any reaches
 past the TV, paints outside its own box, cuts text off or draws half a feed row
-(the measurement `pnpm wall:fit` runs, `scripts/wall-fit-measure.mts`), if a
+(the measurement `pnpm audit:wall-fit` runs, `scripts/wall-fit-measure.mts`), if a
 seventh site's row is not a full 70 px, or if the strip, Needs you and the site
 marks do not say what is on fire.
 The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
@@ -106,7 +106,7 @@ The HTML report and selected screenshot attachments are written under
 ## The UX flow walker
 
 `pnpm test:journeys` ends with the flow walker (`flow-gate.mjs`, also
-`pnpm ux:flows`), which runs even when a journey has failed, so one red run
+`pnpm audit:flows`), which runs even when a journey has failed, so one red run
 reports both; the step fails if either does. CI runs the journeys and the
 walker as two parallel jobs. The walker drives every operator flow declared
 in `ux-flows.mjs` with the recorder in `ux-walk.mjs`, at 1440×900 and

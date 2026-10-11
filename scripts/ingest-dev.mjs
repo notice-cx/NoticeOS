@@ -51,10 +51,10 @@ export function doorHeldMessage(door = DEFAULT_DOOR) {
   return [
     `refusing to start: something already answers on ${host}, this repo's ingest door.`,
     '  A second runtime could open the same local R2 metadata.',
-    "  Under `pnpm os:up`, the ingest already runs inside the Tower's runtime.",
-    '  Use its ingest door and `pnpm os:cron` for scheduled work.',
-    '  For standalone development, stop the OS first, then run `pnpm --filter @noticeos/ingest dev`.',
-    '  For a managed service, use the approved service controls; do not kill an unknown process.',
+    "  When NoticeOS is running (`pnpm os:status`), the ingest already runs inside the Tower's runtime.",
+    '  Use its ingest door and `pnpm os:run-job` for scheduled work.',
+    '  For standalone development, stop the OS first (`pnpm os:stop`), then run `pnpm --filter @noticeos/ingest dev`.',
+    '  Use the `pnpm os:*` controls for the NoticeOS stack; do not kill an unknown process.',
     '  Nothing was started here.',
   ].join('\n');
 }
@@ -73,7 +73,7 @@ export async function ingestDev({
   }
 
   log('nothing holds the local store — starting a standalone `wrangler dev` on the ingest.');
-  log('(under `pnpm os:up` this Worker runs inside the Tower runtime instead; this is the isolation path.)');
+  log('(under the NoticeOS runner this Worker runs inside the Tower runtime instead; this is the isolation path.)');
   const result = await start(args);
   if (result.error) {
     fail(`wrangler could not be started — ${result.error}`);

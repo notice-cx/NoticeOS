@@ -143,7 +143,7 @@ interface Resolved {
   actor: string | null;
 }
 
-/** `bd` is not reliably on PATH under launchd's minimal environment, so the
+/** `bd` is not reliably on PATH under a service's minimal environment, so the
  * installer's locations are the fallbacks. PATH is consulted first: a test puts
  * a fake `bd` at the front of PATH and every spawn goes there. */
 export function resolveBdBin(env: NodeJS.ProcessEnv = process.env): string {

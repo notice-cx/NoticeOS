@@ -7,7 +7,7 @@
 //
 // `UNIT_TEST_WORKERS` overrides it for both suites — a whole number of
 // workers, or a percentage of the cores — the way `JOURNEY_WORKERS` does for
-// the browser journeys. Authored TypeScript: `pnpm config:generate` writes the
+// the browser journeys. Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Vitest configs import and the `.d.mts` beside it.
 
 /** The variable that overrides the worker count. */

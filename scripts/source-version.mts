@@ -1,5 +1,5 @@
 // Public source provenance travels with an image; it never reads installation state.
-// Authored TypeScript: pnpm config:generate emits the runtime and declarations.
+// Authored TypeScript: pnpm generate emits the runtime and declarations.
 import { spawnSync } from 'node:child_process';
 import { lstatSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';

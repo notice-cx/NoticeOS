@@ -14,12 +14,12 @@ import { declaredTaskClient, taskChildEnvironment } from '../task-client.mjs';
 
 // Beads task hub — the shared Dolt SQL server every portfolio repo files its
 // tasks against (config/beads.json holds the asset ↔ prefix ↔ database map).
-// We do not run it: `brew services` does, as a login-scoped launchd service
-// reading the installation's dolt-server.yaml, so agents keep filing tasks
-// while os:up is stopped, restarting or mid-deploy. os:up only observes it — a
+// We do not run it: `brew services` does, as a login service reading the
+// installation's dolt-server.yaml, so agents keep filing tasks while the
+// runner is stopped, restarting or mid-update. The runner only observes it — a
 // health line, and the nightly backup.
 
-/** What to say about the hub. A down hub is not an os:up failure — it is one
+/** What to say about the hub. A down hub is not a runner failure — it is one
  * brew command away — so the WARN carries the fix rather than a bare symptom. */
 export function beadsHubHealthLine(reachable, config) {
   const where = `${config.beadsHubHost}:${config.beadsHubPort}`;

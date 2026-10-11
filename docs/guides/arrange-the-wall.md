@@ -44,7 +44,7 @@ Every save adds a version. **Revert** on an older one is a save like any other: 
 The Wall has a fixed height and nobody at the television can scroll, so growth is the thing to watch. The editor checks the preview as you work and shows a caution chip when a layout would spill, such as **This layout runs 40 px past the TV.**
 
 1. When the chip appears, fix it with the controls already on the page: make a row the **Remaining height**, narrow a tile, or remove one.
-2. If you run NoticeOS from source, run `pnpm wall:fit` after adding sites or tiles. It measures the live Wall at the television's size and reports anything that spills, including text that overflows its box.
+2. If you run NoticeOS from source, run `pnpm audit:wall-fit` after adding sites or tiles. It measures the live Wall at the television's size and reports anything that spills, including text that overflows its box.
 
 ::: tip
 A landscape laptop draws the TV's layout scaled down; a portrait tablet or a phone stacks the tiles in one column. The editor arranges the television; the other screens follow.
@@ -53,7 +53,7 @@ A landscape laptop draws the TV's layout scaled down; a portrait tablet or a pho
 ## Verify
 
 - The save bar reads **On the TV** and the new layout sits at the top of **Versions**.
-- No caution chip shows on the preview, and `pnpm wall:fit` reports nothing that spills.
+- No caution chip shows on the preview, and `pnpm audit:wall-fit` reports nothing that spills.
 - The television redraws with the new layout on its next poll.
 
 ## If it didn't work
@@ -62,7 +62,7 @@ A landscape laptop draws the TV's layout scaled down; a portrait tablet or a pho
 - The chip says the layout runs past the TV: make a row the **Remaining height**, narrow a tile, or remove one.
 - The television still shows the old layout: it redraws on its next poll; the Wall never blanks between reads. See [Troubleshooting](/operate/troubleshooting).
 
-The Wall's design and the four questions it answers are in [doc 14, Design](../14-design.md#the-wall). The fit check: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#wallfit--does-the-wall-still-fit-the-tv.
+The Wall's design and the four questions it answers are in [doc 14, Design](../14-design.md#the-wall). The fit check: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#auditwall-fit--does-the-wall-still-fit-the-tv.
 
 ## Next steps
 

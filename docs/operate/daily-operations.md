@@ -1,71 +1,50 @@
 ---
 title: "Daily operations"
-description: "Check, read, diagnose, restart and deploy a running NoticeOS installation with the repository's own commands."
+description: "Check, read, restart and update a running NoticeOS installation with the repository's own commands."
 ---
 
 # Daily operations
 
 This page gets you the handful of commands that keep an installation running, and what each health state means.
 
-## Three ways to run, three sets of commands
+## The stack
 
-| How you run NoticeOS | Commands | Where it runs |
-| --- | --- | --- |
-| `pnpm start` installation | the terminal it runs in | Tower on 4747 by default |
-| macOS login service | `pnpm os:*` | Tower on 5173 |
-| Docker Compose stack | `pnpm stack:*` | the port you declared |
-
-`pnpm start` creates a separate new installation for a fresh clone; its terminal is its control surface, and Ctrl-C stops it. The other two sets are for an installation you set up to run on its own.
-
-## The macOS service
-
-The service runs a **runtime copy** of the code under `.local/runtime/`, so merging code never changes what runs. Run every command from the checkout.
+NoticeOS runs as one Docker Compose stack of the app (`noticeos`, which holds the Tower, the data receiver and the scheduler), `postgres`, `dolt` and an optional `backup` worker. Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects. Run them from the checkout. [Run with Docker](/start/run-with-docker) sets the stack up.
 
 ```sh
-pnpm os:status                 # one line of state; add -- --json for machines
-pnpm os:logs -- --lines 200    # recent runner and app output, secrets redacted
-pnpm os:logs -- --follow       # follow the log while you reproduce something
-pnpm os:doctor                 # status + recent log + job records + store capacity
+pnpm os:status                 # each service's state and health, migrations, the app's commit
+pnpm os:logs -- --lines 200    # recent logs, secrets redacted
+pnpm os:logs -- --follow       # follow the logs while you reproduce something
+pnpm os:logs -- noticeos       # one service only
 pnpm os:capacity               # store size and growth per table, read-only
-pnpm os:restart                # restart the managed service and wait for health
-pnpm os:deploy                 # move the live service to main after a verified merge
+pnpm os:restart                # restart in dependency order, waiting for health
+pnpm os:update                 # move the app to main after a verified merge
 ```
 
-`os:logs` accepts 1 to 2000 lines. `os:doctor` is bounded: 200 log lines, 100 job records, all redacted. `os:restart` waits up to 45 seconds and prints recent output if health does not return.
+`os:logs` shows 200 lines unless you pass `-- --lines N`. `os:restart` stops at the first step whose health does not return.
 
-`pnpm os:stop` and `pnpm os:start` take the service down for maintenance and bring it back; that is the pair you use around a database migration. `pnpm os:install` and `pnpm os:uninstall` change the login service itself. Use those four deliberately; the daily verbs are the ones in the block.
+`pnpm os:stop` and `pnpm os:start` take the whole stack down and bring it back: the app first on the way down, the databases first on the way up. Use them deliberately; the daily commands are the ones in the block. The [command reference](/reference/commands) lists every command.
 
-### Health states
+## What status tells you
 
-`pnpm os:status` reports one of five states.
+`pnpm os:status` prints one line per service, then:
 
-| State | What it means |
+| Line | What it means |
 | --- | --- |
-| `healthy` | The service is loaded, the heartbeat is fresh, the Tower and the data receiver answer, and both databases pass a readiness read. |
-| `starting` | The service is running and the runtime or scheduler is not ready yet. |
-| `stale` | The endpoints answer, but the supervisor's heartbeat is more than 90 seconds old. |
-| `unhealthy` | Something answers without supervision, a database readiness read failed, or the service exited. The reason is printed. |
-| `stopped` | No service is loaded and nothing answers. |
+| `noticeos: running, healthy` | The scheduler is running with a fresh heartbeat, the Tower and the data receiver answer, and a configured backup worker answers. |
+| `noticeos: running, starting` | The app is still starting or the scheduler is still arming. |
+| `noticeos: running, unhealthy` | One of those checks failed. Read the logs. |
+| `database:` | Whether the database has every migration this checkout carries. If not, it says what to do. |
+| `app source:` and `main:` | The commit the app runs and the commit `main` is on. |
+| `update:` | `current`, `main differs; pnpm os:update moves the app to it`, or `unknown`. |
 
-An answering process without a supervisor is `unhealthy`, never good enough. For what to do about any state other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
+An answering port is never good enough. For what to do about anything other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
 
-The status also prints which commit runs and whether `main` is ahead. If it says the service runs from the checkout folder itself, run `pnpm os:deploy` and then `pnpm os:install` once to move it to a runtime copy.
+## Development and production
 
-## The Docker Compose stack
+In production the app runs a prepared image, so merging code never changes what runs. `pnpm os:update` builds `main` into an image, shows the plan and applies it after you type `update`. `pnpm os:rollback` goes back to the previous image.
 
-Declare the installation once in `.local/stack.json`, then:
-
-```sh
-pnpm stack:status     # each service's state and health, the running source, and whether main differs
-pnpm stack:start      # databases, then backup worker, then app
-pnpm stack:stop       # the reverse order
-pnpm stack:restart    # restart in order, waiting for health at each step
-pnpm stack:deploy     # prepare an image and a plan from main; apply with -- --apply <plan>
-```
-
-`stack:status` ends with one of `current`, `main differs; prepare stack:deploy` or `unknown`. A failed step stops the sequence; inspect status before retrying. None of these commands creates containers, pulls images, applies migrations or removes volumes.
-
-Logs for a stack are Docker's: `docker compose --project-name your-project logs noticeos`.
+On a development stack, `pnpm os:dev` runs the app from this checkout's live source, so edits appear at once. `pnpm os:prod` returns it to the image. Status says `mode: development` while it runs live source.
 
 ## In the Tower
 
@@ -77,11 +56,11 @@ Logs for a stack are Docker's: `docker compose --project-name your-project logs 
 
 1. Glance at the Wall or Home for anything flagged.
 2. Open **System health** if a card shows a gap. A gap is unknown data, never a zero.
-3. Run `pnpm os:status` or `pnpm stack:status` if the Tower itself is slow or down.
-4. After merging verified code, deploy with `pnpm os:deploy` or `pnpm stack:deploy`. Merging is not deploying.
+3. Run `pnpm os:status` if the Tower itself is slow or down.
+4. After merging verified code, run `pnpm os:update`. Merging is not deploying.
 
 ::: tip Restart is not an upgrade
-`os:restart` and `stack:restart` keep the code that is running. Only the deploy commands move an installation to new code, and neither ever applies a database migration. See [Upgrade](/start/upgrade).
+`os:restart` keeps the code that is running. Only `os:update` moves the app to new code, and it never applies a database migration. See [Upgrade](/start/upgrade).
 :::
 
-Related: [Troubleshooting](/operate/troubleshooting), [Backups and restore](/operate/backups-and-restore). The implementation details are on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#the-local-runner-os-up.
+Related: [Troubleshooting](/operate/troubleshooting), [Backups and restore](/operate/backups-and-restore). The implementation details are on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#the-runner-os-up.

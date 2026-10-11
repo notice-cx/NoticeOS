@@ -135,7 +135,7 @@ test('each failed identity boundary stops before later reads or any runtime prep
 test('inherited selectors refuse before source, resource or database reads', async () => {
   const args = ['--dir', '/private/tmp/owned-demo', '--port', '6200', '--release', '1'.repeat(40), '--bd-bin', '/private/tmp/own-bd'];
   for (const key of ['DATABASE_URL', PRODUCT_ENV.home.name, 'NOTICEOS_DOLT_HOME', PRODUCT_ENV.installationDir.name,
-    'NOTICEOS_DEMO_VIEWER_FILE', PRODUCT_ENV.workerConfigRoot.name, PRODUCT_ENV.home.legacy,
+    'NOTICEOS_DEMO_VIEWER_FILE', PRODUCT_ENV.workerConfigRoot.name,
     PRODUCT_ENV.installationDir.legacy, PRODUCT_ENV.workerConfigRoot.legacy]) {
     assert.equal(await main(args, { env: { [key]: 'another-installation' }, err: { write() {} }, verifySource: () => assert.fail('Read after selector refusal') }), 1);
   }

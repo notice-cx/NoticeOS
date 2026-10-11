@@ -66,7 +66,7 @@ export function SearchTab({
     <div id="search-evidence" className="flex scroll-mt-4 flex-col gap-5">
       {data.executive ? <AnalysisEvidence snapshot={data.executive} /> : null}
       {panel ? (
-        // The block that is this tab's answer (`surface:audit`). No section
+        // The block that is this tab's answer (`audit:surfaces`). No section
         // eyebrow over it: `SerpPanelBoard` draws its own heading and its own
         // collection line. The one thing this tab owes it that the board
         // cannot know is where the panel's trend lives, and that goes beside

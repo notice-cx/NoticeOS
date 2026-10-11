@@ -2,7 +2,7 @@
 // raw errors, documents, credentials and provider response bodies never enter
 // the trace. Field names remain available beside their operator-facing labels.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Worker and Node import and the `.d.mts` beside it.
 
 import type { WorkflowOutputValue, WorkflowStepOutput } from '../packages/contract/src/workflows.js';

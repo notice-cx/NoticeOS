@@ -1,4 +1,4 @@
-// GET /api/capacity — the store's capacity inventory, how `pnpm os:doctor`
+// GET /api/capacity — the store's capacity inventory, how `pnpm os:capacity`
 // measures the store through its owning runtime. Metadata only, and the read
 // changes nothing (capacity.ts).
 

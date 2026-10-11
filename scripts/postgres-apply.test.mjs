@@ -28,7 +28,7 @@ import { OWNER, checkTarget, main } from './postgres-apply.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 
 // The operator-only command that builds the Postgres schema in an
-// installation's own database: `pnpm postgres:migrate`,
+// installation's own database: `pnpm os:migrate`,
 // scripts/postgres-apply.mjs. These proofs run it on throwaway clusters only.
 //
 //   - STATIC, always: the target is checked before anything connects (a
@@ -115,7 +115,7 @@ test('the target is checked before anything connects, and no refusal repeats a p
   const refused = [
     [{}, {}, /name the database/u],
     [{ database: 'Noticeos' }, {}, /lower-case letters/u],
-    [{ database: 'noticeos_dev' }, {}, /development database.*Use pnpm postgres:dev/u],
+    [{ database: 'noticeos_dev' }, {}, /development database.*Use pnpm db:try-migrations/u],
     [{ database, socket: 'relative/folder' }, {}, /absolute path/u],
     [{ database, socket: '/tmp,/elsewhere' }, {}, /absolute path/u],
     [{ database, port: '54x' }, {}, /whole number/u],
@@ -178,12 +178,12 @@ test('the target is checked before anything connects, and no refusal repeats a p
   assert.equal(target.flags, '--database noticeos --url-from OWNER_URL');
 });
 
-test('the command names pnpm postgres:dev for a development target, and refuses a mixed or incomplete command line, before connecting', () => {
+test('the command names pnpm db:try-migrations for a development target, and refuses a mixed or incomplete command line, before connecting', () => {
   const never = { initdb: '/nonexistent/initdb', pgCtl: '/nonexistent/pg_ctl', psql: '/nonexistent/psql', version: 'psql (PostgreSQL) 16.0', major: 16 };
   const cases = [
-    [['apply', '--dir', '/tmp/cluster'], /development databases; that is pnpm postgres:dev/u],
-    [['status', '--url', 'postgresql:///noticeos_dev?host=/tmp'], /development databases; that is pnpm postgres:dev/u],
-    [['status', '--database', 'noticeos_dev'], /Use pnpm postgres:dev/u],
+    [['apply', '--dir', '/tmp/cluster'], /development databases; that is pnpm db:try-migrations/u],
+    [['status', '--url', 'postgresql:///noticeos_dev?host=/tmp'], /development databases; that is pnpm db:try-migrations/u],
+    [['status', '--database', 'noticeos_dev'], /Use pnpm db:try-migrations/u],
     [['status'], /name the database/u],
     [['migrate', '--database', 'noticeos'], /usage:/u],
     [['status', '--database', 'noticeos', '--confirm', 'noticeos'], /status only reads/u],
@@ -379,7 +379,7 @@ test('status only reads, and says what apply would do and what stops it', async 
     assert.match(status.out, new RegExp(`^${db.name} on the local socket in \\S+: PostgreSQL \\d+\\.\\d+.*, as noticeos_owner$`, 'mu'));
     for (const name of REAL) assert.match(status.out, new RegExp(`^  pending\\s+${name}$`, 'mu'));
     assert.match(status.out, /^Workspaces: none \(no schema yet\)$/mu);
-    assert.match(status.out, new RegExp(`^${REAL.length} pending\\. To apply: pnpm postgres:migrate apply --database ${db.name} --socket \\S+ --confirm ${db.name}$`, 'mu'));
+    assert.match(status.out, new RegExp(`^${REAL.length} pending\\. To apply: pnpm os:migrate -- --apply --database ${db.name} --socket \\S+$`, 'mu'));
 
     // Nothing frozen: status says so, and what to run, and exits 1.
     const unfrozen = run(['status', ...db.flags], { frozen: '' });
@@ -401,7 +401,7 @@ test('apply prints its plan first, and changes nothing until the database is nam
     const unconfirmed = run(['apply', ...db.flags], { frozen: FROZEN_REAL });
     assert.equal(unconfirmed.code, 2);
     assert.match(unconfirmed.out, new RegExp(`^  pending\\s+${REAL[0]}$`, 'mu'), 'the plan comes first');
-    assert.match(unconfirmed.err, new RegExp(`nothing was changed\\. To go ahead, type the database's name again: --confirm ${db.name}`, 'u'));
+    assert.match(unconfirmed.err, new RegExp(`nothing was changed\\. To go ahead, type the database's name again: pnpm os:migrate -- --apply --database ${db.name} --socket \\S+ --confirm ${db.name}`, 'u'));
 
     const other = run(['apply', ...db.flags, '--confirm', 'noticeos'], { frozen: FROZEN_REAL });
     assert.equal(other.code, 2);
@@ -431,7 +431,7 @@ test('apply runs as the owner over the socket, records each file by hash, leaves
     assert.equal(applied.code, 0, applied.err);
     for (const name of REAL) assert.match(applied.out, new RegExp(`^  applied\\s+${name}$`, 'mu'));
     assert.match(applied.out, new RegExp(`^Applied ${REAL.length} migrations? to ${db.name} on the local socket in \\S+, in one transaction\\.$`, 'mu'));
-    assert.match(applied.out, new RegExp(`^Next, its one workspace: pnpm postgres:migrate bootstrap --database ${db.name} --socket \\S+ --confirm ${db.name} --slug main --name "My sites"$`, 'mu'));
+    assert.match(applied.out, new RegExp(`^Next, its one workspace: pnpm os:migrate -- --bootstrap --database ${db.name} --socket \\S+ --slug main --name "My sites"$`, 'mu'));
 
     const records = db.admin.sql('SELECT name, sha256, applied_by, applied_at FROM noticeos_migrations.applied ORDER BY version');
     assert.deepEqual(
@@ -539,7 +539,7 @@ test('a development database, and one the owner may not build in, are refused be
     const before = fingerprint(marked.admin);
     const refused = run(['apply', ...marked.flags, '--confirm', marked.name], { frozen: FROZEN_REAL });
     assert.equal(refused.code, 2);
-    assert.match(refused.err, /is marked for development \(noticeos\.profile = 'development'\); use pnpm postgres:dev for it\. Nothing was written\./u);
+    assert.match(refused.err, /is marked for development \(noticeos\.profile = 'development'\); use pnpm db:try-migrations for it\. Nothing was written\./u);
     assert.equal(fingerprint(marked.admin), before);
 
     const foreign = await hostDatabase({ owner: 'postgres' });
@@ -570,7 +570,7 @@ test('bootstrap creates the one workspace once, as the owner, after the migratio
     const db = await hostDatabase();
     const first = run(['bootstrap', ...db.flags, '--confirm', db.name, '--slug', 'main'], { frozen: FROZEN_REAL });
     assert.equal(first.code, 2);
-    assert.match(first.err, new RegExp(`apply the migrations first: pnpm postgres:migrate apply --database ${db.name} --socket \\S+ --confirm ${db.name}`, 'u'));
+    assert.match(first.err, new RegExp(`apply the migrations first: pnpm os:migrate -- --apply --database ${db.name} --socket \\S+`, 'u'));
     assert.equal(run(['apply', ...db.flags, '--confirm', db.name], { frozen: FROZEN_REAL }).code, 0);
 
     const unconfirmed = run(['bootstrap', ...db.flags, '--slug', 'main'], { frozen: FROZEN_REAL });

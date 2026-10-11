@@ -88,7 +88,7 @@ describe('GET /api/capacity', () => {
 });
 
 describe('readCapacityInventory', () => {
-  it('reads metadata only, through read-only transactions, with no D1 binding', async () => {
+  it('reads metadata only, through read-only transactions', async () => {
     const statements: string[] = [];
     const store: WorkspaceStore = {
       ...env.STORE,

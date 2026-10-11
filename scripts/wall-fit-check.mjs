@@ -58,7 +58,7 @@ const LAPTOP_VIEWPORTS = ["1280x720", "1366x768", "1440x900", "1470x830", "1512x
 if (args.includes("--help")) {
   console.log(`Measure whether the live Wall fits the TV's 1920×1080 viewport.
 
-The Tower must be running (pnpm os:up, or apps/tower's dev server) and an installed
+The Tower must be running (pnpm os:start, or apps/tower's dev server) and an installed
 testing browser must be launchable. Exit 0 = fits, 1 = content spills past the viewport,
 2 = could not measure (no Chrome, no Tower, wrong geometry).
 
@@ -196,7 +196,7 @@ async function checkAt(page, { width, height }) {
   }
   if (!ready) {
     fail(
-      `The wall never rendered its data at ${url} within ${readyMs}ms. Is the Tower running (pnpm os:up)?${readyError ? `\n${readyError}` : ""}`,
+      `The wall never rendered its data at ${url} within ${readyMs}ms. Is the Tower running (pnpm os:status)?${readyError ? `\n${readyError}` : ""}`,
     );
   }
   await wait(settleMs);

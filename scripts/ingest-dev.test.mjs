@@ -43,8 +43,8 @@ test('the refusal names what is holding the store and what to do instead', () =>
   const message = doorHeldMessage(DEFAULT_DOOR);
   assert.match(message, /refusing to start/);
   assert.match(message, /127\.0\.0\.1:8791/);
-  assert.match(message, /pnpm os:up/);
-  // The operator usually wants the ingest, not a second copy of it — under os:up
+  assert.match(message, /pnpm os:status/);
+  // The operator usually wants the ingest, not a second copy of it — under the runner
   // it is already running inside the Tower's runtime, on this very port. Without
   // that sentence the refusal reads as "you are stuck".
   assert.match(message, /inside the Tower's runtime/);
@@ -61,7 +61,7 @@ test('the refusal is about the port, whatever door it is aimed at', () => {
 // The question is NOT "can I bind my own port". Standalone `wrangler dev` binds
 // 8787 and the door is 8791; the shared thing is local R2 metadata, and the process
 // holding it answers on the door. A self-port check would pass happily while
-// os:up served the store, which is the accident this file exists to prevent.
+// the runner served the store, which is the accident this file exists to prevent.
 test('the door it probes is the ingest door, not its own dev port', async (t) => {
   silence(t);
   const asked = [];

@@ -524,7 +524,7 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
 });
 
 /**
- * What a Wall card cuts off or squeezes, measured in the page. `wall:fit`
+ * What a Wall card cuts off or squeezes, measured in the page. `audit:wall-fit`
  * looks for content spilling past the TV; a card that clips its own text
  * never spills, so this is the other half.
  *
@@ -790,7 +790,7 @@ test.describe(() => {
   // 1024 px wide draws the TV's layout, zoomed by one scale (1470 × 830 is the
   // TV at 77 %), so the feed is a bounded column to the right of the site
   // rows, the small type stays on its floors, and the Wall fits the screen
-  // exactly as the TV fits 1920 × 1080, measured by `pnpm wall:fit`'s own
+  // exactly as the TV fits 1920 × 1080, measured by `pnpm audit:wall-fit`'s own
   // function.
   test("the Wall on a laptop is the TV's layout scaled to the screen: the feed a bounded column right of the site rows, the small type on its floors, nothing cut off", desktopOnly("walks the laptop widths itself"), async ({ page }, testInfo) => {
     test.setTimeout(90_000);
@@ -942,7 +942,7 @@ test.describe(() => {
   });
 
   // The TV fits 1920×1080 at every site count the contract names, measured by
-  // the same function `pnpm wall:fit` runs (scripts/wall-fit-measure.mts).
+  // the same function `pnpm audit:wall-fit` runs (scripts/wall-fit-measure.mts).
   // Nothing reaches past the screen, nothing paints outside its own box, no
   // text is cut off, the feed draws only whole rows, and rows and plots use
   // the region while remaining readable at each supported density.

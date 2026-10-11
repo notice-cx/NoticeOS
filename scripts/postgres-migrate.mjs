@@ -1,17 +1,18 @@
 #!/usr/bin/env node
-// The Postgres migration runner, development profile only.
+// Write the next migration, and try the migrations on a throwaway development database.
 //
 // Applies db/postgres/migrations/ to a throwaway cluster or a local database
 // marked for development (scripts/postgres-dev.mjs says exactly what it
-// refuses). Managed runtime, restart and deploy never apply schema.
-// An installation's own database is the
-// operator-only `pnpm postgres:migrate` (scripts/postgres-apply.mjs), which
-// runs this same code and refuses every development database.
+// refuses). The runtime, restart and update never apply schema. An
+// installation's own database is the operator-only `pnpm os:migrate`
+// (scripts/os-migrate.mjs → scripts/postgres-apply.mjs), which runs this same
+// code and refuses every development database.
 //
-//   node scripts/postgres-migrate.mjs status --dir <folder> | --url <postgres://…_dev> [--json]
-//   node scripts/postgres-migrate.mjs apply  --dir <folder> | --url <postgres://…_dev>
-//   node scripts/postgres-migrate.mjs bootstrap --dir <folder> | --url <…> --slug <slug> [--name <display name>]
-//   node scripts/postgres-migrate.mjs new <name>
+//   pnpm db:new-migration <name>  Write the next numbered migration file.
+//   pnpm db:try-migrations  Run the migrations on a throwaway development database.
+//   pnpm db:try-migrations status --dir <folder> | --url <postgres://…_dev> [--json]
+//   pnpm db:try-migrations apply  --dir <folder> | --url <postgres://…_dev>
+//   pnpm db:try-migrations bootstrap --dir <folder> | --url <…> --slug <slug> [--name <display name>]
 //
 // `status` only reads, in a READ ONLY transaction. `apply` runs every pending
 // migration in ONE transaction: it takes the runner's advisory lock (a second
@@ -41,7 +42,7 @@ import {
   openThrowaway,
 } from './postgres-dev.mjs';
 import { migrationStates } from './postgres-migration-states.mjs';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 
 /** The advisory lock every run takes: one migration run per database at a time. */
 export const LOCK_KEY = "hashtextextended('noticeos.migrations', 0)";
@@ -118,7 +119,7 @@ export function frozenMigrationProblems(marker, { dir = MIGRATIONS_DIR } = {}) {
     if (expected?.name !== name) {
       problems.push(`line ${index + 1} names ${name}; frozen migrations are the first ones in order, so it should name ${expected?.name ?? 'no further file'}`);
     } else if (expected.sha256 !== sha256) {
-      problems.push(`${name}.sql changed after it was frozen; put it back and write the change as the next migration (pnpm postgres:dev new <name>)`);
+      problems.push(`${name}.sql changed after it was frozen; put it back and write the change as the next migration (pnpm db:new-migration <name>)`);
     }
   });
   return problems;
@@ -140,8 +141,8 @@ COMMIT;
  * Read-only: every migration file and every recorded one, with its state —
  * `applied`, `pending`, `changed` (recorded with another hash), `missing`
  * (recorded, no file) or `out-of-order` (pending but older than the newest
- * applied), as scripts/postgres-migration-states.mjs derives them for
- * `pnpm os:deploy` too. `problems` lists the ones that stop an apply.
+ * applied), as scripts/postgres-migration-states.mjs derives them. `problems`
+ * lists the ones that stop an apply.
  */
 export function migrationStatus(dev, { dir = MIGRATIONS_DIR } = {}) {
   return { where: dev.where, ...migrationStates(readMigrations(dir), recorded(dev)) };
@@ -312,10 +313,10 @@ function describe(status) {
 }
 
 export const USAGE = `usage:
-  node scripts/postgres-migrate.mjs status --dir <folder> | --url <postgres://…/name_dev> [--json]
-  node scripts/postgres-migrate.mjs apply  --dir <folder> | --url <postgres://…/name_dev>
-  node scripts/postgres-migrate.mjs bootstrap --dir <folder> | --url <…> --slug <slug> [--name <display name>]
-  node scripts/postgres-migrate.mjs new <name>
+  pnpm db:new-migration <name>
+  pnpm db:try-migrations status --dir <folder> | --url <postgres://…/name_dev> [--json]
+  pnpm db:try-migrations apply  --dir <folder> | --url <postgres://…/name_dev>
+  pnpm db:try-migrations bootstrap --dir <folder> | --url <…> --slug <slug> [--name <display name>]
 
 --dir   a throwaway cluster kept in that folder (created there when it is empty)
 --url   a local database whose name ends in _dev and that is marked

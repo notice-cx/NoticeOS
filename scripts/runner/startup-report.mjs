@@ -39,7 +39,7 @@ export function legacyEnvLine(payload) {
   }
   return (
     `credentials: ${onEnv.length} of ${connected.length} still resolve from the environment file ` +
-    `(${onEnv.join(', ')}) — Import them on /integrations, or run pnpm dev:secrets:import`
+    `(${onEnv.join(', ')}) — Import them on /integrations`
   );
 }
 

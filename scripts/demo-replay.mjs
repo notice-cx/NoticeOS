@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
 import { createHash, randomBytes } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
-import { invokedDirectly } from './os-runtime.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
 import { verifyDemoRelease } from './demo-release.mjs';
 import { readDemoViewerInstallation } from './demo-viewer-installation.mjs';
 import { demoInspectionEnvironment, verifyDemoResources, verifyDemoStore, verifyDemoClient, prepareDemoViewerRuntime, serveDemoViewer } from './demo-viewer.mjs';

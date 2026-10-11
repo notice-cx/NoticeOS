@@ -1,7 +1,7 @@
 // Stored project membership is separate from the host's permission to open a
 // checkout. This adapter is Node-only and is never part of a deployed Worker.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the local runner and backups import and the `.d.mts` the Tower's Vite
 // task lane reads.
 

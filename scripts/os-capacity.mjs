@@ -1,4 +1,6 @@
-// The store's capacity inventory, for `pnpm os:doctor` and `pnpm os:capacity`.
+#!/usr/bin/env node
+// The store's capacity inventory: `pnpm os:capacity [-- --json]`, run inside
+// the app container (scripts/stack-control.mjs).
 // It measures the live store without opening it: GET /api/capacity over the
 // loopback door, with the operator bearer, answers metadata only (names,
 // counts, byte totals and arrival dates; workers/ingest/src/capacity.ts). The
@@ -7,7 +9,11 @@
 
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_DOOR, doorRequest, doorUrl, operatorToken } from './ingest-door.mjs';
+import { invokedDirectly } from './invoked-directly.mjs';
+import { redactLogText } from './os-log.mjs';
+import { resolveHomeRoot, statePaths } from './os-runtime.mjs';
 
 /** Ask the store for its inventory. Throws with a sentence an operator can act on. */
 export async function readCapacity({ door = DEFAULT_DOOR, token, fetchImpl = fetch } = {}) {
@@ -179,7 +185,7 @@ export function backupLine(backup) {
 }
 
 /**
- * The doctor's capacity section. Never throws: a store that cannot be asked
+ * The capacity report. Never throws: a store that cannot be asked
  * is reported as the one line that says why.
  */
 export async function capacitySection({
@@ -206,3 +212,22 @@ export async function capacitySection({
   }
   return lines;
 }
+
+/** The command line: the report, or `--json` for the inventory as the store answers it. */
+export async function main(argv = process.argv.slice(2), { out = process.stdout, env = process.env } = {}) {
+  const args = argv.filter((arg) => arg !== '--');
+  if (args.some((arg) => arg !== '--json')) {
+    out.write('usage: pnpm os:capacity [-- --json]\n');
+    return 2;
+  }
+  if (args.includes('--json')) {
+    out.write(`${JSON.stringify(await readCapacity({ token: await operatorToken() }), null, 2)}\n`);
+    return 0;
+  }
+  const home = resolveHomeRoot(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), env);
+  const lines = await capacitySection({ backupsDir: statePaths(home).backupsDir });
+  out.write(`${redactLogText(lines.join('\n'))}\n`);
+  return 0;
+}
+
+if (invokedDirectly(process.argv[1], import.meta.url)) process.exitCode = await main();

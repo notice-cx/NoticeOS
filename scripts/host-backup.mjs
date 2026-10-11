@@ -126,7 +126,7 @@ function offsiteDirectory(settings, where) {
  * `offsiteBackupDir` left out is read from this host's `host-backup.json`;
  * `null` means no offsite copy.
  *
- * `taskHub` says whose task hub this is. `required` — the managed service's
+ * `taskHub` says whose task hub this is. `required` — the NoticeOS stack's
  * host runs the hub, so an empty inventory is a failure and every database is
  * copied through the checkout at `repoRoot`. `linked` — an installation
  * `pnpm start` runs backs up only the task databases its

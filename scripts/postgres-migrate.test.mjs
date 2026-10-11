@@ -232,15 +232,16 @@ test('a migration holding transaction control or a psql command is refused befor
 // scripts/postgres-test-cluster.mts (and the .mjs and .d.mts generated from
 // it) builds an isolated test template; only Vitest configs and tests may
 // load it. The operator command and the approved new-empty first-start helper
-// may reach migration writes. Managed runtime, restart and deployment may not.
-// Retired D1 import commands have no exception.
-const OPERATOR_COMMAND = 'scripts/postgres-apply.mjs';
+// may reach migration writes. The runtime, restart and update may not.
+const OPERATOR_COMMAND = 'scripts/os-migrate.mjs';
+/** The engine the operator command and the first-start helpers call. */
+const ENGINE = 'scripts/postgres-apply.mjs';
 /** Only the approved new-empty installation helper may reuse
- * the operator command; managed runtime paths may not. */
+ * the operator command; runtime paths may not. */
 const FIRST_START = 'scripts/start-postgres.mjs';
 const DEVELOPMENT_START = 'scripts/start-development.mjs';
 const HOSTED_DEMO_SETUP = new Set(['scripts/hosted-demo-setup.mts', 'scripts/hosted-demo-setup.mjs']);
-const COMMAND_USERS = new Set([FIRST_START, DEVELOPMENT_START]);
+const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START]);
 const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START]);
 
 /**
@@ -253,6 +254,7 @@ function operatorOnlyReach(root) {
     'scripts/postgres-dev.mjs', 'scripts/postgres-migrate.mjs', 'scripts/postgres-docs.mjs',
     ...['.mts', '.mjs', '.d.mts'].map((extension) => `scripts/postgres-test-cluster${extension}`),
     OPERATOR_COMMAND,
+    ENGINE,
     FIRST_START,
     // Explicit disposable developer entry; it never adopts an existing store.
     DEVELOPMENT_START,
@@ -265,20 +267,20 @@ function operatorOnlyReach(root) {
   const skip = new Set(['node_modules', 'dist', '.wrangler', 'playwright-report', 'test-results', '.vite']);
   const found = { offenders: [], clusterLoaders: [], importerLoaders: [], commandLoaders: [], freshLoaders: [], packageScripts: [] };
   // The operator's command, by its file (a load or a spawn) or by its pnpm
-  // name. In scripts/ only code counts, and there `postgres:migrate` counts as
-  // an argument of its own, which runs it: a comment or a message may point
-  // the operator to it. Anywhere else, any mention counts.
+  // name. In scripts/ only code counts, and there `os:migrate` counts as an
+  // argument of its own, which runs it: a comment or a message may point the
+  // operator to it. Anywhere else, any mention counts.
   const codeOnly = (text) => text.split('\n').filter((line) => !/^\s*(\/\/|\*|\/\*\*)/u.test(line)).join('\n');
   const reachesCommand = (relative, text) =>
     relative.startsWith('scripts/')
-      ? /postgres-apply/u.test(codeOnly(text)) || /(['"`])postgres:migrate\1/u.test(text)
-      : /postgres-apply|postgres:migrate/u.test(text);
+      ? /postgres-apply|(?<![a-z-])os-migrate/u.test(codeOnly(text)) || /(['"`])os:migrate\1/u.test(text)
+      : /postgres-apply|(?<![a-z-])os-migrate|os:migrate/u.test(text);
   const walk = (dir) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name);
       if (entry.isDirectory()) {
         if (!skip.has(entry.name) && !entry.name.startsWith('.')) walk(full);
-      } else if (/\.(m?[jt]s|tsx|json|plist)$/u.test(entry.name)) {
+      } else if (/\.(m?[jt]s|tsx|json)$/u.test(entry.name)) {
         const relative = path.relative(root, full);
         if (isTest(relative)) continue;
         const text = readFileSync(full, 'utf8');
@@ -300,31 +302,32 @@ function operatorOnlyReach(root) {
     if (!existsSync(dir)) continue;
     for (const name of readdirSync(dir)) {
       const hook = readFileSync(path.join(dir, name), 'utf8');
-      if (/postgres-apply|postgres:migrate/u.test(hook)) found.commandLoaders.push(path.join(hooks, name));
+      if (/postgres-apply|(?<![a-z-])os-migrate|os:migrate/u.test(hook)) found.commandLoaders.push(path.join(hooks, name));
       if (/hosted-demo-setup/u.test(hook)) found.freshLoaders.push(path.join(hooks, name));
     }
   }
   const scripts = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8')).scripts;
   for (const [name, command] of Object.entries(scripts)) {
     const runs = [
-      [/postgres-migrate/u, 'postgres:dev'],
-      [/postgres-apply/u, 'postgres:migrate'],
+      [/postgres-migrate/u, ['db:new-migration', 'db:try-migrations']],
+      [/(?<![a-z-])os-migrate/u, ['os:migrate']],
     ];
-    for (const [pattern, only] of runs) if (pattern.test(command) && name !== only) found.packageScripts.push(`${name}: ${command}`);
+    for (const [pattern, only] of runs) if (pattern.test(command) && !only.includes(name)) found.packageScripts.push(`${name}: ${command}`);
+    if (/postgres-apply/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/postgres-import/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
     if (/hosted-demo-setup/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
-    if (/postgres:migrate/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
+    if (/os:migrate/u.test(command)) found.packageScripts.push(`${name}: ${command}`);
   }
-  if (scripts['postgres:migrate'] !== `node ${OPERATOR_COMMAND}`) found.packageScripts.push(`postgres:migrate: ${scripts['postgres:migrate']}`);
+  if (scripts['os:migrate'] !== `node ${OPERATOR_COMMAND}`) found.packageScripts.push(`os:migrate: ${scripts['os:migrate']}`);
   return found;
 }
 
-test('only approved fresh startup can additionally reach migrations; managed runtime, restart and deploy cannot', () => {
+test('only approved fresh startup can additionally reach migrations; the runtime, restart and update cannot', () => {
   const found = operatorOnlyReach(REPO_ROOT);
   assert.deepEqual(found.offenders, [], 'only the runner command and the docs generator may load the Postgres runner');
   assert.deepEqual(found.clusterLoaders, [], 'only a Vitest config or a test may load the test-run Postgres cluster');
-  assert.deepEqual(found.freshLoaders, [], 'only the approved start and demo commands may load the new-empty setup helper; managed runtime, restart and deploy may not');
-  assert.deepEqual(found.importerLoaders, [], 'the retired D1 importer is not a product dependency');
+  assert.deepEqual(found.freshLoaders, [], 'only the approved start and demo commands may load the new-empty setup helper; the runtime, restart and update may not');
+  assert.deepEqual(found.importerLoaders, [], 'the retired importer is not a product dependency');
   assert.deepEqual(
     found.commandLoaders,
     [],
@@ -333,7 +336,7 @@ test('only approved fresh startup can additionally reach migrations; managed run
   assert.deepEqual(
     found.packageScripts,
     [],
-    'only postgres:dev runs the runner, only postgres:migrate runs the operator command, no script runs pnpm postgres:migrate, and no D1 import command remains',
+    'only the db: migration commands run the runner, only os:migrate runs the operator command, no script runs pnpm os:migrate, and no import command remains',
   );
   assert.equal(statSync(MIGRATIONS_DIR).isDirectory(), true);
   assert.notEqual(path.resolve(MIGRATIONS_DIR), path.resolve(REPO_ROOT, 'db', 'migrations'));
@@ -342,7 +345,7 @@ test('only approved fresh startup can additionally reach migrations; managed run
 test('the approved demo caller can reach only fresh preparation, never the operator command or runner', () => {
   const root = tempDir('nos-demo-reach-');
   mkdirSync(path.join(root, 'scripts'));
-  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { 'postgres:migrate': `node ${OPERATOR_COMMAND}` } }));
+  writeFileSync(path.join(root, 'package.json'), JSON.stringify({ scripts: { 'os:migrate': `node ${OPERATOR_COMMAND}` } }));
   const demo = path.join(root, 'scripts/demo-seed.mjs');
   writeFileSync(demo, "import { prepareFreshPostgres } from './start-postgres.mjs';\n");
   assert.deepEqual(operatorOnlyReach(root), { offenders: [], clusterLoaders: [], importerLoaders: [], commandLoaders: [], freshLoaders: [], packageScripts: [] });
@@ -359,49 +362,52 @@ test('the guard catches runtime migration reach and retired importer commands in
     writeFileSync(path.join(root, relative), text);
   };
   // What the repository holds, and is allowed.
-  plant('scripts/postgres-apply.mjs', "import { applyMigrations } from './postgres-migrate.mjs';\n");
+  plant(ENGINE, "import { applyMigrations } from './postgres-migrate.mjs';\n");
+  plant(OPERATOR_COMMAND, "import { main } from './postgres-apply.mjs';\n");
   plant('scripts/start.mjs', "import { prepareFreshPostgres } from './start-postgres.mjs';\n");
   plant('scripts/demo-seed.mjs', "import { prepareFreshPostgres } from './start-postgres.mjs';\n");
   plant(FIRST_START, "import { main } from './postgres-apply.mjs';\nimport { readMigrations } from './postgres-migrate.mjs';\n");
-  plant('scripts/os-deploy.mjs', "// Its migrations go in with pnpm postgres:migrate, typed by the operator.\nconsole.log('run pnpm postgres:migrate apply yourself');\n");
+  plant('scripts/os-update.mjs', "// Its migrations go in with pnpm os:migrate, typed by the operator.\nconsole.log('run pnpm os:migrate -- --apply yourself');\n");
   // Each way in, planted once.
   plant('scripts/runner/lifecycle.mjs', "import { runImport } from '../postgres-import.mjs';\nimport { prepareFreshPostgres } from '../start-postgres.mjs';\n");
   plant('scripts/os-up.mjs', "import { main } from './postgres-apply.mjs';\n");
   plant('scripts/os-restart.mjs', "import { setupHostedDemo } from './hosted-demo-setup.mjs';\n");
-  plant('scripts/os-control.mjs', "spawnSync('pnpm', ['postgres:migrate', 'apply']);\n");
-  plant('workers/ingest/src/index.ts', "// see pnpm postgres:migrate\nimport { setupHostedDemo } from '../../../scripts/hosted-demo-setup.mjs';\nexport default {};\n");
+  plant('scripts/stack-control.mjs', "spawnSync('pnpm', ['os:migrate', '--apply']);\n");
+  plant('workers/ingest/src/index.ts', "// see pnpm os:migrate\nimport { setupHostedDemo } from '../../../scripts/hosted-demo-setup.mjs';\nexport default {};\n");
   plant('apps/tower/server/store.ts', "import { applyMigrations } from '../../../scripts/postgres-migrate.mjs';\n");
   plant('packages/postgres/src/boot.mjs', "import { openThrowaway } from '../../../scripts/postgres-dev.mjs';\n");
-  plant('.githooks/pre-commit', 'pnpm postgres:migrate apply --database noticeos --confirm noticeos\n');
+  plant('.githooks/pre-commit', 'pnpm os:migrate -- --apply --confirm noticeos\n');
   plant('.githooks/post-commit', 'node scripts/hosted-demo-setup.mjs --request private.json\n');
   plant(
     'package.json',
     `${JSON.stringify({
       scripts: {
-        'postgres:dev': 'node scripts/postgres-migrate.mjs',
-        'postgres:migrate': `node ${OPERATOR_COMMAND}`,
+        'db:try-migrations': 'node scripts/postgres-migrate.mjs',
+        'os:migrate': `node ${OPERATOR_COMMAND}`,
+        'postgres:migrate': `node ${ENGINE}`,
         'postgres:import': 'node scripts/postgres-import.mjs',
         'os:restore': 'node scripts/postgres-import.mjs --backup latest',
-        'os:schema': 'pnpm postgres:migrate apply',
+        'os:schema': 'pnpm os:migrate -- --apply',
         'os:demo': 'node scripts/hosted-demo-setup.mjs --request private.json',
       },
     })}\n`,
   );
 
   const found = operatorOnlyReach(root);
-  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/runner/lifecycle.mjs', 'workers/ingest/src/index.ts'], 'hooks, managed runtime and Workers cannot load either fresh setup entry');
+  assert.deepEqual(found.freshLoaders.sort(), ['.githooks/post-commit', 'scripts/os-restart.mjs', 'scripts/runner/lifecycle.mjs', 'workers/ingest/src/index.ts'], 'hooks, the runtime and Workers cannot load either fresh setup entry');
   assert.deepEqual(found.importerLoaders.sort(), ['scripts/runner/lifecycle.mjs'], 'loading the importer, and through it the operator’s command, is caught');
   assert.deepEqual(
     found.commandLoaders.sort(),
-    ['.githooks/pre-commit', 'scripts/os-control.mjs', 'scripts/os-up.mjs', 'workers/ingest/src/index.ts'],
+    ['.githooks/pre-commit', 'scripts/os-up.mjs', 'scripts/stack-control.mjs', 'workers/ingest/src/index.ts'],
     'a load, a run by name, a mention outside scripts and a git hook are each caught; a message naming the command is not',
   );
   assert.deepEqual(found.offenders.sort(), ['apps/tower/server/store.ts', 'packages/postgres/src/boot.mjs']);
   assert.deepEqual(found.packageScripts.sort(), [
     'os:demo: node scripts/hosted-demo-setup.mjs --request private.json',
     'os:restore: node scripts/postgres-import.mjs --backup latest',
-    'os:schema: pnpm postgres:migrate apply',
+    'os:schema: pnpm os:migrate -- --apply',
     'postgres:import: node scripts/postgres-import.mjs',
+    'postgres:migrate: node scripts/postgres-apply.mjs',
   ]);
 
   // A retired tool cannot regain permission to apply migrations.

@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
-import { containerEnvironment } from '../deploy/compose/entrypoint.mjs';
+import { containerCommand, containerEnvironment } from '../deploy/compose/entrypoint.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 
 const profile = { host: 'dolt', port: 3306, user: 'noticeos', credentialsFile: '/state/dolt/credentials', clientHome: '/state/dolt/client-home' };
@@ -34,6 +34,17 @@ test('container startup declares its mounts and internal services and strips amb
   assert.throws(() => containerEnvironment({}, { fs: io(), readClient: () => ({ ...profile, host: 'foreign' }) }), /internal task/);
   assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@postgres/noticeos' }) }, readClient: () => profile }), /incomplete/);
   assert.throws(() => containerEnvironment({}, { fs: { ...io(), readFileSync: () => JSON.stringify({ DATABASE_URL: 'postgresql://noticeos_app:synthetic@foreign/noticeos' }) }, readClient: () => profile }), /internal database/);
+});
+
+test('the container runs the runner, or one named job beside it, and nothing else', () => {
+  assert.deepEqual(containerCommand([]), ['scripts/os-up.mjs']);
+  assert.deepEqual(containerCommand(['backup']), ['scripts/os-up.mjs', '--backup']);
+  assert.deepEqual(containerCommand(['run-job', '0 6 * * *']), ['scripts/os-up.mjs', '--tick', '0 6 * * *']);
+  assert.deepEqual(containerCommand(['capacity']), ['scripts/os-capacity.mjs']);
+  assert.deepEqual(containerCommand(['capacity', '--json']), ['scripts/os-capacity.mjs', '--json']);
+  for (const argv of [['shell'], ['backup', '--now'], ['run-job'], ['run-job', '$(id)'], ['run-job', '0 6 * * *', 'x'], ['capacity', '--all']]) {
+    assert.equal(containerCommand(argv), null, argv.join(' '));
+  }
 });
 
 test('container health requires a fresh supervised runner and both answering internal doors', async () => {

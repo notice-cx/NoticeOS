@@ -9,7 +9,7 @@ and reads and writes every value exactly. The rules are in the header of
 Operational settings, evidence and readers use this helper: a Worker reaches
 Postgres only through its `POSTGRES` Hyperdrive binding, one store per call;
 a script writes the store through the ingest's operator-authed door and never
-holds a database credential. The migration runner (`pnpm postgres:dev`) keeps its own
+holds a database credential. The migration runner (`pnpm db:try-migrations`) keeps its own
 administrative connection and never uses it.
 
 ## Using it
@@ -74,7 +74,7 @@ try {
 - An `int8` comes back as a `bigint`, which `JSON.stringify` refuses. Convert it
   where a response is built, or cast in SQL (`count(*)::int`).
 - Scripts import `packages/postgres/src/store.mjs` by path, like the contract's
-  generated modules. `pnpm config:generate` writes that file and its `.d.mts`
+  generated modules. `pnpm generate` writes that file and its `.d.mts`
   from `store.mts`.
 
 ## What a Worker needs

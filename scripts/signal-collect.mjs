@@ -80,7 +80,7 @@ Notes:
   · Same-day multi-call reruns reuse every successful paid call and purchase
     only missing or failed calls. A new report day starts a fresh collection.
     Identical completed content is stored as 'unchanged'.
-  · \`pnpm os:up\` must be running — this reaches the store through it.
+  · NoticeOS must be running (\`pnpm os:start\`) — this reaches the store through it.
 `);
 }
 

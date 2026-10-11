@@ -73,7 +73,7 @@ test('turns an unreachable door into the sentence that fixes it', async () => {
           throw new Error('connect ECONNREFUSED 127.0.0.1:8791');
         },
       }),
-    /os:up/,
+    /os:status/,
   );
 });
 

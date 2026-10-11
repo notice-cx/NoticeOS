@@ -11,7 +11,7 @@ import {
 import { DEFAULT_DOOR } from './ingest-door.mjs';
 
 // config:apply is the operator's changeset tool and it is a WRITER, run by hand
-// beside a live `os:up`. These tests exercise both halves of its store lane —
+// beside a live runner. These tests exercise both halves of its store lane —
 // the expect guard's read and the apply's write — against a stubbed door, so the
 // lane is proven without ever touching the machine's real store.
 
@@ -276,7 +276,7 @@ test('a door that does not answer names the fix', async () => {
     throw new Error('connect ECONNREFUSED 127.0.0.1:8791');
   };
   const store = storeLane({ door: 'http://door.test', fetchImpl, token: 'op' });
-  await assert.rejects(store.column('meadow.example', 'status'), /Is `pnpm os:up` running\?/);
+  await assert.rejects(store.column('meadow.example', 'status'), /Is NoticeOS running \(`pnpm os:status`\)\?/);
 });
 
 test('resolve: a store op that still matches reality passes the guard', async () => {
