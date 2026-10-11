@@ -6,7 +6,7 @@
  * the human-decision guards are the hosted executor's.
  */
 import { createHash } from 'node:crypto';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, isHumanDecision } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
@@ -62,8 +62,10 @@ export function createStandaloneTaskExecutor(options) {
                 for (const taskId of decisionGuardTargets(operation)) {
                     const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
                     const row = (Array.isArray(shown) ? shown[0] : shown);
-                    if (row?.id !== taskId || isHumanDecision(row))
+                    if (row?.id !== taskId)
                         refuse();
+                    if (isHumanDecision(row))
+                        throw new HumanDecisionRefused(taskId);
                 }
                 // The actor is the admitted principal, inserted before every command token.
                 return client([plan.argv[0], plan.argv[1], `--actor=${context.principalId}`, ...plan.argv.slice(2)]);

@@ -4,6 +4,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory, StandaloneTaskRefused } from './standalone-tasks.mjs';
+import { HumanDecisionRefused } from './hosted-task-command.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/standalone-tasks.mts: a standalone installation's linked task
@@ -71,12 +72,12 @@ test('decisions, the runner\'s poll, other workspaces and unknown projects are r
 
 test('no ordinary write closes, unmarks or unhooks a person\'s decision', async () => {
   const f = fixture({ human: ['ex-ask'] });
-  for (const operation of [{ kind: 'close', taskId: 'ex-gate', reason: 'Approved it myself' },
-    { kind: 'update', taskId: 'ex-ask', removeLabels: ['human'] }, { kind: 'update', taskId: 'ex-ask', status: 'closed' },
-    { kind: 'undepend', taskId: 'ex-1', dependsOn: 'ex-gate' }, { kind: 'undepend', taskId: 'ex-1', dependsOn: 'ex-ask' },
-    { kind: 'update', taskId: 'ex-1', status: 'closed', addLabels: ['human'] }]) {
-    await assert.rejects(f.execute(operation), StandaloneTaskRefused, JSON.stringify(operation));
+  for (const [operation, decision] of [[{ kind: 'close', taskId: 'ex-gate', reason: 'Approved it myself' }, 'ex-gate'],
+    [{ kind: 'update', taskId: 'ex-ask', removeLabels: ['human'] }, 'ex-ask'], [{ kind: 'update', taskId: 'ex-ask', status: 'closed' }, 'ex-ask'],
+    [{ kind: 'undepend', taskId: 'ex-1', dependsOn: 'ex-gate' }, 'ex-gate'], [{ kind: 'undepend', taskId: 'ex-1', dependsOn: 'ex-ask' }, 'ex-ask']]) {
+    await assert.rejects(f.execute(operation), error => error instanceof HumanDecisionRefused && error.taskId === decision, JSON.stringify(operation));
   }
+  await assert.rejects(f.execute({ kind: 'update', taskId: 'ex-1', status: 'closed', addLabels: ['human'] }), StandaloneTaskRefused);
   assert.deepEqual(f.commands.filter(command => !command.argv.includes('show')), [], 'only reads ran');
   await f.execute({ kind: 'undepend', taskId: 'ex-1', dependsOn: 'ex-2' });
   assert.deepEqual(f.commands.at(-1).argv, ['--sandbox', '--json', '--actor=agent-1', 'dep', 'remove', '--', 'ex-1', 'ex-2']);
@@ -113,6 +114,12 @@ test('the standalone MCP endpoint serves its one workspace in full, with no cred
   assert.match((await result('list_tasks', { workspace: '11111111-1111-4111-8111-111111111111', project: standaloneProjectId('example') }))
     .content[0].text, /^invalid arguments: workspace/u);
   assert.equal((await call('list_workspaces', {}, { authorization: 'Bearer agent-token-0000000001' })).status, 400, 'no credential is taken');
+  // An agent is told why a person's decision refuses its change, and what it can do instead.
+  const decided = (await result('close_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), task: 'ex-gate',
+    reason: 'Approved it myself', idempotency_key: 'local-close-0001' })).content[0].text;
+  assert.match(decided, /^refused: ex-gate is a person's decision, a gate or a task labelled human\. Only a person closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment\.$/u);
+  assert.match((await result('get_task', { workspace: WORKSPACE, project: standaloneProjectId('other'), task: 'ex-1' })).content[0].text,
+    /^refused: this workspace, project or task is not available to you/u, 'every other refusal keeps one answer');
   for (const bad of [{}, { standaloneWorkspaceId: 'not-a-uuid' }, { standaloneWorkspaceId: WORKSPACE, demoWorkspaceId: WORKSPACE }]) {
     assert.throws(() => createHostedMcp({ profile: 'standalone', trustedOrigin: origin, operations, ...bad }), /configuration refused/u);
   }

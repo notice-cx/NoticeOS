@@ -286,6 +286,17 @@ function command(input) {
     }
     return { kind, readOnly, argv: Object.freeze(argv) };
 }
+/** A write refused because the task it would change is a person's decision.
+ * Thrown only after admission and the task's own read, so naming the reason
+ * tells the caller nothing its access did not already show. */
+export class HumanDecisionRefused extends Error {
+    taskId;
+    name = 'HumanDecisionRefused';
+    constructor(taskId) {
+        super(`${taskId} is a person's decision.`);
+        this.taskId = taskId;
+    }
+}
 /** A person's decision: a gate, or a task labelled human. */
 export function isHumanDecision(row) {
     return row.issue_type === 'gate' || Array.isArray(row.labels) && row.labels.includes('human');

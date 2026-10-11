@@ -130,7 +130,7 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     assert.equal((await ready()).includes(lead.id), false);
     for (const [name, args] of [['remove_dependency', { task: lead.id, depends_on: asked.approval.id }],
       ['close_task', { task: asked.approval.id, reason: 'Approved it myself', idempotency_key: 'compose-gate-0001' }]]) {
-      assert.match((await tool(name, args)).content[0].text, /^refused:/u, name);
+      assert.match((await tool(name, args)).content[0].text, new RegExp(`^refused: ${asked.approval.id} is a person's decision`, 'u'), name);
     }
     const gated = (await ok('get_task', { task: lead.id })).task;
     assert.deepEqual(gated.dependencies.filter(edge => edge.id === asked.approval.id).map(edge => [edge.type, edge.status]), [['blocks', 'open']]);
