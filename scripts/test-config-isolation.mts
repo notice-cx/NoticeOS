@@ -35,7 +35,7 @@
 // purpose needs the exact shipped source document. Each names the files it
 // reads and why. Pinned by scripts/test-config-isolation.test.mjs.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the suites and
+// Authored TypeScript: `pnpm generate` writes the `.mjs` the suites and
 // the root test preload import and the `.d.mts` beside it.
 
 import fs from "node:fs";

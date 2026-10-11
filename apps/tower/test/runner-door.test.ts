@@ -278,7 +278,7 @@ describe("loopback recognition", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// The port is os:up's config, passed in.
+// The port is the runner's config, passed in.
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe("door address resolution", () => {

@@ -120,7 +120,7 @@ export async function prepareFreshPostgres(plan, {
       return refusal('the Postgres baseline is not fully frozen; freeze and commit db/postgres/frozen-migrations.sha256 before first startup.');
     }
     if (!Number.isInteger(own.port) || own.port < 1024 || own.port > 65535 || MANAGED_START_PORTS.includes(own.port)) {
-      return refusal('the derived Postgres port (--port + 2) is invalid or belongs to the managed service; choose another --port.');
+      return refusal('the derived Postgres port (--port + 2) is invalid or belongs to the NoticeOS stack; choose another --port.');
     }
     if (await held(`http://127.0.0.1:${own.port}`)) {
       return refusal('the derived Postgres port (--port + 2) is in use; choose another --port.');

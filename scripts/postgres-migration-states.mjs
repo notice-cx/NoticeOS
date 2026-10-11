@@ -1,10 +1,9 @@
 // The state of each Postgres migration: the migration files a piece of code
 // carries, held against what a database's noticeos_migrations.applied records.
 //
-// One derivation, three readers: the development runner's and
-// `pnpm os:migrate`'s status (what stops an apply), and `pnpm os:deploy`
-// (what stops a deploy). So a migration the deploy calls changed is exactly
-// the one `pnpm os:migrate` prints as changed.
+// One derivation for the development runner's status and for
+// `pnpm os:migrate`'s status and apply, so a migration the status calls
+// changed is exactly the one an apply refuses.
 //
 // Pure: it reads no file and opens no connection. Each caller brings the files
 // (from a folder, or from a commit through git) and the records (read in a READ

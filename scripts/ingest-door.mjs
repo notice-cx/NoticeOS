@@ -8,7 +8,7 @@
 import http from 'node:http';
 import net from 'node:net';
 
-/** The managed service's door: the loopback-only door on the Tower's dev
+/** The NoticeOS stack's door: the loopback-only door on the Tower's dev
  * server (apps/tower/vite/runner-door.ts), pinned in scripts/runner/config.mjs
  * CONFIG.ingestPort. */
 export const MANAGED_DOOR = 'http://127.0.0.1:8791';
@@ -220,7 +220,7 @@ export async function doorFetch(get, url, init) {
     throw new Error(
       `the ingest door did not answer at ${new URL(url).origin} ` +
         `(${error instanceof Error ? error.message : String(error)}). ` +
-        'Is `pnpm os:up` running?',
+        'Is NoticeOS running (`pnpm os:status`)?',
     );
   }
 }

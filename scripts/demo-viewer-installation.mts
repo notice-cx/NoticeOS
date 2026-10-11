@@ -220,7 +220,7 @@ export function readDemoViewerLaunch(root: string, env: Readonly<Record<string, 
   if (Object.entries(expected).some(([key, value]) => env[key] !== value)
     || ['CLOUDFLARE_ENV', 'CLOUDFLARE_INCLUDE_PROCESS_ENV', 'WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES',
       'CLOUDFLARE_API_TOKEN', 'CLOUDFLARE_API_KEY', 'CLOUDFLARE_EMAIL', 'CLOUDFLARE_ACCOUNT_ID', 'CF_API_TOKEN',
-      'NODE_OPTIONS', 'DATABASE_URL', PRODUCT_ENV.home.legacy, PRODUCT_ENV.workerConfigRoot.legacy, PRODUCT_ENV.installationDir.legacy].some(key => env[key] !== undefined)) {
+      'NODE_OPTIONS', 'DATABASE_URL', PRODUCT_ENV.workerConfigRoot.legacy, PRODUCT_ENV.installationDir.legacy].some(key => env[key] !== undefined)) {
     throw new Error('The demo launch refuses inherited or mismatched runtime bindings.');
   }
   return Object.freeze({ installation, runtime: declaration.runtime, towerPort: declaration.towerPort as number, doorPort: declaration.doorPort as number });

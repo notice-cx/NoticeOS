@@ -1,7 +1,7 @@
 // A Postgres login's password as the server keeps it: its SCRAM-SHA-256
 // verifier. One computation for both places that set a password: the
 // development profile's loopback login and the installation's secret files
-// (`pnpm postgres:secrets`).
+// (`pnpm db:create-secrets`).
 
 import { createHash, createHmac, pbkdf2Sync, randomBytes } from 'node:crypto';
 

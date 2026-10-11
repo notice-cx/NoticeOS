@@ -174,22 +174,13 @@ describe("the config write lane", () => {
     expect(laneRepoRoot({}, path.join(root, "apps", "tower", "vite", "chunks"))).toBe(root);
   });
 
-  // The managed service runs this dev server from a runtime copy of the code
-  // and names the operator's checkout in NOTICEOS_HOME (an older plist says
-  // REINDEX_OS_HOME, still read). A Save must commit there; a commit inside
-  // the runtime copy would never reach main.
-  it("commits in the home checkout the runner names, not in the runtime copy", () => {
-    const runtimeCopy = path.join(REPO_ROOT, ".local", "runtime", "runtime-a", "apps", "tower", "vite");
-    expect(laneRepoRoot({ NOTICEOS_HOME: "/Users/operator/reindex-os" }, runtimeCopy)).toBe(
-      "/Users/operator/reindex-os",
-    );
-    expect(laneRepoRoot({ REINDEX_OS_HOME: "/Users/operator/reindex-os" }, runtimeCopy)).toBe(
-      "/Users/operator/reindex-os",
-    );
-    expect(laneRepoRoot({ NOTICEOS_HOME: "/srv/notice", REINDEX_OS_HOME: "/Users/operator/reindex-os" }, runtimeCopy)).toBe(
-      "/srv/notice",
-    );
-    expect(laneRepoRoot({ REINDEX_OS_HOME: "  " }, path.join(REPO_ROOT, "apps", "tower", "vite"))).toBe(REPO_ROOT);
+  // The container runs this dev server from its code folder and names the
+  // installation's home in NOTICEOS_HOME. A Save must commit there; a commit
+  // inside the code folder would never reach main.
+  it("commits in the home folder the runner names, not in the code folder", () => {
+    const codeFolder = path.join("/opt/noticeos", "apps", "tower", "vite");
+    expect(laneRepoRoot({ NOTICEOS_HOME: "/srv/notice" }, codeFolder)).toBe("/srv/notice");
+    expect(laneRepoRoot({ NOTICEOS_HOME: "  " }, path.join(REPO_ROOT, "apps", "tower", "vite"))).toBe(REPO_ROOT);
     expect(laneRepoRoot({}, path.join(REPO_ROOT, "apps", "tower", "vite"))).toBe(REPO_ROOT);
   });
 

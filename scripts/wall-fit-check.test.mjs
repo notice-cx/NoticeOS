@@ -1,4 +1,4 @@
-// wall:fit's verdict over several frames, with the browser replaced: a loader
+// audit:wall-fit's verdict over several frames, with the browser replaced: a loader
 // hook hands the CLI a page whose measurements are the frames below.
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';

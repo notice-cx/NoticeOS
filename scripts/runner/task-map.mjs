@@ -6,7 +6,6 @@
 
 import path from 'node:path';
 import { TASK_METADATA, taskMetadataValue } from '../../packages/contract/src/task-metadata.mjs';
-import { osAssetUrl, readOsAsset } from '../os-deploy-forward.mjs';
 import { beadsDatabaseName, readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
@@ -54,13 +53,32 @@ export const TASK_MAP_ASSET_KEY = TASK_METADATA.taskMapAsset.name;
  * reconciliation reads as "the portfolio's databases", not "everything MySQL
  * happens to expose". */
 export const TASK_MAP_SYSTEM_DATABASES = ['information_schema', 'mysql'];
+/**
+ * The OS's own asset id as the store names it (`assets.is_os`), never an id
+ * written into the runner. Null when there is no token, the store cannot
+ * answer, or it holds no OS row; a caller then files nothing about the OS.
+ * Never throws.
+ */
+export async function readOsAsset({ url, readToken, get = fetch }) {
+  const token = await readToken().catch(() => null);
+  if (!token) return null;
+  try {
+    const res = await get(url, { headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return typeof body?.asset === 'string' && body.asset !== '' ? body.asset : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Whose tracker the drift beads land in — the OS's own project, because the
  * file that is wrong is this repo's and the lane that breaks is this repo's
  * backup. Which project that is: the spoke whose asset the store marks as the
  * OS (`GET /api/os-asset`, `assets.is_os`), never an id written here and never
  * assumed to be the first spoke. */
 export function taskMapHomeAsset() {
-  return readOsAsset({ url: osAssetUrl(CONFIG), readToken: operatorToken });
+  return readOsAsset({ url: `http://${CONFIG.ingestHost}:${CONFIG.ingestPort}/api/os-asset`, readToken: operatorToken });
 }
 
 /** Ask the hub what it actually holds. `--format json` so the answer is parsed

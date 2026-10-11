@@ -6,7 +6,7 @@
 // because plaintext exists inside the ingest Worker and nowhere else; this
 // file presents the operator token and prints counts and provider ids,
 // nothing else. It rotates a local host only: the only door that answers is
-// the loopback one `pnpm os:up` opens, and `--ingest` chooses a different
+// the loopback one the runner opens, and `--ingest` chooses a different
 // local door. The runbook is in workers/ingest/README.md § Rotating
 // CREDENTIALS_KEY: both keys readable at once, restart, run, remove the
 // previous key, restart again.
@@ -17,7 +17,7 @@
 import { readDevSecretBindings } from './dev-secrets.mjs';
 import { ansi as c } from './ansi.mjs';
 
-/** Where `pnpm os:up` puts the loopback-only ingest door
+/** Where the runner puts the loopback-only ingest door
  * (scripts/runner/config.mjs CONFIG.ingestPort). */
 export const DEFAULT_INGEST_ORIGIN = 'http://127.0.0.1:8791';
 
@@ -57,7 +57,7 @@ export async function requestRotation({
   } catch (error) {
     // The useful sentence is about the OS being down, not the socket.
     throw new Error(
-      `${origin} did not answer (${error?.message ?? 'unreachable'}) — is \`pnpm os:up\` running?`,
+      `${origin} did not answer (${error?.message ?? 'unreachable'}) — is NoticeOS running (\`pnpm os:status\`)?`,
     );
   }
   if (response.status === 401) {

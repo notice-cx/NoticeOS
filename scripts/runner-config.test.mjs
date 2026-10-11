@@ -33,7 +33,7 @@ test('the runner module finds the same checkout os-up.mjs sits in', () => {
   assert.equal(INGEST_WRANGLER, path.join(CHECKOUT, 'workers', 'ingest', 'wrangler.jsonc'));
 });
 
-test('state resolves from home, the way a runtime copy needs it to', () => {
+test('state resolves from home, the way a code folder needs it to', () => {
   assert.equal(HOME_ROOT, resolveHomeRoot(REPO_ROOT, process.env));
   assert.deepEqual(STATE, statePaths(HOME_ROOT));
   assert.equal(LOGS_DIR, STATE.logsDir);
@@ -44,7 +44,7 @@ test('state resolves from home, the way a runtime copy needs it to', () => {
   assert.equal(OS_CHECKOUT, osCheckoutName(HOME_ROOT));
 });
 
-test("the secret files are home's paths, never a runtime copy's", () => {
+test("the secret files are home's paths, never a code folder's", () => {
   // Paths only: nothing here opens either file.
   const home = statePaths(HOME_ROOT);
   assert.deepEqual(SECRET_FILES, { secretsFile: home.devSecrets, varsFile: home.devVars });

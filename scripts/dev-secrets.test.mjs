@@ -8,7 +8,6 @@ import {
   DATABASE_URL,
   compileWorkerBindings,
   credentialImportPlan,
-  migrateDevVars,
   normalizeSecretBindings,
   parseDevVars,
   readDevSecretBindings,
@@ -91,32 +90,18 @@ test('invalid top-level shapes and binding names fail closed', () => {
   assert.throws(() => normalizeSecretBindings({ NULL_SECRET: null }), /must be a string/);
 });
 
-test('migration structures legacy JSON maps and generated dotenv round-trips', async (t) => {
+test('the generated dotenv round-trips nested maps, equals signs, quotes and newlines', async (t) => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-dev-secrets-'));
   t.after(() => fs.rm(dir, { recursive: true, force: true }));
   const varsFile = path.join(dir, '.dev.vars');
   const secretsFile = path.join(dir, '.dev.secrets.json');
-  await fs.writeFile(
-    varsFile,
-    [
-      '# comment',
-      'OPERATOR_TOKEN=contains=equals',
-      'ASSET_TOKENS={"northwind.example":"nw-token"}',
-      'QUOTED_TOKEN="hash#and\\nnewline"',
-      '',
-    ].join('\n'),
-  );
-
-  const migrated = await migrateDevVars({ varsFile, secretsFile });
-  assert.deepEqual(migrated.keys, ['OPERATOR_TOKEN', 'ASSET_TOKENS', 'QUOTED_TOKEN']);
-  assert.deepEqual(JSON.parse(await fs.readFile(secretsFile, 'utf8')), {
+  await fs.writeFile(secretsFile, JSON.stringify({
     OPERATOR_TOKEN: 'contains=equals',
     ASSET_TOKENS: { 'northwind.example': 'nw-token' },
     QUOTED_TOKEN: 'hash#and\nnewline',
-  });
-
-  const generated = parseDevVars(await fs.readFile(varsFile, 'utf8'));
-  assert.deepEqual(generated, {
+  }));
+  await syncDevVars({ secretsFile, varsFile });
+  assert.deepEqual(parseDevVars(await fs.readFile(varsFile, 'utf8')), {
     OPERATOR_TOKEN: 'contains=equals',
     ASSET_TOKENS: '{"northwind.example":"nw-token"}',
     QUOTED_TOKEN: 'hash#and\nnewline',
@@ -169,7 +154,7 @@ test('the database address is read from the secrets file but never becomes a Wor
 });
 
 // ---------------------------------------------------------------------------
-// `pnpm dev:secrets:import` — the one-way door from these local files into the
+// The import — the one-way door from these local files into the
 // credential store. The operator's existing secrets move
 // without being retyped into a form; the bindings stay as the fallback.
 // ---------------------------------------------------------------------------
@@ -370,7 +355,7 @@ test('import says to start the OS when the Tower is not answering', async () => 
         bindings: {},
         fetchImpl: async () => new Response('nope', { status: 502 }),
       }),
-    /os:up/,
+    /pnpm os:start/,
   );
 });
 

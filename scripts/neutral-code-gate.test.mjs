@@ -399,9 +399,9 @@ describe('it fails on a planted name', () => {
 });
 
 describe('where it stops you', () => {
-  test('pnpm neutral:gate exists, and the pre-commit hook runs the gate on staged files', () => {
+  test('pnpm check:neutral exists, and the pre-commit hook runs the gate on staged files', () => {
     const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, 'package.json'), 'utf8'));
-    assert.equal(manifest.scripts['neutral:gate'], 'node scripts/neutral-code-gate.mjs');
+    assert.equal(manifest.scripts['check:neutral'], 'node scripts/neutral-code-gate.mjs');
     const hook = readFileSync(path.join(REPO_ROOT, '.githooks/pre-commit'), 'utf8');
     assert.match(hook, /scripts\/neutral-code-gate\.mjs" --staged/);
   });

@@ -12,9 +12,9 @@ import {
   readCapacity,
 } from './os-capacity.mjs';
 
-// `pnpm os:doctor`'s capacity section: it asks the runtime
-// over the door and never opens the store, it formats what it is told, and a
-// store it cannot ask is one line saying why rather than a failed report.
+// `pnpm os:capacity`: it asks the runtime over the door and never opens the
+// store, it formats what it is told, and a store it cannot ask is one line
+// saying why rather than a failed report.
 
 const DOOR = 'http://127.0.0.1:7651';
 

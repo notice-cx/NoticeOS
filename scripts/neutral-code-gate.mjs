@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Product code names no installation's own sites, accounts or clock.
 //
-// Wired as `pnpm neutral:gate`, the pre-commit hook and `pnpm test:scripts`
+// Wired as `pnpm check:neutral`, the pre-commit hook and `pnpm test:scripts`
 // in CI.
 //
 // Nothing here names a site. The forbidden names are read from this
@@ -29,9 +29,9 @@
 // (`reportingTimeZones` in `packages/contract/src/integrations.ts`). There is
 // no baseline and no allowance file.
 //
-//   pnpm neutral:gate                       every product and test file (what CI runs)
-//   pnpm neutral:gate -- --files <paths>    just these files
-//   pnpm neutral:gate -- --names            the names this installation owns
+//   pnpm check:neutral                       every product and test file (what CI runs)
+//   pnpm check:neutral -- --files <paths>    just these files
+//   pnpm check:neutral -- --names            the names this installation owns
 //   node scripts/neutral-code-gate.mjs --staged     staged product and test files (pre-commit)
 //   flags: --root <dir>  --json
 
@@ -492,9 +492,9 @@ export function formatReport(result) {
 
 const USAGE = `neutral-code-gate — product code names no installation's own sites or clock
 
-  pnpm neutral:gate                          every product and test file (what CI runs)
-  pnpm neutral:gate -- --files <paths...>    just these files
-  pnpm neutral:gate -- --names               the names this installation owns, and where each was read
+  pnpm check:neutral                          every product and test file (what CI runs)
+  pnpm check:neutral -- --files <paths...>    just these files
+  pnpm check:neutral -- --names               the names this installation owns, and where each was read
   node scripts/neutral-code-gate.mjs --staged       staged product and test files (the pre-commit hook)
   flags: --root <dir>  --json`;
 

@@ -1034,7 +1034,7 @@ const GOOGLE_OAUTH_DEMOS: {
   {
     key: "redirect-unusable",
     note:
-      "The same install, opened over the LAN. Google refuses every plain-http address that is not loopback, and `os:up` binds the LAN by default — so this is the normal way to meet this wall, and the card answers with the address to use instead rather than letting the operator find out from Google.",
+      "The same install, opened over the LAN. Google refuses every plain-http address that is not loopback, so this is how a Tower opened over the LAN meets this wall, and the card answers with the address to use instead rather than letting the operator find out from Google.",
     status: GOOGLE_NOT_CONNECTED,
     panel: demoPanel(GOOGLE_NOT_CONNECTED, demoOAuthApp(true), "http://192.168.1.20:5173"),
   },

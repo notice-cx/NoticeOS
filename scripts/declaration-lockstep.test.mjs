@@ -17,8 +17,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 // `undefined` at the point it matters.
 //
 // A shared module is authored as `scripts/<name>.mts`, and `pnpm
-// config:generate` writes the `.mjs` and the `.d.mts` from it, so a TypeScript
-// caller compiles against the implementation itself and `pnpm config:check`
+// generate` writes the `.mjs` and the `.d.mts` from it, so a TypeScript
+// caller compiles against the implementation itself and `pnpm generate -- --check`
 // fails a stale output. Those pairs leave this name check: their declarations
 // cannot disagree with their runtime. What stays here is (1) the ratchet
 // below (a HAND-WRITTEN pair is allowed only where `HANDWRITTEN_PAIRS` names
@@ -165,7 +165,7 @@ function pairs() {
       runtime: `${declarations.slice(0, -'.d.mts'.length)}.mjs`,
     }))
     .filter((pair) => existsSync(path.join(SCRIPTS_DIR, pair.runtime)))
-    // Authored TypeScript is checked by config:check, including type shapes.
+    // Authored TypeScript is checked by `pnpm generate -- --check`, including type shapes.
     .filter((pair) => !existsSync(path.join(SCRIPTS_DIR, pair.runtime.replace(/\.mjs$/, '.mts'))));
 }
 
@@ -219,7 +219,7 @@ test('a hand-written declaration pair exists only where HANDWRITTEN_PAIRS says w
     `hand-written pairs found: ${found.join(', ')}\n` +
       'A scripts/*.mjs that TypeScript imports is authored as scripts/<name>.mts, listed in ' +
       'tsconfig.config-contract.json (portable) or tsconfig.config-contract.node.json (Node-only), ' +
-      'and generated with pnpm config:generate — so its callers compile against the ' +
+      'and generated with pnpm generate — so its callers compile against the ' +
       'implementation rather than a copy. If a pair here gained its .mts, delete its ' +
       'HANDWRITTEN_PAIRS entry; if a new one cannot be generated yet, add it there with the reason.',
   );

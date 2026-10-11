@@ -17,7 +17,7 @@
 // It joins through a plugin rather than the `reporters` option, which would
 // replace Vitest's own choice of reporters (default, or its agent reporter, and
 // GitHub's annotations in CI) instead of adding to them. Authored TypeScript:
-// `pnpm config:generate` writes the `.mjs` both Vitest configs import.
+// `pnpm generate` writes the `.mjs` both Vitest configs import.
 
 /** The variable that turns on the per-file start line. */
 export const UNIT_TEST_TRACE_ENV: string = 'UNIT_TEST_TRACE';

@@ -83,7 +83,7 @@ export async function runWatchReadbackFiler(deps = {}) {
     }
     // `-C <repo>`: bead ids are project-scoped, and the hub answers for the
     // project whose repo it is asked from. Resolved from the home checkout:
-    // the inventory's paths are relative to it, not to a runtime copy.
+    // the inventory's paths are relative to it, not to the code folder.
     let result;
     try {
       result = await run(['-C', path.resolve(repoRoot, spoke.repo), 'comment', entry.bead, entry.comment]);

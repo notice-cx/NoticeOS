@@ -27,8 +27,8 @@ export function findRepoRoot(from: string): string {
 }
 
 /**
- * The home checkout when the managed service names one: it runs this dev
- * server from a runtime copy of the code, and `NOTICEOS_HOME` keeps a Save
+ * The home checkout when `NOTICEOS_HOME` names one: the app container runs
+ * this dev server from its code folder, and `NOTICEOS_HOME` keeps a Save
  * committing in the operator's checkout and the lanes reading its `.local/`.
  */
 export function laneRepoRoot(env: Record<string, string | undefined>, from: string): string {

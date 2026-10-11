@@ -18,7 +18,7 @@
 //     end-to-end door test then run on the bindings each test declares and
 //     nothing else.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` the scripts,
+// Authored TypeScript: `pnpm generate` writes the `.mjs` the scripts,
 // the ingest suite's vitest config and the Tower's tests import, and the
 // `.d.mts` beside it.
 
@@ -60,10 +60,6 @@ export function relocatedWorkerConfig(sourceText: string, sourceFile: string): R
   const dir = path.dirname(sourceFile);
   delete config.$schema;
   if (typeof config.main === "string") config.main = path.resolve(dir, config.main);
-  if (config.d1_databases !== undefined &&
-      (!Array.isArray(config.d1_databases) || config.d1_databases.length > 0)) {
-    throw new Error(`${sourceFile} declares D1; NoticeOS supports Postgres only`);
-  }
   return config;
 }
 

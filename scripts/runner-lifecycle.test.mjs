@@ -8,11 +8,9 @@ import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import {
   EXIT_ALREADY_RUNNING,
   EXIT_RUNTIME_COPY,
-  MANAGED_ORPHAN_MAX_AGE_MS,
   beginShutdown,
   ingestDoorEnv,
   isShuttingDown,
-  managedOrphanDecision,
   runnerArmDecision,
   runtimeCopyRefusal,
 } from './runner/lifecycle.mjs';
@@ -22,7 +20,6 @@ import {
 // a real process.
 
 const CONFIG = { ingestHost: '127.0.0.1', ingestPort: 8853 };
-const NOW = Date.parse('2026-09-24T10:00:00.000Z');
 
 test('a free door arms this runner; a held one refuses and names both hazards', () => {
   const free = runnerArmDecision({ ingestPortAnswers: false }, CONFIG);
@@ -35,23 +32,10 @@ test('a free door arms this runner; a held one refuses and names both hazards', 
   assert.notEqual(EXIT_ALREADY_RUNNING, EXIT_RUNTIME_COPY);
 });
 
-test('only a fresh, dead, managed predecessor whose group holds the door is cleaned up', () => {
-  const previous = { managed: true, pid: 41, towerPid: 42, updatedAt: new Date(NOW - 1_000).toISOString() };
-  const owners = [{ pid: 43, pgid: 42 }];
-  const base = { previous, previousRunnerAlive: false, owners, nowMs: NOW };
-  assert.deepEqual(managedOrphanDecision(base).recover, true);
-  assert.equal(managedOrphanDecision({ ...base, previousRunnerAlive: true }).recover, false);
-  assert.equal(managedOrphanDecision({ ...base, owners: null }).recover, false);
-  assert.equal(managedOrphanDecision({ ...base, owners: [{ pid: 9, pgid: 9 }] }).recover, false);
-  assert.equal(managedOrphanDecision({ ...base, previous: { ...previous, managed: false } }).recover, false);
-  const stale = new Date(NOW - MANAGED_ORPHAN_MAX_AGE_MS - 1).toISOString();
-  assert.equal(managedOrphanDecision({ ...base, previous: { ...previous, updatedAt: stale } }).recover, false);
-});
-
-test('a runtime copy needs shared links but no legacy D1 file', async () => {
+test('a code folder apart from home needs its shared links', async () => {
   const home = mkdtempSync(path.join(tmpdir(), 'runner-life-'));
   try {
-    const copy = path.join(home, '.local', 'runtime', 'runtime-a');
+    const copy = path.join(home, 'code');
     const linked = async () => ({ created: [], linked: [], conflicts: [] });
     assert.equal(await runtimeCopyRefusal({ codeRoot: home, homeRoot: home }), null, 'home proves nothing');
     assert.equal(await runtimeCopyRefusal({ codeRoot: copy, homeRoot: home, ensureLinks: linked }), null);

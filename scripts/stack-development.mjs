@@ -1,5 +1,10 @@
 #!/usr/bin/env node
-// Opt-in live source for an existing local stack. Stores and image dependencies stay put.
+// Switch the installation's app between this checkout's live source and its prepared image.
+//
+// Only the app container changes; stores and the image's dependencies stay put.
+//
+//   pnpm os:dev     Run the app from this checkout's live source; edits refresh it.
+//   pnpm os:prod    Run the app from the prepared image it ran before.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -13,7 +18,7 @@ import { stackSnapshot, stackRecoverySnapshot, stackComposition, stackCompose,
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const IMAGE = /^sha256:[a-f0-9]{64}$/u;
-const HELP = 'Usage: stack-development.mjs [--disable] [--config ABSOLUTE_SELECTOR] [--image sha256:ID]';
+const HELP = 'Usage: pnpm os:dev [-- --config ABSOLUTE_SELECTOR] [-- --image sha256:ID]\n       pnpm os:prod [-- --config ABSOLUTE_SELECTOR]';
 const json = value => JSON.stringify(value, null, 2) + '\n';
 const fail = message => { throw new Error(message); };
 
@@ -125,7 +130,7 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
   const up = selection => stackCompose(run,selection,
     ['up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90','noticeos'],env,'Development app switch',130_000);
   try {
-    fs.writeFileSync(handle,json({ pid: process.pid, operation:'stack:dev', selectorFile }));
+    fs.writeFileSync(handle,json({ pid: process.pid, operation:'os:dev', selectorFile }));
     inputHashes = stackInputSeal(selectorFile,selector);
     const model = await stackComposition(run,selector,env);
     const active = model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development';
@@ -153,7 +158,7 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       const override = developmentOverride(root,targetImage,{project:selector.project,stateSource,dependencyFile});
       if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');
       const oldOverride = active ? regular(overrideFile) : null;
-      if (oldOverride !== null && oldOverride !== json(override)) fail('Disable development before selecting another checkout or dependency image.');
+      if (oldOverride !== null && oldOverride !== json(override)) fail('Run pnpm os:prod before selecting another checkout or dependency image.');
       stackAtomic(overrideFile,json(override));
       selected = validateSelector({ ...selector, files:[...selector.files.filter(file=>file!==overrideFile),overrideFile] });
       const afterModel = await stackComposition(run,selected,env);

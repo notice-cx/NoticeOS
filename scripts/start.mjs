@@ -13,14 +13,14 @@
 //   pnpm start -- --no-open          # do not open a browser
 //   pnpm start -- --development --dir .local/development  # foreground-owned synthetic database
 //
-// It is not the managed service. `pnpm os:*` runs an installation's live OS:
-// launchd, the Tower on :5173, the ingest door on :8791, the checkout's own
+// It is not the NoticeOS stack. `pnpm os:*` runs an installation's live OS in
+// Docker Compose: the Tower on :5173, the ingest door on :8791, the checkout's own
 // `.wrangler/state`, `installation/` and secret files. This command uses none
 // of them. Its folder holds local state, its generated secrets, the Worker
 // configs generated beside them (wrangler reads a Worker's secrets from beside
 // its config), its saved-settings exports and its log; its Tower is told so
-// through the same variables the managed service uses (scripts/os-runtime.mjs),
-// and it refuses the managed service's ports outright. scripts/start.test.mjs
+// through the same variables the stack's runner uses (scripts/os-runtime.mjs),
+// and it refuses the stack's ports outright. scripts/start.test.mjs
 // boots it beside a planted store with a tripwire on every owner path and port.
 //
 // An existing Postgres is never started or migrated here. First-run setup is
@@ -30,7 +30,7 @@
 // address as the application login (scripts/database-address.mts) and hands
 // it to the Tower's environment only. One whose database is behind this code
 // stops naming the operator's command. While the folder's secrets file has no
-// DATABASE_URL, the start copies the one line `pnpm postgres:secrets` wrote to
+// DATABASE_URL, the start copies the one line `pnpm db:create-secrets` wrote to
 // the profile's `database.url` into it; without that file it stops in one
 // sentence naming the command to run first. Nothing else moves a secret, and
 // an address already in the folder is never replaced.
@@ -88,11 +88,11 @@ export const DEFAULT_PORT = 4747;
 /** The folder the installation lives in, relative to the checkout. */
 export const DEFAULT_DIR = path.join('.local', 'start');
 /**
- * The managed service's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
+ * The NoticeOS stack's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
  * its ingest door (CONFIG.ingestPort), task hub (CONFIG.beadsHubPort) and the
  * shipped Postgres host port (postgres-secrets.mjs DEFAULT_PORT).
- * Refused even when free — a started Tower holding one would stop the managed
- * service from coming back. scripts/start.test.mjs pins them to CONFIG.
+ * Refused even when free — a started Tower holding one would stop the stack
+ * from coming back. scripts/start.test.mjs pins them to CONFIG.
  */
 export const MANAGED_PORTS = MANAGED_START_PORTS;
 /** The file that says a folder is one `pnpm start` made. */
@@ -159,7 +159,7 @@ export function startPlan({ root = REPO_ROOT, dir = null, port = DEFAULT_PORT } 
  * over another runtime's of the same name. Two wrangler switches that would let
  * the shell's environment choose other secrets are dropped, and so is every
  * pre-rename name of a product variable (scripts/product-env.mts), so an
- * inherited REINDEX_OS_HOME can never point a started Tower at another
+ * inherited REINDEX_OS_INSTALLATION_DIR can never point a started Tower at another
  * installation. The database's address is the folder's own
  * (`database`, from `towerDatabase`): one the shell carries is dropped.
  */
@@ -193,7 +193,7 @@ export function planRefusal(plan, { exists = existsSync, list = readdirSync } = 
       return `--port needs a number from 1024 to 65534, not ${plan.port}.`;
     }
     if (MANAGED_PORTS.includes(port)) {
-      return `port ${port} belongs to the managed service (pnpm os:*); choose another with --port.`;
+      return `port ${port} belongs to the NoticeOS stack; choose another with --port.`;
     }
   }
   const relative = path.relative(plan.home, plan.root);
@@ -268,13 +268,13 @@ export async function takeComposeAddress(plan, { env = process.env } = {}) {
     return {
       ok: false,
       line: error?.code === 'ENOENT'
-        ? `${DATABASE_URL} is not set in ${shown(plan.secrets)} and ${shown(source)} does not exist yet: run pnpm postgres:secrets first (${DATABASE_SETUP} sets the database up).`
+        ? `${DATABASE_URL} is not set in ${shown(plan.secrets)} and ${shown(source)} does not exist yet: run pnpm db:create-secrets first (${DATABASE_SETUP} sets the database up).`
         : `${shown(source)} could not be read, so ${DATABASE_URL} is unknown (${DATABASE_SETUP}).`,
     };
   }
   const line = text.split('\n')[0].trim();
   if (line === '') {
-    return { ok: false, line: `${shown(source)} holds no address; ${DATABASE_SETUP} shows what pnpm postgres:secrets writes there.` };
+    return { ok: false, line: `${shown(source)} holds no address; ${DATABASE_SETUP} shows what pnpm db:create-secrets writes there.` };
   }
   const reading = readDatabaseAddress({ [DATABASE_URL]: line }, shown(source));
   if (!reading.ok) return reading;
@@ -317,7 +317,7 @@ function processAlive(pid) {
 
 // ─── The Tower ───────────────────────────────────────────────────────────────
 
-/** The Tower's dev server — the same child `pnpm os:up` runs, on this folder.
+/** The Tower's dev server — the same child the stack's runner runs, on this folder.
  * Its database address rides in its environment, never its arguments. */
 function spawnTower(plan, logStream, database) {
   const child = spawn(
@@ -551,7 +551,7 @@ async function runPreparedStart(plan, opts, development) {
   }
 
   say(`NoticeOS is running: ${plan.url}`);
-  if (development) say('Development database resets when stopped. Run pnpm seed:local in another terminal.');
+  if (development) say('Development database resets when stopped. Run pnpm db:seed-demo in another terminal.');
   say(`Its data, settings and log are in ${shown(plan.home)}. Ctrl-C stops it.`);
   if (opts.open) openBrowser(plan.url);
 

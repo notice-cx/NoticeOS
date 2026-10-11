@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// The Postgres service's secret files: `pnpm postgres:secrets`, run once by
-// the operator before the Compose service's first start
-// (db/postgres/host/README.md, step 1).
+// Write the Postgres service's secret files, once, before the service's first start.
 //
-//   pnpm postgres:secrets [--dir <folder>] [--port <n>]
+// The operator runs it (db/postgres/host/README.md, step 1).
+//
+//   pnpm db:create-secrets [--dir <folder>] [--port <n>]
 //
 // It makes a new password for each NoticeOS login and writes, into a folder
 // only this account may open (default db/postgres/host/secrets, which git
@@ -77,7 +77,7 @@ export const URLS = { 'owner.url': 'noticeos_owner', 'maint.url': 'noticeos_main
 export const FILES = [...VERIFIERS, ...Object.keys(URLS)];
 
 const COMPOSE = 'db/postgres/host/compose.yaml';
-export const USAGE = `usage: pnpm postgres:secrets [--dir <folder>] [--port <n>]
+export const USAGE = `usage: pnpm db:create-secrets [--dir <folder>] [--port <n>]
 
 Writes the Postgres service's secret files (default ${path.relative(REPO_ROOT, DEFAULT_DIR)}),
 never printing a password. Once, before the service's first start.`;

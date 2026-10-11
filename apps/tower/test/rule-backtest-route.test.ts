@@ -151,7 +151,7 @@ describe("POST /api/alerts/backtest", () => {
 
   it("keeps ingest failures opaque and visibly unavailable", async () => {
     const api = ingest(async () => {
-      throw new Error("D1 detail that must not reach the browser");
+      throw new Error("database detail that must not reach the browser");
     });
     const res = await call(request(), api);
     expect(res.status).toBe(503);

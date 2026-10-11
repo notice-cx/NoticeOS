@@ -13,7 +13,7 @@
 // The copy service listens on a unix socket in a folder only this user can
 // reach, and dies with the process that started the cluster.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and the
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and the
 // `.d.mts`.
 
 import http from 'node:http';

@@ -74,7 +74,7 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 const READ_ONLY_REASON =
   "This deployment has no filesystem: file-owned settings are read-only here. " +
-  "Run the Tower with os:up to edit them, or edit the file and redeploy.";
+  "Start NoticeOS (pnpm os:start) to edit them, or edit the file and redeploy.";
 
 function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
   return {

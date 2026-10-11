@@ -3,7 +3,7 @@
 // Two casing worlds meet here, deliberately (db/README choice #5): pulse
 // envelopes arrive from assets in the docs/02 *camelCase* shape and are stored
 // verbatim, so the in-transit schemas are camelCase; the persisted store rows
-// (FlagRow, the ledger input) are *snake_case* to match the D1 columns the
+// (FlagRow, the ledger input) are *snake_case* to match the store's columns the
 // worker writes and the Tower reads.
 
 import { z } from 'zod';

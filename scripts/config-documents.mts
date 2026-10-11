@@ -1,5 +1,5 @@
 // Authored configuration pipeline. Generate its Node runtime and declarations
-// with pnpm config:generate; config:check rejects stale generated files.
+// with pnpm generate; `pnpm generate -- --check` rejects stale generated files.
 import {
   ASSET_STATUSES as ASSET_STATUS, STORE_COLUMNS as ASSET_COLUMNS,
   DISPLAY_NAME_MAX, CONFIG_ASSET_KEY_RE as ASSET_ID_RE,

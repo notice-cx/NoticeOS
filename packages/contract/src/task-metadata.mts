@@ -4,7 +4,7 @@
 // filed-task badge join on them, so every reader also accepts the older
 // `reindex_*` names and the `reindex-handoff` label.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and `.d.mts`
 // beside it.
 
 export interface TaskMetadataField {

@@ -1,9 +1,9 @@
 // run-command.mjs — run one command and read it to the END of its output.
 //
 // The scripts that wait on a command run it through here: the runner (bd, git,
-// lsof, ps, pgrep, the panel refresh), os:status and os:deploy (launchctl, git,
-// pnpm install), the applied-migration read (sqlite3) and the seed and signal
-// lanes (wrangler). So "when is a command finished?" has one answer: once its
+// lsof, ps, pgrep, the panel refresh), the stack's controls and update (docker
+// compose, git), the backup's R2 metadata snapshots (sqlite3) and the signal
+// lanes. So "when is a command finished?" has one answer: once its
 // output has ended, not merely once it exited.
 //
 // Node can emit a child's 'exit' while its output is still in the pipe (the

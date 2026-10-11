@@ -3,12 +3,13 @@
 //
 // Applies db/postgres/migrations/ to a throwaway cluster or a local database
 // marked for development (scripts/postgres-dev.mjs says exactly what it
-// refuses). Managed runtime, restart and deploy never apply schema.
-// An installation's own database is the
-// operator-only `pnpm os:migrate` (scripts/os-migrate.mjs → scripts/postgres-apply.mjs), which
-// runs this same code and refuses every development database.
+// refuses). The runtime, restart and update never apply schema. An
+// installation's own database is the operator-only `pnpm os:migrate`
+// (scripts/os-migrate.mjs → scripts/postgres-apply.mjs), which runs this same
+// code and refuses every development database.
 //
-//   pnpm db:new-migration <name>                          the next numbered migration file
+//   pnpm db:new-migration <name>  Write the next numbered migration file.
+//   pnpm db:try-migrations  Run the migrations on a throwaway development database.
 //   pnpm db:try-migrations status --dir <folder> | --url <postgres://…_dev> [--json]
 //   pnpm db:try-migrations apply  --dir <folder> | --url <postgres://…_dev>
 //   pnpm db:try-migrations bootstrap --dir <folder> | --url <…> --slug <slug> [--name <display name>]
@@ -140,8 +141,8 @@ COMMIT;
  * Read-only: every migration file and every recorded one, with its state —
  * `applied`, `pending`, `changed` (recorded with another hash), `missing`
  * (recorded, no file) or `out-of-order` (pending but older than the newest
- * applied), as scripts/postgres-migration-states.mjs derives them for
- * `pnpm os:deploy` too. `problems` lists the ones that stop an apply.
+ * applied), as scripts/postgres-migration-states.mjs derives them. `problems`
+ * lists the ones that stop an apply.
  */
 export function migrationStatus(dev, { dir = MIGRATIONS_DIR } = {}) {
   return { where: dev.where, ...migrationStates(readMigrations(dir), recorded(dev)) };

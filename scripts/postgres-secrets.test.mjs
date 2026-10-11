@@ -9,7 +9,7 @@ import { checkTarget } from './postgres-apply.mjs';
 import { DEFAULT_DIR, FILES, URLS, VERIFIERS, main, writeSecrets } from './postgres-secrets.mjs';
 
 // THE POSTGRES SERVICE'S SECRET FILES: `pnpm
-// postgres:secrets`, scripts/postgres-secrets.mjs, which the Compose profile
+// db:create-secrets`, scripts/postgres-secrets.mjs, which the Compose profile
 // (db/postgres/host/) reads. No Postgres and no container app needed:
 //   - every file is written, in a folder only this account may open, a
 //     verifier readable in it (the container's own user reads it) and a

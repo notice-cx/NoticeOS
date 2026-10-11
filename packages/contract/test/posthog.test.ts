@@ -85,7 +85,7 @@ describe('PostHog archive contract', () => {
 // The family list and each row's fields are declared once, in
 // src/posthog-families.mts. This suite reads the generated
 // posthog-families.mjs (the file the plain-Node flattener imports), so a stale
-// generation fails here as well as in `config:generate --check`.
+// generation fails here as well as in `pnpm generate -- --check`.
 describe('PostHog family fields — one definition', () => {
   it('builds every row schema from exactly the listed fields, in the listed order', () => {
     expect(Object.keys(POSTHOG_FAMILY_ROWS)).toEqual([...POSTHOG_FAMILIES]);

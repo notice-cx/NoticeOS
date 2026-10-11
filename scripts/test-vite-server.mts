@@ -25,7 +25,7 @@
 //
 // It never imports Vite (scripts/ cannot resolve it): the caller hands in
 // Vite's `createServer`, and only the parts read here are typed. Authored
-// TypeScript: `pnpm config:generate` writes the `.mjs` and the `.d.mts`.
+// TypeScript: `pnpm generate` writes the `.mjs` and the `.d.mts`.
 
 import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';

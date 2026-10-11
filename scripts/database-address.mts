@@ -13,7 +13,7 @@
 // argument, a file or a Worker binding. Nothing here applies schema: the
 // check reads, as the application login, which migrations the database has.
 // `readRecordedMigrations` is the one way the OS reads
-// noticeos_migrations.applied, for every start and for `pnpm os:deploy`.
+// noticeos_migrations.applied, for every start.
 
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
@@ -293,15 +293,4 @@ export async function towerDatabase(options: TowerDatabaseOptions): Promise<{ re
   const checked = await checkDatabase(reading.address, options);
   if (!checked.ok) return checked;
   return { ok: true, env: databaseEnv(reading.address) };
-}
-
-/**
- * Which migrations this installation's database records, read through the
- * address every start reads: what `pnpm os:deploy` holds a commit's Postgres
- * migrations against. Never throws, and never repeats the address.
- */
-export async function recordedMigrations(options: AddressSource & Pick<CheckOptions, 'open'>): Promise<RecordedMigrations> {
-  const reading = await readAddress(options);
-  if (!reading.ok) return reading;
-  return readRecordedMigrations(reading.address, options);
 }

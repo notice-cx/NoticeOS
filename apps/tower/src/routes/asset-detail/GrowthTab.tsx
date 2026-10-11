@@ -70,7 +70,7 @@ export function GrowthTab({
 
   return (
     <div id="growth-evidence" className="flex scroll-mt-4 flex-col gap-5">
-      {/* The block that is this tab's answer (`surface:audit`): the audience
+      {/* The block that is this tab's answer (`audit:surfaces`): the audience
           pair is where the eye has to land. */}
       <section
         id="performance"

@@ -201,7 +201,7 @@ export class UnknownCronError extends Error {
 /**
  * Run the job `cron` names, every lane as a traced step. An expression no
  * scheduled job runs on is refused before anything runs, config included: a
- * mistyped `pnpm os:cron`, or a trigger added without a job, fails by name
+ * mistyped `pnpm os:run-job`, or a trigger added without a job, fails by name
  * instead of running every collector and the notifier at an unplanned time.
  */
 export async function runCron(cron: string, env: IngestEnv, trace?: WorkflowRecorder): Promise<void | ScheduledRunResult> {

@@ -1,5 +1,5 @@
 // The record every scheduled lane leaves, and the recovery it allows after
-// downtime. Shared by the managed service's runner (scripts/os-up.mjs) and
+// downtime. Shared by the NoticeOS stack's runner (scripts/os-up.mjs) and
 // `pnpm start`'s schedule (scripts/start-schedule.mjs). Every effect — the
 // file, the clock, the log, the store — is passed in.
 //
@@ -322,7 +322,7 @@ export async function shipJobRunQueue(record, { state, post = fetch, readToken, 
  * dispatch refuses them as `unknown_cron`.
  *
  * These are the ingest's own crons (workers/ingest/wrangler.jsonc). The
- * managed service adds its host lanes (scripts/runner/scheduler.mjs
+ * stack's runner adds its host lanes (scripts/runner/scheduler.mjs
  * STARTUP_CATCHUP_POLICIES).
  */
 export const CRON_CATCHUP_POLICIES = Object.freeze([

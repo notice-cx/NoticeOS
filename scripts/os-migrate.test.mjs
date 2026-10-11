@@ -3,7 +3,8 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
-import { main, ownerTarget, readEnvFile, stackSecretsDir } from './os-migrate.mjs';
+import { main } from './os-migrate.mjs';
+import { readEnvFile, secretAddress, stackDatabaseCurrent, stackSecretsDir } from './stack-database.mjs';
 
 const OWNER_URL = 'postgresql://noticeos_owner:s3cret@127.0.0.1:5432/noticeos';
 
@@ -57,11 +58,11 @@ test('the secrets folder is the env file’s NOTICEOS_POSTGRES_SECRETS, relative
 
 test('the database comes from owner.url, and a missing or malformed file is refused by name', (t) => {
   const { secrets } = stack(t);
-  assert.deepEqual(ownerTarget(secrets), { url: OWNER_URL, database: 'noticeos' });
+  assert.deepEqual(secretAddress(secrets), { url: OWNER_URL, database: 'noticeos', where: path.join(secrets, 'owner.url') });
   const empty = stack(t, { ownerUrl: null });
-  assert.throws(() => ownerTarget(empty.secrets), /no owner\.url in .*--secrets <folder>/u);
+  assert.throws(() => secretAddress(empty.secrets), /no owner\.url in the stack's Postgres secrets folder /u);
   writeFileSync(path.join(empty.secrets, 'owner.url'), 'not a url\n');
-  assert.throws(() => ownerTarget(empty.secrets), /does not hold a postgresql:\/\/ address/u);
+  assert.throws(() => secretAddress(empty.secrets), /does not hold a postgresql:\/\/ address/u);
 });
 
 test('with no flags it shows status for the stack’s database, the address only in the child environment', async (t) => {
@@ -106,4 +107,24 @@ test('--secrets names the folder directly; a missing selector or both steps at o
   const both = await runMigrate(['--apply', '--bootstrap', '--secrets', secrets]);
   assert.equal(both.result, 2);
   assert.match(both.err, /--apply or --bootstrap, not both/u);
+});
+
+test('the stack’s database is current when the application login’s check says so, and a missing address is named', async (t) => {
+  const { selector, secrets } = stack(t);
+  const declared = JSON.parse(readFileSync(selector, 'utf8'));
+  const seen = [];
+  const check = async (address, options) => {
+    seen.push({ address, options });
+    return { ok: false, line: 'the database is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date' };
+  };
+  const missing = await stackDatabaseCurrent(declared, { root: '/checkout', check });
+  assert.equal(missing.ok, false);
+  assert.match(missing.line, /no database\.url in the stack's Postgres secrets folder /u);
+  assert.equal(seen.length, 0);
+  writeFileSync(path.join(secrets, 'database.url'), 'postgresql://noticeos_app:s3cret@127.0.0.1:5432/noticeos\n');
+  await stackDatabaseCurrent(declared, { root: '/checkout', check });
+  assert.deepEqual(seen[0], {
+    address: { url: 'postgresql://noticeos_app:s3cret@127.0.0.1:5432/noticeos' },
+    options: { where: path.join(secrets, 'database.url'), migrationsDir: path.join('/checkout', 'db', 'postgres', 'migrations') },
+  });
 });

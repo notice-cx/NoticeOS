@@ -24,7 +24,7 @@ test('an opaque register says its rows move whole; a field register carries a ta
   assert.match(fielded, /\| `id` \| Id \| `string` \| yes \| lowercase \| — \|/u);
 });
 
-test('every owning README exists and carries the current block (pnpm config:docs -- --write refreshes it)', () => {
+test('every owning README exists and carries the current block (pnpm generate refreshes it)', () => {
   for (const [owner, block] of blocks()) {
     const file = path.join(REPO_ROOT, owner);
     assert.ok(existsSync(file), `${owner} is named as a register's owner but does not exist`);

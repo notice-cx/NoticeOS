@@ -118,14 +118,14 @@ test('a rejected write fails loudly and carries the store’s reason', async () 
   await fs.rm(dir, { recursive: true, force: true });
 });
 
-test('a door that does not answer names os:up', async () => {
+test('a door that does not answer names os:status', async () => {
   const { dir, file } = await scratch();
   const post = async () => {
     throw new Error('fetch failed');
   };
   await assert.rejects(
     publishExecutiveSnapshot({ asset: 'meadow.example', file, post, token: 'op' }),
-    /os:up/,
+    /os:status/,
   );
   await fs.rm(dir, { recursive: true, force: true });
 });

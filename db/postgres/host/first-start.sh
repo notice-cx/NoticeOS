@@ -8,7 +8,7 @@
 # (db/postgres/README.md):
 #   - the three roles, from db/postgres/roles.sql as it is;
 #   - a login for each, whose password the server receives only as the
-#     SCRAM-SHA-256 verifier `pnpm postgres:secrets` wrote, never the password
+#     SCRAM-SHA-256 verifier `pnpm db:create-secrets` wrote, never the password
 #     itself: pg_stat_statements keeps an ALTER ROLE word for word;
 #   - the empty noticeos database, owned by noticeos_owner, which only the
 #     application and maintenance roles may connect to besides its owner;
@@ -26,7 +26,7 @@
   verifier='^SCRAM-SHA-256\$[0-9]+:[A-Za-z0-9+/]+=*\$[A-Za-z0-9+/]+=*:[A-Za-z0-9+/]+=*$'
   for login in noticeos_owner noticeos_maint noticeos_app; do
     if ! [[ "$(cat "$secrets/$login" 2>/dev/null)" =~ $verifier ]]; then
-      echo "noticeos first start: $secrets/$login is not a SCRAM-SHA-256 verifier; make the secret files with pnpm postgres:secrets" >&2
+      echo "noticeos first start: $secrets/$login is not a SCRAM-SHA-256 verifier; make the secret files with pnpm db:create-secrets" >&2
       exit 1
     fi
   done

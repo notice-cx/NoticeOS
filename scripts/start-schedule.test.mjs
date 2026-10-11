@@ -1,6 +1,6 @@
 // The schedule of an installation `pnpm start` runs: the
 // ingest's crons, fired at that installation's door, recorded in its folder,
-// shipped to its store — and none of the managed service's host lanes.
+// shipped to its store — and none of the NoticeOS stack's host lanes.
 //
 // Driven against a fake door on loopback, so each assertion is about where a
 // request or a file actually went. scripts/start.test.mjs proves the same on a
@@ -71,7 +71,7 @@ test('a started installation schedules every cron the ingest declares, and none 
   assert.ok(jobs.length > 0);
   assert.deepEqual(jobs.map((job) => job.cron).sort(), [...INGEST_CRONS].sort(), 'one job per ingest cron');
   assert.equal(jobs.some((job) => job.local), false);
-  // The host lanes the managed runner adds: task hub, filers, push state,
+  // The host lanes the stack's runner adds: task hub, filers, push state,
   // local panels, backup.
   const host = SCHEDULED_JOBS.filter((job) => job.local).map((job) => job.id);
   assert.deepEqual(host.sort(), ['backup', 'beads-hub', 'beads-snapshot', 'panel-refresh', 'panel-review', 'push-state', 'task-map', 'watch-readbacks']);
@@ -195,7 +195,7 @@ async function settingsDoor(t, { spokes = [] } = {}) {
   return { door: `http://127.0.0.1:${server.address().port}`, requests };
 }
 
-/** The managed runner's task board code, with `bd` answered here. */
+/** The stack's runner's task board code, with `bd` answered here. */
 async function taskBoardRunner(bdCalls) {
   const { runBeadsPoll } = await import('./runner/task-snapshot.mjs');
   const { probeTcp } = await import('./runner/host-tools.mjs');

@@ -2,7 +2,7 @@
 // the answer as data (`ledger_entries.coverage_end`), and both writers of that
 // column (`pnpm postgres:import` and the ledger route) apply this one rule.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and `.d.mts`
 // beside it.
 
 /** The sources whose monthly estimates a month of Mediavine daily estimates

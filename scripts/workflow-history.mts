@@ -1,7 +1,7 @@
 // The local runner's workflow history: one JSONL line per finished run and an
 // active-run heartbeat, both under `.local/`. Node-only.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the local runner imports and the `.d.mts` the Tower's Vite lanes read.
 
 import fs from 'node:fs/promises';
@@ -27,7 +27,7 @@ export interface WorkflowHistory {
 
 /**
  * The workflow history of the installation whose state is under `root`: the
- * checkout for the managed runner (its runtime copy links `.local` to home),
+ * home folder for the stack's runner (its code folder links `.local` to home),
  * the installation's own folder for `pnpm start`. The Tower
  * reads the same two files under its home (apps/tower/vite/workflow-history.ts).
  */
@@ -93,7 +93,7 @@ export function createWorkflowHistory(root: string): WorkflowHistory {
   return { publishHeartbeat, beginRun };
 }
 
-// The managed runner's history: this checkout's `.local/`.
+// The stack's runner's history: this code folder's `.local/`.
 const checkoutHistory = createWorkflowHistory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));
 export function publishWorkflowHeartbeat(): Promise<void> { return checkoutHistory.publishHeartbeat(); }
 export function beginWorkflowRun(job: string, startedAtMs: number): null | WorkflowRunTrace { return checkoutHistory.beginRun(job, startedAtMs); }

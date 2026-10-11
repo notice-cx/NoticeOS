@@ -247,7 +247,7 @@ describe("KnobEditor — a setting saves where it stands", () => {
   it("disables a file-owned field on a deployment that has no filesystem, and says why", async () => {
     const reason =
       "This deployment has no filesystem: file-owned settings are read-only here. " +
-      "Run the Tower with os:up to edit them, or edit the file and redeploy.";
+      "Start NoticeOS (pnpm os:start) to edit them, or edit the file and redeploy.";
     stubFetch({ status: 501, body: { error: "read_only_deployment" } }, { writable: false, reason });
     renderAlpha();
 

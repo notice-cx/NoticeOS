@@ -8,6 +8,7 @@ import {
   beadsDatabaseDrift,
   beadsShowDatabasesArgs,
   parseBeadsDatabases,
+  readOsAsset,
   runTaskMapCheck,
   taskMapBeadAsset,
   taskMapTitle,
@@ -93,4 +94,19 @@ test('a hub that will not answer, or no OS site to file into, decides nothing', 
   const missingSpoke = lane({ home: 'missing.example' });
   assert.equal(await runTaskMapCheck(missingSpoke.deps), null);
   assert.equal(missingSpoke.ran.length, 0, 'no hub read or write occurs without the linked OS project');
+});
+
+test('the OS asset is whichever asset the store names, and an unanswered read is null', async () => {
+  const url = 'http://127.0.0.1:8791/api/os-asset';
+  const answer = (status, body) => async (requested, init) => {
+    assert.equal(requested, url);
+    assert.equal(init.headers.authorization, 'Bearer operator-token');
+    return { ok: status === 200, status, json: async () => body };
+  };
+  const readToken = async () => 'operator-token';
+  assert.equal(await readOsAsset({ url, readToken, get: answer(200, { asset: 'os.example.com' }) }), 'os.example.com');
+  assert.equal(await readOsAsset({ url, readToken, get: answer(200, { asset: '' }) }), null);
+  assert.equal(await readOsAsset({ url, readToken, get: answer(503, {}) }), null);
+  assert.equal(await readOsAsset({ url, readToken: async () => null, get: answer(200, { asset: 'x' }) }), null);
+  assert.equal(await readOsAsset({ url, readToken, get: async () => { throw new Error('connect ECONNREFUSED'); } }), null);
 });

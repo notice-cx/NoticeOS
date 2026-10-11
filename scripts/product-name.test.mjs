@@ -22,10 +22,6 @@ export const OLD_PRODUCT_NAME = /reindex(?:\s|<[^>]*>)*os\b/i;
 /** The capitalised word standing alone, as a sentence used it for the product. */
 export const OLD_SHORT_NAME = /(?<![-\w])Reindex(?![-\w])(?!\s+Ventures)/;
 
-/** Names a running installation keeps on purpose (docs/06-operations.md
- * § Legacy names): removed from the text before rule 1 reads it. */
-export const LEGACY_NAMES = Object.freeze(['com.reindexos.local']);
-
 /** Historical records, each with why it keeps its original wording. */
 export const HISTORICAL_PATHS = Object.freeze({
   'docs/reports/': 'Dated reports: a record of what was found under the name of the day.',
@@ -85,9 +81,7 @@ function withoutSharedBlocks(file, text) {
 export function oldNameLines(text) {
   const found = [];
   text.split('\n').forEach((line, index) => {
-    let scrubbed = line;
-    for (const legacy of LEGACY_NAMES) scrubbed = scrubbed.split(legacy).join('');
-    if (OLD_PRODUCT_NAME.test(scrubbed) || OLD_SHORT_NAME.test(scrubbed)) {
+    if (OLD_PRODUCT_NAME.test(line) || OLD_SHORT_NAME.test(line)) {
       found.push({ line: index + 1, text: line.trim().slice(0, 160) });
     }
   });
@@ -100,7 +94,7 @@ export function oldNameLines(text) {
 const PRODUCT_CODE_ROOTS = ['apps/tower/src/', 'apps/tower/shared/', 'apps/tower/worker/', 'apps/tower/vite/', 'apps/tower/e2e/',
   'workers/ingest/src/', 'packages/contract/src/', 'packages/mediavine/src/', 'scripts/'];
 const PRODUCT_CODE_FILES = ['apps/tower/vite.config.ts', 'apps/tower/index.html', 'workers/ingest/wrangler.jsonc', 'apps/tower/wrangler.jsonc'];
-const CODE = /\.(?:tsx?|mts|mjs|js|jsonc?|html|css|plist)$/;
+const CODE = /\.(?:tsx?|mts|mjs|js|jsonc?|html|css)$/;
 const TEST_FILE = /(?:\.test\.|\/test\/|-test\.|\.spec\.)/;
 
 export function isProductCode(file) {
@@ -139,8 +133,8 @@ export const LEGACY_LITERALS = Object.freeze([
   }),
   Object.freeze({
     pattern: /["']com\.reindexos\.local["']/,
-    registry: ['scripts/resource-names.mts', 'scripts/resource-names.mjs', 'scripts/resource-names.d.mts'],
-    what: 'the launchd label a service installed before the rename keeps',
+    registry: [],
+    what: 'the retired launchd label',
   }),
   // An older store's database and bucket names live in that installation's
   // own folder (resource-names.json), never in product code or the Worker
@@ -182,7 +176,7 @@ test('the rule sees every way the old name was written', () => {
     'Reindex owns the credential store', "Check Reindex’s database"]) {
     assert.equal(oldNameLines(sample).length, 1, sample);
   }
-  for (const sample of ['NoticeOS', 'reindex-os', 'reindex_key', 'reindex-os-central', 'launchctl print gui/501/com.reindexos.local', 'Reindex Ventures',
+  for (const sample of ['NoticeOS', 'reindex-os', 'reindex_key', 'reindex-os-central', 'Reindex Ventures',
     'X-Reindex-Runner-Door', 'ReindexSignIn']) {
     assert.deepEqual(oldNameLines(sample), [], sample);
   }
@@ -225,7 +219,7 @@ test('the browser tab and the lockup say NoticeOS', () => {
 test('the code-name rule reads the product code and leaves tests alone', () => {
   assert.ok(CODE_FILES.length > 300, `only ${CODE_FILES.length} code files in scope — the listing did not resolve`);
   for (const file of ['scripts/os-up.mjs', 'apps/tower/vite/runner-door.ts', 'workers/ingest/src/posthog-dumps.ts', 'packages/mediavine/src/index.ts',
-    'apps/tower/src/lib/task-handoff.ts', 'scripts/launchd/local-service.plist']) {
+    'apps/tower/src/lib/task-handoff.ts', 'scripts/os-migrate.mjs']) {
     assert.ok(CODE_FILES.includes(file), `${file} must be read by the code-name rule`);
   }
   for (const file of ['scripts/os-up.test.mjs', 'apps/tower/test/browser-storage.test.tsx', 'apps/tower/e2e/journeys.spec.ts']) {
@@ -242,10 +236,10 @@ test('the code-name rule sees every retired name, and lets the registries and th
     "const LABEL = 'com.reindexos.local';", "const DB_NAME = 'reindex-os-central';"]) {
     assert.equal(codeNameProblems('scripts/example.mjs', line).length, 1, line);
   }
-  assert.deepEqual(codeNameProblems('scripts/product-env.mts', 'home: { name: "NOTICEOS_HOME", legacy: "REINDEX_OS_HOME" },'), []);
+  assert.deepEqual(codeNameProblems('scripts/product-env.mts', 'installationDir: { name: "NOTICEOS_INSTALLATION_DIR", legacy: "REINDEX_OS_INSTALLATION_DIR" },'), []);
   // Prose about the legacy names, and ids that stay ids, pass.
   for (const line of ['// a bead filed before the rename carries `reindex_*` and `reindex-handoff`', "asset: 'reindex-os'", 'reindex-os-central',
-    '<string>com.reindexos.local</string>', 'Reindex Ventures LLC']) {
+    'Reindex Ventures LLC']) {
     assert.deepEqual(codeNameProblems('scripts/example.mjs', line), [], line);
   }
 });

@@ -1,5 +1,5 @@
 // runner/host-tools.mjs — how the local runner finds this host's tools (`bd`,
-// `git`, `lsof`) under launchd's bare PATH, and the TCP probe it asks "does
+// `git`, `lsof`) under a service's minimal PATH, and the TCP probe it asks "does
 // anything answer here?" with. Running them is scripts/run-command.mjs's job.
 
 import { existsSync } from 'node:fs';
@@ -7,9 +7,9 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 
-// launchd hands us a minimal PATH, not the login shell's, so bd is not reliably
+// A service gets a minimal PATH, not the login shell's, so bd is not reliably
 // resolvable by name. Look where its installer puts it before falling back to a
-// bare name (which works when a human runs os:up).
+// bare name (which works from a login shell).
 const BD_CANDIDATES = [
   path.join(os.homedir(), '.local', 'bin', 'bd'),
   '/opt/homebrew/bin/bd',

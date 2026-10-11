@@ -22,7 +22,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const RESERVED_PORTS = [3306, 3307, 3308, 4747, 5173, 5432, 8791];
 const TARGET_ENV = [PRODUCT_ENV.home.name, PRODUCT_ENV.installationDir.name, 'NOTICEOS_DOLT_HOME', PRODUCT_ENV.workerConfigRoot.name,
   'NOTICEOS_DEMO_VIEWER_FILE', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'DATABASE_URL',
-  PRODUCT_ENV.home.legacy, PRODUCT_ENV.installationDir.legacy, PRODUCT_ENV.workerConfigRoot.legacy];
+  PRODUCT_ENV.installationDir.legacy, PRODUCT_ENV.workerConfigRoot.legacy];
 
 const INSPECT = '{"id":{{json .Id}},"image":{{json .Config.Image}},"labels":{{json .Config.Labels}},"mounts":{{json .Mounts}},"ports":{{json .NetworkSettings.Ports}},"state":{{json .State}}}';
 const refuse = () => { throw new Error('The demo resources differ from their declared local profile.'); };

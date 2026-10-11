@@ -64,7 +64,7 @@ export async function handleRunnerRequest(
     try {
       const answer = await ingest.runScheduled(cron);
       // No scheduled job runs on this expression: nothing ran, and the runner
-      // and `pnpm os:cron` report the refusal by its name.
+      // and `pnpm os:run-job` report the refusal by its name.
       if (answer?.refused) return jsonError(answer.refused, 400, { cron, message: answer.detail });
       const result = withTowerSteps(answer, await towerCron(cron));
       return new Response(JSON.stringify({ ok: true, cron, ...result }), {

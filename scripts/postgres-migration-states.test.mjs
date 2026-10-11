@@ -1,5 +1,5 @@
 // The state of each Postgres migration: one derivation
-// for the runner's status, `pnpm os:migrate` and `pnpm os:deploy`.
+// for the runner's status and `pnpm os:migrate`.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';

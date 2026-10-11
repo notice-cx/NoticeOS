@@ -3287,7 +3287,7 @@ describe("buildWallPayload — what the comparison table reads off a card", () =
     expect(card.netByMonthProvisionalFrom).toBeNull();
   });
 
-  /** `series` is the Wall's drawn window, so the card chart and `wall:fit` are
+  /** `series` is the Wall's drawn window, so the card chart and `audit:wall-fit` are
    * untouched; the other sixty-two days ride in `contextSeries`, and a desk
    * surface offering 90d reads the two together. */
   it("carries ninety days as twenty-eight drawn and sixty-two behind them", async () => {

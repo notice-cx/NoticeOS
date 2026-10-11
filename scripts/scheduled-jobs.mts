@@ -1,6 +1,6 @@
 // Stable job identities are separate from their editable local run times.
 //
-// Authored TypeScript: `pnpm config:generate` writes the
+// Authored TypeScript: `pnpm generate` writes the
 // `.mjs` the Tower, the Workers' config pipeline and the local runner import,
 // and the `.d.mts` beside it.
 

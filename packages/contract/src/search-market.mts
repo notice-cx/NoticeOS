@@ -1,7 +1,7 @@
 // A site's search market: the location and language its DataForSEO reports
 // are asked in, one rule for the collector, the findings and the Tower.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and `.d.mts`
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and `.d.mts`
 // beside it.
 
 export interface SearchMarket { locationCode: number; languageCode: string }

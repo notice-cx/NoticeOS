@@ -25,7 +25,7 @@
 // The application role's password is made at the cluster's start and lives
 // only in this run's memory; it is never written to a file.
 //
-// Authored TypeScript: `pnpm config:generate` writes the `.mjs` and the
+// Authored TypeScript: `pnpm generate` writes the `.mjs` and the
 // `.d.mts`.
 
 import http from 'node:http';
@@ -133,9 +133,8 @@ export interface TestCluster extends TestClusterOperations {
   /** What the run's test processes reach it by (scripts/postgres-test-copies.mts). */
   readonly handle: TestClusterHandle;
   /** Run `sql` in one of the cluster's copies as its owner: how a test
-   * clears or changes rows the application role may not, the way a D1 test
-   * ran any statement on its store. Only the starting process can. Resolves
-   * the rows of its last statement. */
+   * clears or changes rows the application role may not. Only the starting
+   * process can. Resolves the rows of its last statement. */
   asOwner(database: string, sql: string): Promise<OwnerRow[]>;
   /** Resolves once no copy given back is still being emptied and no spare is
    * being made (a copy given back waits as a spare only after that). */

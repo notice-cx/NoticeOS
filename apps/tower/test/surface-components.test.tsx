@@ -1068,7 +1068,7 @@ describe("ListPanel", () => {
   });
 
   /** A mark that describes the row has to sit on the row: the materiality
-   * suite and `pnpm surface:audit` both read these by selector. */
+   * suite and `pnpm audit:surfaces` both read these by selector. */
   it("spreads a caller's data marks onto the row itself", () => {
     const { container } = inRouter(
       <ListPanel title="Needs you">
@@ -1181,7 +1181,7 @@ describe("StatusBanner", () => {
 
 describe("the audit contract", () => {
   /** Every surface component that has anything to mark or press, in one tree —
-   * which is how `pnpm surface:audit` meets them on a real route. */
+   * which is how `pnpm audit:surfaces` meets them on a real route. */
   function everySurface() {
     return inRouter(
       <>

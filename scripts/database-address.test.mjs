@@ -3,7 +3,7 @@
 // login, and handed to the dev server's environment as the POSTGRES binding's
 // local address — or one sentence that stops the start and never repeats any
 // part of the address. The migration record is read one way, by the start's
-// check and by `pnpm os:deploy`.
+// check and by `pnpm os:update`.
 
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -23,7 +23,6 @@ import {
   databaseEnv,
   readDatabaseAddress,
   readRecordedMigrations,
-  recordedMigrations,
   towerDatabase,
 } from './database-address.mjs';
 import { LOCAL_CONNECTION_VARIABLE as TESTS_VARIABLE } from './postgres-test-copies.mjs';
@@ -224,18 +223,6 @@ test('the record is read as the application login, only read, with each version,
     assert.equal(failed.closed, true);
   }
 
-  // Through the secrets file, as a deploy reads it: nothing is connected to without an address.
-  let opened = 0;
-  const open = () => ((opened += 1), fakeStore({ applied: [{ version: 1, name: '0001_baseline', sha256: sha }] }));
-  const missing = await recordedMigrations({ where: WHERE, readBindings: async () => ({ bindings: { OPERATOR_TOKEN: 'x' } }), open });
-  assert.match(missing.line, /DATABASE_URL is not set in/u);
-  const unreadable = await recordedMigrations({ where: WHERE, readBindings: async () => { throw new Error(`bad JSON near "${PLANTED}"`); }, open });
-  assert.match(unreadable.line, /could not be read, so DATABASE_URL is unknown/u);
-  assertNothingRepeated(unreadable.line);
-  assert.equal(opened, 0);
-  const read = await recordedMigrations({ where: WHERE, readBindings: async () => ({ bindings: { [DATABASE_URL]: PLANTED } }), open });
-  assert.deepEqual(read, { ok: true, records: [{ version: 1, name: '0001_baseline', sha256: sha }] });
-  assert.equal(opened, 1);
 });
 
 // ─── On a real Postgres ─────────────────────────────────────────────────────

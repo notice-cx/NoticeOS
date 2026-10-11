@@ -12,7 +12,7 @@
 // down cleanly on SIGINT/SIGTERM.
 //
 // Modes: (default) supervise with loopback Tower · --host (network Tower) ·
-// --tick "<expr>" (os:cron) · --backup (os:backup). See scripts/README.md.
+// --tick "<expr>" (os:run-job) · --backup (os:backup). See scripts/README.md.
 
 import { spawn, spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -20,10 +20,8 @@ import { syncDevVarsIfPresent } from './dev-secrets.mjs';
 import { runBackup as backupHost, backupRunOutcome } from './host-backup.mjs';
 import { requestContainerBackup } from './container-backup-channel.mjs';
 import { doorErrorCode, localDoorFetch } from './ingest-door.mjs';
-import { createDeployForwardState, deployLogSource, forwardOsDeploysToStore } from './os-deploy-forward.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runtimeChildEnv, samePath } from './os-runtime.mjs';
-import { readProductEnv } from './product-env.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 // One responsibility per module under scripts/runner/; the port map and every
 // knob live in scripts/runner/config.mjs.
@@ -36,7 +34,6 @@ import {
   REPO_ROOT,
   RUNNER_STATE_FILE,
   SECRET_FILES,
-  STATE,
 } from './runner/config.mjs';
 import { runnerDatabase } from './runner/database.mjs';
 import { towerDependenciesReady, towerLaunch } from './runner/tower-launch.mjs';
@@ -49,13 +46,10 @@ import {
   beginShutdown,
   ingestDoorEnv,
   isShuttingDown,
-  readPreviousRunnerState,
-  recoverManagedOrphan,
   runnerArmDecision,
   runtimeCopyRefusal,
 } from './runner/lifecycle.mjs';
 import { closeLog, log, openLog, ts, writeLine } from './runner/log.mjs';
-import { operatorToken } from './runner/operator-token.mjs';
 import { runPanelRefresh } from './runner/panel-refresh.mjs';
 import { runPanelReviewFiler } from './runner/panel-review.mjs';
 import { runPushStateFiler } from './runner/push-state.mjs';
@@ -75,16 +69,12 @@ async function ensureDirs() {
 const runnerState = {
   schemaVersion: 1,
   pid: process.pid,
-  managed: readProductEnv(process.env, 'managed') === '1',
   startedAt: null,
   updatedAt: null,
   status: 'starting',
   towerReady: false,
   towerPid: null,
   schedulerArmed: false,
-  // Which code this runner is: `pnpm os:status` compares the commit with
-  // main, and `pnpm os:deploy` requires the restarted runner to report it.
-  codeRoot: REPO_ROOT,
   homeRoot: HOME_ROOT,
   commit: null,
 };
@@ -253,7 +243,7 @@ export async function startChild(child) {
       log(
         'ERROR',
         `${child.tag} died ${CONFIG.maxRapidRestarts}+ times in a row within ${CONFIG.rapidWindowMs}ms each — GIVING UP. ` +
-          `Fix the cause and restart os:up.`,
+          `Fix the cause and run pnpm os:restart.`,
       );
       return;
     }
@@ -333,43 +323,8 @@ export function hostLanes(runtime) {
   };
 }
 
-// OS deploys → the store. `pnpm os:deploy` records every move of the live OS
-// in this host's deploy log; the Wall feed reads only the store. Once a minute
-// the runner forwards what the log holds as annotations on the OS asset
-// (scripts/os-deploy-forward.mjs). The record of a failed deploy's rollback
-// is written after the new runner is up, so a start-up pass alone would miss
-// it.
-
-/** How often the deploy log is re-read. */
-export const DEPLOY_FORWARD_INTERVAL_MS = 60_000;
-const deployForwardState = createDeployForwardState();
-
-async function forwardDeploysOnce(runtime) {
-  if (isShuttingDown() || !runtime.running || !runtime.ready) return;
-  try {
-    // Filed against the OS asset as the store names it (`assets.is_os`).
-    const result = await forwardOsDeploysToStore({
-      source: deployLogSource(STATE.deploysFile),
-      config: CONFIG,
-      readToken: operatorToken,
-      state: deployForwardState,
-    });
-    if (result?.sent) log('INFO', `OS deploys → store: ${result.sent} recorded for the Wall feed`);
-  } catch (err) {
-    log('WARN', `OS deploy forwarding failed: ${err?.message ?? err}`);
-  }
-}
-
-function startDeployForwarding(runtime) {
-  const timer = setInterval(() => void forwardDeploysOnce(runtime), DEPLOY_FORWARD_INTERVAL_MS);
-  trackTimer(timer);
-  void waitForRuntime(runtime)
-    .then(() => forwardDeploysOnce(runtime))
-    .catch(() => {});
-}
-
 /**
- * What `pnpm os:cron` says when the dispatch refused the expression: the
+ * What `pnpm os:run-job` says when the dispatch refused the expression: the
  * refusal by name, then the expressions it does run. Null for any other
  * failure.
  */
@@ -379,8 +334,8 @@ export function tickRefusal(expr, code) {
   return `tick: refused "${expr}" — unknown_cron: no scheduled job runs on it; nothing ran. Scheduled: ${known.join(', ')}`;
 }
 
-// os:cron: fire one scheduled endpoint immediately and exit. Assumes os:up is
-// already running.
+// os:run-job: fire one scheduled endpoint immediately and exit. Assumes the
+// runner is already up.
 async function tickOnce(expr) {
   const url = scheduledUrl(expr);
   log('INFO', `tick: firing "${expr}" → ${url}`);
@@ -393,25 +348,25 @@ async function tickOnce(expr) {
       process.exit(0);
     }
     const refusal = tickRefusal(expr, doorErrorCode(text));
-    log('ERROR', refusal ?? `tick: HTTP ${res.status} — is os:up running? ${body}`);
+    log('ERROR', refusal ?? `tick: HTTP ${res.status} — is the runner up? ${body}`);
     process.exit(1);
   } catch (err) {
     log(
       'ERROR',
-      `tick: fetch failed (${err.message}) — is os:up running on port ${CONFIG.ingestPort}?`,
+      `tick: fetch failed (${err.message}) — is the runner up on port ${CONFIG.ingestPort}?`,
     );
     process.exit(1);
   }
 }
 
-// os:up — full supervisor.
+// The full supervisor.
 async function supervise({ exposeTowerToLan }) {
   runnerState.commit = codeCommit();
   log(
     'INFO',
     samePath(REPO_ROOT, HOME_ROOT)
       ? `starting NoticeOS local runner (repo: ${REPO_ROOT} · commit ${runnerState.commit?.slice(0, 8) ?? 'unknown'})`
-      : `starting NoticeOS local runner from its runtime copy (code: ${REPO_ROOT} · commit ${
+      : `starting NoticeOS local runner from its code folder (code: ${REPO_ROOT} · commit ${
           runnerState.commit?.slice(0, 8) ?? 'unknown'
         } · state: ${HOME_ROOT})`,
   );
@@ -425,16 +380,12 @@ async function supervise({ exposeTowerToLan }) {
 
   // Single instance, decided before any of the work below: a runner about to
   // refuse must not spawn children that would lose the bind race.
-  let ingestPortAnswers = await probeTcp(CONFIG.ingestHost, CONFIG.ingestPort);
-  if (ingestPortAnswers && readProductEnv(process.env, 'managed') === '1') {
-    const previous = await readPreviousRunnerState();
-    if (await recoverManagedOrphan(previous)) ingestPortAnswers = false;
-  }
+  const ingestPortAnswers = await probeTcp(CONFIG.ingestHost, CONFIG.ingestPort);
   const instance = runnerArmDecision({ ingestPortAnswers }, CONFIG);
   log(instance.level, instance.text);
   if (!instance.arm) process.exit(EXIT_ALREADY_RUNNING);
 
-  // A runner running from a runtime copy starts nothing until its copy is
+  // A runner running from a code folder starts nothing until that folder is
   // linked to home's state and home's store exists.
   const copyRefusal = await runtimeCopyRefusal({ codeRoot: REPO_ROOT, homeRoot: HOME_ROOT, liveSourceRoot: process.env.NOTICEOS_LIVE_SOURCE_ROOT });
   if (copyRefusal) {
@@ -457,7 +408,6 @@ async function supervise({ exposeTowerToLan }) {
     pid: process.pid,
     startedAt: ts(),
     status: 'starting',
-    managed: readProductEnv(process.env, 'managed') === '1',
     towerReady: false,
     towerPid: null,
     schedulerArmed: false,
@@ -517,7 +467,6 @@ async function supervise({ exposeTowerToLan }) {
   // reach `job_runs` on the first tick that finds the door open.
   const queued = armJobRunShipping(tower, recorded);
   log('INFO', `  job-run shipping → ${jobRunsUrl(CONFIG)} (${queued} record(s) queued to catch up)`);
-  startDeployForwarding(tower);
   const scheduler = await startScheduler(tower, recorded, {
     lanes: hostLanes(tower),
     onPublished: (status) =>
@@ -553,13 +502,13 @@ async function main() {
   const argv = process.argv.slice(2);
 
   if (argv.includes('--tick')) {
-    // `pnpm os:cron -- "0 * * * *"` forwards the `--` separator into argv, so
-    // take the first arg after --tick that isn't the separator.
+    // A `--` separator (`node scripts/os-up.mjs --tick -- "0 * * * *"`) may
+    // reach argv, so take the first arg after --tick that isn't the separator.
     const expr = argv
       .slice(argv.indexOf('--tick') + 1)
       .find((a) => a !== '--');
     if (!expr) {
-      log('ERROR', 'os:cron needs a cron expression, e.g.  pnpm os:cron -- "0 * * * *"');
+      log('ERROR', 'os:run-job needs a cron expression, e.g.  pnpm os:run-job -- "0 * * * *"');
       process.exit(2);
     }
     await tickOnce(expr);
@@ -589,7 +538,7 @@ export const TOWER_NETWORK_NOTICE = 'Tower network access is enabled. Standalone
  * external access requires an affirmative, valid setting. */
 export function resolveTowerExposure(argv, hostEnvValue) {
   if (argv.includes('--host') && argv.includes('--local')) {
-    throw new Error('os:up accepts either --host or --local, not both');
+    throw new Error('the runner accepts either --host or --local, not both');
   }
   if (argv.includes('--host')) return true;
   if (argv.includes('--local')) return false;
@@ -599,8 +548,6 @@ export function resolveTowerExposure(argv, hostEnvValue) {
   throw new Error('OS_UP_HOST must be true/1 or false/0; use --host for network access or --local for loopback');
 }
 
-// Through realpath: launchd runs this file through the runtime copy's
-// `current` link.
 if (invokedDirectly(process.argv[1], import.meta.url)) {
   main().catch((err) => {
     log('ERROR', `fatal: ${err?.stack || err?.message || err}`);

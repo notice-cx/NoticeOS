@@ -162,7 +162,7 @@ test('no script opens a second runtime over the live store', () => {
 });
 
 // The same sweep, over the other place a wrangler command can live. A pnpm
-// script is run by hand beside a live os:up exactly like a script under
+// script is run by hand beside a live runner exactly like a script under
 // scripts/ is, so the rule is the same and so is the allowlist.
 test('no package.json script opens a second runtime over the live store', () => {
   const manifests = packageManifests();
@@ -203,7 +203,7 @@ test('no package.json script opens a second runtime over the live store', () => 
 // The lanes that reach the store through the door, named explicitly so a revert
 // reads as a failure about THEM, not as a nameless rule about a directory.
 // `bing-ai-import.mjs` writes an archive, which is the shape of thing that most
-// tempts a script to open D1 and R2 itself.
+// tempts a script to open the local R2 store itself.
 test('the ported lanes reach the store through the door', () => {
   for (const name of [
     'bing-ai-import.mjs',

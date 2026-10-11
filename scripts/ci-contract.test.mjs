@@ -163,8 +163,8 @@ test('CI runs the isolated user journeys and the flow walker and keeps their evi
     'pnpm --filter @noticeos/tower run typecheck:journeys && pnpm --filter @noticeos/tower run test:journey-harness && { pnpm --filter @noticeos/tower run test:journeys; journeys=$?; pnpm --filter @noticeos/tower run test:ux-flows && exit $journeys; }');
   const tower = JSON.parse(readFileSync(path.join(REPO_ROOT, 'apps', 'tower', 'package.json'), 'utf8'));
   assert.equal(tower.scripts?.['test:ux-flows'], 'node e2e/flow-gate.mjs');
-  assert.equal(manifest.scripts?.['ux:flows'], 'node apps/tower/e2e/flow-gate.mjs');
-  assert.equal(manifest.scripts?.['ux:flows:baseline'], undefined, 'the walker keeps no budget to lower');
+  assert.equal(manifest.scripts?.['audit:flows'], 'node apps/tower/e2e/flow-gate.mjs');
+  assert.equal(manifest.scripts?.['audit:flows:baseline'], undefined, 'the walker keeps no budget to lower');
 });
 
 test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites on the whole runner', () => {

@@ -178,12 +178,12 @@ test('a non-200 from the door fails loudly and carries the body', async () => {
 
 // The common failure is simply that the OS is not running, and the sentence has
 // to say so.
-test('a door that does not answer names os:up', async () => {
+test('a door that does not answer names os:status', async () => {
   const { dir, options } = await scratch();
   const get = async () => {
     throw new Error('fetch failed');
   };
-  await assert.rejects(downloadSignalDumps(options, { get, token: 'op' }), /os:up/);
+  await assert.rejects(downloadSignalDumps(options, { get, token: 'op' }), /os:status/);
   await fs.rm(dir, { recursive: true, force: true });
 });
 

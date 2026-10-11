@@ -82,7 +82,7 @@ vi.mock("@/hooks/useNow", () => ({ useNow: () => NOW }));
 
 import { deskRoutes } from "@/App";
 import { NAV_ITEMS, PAGE_ITEMS } from "@/components/nav-items";
-import { ProviderCard, SECRETS_IMPORT_COMMAND } from "@/components/ProviderCard";
+import { ProviderCard } from "@/components/ProviderCard";
 import HealthRoute from "@/routes/HealthRoute";
 import { IntegrationsRoute } from "@/routes/IntegrationsRoute";
 import { componentAt } from "./route-table";
@@ -358,9 +358,9 @@ describe("what state a credential is in", () => {
       lastOkAt: iso(HOUR),
     });
 
-  it("renders Legacy env with the import command where the import cannot run, labelled with where it runs", () => {
-    // A deployed Worker has no secrets file to read, so the card keeps the
-    // command and labels where it runs; the reason is a code the card draws.
+  it("renders Legacy env with where the import runs when it cannot run here", () => {
+    // A deployed Worker has no secrets file to read, so the card says where
+    // the import runs; the reason is a code the card draws.
     renderCard(legacyEnv(), {
       envImport: {
         importable: false,
@@ -370,17 +370,14 @@ describe("what state a credential is in", () => {
     });
     expect(screen.getByText("Key accepted")).toBeInTheDocument();
     expect(document.querySelector("[data-legacy-env]")).toHaveTextContent("In the environment file");
-    expect(document.querySelector("[data-import-command]")).toHaveTextContent(
-      SECRETS_IMPORT_COMMAND,
-    );
-    expect(document.querySelector('[data-import-reason="elsewhere"]')).toHaveTextContent("On the OS machine");
+    expect(document.querySelector('[data-import-reason="elsewhere"]')).toHaveTextContent("Import on the OS machine");
     expect(document.querySelector("[data-import-env]")).not.toBeInTheDocument();
   });
 
-  it("puts the migrate command first where this machine has no secrets file", () => {
+  it("says there is nothing to import where this machine has no secrets file", () => {
     renderCard(legacyEnv(), { envImport: { importable: false, reason: "no-file", onImport: async () => {} } });
-    const commands = [...document.querySelectorAll("[data-import-command]")].map((node) => node.textContent);
-    expect(commands).toEqual(["pnpm dev:secrets:migrate", SECRETS_IMPORT_COMMAND]);
+    expect(document.querySelector('[data-import-reason="no-file"]')).toHaveTextContent("No secrets file here");
+    expect(document.querySelector("[data-import-env]")).not.toBeInTheDocument();
   });
 
   it("offers Import where the OS is running, and the press moves the whole secrets file", async () => {
@@ -392,7 +389,7 @@ describe("what state a credential is in", () => {
     const button = screen.getByRole("button", { name: /Import from this machine/ });
     fireEvent.click(button);
     await waitFor(() => expect(onImport).toHaveBeenCalledTimes(1));
-    expect(document.querySelector("[data-import-command]")).not.toBeInTheDocument();
+    expect(document.querySelector("[data-import-reason]")).not.toBeInTheDocument();
   });
 
   it("shows a failed import beside the button instead of pretending it worked", async () => {
@@ -1787,7 +1784,7 @@ describe("the Google card offers a sign-in", () => {
   });
 
   it("offers the loopback address as one press when Google will not return to this one", () => {
-    // `os:up` binds the LAN by default and Google refuses every plain-http
+    // The Tower can be served on the LAN, and Google refuses every plain-http
     // address that is not loopback.
     renderGoogle(googleStatus(), appStatus(true), LAN);
     expect(document.querySelector("[data-google-oauth]")).toHaveAttribute(

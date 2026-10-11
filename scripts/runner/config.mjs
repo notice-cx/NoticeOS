@@ -12,23 +12,23 @@ import { resolveHomeRoot, runtimeChildEnv, statePaths } from '../os-runtime.mjs'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CONFIG — the knobs. Ports are PINNED here so the port map is one source of
-// truth (os:up and os:cron both read these constants, so a tick always targets
+// truth (the runner and `os:run-job` both read these constants, so a tick always targets
 // the same ingest the supervisor started).
 // ─────────────────────────────────────────────────────────────────────────────
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-// Where this runner's CODE is: the home checkout for a foreground `pnpm os:up`,
-// a runtime copy under `.local/runtime/` for the managed service.
+// Where this runner's CODE is: the checkout when the source is mounted, or the
+// image's code folder (scripts/os-runtime.mjs).
 export const REPO_ROOT = path.resolve(__dirname, '..', '..');
 // Where its STATE is, always: the home checkout. The store,
 // `.local/`, the secret files, the task inventory and the relative checkout
-// paths in it are all resolved from here, so a runner started from a runtime
-// copy reads and writes exactly what a runner started from home always has.
+// paths in it are all resolved from here, so a runner started from a code
+// folder reads and writes exactly what a runner started from home always has.
 export const HOME_ROOT = resolveHomeRoot(REPO_ROOT, process.env);
 export const STATE = statePaths(HOME_ROOT);
 
 /**
  * Every path this runner reads or writes that is not code, for a runner whose
- * code is at `codeRoot`. Exported so a test can prove a runtime-copy runner
+ * code is at `codeRoot`. Exported so a test can prove a code-folder runner
  * resolves exactly the paths a runner started from home does.
  */
 export function runnerPaths(codeRoot, env = process.env) {
@@ -57,8 +57,8 @@ export function runnerPaths(codeRoot, env = process.env) {
  * How a bead this runner files into a SITE's tracker names the OS's own
  * checkout, so every path in it is qualified — none of those files are the
  * reader's. The home checkout's folder name (the site repositories sit beside
- * it), never a name written into the runner. A runtime copy resolves home, so
- * it never names its own `runtime-a` slot.
+ * it), never a name written into the runner. A code folder resolves home, so
+ * it never names its own folder.
  */
 export function osCheckoutName(homeRoot) {
   return path.basename(homeRoot);
@@ -68,7 +68,7 @@ export const OS_CHECKOUT = osCheckoutName(HOME_ROOT);
 export const CONFIG = {
   // The ingest's address: the "ingest door", a second listener the tower's
   // vite dev server binds to loopback only (apps/tower/vite/runner-door.ts),
-  // serving the ingest's routes and its cron fires. `os:cron`,
+  // serving the ingest's routes and its cron fires. `os:run-job`,
   // scripts/pulse-relay.mjs and the single-instance guard below all read it.
   // Not 8787, which other tools commonly take.
   ingestHost: '127.0.0.1',
@@ -77,7 +77,7 @@ export const CONFIG = {
   towerPort: 5173,
   // Legacy native task-hub fallback only. A declared task client (including
   // NOTICEOS_DOLT_HOME's Compose profile) supplies its own endpoint to health
-  // checks and backups. The hub's service lifecycle is independent of os:up;
+  // checks and backups. The hub's service lifecycle is independent of the runner;
   // never start the retired native service to recover a declared Compose hub.
   // Existing native installations keep these coordinates in sync with their
   // saved task map and dolt-server.yaml until an approved cutover.
@@ -156,7 +156,7 @@ export const INGEST_WRANGLER = path.join(REPO_ROOT, 'workers', 'ingest', 'wrangl
 // guarantee the directory exists, so a fresh clone does not leave the service
 // crash-looping on a missing data_dir. Under .local/ (gitignored).
 export const BEADS_DOLT_DIR = STATE.beadsDoltDir;
-// The secret files, always home's: a runtime copy links to them, but the sync
+// The secret files, always home's: a code folder links to them, but the sync
 // below WRITES .dev.vars, and an atomic write through a link would replace the
-// link with a copy of the secrets inside the runtime copy.
+// link with a copy of the secrets inside the code folder.
 export const SECRET_FILES = { secretsFile: STATE.devSecrets, varsFile: STATE.devVars };

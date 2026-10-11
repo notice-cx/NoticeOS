@@ -155,11 +155,11 @@ test('a refused request fails loudly and carries the ingest’s reason', async (
   );
 });
 
-test('a door that does not answer names os:up', async () => {
+test('a door that does not answer names os:status', async () => {
   const post = async () => {
     throw new Error('fetch failed');
   };
-  await assert.rejects(collectSignals({ asset: 'northwind.example', post, token: 'op' }), /os:up/);
+  await assert.rejects(collectSignals({ asset: 'northwind.example', post, token: 'op' }), /os:status/);
 });
 
 test('the long-running loopback transport waits for delayed headers and sends once', async () => {

@@ -1,5 +1,5 @@
 // `pnpm start`: a new installation in a folder of its own, which never reaches
-// the managed service's store, installation folder, secrets, logs or ports.
+// the NoticeOS stack's store, installation folder, secrets, logs or ports.
 //
 // The first tests pin the plan (every path it writes, every variable its Tower
 // is told, every refusal) without starting anything. The last one is the
@@ -67,11 +67,11 @@ const inside = (child, parent) => {
 
 // ─── The plan ────────────────────────────────────────────────────────────────
 
-test('everything a start keeps is inside its own folder, and none of it is the managed service’s', () => {
+test('everything a start keeps is inside its own folder, and none of it is the NoticeOS stack’s', () => {
   const plan = startPlan({ root: REPO_ROOT });
   assert.equal(plan.home, path.join(REPO_ROOT, DEFAULT_DIR));
   const owner = statePaths(REPO_ROOT);
-  // What the managed service keeps: its store, installation folder, secrets,
+  // What the stack keeps: its store, installation folder, secrets,
   // and its runner state under .local (the start folder is a sibling there).
   const ownerPaths = [
     path.join(REPO_ROOT, '.wrangler'),
@@ -102,7 +102,7 @@ test('the Tower is told where this installation is, and the shell cannot pick ot
   const plan = startPlan({ root: REPO_ROOT, dir: '/tmp/somewhere', port: 6912 });
   const env = towerEnv(plan, {
     PATH: '/bin',
-    REINDEX_OS_HOME: '/Users/operator/reindex-os',
+    REINDEX_OS_INSTALLATION_DIR: '/Users/operator/reindex-os/installation',
     OS_UP_PERSIST_STATE: '/Users/operator/reindex-os/.wrangler/state',
     CLOUDFLARE_ENV: 'production',
     CLOUDFLARE_INCLUDE_PROCESS_ENV: 'true',
@@ -116,8 +116,8 @@ test('the Tower is told where this installation is, and the shell cannot pick ot
   assert.equal(env.NOTICEOS_HOME, plan.home);
   assert.equal(env.NOTICEOS_INSTALLATION_DIR, plan.installation);
   assert.equal(env.NOTICEOS_WORKER_CONFIG_ROOT, plan.home);
-  // The inherited pre-rename name is dropped, so nothing can read the owner's home through it.
-  assert.equal('REINDEX_OS_HOME' in env, false);
+  // The inherited pre-rename name is dropped, so nothing can read the owner's installation through it.
+  assert.equal('REINDEX_OS_INSTALLATION_DIR' in env, false);
   assert.equal(env.OS_UP_PERSIST_STATE, plan.state);
   assert.equal(env.OS_UP_INGEST_DOOR_HOST, '127.0.0.1');
   assert.equal(env.OS_UP_INGEST_DOOR_PORT, '6913');
@@ -162,15 +162,15 @@ test('a lane reaches the door and the bearer of the installation its dev server 
   ]);
 });
 
-test('the managed service’s ports are the runner’s own port map', () => {
+test('the NoticeOS stack’s ports are the runner’s own port map', () => {
   assert.deepEqual([...MANAGED_PORTS].sort(), [CONFIG.towerPort, CONFIG.ingestPort, CONFIG.beadsHubPort, POSTGRES_PORT].sort());
 });
 
-test('a start refuses, in one line, a managed port, the checkout, or a folder it did not make', (t) => {
+test('a start refuses, in one line, a stack port, the checkout, or a folder it did not make', (t) => {
   const root = tempDir(t, 'start-root-');
   const refusal = (options, fsView) => planRefusal(startPlan({ root, ...options }), fsView);
   for (const port of [5173, 8790, 8791, 3307, 3308, 5431, 5432]) {
-    assert.match(refusal({ port }), /belongs to the managed service/);
+    assert.match(refusal({ port }), /belongs to the NoticeOS stack/);
   }
   assert.match(refusal({ port: 80 }), /1024 to 65534/);
   assert.match(refusal({ port: 65535 }), /1024 to 65534/);
@@ -215,7 +215,7 @@ test('startup has no migration flag; existing Postgres changes use the operator 
 // ─── The database address, taken once from the Compose profile ──────────────
 //
 // A new installation's first `pnpm start` takes DATABASE_URL from the one line
-// `pnpm postgres:secrets` wrote, so no password is copied by hand. Each address
+// `pnpm db:create-secrets` wrote, so no password is copied by hand. Each address
 // here carries a planted, recognizable password, and no answer may repeat it.
 
 /** A throwaway checkout, the Compose profile's `database.url` in it holding
@@ -234,7 +234,7 @@ function composeCheckout(t, { address, bindings = { CREDENTIALS_KEY: 'k', OPERAT
   return { plan, source };
 }
 
-/** An address as `pnpm postgres:secrets` writes one, with a planted password. */
+/** An address as `pnpm db:create-secrets` writes one, with a planted password. */
 function plantedAddress() {
   const password = `planted-${randomBytes(9).toString('hex')}`;
   return { password, url: `postgresql://noticeos_app:${password}@127.0.0.1:5432/noticeos?sslmode=disable` };
@@ -272,7 +272,7 @@ test('without the profile’s address a start refuses in one sentence naming the
   const before = readFileSync(missing.plan.secrets, 'utf8');
   assert.deepEqual(await takeComposeAddress(missing.plan, { env: {} }), {
     ok: false,
-    line: `DATABASE_URL is not set in ${missing.plan.secrets} and ${missing.source} does not exist yet: run pnpm postgres:secrets first (db/postgres/host/README.md sets the database up).`,
+    line: `DATABASE_URL is not set in ${missing.plan.secrets} and ${missing.source} does not exist yet: run pnpm db:create-secrets first (db/postgres/host/README.md sets the database up).`,
   });
   assert.equal(readFileSync(missing.plan.secrets, 'utf8'), before);
 
@@ -437,7 +437,7 @@ function hold(port) {
 }
 
 /** Two free neighbouring ports — the Tower's, then its ingest door's — proved
- * free by binding both, outside the managed service's. */
+ * free by binding both, outside the NoticeOS stack's. */
 async function freePair() {
   for (let tries = 0; tries < 50; tries++) {
     const port = PAIR_RANGE.from + Math.floor(Math.random() * (PAIR_RANGE.to - PAIR_RANGE.from));
@@ -452,7 +452,7 @@ async function freePair() {
 /**
  * The checkout's installation folder and secrets files, with sizes and times,
  * and whether it has a store at all. `.wrangler/state` itself is not listed:
- * where the managed service runs, it changes every minute on its own. The
+ * where the stack runs, it changes every minute on its own. The
  * tripwire covers reads of it; a start's own store is proved to be in its folder.
  */
 async function get(url, { timeoutMs = 180_000 } = {}) {
@@ -527,7 +527,7 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   writeFileSync(tripwire, TRIPWIRE);
   const port = await freePair();
   const plan = startPlan({ root: REPO_ROOT, dir: home, port });
-  // The Compose profile's secrets folder (`pnpm postgres:secrets --dir`), a
+  // The Compose profile's secrets folder (`pnpm db:create-secrets --dir`), a
   // throwaway beside the folder: the tripwire refuses the checkout's own.
   const composeSecrets = path.join(path.dirname(home), 'compose-secrets');
   mkdirSync(composeSecrets, { mode: 0o700 });
@@ -539,14 +539,13 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   assert.equal(await first.exited, 1);
   const refusal = first.output.split('\n').filter((line) => line.startsWith('pnpm start: '));
   assert.deepEqual(refusal, [
-    `pnpm start: DATABASE_URL is not set in ${plan.secrets} and ${composeFile} does not exist yet: run pnpm postgres:secrets first (db/postgres/host/README.md sets the database up).`,
+    `pnpm start: DATABASE_URL is not set in ${plan.secrets} and ${composeFile} does not exist yet: run pnpm db:create-secrets first (db/postgres/host/README.md sets the database up).`,
   ]);
   assert.doesNotMatch(first.output, /\n\s+at /u, 'no stack trace');
-  assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false, 'startup creates no D1 store');
   assert.equal(existsSync(plan.lock), false);
   assert.deepEqual(Object.keys(JSON.parse(readFileSync(plan.secrets, 'utf8'))).sort(), ['CREDENTIALS_KEY', 'OPERATOR_TOKEN']);
 
-  // `pnpm postgres:secrets` writes the application's address as one line; the
+  // `pnpm db:create-secrets` writes the application's address as one line; the
   // next start takes it by itself, with no hand copy.
   writeFileSync(composeFile, `${postgres.url}\n`, { mode: 0o600 });
 
@@ -642,7 +641,7 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   } finally {
     await sample.close();
   }
-  const capacity = await runCommand('pnpm', ['os:capacity', '--', '--json'], {
+  const capacity = await runCommand(process.execPath, ['scripts/os-capacity.mjs', '--json'], {
     cwd: REPO_ROOT,
     env: {
       ...process.env,
@@ -695,7 +694,6 @@ test('a real start makes its own store and Tower on the Postgres its folder name
   // the Tower and its lanes.
   assert.match(output, new RegExp(`^${ARMED} start\\.mjs$`, 'm'));
   assert.match(log, new RegExp(`^${ARMED} vite\\.js$`, 'm'));
-  assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false, 'the running installation never opens D1');
   assert.equal(existsSync(path.join(home, '.local', 'start.pid')), false, 'the lock is released');
   // The preload above refuses every owner-path read/write in the actual
   // startup children. Do not inspect those private paths from the test either.
@@ -763,7 +761,6 @@ test('one pnpm start prepares isolated Postgres and a core task hub, onboards a 
   assert.equal(statSync(plan.secrets).mode & 0o777, 0o600);
   assert.equal(Number(new URL(bindings.DATABASE_URL).port), own.port);
   assert.equal(JSON.parse(readFileSync(path.join(home, 'postgres', 'profile.json'), 'utf8')).project, own.project);
-  assert.equal(existsSync(path.join(home, '.wrangler', 'state', 'v3', 'd1')), false);
   const store = openStore(bindings.DATABASE_URL, { maxConnections: 1 });
   try {
     const workspace = await store.onlyWorkspace();

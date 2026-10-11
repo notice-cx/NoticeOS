@@ -179,7 +179,7 @@ describe('the redirect address', () => {
     expect(googleRedirectVerdict('http://127.0.0.1:5173').usable).toBe(true);
     expect(googleRedirectVerdict('http://localhost:5173').usable).toBe(true);
 
-    // The case this OS actually meets: `os:up` binds the LAN by default, and
+    // The case this OS actually meets: the Tower is served on the LAN, and
     // Google refuses every plain-http address that is not loopback. The
     // refusal has to carry the address to use instead, or an operator is
     // stranded on an `invalid_request` from Google with no hint.

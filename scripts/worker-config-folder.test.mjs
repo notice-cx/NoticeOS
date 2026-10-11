@@ -10,7 +10,6 @@ import { LOCAL_CONNECTION_VARIABLE, UNREACHABLE_STORE_URL } from './postgres-tes
 import {
   WORKER_CONFIGS,
   WRANGLER_DOT_ENV_SWITCH,
-  relocatedWorkerConfig,
   secretFreeWorkerConfigs,
   stopLocalSecretReads,
 } from './worker-config-folder.mjs';
@@ -23,12 +22,6 @@ import {
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const INGEST = path.join('workers', 'ingest', 'wrangler.jsonc');
 const INVENTED = 'INVENTED_LOCAL_SECRET';
-
-test('a generated Worker config refuses legacy or malformed D1 bindings', () => {
-  for (const d1_databases of [[{ binding: 'DB' }], { binding: 'DB' }, null]) {
-    assert.throws(() => relocatedWorkerConfig(JSON.stringify({ main: 'src/index.ts', d1_databases }), '/fixture/wrangler.jsonc'), /supports Postgres only/u);
-  }
-});
 
 function tempDir(t, prefix) {
   const dir = mkdtempSync(path.join(os.tmpdir(), prefix));
@@ -67,7 +60,6 @@ test('a secret-free folder holds the Worker configs and nothing else, every path
     assert.equal(written.name, original.name);
     assert.equal('$schema' in written, false);
     assert.equal(written.main, path.resolve(path.dirname(source), original.main));
-    assert.equal(written.d1_databases, undefined);
     assert.deepEqual(written.hyperdrive, original.hyperdrive);
   }
   folder.remove();

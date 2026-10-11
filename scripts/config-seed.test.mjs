@@ -6,7 +6,7 @@
 // below is that rule, plus the refusals that stop a forced one from happening by
 // accident.
 //
-// The store half is pinned against real D1 in workers/ingest/test/config-store.
+// The store half is pinned against real Postgres in workers/ingest/test/config-store.
 // What is asserted here is the CLIENT: what it sends, what it reports, and what
 // it refuses before it sends anything.
 

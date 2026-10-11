@@ -36,8 +36,9 @@ const ASSUME_SNAPSHOT: TasksCapabilities = { live: false, reason: null };
  * Can this deployment reach the task hub?
  *
  * Asked ONCE per session (`staleTime: Infinity`, no retry): the answer is a
- * fact about the build the browser loaded — a local `os:up` has the lane, a
- * deployed Worker cannot have it — and it cannot change under a running page.
+ * fact about the build the browser loaded — a Tower the runner serves has the
+ * lane, a deployed Worker cannot have it — and it cannot change under a running
+ * page.
  */
 export function useTasksLive(): TasksCapabilities {
   const demoReadonly = useDemoReadonly();

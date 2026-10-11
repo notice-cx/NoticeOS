@@ -129,7 +129,7 @@ export interface PanelProps {
 }
 
 /**
- * The block that is this surface's answer. `surface:audit` measures this
+ * The block that is this surface's answer. `audit:surfaces` measures this
  * element's bottom edge against 900px, and a surface that declares no hero
  * fails the first-screen rule by definition. Exactly one per tab, always the
  * first block. A wrapper rather than a prop on each panel: a plain block

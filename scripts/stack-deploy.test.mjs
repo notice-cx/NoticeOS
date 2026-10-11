@@ -36,7 +36,7 @@ function fixture(t) {
   }]));
   const images=new Map([[OLD,{Id:OLD,Os:'linux',Architecture:'arm64',Config:{Labels:{}}}]]);
   const calls=[]; const contexts=[]; let output=''; let updates=0;
-  const control={failUpdate:false,failRecovery:false,drift:false,extraConfig:false,builtImage:NEW,timedOut:false,foreignApp:false,buildThrows:false,buildTimeout:false};
+  const control={database:{ok:true},databaseCalls:0,failUpdate:false,failRecovery:false,drift:false,extraConfig:false,builtImage:NEW,timedOut:false,foreignApp:false,buildThrows:false,buildTimeout:false};
   const run=async(command,args,options)=>{
     if(command==='git') {assert.equal(options.cwd,root);return runCommand(command,args,{...options,env});}
     assert.equal(command,'docker'); assert.equal(args[0],'--host'); assert.equal(args[1],selector.dockerHost);
@@ -73,7 +73,8 @@ function fixture(t) {
     return {code:failed?1:0,timedOut:control.timedOut,stdout:'',stderr:'PRIVATE-SENTINEL'};
   };
   const out={write:value=>{output+=value;}};
-  const options={root,selectorFile,baselineCommit,run,env,out};
+  const database=async(declared,{root:checked})=>{control.databaseCalls++;assert.deepEqual(declared,selector);assert.equal(checked,root);return control.database;};
+  const options={root,selectorFile,baselineCommit,run,env,out,database};
   return {parent,root,write,git,commit,baselineCommit,selectorFile,selector,composeFile,model,containers,images,calls,contexts,control,options,output:()=>output,
     prepare:()=>prepareDeployment(options),build:()=>buildApplicationImage({...options,dockerHost:selector.dockerHost,platform:'linux/arm64'}),
     writes:()=>calls.filter(call=>call[0]==='compose'&&call.includes('up'))};
@@ -90,9 +91,34 @@ test('dirty source and committed symlinks refuse before Docker access',async t=>
   f.git('restore','apps/tower/src/App.tsx');fs.unlinkSync(path.join(f.root,'apps/tower/src/App.tsx'));fs.symlinkSync('/fixture/private',path.join(f.root,'apps/tower/src/App.tsx'));f.commit();
   await assert.rejects(f.build(),/symlinks/);assert.equal(f.calls.length,0);
 });
-test('first deployment requires the recorded old source and refuses schema or role changes',async t=>{
+test('first deployment requires the recorded old source and refuses role changes',async t=>{
   const f=fixture(t);await assert.rejects(prepareDeployment({...f.options,baselineCommit:null}),/no schema revision/);
-  f.write('db/postgres/roles.sql','changed permissions');f.commit();await assert.rejects(f.prepare(),/separate operator maintenance/);assert.equal(f.writes().length,0);assert.ok(!f.calls.some(call=>call[0]==='build'));
+  f.write('db/postgres/roles.sql','changed permissions');f.commit();await assert.rejects(f.prepare(),/changes the Postgres roles; that is operator maintenance/);assert.equal(f.writes().length,0);assert.ok(!f.calls.some(call=>call[0]==='build'));
+  assert.equal(f.control.databaseCalls,0);
+});
+test('main with a new migration updates only once the database has it',async t=>{
+  const f=fixture(t);f.write('db/postgres/migrations/0002_next.sql','select 1;');f.commit();
+  f.control.database={ok:false,line:'the database is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date'};
+  await assert.rejects(f.prepare(),/does not have yet: the database is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date\. Then run the update again/);
+  assert.ok(!f.calls.some(call=>call[0]==='build'));assert.equal(f.writes().length,0);
+  f.control.database={ok:true};const plan=await f.prepare();
+  assert.equal(plan.commit,f.git('rev-parse','HEAD'));assert.equal(f.writes().length,0);
+});
+test('an unchanged schema never asks the database',async t=>{
+  const f=fixture(t);await f.prepare();assert.equal(f.control.databaseCalls,0);
+});
+test('at a terminal the update shows its plan and applies only what was confirmed',async t=>{
+  const f=fixture(t);const questions=[];
+  const ask=answer=>async q=>{questions.push(q);return answer;};
+  assert.equal(await main(['--config',f.selectorFile,'--baseline-commit',f.baselineCommit],{...f.options,interactive:true,question:ask('')}),0);
+  assert.match(questions[0],/Type update to apply it/);assert.equal(f.writes().length,0);assert.match(f.output(),/Nothing was changed\. To apply this plan later: pnpm os:update -- --apply/);
+  assert.equal(await main(['--config',f.selectorFile,'--baseline-commit',f.baselineCommit],{...f.options,interactive:true,question:ask('update')}),0);
+  assert.equal(f.writes().length,1);assert.match(f.output(),/Deployed /);
+});
+test('without a terminal the update prepares and prints the command that applies it',async t=>{
+  const f=fixture(t);
+  assert.equal(await main(['--config',f.selectorFile,'--baseline-commit',f.baselineCommit],{...f.options,interactive:false}),0);
+  assert.equal(f.writes().length,0);assert.match(f.output(),/To apply it: pnpm os:update -- --apply '\/.+\.json'/);
 });
 test('a prepared image can be reused without building or changing existing services',async t=>{
   const f=fixture(t);const built=await f.build();f.calls.length=0;

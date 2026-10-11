@@ -1,7 +1,7 @@
 // runner/log.mjs — the local runner's one combined log: every line to stdout
 // and to `.local/logs/os-up.log`, redacted before it reaches disk, bounded per
-// line, and rotated at a byte bound. `pnpm os:logs` reads it back
-// (scripts/os-control.mjs); nothing else should need its path.
+// line, and rotated at a byte bound. The container's stdout carries the same
+// lines to `pnpm os:logs`; nothing else should need its path.
 
 import { createWriteStream } from 'node:fs';
 import fs from 'node:fs/promises';
@@ -104,8 +104,7 @@ export async function openLog() {
 
 /**
  * Resolves once every line written so far is in the file, then closes it: what
- * a refusal awaits before it exits. The managed service's stdout goes nowhere,
- * and a line still queued behind a stream that is opening dies with the
+ * a refusal awaits before it exits. A line still queued behind a stream that is opening dies with the
  * process.
  */
 export async function closeLog() {
