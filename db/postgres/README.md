@@ -661,7 +661,9 @@ missing or out-of-order migration, and the bootstrap's lock. It finds the
 database from the stack selector `.local/stack.json` (or `--config <file>`):
 the owner's address is `owner.url` beside the `noticeos_owner` secret file
 the stack's resolved Compose declaration names, or in the folder
-`--secrets <folder>` names.
+`--secrets <folder>` names. From the stack, it connects on the port Compose
+publishes Postgres on, so a port moved with `pnpm os:apply` keeps working;
+`owner.url` keeps the port it was first written with.
 
 ```sh
 pnpm os:migrate                                                  # only reads

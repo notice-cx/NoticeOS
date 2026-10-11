@@ -113,7 +113,8 @@ journal evidence. See the
 ## Publication and reporting
 
 The license is [AGPL-3.0-only](../../LICENSE), copyright 2026 Reindex Ventures LLC.
-Preparing these materials does not publish a repository or activate a service.
+Apart from the app image published for each `main` commit (above), preparing
+these materials does not publish a repository or activate a service.
 The intended public repository is a new export without this private
 repository's history or installation records. Its current files, defaults,
 documentation, screenshots and dependency licenses still require review before
