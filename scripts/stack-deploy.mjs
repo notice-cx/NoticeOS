@@ -1,11 +1,13 @@
 #!/usr/bin/env node
 // Move the installation's app to main, or back to the previous image, after you confirm the plan.
 //
-// It builds a sealed image and plan, shows it, then applies it. Only the app
-// container changes; databases, Dolt and backup stay in place, and no
-// migration is ever applied here.
+// It takes main's published image, checked against this checkout's source,
+// or builds main here when none is published (`-- --build` always builds),
+// seals a plan, shows it, then applies it. Only the app container changes;
+// databases, Dolt and backup stay in place, and no migration is ever applied
+// here.
 //
-//   pnpm os:update      Build main into an image, show the plan, and apply it after you confirm.
+//   pnpm os:update      Move the app to main's image, show the plan, and apply it after you confirm.
 //   pnpm os:rollback    Move the app back to the previous image, after you confirm.
 //   pnpm os:update -- --apply <plan>  Apply a plan prepared earlier.
 //
@@ -33,7 +35,7 @@ const GIB = 1024 ** 3;
 const SCHEMA_PATH = /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json)$/u;
 const ROLES_PATH = 'db/postgres/roles.sql';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const HELP = 'Usage: pnpm os:update [-- --prepare] [-- --config ABSOLUTE_SELECTOR] [-- --baseline-commit COMMIT] [-- --image sha256:ID]\n       pnpm os:update -- --apply ABSOLUTE_PLAN\n       pnpm os:rollback [-- --prepare]\n       stack-deploy.mjs --build-only --docker-host unix:///absolute/socket --platform linux/arm64|linux/amd64';
+const HELP = 'Usage: pnpm os:update [-- --prepare] [-- --build] [-- --config ABSOLUTE_SELECTOR] [-- --baseline-commit COMMIT] [-- --image sha256:ID]\n       pnpm os:update -- --apply ABSOLUTE_PLAN\n       pnpm os:rollback [-- --prepare]\n       stack-deploy.mjs --build-only --docker-host unix:///absolute/socket --platform linux/arm64|linux/amd64 [--source-url https://github.com/OWNER/REPO]';
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const json = value => JSON.stringify(value, (_key, item) => item && typeof item === 'object' && !Array.isArray(item)
   ? Object.fromEntries(Object.entries(item).sort(([a],[b]) => a.localeCompare(b))) : item, 2) + '\n';
@@ -173,11 +175,35 @@ export function readDeploymentPlan(file) {
   return plan;
 }
 
+/** Where main's published app images are: one per commit, tagged with the commit. */
+export const RELEASE_REPOSITORY = 'ghcr.io/notice-cx/noticeos';
+/** Labels a published image carries besides its provenance. */
+const OCI_SOURCE_LABEL = 'org.opencontainers.image.source';
+
+/**
+ * The public build inputs of the committed source, copied into `parent` and
+ * checked blob by blob against the commit, and the hash of their manifest:
+ * the same bytes, and so the same hash, wherever the same commit is prepared.
+ */
+async function committedContext(run, root, source, parent) {
+  const context = prepareContainerContext({ root, destination: path.join(parent, 'context'), files: source.files.map(row => row.file) });
+  const algorithm = (await git(run, root, ['rev-parse','--show-object-format'])).trim();
+  if (!['sha1','sha256'].includes(algorithm)) fail('Unsupported Git object format.');
+  for (const row of source.files) {
+    const bytes = regular(path.join(context.directory,row.file), 64 * 1024 * 1024);
+    const blob = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
+    if (blob !== row.object) fail('The public build input changed while preparing the committed source.');
+  }
+  if (context.version?.commit !== source.commit || context.version.modified) fail('The image source version does not match the committed source.');
+  return { directory: context.directory, manifest: hash(regular(path.join(context.directory,'container-source.json'), 10 * 1024 * 1024)) };
+}
+
 /** Build artifact only: no container inventory, endpoints or database access. */
 export async function buildApplicationImage({ root = ROOT, dockerHost, platform, run = runCommand,
-  env = process.env, out = process.stdout } = {}) {
+  env = process.env, out = process.stdout, sourceUrl = null, timeoutMs = 600_000 } = {}) {
   const selector = validateSelector({ project: 'build', files: ['/unused/compose'], envFile: '/unused/env', dockerHost });
   if (!['linux/arm64','linux/amd64'].includes(platform)) fail('Use an explicit supported Linux platform.');
+  if (sourceUrl !== null && !/^https:\/\/github\.com\/[A-Za-z0-9-]+\/[A-Za-z0-9._-]+$/u.test(sourceUrl)) fail('The source URL names a GitHub repository.');
   const source = await currentSource(run, root);
   const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-stack-image-'));
   let retain = false;
@@ -185,25 +211,18 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
     const stats = fs.statfsSync(parent);
     if (stats.bavail * stats.bsize < 12 * GIB) fail('Image preparation needs 4 GiB headroom while keeping 8 GiB free.');
     out.write(`Building main ${source.commit.slice(0,12)}; free ${stats.bavail * stats.bsize} bytes, expected additional allocation 4 GiB.\n`);
-    const context = prepareContainerContext({ root, destination: path.join(parent, 'context'), files: source.files.map(row => row.file) });
-    const algorithm = (await git(run, root, ['rev-parse','--show-object-format'])).trim();
-    if (!['sha1','sha256'].includes(algorithm)) fail('Unsupported Git object format.');
-    for (const row of source.files) {
-      const bytes = regular(path.join(context.directory,row.file), 64 * 1024 * 1024);
-      const blob = createHash(algorithm).update(`blob ${bytes.length}\0`).update(bytes).digest('hex');
-      if (blob !== row.object) fail('The public build input changed while preparing the committed source.');
-    }
-    if (context.version?.commit !== source.commit || context.version.modified) fail('The image source version does not match the committed source.');
-    const manifest = hash(regular(path.join(context.directory,'container-source.json'), 10 * 1024 * 1024));
+    const context = await committedContext(run, root, source, parent);
+    const manifest = context.manifest;
     const iid = path.join(parent, 'image.id');
     let result;
     try { result = await run('docker', ['--host',selector.dockerHost,'build','--platform',platform,
       '--file',path.join(context.directory,'deploy/compose/Dockerfile'), '--iidfile',iid,
       '--label',`${REVISION_LABEL}=${source.commit}`, '--label',`${SCHEMA_LABEL}=${source.schema}`,
-      '--label',`${SOURCE_LABEL}=${manifest}`, '--tag',`noticeos-local:${source.commit}`,context.directory],
+      '--label',`${SOURCE_LABEL}=${manifest}`, ...(sourceUrl ? ['--label',`${OCI_SOURCE_LABEL}=${sourceUrl}`] : []),
+      '--tag',`noticeos-local:${source.commit}`,context.directory],
     // The build's own output is the only account of a failure. It is safe to
     // show: the context holds the public allowlist only, and no build arguments.
-    { env: ownEnv(env), timeoutMs: 600_000, inherit: true }); }
+    { env: ownEnv(env), timeoutMs, inherit: true }); }
     catch { retain = true; fail(`Application image build did not terminate reliably. Existing services were untouched. Build context retained at ${parent}.`); }
     retain = result.timedOut === true;
     if (result.code !== 0) fail(`Application image build failed; Docker's output above says why. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
@@ -211,6 +230,49 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
     if (image.revision !== source.commit || image.schema !== source.schema || image.source !== manifest) fail('Prepared image metadata does not match its committed source.');
     return { commit: source.commit, image: image.id, source: manifest, schemaHash: source.schema, platform };
   } finally { if (!retain) fs.rmSync(parent, { recursive: true, force: true }); }
+}
+
+/**
+ * main's published image, pulled for `platform`, or null when there is none
+ * to pull (not published yet, or the registry unreachable). A pulled image is
+ * used only when its labels name this checkout's main commit, its schema, and
+ * the hash of the public build inputs this checkout prepares for that commit:
+ * the image was built from exactly this source. Anything else refuses.
+ */
+export async function pullReleaseImage({ root = ROOT, dockerHost, platform, run = runCommand, env = process.env, out = process.stdout,
+  inputs = committedInputs, repository = RELEASE_REPOSITORY } = {}) {
+  const selector = validateSelector({ project: 'build', files: ['/unused/compose'], envFile: '/unused/env', dockerHost });
+  const { source, manifest } = await inputs(run, root);
+  const reference = `${repository}:${source.commit}`;
+  out.write(`Fetching main ${source.commit.slice(0,12)}'s published image.\n`);
+  let pulled;
+  try { pulled = await run('docker', ['--host',dockerHost,'pull','--quiet','--platform',platform,reference], { env: ownEnv(env), timeoutMs: 900_000 }); }
+  catch { pulled = { code: 1 }; }
+  if (pulled.code !== 0) return null;
+  const id = (await call(run, selector, ['image','inspect','--format','{{.Id}}',reference], env, 'Image inspection')).trim();
+  const image = await imageMetadata(run, selector, id, env);
+  if (image.revision !== source.commit || image.schema !== source.schema || image.source !== manifest || image.platform !== platform) {
+    fail(`The published image for main ${source.commit.slice(0,12)} was not built from this checkout's source; nothing was changed. Add -- --build to build it here.`);
+  }
+  return { commit: source.commit, image: id, source: manifest, schemaHash: source.schema, platform };
+}
+
+/** main's committed source and the hash of its public build inputs, prepared in a temporary folder. */
+async function committedInputs(run, root) {
+  const source = await currentSource(run, root);
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-release-check-'));
+  try { return { source, manifest: (await committedContext(run, root, source, parent)).manifest }; }
+  finally { fs.rmSync(parent, { recursive: true, force: true }); }
+}
+
+/** main's image: the published one when there is one for this exact commit, else built here; `build` skips the registry. */
+export async function mainImage({ build = false, pull = pullReleaseImage, make = buildApplicationImage, out = process.stdout, ...options } = {}) {
+  if (!build) {
+    const published = await pull({ ...options, out });
+    if (published) return published;
+    out.write('No published image for this commit yet (it appears a few minutes after CI passes on main), or the registry is unreachable; building it here instead.\n');
+  }
+  return make({ ...options, out });
 }
 
 /**
@@ -245,8 +307,8 @@ export async function buildDevelopmentImage({ root = ROOT, dockerHost, platform,
 }
 
 /** Prepare a reviewable deployment without changing any service. */
-export async function prepareDeployment({ root = ROOT, selectorFile, baselineCommit = null, rollback = false, preparedImage = null,
-  run = runCommand, env = process.env, out = process.stdout, database = stackDatabaseCurrent } = {}) {
+export async function prepareDeployment({ root = ROOT, selectorFile, baselineCommit = null, rollback = false, preparedImage = null, build = false,
+  run = runCommand, env = process.env, out = process.stdout, database = stackDatabaseCurrent, image = mainImage } = {}) {
   const selector = readSelector(selectorFile);
   const inputHashes = inputSeal(selectorFile, selector);
   let before;
@@ -288,7 +350,7 @@ export async function prepareDeployment({ root = ROOT, selectorFile, baselineCom
       const image = await imageMetadata(run, selector, preparedImage, env);
       if (image.revision !== source.commit || image.schema !== source.schema || !image.source || image.platform !== old.platform) fail('Prepared image does not match main and the current platform/schema.');
       target = { commit: source.commit, image: image.id, source: image.source, schemaHash: source.schema };
-    } else target = await buildApplicationImage({ root, dockerHost: selector.dockerHost, platform: old.platform, run, env, out });
+    } else target = await image({ build, root, dockerHost: selector.dockerHost, platform: old.platform, run, env, out });
   }
   if (!sameInputs(inputHashes)) fail('Stack declarations changed during preparation; prepare a new plan.');
   return sealedPlan(selectorFile, { schema: 'noticeos-stack-deploy/1', rollback, root, selectorFile, selector, inputHashes,
@@ -411,7 +473,7 @@ async function snapshotForRecovery(run,selector,env) {
   }
   return result;
 }
-export { imageMetadata as stackImageMetadata, snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
+export { committedInputs as stackCommittedInputs, imageMetadata as stackImageMetadata, snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
   composition as stackComposition, compose as stackCompose, atomic as stackAtomic,
   inputSeal as stackInputSeal, sameInputs as stackSameInputs };
 const ask = async (question) => {
@@ -426,7 +488,7 @@ export async function main(argv=process.argv.slice(2),options={}) {
   try {
     let selectorFile=path.join(ROOT,'.local/stack.json');
     let apply=null; let baselineCommit=null; let rollback=false; let preparedImage=null;
-    let buildOnly=false; let dockerHost=null; let platform=null;
+    let buildOnly=false; let dockerHost=null; let platform=null; let sourceUrl=null; let build=false;
     const args=argv.filter(value=>value!=='--'); const seen=new Set();
     for(let i=0;i<args.length;i++) {
       const arg=args[i];
@@ -434,25 +496,29 @@ export async function main(argv=process.argv.slice(2),options={}) {
       if(arg==='--prepare') continue;
       if(arg==='--rollback') {rollback=true;continue;}
       if(arg==='--build-only') {buildOnly=true;continue;}
-      if(!['--config','--apply','--baseline-commit','--image','--docker-host','--platform'].includes(arg)||!args[i+1]) fail(HELP);
+      if(arg==='--build') {build=true;continue;}
+      if(!['--config','--apply','--baseline-commit','--image','--docker-host','--platform','--source-url'].includes(arg)||!args[i+1]) fail(HELP);
       const value=args[++i];
       if(arg==='--config') selectorFile=value;
       else if(arg==='--apply') apply=value;
       else if(arg==='--image') preparedImage=value;
       else if(arg==='--docker-host') dockerHost=value;
       else if(arg==='--platform') platform=value;
+      else if(arg==='--source-url') sourceUrl=value;
       else baselineCommit=value;
     }
     if(!path.isAbsolute(selectorFile) || baselineCommit && !REVISION.test(baselineCommit) || preparedImage && !IMAGE.test(preparedImage) ||
         [seen.has('--prepare'),rollback,Boolean(apply),buildOnly].filter(Boolean).length>1 ||
         apply && (baselineCommit || preparedImage || seen.has('--config')) || rollback && (baselineCommit || preparedImage) ||
-        buildOnly && (baselineCommit || preparedImage || seen.has('--config')) || !buildOnly && (dockerHost || platform)) fail(HELP);
+        buildOnly && (baselineCommit || preparedImage || seen.has('--config')) || !buildOnly && (dockerHost || platform || sourceUrl) ||
+        build && (buildOnly || rollback || apply || preparedImage)) fail(HELP);
     if(buildOnly) {
-      const built=await buildApplicationImage({...options,dockerHost,platform,out});
+      // A release build on a CI runner from scratch may take longer than a rebuild here.
+      const built=await buildApplicationImage({...options,dockerHost,platform,out,sourceUrl,timeoutMs:1_800_000});
       out.write(json(built));
     } else if(apply) await applyDeployment(apply,options);
     else {
-      const plan=await prepareDeployment({...options,selectorFile,baselineCommit,rollback,preparedImage,out});
+      const plan=await prepareDeployment({...options,selectorFile,baselineCommit,rollback,preparedImage,build,out});
       const verb=rollback?'rollback':'update';
       out.write(`Prepared ${plan.commit.slice(0,12)} for ${plan.selector.project}; nothing has changed yet.\n`);
       out.write(`Image: ${plan.image}\nPrevious: ${plan.previous.image}\nOnly the app container is replaced; databases and backups stay in place.\n`);

@@ -15,6 +15,7 @@
     "generate": "node scripts/generate.mjs",
     "os:setup": "node scripts/os-setup.mjs",
     "os:convert-legacy": "node scripts/os-convert-legacy.mjs",
+    "os:apply": "node scripts/stack-apply.mjs",
     "os:status": "node scripts/stack-control.mjs status",
     "os:logs": "node scripts/stack-control.mjs logs",
     "os:start": "node scripts/stack-control.mjs start",
