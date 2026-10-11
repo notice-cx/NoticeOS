@@ -33,10 +33,10 @@ The steps that need the PostgreSQL client and the task tool run inside the app's
 
 3. In your browser, open **http://127.0.0.1:5173/**.
 
-Setup builds `main` into the app image, which takes a few minutes the first time. When it prints **NoticeOS is running**, the stack runs on its own: its services start again with Docker, and the `pnpm os:*` commands control it from this checkout. See [Daily operations](/operate/daily-operations).
+Setup fetches the app image CI published for `main`, or builds it here when none is published yet; a build takes a few minutes. When it prints **NoticeOS is running**, the stack runs on its own: its services start again with Docker, and the `pnpm os:*` commands control it from this checkout. See [Daily operations](/operate/daily-operations).
 
 ::: warning Keep it private
-A standalone installation has no login. It listens on `127.0.0.1` only, so nothing outside your machine can reach it. If you put it on a network, put a VPN or an access proxy in front of it first.
+A standalone installation has no login. It listens on `127.0.0.1`, so nothing outside your machine can reach it. Before you [open it to a network](/start/run-with-docker#open-the-tower-to-your-network), make sure that network is one you trust, or put a VPN or an access proxy in front of it.
 :::
 
 ### Options
@@ -45,6 +45,7 @@ A standalone installation has no login. It listens on `127.0.0.1` only, so nothi
 pnpm os:setup -- --dir ~/noticeos-test     # keep the installation in another folder (default ~/noticeos)
 pnpm os:setup -- --offsite ~/Sync/Backups  # hand each night's backup to a folder a sync client carries off the machine
 pnpm os:setup -- --tower-port 6000         # the Tower on another port
+pnpm os:setup -- --build                   # build the app image here instead of fetching the published one
 pnpm os:setup -- --without-backup          # no backup worker
 ```
 
@@ -83,6 +84,7 @@ Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in 
 ## If it didn't work
 
 - Setup stops before making anything: the folder is not empty, the project already has containers or volumes, or `.local/stack.json` already selects an installation. The sentence names which; a legacy installation moves into the layout with `pnpm os:convert-legacy` ([Run with Docker](/start/run-with-docker#convert-a-legacy-installation)).
+- Setup says the published image "was not built from this checkout's source": nothing was made. Run `pnpm os:setup -- --build`.
 - Setup stops after it started making things: it names what it made and leaves it for inspection. `pnpm os:logs` shows the services' side.
 - `pnpm run` refuses to start after you pulled new code: run `pnpm install --frozen-lockfile` again.
 

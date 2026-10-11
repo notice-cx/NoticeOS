@@ -25,10 +25,12 @@ pnpm os:setup            # a new installation in ~/noticeos (-- --dir <folder>),
 pnpm os:convert-legacy   # the installation .local/stack.json selects, moved into the layout after you confirm
 ```
 
-`os:setup` needs only Docker, Node and pnpm: it builds `main` into the image,
-writes the folder and new secrets, creates the two data volumes, starts the
-databases, and runs the steps that need psql and Beads inside a one-off app
-container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
+`os:setup` needs only Docker, Node and pnpm: it takes main's
+[published image](#update-the-app-from-main), checked against this checkout's
+source, or builds `main` into the image when none is published (`-- --build`
+always builds). It writes the folder and new secrets, creates the two data
+volumes, starts the databases, and runs the steps that need psql and Beads
+inside a one-off app container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
 database it proves empty, the NoticeOS asset and its task project). It then
 starts the app and the backup worker, loads the default settings
 (`entrypoint.mjs seed-settings`) and writes `.local/stack.json`. It refuses any
@@ -71,7 +73,8 @@ docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/
 | `NOTICEOS_STATE_DIR` | The installation folder's `state/` |
 | `NOTICEOS_SPOKES_DIR` | The folder holding the linked task repositories; `spokes/` unless the installation keeps them elsewhere |
 | `NOTICEOS_NETWORK` | The installation network, `<project>_installation`, which the project creates |
-| `NOTICEOS_TOWER_PORT` | The Tower's host port; binding is always `127.0.0.1` |
+| `NOTICEOS_TOWER_BIND` | Where the Tower listens on the host: `127.0.0.1` (this machine only; the default when the line is absent), `0.0.0.0` (every interface) or one IPv4 address |
+| `NOTICEOS_TOWER_PORT` | The Tower's host port |
 | `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the private mounted files: the account that ran setup |
 | `TOWER_ALLOWED_HOSTS` | Additional hostnames for Tower, separated by commas or spaces |
 
@@ -104,14 +107,23 @@ address must name `postgres:5432`. Existing linked spokes must declare their
 own database on that prepared hub. Product settings and provider credentials
 continue to be connected through the Tower.
 
-Postgres and Dolt are separately managed durable services. Of the app's ports, only Tower port
-5173 is published, through the declared loopback host binding. The ingest
-door stays on loopback inside the application container. The app has a read
-only image. Tower listens on the container interface so Docker can forward
-the published port; this does not expose the host port beyond loopback.
-An operator can override the host binding for an existing trusted private LAN.
-Standalone has no login, so that override gives reachable clients read and write
-access. Keep the hostname allowlist; never set it to allow every host.
+Postgres and Dolt are separately managed durable services, each published on
+`127.0.0.1` only. Of the app's ports, only Tower port 5173 is published, on the
+host address `NOTICEOS_TOWER_BIND` names (`127.0.0.1` unless the installation
+chooses otherwise). The ingest door stays on loopback inside the application
+container and is never published. The app has a read only image. Tower listens
+on the container interface so Docker can forward the published port; the host
+binding decides which of the host's interfaces reach it.
+
+To open the Tower to a trusted network, set `NOTICEOS_TOWER_BIND` to `0.0.0.0`
+or one IPv4 address of the host and run `pnpm os:apply`
+([below](#change-a-setting)); its plan warns that the Tower will answer other
+devices. Standalone has no login, so every client that reaches it can read and
+change the installation's data. Devices reach it by IP address; a machine name
+must be listed in `TOWER_ALLOWED_HOSTS`, because the app runs in a container and
+does not know the host's own name. Keep the hostname allowlist; never set it to
+allow every host.
+
 The app has no Docker socket. Vite's configuration cache uses an ephemeral
 tmpfs; other runtime caches use the state mount. Optional development metadata
 and telemetry requests are disabled. The health check requires a fresh,
@@ -136,6 +148,7 @@ pnpm os:logs         # recent logs; -- --follow, -- --lines N, -- <service>
 pnpm os:start        # databases, then backup, then the app, each healthy first
 pnpm os:stop         # the app, then backup, then the databases
 pnpm os:restart      # the whole stack in dependency order, waiting for health
+pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
 pnpm os:capacity     # the store's size and growth per table; -- --json
@@ -145,6 +158,34 @@ Start, stop and restart never create containers, build or pull images, apply
 migrations or remove volumes. A failed step stops the sequence; read status
 before retrying. The full command list is in the
 [command reference](../../docs/reference/commands.md).
+
+## Change a setting
+
+Edit the installation's `installation.env`, then run `pnpm os:apply`
+([`scripts/stack-apply.mjs`](../../scripts/stack-apply.mjs)). It compares each
+container's Compose config hash with the hash of its service as declared now
+([`scripts/stack-drift.mjs`](../../scripts/stack-drift.mjs)), prints each
+change in the operator's terms (ports, settings such as `TOWER_ALLOWED_HOSTS`,
+the user, folders) and which services it recreates, and asks you to type
+`apply` (`-- --confirm apply` without a terminal). A pull that changes the
+stack definition shows up the same way.
+
+Only the changed services are recreated: the databases first, with the app and
+backup worker stopped while they return, then the backup worker, then the app,
+each waiting for health. It shares the update lock. Setup, conversion and each
+successful apply record `installation.env` as the last settings the stack ran
+healthy with (`stack-apply/applied.env` beside the selector); when a service
+does not become healthy, the stack returns to them. `installation.env` itself
+is never rewritten. With nothing to apply, it says so and records the current
+settings.
+
+It refuses a change that would point a database at other data (a data volume
+name), a project rename, a new port already in use and a declared service with
+no container. It builds or pulls no image and applies no migration.
+`pnpm os:status` prints a `settings:` line while a service does not run as
+`installation.env` declares; `pnpm os:restart` restarts the same containers and
+applies nothing. `pnpm os:migrate` reads the Postgres port the stack publishes
+from Compose, so a port moved this way needs no other edit.
 
 ## Update the app from main
 
@@ -159,9 +200,19 @@ pnpm os:update
 ```
 
 Preparation reads the selected stack's container/image metadata and Compose
-declarations, then builds an allowlisted public source context. It leaves
-services running. The image records the exact main revision, source manifest
-and Postgres schema/role fingerprint. `pnpm os:status` reports the running
+declarations, then takes main's image. CI publishes every `main` commit that
+passes CI as `ghcr.io/notice-cx/noticeos:<commit>`, for linux/amd64 and
+linux/arm64, with a build provenance attestation
+([`release-image.yml`](../../.github/workflows/release-image.yml)). Preparation
+pulls it and uses it only when its labels name this checkout's main commit,
+its schema and the hash of the public build inputs this checkout prepares for
+that commit: the image was built from exactly this source. A mismatch refuses
+and names `-- --build`. When nothing is published for the commit yet (it
+appears a few minutes after CI passes on `main`) or the registry is
+unreachable, it builds an allowlisted public source context here and says
+why. `-- --build` always builds here; a fork's commits are not published
+there, so a fork builds here. It leaves services running. The image records
+the exact main revision, source manifest and Postgres schema/role fingerprint. `pnpm os:status` reports the running
 source, local main and whether they differ; an older image without revision
 labels reports unknown. A first update from such an image requires its
 recorded full source hash with `-- --baseline-commit COMMIT`. That argument is

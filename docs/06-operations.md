@@ -47,11 +47,12 @@ repo-owned interface:
 
 | Question / action | Command | Contract |
 |---|---|---|
-| Is the OS trustworthy? | `pnpm os:status` | Each service's Docker state and health, whether the database has every migration this checkout carries, the app's commit and whether `main` is ahead. A port alone never earns healthy. |
+| Is the OS trustworthy? | `pnpm os:status` | Each service's Docker state and health, whether the database has every migration this checkout carries, the app's commit, whether `main` is ahead, and any service that does not run as `installation.env` declares. A port alone never earns healthy. |
 | What just happened? | `pnpm os:logs -- --lines 200` | Recent logs from every service, or `-- <service>`; `-- --follow` follows them during a repro. |
 | How big is the store, and how fast is it growing? | `pnpm os:capacity` | Rows, bytes and daily growth per table, insight snapshots, the raw archive and lane durations, asked of the running OS; metadata only ([doc 26](26-storage-capacity.md)). `-- --json` is the raw answer. |
 | Recover the app | `pnpm os:restart` | Restarts the stack in dependency order, waiting for each layer's health; a failed step stops the sequence. |
-| Put merged work live | `pnpm os:update` | Builds `main` into an image, shows the plan and applies it after you type `update`, replacing only the app container and going back by itself if health does not return; `pnpm os:rollback` returns to the previous image. |
+| Apply an edit to `installation.env` | `pnpm os:apply` | Shows each change and the services it recreates, and applies it after you type `apply`: only those services, databases first, each waiting for health. A service that does not become healthy returns the stack to the settings it last ran healthy with. It never points a database at other data, renames the project, builds or pulls an image, or applies a migration. |
+| Put merged work live | `pnpm os:update` | Takes the image CI published for `main`'s commit when it was built from exactly this checkout's source, or builds it here when none is published, shows the plan and applies it after you type `update`, replacing only the app container and going back by itself if health does not return; `pnpm os:rollback` returns to the previous image. |
 
 **Merging is not deploying.** A production app runs a fixed image that a merge
 never touches. `pnpm os:update` is the step after a verified merge: it stops,
@@ -75,7 +76,7 @@ approval is required before restarting or updating when a pending change
 affects auth, billing, security headers, DB migrations, consent,
 analytics/tracking, holdouts, or guardrail thresholds.
 
-Startup, restart and update never apply a migration. Postgres is the only
+Startup, restart, apply and update never apply a migration. Postgres is the only
 operational store; applying a migration is operator-only:
 
 1. `pnpm os:status`: what runs, whether `main` is ahead, whether the database

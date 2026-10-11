@@ -77,7 +77,7 @@ On a source installation the file is `<installation-folder>/installation/task-ho
 }
 ```
 
-On the prepared container, `repo` is the container path, such as `/spokes/example`, and the container's own Compose configuration mounts the host checkout there. Changing mounts and restarting the container are host-administrator steps. The [host-link contract](../../config/task-host.README.md) and the [container guide](../../deploy/compose/README.md) hold the details.
+On the prepared container, `repo` is the container path, such as `/spokes/example`: the installation's task-repository folder (`NOTICEOS_SPOKES_DIR` in `installation.env`) is mounted at `/spokes`, so the checkout lives inside it. To mount another folder, change that line and run `pnpm os:apply`; that is a host-administrator step. The [host-link contract](../../config/task-host.README.md) and the [container guide](../../deploy/compose/README.md) hold the details.
 
 This link is what lets the product read the checkout's tasks, run local task actions in it and keep them backed up.
 
