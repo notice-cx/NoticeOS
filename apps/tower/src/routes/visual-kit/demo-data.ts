@@ -4,6 +4,7 @@ import type { SeriesPoint } from "@shared/wall";
 import type { Incident } from "@/components/viz/IncidentList";
 import type { PortfolioRow } from "@/components/viz/PortfolioRows";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
+import type { WorkFlowRow } from "@/components/viz/WorkFlow";
 
 export const DEMO_NOW = Date.parse("2026-10-11T21:30:00.000Z");
 export const DEMO_MARKER = "2026-10-11T01:00:00.000Z";
@@ -70,4 +71,13 @@ export const QUEUE: QueueItem[] = [
     project: SITES[index % SITES.length]!.name,
     ageDays: [1, 3, 9, 12, 21, 33, 45, 61, 75, 88][index % 10]!,
   })),
+];
+
+export const WORK: WorkFlowRow[] = [
+  { id: "plume", name: "Plume Studio", done: 58, inProgress: 4, ready: 167, blocked: 9, urgent: 14 },
+  { id: "mosaic", name: "Mosaic Finder", done: 19, inProgress: 2, ready: 61, blocked: 3, urgent: 5 },
+  { id: "lantern", name: "Lantern Works", done: 4, inProgress: 1, ready: 12, blocked: 0, urgent: 2 },
+  { id: "acorn", name: "Acorn Atlas", done: 2, inProgress: 1, ready: 9, blocked: 0, urgent: 0 },
+  { id: "ripple", name: "Ripple Index", done: 1, inProgress: 0, ready: 6, blocked: 0, urgent: 1 },
+  { id: "summit", name: "Summit", done: 5, inProgress: 2, ready: 13, blocked: 1, urgent: 4 },
 ];

@@ -1240,4 +1240,11 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The sites side by side, one ruled row each: people a day as a line, yesterday's money and change, share of the month and data sources live. Columns drop by the panel's own width before a name ever wraps.",
     variants: ["full width", "narrow column"],
   },
+  {
+    name: "WorkFlow",
+    file: "components/viz/WorkFlow.tsx",
+    purpose:
+      "Work as flow, one row per project around a centre line: done this week grows left in the win's green, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked.",
+    variants: ["six projects with the key", "compact for the Wall"],
+  },
 ];

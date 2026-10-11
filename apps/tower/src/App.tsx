@@ -90,6 +90,8 @@ if (import.meta.env.DEV) {
     { path: "/dev/kitchen-sink", ...lazyPage(() => import("@/routes/KitchenSinkRoute")) },
     { path: "/dev/visual-kit", ...lazyPage(() => import("@/routes/VisualKitRoute")) },
   );
+  // Wall directions draw outside the shell, as the TV does, before the catch-all.
+  routes.splice(routes.length - 1, 0, { path: "/dev/wall-concepts", ...lazyPage(() => import("@/routes/WallConceptsRoute"), { surface: "wall" }) });
 }
 
 export function createTowerRouter() {

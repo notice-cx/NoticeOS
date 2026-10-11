@@ -14,9 +14,10 @@ import { NormalBand } from "@/components/viz/NormalBand";
 import { PaceBar } from "@/components/viz/PaceBar";
 import { PortfolioRows } from "@/components/viz/PortfolioRows";
 import { StatTile } from "@/components/viz/StatTile";
+import { WorkFlow } from "@/components/viz/WorkFlow";
 import { formatInt, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DEMO_MARKER, DEMO_NOW, INCIDENTS, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, REVENUE_30 } from "@/routes/visual-kit/demo-data";
+import { DEMO_MARKER, DEMO_NOW, INCIDENTS, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, REVENUE_30, WORK } from "@/routes/visual-kit/demo-data";
 
 /**
  * The visual kit, staged with invented figures: every new form at the size a
@@ -176,6 +177,12 @@ export function VisualKitGallery() {
             marker={DEMO_MARKER}
             action={{ label: "All alerts →", to: "#" }}
           />
+        </Specimen>
+      </Group>
+
+      <Group title="Work">
+        <Specimen id="work-flow" title="WorkFlow — per project: done this week grows left, the open queue grows right (in progress, ready, blocked)" className="w-[44rem]">
+          <WorkFlow rows={WORK} waiting={{ count: 4, urgent: 1 }} title="Work this week" />
         </Specimen>
       </Group>
 

@@ -2801,7 +2801,7 @@ export function KitchenSinkRoute() {
             </Button>
           </header>
 
-          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows">
+          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows, WorkFlow">
             <div className="w-full">
               <VisualKitGallery />
             </div>
