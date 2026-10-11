@@ -123,3 +123,12 @@ test('container Vite serve supplies the refresh runtime even when ambient NODE_E
     fs.rmSync(fixture, { recursive: true, force: true });
   }
 });
+
+test('the image prints its launcher for a Docker-only install, before it checks any installation', async () => {
+  let printed = '';
+  const code = await containerMain(['launcher'], { out: { write: (bytes) => { printed += String(bytes); } }, err: { write: () => assert.fail('it refused') },
+    environment: () => assert.fail('the installation was checked') });
+  assert.equal(code, 0);
+  assert.equal(printed, fs.readFileSync(fileURLToPath(new URL('../deploy/compose/noticeos', import.meta.url)), 'utf8'));
+  assert.match(printed, /^#!\/bin\/sh\n/u);
+});

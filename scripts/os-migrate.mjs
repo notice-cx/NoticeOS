@@ -9,7 +9,8 @@
 // owner's address beside the owner's secret in the stack's resolved Compose
 // declaration (`owner.url`, which `pnpm db:create-secrets` writes there).
 // --secrets <folder> names that folder instead. The address never reaches
-// the command line, a log or the screen.
+// the command line, a log or the screen. Run from an installation's image,
+// it reaches Postgres on the installation's network, which its launcher joins.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,6 +18,7 @@ import { createInterface } from 'node:readline/promises';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { USAGE, main as migrate } from './postgres-apply.mjs';
+import { imageInstallation, onInstallationNetwork } from './image-installation.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runCommand } from './run-command.mjs';
 import { readSelector } from './stack-control.mjs';
@@ -79,7 +81,8 @@ export async function main(argv = process.argv.slice(2), {
     if (values.secrets !== undefined) target = secretAddress(path.resolve(values.secrets), 'owner.url', io);
     else {
       const postgres = await stackPostgres(readSelector(values.config ?? DEFAULT_SELECTOR), { run: docker, env });
-      target = atPublishedPort(secretAddress(postgres.secretsDir, 'owner.url', io), postgres.port);
+      const address = secretAddress(postgres.secretsDir, 'owner.url', io);
+      target = imageInstallation(env) ? onInstallationNetwork(address) : atPublishedPort(address, postgres.port);
     }
   } catch (error) {
     err.write(`refused: ${error.message}; name the folder with --secrets <folder>\n`);

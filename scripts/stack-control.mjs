@@ -18,7 +18,9 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { imageInstallation } from './image-installation.mjs';
 import { ENV_FILE } from './installation-layout.mjs';
+import { publishedRevision } from './published-image.mjs';
 import { runCommand } from './run-command.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
@@ -122,7 +124,8 @@ export function actionArgs(action, args) {
 }
 
 export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env, args = [],
-  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent, drift = serviceDrift } = {}) {
+  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent, drift = serviceDrift,
+  published = publishedRevision } = {}) {
   if (!ACTIONS.includes(action)) refuse(HELP);
   const own = actionArgs(action, args);
   const selector = validateSelector(input);
@@ -162,7 +165,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
       const row = original.get(service); out.write(`${service}: ${row.state}${row.health ? ', ' + row.health : ''}\n`);
     }
     const current = await database(selector, { root, run, env });
-    out.write(`database: ${current.ok ? 'has every migration in this checkout' : current.line}\n`);
+    out.write(`database: ${current.ok ? 'has every migration this code carries' : current.line}\n`);
     const pending = await drift(selector, { run, env }).catch(() => null);
     if (pending?.changed.length) out.write(`settings: ${pending.changed.join(', ')} ${pending.changed.length === 1 ? 'does' : 'do'} not run as installation.env declares; pnpm os:apply shows the change\n`);
     let running = null; let main = null;
@@ -182,8 +185,12 @@ export async function stackControl(action, input, { run = runCommand, out = proc
         out.write(`mode: development (mounted checkout)\napp source: ${commit}\nupdate: live source; pnpm os:prod returns to the image\n`);
         return;
       }
-      const source = await run('git', ['rev-parse','--verify','main^{commit}'], { cwd: root, env: ownEnv, timeoutMs: 20000 });
-      if (source.code === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.stdout.trim())) main = source.stdout.trim();
+      // From its image, an installation's main is the newest published one; from a checkout, the checkout's.
+      if (imageInstallation(env)) main = await published();
+      else {
+        const source = await run('git', ['rev-parse','--verify','main^{commit}'], { cwd: root, env: ownEnv, timeoutMs: 20000 });
+        if (source.code === 0 && /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u.test(source.stdout.trim())) main = source.stdout.trim();
+      }
     } catch { refuse('Application revision inspection failed; raw output is withheld.'); }
     out.write(`app source: ${running ?? 'unknown (image predates revision labels)'}\n`);
     out.write(`main: ${main ?? 'unavailable'}\n`);

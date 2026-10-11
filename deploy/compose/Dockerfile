@@ -36,6 +36,20 @@ RUN case "$TARGETARCH" in \
     && tar -xzf /tmp/dolt.tar.gz -C /tmp \
     && install /tmp/dolt-linux-${TARGETARCH}/bin/dolt /usr/local/bin/dolt \
     && rm -rf /tmp/dolt.tar.gz /tmp/dolt-linux-${TARGETARCH} && dolt version
+# The Docker CLI and Compose, for an installation's own commands run from this
+# image (deploy/compose/noticeos); the app itself never reaches Docker.
+RUN case "$TARGETARCH" in \
+      amd64) arch=x86_64 cli=ea90cfd12e1eeb12aa1c971741adb8bd4ed88e2a574eaac13f5029a1dbc6300d compose=dba9d98e1ba5bfe11d88c99b9bd32fc4a0624a30fafe68eea34d61a3e42fd372 ;; \
+      arm64) arch=aarch64 cli=9e4f82996ab790724094475ebed33a736434bfe5d45231b676fef22ffb80044d compose=d26373b19e89160546d15407516cc59f453030d9bc5b43ba7faf16f7b4980137 ;; \
+      *) exit 1 ;; \
+    esac && curl --fail --location --silent --show-error "https://download.docker.com/linux/static/stable/${arch}/docker-28.5.2.tgz" -o /tmp/docker.tgz \
+    && echo "$cli  /tmp/docker.tgz" | sha256sum --check - \
+    && tar -xzf /tmp/docker.tgz -C /usr/local/bin --strip-components=1 docker/docker && rm /tmp/docker.tgz \
+    && mkdir -p /usr/local/libexec/docker/cli-plugins \
+    && curl --fail --location --silent --show-error "https://github.com/docker/compose/releases/download/v2.40.3/docker-compose-linux-${arch}" -o /usr/local/libexec/docker/cli-plugins/docker-compose \
+    && echo "$compose  /usr/local/libexec/docker/cli-plugins/docker-compose" | sha256sum --check - \
+    && chmod 755 /usr/local/libexec/docker/cli-plugins/docker-compose \
+    && docker --version && docker compose version
 RUN npm install --global pnpm@12.8.1
 WORKDIR /opt/noticeos
 COPY . .

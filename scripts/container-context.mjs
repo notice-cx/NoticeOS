@@ -5,11 +5,16 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { STACK_SOURCES } from './installation-layout.mjs';
 import { gitSourceVersion } from './source-version.mjs';
 
 const ROOT_FILES = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml', 'tsconfig.base.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md']);
 const TOOL_NOTICES = ['deploy/compose/licenses/beads-1.3.1-LICENSE.txt',
-  'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/sources.json'];
+  'deploy/compose/licenses/dolt-2.4.0-LICENSE.txt', 'deploy/compose/licenses/docker-cli-28.5.2-LICENSE.txt',
+  'deploy/compose/licenses/docker-cli-28.5.2-NOTICE.txt', 'deploy/compose/licenses/docker-compose-2.40.3-LICENSE.txt',
+  'deploy/compose/licenses/docker-compose-2.40.3-NOTICE.txt', 'deploy/compose/licenses/sources.json'];
+// An installation that runs from its image copies its stack definition and its launcher out of it.
+const IMAGE_INSTALLATION = new Set([...STACK_SOURCES, 'deploy/compose/noticeos']);
 const PRIVATE_SEGMENTS = /(?:^|\/)(?:\.[^/]+|installation|node_modules|secrets?|backups?|artifacts|test-results|playwright-report)(?:\/|$)/u;
 const PUBLIC_PATHS = [
   /^apps\/tower\/(?:src|shared|worker|vite|public)\/[^\0]+$/u,
@@ -22,16 +27,14 @@ const PUBLIC_PATHS = [
   /^scripts\/runner\/[^/]+\.mjs$/u,
   /^config\/[^/]+\.json$/u,
   /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json|frozen-migrations\.sha256)$/u,
-  /^db\/dolt\/host\/backup-metadata\.sh$/u,
   /^deploy\/compose\/(?:Dockerfile|development\.mjs|(?:backup-)?health\.mjs|(?:backup-)?entrypoint\.mjs)$/u,
-  /^deploy\/compose\/licenses\/(?:beads-1\.3\.1-LICENSE\.txt|dolt-2\.4\.0-LICENSE\.txt|sources\.json)$/u,
 ];
 
 export function publicContainerPath(file) {
   if (typeof file !== 'string' || file.includes('\\') || file.includes('\0') || file.split('/').some(part => !part || part === '..')) return false;
   if (file.startsWith('postgres/') || PRIVATE_SEGMENTS.test(file)) return false;
   if (/(?:^|\/)(?:[^/]*\.(?:test|spec)\.[^/]+|[^/]*\.(?:pem|key|sqlite|db|dump|tar|gz))$/iu.test(file)) return false;
-  return ROOT_FILES.has(file) || PUBLIC_PATHS.some(pattern => pattern.test(file));
+  return ROOT_FILES.has(file) || TOOL_NOTICES.includes(file) || IMAGE_INSTALLATION.has(file) || PUBLIC_PATHS.some(pattern => pattern.test(file));
 }
 
 function regularSource(root, relative) {
@@ -58,7 +61,7 @@ export function prepareContainerContext({ root, destination, files } = {}) {
     files = result.stdout.split('\0').filter(Boolean);
   }
   const selected = [...new Set(files.filter(publicContainerPath))].sort();
-  for (const required of [...ROOT_FILES, ...TOOL_NOTICES, 'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs']) {
+  for (const required of [...ROOT_FILES, ...TOOL_NOTICES, ...IMAGE_INSTALLATION, 'apps/tower/wrangler.jsonc', 'workers/ingest/wrangler.jsonc', 'db/postgres/tables.json', 'deploy/compose/Dockerfile', 'deploy/compose/entrypoint.mjs', 'deploy/compose/development.mjs', 'deploy/compose/health.mjs']) {
     if (!selected.includes(required)) throw new Error('A required public build input is missing.');
   }
   const sources = selected.map(file => ({ file, source: regularSource(root, file) }));

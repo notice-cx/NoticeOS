@@ -20,6 +20,7 @@ import path from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 import { prepareContainerContext, publicContainerPath } from './container-context.mjs';
+import { RELEASE_REPOSITORY, REVISION_LABEL } from './published-image.mjs';
 import { readSelector, validateSelector, parseServices } from './stack-control.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { runCommand } from './run-command.mjs';
@@ -27,7 +28,7 @@ import { runCommand } from './run-command.mjs';
 const REVISION = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/u;
 const IMAGE = /^sha256:[a-f0-9]{64}$/u;
 const DIGEST = /^[a-f0-9]{64}$/u;
-export const REVISION_LABEL = 'org.opencontainers.image.revision';
+export { RELEASE_REPOSITORY, REVISION_LABEL };
 export const SCHEMA_LABEL = 'cx.noticeos.schema';
 const SOURCE_LABEL = 'cx.noticeos.source';
 const IMAGE_KIND_LABEL = 'cx.noticeos.image-kind';
@@ -175,8 +176,6 @@ export function readDeploymentPlan(file) {
   return plan;
 }
 
-/** Where main's published app images are: one per commit, tagged with the commit. */
-export const RELEASE_REPOSITORY = 'ghcr.io/notice-cx/noticeos';
 /** Labels a published image carries besides its provenance. */
 const OCI_SOURCE_LABEL = 'org.opencontainers.image.source';
 

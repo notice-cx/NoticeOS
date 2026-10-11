@@ -61,6 +61,15 @@ test('status distinguishes the deployed source from main without reporting an un
     assert.equal(own.writes().length,0);
   }
 });
+test('from an installation\'s image, main is the newest published version, asked of the registry rather than git', async () => {
+  for (const [published, expected] of [['a'.repeat(40), 'current'], ['c'.repeat(40), 'main differs'], [null, 'unknown']]) {
+    const own = fixture({ revision: 'a'.repeat(40) });
+    const run = async (command, args, options) => command === 'git' ? assert.fail('git was asked') : own.run(command, args, options);
+    await stackControl('status', selector, { ...own, run, env: { NOTICEOS_CLI_IMAGE: 'ghcr.io/example/noticeos:main', NOTICEOS_DIR: '/fixture' }, published: async () => published });
+    assert.ok(own.output().includes(`main: ${published ?? 'unavailable'}\n`), own.output());
+    assert.ok(own.output().includes(`update: ${expected}`), own.output());
+  }
+});
 test('development status reports mounted HEAD rather than the dependency image revision',async()=>{
  const own=fixture({development:true,revision:'b'.repeat(40)});await stackControl('status',selector,{...own,root:'/fixture/source'});
  assert.match(own.output(),/mode: development/);assert.ok(own.output().includes('app source: '+'a'.repeat(40)));
@@ -104,9 +113,9 @@ test('help performs no configuration or Docker access and CLI failures remain re
   assert.equal(await main(['status','--config','/fixture/stack.json'], { out, err: out, io, run }), 1);
   assert.ok(!output.includes('PRIVATE-SENTINEL'));
 });
-test('status says whether the database has every migration in this checkout, in the check\'s own words', async () => {
+test('status says whether the database has every migration this code carries, in the check\'s own words', async () => {
   const current = fixture(); await stackControl('status', selector, current);
-  assert.match(current.output(), /database: has every migration in this checkout/u);
+  assert.match(current.output(), /database: has every migration this code carries/u);
   const behind = fixture(); await stackControl('status', selector, { ...behind, database: async () => ({ ok: false, line: 'it is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date' }) });
   assert.match(behind.output(), /database: it is 1 migration behind this code; pnpm os:migrate -- --apply/u);
 });

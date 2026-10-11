@@ -60,9 +60,11 @@ export function containerCommand(argv) {
   return null;
 }
 
-export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr } = {}) {
+export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr, out = process.stdout } = {}) {
+  // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
+  if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>", capacity [--json], setup or seed-settings.\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>", capacity [--json], setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();

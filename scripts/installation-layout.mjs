@@ -14,15 +14,38 @@
 //     backup/offsite/      where finished backups are handed off (a choice; default here)
 //
 // The checkout's `.local/stack.json` names the folder's installation.env and
-// the stack's files; the os:* commands read nothing else.
+// the stack's files; the os:* commands read nothing else. An installation
+// that runs from its image, with no checkout, keeps those beside the rest:
+//
+//     noticeos             the launcher its commands run through (deploy/compose/noticeos)
+//     stack.json           its selector
+//     stack/               the stack definition, copied from the image it runs
 
-import { existsSync, lstatSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 export const ENV_FILE = 'installation.env';
+/**
+ * Every file the stack definition reads, relative to a checkout. An
+ * installation that runs from its image (deploy/compose/noticeos) keeps a
+ * copy of them, from that image, in its folder's STACK_DIR.
+ */
+export const STACK_SOURCES = Object.freeze([
+  'deploy/compose/stack.yaml', 'deploy/compose/compose.yaml', 'deploy/compose/backup.compose.yaml',
+  'deploy/compose/stack/app.yaml', 'deploy/compose/stack/postgres.yaml', 'deploy/compose/stack/dolt.yaml',
+  'db/postgres/host/compose.yaml', 'db/postgres/host/pg_hba.conf', 'db/postgres/host/first-start.sh', 'db/postgres/roles.sql',
+  'db/dolt/host/compose.yaml', 'db/dolt/host/server.yaml', 'db/dolt/host/start.sh', 'db/dolt/host/sql.sh',
+  'db/dolt/host/capture.sh', 'db/dolt/host/backup-metadata.sh', 'db/dolt/host/restore.sh', 'db/dolt/host/restore-native.sh',
+]);
+/** The stack sources Postgres runs as programs rather than reads. */
+export const STACK_EXECUTABLES = Object.freeze(['db/postgres/host/first-start.sh']);
+/** An image installation's own copy of the stack definition, its selector and its launcher, in its folder. */
+export const STACK_DIR = 'stack';
+export const SELECTOR_FILE = 'stack.json';
+export const LAUNCHER = 'noticeos';
 /** The stack definition and its optional backup layer, from a checkout. */
 export const stackFiles = (root = ROOT, { backup = true } = {}) => [
   path.join(root, 'deploy', 'compose', 'stack.yaml'),
@@ -87,8 +110,10 @@ const VOLUME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u;
 const HOSTS = /^[A-Za-z0-9.:, -]{0,512}$/u;
 /** Where the Tower listens: this machine only, every interface, or one IPv4 address. */
 const BIND = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/u;
-/** Choices an older installation.env may not set; Compose gives each its default. */
-const OPTIONAL = new Set(['NOTICEOS_TOWER_BIND']);
+/** How the operator runs the os:* commands, for an installation that runs from its image. */
+const COMMANDS = ['NOTICEOS_COMMANDS', '${NOTICEOS_INSTALLATION}/' + LAUNCHER];
+/** Lines an installation.env may not set: choices an older file predates, and the launcher only an image installation has. */
+const OPTIONAL = new Set(['NOTICEOS_TOWER_BIND', COMMANDS[0]]);
 const IMAGE = /^(?:sha256:[a-f0-9]{64}|[a-z0-9][a-z0-9._/-]{0,127}(?::[A-Za-z0-9_.-]{1,128})?(?:@sha256:[a-f0-9]{64})?)$/u;
 // A path is written inside double quotes, where Compose expands `$` and reads
 // `\` and `"` as escapes; none of those, and no line break, may be in one.
@@ -160,6 +185,7 @@ export function renderInstallationEnv(input) {
     '',
     '# The layout.',
     ...DERIVED.map(([name, text]) => line(name, text)),
+    ...(input.launcher ? [line(...COMMANDS)] : []),
     '',
   ].join('\n');
 }
@@ -185,6 +211,19 @@ export function readInstallationEnv(file, io = { readFileSync, lstatSync }) {
   }
   for (const [name] of [...CHOICES, ...DERIVED]) if (!(name in values) && !OPTIONAL.has(name)) fail(`${file} does not set ${name}.`);
   return values;
+}
+
+/**
+ * Copy the stack definition from `root` into `target`, for an installation
+ * that runs from its image; the copy keeps the checkout's relative paths, so
+ * the files find each other as they do there.
+ */
+export function copyStack(root, target, io = { mkdirSync, readFileSync, writeFileSync }) {
+  for (const file of STACK_SOURCES) {
+    const to = path.join(target, file);
+    io.mkdirSync(path.dirname(to), { recursive: true, mode: 0o755 });
+    io.writeFileSync(to, io.readFileSync(path.join(root, file)), { flag: 'wx', mode: STACK_EXECUTABLES.includes(file) ? 0o755 : 0o644 });
+  }
 }
 
 /** The `.local/stack.json` for the installation in `dir`. */

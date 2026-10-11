@@ -16,6 +16,38 @@
       "file": "dolt-2.4.0-LICENSE.txt",
       "source": "https://raw.githubusercontent.com/dolthub/dolt/v2.4.0/LICENSE",
       "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+    },
+    {
+      "component": "Docker CLI",
+      "version": "28.5.2",
+      "license": "Apache-2.0",
+      "file": "docker-cli-28.5.2-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/docker/cli/v28.5.2/LICENSE",
+      "sha256": "2d81ea060825006fc8f3fe28aa5dc0ffeb80faf325b612c955229157b8c10dc0"
+    },
+    {
+      "component": "Docker CLI",
+      "version": "28.5.2",
+      "license": "Apache-2.0",
+      "file": "docker-cli-28.5.2-NOTICE.txt",
+      "source": "https://raw.githubusercontent.com/docker/cli/v28.5.2/NOTICE",
+      "sha256": "a8c869fbda819afb8d80e0ac19bac52e766bc6c19cb38cf94f52d64c4be2aab6"
+    },
+    {
+      "component": "Docker Compose",
+      "version": "2.40.3",
+      "license": "Apache-2.0",
+      "file": "docker-compose-2.40.3-LICENSE.txt",
+      "source": "https://raw.githubusercontent.com/docker/compose/v2.40.3/LICENSE",
+      "sha256": "58d1e17ffe5109a7ae296caafcadfdbe6a7d176f0bc4ab01e12a689b0499d8bd"
+    },
+    {
+      "component": "Docker Compose",
+      "version": "2.40.3",
+      "license": "Apache-2.0",
+      "file": "docker-compose-2.40.3-NOTICE.txt",
+      "source": "https://raw.githubusercontent.com/docker/compose/v2.40.3/NOTICE",
+      "sha256": "b7dca0a6b01fa7365e4892877a6321179ee343d72ee87a96cfc222141b99a1e6"
     }
   ]
 }

@@ -11,6 +11,9 @@
 //
 // It needs Docker, Node and pnpm, nothing else: the steps that need psql and
 // Beads run inside a one-off app container (scripts/os-setup-container.mjs).
+// With no checkout at all, the launcher deploy/compose/noticeos runs it from
+// the published image, which becomes the app's image; the folder then keeps
+// its own copy of the stack definition, its selector and the launcher.
 // In order: it checks that the folder, the Compose project and its volumes
 // are all new; fetches main's published app image, checked against this
 // checkout's source, or builds it when none is published; writes the installation folder
@@ -31,7 +34,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { installationChoices, installationPaths, installationSelector, renderInstallationEnv, DEFAULTS } from './installation-layout.mjs';
+import { dockerPortFree, imageInstallation } from './image-installation.mjs';
+import { copyStack, installationChoices, installationPaths, installationSelector, renderInstallationEnv, DEFAULTS, LAUNCHER, STACK_DIR } from './installation-layout.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { localDockerEndpoint } from './postgres-compose.mjs';
 import { writeSecrets } from './postgres-secrets.mjs';
@@ -109,8 +113,12 @@ export function folderRefusal(dir, root = ROOT, io = fs) {
   return null;
 }
 
-/** Write the installation folder: the layout, new secrets, the app's state and installation.env. */
-export function writeInstallation(choices, { backup, offsite, root = ROOT, random = randomBytes } = {}) {
+/**
+ * Write the installation folder: the layout, new secrets, the app's state and
+ * installation.env; for an installation that runs from its image, also the
+ * stack definition and the launcher, copied from `root`.
+ */
+export function writeInstallation(choices, { backup, offsite, root = ROOT, random = randomBytes, fromImage = false } = {}) {
   const paths = installationPaths(choices.dir);
   const dir = (folder) => fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   const file = (where, text) => fs.writeFileSync(where, text, { flag: 'wx', mode: 0o600 });
@@ -146,7 +154,11 @@ export function writeInstallation(choices, { backup, offsite, root = ROOT, rando
       file(path.join(paths.backupProfile, 'host-backup.json'), json({ ...defaults, offsiteBackupDir: '/backup-offsite/backups' }));
     }
   }
-  file(paths.env, renderInstallationEnv(choices));
+  if (fromImage) {
+    copyStack(root, path.join(choices.dir, STACK_DIR));
+    fs.writeFileSync(path.join(choices.dir, LAUNCHER), fs.readFileSync(path.join(root, 'deploy', 'compose', LAUNCHER)), { flag: 'wx', mode: 0o755 });
+  }
+  file(paths.env, renderInstallationEnv({ ...choices, launcher: fromImage }));
   return { paths, ownerUrl: internal('owner.url') };
 }
 
@@ -155,14 +167,16 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), image: chooseImage = mainImage, free = portFree, endpoint = localDockerEndpoint, uid = process.getuid?.() ?? 1000, gid = process.getgid?.() ?? 1000 } = {}) {
   const say = (line) => out.write(`${line}\n`);
   const tools = ownEnv(env);
+  const fromImage = imageInstallation(env);
   const docker = async (args, what, { timeoutMs = 60_000, stdin = null, inherit = false } = {}) => {
     const result = await run('docker', args, { env: tools, timeoutMs, stdin, inherit, cwd: root });
     if (result.code !== 0) refuse(`${what} failed${inherit ? '; Docker\'s output above says why' : ''}.`);
     return result.stdout ?? '';
   };
 
-  // Everything is checked before anything is made.
-  if (fs.existsSync(options.selectorFile)) refuse(`${options.selectorFile} already selects an installation; pnpm os:status shows it, and pnpm os:convert-legacy moves a legacy one into the layout.`);
+  // Everything is checked before anything is made. Moving a legacy stack in needs a checkout.
+  const legacy = (clause) => fromImage ? '' : clause;
+  if (fs.existsSync(options.selectorFile)) refuse(`${options.selectorFile} already selects an installation; pnpm os:status shows it${legacy(', and pnpm os:convert-legacy moves a legacy one into the layout')}.`);
   const folder = folderRefusal(options.dir, root);
   if (folder) refuse(folder);
   if (options.offsite && !fs.lstatSync(options.offsite, { throwIfNoEntry: false })?.isDirectory()) refuse(`the offsite folder ${options.offsite} does not exist; a missing sync folder is never made locally.`);
@@ -173,15 +187,17 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   const arch = (await docker([...host, 'version', '--format', '{{.Server.Arch}}'], 'Asking Docker for its platform')).trim();
   if (!['amd64', 'arm64'].includes(arch)) refuse(`Docker runs on ${arch || 'an unknown platform'}; NoticeOS images are built for amd64 and arm64.`);
   const owned = (await docker([...host, 'ps', '--all', '--quiet', '--filter', `label=com.docker.compose.project=${options.project}`], 'Listing the project\'s containers')).trim();
-  if (owned) refuse(`Docker already has containers for the project ${options.project}; choose another with --project, or pnpm os:convert-legacy moves that installation.`);
+  if (owned) refuse(`Docker already has containers for the project ${options.project}; choose another with --project${legacy(', or pnpm os:convert-legacy moves that installation')}.`);
   const draft = { project: options.project, dir: options.dir };
   const names = { postgresVolume: `${draft.project}_postgres-data`, doltVolume: `${draft.project}_dolt-data`, network: `${draft.project}_installation` };
   for (const [kind, name] of [['volume', names.postgresVolume], ['volume', names.doltVolume], ['network', names.network]]) {
     const found = await run('docker', [...host, kind, 'inspect', name], { env: tools, timeoutMs: 20_000 });
     if (found.code === 0) refuse(`the ${kind} ${name} already exists; setup never takes over existing data. Choose another --project.`);
   }
+  // From the image, this machine's ports are not the container's own: Docker tests them.
+  const probe = fromImage ? (port) => dockerPortFree(port, { run, dockerHost, image: fromImage.image, env: tools }) : free;
   const taken = new Set();
-  const pick = async (start, chosen) => { const port = await freePort(start, { chosen, free, taken }); taken.add(port); return port; };
+  const pick = async (start, chosen) => { const port = await freePort(start, { chosen, free: probe, taken }); taken.add(port); return port; };
   const ports = {
     towerPort: await pick(options.towerPort ?? DEFAULTS.towerPort, options.towerPort !== null),
     postgresPort: await pick(DEFAULTS.postgresPort, false),
@@ -189,20 +205,24 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   };
 
   let image = options.image;
-  if (image) {
+  if (fromImage) {
+    if (image || options.build) refuse('an installation without a checkout runs the image its launcher fetched; --image and --build need a checkout.');
+    image = (await docker([...host, 'image', 'inspect', '--format', '{{.Id}}', fromImage.image], `Finding the image ${fromImage.image}`)).trim();
+  } else if (image) {
     await docker([...host, 'image', 'inspect', image], `Finding the image ${image}`);
   } else {
     image = (await chooseImage({ build: options.build, root, dockerHost, platform: `linux/${arch}`, run, env, out })).image;
   }
   const choices = installationChoices({ ...draft, image, uid, gid, ...ports, ...names, backupOffsite: options.offsite });
-  const selector = installationSelector({ dir: choices.dir, project: choices.project, dockerHost, backup: options.backup, root });
+  const selector = installationSelector({ dir: choices.dir, project: choices.project, dockerHost, backup: options.backup,
+    root: fromImage ? path.join(choices.dir, STACK_DIR) : root });
   const compose = (args) => [...composePrefix(selector), ...args];
 
   const made = [];
   try {
     say(`Writing the installation to ${choices.dir}.`);
     made.push(`the folder ${choices.dir}`);
-    const { ownerUrl } = writeInstallation(choices, { backup: options.backup, offsite: options.offsite, root });
+    const { ownerUrl } = writeInstallation(choices, { backup: options.backup, offsite: options.offsite, root, fromImage: Boolean(fromImage) });
     for (const volume of [choices.postgresVolume, choices.doltVolume]) {
       await docker([...host, 'volume', 'create', '--label', `cx.noticeos.installation=${choices.dir}`, volume], `Creating the volume ${volume}`);
       made.push(`the volume ${volume}`);
