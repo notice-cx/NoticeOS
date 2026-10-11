@@ -1,6 +1,6 @@
 ---
 title: "Run with Docker"
-description: "Run an already prepared NoticeOS installation as a Docker Compose stack, control it, and move it to new code from main."
+description: "Run a prepared NoticeOS installation as its Docker Compose stack, control it, and move it to new code from main."
 ---
 
 # Run with Docker
@@ -9,7 +9,7 @@ This page gets you a running application container for an installation you have 
 
 ## Before you begin
 
-The application container packages the Tower, the data receiver and the task client in one read-only image. It starts an **already prepared installation**: a Postgres database and a task database (Dolt) that you run as separate durable services on a shared Docker network. The container **never** creates or migrates either database. If you want a new installation on one machine without that preparation, use [Install from source](/start/install-from-source) instead.
+NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It starts an **already prepared installation**: a Postgres database and a task database (Dolt) that run as separate durable services on a shared Docker network. The container **never** creates or migrates either database. If you want a new installation on one machine without that preparation, use [Install from source](/start/install-from-source) instead.
 
 You need:
 
@@ -69,44 +69,41 @@ Standalone has no user login. The port binds to loopback for that reason. If you
    }
    ```
 
-2. From the checkout, run the four commands:
+2. From the checkout, run the stack with the `os:*` commands:
 
    ```sh
-   pnpm stack:status
-   pnpm stack:start
-   pnpm stack:stop
-   pnpm stack:restart
+   pnpm os:status
+   pnpm os:start
+   pnpm os:stop
+   pnpm os:restart
+   pnpm os:logs
    ```
 
-Add `--config /absolute/stack.json` to use another selector file. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes.
+Add `-- --config /absolute/stack.json` to use another selector file. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes.
 
-Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure.
+Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure. [Daily operations](/operate/daily-operations) covers the rest.
 
-## Deploy changes from main
+## Update the app from main
 
-Committing to `main` changes source; it changes nothing running. `stack:restart` restarts the same image. To run new code:
+Committing to `main` changes source; it changes nothing running. `pnpm os:restart` restarts the same image. To run new code:
 
 1. In the checkout, check what runs and whether `main` differs:
 
    ```sh
-   pnpm stack:status
+   pnpm os:status
    ```
 
-2. Prepare a new image and a plan from a clean checkout at `main`. Services keep running:
+2. From a clean checkout at `main`, build a new image and a plan. Services keep running:
 
    ```sh
-   pnpm stack:deploy
+   pnpm os:update
    ```
 
-3. Review the printed plan, then apply it:
+3. Review the printed plan, then type `update` to apply it.
 
-   ```sh
-   pnpm stack:deploy -- --apply /absolute/stack-deploy/PLAN_SHA256.json
-   ```
+Apply recreates only the `noticeos` container and waits up to 90 seconds for health. It applies no migration, and it stops before building when `main` carries a migration the database lacks; see [Upgrade](/start/upgrade#apply-database-changes). If health does not return, it restores the previous image by itself. The Wall reloads on its next request; desk pages show an update prompt so drafts stay open.
 
-Apply recreates only the `noticeos` container and waits up to 90 seconds for health. It applies no migration. If health does not return, it restores the previous image by itself. The Wall reloads on its next request; desk pages show an update prompt so drafts stay open.
-
-To go back to the recorded previous image, prepare a rollback plan with `pnpm stack:deploy -- --rollback` and apply it the same way. An image built before revision labels existed needs `--baseline-commit COMMIT` on the first update.
+To go back to the previous image, run `pnpm os:rollback` and type `rollback`. An image built before revision labels existed needs `-- --baseline-commit COMMIT` on the first update.
 
 For automatic startup after a reboot, set `restart: unless-stopped` on each service and enable your Docker engine's startup setting.
 
@@ -114,31 +111,31 @@ For automatic startup after a reboot, set `restart: unless-stopped` on each serv
 
 For a local installation where you want edits to appear at once:
 
-1. In the checkout, run the development mode:
+1. In the checkout, run the app from its live source:
 
    ```sh
-   pnpm stack:dev
+   pnpm os:dev
    ```
 
 2. To return to the prepared image, run:
 
    ```sh
-   pnpm stack:dev --disable
+   pnpm os:prod
    ```
 
-The app mounts the checkout read-only and refreshes the Tower live. The Wall caption shows **DEV**. Node runner changes need one more `pnpm stack:dev`; UI and Worker edits refresh on save. `stack:deploy` refuses while development mode is on.
+The app mounts the checkout read-only and refreshes the Tower live. The Wall caption shows **DEV**. Scheduler changes need `pnpm os:restart`; UI and Worker edits refresh on save. `os:update` refuses while the app runs live source.
 
 ## Verify
 
-- `pnpm stack:status` prints each service's state and health, the running source, and ends with `current` when `main` and the stack agree.
+- `pnpm os:status` prints each service's state and health, the running source, and ends with `update: current` when `main` and the app agree.
 - The Tower opens on `127.0.0.1` at the port you declared in `NOTICEOS_TOWER_PORT`.
-- After an apply, health returns within 90 seconds and the status names the new image.
+- After an update, health returns within 90 seconds and the status names the new commit.
 
 ## If it didn't work
 
-- `stack:*` says the selector is invalid or a service is unexpected: `.local/stack.json` must name exactly `project`, `files`, `envFile` and `dockerHost`, with absolute paths and a `unix://` socket, and the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
-- `stack:deploy` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm stack:status`, then prepare a new plan.
-- `stack:dev` refuses to start: a changed lockfile refuses startup rather than running mismatched dependencies. Run `pnpm install --frozen-lockfile` and start again.
+- An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` must name exactly `project`, `files`, `envFile` and `dockerHost`, with absolute paths and a `unix://` socket, and the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+- `os:update` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.
+- `os:dev` refuses to start: a changed lockfile refuses startup rather than running mismatched dependencies. Run `pnpm install --frozen-lockfile` and try again.
 
 More symptoms are in [Troubleshooting](/operate/troubleshooting). The full guide, including the backup worker and running report scripts inside the container, is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/README.md.
 

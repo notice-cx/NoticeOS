@@ -1,6 +1,6 @@
 # Postgres operational store
 
-*Postgres is the supported operational store. Applying migrations to an
+*Postgres is the operational store. Applying migrations to an
 existing installation requires explicit operator approval. `pnpm os:migrate` is operator-only
 ([Applying it to an installation's own database](#applying-it-to-an-installations-own-database)).
 The approved exception for a provably new, empty installation is
@@ -11,7 +11,7 @@ The approved exception for a provably new, empty installation is
 | [`migrations/`](migrations/) | The store's schema, in numbered migrations; [`0001_baseline.sql`](migrations/0001_baseline.sql) is the approved model |
 | [`frozen-migrations.sha256`](frozen-migrations.sha256) | The migrations that may never change again, with their hashes, and the only ones a real database may apply ([Changing the schema](#changing-the-schema)) |
 | [`roles.sql`](roles.sql) | Owner, application, maintenance, identity, platform and task-directory roles, created once per cluster before the first migration |
-| [`host/`](host/README.md) | The installation's Postgres as a Compose service, its secrets made by `pnpm postgres:secrets` |
+| [`host/`](host/README.md) | The installation's Postgres as a Compose service, its secrets made by `pnpm db:create-secrets` |
 | [`model.json`](model.json) | Application revision rules, NULL identities, retention windows, maintenance privileges and shared reference catalogs |
 | [`constraints.md`](constraints.md) | The constraint matrix: every table's types, required columns, checks, keys, links and triggers (generated from Postgres) |
 | [`tests/`](tests/) | A synthetic fixture for every table, the cross-workspace denial proof and the edge cases with their accepted outcomes |
@@ -581,7 +581,7 @@ applies these migrations to a development database and to nothing else. It is
 not the live store's tool (that is the operator-only `pnpm os:migrate`,
 [below](#applying-it-to-an-installations-own-database)), and nothing runs it
 but this command: no runtime, restart
-or deploy loads it, so a restart never applies schema.
+or update loads it, so a restart never applies schema.
 
 ```sh
 pnpm db:try-migrations status --dir /tmp/noticeos-dev   # applied, pending or changed; only reads
@@ -650,7 +650,7 @@ connections are its own, never the application's pool.
 ***Operator-only.** DB migrations for existing installations remain
 operator-only forever ([AGENTS.md](../../AGENTS.md)). The approved
 [`pnpm start` exception](host/README.md#a-new-installation) uses the same helpers
-only for a provably new, empty installation; it does not apply to managed startup.*
+only for a provably new, empty installation; it does not apply to the Docker stack.*
 
 `pnpm os:migrate` ([`scripts/os-migrate.mjs`](../../scripts/os-migrate.mjs), over
 the engine in [`scripts/postgres-apply.mjs`](../../scripts/postgres-apply.mjs))
@@ -668,6 +668,12 @@ pnpm os:migrate -- --apply                                       # prints the pl
 pnpm os:migrate -- --bootstrap --slug main --name "My sites"     # the one workspace, once
 ```
 
+On an existing installation the order is: `pnpm os:status`, a backup you can
+restore (`pnpm os:backup`), `pnpm os:migrate`, `pnpm os:migrate -- --apply`,
+then `pnpm os:update`. The app keeps running during the apply: migrations are
+additive unless the release's own instructions say otherwise
+([below](#changing-the-schema)).
+
 Without a terminal, `--confirm <name>` stands in for the typed name.
 
 | It | How |
@@ -681,10 +687,12 @@ Without a terminal, `--confirm <name>` stands in for the typed name.
 **Connecting.** It needs psql alone on the machine, not a Postgres server:
 the database may run in a container or at a provider.
 The installation's Compose service ([`host/`](host/README.md)) needs a
-password, so it gets `--url-from <VARIABLE>`: the variable, named on the
-command line, holds `postgresql://noticeos_owner:<password>@<host>:<port>/<name>`
-(`pnpm postgres:secrets` writes it to `db/postgres/host/secrets/owner.url`),
-with at most `sslmode`, `sslrootcert` and `channel_binding` besides. A server
+password: `pnpm os:migrate` reads
+`postgresql://noticeos_owner:<password>@<host>:<port>/<name>` from `owner.url`
+in the stack's Postgres secrets folder (`pnpm db:create-secrets` writes it)
+and hands it to the engine as `--url-from NOTICEOS_OWNER_URL`, a variable in
+psql's environment only, with at most `sslmode`, `sslrootcert` and
+`channel_binding` besides. A server
 installed on the machine itself can instead admit the owner on its local
 socket by a peer login with no password: nothing more for psql's own socket,
 or `--socket <folder>` and `--port <n>` for another. The command reads no
@@ -702,19 +710,19 @@ an id copied into a file or binding.
 rolled back (for `status`: something stops an apply), 2 refused, nothing
 changed, 3 no Postgres tools on this machine.
 
-The managed runtime, restart and deploy cannot load the schema helper.
+The runner, restart and update cannot load the schema helper.
 Only explicit operator tools, tests and the approved
 [new, empty installation setup](host/README.md#a-new-installation) may use it.
 The import-graph guard in
 [`scripts/postgres-migrate.test.mjs`](../../scripts/postgres-migrate.test.mjs)
 checks those boundaries and catches planted runtime entrypoints.
-`pnpm os:deploy` holds a commit that opens this store against the database's
-record: it refuses a migration the database has not
-applied, printing `pnpm os:stop` → this command's `apply` → `pnpm os:start`,
-and one it applied with another SHA-256. It reads the record in a READ ONLY
-transaction as the application login, through the address the runner starts
-with, and loads neither this command nor the runner
-([Merging is not deploying](../../scripts/README.md#merging-is-not-deploying--pnpm-osdeploy)).
+`pnpm os:update` holds an image that opens this store against the database's
+record: when `main` changes the schema it refuses a migration the database has
+not applied, naming `pnpm os:migrate`, and it treats a change to
+[`roles.sql`](roles.sql) as operator maintenance. It reads the record in a
+READ ONLY transaction as the application login and loads neither this command
+nor the runner
+([Merging is not deploying](../../scripts/README.md#merging-is-not-deploying-osupdate)).
 
 ## Changing the schema
 
@@ -738,13 +746,12 @@ like any other, and a command that edited the repository would leave every
 installation's checkout changed.
 
 **A migration keeps every app version eligible for rollback working.** The
-previous code runs on the new
-schema from the apply until the deploy (`pnpm os:stop` → `pnpm os:migrate
-apply` → `pnpm os:start` → `pnpm os:deploy`), and again after a rollback, which
-`pnpm os:deploy` allows while the database has a migration the commit does not
-carry. So a change that would break it, such as a
+previous code runs on the new schema from the apply until the update
+(`pnpm os:migrate -- --apply` → `pnpm os:update`), while the app keeps
+running. So a change that would break it, such as a
 dropped or renamed column, is split: add in one migration, remove in a later
-one, once no commit a deploy could go back to still uses it. App rollback retains
+one, once no release an installation could still run uses it.
+`pnpm os:rollback` is refused across a schema change. App rollback retains
 the updated database; it never reverses a migration. This compatibility rule
 does not authorize applying a migration.
 
@@ -897,7 +904,7 @@ needed:
   a value; names no path of one machine. `pg_hba.conf` admits the superuser
   on the container's own socket only and the three logins over TCP only to
   `noticeos`, by password. `first-start.sh` refuses a secret that is not a
-  verifier before it creates anything. `pnpm postgres:secrets` writes each
+  verifier before it creates anything. `pnpm db:create-secrets` writes each
   file with the right mode, a verifier that checks its own login's password
   and no other, URLs that pass `pnpm os:migrate`'s own check, prints no
   password and never replaces a file.
@@ -914,7 +921,7 @@ and [the container backup/restore proof](../../scripts/container-backup-compose.
 Read their explicit opt-ins and fixture requirements before running them;
 they create disposable resources and are not checks against an installation.
 
-Read the current [SQL consumers](consumers.md) with `pnpm postgres:consumers`;
+Read the current [SQL consumers](consumers.md) with `pnpm db:consumers`;
 it scans source files and needs no database. There is no saved inventory to update.
 
 Regenerate the matrix above and [`constraints.md`](constraints.md) with

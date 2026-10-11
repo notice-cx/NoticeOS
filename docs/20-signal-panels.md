@@ -404,8 +404,8 @@ Missing a family you need? File it in the OS's own task project — do not add a
   `GET /api/signal-archives`, `signals:publish-insights` writes
   `POST /api/insight-snapshot`), so a panel dir built by hand and one built by
   the cron come from the same runtime and the same rows.
-- **A new cron arms on the operator's next `os:up` restart.** The runner reads
-  its schedule at startup.
+- **A new cron arms on the app's next start.** The runner reads its schedule
+  at startup, so it arrives with `pnpm os:update` or `pnpm os:restart`.
 
 ## Who edits the roster: the Tower's Growth tab
 

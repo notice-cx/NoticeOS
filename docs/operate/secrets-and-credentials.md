@@ -27,10 +27,9 @@ NoticeOS needs four secrets before it can read its own store. They cannot live i
 They live in one file, `workers/ingest/.dev.secrets.json`, which is never committed:
 
 - For a `pnpm start` installation, the file is inside the start folder and the first run generates it.
-- For the macOS service, it is the checkout's own file.
-- For a Compose stack, it is `/state/workers/ingest/.dev.secrets.json` on the state mount.
+- For the Docker stack, it is `/state/workers/ingest/.dev.secrets.json` on the state mount.
 
-Edit it as formatted JSON. After a change, restart the service so it is read again (`pnpm os:restart`, `pnpm stack:restart`, or Ctrl-C and `pnpm start`). The file compiles to a generated `.dev.vars` beside it; `pnpm dev:secrets:sync` rebuilds that on demand. `DATABASE_URL` never reaches the app as a binding; the runner reads it at start and hands it to the server's environment only.
+Edit it as formatted JSON. After a change, restart so it is read again (`pnpm os:restart`, or Ctrl-C and `pnpm start`). The app compiles the file to a generated `.dev.vars` beside it at every start. `DATABASE_URL` never reaches the app as a binding; the runner reads it at start and hands it to the server's environment only.
 
 ::: warning Never put a provider credential here first
 The environment is for the four secrets in the table. A Google key, a DataForSEO login or a webhook URL belongs on the Integrations page, not in this file.
@@ -38,7 +37,7 @@ The environment is for the four secrets in the table. A Google key, a DataForSEO
 
 ### What never leaks
 
-Secrets are scrubbed from logs before they reach disk and again when `pnpm os:logs` reads them. Status and doctor output never show an address, a token or a raw database error. Test fixtures use invented values.
+Secrets are scrubbed from logs before they reach disk and again when `pnpm os:logs` reads them. Status output never shows an address, a token or a raw database error. Test fixtures use invented values.
 
 ## Connect a provider credential
 
@@ -59,7 +58,7 @@ Older installations kept provider credentials in the secrets file. That still wo
 
 1. On **Integrations**, on any **Legacy env** card, select **Import from this machine**. The whole secrets file is imported.
 
-In the terminal, `pnpm dev:secrets:import` does the same without the Tower. Nothing forces the move. What it costs you is portability: a fresh installation would need those values copied by hand.
+There is no import command; the button is the way. Nothing forces the move. What it costs you is portability: a fresh installation would need those values copied by hand.
 
 ## Check every credential
 

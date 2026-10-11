@@ -182,7 +182,7 @@ run that read neither the store nor a file never claims on a log line that it
 did.
 
 A property id saved on an asset's Sources tab is what the **next** collection
-run asks for, with no `os:up` restart and no deploy —
+run asks for, with no app restart and no update —
 `test/config-reaches-collectors.test.ts` drives one Save through
 `applyConfigOps` and two `runCron` fires in one isolate. The tab prints
 whichever of the two timing sentences is true of this deployment, derived from
@@ -949,7 +949,7 @@ connection at a time, by replacing its secret version, and prints counts.
 
 **It is a local-host operation, and only that.** The sweep runs inside the
 ingest Worker, and the only way anything in this repo can ask it to run is the
-loopback door `pnpm os:up` opens on `127.0.0.1:8791`. A deployed ingest Worker
+loopback door the runner opens on `127.0.0.1:8791` inside the app container. A deployed ingest Worker
 has that route too, and no operator-facing address for it: the Worker has no
 listener of its own, and the Tower's proxy is compiled out of a production
 build by `__RUNNER_LANE__`
@@ -1039,15 +1039,14 @@ there is a free tier, and persist nothing:
 | `dataforseo` | `appendix/user_data`; free, and reports the credit remaining |
 | `calendar` | one bounded GET per feed, reported **by label** — the url is the credential |
 
-**Moving the operator's existing secrets:** `pnpm dev:secrets:import` reads
-`.dev.secrets.json`, asks the running Tower for the provider catalog, and PUTs
-each complete provider once. A provider missing a required binding is skipped
-with its reason rather than half-imported. The same function is a button —
-*Import from this machine* on any Legacy env card — answered by a
-dev-server-only lane (`apps/tower/vite/env-import-lane.ts`) that calls
-`importDevSecrets` in process rather than spawning the CLI. A deployed Tower
-has no secrets file, so it answers that path with `importable: false` and the
-card keeps the command.
+**Moving the operator's existing secrets:** *Import from this machine* on any
+Legacy env card reads `.dev.secrets.json`, asks the running Tower for the
+provider catalog, and PUTs each complete provider once. A provider missing a
+required binding is skipped with its reason rather than half-imported. The
+button is answered by a dev-server-only lane
+(`apps/tower/vite/env-import-lane.ts`) that calls `importDevSecrets` in
+process; there is no import command. A deployed Tower has no secrets file, so
+it answers that path with `importable: false`.
 
 **The migration is operator-only** (`AGENTS.md`), so this code runs before the
 table exists. Every read degrades to "nothing stored"; a write answers
@@ -1233,7 +1232,8 @@ with a summary — see [scripts/README](../../scripts/README.md#collect-one-prop
   auxiliary Worker inside the Tower's single runtime. A deploy to Cloudflare
   proper would put `scheduled()` and `fetch()` in separate isolates and need a
   durable holder instead.
-- **It arms on the next `os:up` restart**, like every route change: the runtime
+- **It arms on the app's next start** (`pnpm os:update`, or `pnpm os:restart`
+  on live source), like every route change: the runtime
   loads the Worker at startup.
 
 ## Hygiene guards (S5 — the served layer)
@@ -1615,7 +1615,7 @@ it, one per kind of provider:
 `test/outage-recollection.test.ts` replays a dark night through the real lanes
 and proves the next ticks leave no `network` item on Google, Bing, Clarity or
 PostHog. On a live install, the next scheduled `15 12 * * *` and `30 12 * * *`
-ticks do it; `pnpm os:cron -- "15 12 * * *"` (and `"30 12 * * *"` for PostHog)
+ticks do it; `pnpm os:run-job -- "15 12 * * *"` (and `"30 12 * * *"` for PostHog)
 fires them early.
 
 ### …and the hours after it (ingest-freshness)
@@ -1935,8 +1935,8 @@ operator's sign-in instead, so an install can keep the map for its routing and
 sign in for its auth.
 
 The formatted local source keeps `service_account_b64` in that account entry;
-`pnpm dev:secrets:sync` extracts it to the named per-account binding before
-Wrangler starts. One account entry may name several properties. The Worker
+the runner extracts it to the named per-account binding before Wrangler
+starts. One account entry may name several properties. The Worker
 decodes the resolved key only in memory, mints one token per account + read-only
 scope, and reuses it across the mapped targets. The Postgres run record stores
 `example-signals` as a safe `credential_ref`; it never stores the encoded JSON,
@@ -2660,10 +2660,11 @@ with `pnpm start -- --dir <folder> --port <unused-port>` from the repo root;
 its guarded setup is described in the [start guide](../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
 
 For an explicitly configured development database, the isolated Worker command
-is `pnpm --filter @noticeos/ingest dev`. It refuses while the managed ingest
-door is held, so another runtime cannot share local R2 persistence. Under
-`pnpm os:up`, ingest already runs as an auxiliary Worker inside the Tower's
-runtime and is reached through the loopback door on port 8791.
+is `pnpm --filter @noticeos/ingest dev`. It refuses while the ingest door is
+held, so another runtime cannot share local R2 persistence. In the Docker
+stack, ingest already runs as an auxiliary Worker inside the Tower's runtime
+in the app container and is reached through the loopback door on port 8791
+there.
 
 ### Try the endpoints on an explicitly selected development installation
 
@@ -2720,15 +2721,15 @@ curl -sS -X POST http://localhost:8791/api/watch-windows \
 
 ### Exercise the crons locally
 
-Against a running `pnpm os:up` these all work as written — the ingest door
+Against a running ingest door these all work as written — the door
 recognises `/__scheduled`, `/cdn-cgi/handler/scheduled` and its deprecated
 `/cdn-cgi/mf/scheduled` spelling alike, and calls the same dispatch table the
 deployed `scheduled()` handler uses (`src/dispatch.ts`). The `pnpm dev` line is
-for running this Worker in isolation, with `os:up` **stopped** — and it refuses
-if it is not.
+for running this Worker in isolation, with no other runtime holding the door —
+and it refuses if one does.
 
 ```bash
-pnpm dev -- --test-scheduled       # os:up stopped; refuses while the door answers
+pnpm dev -- --test-scheduled       # refuses while the door answers
 curl 'http://localhost:8791/__scheduled?cron=0+*+*+*+*'    # ingest-freshness
 curl 'http://localhost:8791/__scheduled?cron=30+2+*+*+*'   # pull adapter + Bing
 curl 'http://localhost:8791/__scheduled?cron=0+3+*+*+*'    # asset-#0 self-pulse
@@ -2743,15 +2744,16 @@ curl 'http://localhost:8791/__scheduled?cron=*/15+*+*+*+*'  # counters + GA4/GSC
 (The quotes are load-bearing on that last one — unquoted, the shell globs the
 `*`s before curl ever sees them.)
 
-**Against a running `pnpm os:up`, use `pnpm os:cron` instead** — it is the
-supported path and it targets the door the runner itself fires at:
+**Against the Docker stack, use `pnpm os:run-job` instead** — it is the
+supported path and it targets the door the runner itself fires at, inside the
+app container:
 
 ```bash
-pnpm os:cron -- "15 12 * * *"     # same lane, no hand-built URL
+pnpm os:run-job -- "15 12 * * *"     # same lane, no hand-built URL
 ```
 
 `__scheduled` is the older Wrangler alias; the current dev server answers at
-`/cdn-cgi/handler/scheduled?cron=…`, which is what `os:cron` builds. Note that
+`/cdn-cgi/handler/scheduled?cron=…`, which is what `os:run-job` builds. Note that
 its HTTP client gives up after ~2 minutes while **the Worker keeps running** — a
 timed-out tick is not a failed run. Check the report runs before re-firing,
 or you will pay twice on a metered lane.

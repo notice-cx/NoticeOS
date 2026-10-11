@@ -63,16 +63,21 @@ path for the operational store, task hub and configured archives. Use the
 installation's declared transport.
 
 Applying schema changes to an existing installation is a separate operator
-step. A restart, source merge or app deployment never applies migrations.
+step, taken before the app update. A restart, source merge or app update
+never applies migrations. Migrations are additive within a release unless its
+release notes say otherwise, so the running app keeps working while they are
+applied.
 Follow [Postgres maintenance](../../db/postgres/README.md#applying-it-to-an-installations-own-database)
 for the exact target and approval. Do not edit applied migrations or adopt an
 existing database through fresh-install setup.
 
-The [local deployment adapter](../../scripts/README.md#merging-is-not-deploying--pnpm-osdeploy)
-switches runtime copies and checks migration compatibility. App rollback keeps
-the updated database; it does not reverse a migration. Restore and database
-engine upgrades have separate procedures and must not be inferred from an app
-rollback command. The macOS service adapter is not a general hosted upgrade API.
+The [app update](../../scripts/README.md#merging-is-not-deploying-osupdate)
+replaces only the stack's app container and refuses a release whose
+migrations the database has not applied. App rollback keeps the updated
+database; it does not reverse a migration, and it is refused across a schema
+change. Restore and database engine upgrades have separate procedures and must
+not be inferred from an app rollback command. The local stack commands are
+not a general hosted upgrade API.
 
 Hosted activation additionally records the exact server profiles and origin,
 identity/mail/edge bindings, scoped service grants and executable registries,
@@ -81,8 +86,8 @@ remote PostgreSQL connectivity/TLS, task transport and backup/restore for that
 same target before claiming support. The portable demo keeps PostgreSQL inside
 its private Compose network and shares a network namespace for app-to-Dolt
 loopback transport. It does not qualify remote database services. Customer
-hosting and other transports need their own qualification; the macOS service
-adapter is not a remote release mechanism.
+hosting and other transports need their own qualification; the local stack
+commands are not a remote release mechanism.
 
 Retain occurrence journals across app changes and rollback. An uncertain
 outside effect remains halted after restart; app rollback does not authorize

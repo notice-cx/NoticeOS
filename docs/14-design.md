@@ -124,8 +124,8 @@ drawn).
 room. If a step needs a footnote to be used, the step is wrong: show the state
 visually, infer or default the answer, or remove the step. Labels, states and
 values should be enough to act; a finished flow never required reading a
-sentence. `pnpm ux:gate` measures every visible string's length and reports
-retired words, and `pnpm ux:flows` walks every flow at desktop and phone width
+sentence. `pnpm audit:copy` measures every visible string's length and reports
+retired words, and `pnpm audit:flows` walks every flow at desktop and phone width
 and counts its actions, screens, repeated checks and duplicated statuses.
 Both are reports that inform design review: a long string or a longer walk is
 a signal that a flow wants redesigning, not a number to argue with.
@@ -264,7 +264,7 @@ needs a pointer; state is never colour-only; a failed poll keeps last-good
 values with their age. A landscape screen draws the TV's layout zoomed by one
 number, with small type floored so it stays readable on a laptop; a portrait
 screen stacks the widgets in one column. The Wall is the one surface with a
-fixed height, so growth is a design question: `pnpm wall:fit` measures the
+fixed height, so growth is a design question: `pnpm audit:wall-fit` measures the
 live `/wall` at the television's geometry and reports anything that spills,
 including glyph overflow no element box reveals. Run it when a Wall surface
 grows; it is the only thing that can see the answer.

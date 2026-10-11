@@ -263,9 +263,9 @@ Start an isolated installation from the repo root with
 own Postgres service and keeps local state in that folder; the approved
 fresh-install checks are in
 [the start guide](../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
-`pnpm seed:local -- --dir <folder>` fills an explicitly marked, empty
+`pnpm db:seed-demo -- --dir <folder>` fills an explicitly marked, empty
 development database with invented records and refuses an installation's own
-store ([dev fixtures](../../scripts/README.md#dev-fixtures-seedlocal)).
+store ([dev fixtures](../../scripts/README.md#dev-fixtures-dbseed-demo)).
 
 `pnpm --filter @noticeos/tower run dev` serves the SPA with the dev-only lanes
 above; `build` and `preview` are the Vite commands.
@@ -297,9 +297,9 @@ For repeatable rendered captures, start Firefox with Marionette on port 2828,
 keep the Tower dev server running, and from the repo root:
 
 ```text
-pnpm tower:viewport-audit -- --label home --path / --wait-ms 3000 --out docs/artifacts/viewport-audit
-pnpm tower:viewport-audit -- --label wall --path /wall --wait-ms 3000 --out docs/artifacts/viewport-audit
-pnpm tower:viewport-audit -- --label kitchen --path /dev/kitchen-sink --desktop-height 3000 --out docs/artifacts/viewport-audit
+pnpm audit:viewport -- --label home --path / --wait-ms 3000 --out docs/artifacts/viewport-audit
+pnpm audit:viewport -- --label wall --path /wall --wait-ms 3000 --out docs/artifacts/viewport-audit
+pnpm audit:viewport -- --label kitchen --path /dev/kitchen-sink --desktop-height 3000 --out docs/artifacts/viewport-audit
 ```
 
 The committed `viewport-audit.html` frames a true CSS viewport from query
@@ -321,8 +321,8 @@ Vitest; `build` is `vite build`. The browser journeys, their harness check and
 the UX flow walk run behind the root `pnpm test:journeys`
 ([`e2e/README.md`](e2e/README.md)); install the pinned Chromium once with
 `pnpm --filter @noticeos/tower run journey:install`. Two root reports inform
-copy and flow judgement and fail nothing: `pnpm ux:gate` lists the Tower's
-long visible strings and `pnpm ux:flows` walks every declared flow (it fails
+copy and flow judgement and fail nothing: `pnpm audit:copy` lists the Tower's
+long visible strings and `pnpm audit:flows` walks every declared flow (it fails
 only when a flow cannot be walked). CI runs the gates in
 [`AGENTS.md` § The CI bar](../../AGENTS.md#the-ci-bar).
 

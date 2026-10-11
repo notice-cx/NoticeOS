@@ -83,6 +83,7 @@ they are not available yet.
 | Installation | Use it for |
 | --- | --- |
 | [Standalone](#run-from-source) | Your own assets, on a trusted network |
+| [Docker stack](deploy/compose/README.md) | A prepared installation that runs on its own, from an image or a checkout's live source, controlled with `pnpm os:*` |
 | [Docker demo preview](deploy/demo/README.md) | A shared, read-only demo with synthetic assets and ongoing simulated activity |
 
 Standalone has no user login: anyone who can reach it can operate it. Keep it

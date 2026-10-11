@@ -74,7 +74,7 @@ try {
 - An `int8` comes back as a `bigint`, which `JSON.stringify` refuses. Convert it
   where a response is built, or cast in SQL (`count(*)::int`).
 - Scripts import `packages/postgres/src/store.mjs` by path, like the contract's
-  generated modules. `pnpm config:generate` writes that file and its `.d.mts`
+  generated modules. `pnpm generate` writes that file and its `.d.mts`
   from `store.mts`.
 
 ## What a Worker needs

@@ -214,7 +214,7 @@ from [`config/beads.README.md`](../config/beads.README.md) as four steps — the
 `.beads/config.yaml` fix, the freeze register, and the entry that links the
 checkout in the installation's `task-host.json` — each as text to copy,
 labelled with where it goes. The runner re-reads the map **every tick** (one
-minute), so a new project reaches the Tasks board without restarting `os:up`, and
+minute), so a new project reaches the Tasks board without restarting the app, and
 reads as unreadable until those steps are done. The **hub connection** is shown
 read-only, as a lock and its value, and it crosses into the browser only while
 `vite` is serving, compiled out of a deployed bundle exactly like the runner lane.
@@ -307,7 +307,7 @@ full height beside several ([doc 14](14-design.md) § Regions).
 - **Widths are weights, not columns.** A row's widgets share its width in
   proportion to their `width` — the `fr` a CSS grid track takes — with a floor
   (`minWidthRem`) below which that widget's content clips. The Wall is fitted to
-  one 1920×1080 screen (`pnpm wall:fit`), and its rows were tuned in fractions.
+  one 1920×1080 screen (`pnpm audit:wall-fit`), and its rows were tuned in fractions.
 - **A widget with nothing to show renders nothing and yields its track**, the
   countdown/meetings rule applied to every widget the library
   marks that way; a row whose every widget is hiding draws nothing at all. The
@@ -336,7 +336,7 @@ full height beside several ([doc 14](14-design.md) § Regions).
   per entry. The preview is a **query container**, so the
   type ramp and every widget's breakpoints read the 1920 box rather than the
   desk's window and the arrangement on screen is the television's at any width;
-  `pnpm wall:fit` remains the check that measures the real screen, which is the
+  `pnpm audit:wall-fit` remains the check that measures the real screen, which is the
   only thing that can see a font the kiosk failed to load.
 
 ## Alerts page
@@ -609,7 +609,7 @@ A provider's own page (`?provider=<id>`) carries:
 
 **This surface is never read-only.** Every
 write here is a **store** write, so it behaves identically in a deployed Worker
-and on the operator's Mac: there is no 501 path and no "this deployment cannot
+and in the operator's Docker stack. There is no 501 path and no "this deployment cannot
 save" sentence for a credential.
 
 **Three bootstrap states can stop Connect** (`CredentialBlocker` in

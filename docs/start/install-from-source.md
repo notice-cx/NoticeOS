@@ -9,7 +9,7 @@ This page gets you from a clone of the repository to the Tower open in your brow
 
 ## Before you begin
 
-`pnpm start` creates a **separate, new installation** for a fresh clone. It is not the macOS login service (`pnpm os:*`) and not the Docker Compose stack (`pnpm stack:*`). Those are two other ways to run an installation you have already set up; [Daily operations](/operate/daily-operations) says which commands apply to which.
+`pnpm start` creates a **separate, new installation** for a fresh clone. It is not the Docker Compose stack the `pnpm os:*` commands run; that stack is how an installation you have set up runs on its own, described in [Run with Docker](/start/run-with-docker) and [Daily operations](/operate/daily-operations).
 
 Startup checks all five of these before it creates anything:
 
@@ -52,7 +52,7 @@ pnpm start -- --no-open          # print the address, open no browser
 
 The Tower uses the port you choose. The port after it receives data from your sites. The database runs on the Tower port plus two, and the task database on the Tower port plus three. With the defaults that is 4747, 4748, 4749 and 4750.
 
-Ports 5173, 8791 and 3308 are refused even when free. They belong to the macOS service described in [Daily operations](/operate/daily-operations).
+Ports 5173, 8791 and 3308 are refused even when free. They belong to the Docker stack described in [Daily operations](/operate/daily-operations).
 
 ### What startup creates
 

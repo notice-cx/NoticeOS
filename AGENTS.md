@@ -74,28 +74,28 @@ present.
   better one earns it. Short copy and short flows are the goal because the
   operator reads at a glance; whether a sentence or a step earns its place is
   the judgement of whoever builds the screen. Two reports inform it and fail
-  nothing: `pnpm ux:gate` lists the Tower's long visible strings and
-  `pnpm ux:flows` walks every declared flow in a browser and reports what it
+  nothing: `pnpm audit:copy` lists the Tower's long visible strings and
+  `pnpm audit:flows` walks every declared flow in a browser and reports what it
   costs. The jargon ban is enforced: `scripts/ui-lexicon.test.mjs` and
   `scripts/ui-noun.test.mjs` fail on a system word on a screen.
 - **Every change leaves NoticeOS readier for a stranger's installation.**
   Product code names no installation's own sites, accounts, paths or time
   zone; those come from the store, with generic defaults (fixtures use
-  `example.com`). The neutral-code gate (`pnpm neutral:gate`) stops a site id,
+  `example.com`). The neutral-code gate (`pnpm check:neutral`) stops a site id,
   domain or time zone in product code at commit (`.githooks/pre-commit`,
   installed by `pnpm install`) and in CI. Anything an operator sets is set in
-  the Tower, not in a file. Host-only mechanisms (launchd, files on an office
+  the Tower, not in a file. Host-only mechanisms (files on the installation's
   machine) sit behind an adapter a cloud installation can replace. One
   derivation per fact, names a newcomer understands, the smallest change that
   leaves the design clearer.
 - **Documentation that restates code is generated from it.** The command index
   in `scripts/README.md` and `docs/reference/commands.md` comes from
-  `package.json` and each script's header (`pnpm scripts:index -- --write`);
-  the "what the Tower may edit here" blocks in `config/*.README.md` and
-  `docs/reference/configuration.md` come from
-  `scripts/config-registers.mts` (`pnpm config:docs -- --write`); the Postgres
-  README's revision matrix comes from `db/postgres/model.json`. A test fails
-  when a generated block is stale. Prose beside a block says why, never what.
+  `package.json` and each script's header; the "what the Tower may edit here"
+  blocks in `config/*.README.md` and `docs/reference/configuration.md` come
+  from `scripts/config-registers.mts`. `pnpm generate` rewrites both, with the
+  compiled `.mts` pairs, and `pnpm generate -- --check` fails when one is
+  stale. The Postgres README's revision matrix comes from
+  `db/postgres/model.json`. A test fails when a generated block is stale. Prose beside a block says why, never what.
 - **Flags carry severity and kind as separate fields** (doc 02):
   `info|warn|error` × `anomaly|opportunity|milestone`; milestone kind is always
   info severity. Volume-aware rules only: flag when
@@ -128,7 +128,7 @@ check is shown as unavailable.
 **Fresh-install exception.** `pnpm start` may apply the committed frozen
 Postgres schema and bootstrap one workspace, only for a provably new, empty
 installation in its own isolated Compose project. Existing installations, the
-managed service, live data and production stay operator-only.
+Docker stack, live data and production stay operator-only.
 
 **Hosted tenancy.** Local implementation and disposable synthetic tests of
 hosted authentication, tenant isolation and the public demo are authorised
@@ -187,40 +187,45 @@ use isolated fixtures, never an existing installation or provider account. An
 owner may designate a local Compose installation as development and let it
 follow a mounted checkout, recorded in `.local/stack-development/authorization.json`.
 
-`pnpm start` is not the live OS: it runs a separate new installation out of
-`.local/start/` on :4747 for a fresh clone; an agent runs it only with a
-throwaway `--dir` and its own `--port`. For a Docker installation use the
-declared `.local/stack.json` selector and `pnpm stack:status` / `stack:restart`
-/ `stack:deploy` ([Docker guide](deploy/compose/README.md#deploy-changes-from-main)).
-For the macOS service adapter the repo owns the interface; do not inspect
-launchctl, guess from a port or read `.local/` by hand:
+NoticeOS runs as one Docker Compose stack of the app (`noticeos`: Tower,
+ingest and the runner), `postgres`, `dolt` and an optional `backup` worker. The
+ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
+that stack ([Docker guide](deploy/compose/README.md)). A development stack's
+app runs this checkout's live source; a production stack's app runs a
+prepared image. Do not guess from a port, inspect containers by hand or read
+`.local/` by hand:
 
 ```sh
-pnpm os:status                 # add: -- --json
-pnpm os:logs -- --lines 200    # recent redacted runner + child output
-pnpm os:doctor                 # bounded status + logs + scheduled-lane evidence + capacity
+pnpm os:status                 # each service's health, the database's migrations, the app's commit, whether main is ahead
+pnpm os:logs -- --lines 200    # recent logs; -- --follow, -- <service>
 pnpm os:capacity               # store size and growth per table, read-only
-pnpm os:restart                # managed service only; waits for health
-pnpm os:deploy                 # move the live OS to main: one restart, health wait
+pnpm os:restart                # the whole stack, in dependency order, waiting for health
+pnpm os:update                 # build main into an image, show the plan, apply it after you type `update`
 ```
 
-Merging is not deploying: the managed service runs a runtime copy under
-`.local/runtime/` that a merge never touches; `pnpm os:deploy` is the step after
-a verified merge (`-- --check` changes nothing, `-- --rollback` goes back).
-`healthy` means launchd is running, the runner heartbeat is fresh, ingest and
-Tower answer, and Postgres and Dolt readiness reads succeed; `stopped`,
-`starting`, `unhealthy` and `stale` are distinct, and an answering but
-unsupervised process is `unhealthy`. After downtime, startup runs at most one
-latest missed obligation per allowlisted lane
+Merging is not deploying: a production app runs a fixed image that a merge
+never touches; `pnpm os:update` is the step after a verified merge and
+replaces only the app container (`pnpm os:rollback` goes back). The app is
+`healthy` when its runner is supervised with a fresh heartbeat, the scheduler
+is armed, the Tower and ingest answer and a configured backup worker is
+available. After downtime, startup runs at most one latest missed obligation
+per allowlisted lane
 ([bounded catch-up](scripts/README.md#bounded-catch-up-after-downtime)); a
-migration, restore, config apply, deployment, kill switch or measurement-rule
+migration, restore, config apply, update, kill switch or measurement-rule
 edit is never caught up by hand.
 
-A restart or local deploy never applies migrations. DB migrations are an
-explicit operator-only sequence: `pnpm os:stop` → `pnpm os:migrate -- --apply …`
-→ `pnpm os:start` ([Postgres maintenance](scripts/README.md#the-postgres-stores-counterpart-postgresmigrate)).
-`os:stop` / `os:start` / `os:install` / `os:uninstall` are operator-directed; an
-agent's verbs are `os:restart` and, after a verified merge, `os:deploy`.
+A restart or an update never applies migrations; `pnpm os:update` stops and
+names `pnpm os:migrate` when main carries one the database lacks. Applying a
+migration is operator-only: `pnpm os:status` → a backup you can restore
+(`pnpm os:backup`) → `pnpm os:migrate` → `pnpm os:migrate -- --apply` →
+`pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
+`os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate` and `os:rollback` are
+operator-directed. An agent's verbs are `os:status`, `os:logs` and
+`os:restart` and, after a verified merge, `os:update`; never `os:migrate`.
+
+`pnpm start` is not the live OS: it runs a separate new installation out of
+`.local/start/` on :4747 for a fresh clone; an agent runs it only with a
+throwaway `--dir` and its own `--port`.
 
 ## Open work lives in the task hub
 

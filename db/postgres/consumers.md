@@ -3,7 +3,7 @@
 Read the current inventory directly from source:
 
 ```sh
-pnpm postgres:consumers
+pnpm db:consumers
 ```
 
 The command lists runtime and test files for every schema-qualified table or

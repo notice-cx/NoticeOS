@@ -9,7 +9,7 @@ This page gets you the list of jobs an installation runs, how to change or pause
 
 ## Before you begin
 
-- A running installation: the macOS service, a Compose stack, or a `pnpm start` terminal.
+- A running installation: the Docker stack, or a `pnpm start` terminal.
 
 ### What runs, and when
 
@@ -72,10 +72,10 @@ A paused job does not run on its schedule, is not caught up after downtime, and 
 
 ## Run one job by hand
 
-1. On the macOS service, in the checkout, run the job with its schedule expression:
+1. In the checkout, run the jobs scheduled on that expression:
 
    ```sh
-   pnpm os:cron -- "15 12 * * *"
+   pnpm os:run-job -- "15 12 * * *"
    ```
 
 A connection's **Start collecting** button runs that provider's first collection at once and previews the cost of a metered step first.
@@ -83,12 +83,12 @@ A connection's **Start collecting** button runs that provider's first collection
 ## Verify
 
 - The job's row under **Background operations** shows the saved schedule and the next run.
-- `pnpm os:doctor` shows the job records, including what the catch-up ran after a restart.
-- `pnpm os:cron` prints the jobs it runs when you pass an expression.
+- `pnpm os:logs -- noticeos` shows each job firing, including what the catch-up ran after a restart.
+- `pnpm os:run-job` prints the jobs it runs when you pass an expression.
 
 ## If it didn't work
 
-- `pnpm os:cron` refuses the expression by name: no job runs on it. Use one of the expressions the command prints.
+- `pnpm os:run-job` refuses the expression by name: no job runs on it. Use one of the expressions the command prints.
 - **Start collecting** is refused from a connection panel: the job is **Paused**. Resume it under **Background operations** first.
 - A provider job records **paused before the monthly data cap**: the metered spend would cross the cap. Raise it under **Settings** > **General** > **Budget**, or wait for next month. See [Troubleshooting](/operate/troubleshooting).
 

@@ -55,7 +55,7 @@ An external agent that misbehaves is stopped where it was started, before anyone
 | One job | **System health** > **Background operations** > the job > **Edit schedule** > **Paused** |
 | One provider's spend | **Integrations** > the connection > **Disconnect**; or pause its job |
 | All metered spend | Set the Monthly data cap to the amount already spent this month |
-| The whole installation | `pnpm os:stop` for the macOS service, `pnpm stack:stop` for a Compose stack, Ctrl-C for a `pnpm start` terminal |
+| The whole installation | `pnpm os:stop` for the Docker stack, Ctrl-C for a `pnpm start` terminal |
 
 Stopping the installation stops collection and notifications; it does not touch your sites or any external service.
 

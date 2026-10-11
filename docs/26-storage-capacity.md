@@ -30,8 +30,8 @@ no retention and migrates nothing.
 
 ## What the inventory measures
 
-`pnpm os:capacity` (and the Capacity section of `pnpm os:doctor`) asks the
-running OS for `GET /api/capacity` over the loopback ingest door, with the
+`pnpm os:capacity` runs inside the app container and asks the running OS for
+`GET /api/capacity` over the loopback ingest door, with the
 operator bearer the other script reads use. The runtime that owns the store
 answers; the script opens no database connection (`scripts/ingest-door.mjs`).
 `pnpm os:capacity -- --json`
