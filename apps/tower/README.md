@@ -258,14 +258,13 @@ parked together.
 Use the Node and pnpm versions declared in the root `package.json`. Install
 from the repo root (`pnpm install`).
 
-Start an isolated installation from the repo root with
-`pnpm start -- --dir <throwaway-folder> --port <unused-port>`. It creates its
-own Postgres service and keeps local state in that folder; the approved
-fresh-install checks are in
-[the start guide](../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
-`pnpm db:seed-demo -- --dir <folder>` fills an explicitly marked, empty
-development database with invented records and refuses an installation's own
-store ([dev fixtures](../../scripts/README.md#dev-fixtures-dbseed-demo)).
+Run the Tower on a throwaway development database from the repo root with
+`pnpm db:try-tower -- --dir <throwaway-folder> --port <unused-port>`. It needs
+local PostgreSQL server binaries, keeps everything in that folder, and is not
+an installation (`pnpm os:setup` makes one).
+`pnpm db:seed-demo -- --dir <folder>` fills that database with invented
+records and refuses an installation's own store
+([dev fixtures](../../scripts/README.md#dev-fixtures)).
 
 `pnpm --filter @noticeos/tower run dev` serves the SPA with the dev-only lanes
 above; `build` and `preview` are the Vite commands.

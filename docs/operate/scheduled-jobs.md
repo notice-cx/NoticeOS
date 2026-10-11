@@ -9,7 +9,7 @@ This page gets you the list of jobs an installation runs, how to change or pause
 
 ## Before you begin
 
-- A running installation: the Docker stack, or a `pnpm start` terminal.
+- A running installation (`pnpm os:status` shows it healthy).
 
 ### What runs, and when
 
@@ -37,8 +37,6 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Search review tasks | 25 past each hour | Files a review task when a new search collection lands |
 | Unpublished commit checks | 40 past each hour | Files a task when a project's commits sit unpushed |
 | Outcome task updates | 50 past each hour | Updates the tasks that track an outcome window |
-
-A `pnpm start` installation runs every collection job, but of the host-side jobs only **Task board refresh** and **Backups**, and Backups only once an offsite folder is configured.
 
 ### Catch-up after downtime
 

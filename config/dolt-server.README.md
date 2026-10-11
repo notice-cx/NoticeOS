@@ -7,17 +7,19 @@ of a measured business outcome. The project/database mapping is described in
 
 ## New installations
 
-The fresh-install path uses the pinned, authenticated Compose service in
-[db/dolt/host](../db/dolt/host/README.md). It shares Postgres's explicit Compose
-project while keeping a separate definition and persistent `dolt-data` volume.
-Its only published address is `127.0.0.1` at the chosen Tower port plus three.
-There is no implicit task-server port or global credential fallback.
+`pnpm os:setup` runs the pinned, authenticated Compose service of
+[db/dolt/host](../db/dolt/host/README.md) as the stack's `dolt`, in the stack's
+Compose project, with its own definition and `<project>_dolt-data` volume. The
+app reaches it as `dolt:3306`; its only published address is `127.0.0.1:3306`
+(the next free port if taken). There is no implicit task-server port or global
+credential fallback.
 
-The installation owns `dolt/profile.json`, generated private server secrets,
-and the protected `dolt/credentials` Beads INI file. The profile declares paths
-and a port, never passwords. Startup verifies the installed standalone Beads
-CLI version before creating a fresh installation. Task bootstrap and ordinary
-task commands use the declared server; they do not adopt an existing hub.
+The installation folder holds the server's generated passwords in
+`dolt-secrets/`, and the task client's declaration and protected Beads
+credentials in `state/` (`task-client.json`, `dolt/credentials`). A declaration
+names paths and a port, never passwords. The app image bundles the pinned Beads
+CLI. Task bootstrap and ordinary task commands use the declared server; they do
+not adopt an existing hub.
 
 The server's SQL listener runs independently of the OS runner. A runner restart
 does not stop it. Online backups preserve declared databases, branch and working

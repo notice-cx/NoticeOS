@@ -9,7 +9,7 @@ This page gets you the handful of commands that keep an installation running, an
 
 ## The stack
 
-NoticeOS runs as one Docker Compose stack of the app (`noticeos`, which holds the Tower, the data receiver and the scheduler), `postgres`, `dolt` and an optional `backup` worker. Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects. Run them from the checkout. [Run with Docker](/start/run-with-docker) sets the stack up.
+NoticeOS runs as one Docker Compose stack of the app (`noticeos`, which holds the Tower, the data receiver and the scheduler), `postgres`, `dolt` and an optional `backup` worker. Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects; `pnpm os:setup` writes it. Run them from the checkout. [Run with Docker](/start/run-with-docker) describes the stack.
 
 ```sh
 pnpm os:status                 # each service's state and health, migrations, the app's commit

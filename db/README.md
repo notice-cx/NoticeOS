@@ -14,7 +14,7 @@ no alternative ORM.
 Existing installations apply migrations only through an explicitly approved
 `pnpm os:migrate` operation. Managed startup and deployment check schema
 compatibility without applying changes. The approved automatic setup exception
-is limited to `pnpm start` creating a provably new, empty installation.
+is limited to `pnpm os:setup` creating a provably new, empty installation.
 
 Settings and encrypted provider credentials live in Postgres. Raw provider
 archives remain in R2; task coordination remains in the Beads/Dolt hub. See

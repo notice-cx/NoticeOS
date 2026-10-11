@@ -24,12 +24,9 @@ NoticeOS needs four secrets before it can read its own store. They cannot live i
 | `ASSET_TOKENS` | One shared token per site, checked when a site sends its report and presented when the installation pulls one. |
 | `DATABASE_URL` | The address of the installation's own Postgres database, as the application login. |
 
-They live in one file, `workers/ingest/.dev.secrets.json`, which is never committed:
+They live in one file, `workers/ingest/.dev.secrets.json`, which is never committed. It is in the installation folder's `state/` (`/state/workers/ingest/.dev.secrets.json` in the app container), and `pnpm os:setup` generates it.
 
-- For a `pnpm start` installation, the file is inside the start folder and the first run generates it.
-- For the Docker stack, it is `/state/workers/ingest/.dev.secrets.json` on the state mount.
-
-Edit it as formatted JSON. After a change, restart so it is read again (`pnpm os:restart`, or Ctrl-C and `pnpm start`). The app compiles the file to a generated `.dev.vars` beside it at every start. `DATABASE_URL` never reaches the app as a binding; the runner reads it at start and hands it to the server's environment only.
+Edit it as formatted JSON. After a change, run `pnpm os:restart` so it is read again. The app compiles the file to a generated `.dev.vars` beside it at every start. `DATABASE_URL` never reaches the app as a binding; the runner reads it at start and hands it to the server's environment only.
 
 ::: warning Never put a provider credential here first
 The environment is for the four secrets in the table. A Google key, a DataForSEO login or a webhook URL belongs on the Integrations page, not in this file.
@@ -67,7 +64,7 @@ There is no import command; the button is the way. Nothing forces the move. What
    ```sh
    pnpm creds:check                        # every configured credential, one real probe each
    pnpm creds:check --lane dataforseo      # one provider only
-   pnpm creds:check --origin http://127.0.0.1:4747   # a pnpm start installation
+   pnpm creds:check --origin http://127.0.0.1:6000   # a Tower on another port
    ```
 
 Each row says whether the credential came from the store or the environment, and shows a live data sample or the provider's actual error and the likely fix. It never prints a secret value.

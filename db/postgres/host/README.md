@@ -1,7 +1,7 @@
 # The installation's Postgres, as a Compose service
 
-*The manual steps below are operator-directed; a new, empty installation
-uses the approved automatic path.*
+*The manual steps below are operator-directed; `pnpm os:setup` does them for
+a new installation.*
 
 What it builds: PostgreSQL 18.6 in a container, its data on a named volume,
 reachable from this machine only (a port on 127.0.0.1); the three NoticeOS
@@ -10,24 +10,24 @@ database that sorts text by code point (the builtin `C.UTF-8` locale); query
 statistics on. It stops
 before the schema: the migrations go in with the operator-only
 `pnpm os:migrate` ([The schema](#the-schema-the-operators-step-not-this-profiles)),
-or the approved first-run path for a new, empty installation.
+or `pnpm os:setup` for a new installation.
 
 ## A new installation
 
-With Docker Compose available through a running local container app and
-`psql` installed, run `pnpm start`. It creates an isolated Compose project
-and named data volume for its empty start folder, writes secrets under that
-folder's `postgres/secrets/`, and publishes Postgres on loopback at the Tower
-port plus two. It then checks that the database is empty, applies the committed
-frozen schema and bootstraps one workspace before opening the Tower. These are
-the secret-generation, Compose-start, migration and bootstrap steps below,
-performed through the same helpers; no manual command sequence is needed.
+Run `pnpm os:setup`. It writes this service's secrets into the installation
+folder's `postgres-secrets/`, creates the data volume `<project>_postgres-data`,
+starts Postgres as part of the stack
+([`deploy/compose/stack.yaml`](../../../deploy/compose/stack.yaml)) on
+127.0.0.1:5432 (the next free port if taken), then proves the database empty,
+applies the committed frozen schema and bootstraps one workspace. These are
+the secret-generation, start, migration and bootstrap steps below, through the
+same helpers; no manual command is needed.
 
-This is the narrow fresh-install exception. Existing folders, data, secrets, explicit database/profile settings
-and the Docker stack keep the operator-directed path. A failed setup leaves
-its own resources in place for explicit recovery; it never deletes or
-automatically migrates them on retry. The exact checks are documented in
-[scripts/README.md](../../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
+This is the narrow fresh-install exception. It refuses an existing folder,
+volume or Compose project before making anything; existing data, secrets and
+installations keep the operator-directed path. A failed setup leaves what it
+made for inspection and never deletes or migrates it. The checks are in the
+[Docker guide](../../../deploy/compose/README.md).
 
 | File | What it is |
 |---|---|
@@ -118,13 +118,9 @@ kept as the bootstrap secret `DATABASE_URL`
 `workers/ingest/.dev.secrets.json`, as the value of `DATABASE_URL`: by hand,
 in an editor, never in a shell line or a chat.
 
-**A new installation copies nothing by hand.** Its `pnpm start` makes its own
-profile as described above and takes `database.url` once. An existing start
-folder whose secrets file has no `DATABASE_URL` still takes it from the
-operator-prepared profile (a folder named with `NOTICEOS_POSTGRES_SECRETS`
-is read the same way compose.yaml reads it). It says which file it took it
-from and never prints the address. The Docker stack never copies it: its
-address is the operator's copy above.
+**A new installation copies nothing by hand.** `pnpm os:setup` writes the
+application's address into the installation's secrets file itself and never
+prints it.
 
 ## Backup and restore
 
@@ -142,13 +138,13 @@ The backup reads only the installation's declared `<home>/postgres/profile.json`
   "project": "noticeos-example",
   "composeFile": "/absolute/checkout/db/postgres/host/compose.yaml",
   "secretsDir": "/absolute/installation/postgres/secrets",
-  "port": 4749
+  "port": 5432
 }
 ```
 
-A fresh `pnpm start` writes this declaration with its own project and paths.
-An existing installation needs an explicit declaration during its approved
-cutover. Backups check Docker's selected endpoint is local, then use exactly
+The stack's [backup worker](../../../deploy/compose/backup.README.md) reads the
+database on the container's private socket and needs no such declaration; a
+host backup needs it written explicitly during an approved cutover. Backups check Docker's selected endpoint is local, then use exactly
 that project and Compose file. They never start a service or infer a project.
 The dump command runs as `postgres` on the container's own socket, with
 `--no-password`. It preserves object ownership and permissions, but contains

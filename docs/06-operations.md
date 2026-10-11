@@ -89,12 +89,11 @@ The app keeps running during step 3: migrations are additive unless the
 release's own instructions say otherwise
 ([release policy](reference/release-policy.md#upgrade-an-existing-installation)).
 
-For a provably new, empty installation only, `pnpm start` may create its own
-isolated Compose Postgres, apply the committed frozen schema and bootstrap
-one workspace ([approved exception](../AGENTS.md#hard-invariants)). Existing
-installations, the Docker stack
-and production remain operator-only. The checks and first-run steps are in
-[scripts/README.md](../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
+For a provably new, empty installation only, `pnpm os:setup` may create its
+data volumes, apply the committed frozen schema and bootstrap one workspace
+([approved exception](../AGENTS.md#hard-invariants)). Existing installations
+and production remain operator-only. The checks and steps are in the
+[Docker guide](../deploy/compose/README.md).
 
 Downtime recovery is bounded and read from the 30-day job-run record. Startup
 runs at most the latest missed obligation per allowlisted lane, sequentially:
@@ -186,24 +185,21 @@ running to read cannot be the thing that lets you run:
 
 **Where they are kept.** Locally, all four are in the installation's secrets
 file, `workers/ingest/.dev.secrets.json`: under the stack's state mount
-(`/state/workers/ingest/.dev.secrets.json` in the app container), or the
-start folder's own for `pnpm start`. The first three reach the
+(`/state/workers/ingest/.dev.secrets.json` in the app container), which
+`pnpm os:setup` writes. The first three reach the
 Workers as bindings (compiled into `.dev.vars`). `DATABASE_URL` never does: the
-runner and `pnpm start` read it at every start, check it as the application
-login, and hand it to the dev server's environment and nowhere else, as the
+runner reads it at every start, checks it as the application
+login, and hands it to the dev server's environment and nowhere else, as the
 POSTGRES binding's local address
 (`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`,
 [`scripts/database-address.mts`](../scripts/database-address.mts)).
 `pnpm os:status` reads the stack's application address from its Postgres secrets
 folder, only to read the database's migration record, and prints no part of
-it. A new
-`pnpm start` folder creates its isolated Compose profile under its own
-`postgres/secrets/` and takes the application address from `database.url`.
-An existing installation can take its address once from an operator-prepared
-profile ([db/postgres/host](../db/postgres/host/README.md), step g). A missing
+it. `pnpm os:setup` takes the application address from the new
+installation's `postgres-secrets/`. A missing
 or unusable address, or a database behind the code, stops the start in one
-sentence that names the file and never repeats the address; only the approved
-new, empty first run applies schema. Deployed on Cloudflare, the address lives in the Hyperdrive
+sentence that names the file and never repeats the address; only `pnpm os:setup`,
+on a new, empty installation, applies schema. Deployed on Cloudflare, the address lives in the Hyperdrive
 configuration, not as a Worker secret.
 
 **Every third-party provider credential is connected in the product.** Google
@@ -415,7 +411,7 @@ one place, [`scripts/resource-names.mts`](../scripts/resource-names.mts), and
 | New resource | Name | Created by |
 |---|---|---|
 | the Tower and ingest Workers | `noticeos-tower`, `noticeos-ingest` | the checkout's Worker configs, for every installation |
-| the Postgres database and R2 bucket | `noticeos`, `noticeos-raw-signals` | the checkout's Worker configs — what a stranger deploys and what `pnpm start` sets up |
+| the Postgres database and R2 bucket | `noticeos`, `noticeos-raw-signals` | the checkout's Worker configs — what a stranger deploys and what `pnpm os:setup` sets up |
 | the Postgres database and role | `noticeos`, `noticeos_app` | the Postgres profile |
 
 A store made under other names keeps them in its installation folder's

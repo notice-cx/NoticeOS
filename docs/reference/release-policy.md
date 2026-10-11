@@ -14,7 +14,8 @@ Standalone access relies on a trusted network or access layer; it is not a
 public login-protected hosted product.
 
 The [application container](../../deploy/compose/README.md) starts an already
-prepared installation. It does not initialize or migrate either database.
+prepared installation; `pnpm os:setup` prepares a new one. The container itself
+does not initialize or migrate either database.
 Its declared platform and fixture checks are evidence for those exact inputs,
 not a promise that every host or architecture has been exercised.
 

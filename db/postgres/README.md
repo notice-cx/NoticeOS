@@ -4,7 +4,7 @@
 existing installation requires explicit operator approval. `pnpm os:migrate` is operator-only
 ([Applying it to an installation's own database](#applying-it-to-an-installations-own-database)).
 The approved exception for a provably new, empty installation is
-[`pnpm start`](host/README.md#a-new-installation), using the same helpers.*
+[`pnpm os:setup`](host/README.md#a-new-installation), using the same helpers.*
 
 | File | What it is |
 |---|---|
@@ -649,8 +649,8 @@ connections are its own, never the application's pool.
 
 ***Operator-only.** DB migrations for existing installations remain
 operator-only forever ([AGENTS.md](../../AGENTS.md)). The approved
-[`pnpm start` exception](host/README.md#a-new-installation) uses the same helpers
-only for a provably new, empty installation; it does not apply to the Docker stack.*
+[`pnpm os:setup` exception](host/README.md#a-new-installation) uses the same helpers
+only for a provably new, empty installation; it never applies to an existing one.*
 
 `pnpm os:migrate` ([`scripts/os-migrate.mjs`](../../scripts/os-migrate.mjs), over
 the engine in [`scripts/postgres-apply.mjs`](../../scripts/postgres-apply.mjs))

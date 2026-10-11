@@ -52,8 +52,8 @@ stopped.
 ## Field semantics
 
 - **`hub`** — where the server listens and the user `bd` connects as. New
-  installations bind `127.0.0.1` at the Tower port plus three as `noticeos`,
-  with an installation-local credentials file; a legacy host keeps its own.
+  installations name the stack's `dolt` on port 3306 as `noticeos`, with an
+  installation-local credentials file; a legacy host keeps its own.
   `hub.dataDir` is legacy host metadata; Compose storage is the profile's
   `dolt-data` volume, never committed.
 - **`asset`** — the join key, verbatim from `noticeos.assets`. A value that
@@ -98,7 +98,7 @@ bd init --server --external --server-host 127.0.0.1 --server-port 3308 \
 ```
 
 For later manual `bd` commands on a Compose installation, set
-`BEADS_CREDENTIALS_FILE` to `<start-folder>/dolt/credentials`.
+`BEADS_CREDENTIALS_FILE` to the installation folder's `state/dolt/credentials`.
 
 `--external` keeps the hub-and-spoke shape honest: without it `bd` silently
 starts its own Dolt server when the configured one is unreachable, and the

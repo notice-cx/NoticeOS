@@ -2655,9 +2655,9 @@ title, capped at 20.
 ## Local development
 
 The operational store is Postgres. Local R2 keeps its metadata and blobs in
-the installation's `.wrangler/state` folder. Start a throwaway installation
-with `pnpm start -- --dir <folder> --port <unused-port>` from the repo root;
-its guarded setup is described in the [start guide](../../scripts/README.md#a-new-installation-in-one-command-pnpm-start).
+the installation's `.wrangler/state` folder. For a throwaway development
+database run `pnpm db:try-tower -- --dir <folder> --port <unused-port>` from
+the repo root ([dev fixtures](../../scripts/README.md#dev-fixtures)).
 
 For an explicitly configured development database, the isolated Worker command
 is `pnpm --filter @noticeos/ingest dev`. It refuses while the ingest door is
