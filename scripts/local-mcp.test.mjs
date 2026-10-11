@@ -90,8 +90,11 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
 });
 
-test('os:bd runs in the one linked project, or the one --project names, as the operator', async () => {
+test('os:bd runs in the project a task id or --project names, or the only linked one, as the operator', async () => {
   assert.equal(chooseProject([PROJECTS[0], PROJECTS[2]]).asset, 'example');
+  assert.equal(chooseProject(PROJECTS, undefined, ['show', 'se-1x2.3']).asset, 'second', 'a task id names its project by its prefix');
+  assert.throws(() => chooseProject(PROJECTS, undefined, ['dep', 'add', 'ex-1', 'se-2']), /Name a project with --project/u, 'two projects\' ids');
+  assert.throws(() => chooseProject(PROJECTS, undefined, ['show', 'zz-1']), /Name a project with --project/u, 'no linked project has that prefix');
   assert.throws(() => chooseProject(PROJECTS), { message: 'Name a project with --project: ex (example), se (second).' });
   assert.equal(chooseProject(PROJECTS, 'se').asset, 'second');
   assert.equal(chooseProject(PROJECTS, 'example').asset, 'example');
@@ -107,7 +110,11 @@ test('os:bd runs in the one linked project, or the one --project names, as the o
   assert.equal(spawned[0][2].env.BEADS_ACTOR, 'operator');
   await run(['--project', 'ex', 'list', '--actor', 'sam']);
   assert.deepEqual([spawned[1][1], spawned[1][2].cwd], [['list', '--actor', 'sam'], '/spokes/example']);
+  await run(['view', 'se-9', '--project', 'ex']);
+  assert.deepEqual([spawned[2][1], spawned[2][2].cwd], [['view', 'se-9'], '/spokes/example'], '--project wherever it stands wins');
+  await run(['view', 'se-9']);
+  assert.deepEqual([spawned[3][1], spawned[3][2].cwd], [['view', 'se-9'], '/opt/noticeos/spokes/second']);
   assert.equal(await run([]), 2);
-  assert.equal(await run(['list']), 1, 'two linked projects need --project');
-  assert.equal(spawned.length, 2);
+  assert.equal(await run(['list']), 1, 'two linked projects and no task id need --project');
+  assert.equal(spawned.length, 4);
 });
