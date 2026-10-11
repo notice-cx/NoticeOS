@@ -1,8 +1,8 @@
 // runner/job-record.mjs — the stack's runner's job-run record: one line per
 // lane per firing in `.local/logs/job-runs.jsonl`, read back at startup, and
 // shipped to the store's `job_runs` through this runner's door. The record's
-// shape and rules are scripts/job-runs.mjs, shared with `pnpm start`'s
-// schedule; this module binds them to this runner's file, log and door.
+// shape and rules are scripts/job-runs.mjs; this module binds them to this
+// runner's file, log and door.
 
 import path from 'node:path';
 import {

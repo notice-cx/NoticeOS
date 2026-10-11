@@ -1,6 +1,6 @@
-// First-run Postgres for pnpm start and explicit synthetic demo setup: frozen
-// schema and one workspace, only in a proven new/empty installation and its
-// own new local Compose project.
+// First-run Postgres for the synthetic demo setup, `pnpm os:setup` and the
+// container proofs: frozen schema and one workspace, only in a proven
+// new/empty installation and its own new local Compose project.
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';

@@ -859,7 +859,7 @@ test('missing Postgres/hub inventories fail; a readable empty R2 store is a vali
   assert.equal(result.stages.r2.expected, 0);
 });
 
-test('an installation pnpm start runs backs up only the task databases it links, each through its own checkout', async (t) => {
+test('a linked task hub backs up only the task databases its host links, each through its own checkout', async (t) => {
   // Linking none is not configured, not a failed set.
   const f = await fixture(t);
   for (const inventory of ['empty', 'absent']) {

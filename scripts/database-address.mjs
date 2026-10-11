@@ -4,7 +4,7 @@
 // binding, which locally connects to the address wrangler reads from
 // CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES. The installation
 // keeps that address as the bootstrap secret DATABASE_URL in its secrets
-// file. The runner and `pnpm start` both call `towerDatabase` first: it reads
+// file. The runner and `pnpm db:try-tower` both call `towerDatabase` first: it reads
 // the address, checks it, and returns the one variable the dev server's
 // environment gains, or one sentence saying why the start must stop.
 //

@@ -11,7 +11,7 @@ import { workerConfig } from './start.mjs';
 
 // A new installation is born with NoticeOS names.
 //
-// What `pnpm start` sets up for a stranger — its Workers, database and bucket —
+// The Worker configs a folder of its own is given — its Workers, database and bucket —
 // the names the Postgres profile will create, and the product defaults a fresh clone
 // seeds all carry the product's name and none of the old one. The owner's
 // installation keeps the names its live resources were made under
@@ -31,7 +31,7 @@ test('every name NoticeOS gives a new resource says NoticeOS, and no two are the
   assert.equal(new Set(names).size, names.length);
 });
 
-test("pnpm start's Workers, database and bucket are born with NoticeOS names", () => {
+test("a folder's generated Workers, database and bucket are born with NoticeOS names", () => {
   for (const file of WORKER_CONFIGS) {
     const source = path.join(REPO_ROOT, file);
     const generated = workerConfig(readFileSync(source, 'utf8'), source);

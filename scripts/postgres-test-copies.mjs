@@ -19,7 +19,7 @@
 import http from 'node:http';
 /** Wrangler's documented variable for the POSTGRES Hyperdrive binding's local
  * connection string: how a test's dev server or Workers pool hands both
- * Workers their store, as the runner and `pnpm start` do
+ * Workers their store, as the runner and `pnpm db:try-tower` do
  * (scripts/database-address.mts). */
 export { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 /** An address nothing answers: what the binding names where a test's Workers

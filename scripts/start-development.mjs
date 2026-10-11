@@ -1,4 +1,4 @@
-// Foreground-owned development database for pnpm start.
+// Foreground-owned development database for `pnpm db:try-tower`.
 // Never adopts a server or reads an installation/Compose database address.
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -12,15 +12,14 @@ const MARK = 'Foreground-only NoticeOS development runtime. Database resets on s
 const RESERVATION = '.development-start-active';
 
 /** Refuse mixed/adopted folders before any secret, config or server operation. */
-export function developmentRefusal(plan, enabled) {
+export function developmentRefusal(plan) {
   const mark = path.join(plan.home, DEVELOPMENT_MARK);
   const stat = lstatSync(plan.home, { throwIfNoEntry: false });
   if (stat && (!stat.isDirectory() || stat.isSymbolicLink())) return 'the runtime folder must be its own directory.';
-  if (!enabled) return existsSync(mark) ? 'this is a development folder; restart it with --development.' : null;
   if (!stat || readdirSync(plan.home).length === 0) return null;
   const recorded = lstatSync(mark, { throwIfNoEntry: false });
   if (!recorded?.isFile() || recorded.isSymbolicLink() || readFileSync(mark, 'utf8') !== MARK) {
-    return '--development requires an empty folder or a folder made by this development mode.';
+    return 'the folder must be an empty folder or one made by pnpm db:try-tower.';
   }
   const allowed = new Set([DEVELOPMENT_MARK, RESERVATION, path.basename(plan.mark), '.local', '.wrangler', 'apps', 'workers', 'installation']);
   if (readdirSync(plan.home).some(name => !allowed.has(name))) return 'the development folder contains unrelated files.';
@@ -41,7 +40,7 @@ export function developmentRefusal(plan, enabled) {
 
 /** A fresh cluster per foreground start. close() stops it before retiring data. */
 export function openDevelopmentStart(plan) {
-  const refusal = developmentRefusal(plan, true);
+  const refusal = developmentRefusal(plan);
   if (refusal) throw new Error(refusal);
   const port = plan.port + 2;
   if (!Number.isInteger(port) || port < 1024 || port > 65535 || MANAGED_START_PORTS.includes(port)) {

@@ -24,7 +24,7 @@ export declare function beadsDatabaseName(value: unknown): string | null;
 export declare function resolveTaskProjects(stored: unknown, host: unknown): TaskProject[];
 /**
  * The host's repository links. `absentLinksNone`: no inventory file at all
- * links nothing — a folder `pnpm start` made is not a checkout and has neither
+ * links nothing — a folder `pnpm db:try-tower` made is not a checkout and has neither
  * its own copy nor the product's default, so its task
  * screens say a project has no checkout linked instead of failing on a missing
  * file. Without it a missing file throws: the managed host's backup must not

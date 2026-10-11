@@ -11,7 +11,7 @@
 // does not start is the runner's scheduler and host lanes, and its
 // single-instance guard: those are pinned to the NoticeOS stack's own ports
 // and task hub, which a test must never touch. Its Worker configs are written
-// into its home beside its secrets (as `pnpm start` writes them), where a
+// into its home beside its secrets (as `pnpm db:try-tower` writes them), where a
 // code folder links them.
 
 import assert from 'node:assert/strict';
@@ -85,9 +85,8 @@ test("the address is read from home's secrets file, and a missing one is refused
   );
 });
 
-// Taking the Compose profile's address is `pnpm start`'s, for a new folder.
-// The stack's runner never takes it: a home without
-// DATABASE_URL is refused even beside a profile that holds one.
+// The stack's runner never takes the Compose profile's address: a home
+// without DATABASE_URL is refused even beside a profile that holds one.
 test("the runner never takes the Compose profile's address, and leaves home's secrets file as it was", (t) => {
   const missing = homeWith(t, { OPERATOR_TOKEN: 'x' });
   const profile = tempDir(t, 'runner-compose-');

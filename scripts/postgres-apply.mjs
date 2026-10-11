@@ -2,8 +2,9 @@
 // The Postgres migrations, applied to an installation's own database: the
 // engine behind `pnpm os:migrate` (scripts/os-migrate.mjs), which finds the
 // installation's database and calls `main` here. Existing installations remain
-// operator-only; `pnpm start` reuses this code only for a proven new, empty
-// installation's frozen schema and one workspace (AGENTS.md).
+// operator-only; `pnpm os:setup` and the synthetic demo setup reuse this code
+// only for a proven new, empty installation's frozen schema and one workspace
+// (AGENTS.md).
 //
 // It needs psql alone, not the server binaries: the database may run in a
 // container or at a provider. It is the development runner

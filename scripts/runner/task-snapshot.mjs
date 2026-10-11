@@ -75,8 +75,7 @@ export async function runBeadsPoll(runtime, deps = {}) {
     emit = log,
     stopped = () => isShuttingDown(),
     // Where the snapshot is filed and where project checkouts resolve from:
-    // the stack's door and home checkout, unless an installation
-    // `pnpm start` runs names its own (scripts/start-host-lanes.mjs).
+    // the stack's door and home checkout, unless the caller names its own.
     url = beadsSnapshotUrl(CONFIG),
     repoRoot = HOME_ROOT,
   } = deps;

@@ -19,7 +19,7 @@ import { readProductEnv } from './product-env.mjs';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, '..');
 // The secrets belong to the installation's home, not to wherever this code
-// is: `NOTICEOS_HOME` names it for the image's code folder and for `pnpm start`'s own
+// is: `NOTICEOS_HOME` names it for the image's code folder and for `pnpm db:try-tower`'s own
 // folder. Unset, home is this checkout.
 const NAMED_HOME = readProductEnv(process.env, 'home');
 const HOME_ROOT = NAMED_HOME ? path.resolve(NAMED_HOME) : REPO_ROOT;
@@ -35,7 +35,7 @@ const KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 
 /**
  * The application login's connection string to the installation's Postgres,
- * read by the runner and `pnpm start` (scripts/database-address.mts), which
+ * read by the runner and `pnpm db:try-tower` (scripts/database-address.mts), which
  * hand it to the dev server in its environment only. Never a Worker binding,
  * so never compiled into `.dev.vars`.
  */

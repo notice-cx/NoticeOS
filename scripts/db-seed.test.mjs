@@ -9,17 +9,17 @@ import { fileURLToPath } from 'node:url';
 import { javascriptInstant, openStore } from '../packages/postgres/src/store.mjs';
 import { FIXTURE_FILE, HISTORY_TABLES, readFixture, seedLocal } from './db-seed.mjs';
 import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
-import { ADDRESS_FILE, SECRETS_DIR_VARIABLE } from './postgres-secrets.mjs';
+import { findPostgres } from './postgres-dev.mjs';
 import { TEST_PORTS, parsePortRange, postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 import { FOLDER_MARK, MANAGED_PORTS, startPlan } from './start.mjs';
 
 // `pnpm db:seed-demo` on the Postgres build: the invented rows of
-// db/fixtures/dev-seed.json go into the Postgres tables the Tower reads, of a
-// throwaway installation `pnpm start` made, in one transaction as the
-// application login; the store must be empty of them first and say it is for
-// development. The last test starts a real `pnpm start`,
-// seeds it and reads the totals, one report and the money back through its
-// Tower.
+// db/fixtures/dev-seed.json go into the Postgres tables the Tower reads, of the
+// throwaway development database `pnpm db:try-tower` runs on, in one
+// transaction as the application login; the store must be empty of them first
+// and say it is for development. The last test starts a real
+// `pnpm db:try-tower`, seeds it and reads the totals, one report and the money
+// back through its Tower.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SEED = path.join(REPO_ROOT, 'scripts', 'db-seed.mjs');
@@ -72,13 +72,13 @@ function tempDir(t, prefix) {
   return dir;
 }
 
-/** A folder as `pnpm start` leaves one: its mark, and its secrets file holding
- * `bindings` (the address `pnpm start` would have taken). */
+/** A folder as `pnpm db:try-tower` leaves one: its mark, and its secrets file
+ * holding `bindings` (the address of the database it runs on). */
 function startFolder(t, bindings) {
   const home = path.join(tempDir(t, 'seed-home-'), 'installation');
   const plan = startPlan({ root: REPO_ROOT, dir: home });
   mkdirSync(path.dirname(plan.secrets), { recursive: true });
-  writeFileSync(plan.mark, 'One NoticeOS installation, made by `pnpm start`.\n');
+  writeFileSync(plan.mark, 'Local runtime files for a development-only NoticeOS instance.\n');
   writeFileSync(plan.secrets, `${JSON.stringify(bindings)}\n`, { mode: 0o600 });
   return home;
 }
@@ -136,11 +136,17 @@ const SEEDED = Object.fromEntries(['assets', ...HISTORY_TABLES].map((table) => [
 
 // ─── Refusals that need no database ─────────────────────────────────────────
 
-test('a folder pnpm start did not make is refused, naming the command that makes one', async (t) => {
+test('a folder pnpm db:try-tower did not make is refused, naming the command that makes one', async (t) => {
   const home = tempDir(t, 'seed-not-start-');
   const { code, lines } = await printed(t, () => seedLocal({ dir: home }));
   assert.equal(code, 1);
-  assert.deepEqual(lines, [`[seed] refusing to seed: ${home} is not an installation pnpm start made; make one first: pnpm start -- --dir ${home}`]);
+  assert.deepEqual(lines, [`[seed] refusing to seed: ${home} is not a folder pnpm db:try-tower made; start one first: pnpm db:try-tower -- --dir ${home}`]);
+});
+
+test('no folder is refused in one line naming both commands: there is no default folder', async (t) => {
+  const { code, lines } = await printed(t, () => seedLocal({}));
+  assert.equal(code, 1);
+  assert.deepEqual(lines, ['[seed] refusing to seed: name the folder: pnpm db:seed-demo -- --dir <folder>, the one pnpm db:try-tower -- --dir <folder> runs on.']);
 });
 
 test('the checkout itself is refused: the NoticeOS stack’s installation is never seeded', async (t) => {
@@ -258,7 +264,7 @@ test('a second run is refused, naming what the store holds, and writes nothing',
     '[seed]   noticeos.assets: the site meadow.example, on an id or domain the fixture uses',
     '[seed]   noticeos.assets: the site northwind.example, on an id or domain the fixture uses',
     '[seed] These rows are invented; once mixed in with real ones, nothing in the store can tell them apart.',
-    '[seed] Seed only a new installation: pnpm start -- --dir <an empty folder>, on a new database marked for development.',
+    '[seed] Seed only a new development database: pnpm db:try-tower -- --dir <an empty folder>.',
     '[seed] Nothing was written.',
   ]);
   assert.deepEqual(await counts(url), SEEDED);
@@ -377,21 +383,21 @@ function hold(port) {
   });
 }
 
-/** Two free neighbouring ports, the Tower's and its door's: from the top of
- * the port block a machine gives this run (NOTICEOS_TEST_POSTGRES_PORTS),
- * else from the range scripts/start.test.mjs uses. */
-async function freePair() {
+/** Three free neighbouring ports, the Tower's, its door's and its own
+ * Postgres's: from the top of the port block a machine gives this run
+ * (NOTICEOS_TEST_POSTGRES_PORTS), else from below every OS's ephemeral range. */
+async function freeTriple() {
   const block = parsePortRange(process.env[TEST_PORTS]);
   const candidates = block
-    ? Array.from({ length: block[1] - block[0] }, (_, i) => block[1] - 1 - i)
+    ? Array.from({ length: Math.max(0, block[1] - block[0] - 1) }, (_, i) => block[1] - 2 - i)
     : Array.from({ length: 50 }, () => 20_000 + Math.floor(Math.random() * 12_000));
   for (const port of candidates) {
-    if (MANAGED_PORTS.includes(port) || MANAGED_PORTS.includes(port + 1)) continue;
-    const held = await Promise.all([hold(port), hold(port + 1)]);
+    if ([port, port + 1, port + 2].some((taken) => MANAGED_PORTS.includes(taken))) continue;
+    const held = await Promise.all([hold(port), hold(port + 1), hold(port + 2)]);
     await Promise.all(held.filter(Boolean).map((server) => new Promise((resolve) => server.close(resolve))));
     if (held.every(Boolean)) return port;
   }
-  throw new Error('no free pair of ports for the Tower');
+  throw new Error('no free three ports for the Tower, its door and its database');
 }
 
 async function getJson(url) {
@@ -400,18 +406,14 @@ async function getJson(url) {
 }
 
 test('after the seed, a real Tower shows the invented rows: the sites and their alerts, a report, the money', { timeout: 600_000 }, async (t) => {
-  if (unavailable) return t.skip(`no Postgres here: ${unavailable}`);
-  const { url } = await copy(t);
+  // The command starts its own Postgres in its own process, where its absence
+  // is only an exit code: decide here.
+  if (!findPostgres() && !postgresRequired()) return t.skip('no Postgres server binaries (initdb, pg_ctl, psql) on this machine');
   const base = tempDir(t, 'seed-tower-');
-  const home = path.join(base, 'installation');
-  // The Compose profile's secrets folder, a throwaway beside the folder: the
-  // start takes its address from here, never from the checkout's.
-  const compose = path.join(base, 'compose-secrets');
-  mkdirSync(compose, { mode: 0o700 });
-  writeFileSync(path.join(compose, ADDRESS_FILE), `${url}\n`, { mode: 0o600 });
-  const env = { ...process.env, [SECRETS_DIR_VARIABLE]: compose, CI: '1', WRANGLER_LOG_PATH: path.join(base, 'wrangler-logs') };
+  const home = path.join(base, 'runtime');
+  const env = { ...process.env, CI: '1', WRANGLER_LOG_PATH: path.join(base, 'wrangler-logs') };
   delete env[LOCAL_CONNECTION_VARIABLE];
-  const port = await freePair();
+  const port = await freeTriple();
   const child = spawn(process.execPath, [path.join(REPO_ROOT, 'scripts', 'start.mjs'), '--dir', home, '--port', String(port), '--no-open'], {
     cwd: REPO_ROOT, env, stdio: ['ignore', 'pipe', 'pipe'], detached: true,
   });
@@ -419,13 +421,13 @@ test('after the seed, a real Tower shows the invented rows: the sites and their 
   child.stdout.on('data', (chunk) => (output += chunk));
   child.stderr.on('data', (chunk) => (output += chunk));
   const exited = new Promise((resolve) => child.on('exit', resolve));
-  // Undone first (the last step deferred): the start stops before its copy is
-  // given back and before its folder, which its schedule writes into, goes.
+  // Undone first (the last step deferred): the run stops, retiring its
+  // database, before its folder goes.
   defer(t, async () => {
     if (child.exitCode !== null || child.signalCode !== null) return;
     const within = (ms) => Promise.race([exited.then(() => true), new Promise((resolve) => setTimeout(resolve, ms, false).unref())]);
     try {
-      // On SIGTERM pnpm start stops its Tower's own process group, then exits.
+      // On SIGTERM pnpm db:try-tower stops its Tower's own process group and its database, then exits.
       process.kill(-child.pid, 'SIGTERM');
     } catch {
       return; // gone
@@ -437,7 +439,7 @@ test('after the seed, a real Tower shows the invented rows: the sites and their 
       // gone
     }
     await within(10_000);
-    throw new Error(`pnpm start (pid ${child.pid}) did not stop on SIGTERM within 30 s; its Tower's processes may still run`);
+    throw new Error(`pnpm db:try-tower (pid ${child.pid}) did not stop on SIGTERM within 30 s; its Tower's processes may still run`);
   });
   const running = await Promise.race([
     new Promise((resolve) => {
@@ -448,16 +450,15 @@ test('after the seed, a real Tower shows the invented rows: the sites and their 
     }),
     new Promise((resolve) => setTimeout(resolve, 420_000, false).unref()),
   ]);
-  assert.ok(running, `pnpm start did not come up:\n${output}`);
+  assert.ok(running, `pnpm db:try-tower did not come up:\n${output}`);
 
   // The seed, as a developer runs it, beside the started Tower.
   const seeded = spawnSync(process.execPath, [SEED, '--dir', home], { cwd: REPO_ROOT, env, encoding: 'utf8' });
   assert.equal(seeded.status, 0, seeded.stderr);
 
   const tower = `http://127.0.0.1:${port}`;
-  // The totals: both invented sites, in their places, each with its open
-  // alerts. The started installation's own lanes may add theirs (its site
-  // checks find no invented domain), so the seeded ones are counted at least.
+  // The totals: both invented sites, in their places, each with at least its
+  // seeded open alerts.
   const wall = await getJson(`${tower}/api/wall`);
   assert.equal(wall.status, 200);
   assert.deepEqual(wall.body.assets.map((asset) => asset.id), ['meadow.example', 'northwind.example']);

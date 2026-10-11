@@ -12,7 +12,7 @@ export declare const WRANGLER_DOT_ENV_SWITCH: string;
 /** The checkout's Worker config with every path made absolute, so it works from any folder. */
 export declare function relocatedWorkerConfig(sourceText: string, sourceFile: string): Record<string, unknown>;
 /**
- * A Worker config for `pnpm start`'s folder, with its one-line header. Its
+ * A Worker config for `pnpm db:try-tower`'s folder, with its one-line header. Its
  * resources keep the checked-in names, which are a new installation's
  * (scripts/resource-names.mts NEW_INSTALL_NAMES, scripts/new-install-names.test.mjs).
  */

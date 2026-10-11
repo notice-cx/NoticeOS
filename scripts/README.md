@@ -4,6 +4,8 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
+| `os:setup` | Set up a new NoticeOS installation on this Docker host and start it. | `scripts/os-setup.mjs` |
+| `os:adopt` | Move the running installation into the installation folder layout, after you confirm the plan. | `scripts/os-adopt.mjs` |
 | `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
@@ -24,8 +26,9 @@
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
+| `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
-| `db:seed-demo` | A new installation's store filled with invented history. | `scripts/db-seed.mjs` |
+| `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
 
 ### Settings and credentials
@@ -79,7 +82,6 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `start` | NoticeOS on this machine, in one command. | `scripts/start.mjs` |
 | `typecheck` | Typecheck every workspace. | `pnpm -r --if-present run typecheck` |
 | `build` | Build every workspace. | `pnpm -r --if-present run build` |
 | `prepare` | Install the repository's git hooks on `pnpm install`. | `scripts/install-git-hooks.mjs` |

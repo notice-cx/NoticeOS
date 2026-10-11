@@ -1,6 +1,6 @@
 // JSONC → JSON text. wrangler.jsonc has comments (and possibly trailing
 // commas), so they are stripped string-aware before JSON.parse. One copy for
-// the runner's cron list, the deploy's store check, `pnpm start`'s Worker
+// the runner's cron list, the deploy's store check, `pnpm db:try-tower`'s Worker
 // configs and the unit suites' (scripts/worker-config-folder.mts).
 
 export function stripJsonc(text: string): string {

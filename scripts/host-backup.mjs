@@ -129,7 +129,7 @@ function offsiteDirectory(settings, where) {
  * `taskHub` says whose task hub this is. `required` — the NoticeOS stack's
  * host runs the hub, so an empty inventory is a failure and every database is
  * copied through the checkout at `repoRoot`. `linked` — an installation
- * `pnpm start` runs backs up only the task databases its
+ * whose host runs no hub of its own backs up only the task databases its
  * host links, each through its own linked checkout; linking none is
  * `not_configured`, like an offsite folder nobody named.
  */

@@ -64,7 +64,7 @@ describe('System Health status evidence', () => {
     expect(screen.getByRole('heading', { name: 'Current health is unconfirmed' })).toBeVisible();
   });
   it('judges an installation whose runner runs no host lanes by the jobs it does run', () => {
-    // An installation `pnpm start` runs: no backup or task hub lanes, so their
+    // A runner without host lanes (the hosted scheduler): no backup or task hub lanes, so their
     // absence is neither a failure nor unconfirmed.
     const ingest = WORKFLOW_DEFINITIONS.filter((definition) => !definition.local);
     mock.data!.runtime = { ...mock.data!.runtime!, hostLanes: false, jobs: mock.data!.runtime!.jobs.filter((job) => ingest.some((definition) => definition.id === job.id)) };

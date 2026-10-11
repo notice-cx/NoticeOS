@@ -48,8 +48,7 @@ export const SECRETS_DIR_VARIABLE = 'NOTICEOS_POSTGRES_SECRETS';
 /**
  * The folder the Compose profile reads its secrets from, resolved as
  * compose.yaml resolves it: `NOTICEOS_POSTGRES_SECRETS`, relative to
- * compose.yaml's own folder, or `secrets` beside it. `pnpm start` takes a new
- * installation's database address from here (scripts/start.mjs).
+ * compose.yaml's own folder, or `secrets` beside it.
  */
 export function composeSecretsDir(env = process.env, root = REPO_ROOT) {
   const profile = path.join(root, 'db', 'postgres', 'host');

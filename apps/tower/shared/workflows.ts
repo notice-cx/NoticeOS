@@ -5,7 +5,7 @@ export * from '../../../scripts/workflow-definitions.mjs';
 
 /**
  * The workflows this installation runs. One whose runner does not run the
- * host's lanes (an installation `pnpm start` runs) has only the `local` jobs
+ * host's lanes (the hosted scheduler) has only the `local` jobs
  * its runner lists; every other job is listed, and one its runner does not
  * report stays unconfirmed.
  */

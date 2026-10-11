@@ -4,7 +4,7 @@
 // Every variable the product itself defines is named NOTICEOS_*. An operator's
 // shell may still set the name an earlier release read, and those keep
 // working: the NoticeOS name wins when it is set, the legacy one is read when
-// it is not. Writers (the runner, `pnpm start`, the container image) set only
+// it is not. Writers (the runner, `pnpm db:try-tower`, the container image) set only
 // the NoticeOS names.
 //
 // The four bootstrap secrets (CREDENTIALS_KEY, OPERATOR_TOKEN, ASSET_TOKENS,
@@ -18,7 +18,7 @@ export const PRODUCT_ENV = Object.freeze({
     home: Object.freeze({ name: "NOTICEOS_HOME" }),
     /** The installation's own folder (scripts/installation.mts). */
     installationDir: Object.freeze({ name: "NOTICEOS_INSTALLATION_DIR", legacy: "REINDEX_OS_INSTALLATION_DIR" }),
-    /** Where both Worker configs are read from when an installation runs out of a folder of its own (`pnpm start`). */
+    /** Where both Worker configs are read from when an installation runs out of a folder of its own (`pnpm db:try-tower`). */
     workerConfigRoot: Object.freeze({ name: "NOTICEOS_WORKER_CONFIG_ROOT", legacy: "REINDEX_OS_WORKER_CONFIG_ROOT" }),
     /** A second name for OPERATOR_TOKEN, read by the CLI imports after OPERATOR_TOKEN itself. */
     operatorToken: Object.freeze({ name: "NOTICEOS_OPERATOR_TOKEN", legacy: "REINDEX_OPERATOR_TOKEN" }),

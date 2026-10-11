@@ -1,7 +1,6 @@
 // The record every scheduled lane leaves, and the recovery it allows after
-// downtime. Shared by the NoticeOS stack's runner (scripts/os-up.mjs) and
-// `pnpm start`'s schedule (scripts/start-schedule.mjs). Every effect — the
-// file, the clock, the log, the store — is passed in.
+// downtime, for the NoticeOS stack's runner (scripts/os-up.mjs). Every
+// effect — the file, the clock, the log, the store — is passed in.
 //
 // Each firing appends one line to `.local/logs/job-runs.jsonl`: which lane,
 // when it started, how long it took, and ran / skipped / failed. The grain is

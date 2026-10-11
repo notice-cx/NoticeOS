@@ -1,46 +1,27 @@
 #!/usr/bin/env node
-// start.mjs — `pnpm start`: NoticeOS on this machine, in one command.
+// The Tower on a throwaway development database, for working on screens with invented data.
 //
-// A fresh clone has no store, secrets or saved settings. A proven empty folder
-// gets its own Compose Postgres, the committed frozen schema and one
-// workspace. Startup then prepares the runtime files, gets its own Dolt hub
-// and OS task project, starts the Tower and ingest on loopback, and prints
-// Home's address. Beads CLI 1.1.2 is checked before setup.
+//   pnpm db:try-tower -- --dir <folder>                 # http://127.0.0.1:4747/
+//   pnpm db:try-tower -- --dir <folder> --port 6000     # the Tower on 6000, its ingest door on 6001, Postgres on 6002
+//   pnpm db:try-tower -- --dir <folder> --no-open       # do not open a browser
 //
-//   pnpm start                       # http://127.0.0.1:4747/
-//   pnpm start -- --port 6000        # the Tower on 6000, its ingest door on 6001
-//   pnpm start -- --dir ~/noticeos   # keep the installation somewhere else
-//   pnpm start -- --no-open          # do not open a browser
-//   pnpm start -- --development --dir .local/development  # foreground-owned synthetic database
+// It is not an installation: `pnpm os:setup` makes one. The folder must be
+// empty or one this command made. Each run starts a Postgres cluster of its
+// own on --port + 2, applies the committed frozen schema, bootstraps one
+// workspace marked for development (scripts/start-development.mjs), starts the
+// Tower and ingest on loopback in the foreground and loads the default
+// settings. Ctrl-C stops it and discards the database. While it runs,
+// `pnpm db:seed-demo -- --dir <folder>` fills it with invented history.
 //
-// It is not the NoticeOS stack. `pnpm os:*` runs an installation's live OS in
-// Docker Compose: the Tower on :5173, the ingest door on :8791, the checkout's own
-// `.wrangler/state`, `installation/` and secret files. This command uses none
-// of them. Its folder holds local state, its generated secrets, the Worker
-// configs generated beside them (wrangler reads a Worker's secrets from beside
-// its config), its saved-settings exports and its log; its Tower is told so
-// through the same variables the stack's runner uses (scripts/os-runtime.mjs),
-// and it refuses the stack's ports outright. scripts/start.test.mjs
-// boots it beside a planted store with a tripwire on every owner path and port.
-//
-// An existing Postgres is never started or migrated here. First-run setup is
-// only for the new, empty project proven by start-postgres.mjs; subsequent
-// starts read and check the configured database. The folder's secrets file
-// holds DATABASE_URL beside the keys made for it; the start checks that
-// address as the application login (scripts/database-address.mts) and hands
-// it to the Tower's environment only. One whose database is behind this code
-// stops naming the operator's command. While the folder's secrets file has no
-// DATABASE_URL, the start copies the one line `pnpm db:create-secrets` wrote to
-// the profile's `database.url` into it; without that file it stops in one
-// sentence naming the command to run first. Nothing else moves a secret, and
-// an address already in the folder is never replaced.
-//
-// It keeps collecting on its schedule. Once the door answers and the settings
-// are seeded, it fires the ingest's crons at its own door and keeps their
-// record in its folder (scripts/start-schedule.mjs), so Workflows and System
-// health show this installation's runs. Each start pays the latest missed
-// obligation of every lane once. Task polling uses its own declared hub and
-// credentials; backups run once its own offsite destination is configured.
+// It never reaches the NoticeOS stack: not its Postgres, its `.wrangler/state`,
+// its `installation/` or its secret files, and it refuses the stack's ports
+// outright. The folder holds the generated secrets, the Worker configs beside
+// them (wrangler reads a Worker's secrets from beside its config), the
+// saved-settings exports and the log; the Tower is told so through the same
+// variables the stack's runner uses (scripts/os-runtime.mjs). The database's
+// address goes into the folder's secrets file and the Tower's environment
+// only. scripts/start.test.mjs boots it with a tripwire on every owner path
+// and port.
 
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
@@ -56,25 +37,17 @@ import {
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DATABASE_SETUP, DATABASE_URL, LOCAL_CONNECTION_VARIABLE, readDatabaseAddress, towerDatabase } from './database-address.mjs';
+import { DATABASE_URL, LOCAL_CONNECTION_VARIABLE, towerDatabase } from './database-address.mjs';
 import { readDevSecretBindings, syncDevVars } from './dev-secrets.mjs';
 import { runSeed } from './config-seed.mjs';
 import { doorIsHeld } from './ingest-door.mjs';
 import { DEFAULT_INSTALLATION_DIR, INSTALLATION_DIR_ENV } from './installation.mjs';
 import { redactLogText } from './os-log.mjs';
 import { PRODUCT_ENV } from './product-env.mjs';
-import { ADDRESS_FILE, composeSecretsDir } from './postgres-secrets.mjs';
 import { developmentRefusal, openDevelopmentStart } from './start-development.mjs';
-import { startSchedule } from './start-schedule.mjs';
-import { MANAGED_START_PORTS, prepareFreshPostgres } from './start-postgres.mjs';
-import { preflightStartedTasks, prepareStartedTasks, scrubTaskEnvironment } from './start-dolt.mjs';
-import {
-  HOME_ENV,
-  invokedDirectly,
-  samePath,
-  statePaths,
-  workerCrons,
-} from './os-runtime.mjs';
+import { MANAGED_START_PORTS } from './start-postgres.mjs';
+import { scrubTaskEnvironment } from './start-dolt.mjs';
+import { HOME_ENV, invokedDirectly, samePath, statePaths } from './os-runtime.mjs';
 import { WORKER_CONFIGS, WRANGLER_SECRET_SWITCHES, workerConfig } from './worker-config-folder.mjs';
 
 // The folder's Worker configs are written by scripts/worker-config-folder.mts,
@@ -85,8 +58,8 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 
 /** Where the Tower answers unless `--port` says otherwise; the ingest door is the next port. */
 export const DEFAULT_PORT = 4747;
-/** The folder the installation lives in, relative to the checkout. */
-export const DEFAULT_DIR = path.join('.local', 'start');
+/** How to run it, as every refusal of a missing folder says it. */
+export const USAGE = 'pnpm db:try-tower -- --dir <folder> [--port <n>] [--no-open]';
 /**
  * The NoticeOS stack's ports: its Tower (scripts/runner/config.mjs CONFIG.towerPort),
  * its ingest door (CONFIG.ingestPort), task hub (CONFIG.beadsHubPort) and the
@@ -95,7 +68,7 @@ export const DEFAULT_DIR = path.join('.local', 'start');
  * from coming back. scripts/start.test.mjs pins them to CONFIG.
  */
 export const MANAGED_PORTS = MANAGED_START_PORTS;
-/** The file that says a folder is one `pnpm start` made. */
+/** The file that says NoticeOS made a folder: `planRefusal` accepts a folder holding it. */
 export const FOLDER_MARK = '.made-by-pnpm-start';
 /** Wrangler's older name for the database address, which it still reads when
  * the current one is unset: never inherited by a started Tower. */
@@ -104,26 +77,27 @@ const LEGACY_CONNECTION_VARIABLE = 'WRANGLER_HYPERDRIVE_LOCAL_CONNECTION_STRING_
 // ─── The plan ────────────────────────────────────────────────────────────────
 
 export function parseArgs(argv) {
-  const opts = { port: DEFAULT_PORT, dir: null, open: true };
+  const opts = { port: DEFAULT_PORT, dir: null, open: true, help: false };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === '--') continue;
     else if (arg === '--port') opts.port = Number(argv[++i]);
     else if (arg === '--dir') opts.dir = argv[++i] ?? null;
     else if (arg === '--no-open') opts.open = false;
-    else if (arg === '--development') opts.development = true;
-    else throw new Error(`unknown option ${arg} (known: --port, --dir, --no-open, --development)`);
+    else if (arg === '--help' || arg === '-h') opts.help = true;
+    else throw new Error(`unknown option ${arg} (known: --dir, --port, --no-open)`);
   }
   return opts;
 }
 
 /**
- * Every path and port one start uses, from the checkout and the options.
- * Everything that is state is inside `home`; nothing names the checkout's own
- * store, installation folder, secrets or logs.
+ * Every path and port one run uses, from the checkout, its folder and its
+ * port. Everything that is state is inside `home`; nothing names the
+ * checkout's own store, installation folder, secrets or logs.
  */
-export function startPlan({ root = REPO_ROOT, dir = null, port = DEFAULT_PORT } = {}) {
-  const home = path.resolve(root, dir ?? DEFAULT_DIR);
+export function startPlan({ root = REPO_ROOT, dir, port = DEFAULT_PORT } = {}) {
+  if (typeof dir !== 'string' || dir === '') throw new Error('startPlan needs the folder it runs in (dir)');
+  const home = path.resolve(root, dir);
   const state = statePaths(home);
   return {
     root,
@@ -140,7 +114,6 @@ export function startPlan({ root = REPO_ROOT, dir = null, port = DEFAULT_PORT } 
       source: path.join(root, relative),
       target: path.join(home, relative),
     })),
-    ingestConfig: path.join(home, WORKER_CONFIGS[1]),
     registry: path.join(home, '.wrangler', 'registry'),
     logsDir: state.logsDir,
     log: path.join(state.logsDir, 'start.log'),
@@ -151,7 +124,7 @@ export function startPlan({ root = REPO_ROOT, dir = null, port = DEFAULT_PORT } 
 
 /**
  * The environment the Tower runs with: the process's own, told where this
- * installation is. Each variable is one the Tower already reads —
+ * folder is. Each variable is one the Tower already reads —
  * `NOTICEOS_HOME` (its lanes' state, secrets and logs), the installation
  * folder (saved-settings exports), the store and the ingest door
  * (apps/tower/vite.config.ts, vite/runner-door.ts) — plus where the Worker
@@ -201,7 +174,7 @@ export function planRefusal(plan, { exists = existsSync, list = readdirSync } = 
     return `${plan.home} holds this checkout; choose a folder of its own with --dir.`;
   }
   if (exists(plan.home) && !exists(plan.mark) && list(plan.home).length > 0) {
-    return `${shown(plan.home)} holds files pnpm start did not make; choose an empty folder with --dir.`;
+    return `${shown(plan.home)} holds files NoticeOS did not make; choose an empty folder with --dir.`;
   }
   return null;
 }
@@ -232,71 +205,12 @@ export async function prepareFolder(plan) {
   return made;
 }
 
-/**
- * A new installation's database address, taken once from the Compose profile.
- *
- * Only while the folder's secrets file has no DATABASE_URL: the profile's
- * `database.url` (`composeSecretsDir`, the folder compose.yaml reads, beside
- * `env`'s NOTICEOS_POSTGRES_SECRETS) holds the application login's address as
- * one line. Its form is checked, then the secrets file is written whole beside
- * itself (0600) and renamed over, the other secrets unchanged. The database
- * itself is checked afterwards by `towerDatabase`, as every start checks it.
- *
- * Returns `{ ok: true, took }`, `took` the file the address came from or null
- * when the folder already had one, or `{ ok: false, line }`: one sentence that
- * never repeats any part of the address. Nothing is started, made or migrated.
- */
-export async function takeComposeAddress(plan, { env = process.env } = {}) {
-  let document;
-  try {
-    document = JSON.parse(await fs.readFile(plan.secrets, 'utf8'));
-  } catch {
-    document = null;
-  }
-  if (document === null || typeof document !== 'object' || Array.isArray(document)) {
-    return { ok: false, line: `${shown(plan.secrets)} could not be read, so ${DATABASE_URL} is unknown; it is one JSON object of the installation's secrets.` };
-  }
-  const held = document[DATABASE_URL];
-  if (held !== undefined && held !== null && !(typeof held === 'string' && held.trim() === '')) {
-    return { ok: true, took: null };
-  }
-  const source = path.join(composeSecretsDir(env, plan.root), ADDRESS_FILE);
-  let text;
-  try {
-    text = await fs.readFile(source, 'utf8');
-  } catch (error) {
-    return {
-      ok: false,
-      line: error?.code === 'ENOENT'
-        ? `${DATABASE_URL} is not set in ${shown(plan.secrets)} and ${shown(source)} does not exist yet: run pnpm db:create-secrets first (${DATABASE_SETUP} sets the database up).`
-        : `${shown(source)} could not be read, so ${DATABASE_URL} is unknown (${DATABASE_SETUP}).`,
-    };
-  }
-  const line = text.split('\n')[0].trim();
-  if (line === '') {
-    return { ok: false, line: `${shown(source)} holds no address; ${DATABASE_SETUP} shows what pnpm db:create-secrets writes there.` };
-  }
-  const reading = readDatabaseAddress({ [DATABASE_URL]: line }, shown(source));
-  if (!reading.ok) return reading;
-  const next = `${plan.secrets}.tmp-${process.pid}`;
-  try {
-    await fs.rm(next, { force: true });
-    await fs.writeFile(next, `${JSON.stringify({ ...document, [DATABASE_URL]: reading.address.url }, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-    await fs.chmod(next, 0o600);
-    await fs.rename(next, plan.secrets);
-  } catch (error) {
-    await fs.rm(next, { force: true }).catch(() => undefined);
-    return { ok: false, line: `${shown(plan.secrets)} could not be written${error?.code ? ` (${error.code})` : ''}, so ${DATABASE_URL} was not taken from ${shown(source)}.` };
-  }
-  return { ok: true, took: source };
-}
-
-/** One start per folder: two runtimes on one store is corruption. */
+/** One run per folder: two runtimes on one store is corruption. */
 export function takeLock(plan, { alive = processAlive } = {}) {
   try {
     const held = JSON.parse(readFileSync(plan.lock, 'utf8'));
     if (Number.isInteger(held?.pid) && held.pid !== process.pid && alive(held.pid)) {
-      return `another pnpm start (pid ${held.pid}) is using ${shown(plan.home)}.`;
+      return `another pnpm db:try-tower (pid ${held.pid}) is using ${shown(plan.home)}.`;
     }
   } catch {
     // no lock, or an unreadable one: take it
@@ -407,11 +321,11 @@ function tail(file, lines = 20) {
   }
 }
 
-// ─── One start ───────────────────────────────────────────────────────────────
+// ─── One run ─────────────────────────────────────────────────────────────────
 
 const say = (line) => process.stdout.write(`${line}\n`);
 const refuse = (line) => {
-  process.stderr.write(`pnpm start: ${line}\n`);
+  process.stderr.write(`pnpm db:try-tower: ${line}\n`);
   return 1;
 };
 
@@ -422,9 +336,13 @@ export async function main(argv = process.argv.slice(2)) {
   } catch (error) {
     return refuse(error.message);
   }
-  if (opts.development && !opts.dir) return refuse('--development requires its own explicit --dir folder.');
+  if (opts.help) {
+    say(`usage: ${USAGE}`);
+    return 0;
+  }
+  if (!opts.dir) return refuse(`--dir <folder> is required: ${USAGE}`);
   const plan = startPlan({ dir: opts.dir, port: opts.port });
-  const refusal = planRefusal(plan) ?? developmentRefusal(plan, opts.development === true);
+  const refusal = planRefusal(plan) ?? developmentRefusal(plan);
   if (refusal) return refuse(refusal);
   for (const port of [plan.port, plan.doorPort]) {
     if (await doorIsHeld(`http://127.0.0.1:${port}`)) {
@@ -434,10 +352,9 @@ export async function main(argv = process.argv.slice(2)) {
 
   let development = null;
   try {
-    if (opts.development) development = openDevelopmentStart(plan);
+    development = openDevelopmentStart(plan);
     return await runPreparedStart(plan, opts, development);
-  } catch (error) {
-    if (!opts.development) throw error;
+  } catch {
     return refuse('development startup could not finish; no existing installation was adopted.');
   } finally {
     development?.close();
@@ -445,16 +362,6 @@ export async function main(argv = process.argv.slice(2)) {
 }
 
 async function runPreparedStart(plan, opts, development) {
-  // Development has no Docker/task-hub setup or installation address fallback.
-  const taskCheck = development ? { ok: true, enabled: false } : await preflightStartedTasks(plan);
-  if (!taskCheck.ok) return refuse(taskCheck.line);
-  const setup = development ? { ok: true, created: true, env: {} }
-    : await prepareFreshPostgres(plan, { requireTasks: taskCheck.enabled && taskCheck.fresh });
-  if (!setup.ok) return refuse(setup.line);
-  // A concurrent or failed first setup can leave an unmarked folder. Refuse
-  // it before the ordinary path writes runtime files into it.
-  const changed = planRefusal(plan);
-  if (changed) return refuse(changed);
   const locked = takeLock(plan);
   if (locked) return refuse(locked);
   const release = () => {
@@ -466,22 +373,8 @@ async function runPreparedStart(plan, opts, development) {
   };
 
   await prepareFolder(plan);
-  // A new installation's address, from the Compose profile, once.
-  let taken;
-  if (development) {
-    const secrets = JSON.parse(await fs.readFile(plan.secrets, 'utf8'));
-    await fs.writeFile(plan.secrets, `${JSON.stringify({ ...secrets, [DATABASE_URL]: development.address }, null, 2)}\n`, { mode: 0o600 });
-    taken = { ok: true, took: null };
-  } else {
-    taken = await takeComposeAddress(plan, { env: { ...process.env, ...setup.env } });
-  }
-  if (!taken.ok) {
-    release();
-    return refuse(taken.line);
-  }
-  if (taken.took) say(`Took ${DATABASE_URL} from ${shown(taken.took)} into ${shown(plan.secrets)}.`);
-  // The folder's database, before anything else is made: a start that cannot
-  // reach it leaves only the folder and its secrets file, where the address goes.
+  const secrets = JSON.parse(await fs.readFile(plan.secrets, 'utf8'));
+  await fs.writeFile(plan.secrets, `${JSON.stringify({ ...secrets, [DATABASE_URL]: development.address }, null, 2)}\n`, { mode: 0o600 });
   const database = await towerDatabase({
     where: shown(plan.secrets),
     readBindings: () => readDevSecretBindings({ secretsFile: plan.secrets, varsFile: plan.devVars }),
@@ -490,17 +383,9 @@ async function runPreparedStart(plan, opts, development) {
     release();
     return refuse(database.line);
   }
-  const tasks = await prepareStartedTasks(plan, taskCheck, {
-    fresh: setup.created,
-    address: database.env[LOCAL_CONNECTION_VARIABLE],
-  });
-  if (!tasks.ok) {
-    release();
-    return refuse(tasks.line);
-  }
   const { bindings } = await readDevSecretBindings({ secretsFile: plan.secrets, varsFile: plan.devVars });
   const logStream = createWriteStream(plan.log, { flags: 'a' });
-  logStream.write(`\n── pnpm start ${new Date().toISOString()} · ${plan.url}\n`);
+  logStream.write(`\n── pnpm db:try-tower ${new Date().toISOString()} · ${plan.url}\n`);
   const tower = spawnTower(plan, logStream, database.env);
   // 'exit', not 'close' (scripts/run-command.mjs): this watches the server's
   // life, and a process it started can hold its log pipe after it died.
@@ -510,10 +395,8 @@ async function runPreparedStart(plan, opts, development) {
   });
 
   let stopping = false;
-  let schedule = null;
   const stop = async () => {
     stopping = true;
-    schedule?.stop();
     for (const [signal, after] of [['SIGTERM', 5000], ['SIGKILL', 2000]]) {
       try {
         process.kill(-tower.pid, signal);
@@ -522,7 +405,7 @@ async function runPreparedStart(plan, opts, development) {
       }
       if (await Promise.race([exited.then(() => true), new Promise((resolve) => setTimeout(resolve, after, false))])) break;
     }
-    development?.close();
+    development.close();
     release();
   };
   const onSignal = () => {
@@ -536,29 +419,20 @@ async function runPreparedStart(plan, opts, development) {
     await waitForPort(plan.url, { exited, timeoutMs: 120_000 });
     await waitForPort(plan.door, { exited, timeoutMs: 60_000 });
     await seedSettings(plan, bindings.OPERATOR_TOKEN, { exited });
-    schedule = development ? null : await startSchedule({
-      home: plan.home,
-      door: plan.door,
-      token: bindings.OPERATOR_TOKEN,
-      taskRun: tasks.run,
-      crons: workerCrons(readFileSync(plan.ingestConfig, 'utf8')),
-      emit: (level, text) => logStream.write(`${new Date().toISOString()} [schedule] ${level} ${text}\n`),
-    });
   } catch (error) {
-    process.stderr.write(`pnpm start: ${error.message} — the last lines of ${shown(plan.log)}:\n${tail(plan.log)}\n`);
+    process.stderr.write(`pnpm db:try-tower: ${error.message} — the last lines of ${shown(plan.log)}:\n${tail(plan.log)}\n`);
     await stop();
     return 1;
   }
 
   say(`NoticeOS is running: ${plan.url}`);
-  if (development) say('Development database resets when stopped. Run pnpm db:seed-demo in another terminal.');
-  say(`Its data, settings and log are in ${shown(plan.home)}. Ctrl-C stops it.`);
+  say(`Its database is discarded when it stops; pnpm db:seed-demo -- --dir ${shown(plan.home)} fills it with invented history.`);
+  say(`Its settings and log are in ${shown(plan.home)}. Ctrl-C stops it.`);
   if (opts.open) openBrowser(plan.url);
 
   const code = await exited;
-  schedule?.stop();
   if (!stopping) {
-    process.stderr.write(`pnpm start: the Tower stopped (exit ${code}) — the last lines of ${shown(plan.log)}:\n${tail(plan.log)}\n`);
+    process.stderr.write(`pnpm db:try-tower: the Tower stopped (exit ${code}) — the last lines of ${shown(plan.log)}:\n${tail(plan.log)}\n`);
     release();
     return code || 1;
   }
