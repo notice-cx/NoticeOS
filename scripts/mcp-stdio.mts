@@ -15,11 +15,13 @@ export interface McpStdioOptions {
   readonly output: Writable;
   /** The URL each message is posted to: the handler's own route. */
   readonly url: string;
+  /** Sent with every message, as an HTTP client would send its own. */
+  readonly headers?: Readonly<Record<string, string>>;
 }
 
 /** The headers the HTTP transport would carry for this message. */
-function headersFor(line: string): Headers {
-  const headers = new Headers({ 'content-type': 'application/json' });
+function headersFor(line: string, fixed: Readonly<Record<string, string>>): Headers {
+  const headers = new Headers({ ...fixed, 'content-type': 'application/json' });
   let message: { method?: unknown; params?: { name?: unknown; _meta?: Record<string, unknown> } };
   try { message = JSON.parse(line) as typeof message; } catch { return headers; }
   const version = message?.params?._meta?.[META_VERSION];
@@ -35,12 +37,12 @@ function headersFor(line: string): Headers {
 
 /** Serves until `input` ends and every answer is written. */
 export async function serveMcpStdio(handle: (request: Request) => Promise<Response>, options: McpStdioOptions): Promise<void> {
-  const { input, output, url } = options;
+  const { input, output, url, headers = {} } = options;
   const pending = new Set<Promise<void>>();
   const answer = async (line: string) => {
     let text: string;
     try {
-      const response = await handle(new Request(url, { method: 'POST', headers: headersFor(line), body: line }));
+      const response = await handle(new Request(url, { method: 'POST', headers: headersFor(line, headers), body: line }));
       text = response.status === 202 ? '' : (await response.text()).trim();
     } catch {
       let id: unknown = null;

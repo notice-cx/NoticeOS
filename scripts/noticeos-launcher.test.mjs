@@ -161,7 +161,12 @@ test('mcp at a terminal says how to connect it and runs nothing', (t) => {
   const result = spawnSync('script', args, { encoding: 'utf8',
     env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\nConnect it to an agent:\\n  claude mcp add noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'));
+  assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\nConnect it to an agent:\\n  claude mcp add noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'),
+    'an installation.env naming no Tower port has only the command');
+  writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_PORT="5180"\n`);
+  const loopback = spawnSync('script', process.platform === 'linux' ? ['-qec', `${command.join(' ')} --actor dev-1`, '/dev/null'] : ['-q', '/dev/null', ...command, '--actor', 'dev-1'],
+    { encoding: 'utf8', env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
+  assert.match(loopback.stdout.replaceAll('\r', ''), /The Tower serves the same tools on this machine:\n  claude mcp add --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n/u);
   assert.equal(existsSync(path.join(own.base, 'docker.log')) && readFileSync(path.join(own.base, 'docker.log'), 'utf8').includes('"exec"'), false);
 });
 

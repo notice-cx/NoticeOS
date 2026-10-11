@@ -21,7 +21,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { imageInstallation } from './image-installation.mjs';
-import { ENV_FILE } from './installation-layout.mjs';
+import { ENV_FILE, readInstallationEnv } from './installation-layout.mjs';
 import { publishedRevision } from './published-image.mjs';
 import { runCommand } from './run-command.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
@@ -229,12 +229,26 @@ export async function stackControl(action, input, { run = runCommand, out = proc
 }
 /** Shell-safe as printed: a word with nothing a shell would read is left bare. */
 const shellWord = word => /^[A-Za-z0-9_./:=@%+-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
-/** What a person who runs the MCP server at a terminal reads instead of a server waiting for an agent's messages. */
-export function mcpConnectHelp(args, selectorFile = null) {
-  const command = ['node', fileURLToPath(import.meta.url), 'mcp', ...(args.length ? args : ['--actor', 'claude']),
+/** Where installation.env publishes the Tower, or null for a settings file of another shape. */
+function towerAddress(envFile, io) {
+  if (path.basename(envFile) !== ENV_FILE) return null;
+  try {
+    const values = readInstallationEnv(envFile, io);
+    return { address: values.NOTICEOS_TOWER_BIND ?? '127.0.0.1', port: values.NOTICEOS_TOWER_PORT };
+  } catch { return null; }
+}
+/** What a person who runs the MCP server at a terminal reads instead of a server waiting for an agent's
+ * messages: the Tower's own endpoint while it listens on this machine only, else this command. */
+export function mcpConnectHelp(args, selectorFile = null, tower = null) {
+  const said = 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\n';
+  const actor = args.length ? args[1] : 'claude';
+  if (tower && /^127\./u.test(tower.address) && /^\d+$/u.test(tower.port ?? '')) {
+    return said + `The Tower serves the same tools on this machine:\n  claude mcp add --transport http noticeos http://${tower.address}:${tower.port}/api/mcp`
+      + ` --header ${shellWord(`X-NoticeOS-Actor: ${actor}`)}\n`;
+  }
+  const command = ['node', fileURLToPath(import.meta.url), 'mcp', '--actor', actor,
     ...(selectorFile ? ['--config', selectorFile] : [])].map(shellWord).join(' ');
-  return 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\n'
-    + `Connect it to an agent:\n  claude mcp add noticeos -- ${command}\n`;
+  return said + `Connect it to an agent:\n  claude mcp add noticeos -- ${command}\n`;
 }
 export async function main(argv = process.argv.slice(2), { out = process.stdout, err = process.stderr, interactive = process.stdin.isTTY === true,
   ...options } = {}) {
@@ -249,7 +263,7 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
     actionArgs(action, own);
     const selector = readSelector(file, options.io);
     // An agent starts the server and talks to it over a pipe; a terminal would only wait.
-    if (action === 'mcp' && interactive) { out.write(mcpConnectHelp(own, at === -1 ? null : file)); return 0; }
+    if (action === 'mcp' && interactive) { out.write(mcpConnectHelp(own, at === -1 ? null : file, towerAddress(selector.envFile, options.io))); return 0; }
     await stackControl(action, selector, { ...options, out, args: own }); return 0;
   } catch (error) { err.write(`${error.message}\n`); return 1; }
 }

@@ -3,12 +3,18 @@ import type { TaskDirectory, TaskProjectCatalogEntry } from '../packages/postgre
 import { type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import { type HostedTaskRequest, type HostedTaskStatus } from './hosted-task-command.mjs';
+/** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
+export interface TaskOperationExecutor {
+    execute(proof: Request, workspaceId: string, request: HostedTaskRequest, controls?: {
+        readonly deadline?: number;
+        readonly signal?: AbortSignal;
+    }): Promise<unknown>;
+}
 export interface HostedTaskOperationsOptions {
     readonly admission: WorkspaceAdmission;
     readonly directory: Pick<TaskDirectory, 'catalog'>;
-    readonly executor: Pick<HostedTaskExecutor, 'execute'>;
+    readonly executor: TaskOperationExecutor;
     readonly workspaceActors?: (workspaceId: string) => Promise<readonly WorkspaceActor[]>;
     /** Absent: a write that carries an idempotency key is refused as unavailable. */
     readonly receipts?: TaskReceipts;
