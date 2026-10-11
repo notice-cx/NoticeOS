@@ -37,6 +37,11 @@ test('the running stack is read in the layout\'s terms: its choices, what is cop
   assert.deepEqual([choices.towerPort, choices.postgresPort, choices.doltPort, choices.uid, choices.gid], [5180, 5440, 3310, 501, 20]);
   assert.deepEqual([choices.postgresVolume, choices.doltVolume, choices.image, choices.allowedHosts], ['office_postgres', 'office_dolt', IMAGE, 'tower.example.com']);
   assert.deepEqual([choices.spokes, choices.backupOffsite, choices.backupAssets], ['/home/me/tasks', '/mnt/sync', null]);
+  assert.equal(choices.towerBind, '127.0.0.1');
+  // A Tower published with no address listened on every interface, and still does.
+  const open = legacyModel('/old/checkout/.local', '/home/me/tasks');
+  delete open.services.noticeos.ports[0].host_ip;
+  assert.equal(convertedChoices(readInstallation(open, { project: 'noticeos', imageId: IMAGE, legacyRoot: '/old/checkout' }), '/srv/noticeos').towerBind, '0.0.0.0');
 });
 
 test('a stack the layout cannot hold is refused by name', () => {

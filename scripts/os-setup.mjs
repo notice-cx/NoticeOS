@@ -4,7 +4,7 @@
 //   pnpm os:setup                          ~/noticeos, the Tower on http://127.0.0.1:5173/
 //   pnpm os:setup -- --dir <folder>        the installation somewhere else
 //   pnpm os:setup -- --offsite <folder>    hand finished backups to a folder a sync client carries off the machine
-//   pnpm os:setup -- --tower-port <n>      the Tower on another loopback port
+//   pnpm os:setup -- --tower-port <n>      the Tower on another port
 //   pnpm os:setup -- --build               build main's image here instead of fetching the published one
 //   pnpm os:setup -- --image <id>          use an image already on this machine
 //   pnpm os:setup -- --without-backup      no backup worker
