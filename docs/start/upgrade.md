@@ -77,7 +77,7 @@ The app keeps running while you migrate: migrations are additive unless the rele
 
 2. Review the printed plan, then type `update` to apply it.
 
-The update builds `main` into an image while everything keeps running, then replaces only the app container and waits up to 90 seconds for health. If health does not return, it puts the previous image back by itself. It stops, changing nothing, when `main` carries a migration the database has not applied; run Apply database changes first. Without a terminal it prints `pnpm os:update -- --apply <plan>` for you to run later.
+The update fetches the image CI published for `main`'s commit, used only when it was built from exactly this checkout's source, or builds it here when none is published yet. `-- --build` always builds here. Everything keeps running meanwhile. It then replaces only the app container and waits up to 90 seconds for health. If health does not return, it puts the previous image back by itself. It stops, changing nothing, when `main` carries a migration the database has not applied; run Apply database changes first. Without a terminal it prints `pnpm os:update -- --apply <plan>` for you to run later.
 
 ## Roll back
 
@@ -98,6 +98,7 @@ The demo has its own updater, `deploy/demo/update.sh`, which builds the target c
 
 - The update stops at a migration the database has not applied: expected. Run Apply database changes, then update again.
 - The apply exits non-zero: 1 is failed and rolled back, 2 is refused with nothing changed, 3 means no Postgres tools on this machine.
+- The update says the published image "was not built from this checkout's source": nothing changed. Run `pnpm os:update -- --build` to build it here.
 - The update refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again. See [Troubleshooting](/operate/troubleshooting#update-refusals).
 
 The policy itself is in [the release policy](../reference/release-policy.md). The migration tool's full contract is at https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/README.md#applying-it-to-an-installations-own-database.

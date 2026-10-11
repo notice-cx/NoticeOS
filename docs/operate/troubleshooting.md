@@ -38,7 +38,7 @@ The database address in the secrets file is unusable, or the database is behind 
 Another scheduler already holds the data port (8791), and two would fire every schedule twice. Restart the app with `pnpm os:restart`.
 
 **`REFUSING to start Tower: prepared dependencies are unavailable or stale`, or `NoticeOS container refused: The checkout's packages changed since this image was built`.**
-On a development stack, run `pnpm os:dev`: it builds a matching image and moves the app onto it. On a production stack, run `pnpm os:update` to build a matching image.
+On a development stack, run `pnpm os:dev`: it builds a matching image and moves the app onto it. On a production stack, run `pnpm os:update` to move the app to a matching image.
 
 **`pnpm os:restart` or `pnpm os:update` names a service that is not healthy.**
 `pnpm os:logs -- <service>` shows why. When it is the app and the database lacks this code's migrations, the message says so: run `pnpm os:migrate -- --apply`, then `pnpm os:restart`.
@@ -111,7 +111,47 @@ The new stack did not become healthy, so the old one was started again. Nothing 
 **"The conversion stands, with the app on its prepared image: …".**
 The stack moved, but the development app did not come back on live source. `pnpm os:dev` tries again; the sentence says why it failed.
 
+## `pnpm os:apply` refusals
+
+Each line starts with `pnpm os:apply:`. Apply never rewrites `installation.env`. The first six lines are refusals and change nothing; the last three follow a service that did not start.
+
+**"…'s data would come from … instead of …; apply never points a database at other data".**
+A data volume name changed in `installation.env`. Put the old name back.
+
+**"installation.env names the project …, but the stack is …; a project's name does not change".**
+Put the old project name back.
+
+**"port N is in use; choose another in installation.env".**
+Another program holds the port you chose. Choose a free one and apply again.
+
+**"… has no container; apply changes running services only".**
+A declared service has no container to recreate. `pnpm os:status` shows the stack as it is.
+
+**"Compose cannot read the stack: …", or "Compose cannot read the stack; is Docker running?".**
+Compose's own complaint follows the colon: usually a line in `installation.env` it cannot read, or a value it needs. Fix the line and apply again. Without a complaint, start Docker.
+
+**"Another app operation holds the stack lock."**
+An update, rollback or development switch is running. Let it finish, then apply again.
+
+**"Starting … failed; Docker's output above says why. The stack runs with its earlier settings again; installation.env stays as you edited it."**
+A service did not become healthy with your edit, so the stack went back to the settings it last ran healthy with. Read Docker's output and `pnpm os:logs -- <service>`, fix the edit, then apply again.
+
+**"… installation.env stays as you edited it; undo the edit and run pnpm os:apply again."**
+No earlier settings were recorded, so nothing was put back. Undo the edit and apply again. Running `pnpm os:apply` with nothing to apply records the current settings for next time.
+
+**"… The earlier settings did not come back either; pnpm os:status and pnpm os:logs show where it stands."**
+Neither your settings nor the earlier ones started. Read `pnpm os:status` and `pnpm os:logs -- <service>`.
+
 ## Update refusals
+
+**"The published image for main … was not built from this checkout's source; nothing was changed. Add -- --build to build it here."**
+The image CI published for this commit does not match the source this checkout prepares. Run `pnpm os:update -- --build`, or `pnpm os:setup -- --build`, to build it here.
+
+**"No published image for this commit yet (it appears a few minutes after CI passes on main), or the registry is unreachable; building it here instead."**
+Not a refusal. `os:update` or `os:setup` builds the image here, which takes a few minutes. A fork always builds here.
+
+**"Deploy from a clean checkout at main. Commit verified changes first."**
+`os:update` and `os:setup` use the committed source of `main`. Check out `main` and commit or set aside your edits.
 
 **`os:update` stops at a migration the database has not applied.**
 Expected. Take a backup, run `pnpm os:migrate -- --apply`, then `pnpm os:update` again. See [Upgrade](/start/upgrade#apply-database-changes).
@@ -148,7 +188,10 @@ The metered spend would cross the Monthly data cap. Raise it under **Settings** 
 ## Browser and Wall
 
 **The Tower refuses a hostname.**
-Standalone keeps a hostname allowlist. Add your alias to `TOWER_ALLOWED_HOSTS`. Never allow every host.
+Standalone keeps a hostname allowlist. Add your alias to `TOWER_ALLOWED_HOSTS` in `installation.env`, then run `pnpm os:apply`. Never allow every host.
+
+**Another device cannot reach the Tower.**
+The Tower listens on `127.0.0.1` unless `NOTICEOS_TOWER_BIND` says otherwise. See [Open the Tower to your network](/start/run-with-docker#open-the-tower-to-your-network).
 
 **After an update, the Wall still shows the old release.**
 A browser running code from before the update prompt existed needs one manual refresh. After that the Wall reloads itself.

@@ -1,0 +1,98 @@
+name: Release image
+
+# Every main commit that passes CI becomes the published app image,
+# tagged with its commit, for linux/amd64 and linux/arm64, with a build
+# provenance attestation. pnpm os:setup and pnpm os:update pull it and use it
+# only when its labels match the commit, schema and public build inputs the
+# checkout prepares for the same commit (scripts/stack-deploy.mjs). The
+# image's name is RELEASE_REPOSITORY in that file. Each platform is built on
+# its own native runner with the same command an installation builds with.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: release-image-${{ github.event.workflow_run.head_sha }}
+
+jobs:
+  build:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      # The builder builds main from a clean checkout at main.
+      - run: git checkout -B main
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      # Image preparation keeps 8 GiB free beside its build.
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL
+      - id: repository
+        run: echo "name=$(node --input-type=module -e "const m = await import('./scripts/stack-deploy.mjs'); console.log(m.RELEASE_REPOSITORY)")" >> "$GITHUB_OUTPUT"
+      - run: node scripts/stack-deploy.mjs --build-only --docker-host unix:///var/run/docker.sock --platform ${{ matrix.platform }} --source-url "https://github.com/${{ github.repository }}"
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      - env:
+          REPOSITORY: ${{ steps.repository.outputs.name }}
+        run: |
+          docker tag "noticeos-local:$COMMIT" "$REPOSITORY:$COMMIT-${{ matrix.arch }}"
+          docker push "$REPOSITORY:$COMMIT-${{ matrix.arch }}"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - id: repository
+        run: echo "name=$(node --input-type=module -e "const m = await import('./scripts/stack-deploy.mjs'); console.log(m.RELEASE_REPOSITORY)")" >> "$GITHUB_OUTPUT"
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      # One name for both platforms: the tag os:setup and os:update pull.
+      - id: index
+        env:
+          REPOSITORY: ${{ steps.repository.outputs.name }}
+        run: |
+          docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
+          echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.repository.outputs.name }}
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: true

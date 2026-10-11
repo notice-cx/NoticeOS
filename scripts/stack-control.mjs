@@ -20,6 +20,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCommand } from './run-command.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
+import { serviceDrift } from './stack-drift.mjs';
 
 const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'capacity'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
@@ -120,7 +121,7 @@ export function actionArgs(action, args) {
 }
 
 export async function stackControl(action, input, { run = runCommand, out = process.stdout, env = process.env, args = [],
-  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent } = {}) {
+  root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), database = stackDatabaseCurrent, drift = serviceDrift } = {}) {
   if (!ACTIONS.includes(action)) refuse(HELP);
   const own = actionArgs(action, args);
   const selector = validateSelector(input);
@@ -159,6 +160,8 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     }
     const current = await database(selector, { root, run, env });
     out.write(`database: ${current.ok ? 'has every migration in this checkout' : current.line}\n`);
+    const pending = await drift(selector, { run, env }).catch(() => null);
+    if (pending?.changed.length) out.write(`settings: ${pending.changed.join(', ')} ${pending.changed.length === 1 ? 'does' : 'do'} not run as installation.env declares; pnpm os:apply shows the change\n`);
     let running = null; let main = null;
     try {
       const inspected = await run('docker', ['--host',selector.dockerHost,'inspect','--format','{{json .Config.Labels}}',original.get('noticeos').id], { env: ownEnv, timeoutMs: 20000 });

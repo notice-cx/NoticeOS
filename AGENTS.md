@@ -151,7 +151,9 @@ against a real Dolt server in Docker. The `build` job is the required verdict.
 A PR that changes only documentation no runtime suite reads (`docs/` and root
 Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
 `docs` workflow builds the site whenever `docs/` changes; a push to `main` runs
-everything and publishes the site.
+everything and publishes the site. Once CI passes on a `main` commit, the
+`Release image` workflow publishes it as the app image `os:setup` and
+`os:update` fetch (`RELEASE_REPOSITORY` in `scripts/stack-deploy.mjs`).
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
@@ -194,7 +196,7 @@ ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
 that stack ([Docker guide](deploy/compose/README.md)). Every installation runs
 from the one definition `deploy/compose/stack.yaml` and its folder's
 `installation.env`; `pnpm os:setup` makes one and `pnpm os:convert-legacy` moves a
-existing one in, and nobody writes a Compose file. A development stack's
+legacy one in, and nobody writes a Compose file. A development stack's
 app runs this checkout's live source; a production stack's app runs a
 prepared image. Do not guess from a port, inspect containers by hand or read
 `.local/` by hand:
@@ -204,7 +206,7 @@ pnpm os:status                 # each service's health, the database's migration
 pnpm os:logs -- --lines 200    # recent logs; -- --follow, -- <service>
 pnpm os:capacity               # store size and growth per table, read-only
 pnpm os:restart                # the whole stack, in dependency order, waiting for health
-pnpm os:update                 # build main into an image, show the plan, apply it after you type `update`
+pnpm os:update                 # move the app to main's image (published, or built here), show the plan, apply it after you type `update`
 ```
 
 Merging is not deploying: a production app runs a fixed image that a merge
@@ -223,8 +225,8 @@ names `pnpm os:migrate` when main carries one the database lacks. Applying a
 migration is operator-only: `pnpm os:status` → a backup you can restore
 (`pnpm os:backup`) → `pnpm os:migrate` → `pnpm os:migrate -- --apply` →
 `pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
-`os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback` and
-`os:convert-legacy` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
+`os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback`,
+`os:convert-legacy` and `os:apply` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
 `os:restart` and, after a verified merge, `os:update`; never `os:migrate`.
 
 `pnpm os:setup` on a machine that already runs an installation refuses on its

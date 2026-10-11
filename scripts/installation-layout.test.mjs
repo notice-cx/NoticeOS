@@ -43,6 +43,8 @@ test('a choice Compose would read differently is refused before anything is writ
     assert.throws(() => installationChoices({ ...base, dir }), /absolute folder path/u, dir);
   }
   assert.throws(() => installationChoices({ ...base, project: 'Upper' }), /project name/u);
+  assert.equal(installationChoices({ ...base, towerBind: '0.0.0.0' }).towerBind, '0.0.0.0');
+  for (const towerBind of ['localhost', '::', '999.1.1.1', '0.0.0.0; rm']) assert.throws(() => installationChoices({ ...base, towerBind }), /Tower's address/u, towerBind);
   assert.throws(() => installationChoices({ ...base, towerPort: 80 }), /port from 1024/u);
   assert.throws(() => installationChoices({ ...base, image: 'bad image' }), /app image/u);
   assert.throws(() => installationChoices({ ...base, allowedHosts: 'a;rm' }), /TOWER_ALLOWED_HOSTS/u);
@@ -53,6 +55,9 @@ test('a hand-edited file that is not in the written form is refused by name', (t
   assert.throws(() => readInstallationEnv(tempFile(t, 'NOTICEOS_INSTALLATION=/srv\n')), /NAME="value"/u);
   assert.throws(() => readInstallationEnv(tempFile(t, 'NOTICEOS_STATE_DIR="${NOTICEOS_INSTALLATION}/state"\n')), /before setting it/u);
   assert.throws(() => readInstallationEnv(tempFile(t, 'COMPOSE_PROJECT_NAME="x"\n')), /does not set/u);
+  // A file written before the Tower's address was a choice still reads; Compose keeps it on loopback.
+  const older = renderInstallationEnv(base).replace(/^NOTICEOS_TOWER_BIND=.*\n/mu, '');
+  assert.equal(readInstallationEnv(tempFile(t, older)).NOTICEOS_TOWER_BIND, undefined);
 });
 
 test('the selector names the stack definition, the backup layer when there is one, and the folder\'s file', () => {

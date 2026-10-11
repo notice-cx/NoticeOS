@@ -6,12 +6,13 @@
 |---|---|---|
 | `os:setup` | Set up a new NoticeOS installation on this Docker host and start it. | `scripts/os-setup.mjs` |
 | `os:convert-legacy` | Convert a legacy installation, one that runs from Compose files of its own, into the installation folder layout, after you confirm the plan. | `scripts/os-convert-legacy.mjs` |
+| `os:apply` | Apply your edits to installation.env to the running stack, after you confirm the plan. | `scripts/stack-apply.mjs` |
 | `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
 | `os:stop` | Stop the app, then backup, then the databases. | `scripts/stack-control.mjs stop` |
 | `os:restart` | Restart the stack in the same order, waiting for each layer's health. | `scripts/stack-control.mjs restart` |
-| `os:update` | Build main into an image, show the plan, and apply it after you confirm. | `scripts/stack-deploy.mjs` |
+| `os:update` | Move the app to main's image, show the plan, and apply it after you confirm. | `scripts/stack-deploy.mjs` |
 | `os:rollback` | Move the app back to the previous image, after you confirm. | `scripts/stack-deploy.mjs --rollback` |
 | `os:migrate` | What is applied and pending; `-- --apply` applies it after you type the database's name. | `scripts/os-migrate.mjs` |
 | `os:dev` | Run the app from this checkout's live source; edits refresh it. | `scripts/stack-development.mjs` |
@@ -126,6 +127,7 @@ pnpm install --frozen-lockfile
 pnpm os:setup                           # → ~/noticeos, the Tower on http://127.0.0.1:5173/
 pnpm os:setup -- --dir <folder>         # the installation somewhere else
 pnpm os:setup -- --offsite <folder>     # finished backups handed to a synced folder
+pnpm os:setup -- --build                # build main's image here instead of fetching the published one
 pnpm os:convert-legacy                  # the stack .local/stack.json selects, moved into the layout after you type `convert`
 pnpm os:convert-legacy -- --undo        # back to the stack as it was before
 ```
@@ -137,9 +139,12 @@ stale dependencies, so install first.
 Docker, Node and pnpm: an installation folder in the layout
 `scripts/installation-layout.mjs` writes, two new data volumes, the stack
 from `deploy/compose/stack.yaml` started, and `.local/stack.json` written
-last. It is the [fresh-install exception](../AGENTS.md#hard-invariants): it
-refuses existing folder content, project containers, volumes or network, and
-an existing selector, before it makes anything. The frozen schema, the one
+last. Its app image is main's published one, checked against this checkout's
+source, or built here when none is published
+([the image check](#merging-is-not-deploying-osupdate)). It is the
+[fresh-install exception](../AGENTS.md#hard-invariants): it refuses existing
+folder content, project containers, volumes or network, and an existing
+selector, before it makes anything. The frozen schema, the one
 workspace and the NoticeOS task project are applied inside a one-off app
 container (`scripts/os-setup-container.mjs`).
 
@@ -278,7 +283,7 @@ and missing output is unavailable, never an invented zero
 
 | Service | Port | Notes |
 |---|---|---|
-| tower + ingest (`vite`) | **5173** in the app container | one workerd runtime hosting both Workers; published only on the host's `127.0.0.1:${NOTICEOS_TOWER_PORT}` |
+| tower + ingest (`vite`) | **5173** in the app container | one workerd runtime hosting both Workers; published only on the host's `${NOTICEOS_TOWER_BIND}:${NOTICEOS_TOWER_PORT}`, `127.0.0.1` unless the installation chooses otherwise |
 | ingest door | **8791** in the app container | a second loopback listener from `apps/tower/vite/runner-door.ts` serving the ingest's routes and cron fires; never published, because the scheduled endpoint is unauthenticated |
 | task hub (`dolt sql-server`) | **3306** on the installation network | the stack's `dolt` service, declared in `/state/task-client.json` |
 
@@ -315,7 +320,9 @@ What to do when one of these checks fails:
 Standalone has no user login: anyone who can reach the Tower can read and
 change its data. Inside the container the Tower listens on the container
 interface so Docker can forward the published port; the Compose port binding
-keeps the host side on `127.0.0.1`, and the ingest door is never published.
+keeps the host side on `127.0.0.1` unless `NOTICEOS_TOWER_BIND` in
+`installation.env` names `0.0.0.0` or another IPv4 address, and the ingest
+door is never published.
 Vite's host check stays enabled (`apps/tower/vite/allowed-hosts.ts`; an
 operator-managed alias goes in `TOWER_ALLOWED_HOSTS`) and is not user
 authentication.
@@ -618,12 +625,19 @@ A production app runs a prepared image, so a merge to `main` changes nothing
 that runs. `pnpm os:update` (`scripts/stack-deploy.mjs`) is the step after a
 verified merge:
 
-1. **Prepare**, with services still running: build `main` from the
-   allowlisted public source into an image labelled with its revision, source
-   manifest and Postgres schema fingerprint, and write a private,
-   content-addressed plan beside the selector. If `main` carries a migration
-   the database has not applied, it stops here and names `pnpm os:migrate`;
-   if `main` changes the Postgres roles, that is operator maintenance.
+1. **Prepare**, with services still running: take `main`'s image, labelled
+   with its revision, source manifest and Postgres schema fingerprint, and
+   write a private, content-addressed plan beside the selector. The image is
+   the one CI publishes for every `main` commit that passes CI
+   (`ghcr.io/notice-cx/noticeos:<commit>`, `.github/workflows/release-image.yml`),
+   used only when its labels match the commit, the schema and the hash of the
+   public build inputs this checkout prepares for that commit; a mismatch
+   refuses and names `-- --build`. With nothing published for the commit, or
+   the registry unreachable, it builds the image here from the allowlisted
+   public source and says why; `-- --build` always does. If `main` carries
+   a migration the database has not applied, it stops before taking an image
+   and names `pnpm os:migrate`; if `main` changes the Postgres roles, that is
+   operator maintenance.
 2. **Confirm**: it prints the plan and applies it after you type `update`.
    Without a terminal it prints `pnpm os:update -- --apply <plan>` instead.
 3. **Apply**: recreate only `noticeos`, with no dependency restart, pull or
@@ -655,8 +669,8 @@ ran before, and `pnpm os:update` refuses while development is on
    reaches a production app only through `pnpm os:update`, under the same
    rule.
 4. `pnpm os:migrate -- --apply` is never an agent's step. `pnpm os:start`,
-   `pnpm os:stop`, `pnpm os:dev`, `pnpm os:prod` and `pnpm os:rollback` are
-   operator-directed.
+   `pnpm os:stop`, `pnpm os:apply`, `pnpm os:dev`, `pnpm os:prod` and
+   `pnpm os:rollback` are operator-directed.
 
 ## Notes
 
@@ -695,8 +709,11 @@ Postgres is the only operational database.
 installation's own Postgres database. It finds the database itself: the stack
 selector `.local/stack.json` (or `--config`) names the Compose files, and the
 owner's address is `owner.url` beside the owner's secret file in the stack's
-resolved declaration (or in `--secrets <folder>`). It is operator-only;
-nothing else ever applies a migration, and neither restart nor update does.
+resolved declaration (or in `--secrets <folder>`). From the stack it connects
+on the port Compose publishes Postgres on, so a port moved with
+`pnpm os:apply` keeps working; `owner.url` keeps the port it was first
+written with. It is operator-only; nothing else ever applies a migration, and
+neither restart, apply nor update does.
 `pnpm os:status` and `pnpm os:update` only read which migrations the database
 has, over the Postgres container's own socket, so they need no address.
 

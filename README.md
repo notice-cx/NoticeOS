@@ -43,15 +43,17 @@ pnpm install --frozen-lockfile
 pnpm os:setup
 ```
 
-Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup builds the app
-image, makes the installation folder `~/noticeos` with its own secrets, starts
+Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup fetches the app
+image published for `main` (or builds it when none is published), makes the
+installation folder `~/noticeos` with its own secrets, starts
 Postgres, the Dolt task hub, the app and its backup worker as one Docker Compose
 stack, and points the `pnpm os:*` commands at it. It starts with no user
 websites or provider accounts, and existing databases are never touched.
 
 [Install from source](docs/start/install-from-source.md) covers the options;
-[Run with Docker](docs/start/run-with-docker.md) covers the folder, moving an
-legacy installation into it with `pnpm os:convert-legacy`, and updates. For an
+[Run with Docker](docs/start/run-with-docker.md) covers the folder, changing a
+setting with `pnpm os:apply`, moving a legacy installation into it with
+`pnpm os:convert-legacy`, and updates. For an
 existing installation, read the [upgrade policy](docs/reference/release-policy.md)
 before changing its code or database.
 

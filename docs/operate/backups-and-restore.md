@@ -34,7 +34,7 @@ The stack takes a backup nightly at **04:00 UTC**; `pnpm os:backup` takes one no
 
 ## Set where it goes and how long it is kept
 
-The backup settings are `host-backup.json` in the installation folder's `backup/profile/`, beside the worker's profile. `pnpm os:setup -- --offsite <folder>` writes one; the worker sees that folder as `/backup-offsite`. Without it, the product default names no offsite folder.
+The backup settings are `host-backup.json` in the installation folder's `backup/profile/`, beside the worker's profile. `pnpm os:setup -- --offsite <folder>` writes one; the worker sees that folder as `/backup-offsite`. Without it, the product default names no offsite folder. To hand off to another folder on this machine, change `NOTICEOS_BACKUP_OFFSITE_PARENT` in `installation.env` and run [`pnpm os:apply`](/start/run-with-docker#change-a-setting).
 
 1. In `host-backup.json`, set the offsite folder and the retention:
 

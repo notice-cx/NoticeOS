@@ -23,17 +23,42 @@ The stack has one definition for every installation, `deploy/compose/stack.yaml`
 | `postgres-secrets/`, `dolt-secrets/` | The database logins |
 | `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
 
-The choices in `installation.env` are the project name, the app image, the app's user, the three loopback ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
+The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
 
-Only the Tower port reaches beyond the stack's network, on `127.0.0.1`, with Postgres and the task database beside it for the operator's tools. Provider credentials are connected in the Tower, not in files.
+Three ports reach beyond the stack's network: the Tower's, and Postgres and the task database for the operator's tools. All three listen on `127.0.0.1`; only the Tower's can be [opened to your network](#open-the-tower-to-your-network). Provider credentials are connected in the Tower, not in files.
+
+### Change a setting
+
+1. Edit `installation.env` in the installation folder.
+2. In the checkout, read the plan:
+
+   ```sh
+   pnpm os:apply
+   ```
+
+   It lists each change (a port, a setting such as `TOWER_ALLOWED_HOSTS`, the app's user, a folder) and the services it recreates.
+
+3. Type `apply` to apply it. Without a terminal, run `pnpm os:apply -- --confirm apply`.
+
+Only the services whose settings changed are recreated: the databases first, with the app and backup worker stopped meanwhile, then the backup worker, then the app. Each waits for health. If one does not become healthy, the stack returns to the settings it last ran healthy with. `installation.env` keeps your edit, so you can fix it and apply again.
+
+Apply refuses to point a database at other data, rename the project, take a port already in use, or create a missing container. A refusal changes nothing. After a pull that changes the stack definition, `os:apply` applies that too. With nothing to apply, it says so and records the current settings as the ones to return to.
+
+`pnpm os:status` prints a `settings:` line while an edit waits to be applied. `pnpm os:restart` applies nothing.
+
+### Open the Tower to your network
 
 ::: warning No login
-Standalone has no user login. The port binds to loopback for that reason. If you put the Tower on a network, every client on it can read and change your data. Keep the hostname allowlist; never allow every host.
+Standalone has no user login: anyone who reaches the Tower can read and change your data. By default it listens on `127.0.0.1`, this machine only.
+
+To reach it from other devices, set `NOTICEOS_TOWER_BIND` in `installation.env` to `0.0.0.0` (every device on the network) or to one IPv4 address of this machine, then run `pnpm os:apply`. Do it only on a network you trust, or behind a VPN or an access proxy.
 :::
+
+The plan warns before it opens the Tower. Devices open it by IP address, at the port `NOTICEOS_TOWER_PORT` names. To use a machine name instead, add it to `TOWER_ALLOWED_HOSTS`: the app runs in a container, so it does not know this machine's name. Keep that allowlist; never allow every host. Without a `NOTICEOS_TOWER_BIND` line in `installation.env`, the Tower listens on `127.0.0.1`.
 
 ## Convert a legacy installation
 
-An installation that runs from Compose files of its own converts into the folder layout in one command. Its data volumes, image, ports and secrets stay the same.
+An installation that runs from Compose files of its own converts into the folder layout in one command. Its data volumes, image, ports, the Tower's address and secrets stay the same.
 
 1. In the checkout whose `.local/stack.json` selects the installation, read the plan:
 
@@ -61,7 +86,7 @@ pnpm os:restart
 pnpm os:logs
 ```
 
-Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes.
+Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes. An edit to `installation.env` takes effect with [`pnpm os:apply`](#change-a-setting).
 
 Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure. [Daily operations](/operate/daily-operations) covers the rest.
 
@@ -75,7 +100,7 @@ Committing to `main` changes source; it changes nothing running. `pnpm os:restar
    pnpm os:status
    ```
 
-2. From a clean checkout at `main`, build a new image and a plan. Services keep running:
+2. From a clean checkout at `main`, prepare the image and a plan. Services keep running:
 
    ```sh
    pnpm os:update
@@ -83,7 +108,9 @@ Committing to `main` changes source; it changes nothing running. `pnpm os:restar
 
 3. Review the printed plan, then type `update` to apply it.
 
-Apply recreates only the `noticeos` container and waits up to 90 seconds for health. It applies no migration, and it stops before building when `main` carries a migration the database lacks; see [Upgrade](/start/upgrade#apply-database-changes). If health does not return, it restores the previous image by itself. The Wall reloads on its next request; desk pages show an update prompt so drafts stay open.
+The image is the one CI published for `main`'s commit, used only when it was built from exactly this checkout's source. When none is published yet (it appears a few minutes after CI passes on `main`) or the registry is unreachable, the update builds it here and says why. `pnpm os:update -- --build` always builds here. A fork's commits are not published, so a fork builds here.
+
+Apply recreates only the `noticeos` container and waits up to 90 seconds for health. It applies no migration, and it stops before fetching or building when `main` carries a migration the database lacks; see [Upgrade](/start/upgrade#apply-database-changes). If health does not return, it restores the previous image by itself. The Wall reloads on its next request; desk pages show an update prompt so drafts stay open.
 
 To go back to the previous image, run `pnpm os:rollback` and type `rollback`. An image built before revision labels existed needs `-- --baseline-commit COMMIT` on the first update.
 
@@ -110,13 +137,17 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 ## Verify
 
 - `pnpm os:status` prints each service's state and health, the running source, and ends with `update: current` when `main` and the app agree.
-- The Tower opens on `127.0.0.1` at the port `NOTICEOS_TOWER_PORT` names in `installation.env`.
+- The Tower opens on `127.0.0.1` at the port `NOTICEOS_TOWER_PORT` names in `installation.env`, or on the address `NOTICEOS_TOWER_BIND` names.
+- After `pnpm os:apply`, it prints `Applied:` and `pnpm os:status` prints no `settings:` line.
 - After an update, health returns within 90 seconds and the status names the new commit.
 
 ## If it didn't work
 
 - An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 - `pnpm os:convert-legacy` refuses: the sentence names what the layout cannot hold (another service, a stack that is not healthy, a network of the same name it did not create). Nothing was changed.
+- `pnpm os:apply` refuses: the sentence names why, and nothing was changed. See [`pnpm os:apply` refusals](/operate/troubleshooting#pnpm-os-apply-refusals).
+- `pnpm os:apply` says starting a service failed: the message says whether the stack returned to its earlier settings. Fix `installation.env` with Docker's output and `pnpm os:logs -- <service>`, then apply again.
+- `os:update` or `os:setup` says the published image "was not built from this checkout's source": nothing was changed. Add `-- --build` to build it here.
 - `os:update` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.
 - The development app stops after a pull: the checkout's packages changed since its image was built, and `pnpm os:logs -- noticeos` says so. Run `pnpm os:dev`; it builds a matching image and moves the app onto it.
 - `os:restart` or `os:update` names a service that is not healthy: `pnpm os:logs -- <service>` shows why.

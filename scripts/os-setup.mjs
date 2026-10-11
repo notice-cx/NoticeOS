@@ -4,14 +4,16 @@
 //   pnpm os:setup                          ~/noticeos, the Tower on http://127.0.0.1:5173/
 //   pnpm os:setup -- --dir <folder>        the installation somewhere else
 //   pnpm os:setup -- --offsite <folder>    hand finished backups to a folder a sync client carries off the machine
-//   pnpm os:setup -- --tower-port <n>      the Tower on another loopback port
-//   pnpm os:setup -- --image <id>          use an image already built, instead of building main
+//   pnpm os:setup -- --tower-port <n>      the Tower on another port
+//   pnpm os:setup -- --build               build main's image here instead of fetching the published one
+//   pnpm os:setup -- --image <id>          use an image already on this machine
 //   pnpm os:setup -- --without-backup      no backup worker
 //
 // It needs Docker, Node and pnpm, nothing else: the steps that need psql and
 // Beads run inside a one-off app container (scripts/os-setup-container.mjs).
 // In order: it checks that the folder, the Compose project and its volumes
-// are all new; builds main into the app image; writes the installation folder
+// are all new; fetches main's published app image, checked against this
+// checkout's source, or builds it when none is published; writes the installation folder
 // (scripts/installation-layout.mjs) with new secrets; starts Postgres and
 // Dolt; applies the frozen schema and one workspace and makes the OS's task
 // project; starts the app and the backup worker; loads the default settings;
@@ -34,14 +36,15 @@ import { invokedDirectly } from './invoked-directly.mjs';
 import { localDockerEndpoint } from './postgres-compose.mjs';
 import { writeSecrets } from './postgres-secrets.mjs';
 import { runCommand } from './run-command.mjs';
+import { recordApplied } from './stack-apply.mjs';
 import { composePrefix } from './stack-database.mjs';
-import { buildApplicationImage } from './stack-deploy.mjs';
+import { mainImage } from './stack-deploy.mjs';
 import { frozenBaseline } from './start-postgres.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
 export const USAGE = `usage: pnpm os:setup [-- --dir <folder>] [--offsite <folder>] [--tower-port <n>]
-                      [--project <name>] [--image <id>] [--without-backup] [--config <stack.json>]`;
+                      [--project <name>] [--build | --image <id>] [--without-backup] [--config <stack.json>]`;
 
 class SetupRefused extends Error {}
 const refuse = (line) => { throw new SetupRefused(line); };
@@ -53,7 +56,7 @@ export function parseOptions(argv) {
     args: argv.filter((arg) => arg !== '--'),
     options: {
       dir: { type: 'string' }, offsite: { type: 'string' }, 'tower-port': { type: 'string' }, project: { type: 'string' },
-      image: { type: 'string' }, 'without-backup': { type: 'boolean' }, config: { type: 'string' }, help: { type: 'boolean', short: 'h' },
+      image: { type: 'string' }, build: { type: 'boolean' }, 'without-backup': { type: 'boolean' }, config: { type: 'string' }, help: { type: 'boolean', short: 'h' },
     },
     strict: true,
   });
@@ -63,6 +66,7 @@ export function parseOptions(argv) {
     if (name === '--config' && !path.isAbsolute(value)) refuse(`${name} names an absolute file.`);
     return resolved;
   };
+  if (values.build && values.image !== undefined) refuse('--build or --image, not both.');
   return {
     help: values.help === true,
     dir: absolute(values.dir) ?? path.join(os.homedir(), 'noticeos'),
@@ -70,6 +74,7 @@ export function parseOptions(argv) {
     towerPort: values['tower-port'] === undefined ? null : Number(values['tower-port']),
     project: values.project ?? DEFAULTS.project,
     image: values.image ?? null,
+    build: values.build === true,
     backup: values['without-backup'] !== true,
     selectorFile: absolute(values.config, '--config') ?? DEFAULT_SELECTOR,
   };
@@ -147,7 +152,7 @@ export function writeInstallation(choices, { backup, offsite, root = ROOT, rando
 
 /** Set up a new installation; returns the exit code. */
 export async function setup(options, { run = runCommand, env = process.env, out = process.stdout, root = ROOT,
-  pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), build = buildApplicationImage, free = portFree, endpoint = localDockerEndpoint, uid = process.getuid?.() ?? 1000, gid = process.getgid?.() ?? 1000 } = {}) {
+  pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), image: chooseImage = mainImage, free = portFree, endpoint = localDockerEndpoint, uid = process.getuid?.() ?? 1000, gid = process.getgid?.() ?? 1000 } = {}) {
   const say = (line) => out.write(`${line}\n`);
   const tools = ownEnv(env);
   const docker = async (args, what, { timeoutMs = 60_000, stdin = null, inherit = false } = {}) => {
@@ -187,8 +192,7 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   if (image) {
     await docker([...host, 'image', 'inspect', image], `Finding the image ${image}`);
   } else {
-    say('Building main into the app image; this takes a few minutes.');
-    image = (await build({ root, dockerHost, platform: `linux/${arch}`, run, env, out })).image;
+    image = (await chooseImage({ build: options.build, root, dockerHost, platform: `linux/${arch}`, run, env, out })).image;
   }
   const choices = installationChoices({ ...draft, image, uid, gid, ...ports, ...names, backupOffsite: options.offsite });
   const selector = installationSelector({ dir: choices.dir, project: choices.project, dockerHost, backup: options.backup, root });
@@ -222,6 +226,7 @@ export async function setup(options, { run = runCommand, env = process.env, out 
     await docker(compose(['up', '--detach', '--wait', '--wait-timeout', '300']), 'Waiting for the app to become healthy', { timeoutMs: 360_000, inherit: true });
     fs.mkdirSync(path.dirname(options.selectorFile), { recursive: true });
     fs.writeFileSync(options.selectorFile, `${JSON.stringify(selector, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
+    recordApplied(options.selectorFile, selector);
   } catch (error) {
     if (made.length) error.message += `\nMade so far, left for inspection: ${made.join(', ')}.`;
     throw error;

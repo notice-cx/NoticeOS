@@ -20,7 +20,7 @@ import { USAGE, main as migrate } from './postgres-apply.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 import { runCommand } from './run-command.mjs';
 import { readSelector } from './stack-control.mjs';
-import { secretAddress, stackSecretsDir } from './stack-database.mjs';
+import { atPublishedPort, secretAddress, stackPostgres } from './stack-database.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(REPO_ROOT, '.local', 'stack.json');
@@ -76,10 +76,11 @@ export async function main(argv = process.argv.slice(2), {
   }
   let target;
   try {
-    const folder = values.secrets !== undefined
-      ? path.resolve(values.secrets)
-      : await stackSecretsDir(readSelector(values.config ?? DEFAULT_SELECTOR), { run: docker, env });
-    target = secretAddress(folder, 'owner.url', io);
+    if (values.secrets !== undefined) target = secretAddress(path.resolve(values.secrets), 'owner.url', io);
+    else {
+      const postgres = await stackPostgres(readSelector(values.config ?? DEFAULT_SELECTOR), { run: docker, env });
+      target = atPublishedPort(secretAddress(postgres.secretsDir, 'owner.url', io), postgres.port);
+    }
   } catch (error) {
     err.write(`refused: ${error.message}; name the folder with --secrets <folder>\n`);
     return 2;

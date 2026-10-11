@@ -11,7 +11,8 @@ services:
     environment:
       TOWER_ALLOWED_HOSTS: ${TOWER_ALLOWED_HOSTS:-}
     ports:
-      - "127.0.0.1:${NOTICEOS_TOWER_PORT:?Choose a loopback Tower port}:5173"
+      # Loopback unless the installation chooses its network (NOTICEOS_TOWER_BIND).
+      - "${NOTICEOS_TOWER_BIND:-127.0.0.1}:${NOTICEOS_TOWER_PORT:?Choose a Tower port}:5173"
     volumes:
       - type: bind
         source: ${NOTICEOS_STATE_DIR:?Set an absolute prepared installation folder}

@@ -19,6 +19,18 @@ does not initialize or migrate either database.
 Its declared platform and fixture checks are evidence for those exact inputs,
 not a promise that every host or architecture has been exercised.
 
+Every `main` commit that passes CI is published as the app image
+`ghcr.io/notice-cx/noticeos:<commit>`, for linux/amd64 and linux/arm64, with a
+build provenance attestation
+([`release-image.yml`](../../.github/workflows/release-image.yml)). It is built
+from the container source allowlist alone. A published image is a build, not a
+qualified release. `pnpm os:setup` and `pnpm os:update` use it only when its
+labels match the commit, the schema and the hash of the public build inputs
+the checkout prepares for that commit; otherwise they refuse. When nothing is
+published for the commit, or the registry is unreachable, they build the image
+locally from the same inputs. A fork's commits are not published there, so a
+fork builds locally.
+
 Hosted identity, scoped browser/task APIs and journaled scheduling have local
 disposable qualification. The
 [operator runtime instructions](../../scripts/README.md#hosted-runtime-composition-and-recovery)
@@ -73,6 +85,7 @@ for the exact target and approval. Do not edit applied migrations or adopt an
 existing database through fresh-install setup.
 
 The [app update](../../scripts/README.md#merging-is-not-deploying-osupdate)
+checks main's published image against the checkout, or builds it locally,
 replaces only the stack's app container and refuses a release whose
 migrations the database has not applied. App rollback keeps the updated
 database; it does not reverse a migration, and it is refused across a schema
@@ -100,7 +113,8 @@ journal evidence. See the
 ## Publication and reporting
 
 The license is [AGPL-3.0-only](../../LICENSE), copyright 2026 Reindex Ventures LLC.
-Preparing these materials does not publish a repository or activate a service.
+Apart from the app image published for each `main` commit (above), preparing
+these materials does not publish a repository or activate a service.
 The intended public repository is a new export without this private
 repository's history or installation records. Its current files, defaults,
 documentation, screenshots and dependency licenses still require review before
