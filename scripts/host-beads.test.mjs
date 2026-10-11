@@ -21,21 +21,24 @@ function fixture(t) {
   const input = { format: 'noticeos-host-beads-v1', image: `sha256:${'f'.repeat(64)}`, network: `noticeos-start-${'a'.repeat(16)}_default`, clientProfile, spokes: [cwd], fallbackActor: 'synthetic-host-operator' };
   const file = path.join(base, 'wrapper.json'); fs.writeFileSync(file, JSON.stringify(input), { mode: 0o600 });
   const calls = [];
+  // The project's Dolt container, and the networks Docker says it is on.
+  const dolt = { id: 'd0'.repeat(32), networks: [input.network] };
   const run = async (binary, args, options) => {
     calls.push({ binary, args, options });
     if (args[0] === 'context') return { code: 0, stdout: 'unix:///owned/docker.sock\n' };
-    if (args[0] === 'network') return { code: 0, stdout: input.network + '\n' };
+    if (args[0] === 'ps') return { code: 0, stdout: dolt.id ? `${dolt.id}\n` : '' };
+    if (args[0] === 'inspect') return { code: 0, stdout: JSON.stringify(Object.fromEntries(dolt.networks.map(name => [name, {}]))) };
     return { code: 0, stdout: 'Synthetic task result', stderr: '' };
   };
-  return { base, cwd, home, credentials, clientProfile, input, file, password, calls, run };
+  return { base, cwd, home, credentials, clientProfile, input, file, password, calls, run, dolt };
 }
 
 test('host agents use only exact bundled image, target network and selected .beads without application startup or host bd', async t => {
   const f = fixture(t);
   const result = await runHostBeads(f.file, ['show', 'no-example', '--json'], { cwd: f.cwd, run: f.run,
     env: { HOME: f.base, PATH: '/synthetic/bin', BEADS_DOLT_SERVER_PORT: '3308', BEADS_DOLT_PASSWORD: 'synthetic-poison' } });
-  assert.equal(result.code, 0); assert.equal(f.calls.length, 3);
-  const call = f.calls[2]; assert.equal(call.binary, 'docker'); assert.equal(call.args[0], 'run');
+  assert.equal(result.code, 0); assert.equal(f.calls.length, 4);
+  const call = f.calls[3]; assert.equal(call.binary, 'docker'); assert.equal(call.args[0], 'run');
   assert.equal(call.args.includes('--pull=never'), true);
   assert.equal(call.args.includes(f.input.image), true);
   assert.deepEqual(call.args.slice(-3), ['show', 'no-example', '--json']);
@@ -183,20 +186,48 @@ test('compatibility CLI preserves task output/exit status while redacting protec
 });
 
 
-test('a protected shared-project declaration selects only its exact default network', async t => {
+test('a declaration names its stack\'s project; the task server\'s network is the one Docker has it on', async t => {
   const f = fixture(t);
-  for (const network of ['noticeos_default', 'noticeos-shared-example_default']) {
-    f.input.network = network;
-    fs.writeFileSync(f.file, JSON.stringify(f.input), { mode: 0o600 });
+  const network = async () => {
     const result = await runHostBeads(f.file, ['list', '--json'], { cwd: f.cwd, run: f.run, env: {} });
     assert.equal(result.code, 0);
     const command = f.calls.at(-1).args;
-    assert.equal(command[command.indexOf('--network') + 1], network);
+    return command[command.indexOf('--network') + 1];
+  };
+  for (const declared of ['noticeos_default', 'noticeos-shared-example_default', 'noticeos_installation']) {
+    const project = declared.replace(/_(?:default|installation)$/u, '');
+    fs.writeFileSync(f.file, JSON.stringify({ ...f.input, network: declared }), { mode: 0o600 });
+    // A legacy stack, a stack in the installation layout, and one Dolt joined to both while it moved.
+    for (const [networks, expected] of [[[`${project}_default`], `${project}_default`], [[`${project}_installation`], `${project}_installation`],
+      [[`${project}_default`, `${project}_installation`], `${project}_installation`]]) {
+      f.dolt.networks = networks;
+      assert.equal(await network(), expected);
+      const lookup = f.calls.find(call => call.args[0] === 'ps').args;
+      assert.ok(lookup.includes(`label=com.docker.compose.project=${project}`) && lookup.includes('label=com.docker.compose.service=dolt'));
+      f.calls.length = 0;
+    }
   }
-  for (const network of ['default', '_default', 'noticeos_other', 'UPPER_default', 'bad name_default', '../other_default']) {
-    fs.writeFileSync(f.file, JSON.stringify({ ...f.input, network }), { mode: 0o600 });
+  for (const declared of ['default', '_default', 'noticeos_other', 'UPPER_default', 'bad name_default', '../other_default', '_installation']) {
+    fs.writeFileSync(f.file, JSON.stringify({ ...f.input, network: declared }), { mode: 0o600 });
     assert.throws(() => readHostBeadsPlan(f.file));
   }
+});
+
+test('a missing task server or unreachable Docker is named, not reported as a refused declaration', async t => {
+  const f = fixture(t);
+  const said = async (run) => {
+    let stderr = '';
+    const code = await main(['--plan', f.file, '--', 'list'], { cwd: f.cwd, run, env: {}, stdout: { write() {} }, stderr: { write(value) { stderr += value; } } });
+    assert.equal(code, 1);
+    return stderr;
+  };
+  f.dolt.id = null;
+  assert.match(await said(f.run), /no running task server in the noticeos-start-a+ stack; pnpm os:status shows it/u);
+  f.dolt.id = 'd0'.repeat(32); f.dolt.networks = ['bridge'];
+  assert.match(await said(f.run), /on no network of its stack/u);
+  const unreachable = async (binary, args, options) => args[0] === 'ps' ? { code: 1, stdout: '', stderr: 'permission denied' } : f.run(binary, args, options);
+  assert.match(await said(unreachable), /could not reach Docker at unix:\/\/\/owned\/docker\.sock.*run bd outside the sandbox/u);
+  assert.ok(!f.calls.some(call => call.args[0] === 'run'), 'no task command runs without its server');
 });
 
 test('one explicit file is forwarded as exact bytes without content in argv, environment or additional mounts', async t => {

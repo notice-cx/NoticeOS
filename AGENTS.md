@@ -261,8 +261,9 @@ access to a maintainer's private hub; follow [CONTRIBUTING.md](CONTRIBUTING.md).
 would fork a private store) and never `bv` (retired). A spoke's
 `.beads/config.yaml` has no `sync.remote`, plus `no-git-ops: true` and
 `import.auto: false`; if `bd` ever prints "no Dolt remote configured … repair:
-`bd dolt push`", fix the config and never run the printed repair. The Tower's
-Tasks page is the live cross-project view; the hub is the truth.
+`bd dolt push`", fix the config and never run the printed repair. `bd` reaches
+the task server through Docker, so a sandboxed shell runs it with the sandbox
+off. The Tower's Tasks page is the live cross-project view; the hub is the truth.
 
 ## Git policy
 
