@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Move the running installation into the installation folder layout, after you confirm the plan.
+// Convert a legacy installation, one that runs from Compose files of its own, into the installation folder layout, after you confirm the plan.
 //
-//   pnpm os:adopt                       the plan for the stack .local/stack.json selects, into ~/noticeos
-//   pnpm os:adopt -- --dir <folder>     into another new folder
-//   pnpm os:adopt -- --undo             back to the stack as it was before the adoption
+//   pnpm os:convert-legacy                       the plan for the stack .local/stack.json selects, into ~/noticeos
+//   pnpm os:convert-legacy -- --dir <folder>     into another new folder
+//   pnpm os:convert-legacy -- --undo             back to the stack as it was before the conversion
 //
 // It reads the stack as Compose resolves it today and plans the same stack
 // from deploy/compose/stack.yaml and a new installation folder
@@ -11,7 +11,7 @@
 // volumes, secrets and mounted folders. The plan names every difference that
 // remains: a file from this checkout that differs from the one mounted now, a
 // mount the layout has no place for, a changed port binding. Nothing changes
-// until you type `adopt` (or pass `--confirm adopt` without a terminal).
+// until you type `convert` (or pass `--confirm convert` without a terminal).
 //
 // Then it stops the stack, copies the installation's own folders (its state,
 // both secrets folders, the backup worker's declaration) into the new folder,
@@ -21,6 +21,11 @@
 // are unless they live inside the checkout the old stack's files came from.
 // The old files are never changed or removed; a failed start returns the old
 // stack, and `--undo` does the same later. No migration is ever applied.
+//
+// An app that runs this checkout's live source (pnpm os:dev) is planned from
+// the prepared stack os:dev recorded; the conversion returns it to that image
+// first (os:prod's own step), and follows the checkout again from the new
+// folder last (os:dev's).
 
 import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
@@ -35,16 +40,17 @@ import { runCommand } from './run-command.mjs';
 import { parseServices, readSelector, validateSelector } from './stack-control.mjs';
 import { composePrefix } from './stack-database.mjs';
 import { folderRefusal } from './os-setup.mjs';
+import { developStack } from './stack-development.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
-/** Where the selector the adoption replaced is kept, beside the selector. */
-export const BEFORE = '.before-adopt.json';
-export const USAGE = `usage: pnpm os:adopt [-- --dir <folder>] [--confirm adopt] [--config <stack.json>]
-       pnpm os:adopt -- --undo [--config <stack.json>]`;
+/** Where the selector the conversion replaced is kept, beside the selector. */
+export const BEFORE = '.before-convert.json';
+export const USAGE = `usage: pnpm os:convert-legacy [-- --dir <folder>] [--confirm convert] [--config <stack.json>]
+       pnpm os:convert-legacy -- --undo [--config <stack.json>]`;
 
-class AdoptRefused extends Error {}
-const refuse = (line) => { throw new AdoptRefused(line); };
+class ConvertRefused extends Error {}
+const refuse = (line) => { throw new ConvertRefused(line); };
 const ownEnv = (env) => Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'XDG_CONFIG_HOME', 'TMPDIR', 'LANG']
   .filter((key) => env[key] !== undefined).map((key) => [key, env[key]]));
 const sha = (file) => createHash('sha256').update(fs.readFileSync(file)).digest('hex');
@@ -83,7 +89,7 @@ export function readInstallation(model, { project, imageId, legacyRoot }) {
   for (const name of ['noticeos', 'postgres', 'dolt']) if (!services[name]) refuse(`the stack has no ${name} service.`);
   const unknown = Object.keys(services).filter((name) => !['noticeos', 'postgres', 'dolt', 'backup'].includes(name));
   if (unknown.length) refuse(`the stack has services the layout does not: ${unknown.join(', ')}.`);
-  if (services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') refuse('the app runs from live source; pnpm os:prod first, then adopt.');
+  if (services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') refuse('the app runs from live source that pnpm os:dev does not own; pnpm os:prod first, then convert.');
   const backup = Boolean(services.backup);
   const bind = (service, target) => {
     const mount = mountsOf(services[service]).get(target);
@@ -141,7 +147,7 @@ export function readInstallation(model, { project, imageId, legacyRoot }) {
 }
 
 /** The choices for installation.env, for the installation read from the old stack into `dir`. */
-export function adoptedChoices(found, dir) {
+export function convertedChoices(found, dir) {
   return installationChoices({
     dir, project: found.project, image: found.imageId, uid: found.uid, gid: found.gid,
     towerPort: found.towerPort, allowedHosts: found.allowedHosts, postgresPort: found.postgresPort, doltPort: found.doltPort,
@@ -263,8 +269,8 @@ export function parseOptions(argv) {
   };
 }
 
-export async function adopt(options, { run = runCommand, env = process.env, out = process.stdout, root = ROOT,
-  interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY), question = ask } = {}) {
+export async function convertLegacy(options, { run = runCommand, env = process.env, out = process.stdout, root = ROOT,
+  interactive = Boolean(process.stdin.isTTY && process.stdout.isTTY), question = ask, develop = developStack } = {}) {
   const say = (line) => out.write(`${line}\n`);
   const tools = ownEnv(env);
   const docker = async (args, what, { timeoutMs = 60_000, inherit = false } = {}) => {
@@ -277,41 +283,61 @@ export async function adopt(options, { run = runCommand, env = process.env, out 
   const beforeFile = options.selectorFile.replace(/\.json$/u, '') + BEFORE;
 
   if (options.undo) {
-    if (!fs.existsSync(beforeFile)) refuse(`there is no adoption to undo (${beforeFile} is missing).`);
-    const adopted = readSelector(options.selectorFile);
+    if (!fs.existsSync(beforeFile)) refuse(`there is no conversion to undo (${beforeFile} is missing).`);
+    const converted = readSelector(options.selectorFile);
     const previous = readSelector(beforeFile);
-    say(`Stopping ${adopted.project} as the layout runs it.`);
-    await docker([...composePrefix(adopted), 'stop'], 'Stopping the stack', { timeoutMs: 180_000 });
+    say(`Stopping ${converted.project} as the layout runs it.`);
+    await docker([...composePrefix(converted), 'stop'], 'Stopping the stack', { timeoutMs: 180_000 });
     say('Starting the stack from its old declaration.');
     await docker([...composePrefix(previous), 'up', '--detach', '--wait', '--wait-timeout', '300'], 'Starting the old stack', { timeoutMs: 360_000, inherit: true });
     fs.copyFileSync(beforeFile, options.selectorFile);
     fs.rmSync(beforeFile);
-    say(`The stack runs from its old declaration again; ${adopted.envFile.replace(/\/[^/]+$/u, '')} was left as it is.`);
+    say(`The stack runs from its old declaration again; ${converted.envFile.replace(/\/[^/]+$/u, '')} was left as it is. pnpm os:dev follows the checkout again if you worked that way.`);
     return 0;
   }
 
   const old = readSelector(options.selectorFile);
   const ownFiles = installationSelector({ dir: '/', project: old.project, dockerHost: old.dockerHost, root }).files;
-  if (old.files.some((file) => ownFiles.includes(file))) refuse('the stack already runs from the layout; nothing to adopt.');
+  if (old.files.some((file) => ownFiles.includes(file))) refuse('the stack already runs from the layout; nothing to convert.');
   const folder = folderRefusal(options.dir, root);
   if (folder) refuse(folder);
-  if (fs.existsSync(beforeFile)) refuse(`${beforeFile} exists from an earlier adoption; pnpm os:adopt -- --undo returns to it, or remove it.`);
-  // A stack that is not healthy now could never prove the move; it is fixed first.
+  if (fs.existsSync(beforeFile)) refuse(`${beforeFile} exists from an earlier conversion; pnpm os:convert-legacy -- --undo returns to it, or remove it.`);
+  // In development, the plan starts from the prepared stack os:dev recorded.
+  const developmentDir = path.join(path.dirname(options.selectorFile), 'stack-development');
+  const developmentOverride = path.join(developmentDir, 'source.json');
+  const live = old.files.includes(developmentOverride);
+  let declared = old;
+  let preparedImage = null;
+  if (live) {
+    let prior = null;
+    try { prior = JSON.parse(fs.readFileSync(path.join(developmentDir, 'previous.json'), 'utf8')); } catch { /* refused below */ }
+    if (prior?.schema !== 'noticeos-stack-development/1' || prior.selectorFile !== options.selectorFile || !/^sha256:[a-f0-9]{64}$/u.test(prior.image ?? '')) {
+      refuse('the app runs from live source and the record of its prepared image is missing; pnpm os:prod first, then convert.');
+    }
+    declared = validateSelector(prior.selector);
+    if (json(declared.files) !== json(old.files.filter((file) => file !== developmentOverride)) || declared.envFile !== old.envFile || declared.project !== old.project) {
+      refuse('the stack changed since pnpm os:dev recorded it; pnpm os:prod first, then convert.');
+    }
+    preparedImage = prior.image;
+  }
+  // A stack that is not healthy now could never prove the move; it is fixed
+  // first. A development app may be broken: the prepared image is what moves.
   const running = parseServices(await docker([...composePrefix(old), 'ps', '--all', '--format', 'json'], 'Listing the stack\'s services'), old.project);
-  const unwell = [...running].filter(([, row]) => row.health !== 'healthy').map(([name, row]) => `${name} (${row.state}${row.health ? `, ${row.health}` : ''})`);
-  if (unwell.length) refuse(`${unwell.join(', ')} ${unwell.length === 1 ? 'is' : 'are'} not healthy; adopt moves a healthy stack. pnpm os:status and pnpm os:logs show why.`);
-  const before = await resolved(old);
-  const imageRef = before.services?.noticeos?.image;
+  const unwell = [...running].filter(([name, row]) => row.health !== 'healthy' && !(live && name === 'noticeos'))
+    .map(([name, row]) => `${name} (${row.state}${row.health ? `, ${row.health}` : ''})`);
+  if (unwell.length) refuse(`${unwell.join(', ')} ${unwell.length === 1 ? 'is' : 'are'} not healthy; a conversion moves a healthy stack. pnpm os:status and pnpm os:logs show why.`);
+  const before = await resolved(declared);
+  const imageRef = preparedImage ?? before.services?.noticeos?.image;
   if (typeof imageRef !== 'string') refuse('the app declares no image.');
   const imageId = (await docker(['--host', old.dockerHost, 'image', 'inspect', '--format', '{{.Id}}', imageRef], `Finding the app image ${imageRef}`)).trim();
-  const top = await run('git', ['-C', path.dirname(old.files[0]), 'rev-parse', '--show-toplevel'], { env: tools, timeoutMs: 20_000 });
-  const legacyRoot = top.code === 0 && top.stdout.trim() && path.resolve(top.stdout.trim()) !== root ? path.resolve(top.stdout.trim()) : path.dirname(old.files[0]);
+  const top = await run('git', ['-C', path.dirname(declared.files[0]), 'rev-parse', '--show-toplevel'], { env: tools, timeoutMs: 20_000 });
+  const legacyRoot = top.code === 0 && top.stdout.trim() && path.resolve(top.stdout.trim()) !== root ? path.resolve(top.stdout.trim()) : path.dirname(declared.files[0]);
   const found = readInstallation(before, { project: old.project, imageId, legacyRoot });
-  const choices = adoptedChoices(found, options.dir);
+  const choices = convertedChoices(found, options.dir);
   const selector = validateSelector(installationSelector({ dir: options.dir, project: old.project, dockerHost: old.dockerHost, backup: found.backup, root }));
 
   // The new declaration, rendered from an environment file outside the new folder.
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-adopt-'));
+  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-convert-'));
   let after;
   try {
     const draft = path.join(scratch, 'installation.env');
@@ -332,7 +358,8 @@ export async function adopt(options, { run = runCommand, env = process.env, out 
   const free = (() => { let at = options.dir; while (!fs.existsSync(at)) at = path.dirname(at); const stats = fs.statfsSync(at); return stats.bavail * stats.bsize; })();
   if (bytes + 1024 ** 3 > free) refuse(`copying needs ${Math.ceil(bytes / 1024 ** 2)} MB and 1 GB to spare; ${Math.floor(free / 1024 ** 2)} MB are free.`);
 
-  say(`Adopting ${old.project} into ${options.dir}. Nothing has changed yet.`);
+  say(`Converting ${old.project} into ${options.dir}. Nothing has changed yet.`);
+  if (live) say('The app runs this checkout\'s live source: it returns to its prepared image for the move, then follows the checkout again from the new folder.');
   say('Copied into the folder:');
   for (const copy of found.copies) say(`  ${copy.what}: ${copy.from}`);
   const keptRows = Object.entries(found.kept);
@@ -346,15 +373,23 @@ export async function adopt(options, { run = runCommand, env = process.env, out 
     say('Also changes:');
     for (const line of changes) say(`  ${line}`);
   } else say('Nothing else changes.');
-  say(`The stack stops while its folders are copied; ${old.files.concat(old.envFile).join(', ')} stay as they are.`);
-  const confirmed = options.confirm ?? (interactive ? await question('Type adopt to stop the stack, copy and start it from the new folder, or press Enter to stop: ') : null);
-  if (confirmed !== 'adopt') {
-    say(interactive ? 'Nothing was changed.' : 'Nothing was changed. To adopt it: pnpm os:adopt -- --confirm adopt');
+  say(`The stack stops while its folders are copied; ${declared.files.concat(declared.envFile).join(', ')} stay as they are.`);
+  const confirmed = options.confirm ?? (interactive ? await question('Type convert to stop the stack, copy and start it from the new folder, or press Enter to stop: ') : null);
+  if (confirmed !== 'convert') {
+    say(interactive ? 'Nothing was changed.' : 'Nothing was changed. To convert it: pnpm os:convert-legacy -- --confirm convert');
     return 0;
   }
 
+  if (live) {
+    say('Returning the app to its prepared image.');
+    await develop({ root, selectorFile: options.selectorFile, disable: true, run, env, out });
+    const now = readSelector(options.selectorFile);
+    if (json(now) !== json(declared) || json(await resolved(now)) !== json(before)) {
+      refuse('the prepared stack is not the one this plan was made from; the app runs its prepared image now. Run pnpm os:convert-legacy again.');
+    }
+  }
   say('Stopping the stack.');
-  await docker([...composePrefix(old), 'stop'], 'Stopping the stack', { timeoutMs: 180_000 });
+  await docker([...composePrefix(declared), 'stop'], 'Stopping the stack', { timeoutMs: 180_000 });
   let started = false;
   try {
     const paths = installationPaths(options.dir);
@@ -377,17 +412,25 @@ export async function adopt(options, { run = runCommand, env = process.env, out 
     say('Returning to the stack as it was.');
     try {
       if (started) await docker([...composePrefix(selector), 'stop'], 'Stopping the new stack', { timeoutMs: 180_000 });
-      await docker([...composePrefix(old), 'up', '--detach', '--wait', '--wait-timeout', '300'], 'Starting the old stack', { timeoutMs: 360_000, inherit: true });
+      await docker([...composePrefix(declared), 'up', '--detach', '--wait', '--wait-timeout', '300'], 'Starting the old stack', { timeoutMs: 360_000, inherit: true });
     } catch {
       error.message += ' The old stack did not come back either; pnpm os:status and pnpm os:logs show where it stands.';
       throw error;
     }
-    error.message += ` The old stack runs again; ${options.dir} was left for inspection.`;
+    error.message += ` The old stack runs again${live ? ' on its prepared image (pnpm os:dev follows the checkout again)' : ''}; ${options.dir} was left for inspection.`;
     throw error;
   }
   fs.copyFileSync(options.selectorFile, beforeFile);
   fs.writeFileSync(options.selectorFile, `${JSON.stringify(selector, null, 2)}\n`, { mode: 0o600 });
-  say(`Adopted: the stack runs from ${options.dir}. pnpm os:status shows it; pnpm os:adopt -- --undo returns to the old declaration.`);
+  say(`Converted: the stack runs from ${options.dir}. pnpm os:status shows it; pnpm os:convert-legacy -- --undo returns to the old declaration.`);
+  if (live) {
+    say('Following this checkout again.');
+    try {
+      await develop({ root, selectorFile: options.selectorFile, run, env, out });
+    } catch (error) {
+      say(`The conversion stands, with the app on its prepared image: ${error?.message ?? error} pnpm os:dev tries again.`);
+    }
+  }
   return 0;
 }
 
@@ -395,9 +438,9 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
   try {
     const parsed = parseOptions(argv);
     if (parsed.help) { out.write(`${USAGE}\n`); return 0; }
-    return await adopt(parsed, { out, ...options });
+    return await convertLegacy(parsed, { out, ...options });
   } catch (error) {
-    err.write(`pnpm os:adopt: ${error?.message ?? String(error)}\n`);
+    err.write(`pnpm os:convert-legacy: ${error?.message ?? String(error)}\n`);
     return 1;
   }
 }

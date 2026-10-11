@@ -51,7 +51,7 @@ websites or provider accounts, and existing databases are never touched.
 
 [Install from source](docs/start/install-from-source.md) covers the options;
 [Run with Docker](docs/start/run-with-docker.md) covers the folder, moving an
-existing installation into it with `pnpm os:adopt`, and updates. For an
+legacy installation into it with `pnpm os:convert-legacy`, and updates. For an
 existing installation, read the [upgrade policy](docs/reference/release-policy.md)
 before changing its code or database.
 

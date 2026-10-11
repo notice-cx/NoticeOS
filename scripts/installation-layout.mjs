@@ -1,5 +1,5 @@
 // One installation folder, one fixed layout: what `pnpm os:setup` makes and
-// `pnpm os:adopt` moves an installation into, and what deploy/compose/stack.yaml
+// `pnpm os:convert-legacy` moves a legacy installation into, and what deploy/compose/stack.yaml
 // reads through the folder's installation.env.
 //
 //   <installation>/
@@ -146,7 +146,7 @@ export function renderInstallationEnv(input) {
   const line = (name, text) => `${name}="${text}"`;
   return [
     '# One NoticeOS installation, read by deploy/compose/stack.yaml.',
-    '# pnpm os:setup or pnpm os:adopt wrote it. The first block holds this',
+    '# pnpm os:setup or pnpm os:convert-legacy wrote it. The first block holds this',
     '# installation\'s choices; the second is the layout, which follows from the folder.',
     ...CHOICES.map(([name, key]) => line(name, value(key))),
     '',

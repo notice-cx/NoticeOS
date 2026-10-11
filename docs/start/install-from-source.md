@@ -82,7 +82,7 @@ Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in 
 
 ## If it didn't work
 
-- Setup stops before making anything: the folder is not empty, the project already has containers or volumes, or `.local/stack.json` already selects an installation. The sentence names which; an existing installation moves into the layout with `pnpm os:adopt` ([Run with Docker](/start/run-with-docker#move-an-existing-installation)).
+- Setup stops before making anything: the folder is not empty, the project already has containers or volumes, or `.local/stack.json` already selects an installation. The sentence names which; a legacy installation moves into the layout with `pnpm os:convert-legacy` ([Run with Docker](/start/run-with-docker#convert-a-legacy-installation)).
 - Setup stops after it started making things: it names what it made and leaves it for inspection. `pnpm os:logs` shows the services' side.
 - `pnpm run` refuses to start after you pulled new code: run `pnpm install --frozen-lockfile` again.
 

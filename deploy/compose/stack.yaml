@@ -6,8 +6,8 @@
 # choices and the paths (scripts/installation-layout.mjs writes it), so no
 # installation writes a Compose file of its own:
 #
-#   pnpm os:setup     a new installation
-#   pnpm os:adopt     an existing one moved into the layout
+#   pnpm os:setup             a new installation
+#   pnpm os:convert-legacy    a legacy one moved into the layout
 #
 # The backup worker is backup.compose.yaml, layered on this file when the
 # installation has one; .local/stack.json lists both.

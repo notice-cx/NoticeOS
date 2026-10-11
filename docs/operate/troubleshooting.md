@@ -68,18 +68,18 @@ An empty screen does not prove the database is behind. Read the `database:` line
 **`pnpm --filter @noticeos/ingest dev` refuses to start.**
 Expected while another runtime holds the data port: a standalone data receiver would be a second runtime over the same files.
 
-## `pnpm os:setup` and `pnpm os:adopt` refusals
+## `pnpm os:setup` and `pnpm os:convert-legacy` refusals
 
-Each line starts with `pnpm os:setup:` or `pnpm os:adopt:`. Setup's checks run before it makes anything.
+Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`. Setup's checks run before it makes anything.
 
-**"… already selects an installation; pnpm os:status shows it, and pnpm os:adopt moves an existing one into the layout".**
-This checkout already has an installation. Use it, or move it with `pnpm os:adopt`.
+**"… already selects an installation; pnpm os:status shows it, and pnpm os:convert-legacy moves a legacy one into the layout".**
+This checkout already has an installation. Use it, or move it with `pnpm os:convert-legacy`.
 
 **"… is not empty; setup makes a new installation in a new or empty folder".**
 Choose a new or empty folder with `--dir`. A folder inside the checkout is refused too.
 
-**"Docker already has containers for the project …", or "the volume … already exists; setup never adopts existing data".**
-Another installation uses that project name. Choose another with `--project`, or move that installation with `pnpm os:adopt`.
+**"Docker already has containers for the project …", or "the volume … already exists; setup never takes over existing data".**
+Another installation uses that project name. Choose another with `--project`, or move that installation with `pnpm os:convert-legacy`.
 
 **"setup needs a local Docker engine on a Unix socket".**
 Start Docker, or select its local context, and run setup again.
@@ -93,20 +93,23 @@ Mount or create the sync folder first, then run setup again.
 **"Made so far, left for inspection: …".**
 A step failed after setup started making things. The line before it says which step; `pnpm os:logs` shows the services' side. Setup never deletes or reuses what it made, so a new attempt needs another `--dir` and `--project`.
 
-**"… are not healthy; adopt moves a healthy stack".**
-Fix the stack first: `pnpm os:status`, then `pnpm os:logs`.
+**"… are not healthy; a conversion moves a healthy stack".**
+Fix the stack first: `pnpm os:status`, then `pnpm os:logs`. A development app may be broken; the databases and the backup worker may not.
 
-**"the app runs from live source; pnpm os:prod first, then adopt".**
-Run `pnpm os:prod`, then `pnpm os:adopt` again.
+**"the app runs from live source and the record of its prepared image is missing", or "the stack changed since pnpm os:dev recorded it".**
+The conversion cannot tell which prepared stack to move. Run `pnpm os:prod`, then `pnpm os:convert-legacy` again.
 
-**"the stack already runs from the layout; nothing to adopt".**
+**"the stack already runs from the layout; nothing to convert".**
 Nothing to do.
 
-**"… exists from an earlier adoption; pnpm os:adopt -- --undo returns to it, or remove it".**
-An earlier adoption is still recorded. Undo it, or remove that file once you keep the new folder.
+**"… exists from an earlier conversion; pnpm os:convert-legacy -- --undo returns to it, or remove it".**
+An earlier conversion is still recorded. Undo it, or remove that file once you keep the new folder.
 
 **"… The old stack runs again; … was left for inspection".**
 The new stack did not become healthy, so the old one was started again. Nothing in the old installation changed.
+
+**"The conversion stands, with the app on its prepared image: …".**
+The stack moved, but the development app did not come back on live source. `pnpm os:dev` tries again; the sentence says why it failed.
 
 ## Update refusals
 
@@ -126,7 +129,7 @@ The previous image would run older code on the newer schema. Restoring a backup 
 Run `pnpm os:prod` first.
 
 **An `os:*` command says the selector is invalid or a service is unexpected.**
-`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:adopt` writes it; nobody edits it by hand. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 
 ## Data and credentials
 

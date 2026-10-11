@@ -11,7 +11,7 @@ This page covers how an installation runs once it exists: its folder, the comman
 
 NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It **never** creates or migrates a database.
 
-The stack has one definition for every installation, `deploy/compose/stack.yaml` in the checkout. An installation is a folder that definition reads: [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:adopt` moves an existing one into it. Nobody writes a Compose file.
+The stack has one definition for every installation, `deploy/compose/stack.yaml` in the checkout. An installation is a folder that definition reads: [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:convert-legacy` moves a legacy one into it. Nobody writes a Compose file.
 
 ## The installation folder
 
@@ -23,7 +23,7 @@ The stack has one definition for every installation, `deploy/compose/stack.yaml`
 | `postgres-secrets/`, `dolt-secrets/` | The database logins |
 | `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
 
-The choices in `installation.env` are the project name, the app image, the app's user, the three loopback ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:adopt` write it.
+The choices in `installation.env` are the project name, the app image, the app's user, the three loopback ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
 
 Only the Tower port reaches beyond the stack's network, on `127.0.0.1`, with Postgres and the task database beside it for the operator's tools. Provider credentials are connected in the Tower, not in files.
 
@@ -31,21 +31,23 @@ Only the Tower port reaches beyond the stack's network, on `127.0.0.1`, with Pos
 Standalone has no user login. The port binds to loopback for that reason. If you put the Tower on a network, every client on it can read and change your data. Keep the hostname allowlist; never allow every host.
 :::
 
-## Move an existing installation
+## Convert a legacy installation
 
-An installation that runs from Compose files of its own moves into the folder layout in one command. Its data volumes, image, ports and secrets stay the same.
+An installation that runs from Compose files of its own converts into the folder layout in one command. Its data volumes, image, ports and secrets stay the same.
 
 1. In the checkout whose `.local/stack.json` selects the installation, read the plan:
 
    ```sh
-   pnpm os:adopt
+   pnpm os:convert-legacy
    ```
 
    It lists what it copies into the new folder (`~/noticeos` unless you add `-- --dir <folder>`), what stays where it is, and every difference that remains: a file from this checkout that differs from the one mounted now, a mount the layout has no place for, a changed port binding.
 
-2. Type `adopt` to apply it.
+2. Type `convert` to apply it.
 
-The stack stops while its folders are copied, then starts from the new folder; `.local/stack.json` changes only once it is healthy. Task repositories, exporter checkouts and the offsite folder stay where they are unless they live inside the checkout the old Compose files came from. The old files are never changed. If the new stack does not become healthy, the old one starts again by itself. To go back later, run `pnpm os:adopt -- --undo`; what the app wrote to its state folder since then stays in the new folder.
+The stack stops while its folders are copied, then starts from the new folder; `.local/stack.json` changes only once it is healthy. Task repositories, exporter checkouts and the offsite folder stay where they are unless they live inside the checkout the old Compose files came from. The old files are never changed. If the new stack does not become healthy, the old one starts again by itself. To go back later, run `pnpm os:convert-legacy -- --undo`; what the app wrote to its state folder since then stays in the new folder.
+
+An app that follows the checkout (`pnpm os:dev`) converts too, even while it is broken: the plan starts from the prepared stack `os:dev` recorded, the app returns to that image for the move, and it follows the checkout again from the new folder afterwards.
 
 ## Control the stack
 
@@ -113,8 +115,8 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 
 ## If it didn't work
 
-- An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:adopt` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
-- `pnpm os:adopt` refuses: the sentence names what the layout cannot hold (another service, an app running live source, a network of the same name it did not create). Nothing was changed.
+- An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+- `pnpm os:convert-legacy` refuses: the sentence names what the layout cannot hold (another service, a stack that is not healthy, a network of the same name it did not create). Nothing was changed.
 - `os:update` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.
 - The development app stops after a pull: the checkout's packages changed since its image was built, and `pnpm os:logs -- noticeos` says so. Run `pnpm os:dev`; it builds a matching image and moves the app onto it.
 - `os:restart` or `os:update` names a service that is not healthy: `pnpm os:logs -- <service>` shows why.

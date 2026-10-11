@@ -157,7 +157,7 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   };
 
   // Everything is checked before anything is made.
-  if (fs.existsSync(options.selectorFile)) refuse(`${options.selectorFile} already selects an installation; pnpm os:status shows it, and pnpm os:adopt moves an existing one into the layout.`);
+  if (fs.existsSync(options.selectorFile)) refuse(`${options.selectorFile} already selects an installation; pnpm os:status shows it, and pnpm os:convert-legacy moves a legacy one into the layout.`);
   const folder = folderRefusal(options.dir, root);
   if (folder) refuse(folder);
   if (options.offsite && !fs.lstatSync(options.offsite, { throwIfNoEntry: false })?.isDirectory()) refuse(`the offsite folder ${options.offsite} does not exist; a missing sync folder is never made locally.`);
@@ -168,12 +168,12 @@ export async function setup(options, { run = runCommand, env = process.env, out 
   const arch = (await docker([...host, 'version', '--format', '{{.Server.Arch}}'], 'Asking Docker for its platform')).trim();
   if (!['amd64', 'arm64'].includes(arch)) refuse(`Docker runs on ${arch || 'an unknown platform'}; NoticeOS images are built for amd64 and arm64.`);
   const owned = (await docker([...host, 'ps', '--all', '--quiet', '--filter', `label=com.docker.compose.project=${options.project}`], 'Listing the project\'s containers')).trim();
-  if (owned) refuse(`Docker already has containers for the project ${options.project}; choose another with --project, or pnpm os:adopt moves that installation.`);
+  if (owned) refuse(`Docker already has containers for the project ${options.project}; choose another with --project, or pnpm os:convert-legacy moves that installation.`);
   const draft = { project: options.project, dir: options.dir };
   const names = { postgresVolume: `${draft.project}_postgres-data`, doltVolume: `${draft.project}_dolt-data`, network: `${draft.project}_installation` };
   for (const [kind, name] of [['volume', names.postgresVolume], ['volume', names.doltVolume], ['network', names.network]]) {
     const found = await run('docker', [...host, kind, 'inspect', name], { env: tools, timeoutMs: 20_000 });
-    if (found.code === 0) refuse(`the ${kind} ${name} already exists; setup never adopts existing data. Choose another --project.`);
+    if (found.code === 0) refuse(`the ${kind} ${name} already exists; setup never takes over existing data. Choose another --project.`);
   }
   const taken = new Set();
   const pick = async (start, chosen) => { const port = await freePort(start, { chosen, free, taken }); taken.add(port); return port; };

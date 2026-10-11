@@ -21,8 +21,8 @@ supplies every value ([`scripts/installation-layout.mjs`](../../scripts/installa
 writes it), so an installation never writes a Compose file:
 
 ```sh
-pnpm os:setup     # a new installation in ~/noticeos (-- --dir <folder>), started
-pnpm os:adopt     # the installation .local/stack.json selects, moved into the layout after you confirm
+pnpm os:setup            # a new installation in ~/noticeos (-- --dir <folder>), started
+pnpm os:convert-legacy   # the installation .local/stack.json selects, moved into the layout after you confirm
 ```
 
 `os:setup` needs only Docker, Node and pnpm: it builds `main` into the image,
@@ -35,14 +35,17 @@ starts the app and the backup worker, loads the default settings
 existing folder content, project container, volume or network before making
 anything.
 
-`os:adopt` reads the running stack as Compose resolves it and plans the same
-stack from the layout: the same project, image, ports, data volumes, secrets and
-folders. It prints every remaining difference, and applies only after you type
-`adopt`: it stops the stack, copies the installation's own folders (state, both
-secrets folders, the backup worker's declaration) with their modes, checks every
-copied secret, starts from the new folder, and rewrites `.local/stack.json` only
-once that is healthy. A failed start returns the old stack; `-- --undo` does so
-later. Old files are never changed.
+`os:convert-legacy` reads the running stack as Compose resolves it and plans
+the same stack from the layout: the same project, image, ports, data volumes,
+secrets and folders. It prints every remaining difference, and applies only
+after you type `convert`: it stops the stack, copies the installation's own
+folders (state, both secrets folders, the backup worker's declaration) with
+their modes, checks every copied secret, starts from the new folder, and
+rewrites `.local/stack.json` only once that is healthy. A failed start returns
+the old stack; `-- --undo` does so later. Old files are never changed. An app
+on live source is planned from the prepared stack `os:dev` recorded: it returns
+to that image for the move (`os:prod`'s step) and follows the checkout again
+afterwards (`os:dev`'s).
 
 To build an image by hand, create the build context with the repository's explicit public source allowlist:
 
@@ -64,7 +67,7 @@ docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/
 
 | Variable | Value |
 |---|---|
-| `NOTICEOS_APP_IMAGE` | The local image ID setup or `os:adopt` recorded; `os:update` pins later ones |
+| `NOTICEOS_APP_IMAGE` | The local image ID setup or `os:convert-legacy` recorded; `os:update` pins later ones |
 | `NOTICEOS_STATE_DIR` | The installation folder's `state/` |
 | `NOTICEOS_SPOKES_DIR` | The folder holding the linked task repositories; `spokes/` unless the installation keeps them elsewhere |
 | `NOTICEOS_NETWORK` | The installation network, `<project>_installation`, which the project creates |
@@ -120,7 +123,7 @@ health also reports its availability and fails when a configured worker is unava
 ## Run the stack
 
 Every `pnpm os:*` command acts on the stack the ignored `.local/stack.json`
-selects; `os:setup` and `os:adopt` write it, naming the Compose project,
+selects; `os:setup` and `os:convert-legacy` write it, naming the Compose project,
 `stack.yaml` (and the backup layer), the installation's `installation.env` and
 the local Docker socket. `-- --config /absolute/stack.json` names another
 installation's selector. The stack must already have `noticeos`, `postgres`

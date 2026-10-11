@@ -14,7 +14,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `pnpm …` | What it does | Runs |
 |---|---|---|
 | `os:setup` | Set up a new NoticeOS installation on this Docker host and start it. | `scripts/os-setup.mjs` |
-| `os:adopt` | Move the running installation into the installation folder layout, after you confirm the plan. | `scripts/os-adopt.mjs` |
+| `os:convert-legacy` | Convert a legacy installation, one that runs from Compose files of its own, into the installation folder layout, after you confirm the plan. | `scripts/os-convert-legacy.mjs` |
 | `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |

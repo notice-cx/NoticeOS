@@ -193,7 +193,7 @@ ingest and the runner), `postgres`, `dolt` and an optional `backup` worker. The
 ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
 that stack ([Docker guide](deploy/compose/README.md)). Every installation runs
 from the one definition `deploy/compose/stack.yaml` and its folder's
-`installation.env`; `pnpm os:setup` makes one and `pnpm os:adopt` moves an
+`installation.env`; `pnpm os:setup` makes one and `pnpm os:convert-legacy` moves a
 existing one in, and nobody writes a Compose file. A development stack's
 app runs this checkout's live source; a production stack's app runs a
 prepared image. Do not guess from a port, inspect containers by hand or read
@@ -224,7 +224,7 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 (`pnpm os:backup`) → `pnpm os:migrate` → `pnpm os:migrate -- --apply` →
 `pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
 `os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback` and
-`os:adopt` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
+`os:convert-legacy` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
 `os:restart` and, after a verified merge, `os:update`; never `os:migrate`.
 
 `pnpm os:setup` on a machine that already runs an installation refuses on its
@@ -278,7 +278,7 @@ branch someone else has.
   `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory; PostgreSQL 17
   binaries back the cross-major restore fixture.
 - Installation paths: `pnpm os:setup` provisions a new installation as the
-  Compose stack in its own folder; `pnpm os:adopt` moves an existing Compose
+  Compose stack in its own folder; `pnpm os:convert-legacy` moves a legacy Compose
   installation into that layout; the application container consumes either; the
   [demo profile](deploy/demo/README.md) packages compiled code and synthetic
   stores behind an HTTPS proxy. Customer hosting is outside that preview; see

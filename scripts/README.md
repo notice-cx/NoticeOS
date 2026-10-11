@@ -5,7 +5,7 @@
 | `pnpm …` | What it does | Runs |
 |---|---|---|
 | `os:setup` | Set up a new NoticeOS installation on this Docker host and start it. | `scripts/os-setup.mjs` |
-| `os:adopt` | Move the running installation into the installation folder layout, after you confirm the plan. | `scripts/os-adopt.mjs` |
+| `os:convert-legacy` | Convert a legacy installation, one that runs from Compose files of its own, into the installation folder layout, after you confirm the plan. | `scripts/os-convert-legacy.mjs` |
 | `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
@@ -119,15 +119,15 @@ private data and run the
 against that exact source before publication, which needs its own operator
 approval.
 
-# A new installation (`os:setup`) or an existing one moved (`os:adopt`)
+# A new installation (`os:setup`) or a legacy one converted (`os:convert-legacy`)
 
 ```
 pnpm install --frozen-lockfile
 pnpm os:setup                           # → ~/noticeos, the Tower on http://127.0.0.1:5173/
 pnpm os:setup -- --dir <folder>         # the installation somewhere else
 pnpm os:setup -- --offsite <folder>     # finished backups handed to a synced folder
-pnpm os:adopt                           # the stack .local/stack.json selects, moved into the layout after you type `adopt`
-pnpm os:adopt -- --undo                 # back to the stack as it was before
+pnpm os:convert-legacy                  # the stack .local/stack.json selects, moved into the layout after you type `convert`
+pnpm os:convert-legacy -- --undo        # back to the stack as it was before
 ```
 
 The committed `verifyDepsBeforeRun: error` setting makes `pnpm run` refuse
@@ -143,10 +143,12 @@ an existing selector, before it makes anything. The frozen schema, the one
 workspace and the NoticeOS task project are applied inside a one-off app
 container (`scripts/os-setup-container.mjs`).
 
-`scripts/os-adopt.mjs` moves an existing installation into the same layout. It
-prints a plan, copies the installation's own folders, starts from the new
-folder and rewrites the selector only once the stack is healthy. It never
-changes the old files and never migrates. Both are described in the
+`scripts/os-convert-legacy.mjs` moves a legacy installation, one with Compose
+files of its own, into the same layout. It prints a plan, copies the
+installation's own folders, starts from the new folder and rewrites the
+selector only once the stack is healthy; an app on live source returns to its
+prepared image for the move and follows the checkout again afterwards. It
+never changes the old files and never migrates. Both are described in the
 [Docker guide](../deploy/compose/README.md).
 
 # Prepare an asset repository's context
