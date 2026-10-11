@@ -83,7 +83,7 @@ test('the three-service profile omits backup and only uses existing-container op
   assert.equal(own.writes().length, 5);
 });
 test('health failure stops later steps and never exposes raw subprocess errors', async () => {
-  const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /no later stack steps/u);
+  const own = fixture({ failure: 'start' }); await assert.rejects(stackControl('start', selector, own), /postgres \(running, healthy\), dolt \(running, healthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- postgres shows why\./u);
   assert.equal(own.writes().length, 1); assert.ok(!own.output().includes('PRIVATE-SENTINEL'));
 });
 test('a replaced container refuses the next mutation', async () => {
@@ -130,4 +130,21 @@ test('the command line takes the action\'s arguments and --config in any order',
   assert.deepEqual(own.writes(), [['logs','--tail','200','--follow']]);
   assert.equal(await main(['run-job','--','not a cron'], { out, err: out, io, run: own.run }), 1);
   assert.match(output, /one cron expression/u);
+});
+test('an app that does not become healthy is named, with its logs and the database state', async () => {
+  const inventory = rows().map(row => row.Service === 'noticeos' ? { ...row, Health: 'unhealthy' } : row);
+  let calls = 0;
+  const own = fixture({ inventory });
+  const run = async (command, args, options) => {
+    if (args.slice(9).join(' ') === 'start --wait --wait-timeout 90 noticeos') { calls++; return { code: 1, stdout: '', stderr: 'PRIVATE-SENTINEL' }; }
+    return own.run(command, args, options);
+  };
+  const behind = async () => ({ ok: false, line: 'it is 2 migrations behind this code; pnpm os:migrate -- --apply brings it up to date' });
+  await assert.rejects(stackControl('start', selector, { ...own, run, database: behind }), (error) => {
+    assert.match(error.message, /^noticeos \(running, unhealthy\) did not become healthy; nothing after it was started\. pnpm os:logs -- noticeos shows why\.\nThe database: it is 2 migrations behind/u);
+    assert.doesNotMatch(error.message, /PRIVATE-SENTINEL/u);
+    return true;
+  });
+  assert.equal(calls, 1);
+  await assert.rejects(stackControl('start', selector, { ...own, run, database: own.database }), (error) => !/The database/u.test(error.message));
 });

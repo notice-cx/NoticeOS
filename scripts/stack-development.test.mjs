@@ -35,9 +35,9 @@ test('dependency changes refuse, but script-only package edits do not require re
   const pkg=JSON.parse(fs.readFileSync(path.join(f.root,'package.json')));pkg.scripts={dev:'new script'};fs.writeFileSync(path.join(f.root,'package.json'),JSON.stringify(pkg));
   assert.ok(developmentDependencies({source:f.root,metadataFile:record}));
   pkg.dependencies.synthetic='2.0.0';fs.writeFileSync(path.join(f.root,'package.json'),JSON.stringify(pkg));
-  assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/Dependencies changed/);
+  assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/packages changed since this image was built; pnpm os:dev builds a matching one/);
   pkg.dependencies.synthetic='1.0.0';fs.writeFileSync(path.join(f.root,'package.json'),JSON.stringify(pkg));
-  fs.writeFileSync(path.join(f.root,'pnpm-lock.yaml'),'changed');assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/Dependencies changed/);
+  fs.writeFileSync(path.join(f.root,'pnpm-lock.yaml'),'changed');assert.throws(()=>developmentDependencies({source:f.root,metadataFile:record}),/packages changed since this image was built; pnpm os:dev builds a matching one/);
  }finally{f.close();}
 });
 test('generated Worker configs point to live code and follow atomic secret-file replacement by a link',()=>{
@@ -52,7 +52,7 @@ test('generated Worker configs point to live code and follow atomic secret-file 
   assert.equal(prepareDevelopmentWorkerConfigs({source:f.root,home}),root);
  }finally{f.close();}
 });
-function fixture({failure=false,drift=false,appDrift=false,probeFailure=false}={}) {
+function fixture({failure=false,drift=false,appDrift=false,probeFailure=false,stale=[],failUps=[]}={}) {
  const f=source();const local=path.join(f.root,'.local');fs.mkdirSync(local);
  const file=path.join(local,'stack.json');const base=path.join(local,'compose.json');const envFile=path.join(local,'env');fs.writeFileSync(base,'{}');fs.writeFileSync(envFile,'');
  const selector={project:'synthetic-dev',files:[base],envFile,dockerHost:'unix:///synthetic.sock'};fs.writeFileSync(file,JSON.stringify(selector));
@@ -69,7 +69,8 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false}={
  };
  const run=async(command,args,opts)=>{
   calls.push({command,args});assert.equal(command,'docker');assert.ok(opts.timeoutMs<=130000);
-  if(args[2]==='run') return {code:probeFailure?1:0,stdout:JSON.stringify({dependencies:dependencyDescription(f.root),freeBytes:1024**4}),stderr:'PRIVATE'};
+  if(args[2]==='run') return {code:probeFailure || stale.includes(args.at(-3))?1:0,stdout:JSON.stringify({dependencies:dependencyDescription(f.root),freeBytes:1024**4}),stderr:'PRIVATE'};
+  if(args[2]==='image') {assert.equal(args[3],'inspect');return {code:0,stdout:JSON.stringify([{Id:args[4],Os:'linux',Architecture:'arm64',Config:{Labels:{}}}])};}
   if(args[2]==='volume') {assert.equal(args[3],'ls');return {code:0,stdout:''};}
   if(args[2]==='inspect') return {code:0,stdout:JSON.stringify([...inventory.values()].filter(row=>row.Id===args[3]))};
   const start=args.indexOf('--env-file')+2;const step=args.slice(start);
@@ -77,13 +78,13 @@ function fixture({failure=false,drift=false,appDrift=false,probeFailure=false}={
   if(step[0]==='ps') return {code:0,stdout:JSON.stringify([...inventory].map(([Service,row])=>({Project:selector.project,Service,ID:row.Id,State:row.State.Status,Health:row.State.Health.Status})))};
   assert.deepEqual(step,['up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90','noticeos']);
   ups++;const app=model(args).services.noticeos;const row=inventory.get('noticeos');row.Id='e'.repeat(63)+String(ups);row.Image=app.image;
-  row.State={Status:'running',Health:{Status:'healthy'}};
+  row.State={Status:'running',Health:{Status:failUps.includes(ups)?'unhealthy':'healthy'}};
   row.Mounts=app.volumes.map(m=>({Type:m.type,Source:m.type==='volume'?'/synthetic/volumes/'+m.source:m.source,Destination:m.target,RW:m.read_only!==true,...(m.type==='volume'?{Name:m.source}:{})}));
   if(drift && ups===1) inventory.get('postgres').Id='f'.repeat(64);
   if(appDrift && ups===1) row.Image='sha256:'+'f'.repeat(64);
-  return {code:failure && ups===1?1:0,stdout:'',stderr:'PRIVATE'};
+  return {code:(failure && ups===1) || failUps.includes(ups)?1:0,stdout:'',stderr:'PRIVATE'};
  };
- return {...f,file,selector,run,calls,out:{write(){}},upCount:()=>ups,breakApp:()=>{inventory.get('noticeos').State.Health.Status='unhealthy';}};
+ return {...f,file,selector,run,calls,stale,out:{write(){}},upCount:()=>ups,breakApp:()=>{inventory.get('noticeos').State.Health.Status='unhealthy';}};
 }
 test('switch and disable touch only the app, preserving the original selector and state mounts',async()=>{
  const f=fixture();try {
@@ -103,8 +104,39 @@ test('failed health restores the prior app; unexpected sibling or app drift reta
   }finally{f.close();}
  }
 });
-test('dependency mismatch refuses before app activation',async()=>{
- const f=fixture({probeFailure:true});try {await assert.rejects(developStack({root:f.root,selectorFile:f.file,...f}),/lockfile/);assert.equal(f.upCount(),0);}finally{f.close();}
+const rebuilt='sha256:'+'c'.repeat(64);
+const builder=(builds,result={image:rebuilt,platform:'linux/arm64'})=>async(options)=>{builds.push(options.platform);if(result instanceof Error) throw result;return result;};
+test('a named image whose packages do not match refuses before app activation, and nothing is built',async()=>{
+ const f=fixture({probeFailure:true});const builds=[];
+ try {await assert.rejects(developStack({root:f.root,selectorFile:f.file,image:other,...f,build:builder(builds)}),/do not match this image/);assert.equal(f.upCount(),0);assert.deepEqual(builds,[]);}finally{f.close();}
+});
+test('when the checkout\'s packages changed, os:dev builds a matching image and runs the app on it',async()=>{
+ const f=fixture({stale:[image]});const builds=[];
+ try {
+  const result=await developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)});
+  assert.deepEqual(builds,['linux/arm64'],'built once, for the running image\'s platform');
+  assert.equal(result.mode,'development');assert.equal(result.image,rebuilt);assert.equal(f.upCount(),1);
+  assert.deepEqual(f.calls.filter(c=>c.args[2]==='run').map(c=>c.args.at(-3)),[image,rebuilt],'the new image is checked before the app moves');
+ }finally{f.close();}
+});
+test('an app already on live source moves to a rebuilt image without returning to the prepared one first',async()=>{
+ const f=fixture();const builds=[];
+ try {
+  await developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)});assert.deepEqual(builds,[]);
+  f.breakApp();
+  const pkg=JSON.parse(fs.readFileSync(path.join(f.root,'package.json')));pkg.dependencies.added='1.0.0';fs.writeFileSync(path.join(f.root,'package.json'),JSON.stringify(pkg));
+  f.stale.push(image);
+  const again=await developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)});
+  assert.equal(again.image,rebuilt);assert.deepEqual(builds,['linux/arm64']);assert.equal(f.upCount(),2);
+  const override=JSON.parse(fs.readFileSync(path.join(f.root,'.local/stack-development/source.json'),'utf8'));
+  assert.ok(Object.values(override.volumes).every(volume=>volume.labels['cx.noticeos.dependency-image']===rebuilt),'the old image\'s dependency volumes are no longer declared');
+  const back=await developStack({root:f.root,selectorFile:f.file,disable:true,...f});
+  assert.equal(back.image,image,'os:prod still returns to the prepared image from before development');
+ }finally{f.close();}
+});
+test('a failed build changes nothing',async()=>{
+ const f=fixture({stale:[image]});const builds=[];
+ try {await assert.rejects(developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds,new Error('Development image build failed. Existing services were untouched.'))}),/build failed/);assert.equal(f.upCount(),0);}finally{f.close();}
 });
 test('unrelated configuration changes are refused',()=>{
  const f=fixture();try {
@@ -119,3 +151,26 @@ test('unrelated configuration changes are refused',()=>{
  }finally{f.close();}
 });
 test('help does not touch a stack',async()=>{let output='';assert.equal(await main(['--help'],{out:{write:s=>output+=s}}),0);assert.match(output,/Usage/);});
+test('a rebuilt image that does not become healthy returns a healthy development app to its old image and override',async()=>{
+ const f=fixture({failUps:[2]});const builds=[];
+ try {
+  await developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)});
+  const overrideFile=path.join(f.root,'.local/stack-development/source.json');const original=fs.readFileSync(overrideFile,'utf8');
+  f.stale.push(image);
+  await assert.rejects(developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)}),/previous app is healthy again/);
+  assert.equal(f.upCount(),3);assert.equal(fs.readFileSync(overrideFile,'utf8'),original,'the old dependency image is declared again');
+  assert.equal(fs.existsSync(path.join(f.root,'.local/stack-deploy/lock')),false);
+ }finally{f.close();}
+});
+test('a broken development app is not restored to itself: it stays on the new image and the lock is released',async()=>{
+ const f=fixture({failUps:[2]});const builds=[];
+ try {
+  await developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)});f.breakApp();f.stale.push(image);
+  await assert.rejects(developStack({root:f.root,selectorFile:f.file,...f,build:builder(builds)}),/did not become healthy on the new image; pnpm os:logs -- noticeos shows why, and pnpm os:prod returns/);
+  assert.equal(f.upCount(),2,'no attempt to bring back the broken app');
+  const override=JSON.parse(fs.readFileSync(path.join(f.root,'.local/stack-development/source.json'),'utf8'));
+  assert.equal(override.services.noticeos.image,rebuilt);
+  assert.equal(fs.existsSync(path.join(f.root,'.local/stack-deploy/lock')),false);
+  const back=await developStack({root:f.root,selectorFile:f.file,disable:true,...f});assert.equal(back.image,image);
+ }finally{f.close();}
+});

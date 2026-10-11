@@ -214,3 +214,11 @@ test('uncertain or timed-out build retains its context and never changes service
     assert.ok(f.contexts.every(dir=>fs.existsSync(dir)));
   }
 });
+test('an update refused for an unhealthy service names it, its logs, and for the app the database state',async t=>{
+  const f=fixture(t);f.containers.noticeos.State={Status:'running',Health:{Status:'unhealthy'}};
+  f.control.database={ok:false,line:'it is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date'};
+  await assert.rejects(f.prepare(),/^Error: noticeos is running, unhealthy; an update needs every service running and healthy\. pnpm os:logs -- noticeos shows why\.\nThe database: it is 1 migration behind/);
+  assert.ok(!f.calls.some(call=>call[0]==='build'));assert.equal(f.writes().length,0);
+  f.containers.noticeos.State={Status:'running',Health:{Status:'healthy'}};f.containers.dolt.State={Status:'exited',Health:{Status:''}};
+  await assert.rejects(f.prepare(),(error)=>/^dolt is exited; an update needs/.test(error.message)&&!/The database/.test(error.message));
+});

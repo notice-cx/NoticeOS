@@ -28,6 +28,7 @@ const DIGEST = /^[a-f0-9]{64}$/u;
 export const REVISION_LABEL = 'org.opencontainers.image.revision';
 export const SCHEMA_LABEL = 'cx.noticeos.schema';
 const SOURCE_LABEL = 'cx.noticeos.source';
+const IMAGE_KIND_LABEL = 'cx.noticeos.image-kind';
 const GIB = 1024 ** 3;
 const SCHEMA_PATH = /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json)$/u;
 const ROLES_PATH = 'db/postgres/roles.sql';
@@ -107,7 +108,10 @@ async function snapshot(run, selector, env) {
     const rows = readJson(await call(run, selector, ['inspect',id], env, 'Container inspection'), 'Container inspection');
     if (!Array.isArray(rows) || rows.length !== 1) fail('Container inspection returned an ambiguous identity.');
     result[service] = metadata(rows[0], selector.project, service);
-    if (result[service].state !== 'running' || result[service].health !== 'healthy') fail('Every declared service must be running and healthy before deployment.');
+    if (result[service].state !== 'running' || result[service].health !== 'healthy') {
+      const health = result[service].health ? `, ${result[service].health}` : '';
+      throw Object.assign(new Error(`${service} is ${result[service].state}${health}; an update needs every service running and healthy. pnpm os:logs -- ${service} shows why.`), { service });
+    }
   }
   return result;
 }
@@ -207,12 +211,51 @@ export async function buildApplicationImage({ root = ROOT, dockerHost, platform,
   } finally { if (!retain) fs.rmSync(parent, { recursive: true, force: true }); }
 }
 
+/**
+ * An image for `pnpm os:dev` built from this checkout as it is, uncommitted
+ * edits included: in development the app runs the mounted checkout, so the
+ * image supplies only its Linux dependencies. It carries no source
+ * provenance and is never an `os:update` target.
+ */
+export async function buildDevelopmentImage({ root = ROOT, dockerHost, platform, run = runCommand,
+  env = process.env, out = process.stdout } = {}) {
+  const selector = validateSelector({ project: 'build', files: ['/unused/compose'], envFile: '/unused/env', dockerHost });
+  if (!['linux/arm64','linux/amd64'].includes(platform)) fail('Use an explicit supported Linux platform.');
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-dev-image-'));
+  let retain = false;
+  try {
+    const stats = fs.statfsSync(parent);
+    if (stats.bavail * stats.bsize < 12 * GIB) fail('Image preparation needs 4 GiB headroom while keeping 8 GiB free.');
+    out.write('Building the checkout\'s packages into a development image; this takes a few minutes.\n');
+    const context = prepareContainerContext({ root, destination: path.join(parent, 'context') });
+    const iid = path.join(parent, 'image.id');
+    let result;
+    try { result = await run('docker', ['--host',selector.dockerHost,'build','--platform',platform,
+      '--file',path.join(context.directory,'deploy/compose/Dockerfile'), '--iidfile',iid,
+      '--label',`${IMAGE_KIND_LABEL}=development-dependencies`, '--tag','noticeos-dev:latest',context.directory],
+    { env: ownEnv(env), timeoutMs: 600_000 }); }
+    catch { retain = true; fail(`Development image build did not terminate reliably. Existing services were untouched. Build context retained at ${parent}.`); }
+    retain = result.timedOut === true;
+    if (result.code !== 0) fail(`Development image build failed. Existing services were untouched.${retain ? ` Build context retained at ${parent}.` : ''}`);
+    const image = await imageMetadata(run, selector, regular(iid,256).toString().trim(), env);
+    return { image: image.id, platform: image.platform };
+  } finally { if (!retain) fs.rmSync(parent, { recursive: true, force: true }); }
+}
+
 /** Prepare a reviewable deployment without changing any service. */
 export async function prepareDeployment({ root = ROOT, selectorFile, baselineCommit = null, rollback = false, preparedImage = null,
   run = runCommand, env = process.env, out = process.stdout, database = stackDatabaseCurrent } = {}) {
   const selector = readSelector(selectorFile);
   const inputHashes = inputSeal(selectorFile, selector);
-  const before = await snapshot(run, selector, env);
+  let before;
+  try { before = await snapshot(run, selector, env); }
+  catch (error) {
+    // An app whose database lacks this code's migrations refuses to start.
+    if (error.service !== 'noticeos') throw error;
+    const current = await database(selector, { root }).catch(() => null);
+    if (current && !current.ok) error.message += `\nThe database: ${current.line}`;
+    throw error;
+  }
   const model = await composition(run, selector, env);
   if (model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development') fail('The app runs from live source. Run pnpm os:prod first, then update.');
   const old = await imageMetadata(run, selector, before.noticeos.image, env);
@@ -366,7 +409,7 @@ async function snapshotForRecovery(run,selector,env) {
   }
   return result;
 }
-export { snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
+export { imageMetadata as stackImageMetadata, snapshot as stackSnapshot, snapshotForRecovery as stackRecoverySnapshot,
   composition as stackComposition, compose as stackCompose, atomic as stackAtomic,
   inputSeal as stackInputSeal, sameInputs as stackSameInputs };
 const ask = async (question) => {

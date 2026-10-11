@@ -243,10 +243,12 @@ nothing. Existing state mounts keep archives and runner records in the
 installation; generated Worker configs link to its existing secret file.
 The command replaces only the app, preserves the stores,
 backups and their volumes, and applies no migration. Its dependency check has
-no network or installation mounts. A changed lockfile refuses startup rather
-than silently using mismatched dependencies. Prepare a matching dependency
-image with the image-only build above, return to the image, then select it
-with `pnpm os:dev -- --image sha256:ID`.
+no network or installation mounts. When the checkout's lockfile or package
+manifests no longer match the app's image (after a pull, say), the app refuses
+to start rather than run mismatched dependencies, and `pnpm os:logs -- noticeos`
+says so. Run `pnpm os:dev` again: it builds the checkout's packages into a new
+development image and moves the app onto it, uncommitted edits included.
+`pnpm os:dev -- --image sha256:ID` selects an image you built yourself.
 
 The whole checkout is mounted as a directory, so atomic editor saves and Git
 checkouts are observed too. Changes to Node runner code need

@@ -12,6 +12,10 @@ const MANIFESTS = ['package.json', ...DEPENDENCY_PATHS.slice(1).map(file=>file.r
 const DEPENDENCY_FIELDS = ['name','packageManager','dependencies','devDependencies','optionalDependencies','peerDependencies','pnpm'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 
+/** A refusal whose message names what to do. The container prints only these:
+ * any other error may quote a file it read, secrets included. */
+export class ContainerRefusal extends Error {}
+
 export function dependencyDescription(root, io = fs) {
   const read = file => {
     const full = path.join(root,file); const stat = io.lstatSync(full);
@@ -35,7 +39,7 @@ export function developmentDependencies({ fs: io = fs, source = '/source', image
     expected=JSON.parse(io.readFileSync(metadataFile,'utf8'));
   } else expected=dependencyDescription(image,io);
   if (expected.schema!=='noticeos-development-dependencies/1' || !isDeepStrictEqual(expected,dependencyDescription(source,io))) {
-    throw new Error('Dependencies changed; prepare a matching Linux image before restarting development.');
+    throw new ContainerRefusal('The checkout\'s packages changed since this image was built; pnpm os:dev builds a matching one.');
   }
   return expected;
 }
