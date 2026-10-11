@@ -45,7 +45,7 @@ claude mcp add --scope user noticeos -- ~/noticeos/noticeos mcp --actor claude  
 | Tools | What they do |
 | --- | --- |
 | `list_workspaces`, `list_projects` | Name the installation's one workspace and its linked task projects |
-| `list_tasks`, `get_task`, `get_task_history` | Read tasks; `ready: true` lists only work nothing blocks |
+| `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` answers summaries, most urgent first, 50 at a time (`limit`, and `offset` from the answer's `nextOffset`); `ready: true` keeps only work nothing blocks. `get_task` reads one in full |
 | `create_task`, `update_task` | File and change tasks. Each answer lists what the task still lacks, such as acceptance criteria; nothing is refused for it |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence |
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes |
