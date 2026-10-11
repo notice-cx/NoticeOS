@@ -10,6 +10,13 @@ services:
     stop_grace_period: 15s
     environment:
       TOWER_ALLOWED_HOSTS: ${TOWER_ALLOWED_HOSTS:-}
+      # The installation as this host sees it, for the Tower's Settings > Installation.
+      NOTICEOS_HOST_FOLDER: ${NOTICEOS_INSTALLATION:-}
+      NOTICEOS_HOST_TOWER_ADDRESS: ${NOTICEOS_TOWER_BIND:-127.0.0.1}
+      NOTICEOS_HOST_TOWER_PORT: ${NOTICEOS_TOWER_PORT:?Choose a Tower port}
+      NOTICEOS_HOST_POSTGRES_PORT: ${NOTICEOS_POSTGRES_PORT:-5432}
+      NOTICEOS_HOST_TASK_PORT: ${NOTICEOS_DOLT_PORT:-}
+      NOTICEOS_HOST_LAUNCHER: ${NOTICEOS_COMMANDS:-}
     ports:
       # Loopback unless the installation chooses its network (NOTICEOS_TOWER_BIND).
       - "${NOTICEOS_TOWER_BIND:-127.0.0.1}:${NOTICEOS_TOWER_PORT:?Choose a Tower port}:5173"

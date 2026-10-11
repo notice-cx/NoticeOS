@@ -5,6 +5,7 @@ import {
   Check,
   CircleDashed,
   Globe,
+  HardDrive,
   Landmark,
   LayoutDashboard,
   ListChecks,
@@ -36,12 +37,16 @@ import type {
 } from "@shared/settings";
 import { localTimezone, settingsCollections } from "@shared/scheduled-jobs";
 import { driftingTaskDatabases, taskServerFailure } from "@shared/task-map";
+import { installationCommand, updateState, type InstallationFacts } from "@shared/installation";
 import type { AssetCard } from "@shared/wall";
 import { CollectionEditor, type DerivedColumn } from "@/components/CollectionEditor";
 import { CountdownEditor, CountdownWidget } from "@/components/DashboardWidgets";
 import { KnobEditor, type KnobControl } from "@/components/KnobEditor";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { KnobRow } from "@/components/KnobRow";
+import { AgeBadge } from "@/components/AgeBadge";
+import { CopyCommand } from "@/components/CopyCommand";
+import { OwnerChip } from "@/components/OwnerChip";
 import { Meter } from "@/components/Meter";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
@@ -60,6 +65,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { pillClass, pillControlClass, pillPickerStateClass } from "@/components/ui/pill";
 import { useAlertRuleStats } from "@/hooks/useAlertRuleStats";
+import { useInstallation } from "@/hooks/useInstallation";
 import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useNow } from "@/hooks/useNow";
@@ -93,13 +99,15 @@ import {
 export function SettingsRoute() {
   const { runtime, workspaceRole } = useBrowserContext();
   const managesMembers = runtime.owner.mode === 'hosted' && workspaceRole === 'owner';
+  // Only a standalone installation has a folder, ports and versions of its own to show.
+  const showsInstallation = runtime.owner.mode === 'standalone';
   const { data, isError, error, isFetching, refetch } = useSettings();
   // The countdown counts down in minutes; a slower clock would leave a stale
   // figure sitting under the editor that changes it.
   const now = useNow(1_000);
   const { hash } = useLocation();
   const requestedSection = sectionOf(hash);
-  const section = requestedSection === 'members' && !managesMembers ? 'general' : requestedSection;
+  const section = (requestedSection === 'members' && !managesMembers) || (requestedSection === 'installation' && !showsInstallation) ? 'general' : requestedSection;
   // Aliases: schedules are rows of Data collection, and the data-source
   // catalog ships with the product rather than being a setting.
   if (hash === '#scheduled-jobs') return <Navigate to="/settings#data-collection" replace />;
@@ -113,7 +121,7 @@ export function SettingsRoute() {
       <SavesPaused />
 
       {section === 'members' && managesMembers ? <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-        <SettingsSectionNav section={section} managesMembers={managesMembers} /><MembersSection />
+        <SettingsSectionNav section={section} managesMembers={managesMembers} showsInstallation={showsInstallation} /><MembersSection />
       </div> : !data ? (
         // A failed first read is the desk's one failure state, never a sentence
         // of this page's own.
@@ -124,7 +132,7 @@ export function SettingsRoute() {
         )
       ) : (
         <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-          <SettingsSectionNav section={section} managesMembers={managesMembers} />
+          <SettingsSectionNav section={section} managesMembers={managesMembers} showsInstallation={showsInstallation} />
           <div className="flex min-w-0 flex-col gap-4">
             {section === "general" && <GeneralSection settings={data} nowMs={now} anchor={hash.slice(1)} />}
             {section === "tv-dashboard" && (
@@ -138,6 +146,7 @@ export function SettingsRoute() {
             {section === "data-collection" && <CollectionSection settings={data} />}
             {section === "entities" && <EntitiesSection settings={data} />}
             {section === "task-hub" && <TaskHubSection settings={data} />}
+            {section === "installation" && showsInstallation && <InstallationSection />}
           </div>
         </div>
       )}
@@ -155,6 +164,7 @@ const SECTIONS = [
   { id: "tv-dashboard", label: "TV dashboard", icon: Tv },
   { id: "entities", label: "Ownership", icon: Landmark },
   { id: "task-hub", label: "Task projects", icon: Boxes },
+  { id: "installation", label: "Installation", icon: HardDrive },
   { id: "members", label: "Members", icon: Users },
 ] as const;
 
@@ -176,9 +186,11 @@ function sectionOf(hash: string): string {
 function SettingsSectionNav({
   section,
   managesMembers,
+  showsInstallation,
 }: {
   section: string;
   managesMembers: boolean;
+  showsInstallation: boolean;
   /** Task projects is listed only once it concerns this installation. */
 }) {
   return (
@@ -186,7 +198,7 @@ function SettingsSectionNav({
       aria-label="Settings sections"
       className="mb-4 flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:mb-0 lg:flex-col"
     >
-      {SECTIONS.filter(item => item.id !== 'members' || managesMembers).map(({ id, label, icon: Icon }) => (
+      {SECTIONS.filter(item => (item.id !== 'members' || managesMembers) && (item.id !== 'installation' || showsInstallation)).map(({ id, label, icon: Icon }) => (
         <Link
           key={id}
           to={`#${id}`}
@@ -1209,6 +1221,98 @@ function AssetLinks({ ids }: { ids: string[] }) {
  * agree. A missing database is read from `/api/work`, never probed, so a down
  * store cannot blank this page; `shared/task-map.ts` owns the join.
  */
+/** A path or command the row cannot shorten: it wraps within this width rather than squeezing the row's label. */
+const LONG_VALUE = "block max-w-md";
+
+/** Who can reach the Tower at the address it listens on. */
+function towerReach(address: string): string {
+  if (address === "127.0.0.1") return "This machine only.";
+  if (address === "0.0.0.0") return "Every device on your network.";
+  return `Devices that reach ${address}.`;
+}
+
+/** Whether a newer version is published, and the command that moves to it. */
+function UpdateValue({ facts }: { facts: InstallationFacts }) {
+  const state = updateState(facts);
+  if (state === "available") {
+    return (
+      <span className="flex flex-col items-end gap-1.5">
+        <StateChip tone="caution" label="Newer version published" subject="installation:update" />
+        <span className={LONG_VALUE}><CopyCommand command={installationCommand(facts, "update")} mark={{ "data-installation-command": "update" }} /></span>
+      </span>
+    );
+  }
+  if (state === "current") return <StateChip tone="connected" label="Current" subject="installation:update" />;
+  return <StateChip tone="na" label={state === "live" ? "Live source" : "Unknown"} subject="installation:update" />;
+}
+
+/**
+ * Where this installation lives and what it runs, as its host sees it. It is
+ * read-only: installation.env and the commands change it, and every row a
+ * command changes says which.
+ */
+function InstallationSection() {
+  const { data: facts, isError, error, isFetching, refetch } = useInstallation();
+  const { data: wall } = useWall();
+  const nowMs = useNow(60_000);
+  if (!facts) {
+    return (
+      <Section id="installation" title="Installation">
+        {isError ? (
+          <ReadFailed title="Couldn't read the installation" subject="read:installation" error={error} retrying={isFetching} onRetry={() => void refetch()} />
+        ) : (
+          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
+        )}
+      </Section>
+    );
+  }
+  const backup = wall?.system.scheduledLanes.find((lane) => lane.job === "backup") ?? null;
+  const update = updateState(facts);
+  return (
+    <Section id="installation" title="Installation">
+      <KnobRow
+        label="Folder"
+        value={<span className={LONG_VALUE}>{facts.folder ? <OwnerChip path={facts.folder} /> : <CopyCommand command={installationCommand(facts, "apply")} mark={{ "data-installation-command": "apply" }} />}</span>}
+        explain={facts.folder ? "Holds installation.env and everything this installation keeps." : "Apply the current settings to show the folder and ports here."}
+      />
+      {facts.tower ? (
+        <KnobRow label="Tower" value={<span className="font-mono text-sm tabular-nums">{facts.tower.address}:{facts.tower.port}</span>} explain={towerReach(facts.tower.address)} />
+      ) : null}
+      {facts.postgresPort !== null || facts.taskPort !== null ? (
+        <KnobRow
+          label="Databases"
+          value={<span className="text-sm tabular-nums">{[facts.postgresPort !== null ? `Postgres ${facts.postgresPort}` : null, facts.taskPort !== null ? `Tasks ${facts.taskPort}` : null].filter(Boolean).join(" · ")}</span>}
+          explain="Open to tools on this machine."
+        />
+      ) : null}
+      <KnobRow
+        label="Version"
+        value={facts.commit ? <code className="font-mono text-xs">{facts.commit.slice(0, 12)}</code> : <span className="text-sm text-muted-foreground">Unknown</span>}
+        explain={facts.live ? "Live source from a checkout; git updates it." : undefined}
+      />
+      <KnobRow
+        label="Updates"
+        value={<UpdateValue facts={facts} />}
+        explain={update === "available" && !facts.launcher ? "Pull main in the checkout first." : update === "unknown" ? "The image registry did not say." : undefined}
+      />
+      <KnobRow
+        label="Last backup"
+        value={
+          <span className="flex items-center gap-2">
+            {backup?.outcome === "failed" ? <StateChip tone="critical" label="Failed" subject="installation:backup" /> : null}
+            <AgeBadge iso={backup?.startedAt ?? null} cadenceHours={24} nowMs={nowMs} />
+          </span>
+        }
+      />
+      <KnobRow
+        label="Commands"
+        value={<span className={LONG_VALUE}><CopyCommand command={installationCommand(facts, "status")} mark={{ "data-installation-command": "status" }} /></span>}
+        explain="Status, logs, apply and update run in a terminal on this machine."
+      />
+    </Section>
+  );
+}
+
 function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const { taskHub } = settings;
   const { data: matrix } = useIntegrations();

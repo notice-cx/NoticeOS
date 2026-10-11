@@ -181,7 +181,10 @@ export function compareStacks(before, after, { copies, fresh = [], dir, hash = s
     if (!old || !next) { changes.push(`${name}: ${old ? 'not in the new stack' : 'added'}`); continue; }
     for (const key of ['image', 'user', 'command', 'entrypoint', 'healthcheck', 'environment', 'read_only', 'cap_add', 'cap_drop', 'security_opt', 'tmpfs', 'shm_size', 'stop_grace_period', 'init', 'restart']) {
       if (key === 'image') continue;
-      if (json(old[key] ?? null) !== json(next[key] ?? null)) changes.push(`${name}: ${key} changes`);
+      // The host's facts the layout tells the app (compose.yaml) describe it; they change nothing it does.
+      const own = (service) => key === 'environment' && service.environment
+        ? Object.fromEntries(Object.entries(service.environment).filter(([variable]) => !variable.startsWith('NOTICEOS_HOST_'))) : service[key];
+      if (json(own(old) ?? null) !== json(own(next) ?? null)) changes.push(`${name}: ${key} changes`);
     }
     const ports = (service) => json((service.ports ?? []).map((row) => [row.host_ip ?? '0.0.0.0', String(row.published), Number(row.target)]).sort());
     if (ports(old) !== ports(next)) changes.push(`${name}: published ports change`);

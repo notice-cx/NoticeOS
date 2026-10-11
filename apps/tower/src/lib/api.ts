@@ -10,6 +10,7 @@ import {
   type AlertHistoryQuery,
   alertHistoryQueryString,
 } from "@shared/alert-history";
+import type { InstallationFacts } from '@shared/installation';
 import type { AlertRuleStatsPayload } from "@shared/alert-rules";
 import type {
   AssetStatusValue,
@@ -1540,6 +1541,11 @@ async function fetchWorkflowsRequest(fetch: ApiTransport, runId?: string, signal
   if (!response.ok) throw new ApiError(`GET /api/workflows failed: ${response.status}`, response.status);
   return response.json() as Promise<WorkflowsPayload>;
 }
+async function fetchInstallationRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<InstallationFacts> {
+  const response = await fetch('/api/installation', { signal });
+  if (!response.ok) throw new ApiError(`GET /api/installation failed: ${response.status}`, response.status);
+  return response.json() as Promise<InstallationFacts>;
+}
 async function fetchDemoPresentationRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<DemoPresentation> {
   const response = await fetch(DEMO_PRESENTATION_PATH, { signal });
   if (!response.ok) throw new ApiError('Demo generation unavailable.', response.status);
@@ -1587,6 +1593,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     syncMediavine: bind(syncMediavineRequest),
     saveMediavineSettings: bind(saveMediavineSettingsRequest),
     fetchWorkflows: bind(fetchWorkflowsRequest),
+    fetchInstallation: bind(fetchInstallationRequest),
     fetchWall: bind(fetchWallRequest),
     fetchWallFeed: bind(fetchWallFeedRequest),
     fetchIntegrationHealth: bind(fetchIntegrationHealthRequest),
@@ -1656,6 +1663,7 @@ export const {
   syncMediavine,
   saveMediavineSettings,
   fetchWorkflows,
+  fetchInstallation,
   fetchWall,
   fetchWallFeed,
   fetchIntegrationHealth,

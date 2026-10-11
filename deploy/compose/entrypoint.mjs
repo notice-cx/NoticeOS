@@ -6,6 +6,10 @@ import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
 import { probeTcp } from '../../scripts/runner/host-tools.mjs';
 import { ContainerRefusal, developmentDependencies } from './development.mjs';
 
+/** The installation as the host sees it (compose.yaml), shown read-only on the Tower's Settings > Installation. */
+export const HOST_FACTS = ['NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_TOWER_ADDRESS', 'NOTICEOS_HOST_TOWER_PORT',
+  'NOTICEOS_HOST_POSTGRES_PORT', 'NOTICEOS_HOST_TASK_PORT', 'NOTICEOS_HOST_LAUNCHER'];
+
 export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient, checkDependencies = developmentDependencies } = {}) {
   const mode = env.NOTICEOS_CONTAINER_MODE ?? 'prepared';
   if (!['prepared', 'development'].includes(mode)) throw new ContainerRefusal('Choose prepared or development container mode.');
@@ -28,7 +32,7 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
   if (typeof bindings.CREDENTIALS_KEY !== 'string' || !bindings.CREDENTIALS_KEY.trim() ||
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new ContainerRefusal('The prepared bootstrap credentials are incomplete.');
   const selected = {};
-  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS']) if (env[key] !== undefined) selected[key] = env[key];
+  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS', ...HOST_FACTS]) if (env[key] !== undefined) selected[key] = env[key];
   // The standalone runtime serves through Vite; its React transforms need development mode.
   return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'development',
     // Docker forwards published ports to the container interface, not its loopback.
