@@ -11,16 +11,40 @@ commands [run the stack](#run-the-stack).
 The app starts an **already prepared installation**. It never initializes or
 migrates either database.
 
-The image pins Node 24.21.0 to the official multiarchitecture image digest,
-pnpm 12.8.1, Beads 1.3.1 to the official release archive checksums, and
-PostgreSQL client 18.6 to the official PGDG package. The Dockerfile accepts
-Linux arm64 and amd64. A successful build is not platform qualification.
-Sources: [Node image](https://github.com/nodejs/docker-node),
-[pnpm release](https://github.com/pnpm/pnpm/releases/tag/v12.8.1),
-[Beads release](https://github.com/gastownhall/beads/releases/tag/v1.3.1),
-[PostgreSQL Debian packages](https://www.postgresql.org/download/linux/debian/).
+One definition, [`stack.yaml`](stack.yaml), runs every installation. It
+includes each service's own file (Postgres and Dolt beside their scripts, the
+app in [`compose.yaml`](compose.yaml)) with the small joins in
+[`stack/`](stack): one network the project creates, and data volumes it only
+names. [`backup.compose.yaml`](backup.compose.yaml) is layered on top when the
+installation has a backup worker. The installation folder's `installation.env`
+supplies every value ([`scripts/installation-layout.mjs`](../../scripts/installation-layout.mjs)
+writes it), so an installation never writes a Compose file:
 
-Create the build context with the repository's explicit public source allowlist:
+```sh
+pnpm os:setup     # a new installation in ~/noticeos (-- --dir <folder>), started
+pnpm os:adopt     # the installation .local/stack.json selects, moved into the layout after you confirm
+```
+
+`os:setup` needs only Docker, Node and pnpm: it builds `main` into the image,
+writes the folder and new secrets, creates the two data volumes, starts the
+databases, and runs the steps that need psql and Beads inside a one-off app
+container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
+database it proves empty, the NoticeOS asset and its task project). It then
+starts the app and the backup worker, loads the default settings
+(`entrypoint.mjs seed-settings`) and writes `.local/stack.json`. It refuses any
+existing folder content, project container, volume or network before making
+anything.
+
+`os:adopt` reads the running stack as Compose resolves it and plans the same
+stack from the layout: the same project, image, ports, data volumes, secrets and
+folders. It prints every remaining difference, and applies only after you type
+`adopt`: it stops the stack, copies the installation's own folders (state, both
+secrets folders, the backup worker's declaration) with their modes, checks every
+copied secret, starts from the new folder, and rewrites `.local/stack.json` only
+once that is healthy. A failed start returns the old stack; `-- --undo` does so
+later. Old files are never changed.
+
+To build an image by hand, create the build context with the repository's explicit public source allowlist:
 
 ```sh
 node scripts/container-context.mjs --destination /absolute/new/context
@@ -36,16 +60,16 @@ never the checkout:
 docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/Dockerfile --tag noticeos-local:compose-proof-review /absolute/new/context
 ```
 
-The Compose service requires these host declarations:
+`installation.env` sets these for the app service, among the rest of the layout:
 
 | Variable | Value |
 |---|---|
-| `NOTICEOS_APP_IMAGE` | Explicit local image tag or immutable image reference |
-| `NOTICEOS_STATE_DIR` | Absolute, prepared installation directory |
-| `NOTICEOS_SPOKES_DIR` | Absolute directory containing the linked task repositories |
-| `NOTICEOS_NETWORK` | Existing network shared by this installation's Postgres and Dolt |
-| `NOTICEOS_TOWER_PORT` | Unoccupied host port; binding is always `127.0.0.1` |
-| `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the private mounted files; default `1000:1000` |
+| `NOTICEOS_APP_IMAGE` | The local image ID setup or `os:adopt` recorded; `os:update` pins later ones |
+| `NOTICEOS_STATE_DIR` | The installation folder's `state/` |
+| `NOTICEOS_SPOKES_DIR` | The folder holding the linked task repositories; `spokes/` unless the installation keeps them elsewhere |
+| `NOTICEOS_NETWORK` | The installation network, `<project>_installation`, which the project creates |
+| `NOTICEOS_TOWER_PORT` | The Tower's host port; binding is always `127.0.0.1` |
+| `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the private mounted files: the account that ran setup |
 | `TOWER_ALLOWED_HOSTS` | Additional hostnames for Tower, separated by commas or spaces |
 
 The state mount appears at `/state`. Settings exports and host task links live
@@ -77,7 +101,7 @@ address must name `postgres:5432`. Existing linked spokes must declare their
 own database on that prepared hub. Product settings and provider credentials
 continue to be connected through the Tower.
 
-Postgres and Dolt are separately managed durable services. Only Tower port
+Postgres and Dolt are separately managed durable services. Of the app's ports, only Tower port
 5173 is published, through the declared loopback host binding. The ingest
 door stays on loopback inside the application container. The app has a read
 only image. Tower listens on the container interface so Docker can forward
@@ -95,23 +119,13 @@ health also reports its availability and fails when a configured worker is unava
 
 ## Run the stack
 
-Every `pnpm os:*` command acts on the stack declared in the ignored
-`.local/stack.json`, run from the source checkout:
-
-```json
-{
-  "project": "your-project",
-  "files": ["/absolute/installation/compose.yaml"],
-  "envFile": "/absolute/installation/compose.env",
-  "dockerHost": "unix:///absolute/docker.sock"
-}
-```
-
-Include every Compose file the installation uses, in its original order.
-`-- --config /absolute/stack.json` names another selector. The stack must
-already have `noticeos`, `postgres` and `dolt` containers; `backup` is
-supported when present. Unexpected services or replaced containers refuse
-further operations.
+Every `pnpm os:*` command acts on the stack the ignored `.local/stack.json`
+selects; `os:setup` and `os:adopt` write it, naming the Compose project,
+`stack.yaml` (and the backup layer), the installation's `installation.env` and
+the local Docker socket. `-- --config /absolute/stack.json` names another
+installation's selector. The stack must already have `noticeos`, `postgres`
+and `dolt` containers; `backup` is supported when present. Unexpected services
+or replaced containers refuse further operations.
 
 ```sh
 pnpm os:status       # each service's state and health, the database's migrations, the app's commit, whether main is ahead

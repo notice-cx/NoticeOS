@@ -84,7 +84,3 @@ volumes:
   dolt-backup-source:
     external: true
     name: ${NOTICEOS_DOLT_BACKUP_VOLUME:?Declare the exact existing task data volume}
-networks:
-  installation:
-    external: true
-    name: ${NOTICEOS_NETWORK:?Name the explicit installation network}

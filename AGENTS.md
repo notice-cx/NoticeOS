@@ -125,10 +125,11 @@ asset execution requires a one-action kill switch and a proven drill before
 enablement (doc 06); agent execution is manual in this release and its pause
 check is shown as unavailable.
 
-**Fresh-install exception.** `pnpm start` may apply the committed frozen
+**Fresh-install exception.** `pnpm os:setup` may apply the committed frozen
 Postgres schema and bootstrap one workspace, only for a provably new, empty
-installation in its own isolated Compose project. Existing installations, the
-Docker stack, live data and production stay operator-only.
+installation: a new folder, a Compose project with no containers, and data
+volumes it creates itself. Existing installations, live data and production
+stay operator-only.
 
 **Hosted tenancy.** Local implementation and disposable synthetic tests of
 hosted authentication, tenant isolation and the public demo are authorised
@@ -190,7 +191,10 @@ follow a mounted checkout, recorded in `.local/stack-development/authorization.j
 NoticeOS runs as one Docker Compose stack of the app (`noticeos`: Tower,
 ingest and the runner), `postgres`, `dolt` and an optional `backup` worker. The
 ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
-that stack ([Docker guide](deploy/compose/README.md)). A development stack's
+that stack ([Docker guide](deploy/compose/README.md)). Every installation runs
+from the one definition `deploy/compose/stack.yaml` and its folder's
+`installation.env`; `pnpm os:setup` makes one and `pnpm os:adopt` moves an
+existing one in, and nobody writes a Compose file. A development stack's
 app runs this checkout's live source; a production stack's app runs a
 prepared image. Do not guess from a port, inspect containers by hand or read
 `.local/` by hand:
@@ -219,13 +223,15 @@ names `pnpm os:migrate` when main carries one the database lacks. Applying a
 migration is operator-only: `pnpm os:status` → a backup you can restore
 (`pnpm os:backup`) → `pnpm os:migrate` → `pnpm os:migrate -- --apply` →
 `pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
-`os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate` and `os:rollback` are
-operator-directed. An agent's verbs are `os:status`, `os:logs` and
+`os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback` and
+`os:adopt` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
 `os:restart` and, after a verified merge, `os:update`; never `os:migrate`.
 
-`pnpm start` is not the live OS: it runs a separate new installation out of
-`.local/start/` on :4747 for a fresh clone; an agent runs it only with a
-throwaway `--dir` and its own `--port`.
+`pnpm os:setup` on a machine that already runs an installation refuses on its
+selector; an agent runs it only with a throwaway `--dir`, `--project` and
+`--config`, and removes what it made. `pnpm db:try-tower` is not an
+installation: the Tower on a throwaway development database, for screens with
+invented data.
 
 ## Open work lives in the task hub
 
@@ -271,8 +277,9 @@ branch someone else has.
 - CI: the six jobs above; PostgreSQL 18 server binaries and
   `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory; PostgreSQL 17
   binaries back the cross-major restore fixture.
-- Installation paths: standalone source setup provisions isolated Postgres and
-  Dolt stores; the application container consumes an existing installation; the
+- Installation paths: `pnpm os:setup` provisions a new installation as the
+  Compose stack in its own folder; `pnpm os:adopt` moves an existing Compose
+  installation into that layout; the application container consumes either; the
   [demo profile](deploy/demo/README.md) packages compiled code and synthetic
   stores behind an HTTPS proxy. Customer hosting is outside that preview; see
   the [release policy](docs/reference/release-policy.md).

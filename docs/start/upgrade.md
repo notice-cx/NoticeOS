@@ -64,7 +64,7 @@ Database migrations are **your step, every time**, and they come before the app 
 The app keeps running while you migrate: migrations are additive unless the release's own instructions say otherwise. The apply prints its plan first, asks you to type the database's name, runs in one transaction with a lock, and applies only migrations whose hashes the release froze. A changed or out-of-order migration stops it.
 
 ::: warning Never adopt an existing database through fresh setup
-Do not point `pnpm start` at an existing database to "migrate" it, and never edit a migration that has been applied. Those paths are refused by design.
+`pnpm os:setup` refuses any existing folder, project or volume, so it cannot "migrate" an installation; never edit a migration that has been applied either. Those paths are refused by design.
 :::
 
 ## Upgrade the app
@@ -78,13 +78,6 @@ Do not point `pnpm start` at an existing database to "migrate" it, and never edi
 2. Review the printed plan, then type `update` to apply it.
 
 The update builds `main` into an image while everything keeps running, then replaces only the app container and waits up to 90 seconds for health. If health does not return, it puts the previous image back by itself. It stops, changing nothing, when `main` carries a migration the database has not applied; run Apply database changes first. Without a terminal it prints `pnpm os:update -- --apply <plan>` for you to run later.
-
-### An installation started with `pnpm start`
-
-1. Pull the new code and run `pnpm install --frozen-lockfile`.
-2. Run `pnpm start` again.
-
-If the database is behind the new code, the start stops in one sentence naming the migration command. Nothing is migrated automatically.
 
 ## Roll back
 

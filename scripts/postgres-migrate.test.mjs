@@ -242,7 +242,9 @@ const FIRST_START = 'scripts/start-postgres.mjs';
 const DEVELOPMENT_START = 'scripts/start-development.mjs';
 const HOSTED_DEMO_SETUP = new Set(['scripts/hosted-demo-setup.mts', 'scripts/hosted-demo-setup.mjs']);
 const COMMAND_USERS = new Set([ENGINE, FIRST_START, DEVELOPMENT_START]);
-const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START]);
+/** pnpm os:setup and its one-off container step: a provably new, empty installation. */
+const SETUP = ['scripts/os-setup.mjs', 'scripts/os-setup-container.mjs'];
+const FRESH_USERS = new Set(['scripts/start.mjs', 'scripts/demo-seed.mjs', FIRST_START, DEVELOPMENT_START, ...SETUP]);
 
 /**
  * Everything under `root` (a checkout's layout) that could let a runtime,

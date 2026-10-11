@@ -1,0 +1,4 @@
+# The project creates the installation's network itself.
+networks:
+  installation:
+    external: false

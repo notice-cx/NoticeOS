@@ -1,0 +1,12 @@
+# Dolt on the installation's network; its data volume is external, as
+# Postgres's is.
+services:
+  dolt:
+    networks: [installation]
+volumes:
+  dolt-data:
+    external: true
+    name: ${NOTICEOS_DOLT_VOLUME:?Name the task data volume}
+networks:
+  installation:
+    name: ${NOTICEOS_NETWORK:?Name the installation network}

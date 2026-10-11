@@ -1,0 +1,13 @@
+# Postgres on the installation's network. Its data volume is created once by
+# os:setup and only ever named here, so no Compose command can remove or
+# recreate it.
+services:
+  postgres:
+    networks: [installation]
+volumes:
+  postgres-data:
+    external: true
+    name: ${NOTICEOS_POSTGRES_VOLUME:?Name the Postgres data volume}
+networks:
+  installation:
+    name: ${NOTICEOS_NETWORK:?Name the installation network}
