@@ -26,9 +26,26 @@ See traffic, revenue, costs, alerts and work together—on your laptop, phone or
 The **Tower** is the web app. **Wall** is its at-a-glance TV view.
 Missing data stays unknown; it is never silently turned into zero.
 
+## Install with Docker
+
+With only Docker on the machine (Docker Desktop or Docker Engine, on
+linux/amd64 or linux/arm64), one line sets up a new installation:
+
+```sh
+docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
+```
+
+Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup makes the
+installation folder `~/noticeos` with its own secrets and starts Postgres, the
+Dolt task hub, the app and its backup worker as one Docker Compose stack, from
+main's newest published image. The folder's launcher runs its commands:
+`~/noticeos/noticeos status`, `logs`, `apply`, `update`.
+[Install with Docker](docs/start/install-with-docker.md) covers the options,
+the commands and updates.
+
 ## Run from source
 
-For a new installation, the machine needs:
+To work on NoticeOS or build its image yourself, the machine needs:
 
 | Requirement | Version or setup |
 | --- | --- |
@@ -84,8 +101,8 @@ they are not available yet.
 
 | Installation | Use it for |
 | --- | --- |
-| [Standalone](#run-from-source) | Your own assets, on a trusted network |
-| [Docker stack](deploy/compose/README.md) | A prepared installation that runs on its own, from an image or a checkout's live source, controlled with `pnpm os:*` |
+| [Standalone](#install-with-docker) | Your own assets, on a trusted network |
+| [Docker stack](deploy/compose/README.md) | A prepared installation that runs on its own, from an image or a checkout's live source, controlled with `pnpm os:*` or its folder's `noticeos` launcher |
 | [Docker demo preview](deploy/demo/README.md) | A shared, read-only demo with synthetic assets and ongoing simulated activity |
 
 Standalone has no user login: anyone who can reach it can operate it. Keep it

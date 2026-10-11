@@ -1,6 +1,6 @@
 ---
 title: "Daily operations"
-description: "Check, read, restart and update a running NoticeOS installation with the repository's own commands."
+description: "Check, read, restart and update a running NoticeOS installation with its own commands, from a checkout or through its folder's launcher."
 ---
 
 # Daily operations
@@ -22,9 +22,19 @@ pnpm os:apply                  # apply your edits to installation.env, after you
 pnpm os:update                 # move the app to main after a verified merge
 ```
 
+An installation [set up with Docker alone](/start/install-with-docker) has no checkout. Run the same commands through its folder's launcher, with the same options and no `--`:
+
+```sh
+~/noticeos/noticeos status
+~/noticeos/noticeos logs --lines 200
+~/noticeos/noticeos restart
+~/noticeos/noticeos apply
+~/noticeos/noticeos update
+```
+
 `os:logs` shows 200 lines unless you pass `-- --lines N`. `os:restart` stops at the first step whose health does not return. `os:apply` recreates only the services your edit changes; see [Change a setting](/start/run-with-docker#change-a-setting).
 
-`pnpm os:stop` and `pnpm os:start` take the whole stack down and bring it back: the app first on the way down, the databases first on the way up. Use them deliberately; the daily commands are the ones in the block. The [command reference](/reference/commands) lists every command.
+`pnpm os:stop` and `pnpm os:start` take the whole stack down and bring it back: the app first on the way down, the databases first on the way up. Use them deliberately; the daily commands are the ones above. The [command reference](/reference/commands) lists every command.
 
 ## What status tells you
 
@@ -35,16 +45,18 @@ pnpm os:update                 # move the app to main after a verified merge
 | `noticeos: running, healthy` | The scheduler is running with a fresh heartbeat, the Tower and the data receiver answer, and a configured backup worker answers. |
 | `noticeos: running, starting` | The app is still starting or the scheduler is still arming. |
 | `noticeos: running, unhealthy` | One of those checks failed. Read the logs. |
-| `database:` | Whether the database has every migration this checkout carries. If not, it says what to do. |
+| `database:` | `has every migration this code carries`, or how many migrations it is behind and what to do. |
 | `settings:` | Shown only when a service does not run as `installation.env` declares. `pnpm os:apply` shows the change. |
-| `app source:` and `main:` | The commit the app runs and the commit `main` is on. |
-| `update:` | `current`, `main differs; pnpm os:update moves the app to it`, or `unknown`. |
+| `app source:` and `main:` | The commit the app runs and the commit `main` is on. Without a checkout, `main:` is the newest published commit, read from the image registry. |
+| `update:` | `current`, `main differs; pnpm os:update moves the app to it`, or `unknown`. Without a checkout, the launcher's `update` is named. |
 
 An answering port is never good enough. For what to do about anything other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
 
 ## Development and production
 
 In production the app runs a prepared image, so merging code never changes what runs. `pnpm os:update` fetches the image CI published for `main`, or builds it here when none is published yet, shows the plan and applies it after you type `update`. `pnpm os:rollback` goes back to the previous image.
+
+Without a checkout, `~/noticeos/noticeos update` moves the installation to main's newest published version, and `rollback` returns to the one before. See [Install with Docker](/start/install-with-docker#update-and-roll-back).
 
 On a development stack, `pnpm os:dev` runs the app from this checkout's live source, so edits appear at once. `pnpm os:prod` returns it to the image. Status says `mode: development` while it runs live source.
 
@@ -53,13 +65,14 @@ On a development stack, `pnpm os:dev` runs the app from this checkout's live sou
 - **System health** (`/health`) shows the service's own report: data freshness per site, connection states and, under **Background operations**, every scheduled job with its latest run. See [Scheduled jobs](/operate/scheduled-jobs).
 - **Workflows** (`/workflows`) lists the operator automations and their history.
 - **Integrations** (`/integrations`) shows each provider connection and its last test.
+- **Settings** > **Installation** (`/settings#installation`) shows the folder, the ports, the version, whether a newer one is published, the last backup and the status command to copy. It is read-only; the commands change the installation.
 
 ## A daily routine
 
 1. Glance at the Wall or Home for anything flagged.
 2. Open **System health** if a card shows a gap. A gap is unknown data, never a zero.
 3. Run `pnpm os:status` if the Tower itself is slow or down.
-4. After merging verified code, run `pnpm os:update`. Merging is not deploying.
+4. After merging verified code, run `pnpm os:update`. Merging is not deploying. Without a checkout, run `~/noticeos/noticeos update` when a newer version is published.
 
 ::: tip Restart is not an upgrade
 `os:restart` keeps the code and settings that are running. Only `os:update` moves the app to new code, and it never applies a database migration. Only `os:apply` applies an edit to `installation.env`. See [Upgrade](/start/upgrade).

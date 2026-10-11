@@ -43,16 +43,20 @@ app: Tower, ingest and the runner), `postgres`, `dolt` and an optional
 stack's app runs a checkout's live source; a production stack's app runs a
 prepared image. Running the runner directly on a host is not supported.
 `.local/stack.json` selects the stack, and agents and operators use one
-repo-owned interface:
+repo-owned interface. An installation set up with Docker alone has no
+checkout: its folder keeps the selector (`stack.json`), a copy of the stack
+definition and the `noticeos` launcher, which runs each command below from
+the app's image as `<folder>/noticeos <command>`, with no `--`
+([Install with Docker](start/install-with-docker.md)).
 
 | Question / action | Command | Contract |
 |---|---|---|
-| Is the OS trustworthy? | `pnpm os:status` | Each service's Docker state and health, whether the database has every migration this checkout carries, the app's commit, whether `main` is ahead, and any service that does not run as `installation.env` declares. A port alone never earns healthy. |
+| Is the OS trustworthy? | `pnpm os:status` | Each service's Docker state and health, whether the database has every migration this code carries, the app's commit, whether `main` is ahead, and any service that does not run as `installation.env` declares. A port alone never earns healthy. |
 | What just happened? | `pnpm os:logs -- --lines 200` | Recent logs from every service, or `-- <service>`; `-- --follow` follows them during a repro. |
 | How big is the store, and how fast is it growing? | `pnpm os:capacity` | Rows, bytes and daily growth per table, insight snapshots, the raw archive and lane durations, asked of the running OS; metadata only ([doc 26](26-storage-capacity.md)). `-- --json` is the raw answer. |
 | Recover the app | `pnpm os:restart` | Restarts the stack in dependency order, waiting for each layer's health; a failed step stops the sequence. |
 | Apply an edit to `installation.env` | `pnpm os:apply` | Shows each change and the services it recreates, and applies it after you type `apply`: only those services, databases first, each waiting for health. A service that does not become healthy returns the stack to the settings it last ran healthy with. It never points a database at other data, renames the project, builds or pulls an image, or applies a migration. |
-| Put merged work live | `pnpm os:update` | Takes the image CI published for `main`'s commit when it was built from exactly this checkout's source, or builds it here when none is published, shows the plan and applies it after you type `update`, replacing only the app container and going back by itself if health does not return; `pnpm os:rollback` returns to the previous image. |
+| Put merged work live | `pnpm os:update` | Takes the image CI published for `main`'s commit when it was built from exactly this checkout's source, or builds it here when none is published, shows the plan and applies it after you type `update`, replacing only the app container and going back by itself if health does not return; `pnpm os:rollback` returns to the previous image. Without a checkout, `noticeos update` moves the image and the stack definition copied out of it together to main's newest published version, recreating each service whose declaration changed; `noticeos rollback` returns to the version before. |
 
 **Merging is not deploying.** A production app runs a fixed image that a merge
 never touches. `pnpm os:update` is the step after a verified merge: it stops,

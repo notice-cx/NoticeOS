@@ -15,7 +15,7 @@ You need three things on the machine, and nothing else:
 - pnpm 12.8.1
 - Docker: a running local engine with Docker Compose, on `linux/arm64` or `linux/amd64`
 
-The steps that need the PostgreSQL client and the task tool run inside the app's own image.
+The steps that need the PostgreSQL client and the task tool run inside the app's own image. To run NoticeOS without a checkout, [install with Docker](/start/install-with-docker) instead.
 
 ## Set up and start
 

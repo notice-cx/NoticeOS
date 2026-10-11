@@ -1,6 +1,6 @@
 ---
 title: "Settings"
-description: "The portfolio-wide settings: the clock, the budgets, the alert rules, collection schedules, the TV, ownership and task projects."
+description: "The portfolio-wide settings: the clock, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
 ---
 
 # Settings
@@ -41,6 +41,18 @@ Under the schedules sit the search panels' history window (**Each pass asks for*
 
 The map from a site to the project its tasks live in: the **Task database** status, the **Projects** table (**Site**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line.
 
+### Installation
+
+Shown only on a standalone installation: where it lives and what it runs, read-only.
+
+- **Folder**: the installation folder; select it to copy the path.
+- **Tower**: the address and port it listens on, and who can reach it: **This machine only.**, **Every device on your network.** or **Devices that reach** one address.
+- **Databases**: the ports for your own tools, such as **Postgres 5432 · Tasks 3306**.
+- **Version**: the commit the app runs; on a development stack, **Live source from a checkout; git updates it.**
+- **Updates**: whether a newer version is published.
+- **Last backup**: the age of the latest backup run.
+- **Commands**: the status command to copy: `pnpm os:status` from a checkout, or `<folder>/noticeos status` without one. Status, logs, apply and update run in a terminal on the machine.
+
 ### Members
 
 Shown only when this installation manages members: where people are invited to the workspace.
@@ -54,6 +66,7 @@ Shown only when this installation manages members: where people are invited to t
 - **Edit layout** opens the Wall editor; **Set a countdown** adds the top strip's countdown.
 - **Legal entities**: add, edit or remove an entity. Removing one moves its sites to the unowned line and deletes nothing else.
 - **Task projects**: **Add** maps a site to a prefix and a database and opens the checklist.
+- **Installation**: copy the folder, the status command, and the update command when a newer version is published. Nothing here changes the installation.
 
 ## States and labels
 
@@ -65,6 +78,9 @@ Shown only when this installation manages members: where people are invited to t
 - **No countdown set.** means the top strip shows none; **Saved countdown refused** names why a saved countdown cannot be drawn.
 - Unclaimed sites are marked **No owner**.
 - **Found** reads **Unknown** when no project could be read, rather than claiming every row is fine. On a hosted view the Task projects section reads **Read-only here**.
+- **Updates** reads **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry did not say. From a checkout, a newer version adds **Pull main in the checkout first.**
+- **Last backup** reads **never** before the first run, and shows **Failed** when the latest run failed.
+- **Folder** shows the apply command, with **Apply the current settings to show the folder and ports here.**, while the app runs without the current stack settings.
 - When saves are paused the page says so once at the top and every field shows its lock.
 
 ## Related guides

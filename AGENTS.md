@@ -153,7 +153,7 @@ Markdown, per `scripts/ci-scope.mjs`) runs the root suite alone, and the
 `docs` workflow builds the site whenever `docs/` changes; a push to `main` runs
 everything and publishes the site. Once CI passes on a `main` commit, the
 `Release image` workflow publishes it as the app image `os:setup` and
-`os:update` fetch (`RELEASE_REPOSITORY` in `scripts/stack-deploy.mjs`).
+`os:update` fetch (`RELEASE_REPOSITORY` in `scripts/published-image.mjs`).
 
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
@@ -198,8 +198,10 @@ from the one definition `deploy/compose/stack.yaml` and its folder's
 `installation.env`; `pnpm os:setup` makes one and `pnpm os:convert-legacy` moves a
 legacy one in, and nobody writes a Compose file. A development stack's
 app runs this checkout's live source; a production stack's app runs a
-prepared image. Do not guess from a port, inspect containers by hand or read
-`.local/` by hand:
+prepared image. An installation without a checkout runs the same commands
+through its folder's `noticeos` launcher (`<folder>/noticeos status`, `logs`,
+`restart`, `update`), with no `--`. Do not guess from a port, inspect
+containers by hand or read `.local/` by hand:
 
 ```sh
 pnpm os:status                 # each service's health, the database's migrations, the app's commit, whether main is ahead
@@ -281,7 +283,9 @@ branch someone else has.
   `NOTICEOS_REQUIRE_POSTGRES=1` make database proofs mandatory; PostgreSQL 17
   binaries back the cross-major restore fixture.
 - Installation paths: `pnpm os:setup` provisions a new installation as the
-  Compose stack in its own folder; `pnpm os:convert-legacy` moves a legacy Compose
+  Compose stack in its own folder, and the image's launcher
+  (`docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup`)
+  does so with no checkout; `pnpm os:convert-legacy` moves a legacy Compose
   installation into that layout; the application container consumes either; the
   [demo profile](deploy/demo/README.md) packages compiled code and synthetic
   stores behind an HTTPS proxy. Customer hosting is outside that preview; see
