@@ -1,10 +1,10 @@
 import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
-import { createMcpMiddleware, mcpLane, towerOnThisMachineOnly } from "../vite/mcp-lane";
+import { createMcpMiddleware, mcpLane } from "../vite/mcp-lane";
 
-// vite/mcp-lane.ts: /api/mcp with every tool for an agent on this machine,
-// answered while the stack publishes the Tower on loopback only. The tools
-// themselves are proved in scripts/standalone-tasks.test.mjs.
+// vite/mcp-lane.ts: /api/mcp with every tool on a standalone Tower, reaching
+// whoever reaches the Tower. The tools themselves are proved in
+// scripts/standalone-tasks.test.mjs.
 
 function request(url: string, { method = "POST", headers = {}, body = "" }: { method?: string; headers?: Record<string, string>; body?: string } = {}) {
   return Object.assign(Readable.from(body ? [Buffer.from(body)] : []), { url, method, headers });
@@ -31,18 +31,15 @@ async function serve(middleware: Middleware, req: ReturnType<typeof request>) {
 }
 
 describe("/api/mcp for an agent on this machine", () => {
-  it("is served only while the Tower is published on this machine's loopback", () => {
-    expect(towerOnThisMachineOnly({ NOTICEOS_HOST_TOWER_ADDRESS: "127.0.0.1" })).toBe(true);
-    for (const address of ["0.0.0.0", "192.168.1.20", "", undefined]) {
-      expect(towerOnThisMachineOnly({ NOTICEOS_HOST_TOWER_ADDRESS: address })).toBe(false);
-    }
+  it("is served wherever the Tower is published, as its own pages are, and opens nothing until called", () => {
     const used: unknown[] = [];
+    let opened = 0;
     const server = { middlewares: { use: (handler: unknown) => used.push(handler) }, httpServer: null };
-    const hook = (env: NodeJS.ProcessEnv) => (mcpLane({ env, open: async () => { throw new Error("not opened here"); } }).configureServer as (s: unknown) => void)(server);
-    hook({ NOTICEOS_HOST_TOWER_ADDRESS: "0.0.0.0" });
-    expect(used).toHaveLength(0);
-    hook({ NOTICEOS_HOST_TOWER_ADDRESS: "127.0.0.1" });
-    expect(used).toHaveLength(1);
+    for (const address of ["127.0.0.1", "0.0.0.0", "192.168.1.20"]) {
+      (mcpLane({ env: { NOTICEOS_HOST_TOWER_ADDRESS: address }, open: async () => { opened += 1; throw new Error("not opened here"); } })
+        .configureServer as (s: unknown) => void)(server);
+    }
+    expect([used.length, opened]).toEqual([3, 0]);
   });
 
   it("hands each message to the endpoint as the agent sent it, and passes other paths and its own read-model calls on", async () => {

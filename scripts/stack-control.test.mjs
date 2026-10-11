@@ -154,15 +154,16 @@ test('at a terminal the MCP server does not wait for messages: it says how to co
   const script = fileURLToPath(new URL('./stack-control.mjs', import.meta.url));
   const own = fixture();
   assert.equal(await main(['mcp', '--config', '/fixture/stack.json'], { out, err: out, io, run: own.run, interactive: true }), 0, output);
-  assert.equal(output, 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\nConnect it to an agent:\n'
-    + `  claude mcp add noticeos -- node ${script} mcp --actor claude --config /fixture/stack.json\n`);
+  assert.equal(output, 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\n'
+    + 'Where the Tower listens is unknown (the settings are in /fixture/compose.env, not an installation.env; pnpm os:convert-legacy moves them), so connect this command instead:\n'
+    + `  claude mcp add --scope user noticeos -- node ${script} mcp --actor claude --config /fixture/stack.json\n`);
   assert.deepEqual(own.writes(), []);
   assert.match(mcpConnectHelp(['--actor', 'agent 1'], '/my folder/stack.json'), / mcp --actor 'agent 1' --config '\/my folder\/stack\.json'\n$/u);
   const piped = fixture();
   assert.equal(await main(['mcp', '--config', '/fixture/stack.json'], { out, err: out, io, run: piped.run, interactive: false }), 0);
   assert.deepEqual(piped.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','mcp']]);
 });
-test('at a terminal, a Tower on this machine only is named by its own MCP address; on the network, the command is', async () => {
+test('at a terminal, the Tower is named by an MCP address this machine reaches, whatever address it listens on', async () => {
   const envFile = '/srv/noticeos/installation.env';
   const lines = ['COMPOSE_PROJECT_NAME="noticeos"', 'NOTICEOS_INSTALLATION="/srv/noticeos"', `NOTICEOS_APP_IMAGE="sha256:${'a'.repeat(64)}"`,
     'NOTICEOS_APP_UID="1000"', 'NOTICEOS_APP_GID="1000"', 'NOTICEOS_TOWER_PORT="5180"', 'TOWER_ALLOWED_HOSTS=""', 'NOTICEOS_POSTGRES_PORT="5432"',
@@ -170,18 +171,20 @@ test('at a terminal, a Tower on this machine only is named by its own MCP addres
     'NOTICEOS_BACKUP_ASSETS_DIR="/srv/assets"', 'NOTICEOS_BACKUP_OFFSITE_PARENT="/srv/offsite"', 'NOTICEOS_STATE_DIR="x"', 'NOTICEOS_POSTGRES_SECRETS="x"',
     'NOTICEOS_DOLT_SECRETS="x"', 'NOTICEOS_BACKUP_PROFILE_DIR="x"', 'NOTICEOS_BACKUP_STAGING_DIR="x"', 'NOTICEOS_BACKUP_TRANSPORT_DIR="x"',
     'NOTICEOS_DOLT_BACKUP_VOLUME="x"', 'NOTICEOS_NETWORK="x"'];
-  const help = async (bind) => {
+  const help = async (bind, env = [...lines, ...(bind ? [`NOTICEOS_TOWER_BIND="${bind}"`] : [])].join('\n')) => {
     let output = ''; const out = { write: value => { output += value; } };
-    const env = [...lines, ...(bind ? [`NOTICEOS_TOWER_BIND="${bind}"`] : [])].join('\n');
     const io = { lstatSync: () => ({ isFile: () => true, isSymbolicLink: () => false, size: 100 }),
       readFileSync: file => file === envFile ? env : JSON.stringify({ ...selector, envFile }) };
     assert.equal(await main(['mcp', '--actor', 'dev-1', '--config', '/srv/noticeos/stack.json'], { out, err: out, io, run: fixture().run, interactive: true }), 0, output);
     return output;
   };
-  for (const bind of [null, '127.0.0.1']) {
-    assert.match(await help(bind), /The Tower serves the same tools on this machine:\n  claude mcp add --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n$/u);
+  // A Tower on every interface answers on loopback too; one bound to an address answers only there.
+  for (const [bind, host] of [[null, '127\\.0\\.0\\.1'], ['127.0.0.1', '127\\.0\\.0\\.1'], ['0.0.0.0', '127\\.0\\.0\\.1'], ['192.168.1.20', '192\\.168\\.1\\.20']]) {
+    assert.match(await help(bind), new RegExp(`The Tower serves the same tools; connect it for every repository:\\n  claude mcp add --scope user --transport http noticeos http://${host}:5180/api/mcp --header 'X-NoticeOS-Actor: dev-1'\\n$`, 'u'), String(bind));
   }
-  assert.match(await help('0.0.0.0'), /Connect it to an agent:\n  claude mcp add noticeos -- node \S+stack-control\.mjs mcp --actor dev-1 --config \/srv\/noticeos\/stack\.json\n$/u);
+  // An installation.env the reader refuses still answers, and says what the reader said.
+  assert.match(await help(null, lines.filter(line => !line.startsWith('NOTICEOS_NETWORK')).join('\n')),
+    /Where the Tower listens is unknown \(\/srv\/noticeos\/installation\.env does not set NOTICEOS_NETWORK\), so connect this command instead:\n  claude mcp add --scope user noticeos -- node /u);
 });
 test('the command line takes the action\'s arguments and --config in any order', async () => {
   let output = ''; const out = { write: value => { output += value; } };

@@ -246,9 +246,9 @@ work: one hub, one database per asset, configured through the
 access to a maintainer's private hub; follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Reach it through the NoticeOS MCP server's task tools when your client has
-them: the Tower serves them at `/api/mcp`, to an agent on this machine
-without a sign-in and in a hosted workspace with one; `pnpm os:mcp` serves
-them over stdio ([Connect an agent](docs/guides/connect-an-agent.md)).
+them: the Tower serves them at `/api/mcp`, on a standalone installation to
+whoever reaches its Tower and in a hosted workspace after a sign-in;
+`pnpm os:mcp` serves them over stdio ([Connect an agent](docs/guides/connect-an-agent.md)).
 They name the same operations as the `bd` verbs below (`create_task`,
 `list_tasks` with `ready`, `claim_task`, `close_task`, `add_dependency`,
 `request_human_approval`) and answer every create or update with what lint

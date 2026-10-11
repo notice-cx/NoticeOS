@@ -229,26 +229,32 @@ export async function stackControl(action, input, { run = runCommand, out = proc
 }
 /** Shell-safe as printed: a word with nothing a shell would read is left bare. */
 const shellWord = word => /^[A-Za-z0-9_./:=@%+-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
-/** Where installation.env publishes the Tower, or null for a settings file of another shape. */
+/** Where installation.env publishes the Tower, or why that cannot be read. */
 function towerAddress(envFile, io) {
-  if (path.basename(envFile) !== ENV_FILE) return null;
+  if (path.basename(envFile) !== ENV_FILE) return { reason: `the settings are in ${envFile}, not an ${ENV_FILE}; pnpm os:convert-legacy moves them` };
   try {
     const values = readInstallationEnv(envFile, io);
     return { address: values.NOTICEOS_TOWER_BIND ?? '127.0.0.1', port: values.NOTICEOS_TOWER_PORT };
-  } catch { return null; }
+  } catch (error) { return { reason: error.message.replace(/\.$/u, '') }; }
 }
 /** What a person who runs the MCP server at a terminal reads instead of a server waiting for an agent's
- * messages: the Tower's own endpoint while it listens on this machine only, else this command. */
+ * messages: the Tower's own MCP address, else this command and why. Registered for the user, so every
+ * repository on this machine sees the tools. */
 export function mcpConnectHelp(args, selectorFile = null, tower = null) {
   const said = 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\n';
   const actor = args.length ? args[1] : 'claude';
-  if (tower && /^127\./u.test(tower.address) && /^\d+$/u.test(tower.port ?? '')) {
-    return said + `The Tower serves the same tools on this machine:\n  claude mcp add --transport http noticeos http://${tower.address}:${tower.port}/api/mcp`
+  if (tower?.address && /^\d+$/u.test(tower.port ?? '')) {
+    // A Tower on every interface answers on this machine's loopback too.
+    const host = tower.address === '0.0.0.0' || /^127\./u.test(tower.address) ? '127.0.0.1' : tower.address;
+    return said + `The Tower serves the same tools; connect it for every repository:\n`
+      + `  claude mcp add --scope user --transport http noticeos http://${host}:${tower.port}/api/mcp`
       + ` --header ${shellWord(`X-NoticeOS-Actor: ${actor}`)}\n`;
   }
+  const why = tower?.reason ? `Where the Tower listens is unknown (${tower.reason}), so connect this command instead`
+    : 'Connect it for every repository';
   const command = ['node', fileURLToPath(import.meta.url), 'mcp', '--actor', actor,
     ...(selectorFile ? ['--config', selectorFile] : [])].map(shellWord).join(' ');
-  return said + `Connect it to an agent:\n  claude mcp add noticeos -- ${command}\n`;
+  return said + `${why}:\n  claude mcp add --scope user noticeos -- ${command}\n`;
 }
 export async function main(argv = process.argv.slice(2), { out = process.stdout, err = process.stderr, interactive = process.stdin.isTTY === true,
   ...options } = {}) {

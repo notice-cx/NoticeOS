@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 // The installation's MCP server over stdio: `pnpm os:mcp` (or the folder's
 // `noticeos mcp`) runs it inside the app container, for an agent on this
-// machine that cannot reach the Tower's own /api/mcp, as when the Tower
-// listens on the network. The endpoint is standalone-mcp.mts's.
+// machine that cannot reach the Tower's own /api/mcp. The endpoint is
+// standalone-mcp.mts's.
 //
 //   --actor <name>  Who the task projects record for this agent's changes (default: agent).
 //
