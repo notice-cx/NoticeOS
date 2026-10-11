@@ -157,7 +157,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     for (const service of SERVICES.filter(name => original.has(name))) {
       const row = original.get(service); out.write(`${service}: ${row.state}${row.health ? ', ' + row.health : ''}\n`);
     }
-    const current = await database(selector, { root });
+    const current = await database(selector, { root, run, env });
     out.write(`database: ${current.ok ? 'has every migration in this checkout' : current.line}\n`);
     let running = null; let main = null;
     try {
@@ -199,7 +199,7 @@ export async function stackControl(action, input, { run = runCommand, out = proc
       await call(step, `Stack ${step[0]}`, 130000);
     } catch (error) {
       if (!step.includes('--wait')) throw error;
-      refuse(await notHealthy(names, inventory, () => database(selector, { root })));
+      refuse(await notHealthy(names, inventory, () => database(selector, { root, run, env })));
     }
   }
   out.write(`Stack ${action} complete.\n`);

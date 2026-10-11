@@ -721,9 +721,11 @@ Postgres is the only operational database.
 `scripts/postgres-apply.mjs`) applies `db/postgres/migrations/` to the
 installation's own Postgres database. It finds the database itself: the stack
 selector `.local/stack.json` (or `--config`) names the Compose files, and the
-owner's address is `owner.url` in the stack's Postgres secrets folder (or
-`--secrets <folder>`). It is operator-only; nothing else ever applies a
-migration, and neither restart nor update does.
+owner's address is `owner.url` beside the owner's secret file in the stack's
+resolved declaration (or in `--secrets <folder>`). It is operator-only;
+nothing else ever applies a migration, and neither restart nor update does.
+`pnpm os:status` and `pnpm os:update` only read which migrations the database
+has, over the Postgres container's own socket, so they need no address.
 
 ```sh
 pnpm os:status                # what runs, whether main is ahead, whether the database is behind

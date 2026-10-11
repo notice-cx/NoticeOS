@@ -1,33 +1,40 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { main } from './os-migrate.mjs';
-import { readEnvFile, secretAddress, stackDatabaseCurrent, stackSecretsDir } from './stack-database.mjs';
+import { composePrefix, secretAddress, stackDatabaseCurrent, stackSecretsDir } from './stack-database.mjs';
 
 const OWNER_URL = 'postgresql://noticeos_owner:s3cret@127.0.0.1:5432/noticeos';
 
-/** A stack selector with its Compose file, env file and Postgres secrets folder. */
-function stack(t, { envLine = null, ownerUrl = OWNER_URL } = {}) {
+/** A stack selector, its Compose file and env file, and a Postgres secrets
+ * folder in a different checkout's folder, as an installation may keep it. */
+function stack(t, { ownerUrl = OWNER_URL } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'os-migrate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const composeDir = path.join(dir, 'postgres');
-  mkdirSync(composeDir);
-  const compose = path.join(composeDir, 'compose.yaml');
-  writeFileSync(compose, 'secrets:\n  owner:\n    file: ${NOTICEOS_POSTGRES_SECRETS:-./secrets}/noticeos_owner\n');
-  const envFile = path.join(dir, 'compose.env');
-  writeFileSync(envFile, `# the stack\nNOTICEOS_NETWORK=example\n${envLine ?? ''}\n`);
-  const secrets = envLine ? path.resolve(composeDir, readEnvFile(envLine).NOTICEOS_POSTGRES_SECRETS) : path.join(composeDir, 'secrets');
+  const compose = path.join(dir, 'compose.json');
+  writeFileSync(compose, '{}');
+  const envFile = path.join(dir, 'stack.env');
+  writeFileSync(envFile, '');
+  const secrets = path.join(dir, 'elsewhere', 'postgres-keys');
   mkdirSync(secrets, { recursive: true });
   if (ownerUrl !== null) writeFileSync(path.join(secrets, 'owner.url'), `${ownerUrl}\n`);
   const selector = path.join(dir, 'stack.json');
-  writeFileSync(selector, JSON.stringify({ project: 'example', files: [compose], envFile, dockerHost: 'unix:///var/run/docker.sock' }));
-  return { dir, selector, secrets };
+  const declared = { project: 'example', files: [compose], envFile, dockerHost: 'unix:///var/run/docker.sock' };
+  writeFileSync(selector, JSON.stringify(declared));
+  /** `docker compose config` for this stack: the owner's secret is in `secrets`. */
+  const docker = async (command, args) => {
+    assert.equal(command, 'docker');
+    assert.deepEqual(args.slice(0, composePrefix(declared).length), composePrefix(declared));
+    assert.deepEqual(args.slice(composePrefix(declared).length), ['config', '--format', 'json']);
+    return { code: 0, stdout: JSON.stringify({ services: { app: { environment: { DATABASE_URL: 'PRIVATE' } } }, secrets: { noticeos_owner: { file: path.join(secrets, 'noticeos_owner') } } }) };
+  };
+  return { dir, selector, secrets, declared, docker };
 }
 
 /** main() with the engine replaced by a recorder. */
-async function runMigrate(argv, { interactive = false, typed = '', code = 0 } = {}) {
+async function runMigrate(argv, { interactive = false, typed = '', code = 0, docker } = {}) {
   const calls = [];
   const out = [];
   const err = [];
@@ -37,6 +44,7 @@ async function runMigrate(argv, { interactive = false, typed = '', code = 0 } = 
     env: { PATH: process.env.PATH },
     interactive,
     question: async () => typed,
+    ...(docker ? { docker } : {}),
     run: (args, _out, _err, options) => {
       calls.push({ args, url: options.env.NOTICEOS_OWNER_URL, targetFlags: options.targetFlags, planShown: options.planShown ?? false });
       return code;
@@ -45,15 +53,11 @@ async function runMigrate(argv, { interactive = false, typed = '', code = 0 } = 
   return { result, calls, out: out.join(''), err: err.join('') };
 }
 
-test('an env file is read as Compose reads it: comments skipped, quotes stripped', () => {
-  assert.deepEqual(readEnvFile('# note\nA=1\nexport B="two words"\nC=\'x\' \nD=bare # trailing note\n'), { A: '1', B: 'two words', C: 'x', D: 'bare' });
-});
-
-test('the secrets folder is the env file’s NOTICEOS_POSTGRES_SECRETS, relative to the Compose file that declares it', (t) => {
-  const named = stack(t, { envLine: 'NOTICEOS_POSTGRES_SECRETS=../keys' });
-  assert.equal(stackSecretsDir(JSON.parse(readFileSync(named.selector, 'utf8'))), named.secrets);
-  const unnamed = stack(t);
-  assert.equal(stackSecretsDir(JSON.parse(readFileSync(unnamed.selector, 'utf8'))), unnamed.secrets);
+test('the secrets folder is wherever the stack\'s resolved declaration keeps the owner\'s secret', async (t) => {
+  const { declared, secrets, docker } = stack(t);
+  assert.equal(await stackSecretsDir(declared, { run: docker }), secrets);
+  await assert.rejects(stackSecretsDir(declared, { run: async () => ({ code: 0, stdout: JSON.stringify({ secrets: {} }) }) }), /declares no noticeos_owner secret file/u);
+  await assert.rejects(stackSecretsDir(declared, { run: async () => ({ code: 1, stdout: '', stderr: 'PRIVATE' }) }), /Compose could not read the stack's declaration; is Docker running\?/u);
 });
 
 test('the database comes from owner.url, and a missing or malformed file is refused by name', (t) => {
@@ -66,34 +70,34 @@ test('the database comes from owner.url, and a missing or malformed file is refu
 });
 
 test('with no flags it shows status for the stack’s database, the address only in the child environment', async (t) => {
-  const { selector } = stack(t);
-  const { result, calls, out, err } = await runMigrate(['--config', selector]);
+  const { selector, docker } = stack(t);
+  const { result, calls, out, err } = await runMigrate(['--config', selector], { docker });
   assert.equal(result, 0);
   assert.deepEqual(calls, [{ args: ['status', '--database', 'noticeos', '--url-from', 'NOTICEOS_OWNER_URL'], url: OWNER_URL, targetFlags: '', planShown: false }]);
   assert.doesNotMatch(out + err, /s3cret/u);
 });
 
 test('at a terminal, --apply shows the plan, asks for the name once, and applies with what was typed', async (t) => {
-  const { selector } = stack(t);
-  const { calls } = await runMigrate(['--', '--apply', '--config', selector], { interactive: true, typed: 'noticeos' });
+  const { selector, docker } = stack(t);
+  const { calls } = await runMigrate(['--', '--apply', '--config', selector], { docker, interactive: true, typed: 'noticeos' });
   assert.deepEqual(calls.map((call) => call.args[0]), ['status', 'apply']);
   assert.deepEqual(calls[1].args.slice(-2), ['--confirm', 'noticeos']);
   assert.equal(calls[1].planShown, true);
 });
 
 test('at a terminal, pressing Enter changes nothing', async (t) => {
-  const { selector } = stack(t);
-  const { result, calls, out } = await runMigrate(['--apply', '--config', selector], { interactive: true, typed: '' });
+  const { selector, docker } = stack(t);
+  const { result, calls, out } = await runMigrate(['--apply', '--config', selector], { docker, interactive: true, typed: '' });
   assert.equal(result, 0);
   assert.deepEqual(calls.map((call) => call.args[0]), ['status']);
   assert.match(out, /Nothing was changed/u);
 });
 
 test('without a terminal, --apply passes --confirm through and never asks', async (t) => {
-  const { selector } = stack(t);
-  const { calls } = await runMigrate(['--apply', '--confirm', 'noticeos', '--config', selector]);
+  const { selector, docker } = stack(t);
+  const { calls } = await runMigrate(['--apply', '--confirm', 'noticeos', '--config', selector], { docker });
   assert.deepEqual(calls.map((call) => call.args), [['apply', '--database', 'noticeos', '--url-from', 'NOTICEOS_OWNER_URL', '--confirm', 'noticeos']]);
-  const unconfirmed = await runMigrate(['--apply', '--config', selector]);
+  const unconfirmed = await runMigrate(['--apply', '--config', selector], { docker });
   assert.deepEqual(unconfirmed.calls[0].args.includes('--confirm'), false, 'the engine refuses an unconfirmed apply itself');
 });
 
@@ -109,22 +113,21 @@ test('--secrets names the folder directly; a missing selector or both steps at o
   assert.match(both.err, /--apply or --bootstrap, not both/u);
 });
 
-test('the stack’s database is current when the application login’s check says so, and a missing address is named', async (t) => {
-  const { selector, secrets } = stack(t);
-  const declared = JSON.parse(readFileSync(selector, 'utf8'));
-  const seen = [];
-  const check = async (address, options) => {
-    seen.push({ address, options });
-    return { ok: false, line: 'the database is 1 migration behind this code; pnpm os:migrate -- --apply brings it up to date' };
-  };
-  const missing = await stackDatabaseCurrent(declared, { root: '/checkout', check });
-  assert.equal(missing.ok, false);
-  assert.match(missing.line, /no database\.url in the stack's Postgres secrets folder /u);
-  assert.equal(seen.length, 0);
-  writeFileSync(path.join(secrets, 'database.url'), 'postgresql://noticeos_app:s3cret@127.0.0.1:5432/noticeos\n');
-  await stackDatabaseCurrent(declared, { root: '/checkout', check });
-  assert.deepEqual(seen[0], {
-    address: { url: 'postgresql://noticeos_app:s3cret@127.0.0.1:5432/noticeos' },
-    options: { where: path.join(secrets, 'database.url'), migrationsDir: path.join('/checkout', 'db', 'postgres', 'migrations') },
-  });
+test('the stack\'s database is checked over its own container socket, read-only, against this checkout\'s migrations', async (t) => {
+  const { declared } = stack(t);
+  const root = mkdtempSync(path.join(os.tmpdir(), 'os-migrate-root-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(path.join(root, 'db', 'postgres', 'migrations'), { recursive: true });
+  for (const name of ['0001_baseline.sql', '0002_next.sql', '0003_more.sql']) writeFileSync(path.join(root, 'db', 'postgres', 'migrations', name), 'select 1;\n');
+  const asked = [];
+  const answering = (result) => async (command, args) => { asked.push(args.slice(composePrefix(declared).length)); return result; };
+  assert.deepEqual(await stackDatabaseCurrent(declared, { root, run: answering({ code: 0, stdout: '1\n2\n3\n' }) }), { ok: true });
+  assert.deepEqual(asked[0], ['exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'noticeos', '-qAtX', '-v', 'ON_ERROR_STOP=1',
+    '-c', 'SET default_transaction_read_only = on', '-c', 'SELECT version FROM noticeos_migrations.applied ORDER BY version']);
+  assert.deepEqual(await stackDatabaseCurrent(declared, { root, run: answering({ code: 0, stdout: '1\n' }) }),
+    { ok: false, line: 'it is 2 migrations behind this checkout; pnpm os:migrate -- --apply brings it up to date' });
+  const down = await stackDatabaseCurrent(declared, { root, run: answering({ code: 2, stdout: '', stderr: 'PRIVATE' }) });
+  assert.deepEqual(down, { ok: false, line: 'the stack\'s Postgres did not answer which migrations it has; pnpm os:logs -- postgres shows why' });
+  const thrown = await stackDatabaseCurrent(declared, { root, run: async () => { throw new Error('PRIVATE'); } });
+  assert.equal(thrown.ok, false);
 });

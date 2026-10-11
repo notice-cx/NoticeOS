@@ -254,7 +254,7 @@ export async function prepareDeployment({ root = ROOT, selectorFile, baselineCom
   catch (error) {
     // An app whose database lacks this code's migrations refuses to start.
     if (error.service !== 'noticeos') throw error;
-    const current = await database(selector, { root }).catch(() => null);
+    const current = await database(selector, { root, run, env }).catch(() => null);
     if (current && !current.ok) error.message += `\nThe database: ${current.line}`;
     throw error;
   }
@@ -281,7 +281,7 @@ export async function prepareDeployment({ root = ROOT, selectorFile, baselineCom
       // operator maintenance; migrations are applied with pnpm os:migrate first.
       const roles = tree => tree.files.find(row => row.file === ROLES_PATH)?.object ?? null;
       if (roles(await sourceTree(run, root, old.revision)) !== roles(source)) fail('main changes the Postgres roles; that is operator maintenance (db/postgres/host/README.md). Nothing was changed.');
-      const current = await database(selector, { root });
+      const current = await database(selector, { root, run, env });
       if (!current.ok) fail(`main carries database changes the database does not have yet: ${current.line}. Then run the update again; it applies no migrations. Nothing was changed.`);
     }
     if (preparedImage) {
