@@ -1627,7 +1627,7 @@ describe("the lane with a config store behind it", () => {
     expect(git(root, "log", "--oneline", "-1")).toContain("config: sensitivity via Tower");
   });
 
-  // `pnpm start` runs an installation out of a plain folder, usually one inside
+  // `pnpm db:try-tower` runs out of a plain folder, usually one inside
   // somebody's checkout: git run there would find that repository.
   it("runs no git at all when its home is a plain folder rather than a checkout", async () => {
     const home = await fs.mkdtemp(path.join(os.tmpdir(), "config-lane-folder-"));

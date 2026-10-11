@@ -1,10 +1,10 @@
 // What the end-to-end proofs of the database address share:
-// scripts/start.test.mjs starts `pnpm start`, and
-// scripts/runner-database.test.mjs the runner's own Tower child, each on a
+// scripts/runner-database.test.mjs starts the runner's own Tower child on a
 // throwaway Postgres whose application login has a PLANTED password — one no
-// other run uses — so the proofs can then look for it everywhere the OS
-// wrote, in every process it started and in what its Tower answers. Tests
-// only; nothing at runtime imports this.
+// other run uses — so the proof can then look for it everywhere the OS
+// wrote, in every process it started and in what its Tower answers;
+// scripts/start.test.mjs reads the same process tree. Tests only; nothing at
+// runtime imports this.
 
 import { execFileSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';

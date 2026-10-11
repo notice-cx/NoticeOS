@@ -11,7 +11,7 @@ This page gets you a nightly backup to trust and a restore you have rehearsed be
 
 - An absolute offsite folder that a sync client (Google Drive, Dropbox, iCloud Drive, a mounted share) carries off the machine, with its parent already existing.
 - The task database service running; task databases are backed up online.
-- For the Docker stack, the backup worker from `deploy/compose/backup.compose.yaml`, with the same stages and retention. Its setup is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
+- The stack's backup worker (`deploy/compose/backup.compose.yaml`), which `pnpm os:setup` includes unless given `--without-backup`. Its contract is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
 
 ### What is backed up
 
@@ -30,17 +30,17 @@ Each part is consistent on its own, not as one transaction across all of them. O
 
 ### When it runs
 
-The Docker stack takes a backup nightly at **04:00 UTC**; `pnpm os:backup` takes one now. A `pnpm start` installation runs the backup job only once its own `installation/host-backup.json` (inside the start folder) names an offsite folder. Until then the job is listed but does not run.
+The stack takes a backup nightly at **04:00 UTC**; `pnpm os:backup` takes one now.
 
 ## Set where it goes and how long it is kept
 
-The backup settings are the installation's `installation/host-backup.json`. The product default names no offsite folder.
+The backup settings are `host-backup.json` in the installation folder's `backup/profile/`, beside the worker's profile. `pnpm os:setup -- --offsite <folder>` writes one; the worker sees that folder as `/backup-offsite`. Without it, the product default names no offsite folder.
 
-1. In `installation/host-backup.json`, set the offsite folder and the retention:
+1. In `host-backup.json`, set the offsite folder and the retention:
 
    ```json
    {
-     "offsiteBackupDir": "/Users/you/Sync/Backups/noticeos",
+     "offsiteBackupDir": "/backup-offsite/backups",
      "retention": { "daily": 2, "weekly": 2 },
      "analyticalHistoryDirectory": null,
      "assetBackups": []
@@ -49,7 +49,7 @@ The backup settings are the installation's `installation/host-backup.json`. The 
 
 2. Leave the service running. The file is read at every run; an edit applies at the next backup without a restart.
 
-- `offsiteBackupDir` is the absolute folder the sync client carries off the machine. Each finished set is copied under `<offsiteBackupDir>/<date>/`. Its **parent must already exist**; a missing sync mount fails the run instead of creating a folder that only looks offsite. `null` means no offsite copy, and the record says so.
+- `offsiteBackupDir` is the folder, as the worker sees it, that the sync client carries off the machine. Each finished set is copied under `<offsiteBackupDir>/<date>/`. Its **parent must already exist**; a missing sync mount fails the run instead of creating a folder that only looks offsite. `null` means no offsite copy, and the record says so.
 - `retention` keeps the latest `daily` complete sets and the first complete set of each of the latest `weekly` weeks, in both the local and offsite trees. Without it, sets older than 30 days are removed.
 
 ::: warning Retention waits for success
@@ -67,7 +67,7 @@ Old sets are removed only after every stage, including the offsite copy, succeed
 
 ## Add site production exports
 
-1. In `installation/host-backup.json`, list under `assetBackups` each repository whose own `backup:prod` script exports a production database into the set. Each entry pins the script's hash, so a changed script fails before it runs.
+1. In `host-backup.json`, list under `assetBackups` each repository whose own `backup:prod` script exports a production database into the set. Each entry pins the script's hash, so a changed script fails before it runs.
 2. For Cloudflare D1 databases, open **Integrations** > **Cloudflare**, connect the account and select the databases there instead.
 
 Adding a repository to Tasks never authorizes a production export; only this file or that page does. Review the impact on the live database before enabling either.

@@ -1,7 +1,8 @@
 # Container backup worker
 
-`backup.compose.yaml` adds a backup worker to the explicitly prepared application,
-Postgres and Dolt services. The application sends one generated request identity
+`backup.compose.yaml` adds a backup worker to the application, Postgres and Dolt
+services of [`stack.yaml`](stack.yaml); `pnpm os:setup` includes it unless given
+`--without-backup`. The application sends one generated request identity
 through a private folder. The worker's protected declarations select the operation,
 stores, exporter checkouts and handoff folder.
 
@@ -12,20 +13,20 @@ their existing host definitions.
 
 ## Preparation and custody
 
-Set the variables required by `backup.compose.yaml` to the prepared installation's
-exact folders, task data volume and network. Compose refuses missing declarations
-and bind sources. The application mounts the request folder; the worker also mounts
+The installation folder's `installation.env` sets the variables
+`backup.compose.yaml` requires: its folders under `backup/`, the task data
+volume and the network. Compose refuses missing declarations and bind sources. The application mounts the request folder; the worker also mounts
 the declared task spokes, task data, credentials, exporter roots and private
 Postgres socket. Dolt and the worker share `/backup-staging` at the same path.
 
-The operator-owned worker profile folder is mode `0700`, with private files `0600`.
-Its `profile.json` is exactly:
+`pnpm os:setup` writes the worker profile folder, `backup/profile/`, mode `0700`
+with private files `0600`. Its `profile.json` is exactly:
 
 ```json
 {"format":"noticeos-backup-worker-v1","retentionDays":30}
 ```
 
-The prepared state folder contains a private `backup-client.json`:
+It writes a private `backup-client.json` into the state folder:
 
 ```json
 {"format":"noticeos-backup-client-v1","transportDir":"/backup-transport"}
@@ -40,9 +41,10 @@ This profile requires the worker profile and application client files to have th
 same UID and GID. It refuses different identities before running an exporter;
 private parent directories remain mode `0700`.
 
-An optional private `host-backup.json` beside the worker profile uses the existing
-[host backup declaration](../../config/host-backup.README.md). An offsite handoff,
-when declared, names `/backup-offsite/backups`. Approved exporter repositories name
+An optional private `host-backup.json` beside the worker profile uses the
+[host backup declaration](../../config/host-backup.README.md); `pnpm os:setup --
+--offsite <folder>` writes one. An offsite handoff, when declared, names
+`/backup-offsite/backups`. Approved exporter repositories name
 their prepared paths under `/backup-assets`. Each pinned `backup:prod` task runs as
 the application UID with an isolated client home; implicit npm lifecycle hooks are
 suppressed. Its platform dependencies and credential adapter must be prepared for

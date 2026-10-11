@@ -1,23 +1,23 @@
 #!/usr/bin/env node
-// `pnpm db:seed-demo`: a new installation's store filled with invented history.
+// `pnpm db:seed-demo`: a throwaway development database filled with invented history.
 //
-//   pnpm db:seed-demo                     # the installation `pnpm start` keeps in .local/start
-//   pnpm db:seed-demo -- --dir <folder>   # the one it keeps in <folder>
+//   pnpm db:seed-demo -- --dir <folder>   # the database `pnpm db:try-tower -- --dir <folder>` is running on
 //
 // It writes db/fixtures/dev-seed.json in one transaction, through the one
 // helper (packages/postgres), as the application login, so every row passes
 // the grants and row security a Worker's write passes and a failure keeps
-// nothing. It reaches the installation `pnpm start` made in the folder through
-// DATABASE_URL in that folder's secrets file, checked as `pnpm start` checks
-// it; never the checkout's own secrets and never the NoticeOS stack's
-// installation. No local store file is opened.
+// nothing. It reaches the database through DATABASE_URL in the folder's
+// secrets file, checked as `pnpm db:try-tower` checks it; never the checkout's
+// own secrets and never the NoticeOS stack's installation. No local store file
+// is opened.
 //
-// It refuses, writing nothing, when the folder is not one `pnpm start` made;
-// when its database is not marked `noticeos.profile = 'development'` (a
-// database is seedable or real, never both); and when the store already holds
-// a row in a table the fixture fills, or a site on one of its ids or domains,
-// because nothing in an invented row says so. The last two are decided inside
-// the writing transaction, behind a transaction lock.
+// It refuses, writing nothing, when no folder is named or the folder is not
+// one `pnpm db:try-tower` made; when its database is not marked
+// `noticeos.profile = 'development'` (a database is seedable or real, never
+// both); and when the store already holds a row in a table the fixture fills,
+// or a site on one of its ids or domains, because nothing in an invented row
+// says so. The last two are decided inside the writing transaction, behind a
+// transaction lock.
 
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -139,7 +139,7 @@ export async function fill(tx, fixture, { where = 'the secrets file' } = {}) {
       ...held.map((table) => `  noticeos.${table}: ${counts[table]} row(s)`),
       ...taken.map((row) => `  noticeos.assets: the site ${row.asset_id}, on an id or domain the fixture uses`),
       'These rows are invented; once mixed in with real ones, nothing in the store can tell them apart.',
-      'Seed only a new installation: pnpm start -- --dir <an empty folder>, on a new database marked for development.',
+      'Seed only a new development database: pnpm db:try-tower -- --dir <an empty folder>.',
       'Nothing was written.',
     ]);
   }
@@ -209,18 +209,22 @@ export function parseArgs(argv) {
 }
 
 /**
- * Seed the store of the installation `pnpm start` keeps in `dir`, or refuse
- * and say why. Returns the exit code.
+ * Seed the database `pnpm db:try-tower` runs on for `dir`, or refuse and say
+ * why. Returns the exit code.
  */
 export async function seedLocal({ dir = null, root = REPO_ROOT, fixture = null } = {}) {
+  if (!dir) {
+    fail('refusing to seed: name the folder: pnpm db:seed-demo -- --dir <folder>, the one pnpm db:try-tower -- --dir <folder> runs on.');
+    return 1;
+  }
   const plan = startPlan({ root, dir });
   const inside = path.relative(plan.home, plan.root);
   if (samePath(plan.home, plan.root) || (!inside.startsWith('..') && !path.isAbsolute(inside))) {
-    fail(`refusing to seed: ${shown(plan.home)} holds this checkout; seed a folder pnpm start made: pnpm start -- --dir <folder>`);
+    fail(`refusing to seed: ${shown(plan.home)} holds this checkout; seed a folder pnpm db:try-tower made: pnpm db:try-tower -- --dir <folder>`);
     return 1;
   }
   if (!existsSync(plan.mark)) {
-    fail(`refusing to seed: ${shown(plan.home)} is not an installation pnpm start made; make one first: pnpm start -- --dir ${shown(plan.home)}`);
+    fail(`refusing to seed: ${shown(plan.home)} is not a folder pnpm db:try-tower made; start one first: pnpm db:try-tower -- --dir ${shown(plan.home)}`);
     return 1;
   }
   const where = shown(plan.secrets);

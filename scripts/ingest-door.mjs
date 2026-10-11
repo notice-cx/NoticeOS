@@ -17,7 +17,7 @@ export const MANAGED_DOOR = 'http://127.0.0.1:8791';
  * The door this process belongs to: `OS_UP_INGEST_DOOR_HOST` /
  * `OS_UP_INGEST_DOOR_PORT`, the same two variables a dev server is told to
  * bind its door with (apps/tower/vite/runner-door.ts). Unset, it is the
- * managed door; `pnpm start` sets them so its Tower's Saves stay on its own
+ * managed door; `pnpm db:try-tower` sets them so its Tower's Saves stay on its own
  * store.
  */
 export function doorFromEnv(env = process.env) {

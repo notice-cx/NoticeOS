@@ -18,7 +18,7 @@ export interface WorkflowHistory {
 /**
  * The workflow history of the installation whose state is under `root`: the
  * home folder for the stack's runner (its code folder links `.local` to home),
- * the installation's own folder for `pnpm start`. The Tower
+ * its own folder for `pnpm db:try-tower`. The Tower
  * reads the same two files under its home (apps/tower/vite/workflow-history.ts).
  */
 export declare function createWorkflowHistory(root: string): WorkflowHistory;

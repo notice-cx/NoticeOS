@@ -3,7 +3,7 @@
 // from home's secrets file (runner/config.mjs SECRET_FILES) the way the
 // operator bearer is (runner/operator-token.mjs), and checked as the
 // application login by scripts/database-address.mts: the same read and check
-// `pnpm start` runs on its own folder. Never logged; nothing here applies a
+// `pnpm db:try-tower` runs on its own folder. Never logged; nothing here applies a
 // migration.
 
 import { towerDatabase } from '../database-address.mjs';

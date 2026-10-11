@@ -889,7 +889,7 @@ describe("saved project routing", () => {
     expect(commands.some((args) => args.includes("--claim"))).toBe(true);
   });
 
-  it("answers a folder pnpm start made, with no host inventory at all, as a project with no checkout linked", async () => {
+  it("answers a folder with no host inventory at all, as a project with no checkout linked", async () => {
     // The folder is not a checkout, so it has neither its own task-host.json
     // nor the product's default beside it.
     await reset();

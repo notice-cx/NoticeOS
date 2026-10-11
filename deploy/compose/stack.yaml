@@ -1,0 +1,18 @@
+# The NoticeOS stack: one definition for every installation.
+#
+# Each service keeps its own file (Postgres and Dolt beside their scripts, the
+# app beside its image); the files in stack/ only join them into one
+# installation. The installation folder's installation.env supplies the
+# choices and the paths (scripts/installation-layout.mjs writes it), so no
+# installation writes a Compose file of its own:
+#
+#   pnpm os:setup             a new installation
+#   pnpm os:convert-legacy    a legacy one moved into the layout
+#
+# The backup worker is backup.compose.yaml, layered on this file when the
+# installation has one; .local/stack.json lists both.
+name: noticeos
+include:
+  - path: [../../db/postgres/host/compose.yaml, stack/postgres.yaml]
+  - path: [../../db/dolt/host/compose.yaml, stack/dolt.yaml]
+  - path: [compose.yaml, stack/app.yaml]

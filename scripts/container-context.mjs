@@ -21,7 +21,7 @@ const PUBLIC_PATHS = [
   /^scripts\/[^/]+\.(?:mjs|mts)$/u,
   /^scripts\/runner\/[^/]+\.mjs$/u,
   /^config\/[^/]+\.json$/u,
-  /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json)$/u,
+  /^db\/postgres\/(?:migrations\/[^/]+\.sql|roles\.sql|tables\.json|frozen-migrations\.sha256)$/u,
   /^db\/dolt\/host\/backup-metadata\.sh$/u,
   /^deploy\/compose\/(?:Dockerfile|development\.mjs|(?:backup-)?health\.mjs|(?:backup-)?entrypoint\.mjs)$/u,
   /^deploy\/compose\/licenses\/(?:beads-1\.3\.1-LICENSE\.txt|dolt-2\.4\.0-LICENSE\.txt|sources\.json)$/u,

@@ -69,7 +69,7 @@ export interface ScheduleStatus {
     }[];
     /**
      * Whether this installation runs the host's own lanes (the jobs marked
-     * `local`). An installation `pnpm start` runs does not: it runs only the
+     * `local`). An installation that says false runs only the
      * `local` jobs it lists in `jobs`, each once set up, and the Tower lists
      * those beside the ingest's. Absent: it runs them all.
      */

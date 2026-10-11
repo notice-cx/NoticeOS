@@ -137,9 +137,10 @@ the loop may cite, at what cost — is cataloged in
   *measurement channel* must live outside the optimizer's write scope. An
   agent that can edit the ruler will, eventually, edit the ruler.
   The [fresh-install exception](../AGENTS.md#hard-invariants)
-  permits only `pnpm start` to apply the frozen Postgres schema and bootstrap
-  one workspace for a provably new, empty installation in its own Compose
-  project; existing installations and production remain operator-only.
+  permits only `pnpm os:setup` to apply the frozen Postgres schema and bootstrap
+  one workspace for a provably new, empty installation, with a new folder,
+  Compose project and data volumes; existing installations and production
+  remain operator-only.
 - **A one-action kill switch exists and is drilled** ([doc 06](06-operations.md)).
 
 ## Heterogeneity is the design point

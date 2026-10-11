@@ -9,13 +9,11 @@ This page gets you from a clone of the repository to the first number on a site'
 
 ## Before you begin
 
-Startup checks all five of these before it creates anything:
+You need three things on the machine:
 
 - Node.js 24.21.0 LTS
 - pnpm 12.8.1
 - Docker: a running local engine with Docker Compose
-- PostgreSQL client: `psql` on your `PATH`
-- Task tool: `bd` 1.3.1 on your `PATH`
 
 ## Steps
 
@@ -25,10 +23,10 @@ Startup checks all five of these before it creates anything:
    pnpm install --frozen-lockfile
    ```
 
-2. Run the start command, then open **http://127.0.0.1:4747/** if the browser does not open by itself:
+2. Set up the installation, then open **http://127.0.0.1:5173/**:
 
    ```sh
-   pnpm start
+   pnpm os:setup
    ```
 
 3. On **Home**, select **Add your first site**. In the **Add a site** dialog, type the domain in the **Domain** field and select **Add site**. You land on the new site's **Data sources** tab.

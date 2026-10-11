@@ -1,6 +1,6 @@
-// First-run Postgres for pnpm start and explicit synthetic demo setup: frozen
-// schema and one workspace, only in a proven new/empty installation and its
-// own new local Compose project.
+// First-run Postgres for the synthetic demo setup, `pnpm os:setup` and the
+// container proofs: frozen schema and one workspace, only in a proven
+// new/empty installation and its own new local Compose project.
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -28,6 +28,19 @@ function canonical(file) {
   return parent === file ? file : path.join(canonical(parent), path.basename(file));
 }
 
+/** The checkout's frozen marker, when every migration in it is listed there unchanged; else null. */
+export function frozenBaseline(root) {
+  const marker = readFrozenMarker(path.join(root, 'db', 'postgres', 'frozen-migrations.sha256'));
+  return fullyFrozen(marker, path.join(root, 'db', 'postgres', 'migrations')) ? marker : null;
+}
+
+/** Whether every migration in `dir` is listed, unchanged, in the frozen marker. */
+export function fullyFrozen(marker, dir) {
+  const migrations = readMigrations(dir);
+  return migrations.length > 0 && frozenMigrationProblems(marker, { dir }).length === 0 &&
+    marker.split('\n').filter(line => line.trim()).length === migrations.length;
+}
+
 /** Stable identity for this installation, including across later starts. */
 export function startPostgresPlan(plan) {
   const home = canonical(plan.home);
@@ -42,15 +55,17 @@ export function startPostgresPlan(plan) {
 /** Empty means no user schema, relation, function or type, even outside
  * NoticeOS. Only the extension objects created by this profile are allowed. */
 export function databaseEmpty(own) {
-  const target = checkTarget({ database: DATABASE, urlFrom: OWNER_URL_VARIABLE }, {
-    [OWNER_URL_VARIABLE]: readFileSync(path.join(own.secrets, 'owner.url'), 'utf8').trim(),
-  });
-  const db = openInstallationDatabase(target);
+  return ownerDatabaseEmpty(readFileSync(path.join(own.secrets, 'owner.url'), 'utf8').trim());
+}
+
+/** The same check, given the owner's address itself. */
+export function ownerDatabaseEmpty(ownerUrl) {
+  const db = openInstallationDatabase(checkTarget({ database: DATABASE, urlFrom: OWNER_URL_VARIABLE }, { [OWNER_URL_VARIABLE]: ownerUrl }));
   const [row] = db.script(EMPTY_INSTALLATION_SQL);
   return row?.empty === 't';
 }
 
-function freshWorkspace(value) {
+export function freshWorkspace(value) {
   if (value === undefined) return Object.freeze({ slug: 'main', displayName: 'My sites' });
   if (!value || Object.getPrototypeOf(value) !== Object.prototype ||
       Object.keys(value).sort().join(',') !== 'displayName,slug,workspaceId' ||
@@ -62,11 +77,13 @@ function freshWorkspace(value) {
   return Object.freeze({ ...value });
 }
 
-function applyFreshSchema(own, { workspace, dir, frozen }) {
-  const target = checkTarget({ database: DATABASE, urlFrom: OWNER_URL_VARIABLE }, {
-    [OWNER_URL_VARIABLE]: readFileSync(path.join(own.secrets, 'owner.url'), 'utf8').trim(),
-  });
-  const db = openInstallationDatabase(target);
+function applyFreshSchema(own, options) {
+  return applyOwnerFreshSchema(readFileSync(path.join(own.secrets, 'owner.url'), 'utf8').trim(), options);
+}
+
+/** The frozen schema and one workspace, as the owner, on a database proven empty. */
+export function applyOwnerFreshSchema(ownerUrl, { workspace, dir, frozen }) {
+  const db = openInstallationDatabase(checkTarget({ database: DATABASE, urlFrom: OWNER_URL_VARIABLE }, { [OWNER_URL_VARIABLE]: ownerUrl }));
   if (installationPlan(db, { dir, frozen }).stops.length) return false;
   applyMigrations(db, { dir });
   const checked = installationPlan(db, { dir, frozen });
@@ -116,7 +133,7 @@ export async function prepareFreshPostgres(plan, {
     const dir = path.join(plan.root, 'db', 'postgres', 'migrations');
     const marker = freeze ?? readFrozenMarker(path.join(plan.root, 'db', 'postgres', 'frozen-migrations.sha256'));
     const migrations = readMigrations(dir);
-    if (!migrations.length || frozenMigrationProblems(marker, { dir }).length || marker.split('\n').filter(line => line.trim()).length !== migrations.length) {
+    if (!fullyFrozen(marker, dir)) {
       return refusal('the Postgres baseline is not fully frozen; freeze and commit db/postgres/frozen-migrations.sha256 before first startup.');
     }
     if (!Number.isInteger(own.port) || own.port < 1024 || own.port > 65535 || MANAGED_START_PORTS.includes(own.port)) {

@@ -15,7 +15,7 @@ export declare const PRODUCT_ENV: Readonly<{
         name: "NOTICEOS_INSTALLATION_DIR";
         legacy: "REINDEX_OS_INSTALLATION_DIR";
     }>;
-    /** Where both Worker configs are read from when an installation runs out of a folder of its own (`pnpm start`). */
+    /** Where both Worker configs are read from when an installation runs out of a folder of its own (`pnpm db:try-tower`). */
     workerConfigRoot: Readonly<{
         name: "NOTICEOS_WORKER_CONFIG_ROOT";
         legacy: "REINDEX_OS_WORKER_CONFIG_ROOT";

@@ -13,17 +13,27 @@ the same Beads version before creating a new task project. See the official
 Pin changes do not authorize upgrades of existing databases or their running
 services.
 
+## In the stack
+
+`pnpm os:setup` prepares this service for a new installation. It writes the two
+passwords into the installation folder's `dolt-secrets/` and the task client's
+credentials into `state/dolt/`, creates the `<project>_dolt-data` volume, and
+starts `dolt` as part of [`deploy/compose/stack.yaml`](../../../deploy/compose/stack.yaml)
+on 127.0.0.1:3306 (the next free port if taken). Nothing is prepared by hand.
+The helpers below prepare an isolated service of their own, for restores,
+demos and tests.
+
 ## Hosting and credentials
 
 The Dolt definition is separate from [Postgres Compose](../../postgres/host/README.md).
-Both use the explicit `noticeos-start-<installation-hash>` project. Dolt commands
+The helpers use an explicit generated project. Dolt commands
 name only this Compose file and its `dolt` service; they do not change Postgres's
 definition or `postgres-data` volume. `dolt-data` persists database repositories,
 SQL privileges, branch controls and server configuration across container replacement.
 The service restarts independently of the OS runner and has an authenticated
 `SELECT 1` health check. SQL events are disabled.
 
-Only `127.0.0.1:<Tower port + 3>` is published. Container port 3306 is not an
+A helper's service publishes only `127.0.0.1:<base port + 3>`. Container port 3306 is not an
 operator endpoint. The helper refuses known default/managed ports and remote
 Docker contexts before any project contact. Every resource call names the
 declared project, service or volume; no Docker inventory search is performed.

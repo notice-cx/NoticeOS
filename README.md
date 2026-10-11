@@ -28,32 +28,32 @@ Missing data stays unknown; it is never silently turned into zero.
 
 ## Run from source
 
-For a new local installation, prepare:
+For a new installation, the machine needs:
 
 | Requirement | Version or setup |
 | --- | --- |
 | Node.js | 24.21.0 LTS |
 | pnpm | 12.8.1 |
 | Docker | A running local engine with Docker Compose |
-| PostgreSQL client | `psql` available on `PATH` |
-| Beads CLI | `bd` 1.3.1 available on `PATH` |
 
-From the repository checkout:
+From a clone on `main`:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm start
+pnpm os:setup
 ```
 
-Open **[http://127.0.0.1:4747/](http://127.0.0.1:4747/)** if the browser does not open.
-Startup creates a new installation under `.local/start/`, including its own
-Postgres store and Dolt task hub. It starts with no user websites or provider
-accounts. Later starts reuse that installation; existing databases are never
-migrated automatically.
+Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup builds the app
+image, makes the installation folder `~/noticeos` with its own secrets, starts
+Postgres, the Dolt task hub, the app and its backup worker as one Docker Compose
+stack, and points the `pnpm os:*` commands at it. It starts with no user
+websites or provider accounts, and existing databases are never touched.
 
-[Startup options and recovery](scripts/README.md#a-new-installation-in-one-command-pnpm-start)
-cover a different folder or port. For an existing installation, read the
-[upgrade policy](docs/reference/release-policy.md) before changing its code or database.
+[Install from source](docs/start/install-from-source.md) covers the options;
+[Run with Docker](docs/start/run-with-docker.md) covers the folder, moving an
+legacy installation into it with `pnpm os:convert-legacy`, and updates. For an
+existing installation, read the [upgrade policy](docs/reference/release-policy.md)
+before changing its code or database.
 
 ## Get your first useful view
 

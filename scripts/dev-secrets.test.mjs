@@ -142,7 +142,7 @@ test('the database address is read from the secrets file but never becomes a Wor
   await fs.writeFile(secretsFile, JSON.stringify({ OPERATOR_TOKEN: 'structured', [DATABASE_URL]: address }));
 
   assert.equal(DATABASE_URL, 'DATABASE_URL');
-  // The runner and `pnpm start` read it where the other bootstrap secrets are…
+  // The runner and `pnpm db:try-tower` read it where the other bootstrap secrets are…
   assert.equal((await readDevSecretBindings({ varsFile, secretsFile })).bindings[DATABASE_URL], address);
   // …and the file wrangler hands the Workers never holds it.
   assert.deepEqual(compileWorkerBindings({ OPERATOR_TOKEN: 'structured', [DATABASE_URL]: address }), { OPERATOR_TOKEN: 'structured' });

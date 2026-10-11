@@ -107,7 +107,7 @@ test('the runner resolves the stored task projects against the installation\'s l
   assert.match(project.unavailableReason, /no checkout linked on this host/);
 });
 
-test('a folder pnpm start made, with no inventory at all, links no checkouts rather than failing', async (t) => {
+test('a folder pnpm db:try-tower made, with no inventory at all, links no checkouts rather than failing', async (t) => {
   // Not a checkout, so neither its own copy nor a default.
   const started = await checkout(t);
   assert.deepEqual(await readTaskHost({ repoRoot: started, absentLinksNone: true }), { repositories: [] });

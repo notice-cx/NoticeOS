@@ -7,7 +7,7 @@ description: "The states and refusals you will meet while running NoticeOS, what
 
 This page gets you from a symptom to the one command or setting that fixes it.
 
-Start every investigation with the state, not the port: `pnpm os:status` for the stack, the terminal for a `pnpm start` installation. When the cause is unclear, read `pnpm os:logs -- --lines 200` before restarting anything.
+Start every investigation with the state, not the port: `pnpm os:status`. When the cause is unclear, read `pnpm os:logs -- --lines 200` before restarting anything.
 
 ## Service states
 
@@ -45,7 +45,7 @@ On a development stack, run `pnpm os:dev`: it builds a matching image and moves 
 
 ## Runtime log lines
 
-In the app container, one process runs the Tower and the data receiver together, and one scheduler fires every schedule. A second copy would run every schedule twice, so the runtime refuses to share its ports. A `pnpm start` installation or a browser-test server has its own folder and ports; it does not make the stack unhealthy.
+In the app container, one process runs the Tower and the data receiver together, and one scheduler fires every schedule. A second copy would run every schedule twice, so the runtime refuses to share its ports. A `pnpm db:try-tower` Tower or a browser-test server has its own folder and ports; it does not make the stack unhealthy.
 
 **`[ingest-door] cannot listen on <host>:<port>`.**
 Another runtime already holds the data port inside the app container. Run `pnpm os:restart`.
@@ -68,22 +68,48 @@ An empty screen does not prove the database is behind. Read the `database:` line
 **`pnpm --filter @noticeos/ingest dev` refuses to start.**
 Expected while another runtime holds the data port: a standalone data receiver would be a second runtime over the same files.
 
-## `pnpm start` refusals
+## `pnpm os:setup` and `pnpm os:convert-legacy` refusals
 
-**"port N belongs to the NoticeOS stack".**
-Ports 5173, 8791 and 3308 are reserved for the stack. Choose another with `--port`.
+Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`. Setup's checks run before it makes anything.
 
-**"port N is in use".**
-Something else holds it. Stop it or pick another port.
+**"… already selects an installation; pnpm os:status shows it, and pnpm os:convert-legacy moves a legacy one into the layout".**
+This checkout already has an installation. Use it, or move it with `pnpm os:convert-legacy`.
 
-**"… holds files pnpm start did not make".**
-The folder is not one `pnpm start` created. Choose an empty folder with `--dir`.
+**"… is not empty; setup makes a new installation in a new or empty folder".**
+Choose a new or empty folder with `--dir`. A folder inside the checkout is refused too.
 
-**"DATABASE_URL is not set … run pnpm db:create-secrets first".**
-The folder has no database address and no prepared profile to copy one from. Run `pnpm db:create-secrets` first, following the database setup guide the message names.
+**"Docker already has containers for the project …", or "the volume … already exists; setup never takes over existing data".**
+Another installation uses that project name. Choose another with `--project`, or move that installation with `pnpm os:convert-legacy`.
 
-**The start stops saying the database is behind this code.**
-Apply the migration as your own step, then start again. See [Upgrade](/start/upgrade).
+**"setup needs a local Docker engine on a Unix socket".**
+Start Docker, or select its local context, and run setup again.
+
+**"port N is in use; choose another".**
+The port you named with `--tower-port` is taken. Name another, or leave it out and setup picks the next free one.
+
+**"the offsite folder … does not exist; a missing sync folder is never made locally".**
+Mount or create the sync folder first, then run setup again.
+
+**"Made so far, left for inspection: …".**
+A step failed after setup started making things. The line before it says which step; `pnpm os:logs` shows the services' side. Setup never deletes or reuses what it made, so a new attempt needs another `--dir` and `--project`.
+
+**"… are not healthy; a conversion moves a healthy stack".**
+Fix the stack first: `pnpm os:status`, then `pnpm os:logs`. A development app may be broken; the databases and the backup worker may not.
+
+**"the app runs from live source and the record of its prepared image is missing", or "the stack changed since pnpm os:dev recorded it".**
+The conversion cannot tell which prepared stack to move. Run `pnpm os:prod`, then `pnpm os:convert-legacy` again.
+
+**"the stack already runs from the layout; nothing to convert".**
+Nothing to do.
+
+**"… exists from an earlier conversion; pnpm os:convert-legacy -- --undo returns to it, or remove it".**
+An earlier conversion is still recorded. Undo it, or remove that file once you keep the new folder.
+
+**"… The old stack runs again; … was left for inspection".**
+The new stack did not become healthy, so the old one was started again. Nothing in the old installation changed.
+
+**"The conversion stands, with the app on its prepared image: …".**
+The stack moved, but the development app did not come back on live source. `pnpm os:dev` tries again; the sentence says why it failed.
 
 ## Update refusals
 
@@ -103,7 +129,7 @@ The previous image would run older code on the newer schema. Restoring a backup 
 Run `pnpm os:prod` first.
 
 **An `os:*` command says the selector is invalid or a service is unexpected.**
-`.local/stack.json` must name exactly `project`, `files`, `envFile` and `dockerHost`, with absolute paths and a `unix://` socket. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+`.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 
 ## Data and credentials
 
@@ -134,9 +160,6 @@ The folder in `host-backup.json` has no existing parent; usually the sync mount 
 
 **The backup failed on "Task hub".**
 The task database service was not running; task databases are backed up online. Start it and run `pnpm os:backup`.
-
-**A `pnpm start` installation never runs its backup.**
-It runs the backup job only once its `installation/host-backup.json` names an offsite folder.
 
 ::: tip When nothing here matches
 `pnpm os:status` and `pnpm os:logs -- --lines 200` print redacted output that is safe to paste into an issue.

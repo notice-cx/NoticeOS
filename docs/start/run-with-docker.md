@@ -1,85 +1,67 @@
 ---
 title: "Run with Docker"
-description: "Run a prepared NoticeOS installation as its Docker Compose stack, control it, and move it to new code from main."
+description: "How a NoticeOS installation runs as its Docker Compose stack: the installation folder, moving an existing installation into it, controlling the stack and moving the app to new code from main."
 ---
 
 # Run with Docker
 
-This page gets you a running application container for an installation you have already prepared, and the commands that control it.
+This page covers how an installation runs once it exists: its folder, the commands that control it, and updates.
 
 ## Before you begin
 
-NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It starts an **already prepared installation**: a Postgres database and a task database (Dolt) that run as separate durable services on a shared Docker network. The container **never** creates or migrates either database. If you want a new installation on one machine without that preparation, use [Install from source](/start/install-from-source) instead.
+NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It **never** creates or migrates a database.
 
-You need:
+The stack has one definition for every installation, `deploy/compose/stack.yaml` in the checkout. An installation is a folder that definition reads: [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:convert-legacy` moves a legacy one into it. Nobody writes a Compose file.
 
-- A prepared Postgres database, following the guide on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/host/README.md
-- A prepared task database (Dolt): https://github.com/notice-cx/NoticeOS/blob/main/db/dolt/host/README.md
-- A Docker network shared with both, and a Docker engine that can build for `linux/arm64` or `linux/amd64`
-- A repository checkout to build the image from and run the commands in
+## The installation folder
 
-## Build the image
+| In the folder | What it holds |
+| --- | --- |
+| `installation.env` | This installation's choices, then the layout derived from the folder |
+| `state/` | The app's state, mounted at `/state`: saved settings, bootstrap secrets, logs, the task client |
+| `spokes/` | Task repositories, mounted at `/spokes` |
+| `postgres-secrets/`, `dolt-secrets/` | The database logins |
+| `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
 
-1. In a terminal, in the checkout, create a build context from the repository's public source allowlist. The destination must be new and outside the checkout:
+The choices in `installation.env` are the project name, the app image, the app's user, the three loopback ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
 
-   ```sh
-   node scripts/container-context.mjs --destination /absolute/new/context
-   ```
-
-2. Build that context, never the checkout:
-
-   ```sh
-   docker build --platform linux/arm64 --file /absolute/new/context/deploy/compose/Dockerfile --tag noticeos-local:review /absolute/new/context
-   ```
-
-The Dockerfile accepts `linux/arm64` and `linux/amd64`. It pins Node 24.21.0, pnpm 12.8.1, the task tool 1.3.1 and the PostgreSQL 18 client.
-
-## Declare the installation
-
-1. In your env file, set the values the Compose service in `deploy/compose/compose.yaml` needs:
-
-   | Variable | Value |
-   | --- | --- |
-   | `NOTICEOS_APP_IMAGE` | The image tag or immutable image reference you built |
-   | `NOTICEOS_STATE_DIR` | Absolute path of the prepared installation directory |
-   | `NOTICEOS_SPOKES_DIR` | Absolute path of the directory holding the linked task repositories |
-   | `NOTICEOS_NETWORK` | The existing network shared with Postgres and Dolt |
-   | `NOTICEOS_TOWER_PORT` | A free host port; it always binds to `127.0.0.1` |
-   | `NOTICEOS_APP_UID`, `NOTICEOS_APP_GID` | Owner of the mounted private files; default `1000:1000` |
-   | `TOWER_ALLOWED_HOSTS` | Extra hostnames the Tower may be opened on, separated by commas or spaces |
-
-2. In the state directory, check that both mounts exist before you start; Compose never creates an empty substitute. Inside the container the state directory is `/state`. Bootstrap secrets live at `/state/workers/ingest/.dev.secrets.json` and the task client declaration at `/state/task-client.json`.
-
-Only the Tower port is published. Postgres and Dolt keep no host ports. Provider credentials are still connected in the Tower, not in files.
+Only the Tower port reaches beyond the stack's network, on `127.0.0.1`, with Postgres and the task database beside it for the operator's tools. Provider credentials are connected in the Tower, not in files.
 
 ::: warning No login
-Standalone has no user login. The port binds to loopback for that reason. If you override the binding for a trusted LAN, every client on it can read and change your data. Keep the hostname allowlist; never allow every host.
+Standalone has no user login. The port binds to loopback for that reason. If you put the Tower on a network, every client on it can read and change your data. Keep the hostname allowlist; never allow every host.
 :::
+
+## Convert a legacy installation
+
+An installation that runs from Compose files of its own converts into the folder layout in one command. Its data volumes, image, ports and secrets stay the same.
+
+1. In the checkout whose `.local/stack.json` selects the installation, read the plan:
+
+   ```sh
+   pnpm os:convert-legacy
+   ```
+
+   It lists what it copies into the new folder (`~/noticeos` unless you add `-- --dir <folder>`), what stays where it is, and every difference that remains: a file from this checkout that differs from the one mounted now, a mount the layout has no place for, a changed port binding.
+
+2. Type `convert` to apply it.
+
+The stack stops while its folders are copied, then starts from the new folder; `.local/stack.json` changes only once it is healthy. Task repositories, exporter checkouts and the offsite folder stay where they are unless they live inside the checkout the old Compose files came from. The old files are never changed. If the new stack does not become healthy, the old one starts again by itself. To go back later, run `pnpm os:convert-legacy -- --undo`; what the app wrote to its state folder since then stays in the new folder.
+
+An app that follows the checkout (`pnpm os:dev`) converts too, even while it is broken: the plan starts from the prepared stack `os:dev` recorded, the app returns to that image for the move, and it follows the checkout again from the new folder afterwards.
 
 ## Control the stack
 
-1. In the checkout, declare the installation once in `.local/stack.json`, listing every Compose file the installation uses, in order:
+From the checkout, run the stack with the `os:*` commands:
 
-   ```json
-   {
-     "project": "your-project",
-     "files": ["/absolute/installation/compose.yaml"],
-     "envFile": "/absolute/installation/compose.env",
-     "dockerHost": "unix:///absolute/docker.sock"
-   }
-   ```
+```sh
+pnpm os:status
+pnpm os:start
+pnpm os:stop
+pnpm os:restart
+pnpm os:logs
+```
 
-2. From the checkout, run the stack with the `os:*` commands:
-
-   ```sh
-   pnpm os:status
-   pnpm os:start
-   pnpm os:stop
-   pnpm os:restart
-   pnpm os:logs
-   ```
-
-Add `-- --config /absolute/stack.json` to use another selector file. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes.
+Add `-- --config /absolute/stack.json` to act on another installation's selector. The commands expect existing `noticeos`, `postgres` and `dolt` containers, plus `backup` when present. They never create containers, pull images, apply migrations or remove volumes.
 
 Start brings up the databases, then the backup worker, then the app. Stop reverses that order. Restart waits for health at each step and stops at the first failure. [Daily operations](/operate/daily-operations) covers the rest.
 
@@ -105,7 +87,7 @@ Apply recreates only the `noticeos` container and waits up to 90 seconds for hea
 
 To go back to the previous image, run `pnpm os:rollback` and type `rollback`. An image built before revision labels existed needs `-- --baseline-commit COMMIT` on the first update.
 
-For automatic startup after a reboot, set `restart: unless-stopped` on each service and enable your Docker engine's startup setting.
+Every service restarts unless stopped; for startup after a reboot, enable your Docker engine's own startup setting.
 
 ## Follow a checkout during development
 
@@ -128,12 +110,13 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 ## Verify
 
 - `pnpm os:status` prints each service's state and health, the running source, and ends with `update: current` when `main` and the app agree.
-- The Tower opens on `127.0.0.1` at the port you declared in `NOTICEOS_TOWER_PORT`.
+- The Tower opens on `127.0.0.1` at the port `NOTICEOS_TOWER_PORT` names in `installation.env`.
 - After an update, health returns within 90 seconds and the status names the new commit.
 
 ## If it didn't work
 
-- An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` must name exactly `project`, `files`, `envFile` and `dockerHost`, with absolute paths and a `unix://` socket, and the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+- An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
+- `pnpm os:convert-legacy` refuses: the sentence names what the layout cannot hold (another service, a stack that is not healthy, a network of the same name it did not create). Nothing was changed.
 - `os:update` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.
 - The development app stops after a pull: the checkout's packages changed since its image was built, and `pnpm os:logs -- noticeos` says so. Run `pnpm os:dev`; it builds a matching image and moves the app onto it.
 - `os:restart` or `os:update` names a service that is not healthy: `pnpm os:logs -- <service>` shows why.

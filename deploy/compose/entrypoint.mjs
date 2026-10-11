@@ -45,11 +45,15 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
 }
 
 /** What the container runs: the runner with no job named, or one job beside
- * it (`pnpm os:backup`, `os:run-job`, `os:capacity` exec it here), each with
- * the environment the runner itself gets. Null for anything else. */
+ * it (`pnpm os:backup`, `os:run-job`, `os:capacity` exec it here; `pnpm
+ * os:setup` runs `setup` in a one-off container and `seed-settings` in the
+ * new app), each with the environment the runner itself gets. Null for
+ * anything else. */
 export function containerCommand(argv) {
   const [job, ...rest] = argv;
   if (job === undefined) return ['scripts/os-up.mjs'];
+  if (job === 'setup' && rest.length === 0) return ['scripts/os-setup-container.mjs'];
+  if (job === 'seed-settings' && rest.length === 0) return ['scripts/config-seed.mjs'];
   if (job === 'backup' && rest.length === 0) return ['scripts/os-up.mjs', '--backup'];
   if (job === 'run-job' && rest.length === 1 && /^[0-9*/,\- ]{9,64}$/u.test(rest[0])) return ['scripts/os-up.mjs', '--tick', rest[0]];
   if (job === 'capacity' && (rest.length === 0 || rest.length === 1 && rest[0] === '--json')) return ['scripts/os-capacity.mjs', ...rest];
@@ -58,7 +62,7 @@ export function containerCommand(argv) {
 
 export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr } = {}) {
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>" or capacity [--json].\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>", capacity [--json], setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();

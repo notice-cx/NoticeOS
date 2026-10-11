@@ -35,5 +35,5 @@ test('every numbered link in the docs index opens a doc that exists', () => {
 test('the root README sends a reader to the docs index and says how to start', () => {
   const readme = readFileSync(path.join(REPO_ROOT, 'README.md'), 'utf8');
   assert.match(readme, /\]\(docs\/README\.md\)/);
-  assert.match(readme, /^pnpm start$/m);
+  assert.match(readme, /^pnpm os:setup$/m);
 });

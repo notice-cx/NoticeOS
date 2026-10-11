@@ -1,6 +1,6 @@
 ---
 title: "Install from source"
-description: "Start a new NoticeOS installation on your own machine with one command, and learn what that command creates."
+description: "Set up a new NoticeOS installation on any Docker host with one command, and learn what that command creates."
 ---
 
 # Install from source
@@ -9,34 +9,31 @@ This page gets you from a clone of the repository to the Tower open in your brow
 
 ## Before you begin
 
-`pnpm start` creates a **separate, new installation** for a fresh clone. It is not the Docker Compose stack the `pnpm os:*` commands run; that stack is how an installation you have set up runs on its own, described in [Run with Docker](/start/run-with-docker) and [Daily operations](/operate/daily-operations).
-
-Startup checks all five of these before it creates anything:
+You need three things on the machine, and nothing else:
 
 - Node.js 24.21.0 LTS
 - pnpm 12.8.1
-- Docker: a running local engine with Docker Compose
-- PostgreSQL client: `psql` on your `PATH`
-- Task tool: `bd` 1.3.1 on your `PATH`
+- Docker: a running local engine with Docker Compose, on `linux/arm64` or `linux/amd64`
 
-## Install and start
+The steps that need the PostgreSQL client and the task tool run inside the app's own image.
 
-1. In a terminal, open the repository checkout.
-2. Run the install with the pinned dependencies:
+## Set up and start
+
+1. In a terminal, in a clone of the repository on `main`, run the install with the pinned dependencies:
 
    ```sh
    pnpm install --frozen-lockfile
    ```
 
-3. Run the start command:
+2. Set up the installation:
 
    ```sh
-   pnpm start
+   pnpm os:setup
    ```
 
-4. In your browser, open **http://127.0.0.1:4747/** if it does not open by itself.
+3. In your browser, open **http://127.0.0.1:5173/**.
 
-The terminal that runs `pnpm start` is the installation. Press **Ctrl-C** there to stop it. Running `pnpm start` again later reuses the same installation.
+Setup builds `main` into the app image, which takes a few minutes the first time. When it prints **NoticeOS is running**, the stack runs on its own: its services start again with Docker, and the `pnpm os:*` commands control it from this checkout. See [Daily operations](/operate/daily-operations).
 
 ::: warning Keep it private
 A standalone installation has no login. It listens on `127.0.0.1` only, so nothing outside your machine can reach it. If you put it on a network, put a VPN or an access proxy in front of it first.
@@ -45,28 +42,29 @@ A standalone installation has no login. It listens on `127.0.0.1` only, so nothi
 ### Options
 
 ```sh
-pnpm start -- --port 6000        # the Tower on 6000, its internal data port on 6001
-pnpm start -- --dir ~/noticeos   # keep the installation in another folder
-pnpm start -- --no-open          # print the address, open no browser
+pnpm os:setup -- --dir ~/noticeos-test     # keep the installation in another folder (default ~/noticeos)
+pnpm os:setup -- --offsite ~/Sync/Backups  # hand each night's backup to a folder a sync client carries off the machine
+pnpm os:setup -- --tower-port 6000         # the Tower on another port
+pnpm os:setup -- --without-backup          # no backup worker
 ```
 
-The Tower uses the port you choose. The port after it receives data from your sites. The database runs on the Tower port plus two, and the task database on the Tower port plus three. With the defaults that is 4747, 4748, 4749 and 4750.
+The Tower takes port 5173, Postgres 5432 and the task database 3306, all on `127.0.0.1`; setup picks the next free port when one is taken and prints the Tower's.
 
-Ports 5173, 8791 and 3308 are refused even when free. They belong to the Docker stack described in [Daily operations](/operate/daily-operations).
+### What setup creates
 
-### What startup creates
+One installation folder, `~/noticeos` unless you name another, holds everything that belongs to the installation:
 
-`pnpm start` makes one folder, `.local/start/` inside the checkout (or the folder you named with `--dir`), and keeps everything for the installation in it:
+| In the folder | What it holds |
+| --- | --- |
+| `installation.env` | This installation's choices (ports, image, folders) and the layout derived from them |
+| `state/` | The app's state: saved settings, bootstrap secrets, logs, the task client |
+| `spokes/` | Task repositories, starting with NoticeOS's own |
+| `postgres-secrets/`, `dolt-secrets/` | The database logins, made new for this installation |
+| `backup/` | The backup worker's settings and working folders |
 
-- runtime state and a log;
-- a generated secrets file with the installation's own bootstrap secrets;
-- the saved-settings exports under `installation/`;
-- a Postgres database in its own Docker Compose project, with its data in a Docker volume;
-- a task database (Dolt) in the same way, with one internal NoticeOS task project so the Tasks page works before you add a site.
+The databases' data lives in two Docker volumes named after the project (`noticeos_postgres-data`, `noticeos_dolt-data`). The stack itself is `deploy/compose/stack.yaml` in the checkout; you never write a Compose file. The checkout's `.local/stack.json` points the `os:*` commands at the folder.
 
-On the first run it proves the folder, the Compose project and the data volume are new, applies the committed database schema, and creates one workspace. The installation starts with no sites and no provider accounts.
-
-Deleting the folder does not delete the database: the data lives in Docker volumes that the folder only points at. The full startup contract is in the operations guide on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#a-new-installation-in-one-command-pnpm-start.
+Setup proves the folder, the Compose project and its volumes are all new before it makes anything. It then applies the committed database schema, creates one workspace and one internal NoticeOS task project so the Tasks page works before you add a site, and loads the default settings. The installation starts with no sites and no provider accounts.
 
 ## Get your first useful view
 
@@ -78,15 +76,15 @@ Use **Tasks** for work and **Wall** for the TV view. Provider credentials go in 
 
 ## Verify
 
-- The terminal prints the Tower's address and keeps running.
+- `pnpm os:status` shows `postgres`, `dolt`, `backup` and `noticeos` running and healthy, and the database with every migration.
 - **Home** opens with three steps: **Add your first site**, **Connect a source** and **See your first number**.
-- **Tasks** opens before any site exists, because startup created one internal NoticeOS task project.
+- **Tasks** opens before any site exists.
 
 ## If it didn't work
 
-- The start fails right away after you pulled new code: `pnpm run` refuses to start with outdated dependencies. Run `pnpm install --frozen-lockfile` again.
-- The start stops in one sentence, changing nothing: the folder already holds files it did not make (choose an empty folder with `--dir`), a second start targets a folder that is already running, or the folder's database address is missing (the message names the command that sets the database up).
-- The start says the database is behind the code you are running: an existing database is **never** migrated automatically. See [Upgrade](/start/upgrade).
+- Setup stops before making anything: the folder is not empty, the project already has containers or volumes, or `.local/stack.json` already selects an installation. The sentence names which; a legacy installation moves into the layout with `pnpm os:convert-legacy` ([Run with Docker](/start/run-with-docker#convert-a-legacy-installation)).
+- Setup stops after it started making things: it names what it made and leaves it for inspection. `pnpm os:logs` shows the services' side.
+- `pnpm run` refuses to start after you pulled new code: run `pnpm install --frozen-lockfile` again.
 
 Every refusal and its fix is listed in [Troubleshooting](/operate/troubleshooting).
 

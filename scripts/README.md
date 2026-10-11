@@ -4,6 +4,8 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
+| `os:setup` | Set up a new NoticeOS installation on this Docker host and start it. | `scripts/os-setup.mjs` |
+| `os:convert-legacy` | Convert a legacy installation, one that runs from Compose files of its own, into the installation folder layout, after you confirm the plan. | `scripts/os-convert-legacy.mjs` |
 | `os:status` | What runs, its health, the database's migrations, and whether main is ahead. | `scripts/stack-control.mjs status` |
 | `os:logs` | Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them. | `scripts/stack-control.mjs logs` |
 | `os:start` | Start the stack: databases, then backup, then the app, each healthy first. | `scripts/stack-control.mjs start` |
@@ -24,8 +26,9 @@
 |---|---|---|
 | `db:new-migration` | Write the next numbered migration file. | `scripts/postgres-migrate.mjs new` |
 | `db:try-migrations` | Run the migrations on a throwaway development database. | `scripts/postgres-migrate.mjs` |
+| `db:try-tower` | The Tower on a throwaway development database, for working on screens with invented data. | `scripts/start.mjs` |
 | `db:create-secrets` | Write the Postgres service's secret files, once, before the service's first start. | `scripts/postgres-secrets.mjs` |
-| `db:seed-demo` | A new installation's store filled with invented history. | `scripts/db-seed.mjs` |
+| `db:seed-demo` | A throwaway development database filled with invented history. | `scripts/db-seed.mjs` |
 | `db:consumers` | Which source reads and writes each table. | `scripts/postgres-docs.mjs --consumers` |
 
 ### Settings and credentials
@@ -79,7 +82,6 @@
 
 | `pnpm …` | What it does | Runs |
 |---|---|---|
-| `start` | NoticeOS on this machine, in one command. | `scripts/start.mjs` |
 | `typecheck` | Typecheck every workspace. | `pnpm -r --if-present run typecheck` |
 | `build` | Build every workspace. | `pnpm -r --if-present run build` |
 | `prepare` | Install the repository's git hooks on `pnpm install`. | `scripts/install-git-hooks.mjs` |
@@ -117,66 +119,37 @@ private data and run the
 against that exact source before publication, which needs its own operator
 approval.
 
-# A new installation in one command (`pnpm start`)
+# A new installation (`os:setup`) or a legacy one converted (`os:convert-legacy`)
 
 ```
 pnpm install --frozen-lockfile
-pnpm start                       # → http://127.0.0.1:4747/, Home's first-run steps
-pnpm start -- --port 6000        # the Tower on 6000, its ingest door on 6001
-pnpm start -- --dir ~/noticeos   # keep the installation somewhere else
-pnpm start -- --no-open          # print the address, open no browser
+pnpm os:setup                           # → ~/noticeos, the Tower on http://127.0.0.1:5173/
+pnpm os:setup -- --dir <folder>         # the installation somewhere else
+pnpm os:setup -- --offsite <folder>     # finished backups handed to a synced folder
+pnpm os:convert-legacy                  # the stack .local/stack.json selects, moved into the layout after you type `convert`
+pnpm os:convert-legacy -- --undo        # back to the stack as it was before
 ```
 
 The committed `verifyDepsBeforeRun: error` setting makes `pnpm run` refuse
 stale dependencies, so install first.
 
+`scripts/os-setup.mjs` makes a new installation on any Docker host that has
+Docker, Node and pnpm: an installation folder in the layout
+`scripts/installation-layout.mjs` writes, two new data volumes, the stack
+from `deploy/compose/stack.yaml` started, and `.local/stack.json` written
+last. It is the [fresh-install exception](../AGENTS.md#hard-invariants): it
+refuses existing folder content, project containers, volumes or network, and
+an existing selector, before it makes anything. The frozen schema, the one
+workspace and the NoticeOS task project are applied inside a one-off app
+container (`scripts/os-setup-container.mjs`).
 
-
-`scripts/start.mjs` makes one folder, `.local/start/`, for its runtime state
-(`.wrangler/state`), bootstrap secrets (`workers/ingest/.dev.secrets.json`,
-compiled to `.dev.vars`), generated Worker configs, saved-settings exports
-(`installation/`) and log. Operational data lives in the Postgres database
-named by the folder's `DATABASE_URL`; deleting the folder does not reset it
-([secret boundary](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)).
-It is **not the Docker stack** the `os:*` commands run: it never opens the
-checkout's `.wrangler/state`, `installation/` or secret files, refuses the
-stack's ports (5173, 8791, 3308), refuses a folder it did not make, and
-allows one start per folder (`scripts/start.test.mjs` trips each of those).
-Prerequisites are Node 24.21.0 LTS, pnpm 12.8.1, local Docker Compose, `psql`
-and Beads CLI (`bd`) **1.3.1**, checked before any state is created.
-
-**A new, empty installation gets its own Postgres automatically**
-([approved exception](../AGENTS.md#hard-invariants)).
-Setup checks the committed migration hashes, proves the folder, its Compose
-project and its data volume are new, makes the profile's secrets under
-`<start-folder>/postgres/secrets`, starts its isolated service, confirms the
-database is empty, applies only frozen migrations, and bootstraps one
-workspace. Postgres listens on the Tower port plus two (4749 by default); the
-project is `noticeos-start-` plus a hash of the folder's path, recorded in the
-nonsecret `postgres/profile.json`. **The same installation gets its own Dolt
-task hub** on the Tower port plus three (4750), with its own `dolt-data` volume and `dolt/profile.json`
-([recovery procedure](../db/dolt/host/README.md)), plus an internal NoticeOS
-asset and task project, so Tasks is usable before the first website. Later
-starts reuse the same resources; missing ones require explicit recovery.
-
-An existing folder, store, secrets or database is never migrated
-automatically: an inherited `DATABASE_URL`, an explicit
-`NOTICEOS_POSTGRES_SECRETS` or `NOTICEOS_POSTGRES_PORT`, or a symlinked folder
-prevents automatic setup ([taking an address from a prepared Compose profile](../db/postgres/host/README.md)).
-With the address in the secrets file, every start checks it as the application login
-(`scripts/database-address.mts`): the database answers, the login is
-`noticeos_app`, every migration this code has is applied, the one workspace
-exists; anything else stops the start in one sentence naming the fix
-(`pnpm os:migrate -- --apply` or `bootstrap`) and never repeats the address,
-which rides only in the Tower's environment
-(`CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_POSTGRES`). Startup has no
-`--migrate` flag.
-
-It keeps collecting on its schedule (`scripts/start-schedule.mjs`): it fires
-the ingest's crons at its own door on the schedules saved in its store, with
-the runner's catch-up policy (`scripts/job-runs.mjs`), and of the
-runner's host lanes runs only the task board refresh and the backup
-(`scripts/start-host-lanes.mjs`); its status says `hostLanes: false`.
+`scripts/os-convert-legacy.mjs` moves a legacy installation, one with Compose
+files of its own, into the same layout. It prints a plan, copies the
+installation's own folders, starts from the new folder and rewrites the
+selector only once the stack is healthy; an app on live source returns to its
+prepared image for the move and follows the checkout again afterwards. It
+never changes the old files and never migrates. Both are described in the
+[Docker guide](../deploy/compose/README.md).
 
 # Prepare an asset repository's context
 
@@ -246,7 +219,7 @@ Background operations → Edit schedule**.
   exits 3.
 - **No migrations at startup** — supervision, restart, crash recovery,
   catch-up and `pnpm os:update` never invoke `pnpm os:migrate`; the
-  fresh-install exception belongs only to `pnpm start`.
+  fresh-install exception belongs only to `pnpm os:setup`.
 - **Starts on its Postgres, or not at all** — it reads `DATABASE_URL` from
   the installation's secrets file and checks it as the application login,
   read-only (`scripts/runner/database.mjs`); an unusable address or a database behind
@@ -526,8 +499,8 @@ and serving agent sign-in on a public origin are operator steps.
 
 ## Hosted runtime composition and recovery
 
-Hosted operation uses explicit server composition; `pnpm start` and the `os:*`
-commands remain standalone adapters. The
+Hosted operation uses explicit server composition; the `os:*` commands
+remain standalone adapters. The
 [portable demo preview](../deploy/demo/README.md) serves compiled assets and
 composes the real Worker, task and simulator handles behind an HTTPS proxy.
 Neither entry starts a general hosted scheduler. The deployment owns:
@@ -750,29 +723,31 @@ installation's one workspace, once. The rest is in
 
 ---
 
-# Dev fixtures (`db:seed-demo`)
+# Dev fixtures
 
-`pnpm db:seed-demo` (`scripts/db-seed.mjs`) fills a new installation's store
-with invented history so a developer sees a populated Tower
+`pnpm db:try-tower` (`scripts/start.mjs`) runs the Tower on a throwaway
+development database, for working on screens. It is not an installation;
+`pnpm os:setup` makes one. `pnpm db:seed-demo` (`scripts/db-seed.mjs`) fills
+that database with invented history
 ([`db/fixtures/dev-seed.json`](../db/fixtures/dev-seed.json)).
 
 ```sh
-# Terminal 1: a foreground-owned, loopback-only development runtime
-pnpm start -- --development --dir .local/development --no-open
-# Terminal 2: populate that runtime with synthetic rows
-pnpm db:seed-demo -- --dir .local/development
+# Terminal 1: the Tower on a development database, loopback only, in the foreground
+pnpm db:try-tower -- --dir <folder> --no-open      # http://127.0.0.1:4747/; --port <n> for another
+# Terminal 2: invented history in that database
+pnpm db:seed-demo -- --dir <folder>
 ```
 
-The development command needs local PostgreSQL server binaries on PATH: it
-creates its own marked native development cluster, applies every frozen
-migration and bootstraps one workspace, with no Docker, task hub or provider
-lanes. Ctrl-C removes its owned database; the next start creates a fresh one,
-so run the seed again.
+It needs local PostgreSQL server binaries on PATH: it creates its own marked
+development cluster, applies every frozen migration and bootstraps one
+workspace, with no Docker, task hub or provider lanes. The folder must be
+empty or one it made, and it refuses the stack's ports. Ctrl-C removes its
+database; the next run creates a fresh one, so run the seed again.
 
 The seed writes every row in one transaction as the application login and
 opens no local store file, so it runs beside a started Tower. It refuses,
-writing nothing: a folder `pnpm start` did not make; a database not marked
-`noticeos.profile = 'development'` (`pnpm os:migrate` refuses a marked
+writing nothing: a folder `pnpm db:try-tower` did not make; a database not
+marked `noticeos.profile = 'development'` (`pnpm os:migrate` refuses a marked
 one: a database is seedable or real, never both); and a store that already
 holds data in `pulses`, `flags`, `ledger_entries`, `counter_readings` or
 `annotations`, or a site on one of the fixture's ids or domains, because a
@@ -799,7 +774,7 @@ in the app container), edited as formatted JSON; object and array values are
 serialized to the string bindings the Worker parses. The runner compiles it
 to the generated `.dev.vars` beside it at every start, so after an edit run
 `pnpm os:restart`. One key never goes there: `DATABASE_URL`, which the runner
-and `pnpm start` hand to the dev server's environment alone
+and `pnpm db:try-tower` hand to the dev server's environment alone
 ([doc 06](../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials)).
 The Import button on a Legacy env card in **Integrations** moves the legacy
 bindings into the store once; there is no import command.

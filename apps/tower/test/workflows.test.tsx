@@ -127,7 +127,7 @@ describe('workflow operating surface', () => {
     expect(screen.getAllByText('Unknown')).toHaveLength(15);
   });
   it('lists only the ingest’s jobs for an installation whose runner runs no host lanes', async () => {
-    // An installation `pnpm start` runs: no task hub, push state or offsite
+    // A runner without host lanes (the hosted scheduler): no task hub, push state or offsite
     // backup, so none of them is listed or counted unconfirmed.
     const ingest = WORKFLOW_DEFINITIONS.filter((w) => !w.local);
     data.runtime = { ...data.runtime!, hostLanes: false, jobs: data.runtime!.jobs.filter((job) => ingest.some((w) => w.id === job.id)) };

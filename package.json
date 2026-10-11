@@ -8,12 +8,13 @@
     "node": ">=24.21.0"
   },
   "scripts": {
-    "start": "node scripts/start.mjs",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "pnpm -r --if-present run test",
     "build": "pnpm -r --if-present run build",
     "prepare": "node scripts/install-git-hooks.mjs",
     "generate": "node scripts/generate.mjs",
+    "os:setup": "node scripts/os-setup.mjs",
+    "os:convert-legacy": "node scripts/os-convert-legacy.mjs",
     "os:status": "node scripts/stack-control.mjs status",
     "os:logs": "node scripts/stack-control.mjs logs",
     "os:start": "node scripts/stack-control.mjs start",
@@ -29,6 +30,7 @@
     "os:capacity": "node scripts/stack-control.mjs capacity",
     "db:new-migration": "node scripts/postgres-migrate.mjs new",
     "db:try-migrations": "node scripts/postgres-migrate.mjs",
+    "db:try-tower": "node scripts/start.mjs",
     "db:create-secrets": "node scripts/postgres-secrets.mjs",
     "db:seed-demo": "node scripts/db-seed.mjs",
     "db:consumers": "node scripts/postgres-docs.mjs --consumers",
