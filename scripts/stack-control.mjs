@@ -5,7 +5,7 @@
 // environment (deploy/compose/entrypoint.mjs): one backup, one schedule, the
 // capacity report.
 //
-//   pnpm os:status      What runs, its health, the database's migrations, and whether main is ahead.
+//   pnpm os:status      Where the installation is, what runs, its health, the database's migrations, and whether main is ahead.
 //   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
 //   pnpm os:start       Start the stack: databases, then backup, then the app, each healthy first.
 //   pnpm os:stop        Stop the app, then backup, then the databases.
@@ -18,6 +18,7 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { ENV_FILE } from './installation-layout.mjs';
 import { runCommand } from './run-command.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
@@ -155,6 +156,8 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     return;
   }
   if (action === 'status') {
+    out.write(path.basename(selector.envFile) === ENV_FILE ? `installation: ${path.dirname(selector.envFile)}\n`
+      : `installation: legacy, its settings in ${selector.envFile}; pnpm os:convert-legacy moves it into one folder\n`);
     for (const service of SERVICES.filter(name => original.has(name))) {
       const row = original.get(service); out.write(`${service}: ${row.state}${row.health ? ', ' + row.health : ''}\n`);
     }

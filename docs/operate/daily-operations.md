@@ -28,7 +28,7 @@ pnpm os:update                 # move the app to main after a verified merge
 
 ## What status tells you
 
-`pnpm os:status` prints one line per service, then:
+`pnpm os:status` prints the installation folder, one line per service, then:
 
 | Line | What it means |
 | --- | --- |

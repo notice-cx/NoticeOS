@@ -23,7 +23,7 @@ The stack has one definition for every installation, `deploy/compose/stack.yaml`
 | `postgres-secrets/`, `dolt-secrets/` | The database logins |
 | `backup/` | The backup worker's settings, its working folders, exporter checkouts and the offsite handoff |
 
-The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it.
+The choices in `installation.env` are the project name, the app image, the app's user, the Tower's address, the three ports, the hostnames the Tower may be opened on, the two data volumes, and the folders an installation may keep elsewhere: task repositories, exporter checkouts and the offsite folder. Every other path follows from the folder. The checkout's `.local/stack.json` names the stack definition and this file; `os:setup` and `os:convert-legacy` write it. `pnpm os:status` prints the folder on its first line.
 
 Three ports reach beyond the stack's network: the Tower's, and Postgres and the task database for the operator's tools. All three listen on `127.0.0.1`; only the Tower's can be [opened to your network](#open-the-tower-to-your-network). Provider credentials are connected in the Tower, not in files.
 
