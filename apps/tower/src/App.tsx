@@ -88,6 +88,7 @@ function prefetch(to: string): void {
 if (import.meta.env.DEV) {
   deskRoutes.push(
     { path: "/dev/kitchen-sink", ...lazyPage(() => import("@/routes/KitchenSinkRoute")) },
+    { path: "/dev/visual-kit", ...lazyPage(() => import("@/routes/VisualKitRoute")) },
   );
 }
 

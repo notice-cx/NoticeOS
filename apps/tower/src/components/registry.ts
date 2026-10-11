@@ -1170,4 +1170,74 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The one disclosure per screen that holds the prose: what the numbers are, where they come from, what provisional means. A native `<details>`, closed by default; `defaultOpen` exists for the gallery and a first run.",
     variants: ["closed (the default)", "open", "custom summary"],
   },
+  {
+    name: "BarStrip",
+    file: "components/viz/BarStrip.tsx",
+    purpose:
+      "A short run of days as bars: the newest settled day in the series' identity ink, the days before it neutral, the usual level as a dashed rule. A day still counting is hatched, an unreported day an empty hatched slot, a measured zero a stub.",
+    variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero"],
+  },
+  {
+    name: "PaceBar",
+    file: "components/viz/PaceBar.tsx",
+    purpose:
+      "Progress through a period against the last one: the period so far filled, where it is heading dashed, the last period's total as the end of the ruler, and the last period at the same day as a marker when that figure exists.",
+    variants: ["heading for, against last month's total", "with a same-day marker", "figure printed beside it (showValue off)"],
+  },
+  {
+    name: "NormalBand",
+    file: "components/viz/NormalBand.tsx",
+    purpose:
+      "A reading against its usual range: the range as a band, the reading as a marker, the verdict as a word. Only the side the caller names as bad is painted as a problem.",
+    variants: ["below normal (warn)", "within range", "compact inside a row"],
+  },
+  {
+    name: "StatTile",
+    file: "components/viz/StatTile.tsx",
+    purpose:
+      "One figure at tile scale with everything that makes it readable at a glance: the measure and its window, the figure (counting to a new reading), its change against a named baseline, its recent history and one context line. The top rule names its role: context, problem, warning, good, money, people.",
+    variants: ["money with bars", "people with bars", "problem without history", "display size", "absent figure", "not comparable"],
+  },
+  {
+    name: "HealthGrid",
+    file: "components/viz/HealthGrid.tsx",
+    purpose:
+      "Subjects × data sources in one grid, each cell a state with its age: a fresh failure solid red, a week-old one outlined, not connected hatched. Rows keep their order; a System row carries its own parts. Below about 640px of its own width each row becomes a strip of shaped dots.",
+    variants: ["a bad afternoon", "calm (working cells recede)", "a good day", "narrow column"],
+  },
+  {
+    name: "EventTimeline",
+    file: "components/viz/EventTimeline.tsx",
+    purpose:
+      "What happened when: one row per site on a time axis with NOW drawn, open problems as bars running to NOW (older than the window clipped and quiet), events as shaped marks that cluster, and a since-you-last-looked marker.",
+    variants: ["last 24 hours", "last 7 days", "one site's row (compact)", "quiet"],
+  },
+  {
+    name: "FlowGraph",
+    file: "components/viz/FlowGraph.tsx",
+    purpose:
+      "How parts connect and where it is broken: live nodes with figures and state, edges that flow, idle or break, a loop routed around. Across or stacked by its own width, with a spoken list of every edge.",
+    variants: ["the Sense to Learn loop", "system topology", "task dependencies", "not connected"],
+  },
+  {
+    name: "IncidentList",
+    file: "components/viz/IncidentList.tsx",
+    purpose:
+      "Open problems in one ranked panel: new since the last look first, then still open, then anything open over a week folded into one line. Each row carries its evidence (a reading against its normal) where a sentence used to be.",
+    variants: ["new, open and folded long-standing", "with normal-range evidence", "nothing open"],
+  },
+  {
+    name: "DecisionQueue",
+    file: "components/viz/DecisionQueue.tsx",
+    purpose:
+      "A queue drawn as a queue: how many are waiting, the oldest wait, the age spread as one bar, then rows with age drawn as a length and their verbs quiet until the row is pointed at or focused.",
+    variants: ["147 waiting with the rest one press away", "empty"],
+  },
+  {
+    name: "PortfolioRows",
+    file: "components/viz/PortfolioRows.tsx",
+    purpose:
+      "The sites side by side, one ruled row each: people a day as a line, yesterday's money and change, share of the month and data sources live. Columns drop by the panel's own width before a name ever wraps.",
+    variants: ["full width", "narrow column"],
+  },
 ];

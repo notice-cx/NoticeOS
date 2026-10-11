@@ -33,6 +33,10 @@ export const THEME_TEXT_SIZES = [
   "wall-site-stat",
   "wall-site-label",
   "mark-degraded",
+  "display",
+  "figure",
+  "figure-sm",
+  "micro",
 ] as const;
 
 const twMerge = extendTailwindMerge({ extend: { theme: { text: [...THEME_TEXT_SIZES] } } });

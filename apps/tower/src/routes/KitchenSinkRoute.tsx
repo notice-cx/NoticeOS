@@ -1,3 +1,4 @@
+import { VisualKitGallery } from "@/routes/VisualKitRoute";
 import { toast } from 'sonner';
 import { useOwnerToast } from '@/lib/browser-context';
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
@@ -1882,6 +1883,7 @@ const REGISTRY_GROUPS: Record<string, string> = {
   "components/surface/": "Surface",
   "components/bands/": "Bands",
   "components/wall/": "Wall",
+  "components/viz/": "Visual kit",
 };
 
 /**
@@ -2798,6 +2800,12 @@ export function KitchenSinkRoute() {
               {light ? "Dark" : "Light"} preview
             </Button>
           </header>
+
+          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows">
+            <div className="w-full">
+              <VisualKitGallery />
+            </div>
+          </Section>
 
           <Section title="HighlightCard (the Morning Brief's card)">
             <div className="grid w-full gap-3.5 lg:grid-cols-3">

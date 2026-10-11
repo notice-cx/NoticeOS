@@ -129,6 +129,12 @@
   --primary-foreground: var(--brand-on-accent);
   --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
+  /* The visual kit's furniture: the empty track a bar or a band fills, the
+     hairline a grid or an axis is ruled in, and the one elevation a screen's
+     hero region may take. Furniture, never a verdict. */
+  --viz-track: oklch(0.27 0.016 255);
+  --viz-grid: oklch(0.32 0.016 255 / 0.7);
+  --shadow-raised: inset 0 1px 0 oklch(1 0 0 / 0.05), 0 24px 48px -28px oklch(0 0 0 / 0.85);
 }
 
 /* The television is a box, not a viewport. `.wall-root` is drawn at
@@ -464,6 +470,9 @@
   --primary-foreground: var(--brand-on-accent);
   --primary-hover: var(--brand-accent-hover);
   --accent-soft: var(--brand-accent-soft);
+  --viz-track: oklch(0.94 0.008 255);
+  --viz-grid: oklch(0.88 0.01 255 / 0.8);
+  --shadow-raised: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 24px 48px -30px oklch(0.25 0.04 260 / 0.28);
 }
 
 @theme inline {
@@ -524,6 +533,28 @@
   --color-surface-highlight: var(--surface-highlight);
   --color-glass: var(--glass);
   --color-glass-line: var(--glass-line);
+  --color-viz-track: var(--viz-track);
+  --color-viz-grid: var(--viz-grid);
+  --shadow-raised: var(--shadow-raised);
+
+  /* The desk's type scale above Tailwind's own steps. Numbers own the top of
+     it: `display` is a screen's lead figure, `figure` a stat tile's, and
+     `figure-sm` a row's or a strip's. `micro` is the floor; nothing on the
+     desk is set smaller. Body and caption stay `text-sm` and `text-xs`. */
+  --text-display: 2.75rem;
+  --text-display--line-height: 1.05;
+  --text-display--letter-spacing: -0.035em;
+  --text-display--font-weight: 650;
+  --text-figure: 1.875rem;
+  --text-figure--line-height: 1.1;
+  --text-figure--letter-spacing: -0.025em;
+  --text-figure--font-weight: 620;
+  --text-figure-sm: 1.375rem;
+  --text-figure-sm--line-height: 1.15;
+  --text-figure-sm--letter-spacing: -0.02em;
+  --text-figure-sm--font-weight: 600;
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
 
   /* TV type scale: tokens, not per-component choices. The small steps carry
      their floor on a scaled Wall (§ The TV layout, scaled); the boost is 1
@@ -870,6 +901,78 @@
   );
 }
 
+/* The visual kit's motion. Each one carries a change: a line draws in when
+   its screen first paints (`pathLength="1"` on the path), a bar or a span
+   grows from its baseline, a row arrives, a live edge carries its flow and a
+   live node breathes. Nothing here loops without live data behind it, and
+   all of it stops under reduced motion (below). */
+@keyframes viz-draw {
+  from { stroke-dashoffset: 1; }
+  to { stroke-dashoffset: 0; }
+}
+.viz-draw {
+  stroke-dasharray: 1;
+  animation: viz-draw 900ms cubic-bezier(0.3, 0.7, 0.2, 1) both;
+}
+@keyframes viz-grow-y {
+  from { transform: scaleY(0); }
+  to { transform: scaleY(1); }
+}
+.viz-grow-y {
+  transform-origin: bottom;
+  transform-box: fill-box;
+  animation: viz-grow-y 520ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--viz-i, 0) * 18ms);
+}
+@keyframes viz-grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.viz-grow-x {
+  transform-origin: left;
+  transform-box: fill-box;
+  animation: viz-grow-x 620ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--viz-i, 0) * 40ms);
+}
+@keyframes viz-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.viz-arrive {
+  animation: viz-arrive 360ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  animation-delay: calc(var(--viz-i, 0) * 45ms);
+}
+@keyframes viz-flow {
+  to { stroke-dashoffset: -24; }
+}
+.viz-flow {
+  stroke-dasharray: 2 10;
+  animation: viz-flow 1.6s linear infinite;
+}
+@keyframes viz-breathe {
+  0% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent); }
+  70%, 100% { box-shadow: 0 0 0 8px color-mix(in oklab, currentColor 0%, transparent); }
+}
+.viz-breathe {
+  animation: viz-breathe 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+
+/* The lead mark of a hero region glows faintly in its own ink, so the one
+   thing the screen leads with lifts off the card. */
+.viz-glow {
+  box-shadow: 0 0 18px -4px currentColor;
+}
+
+/* Nothing measured here: hatching in the ink of the slot it fills, so "no
+   data" never reads as a low value or a healthy empty cell. */
+.viz-hatch {
+  background-image: repeating-linear-gradient(
+    135deg,
+    color-mix(in oklab, currentColor 28%, transparent) 0 1.5px,
+    transparent 1.5px 6px
+  );
+}
+
 /* A screen's code usually arrives before anyone could read the word "Loading",
    so `RouteLoading`'s line waits before it appears: a word that
    flashes on every page load is noise. `both` holds it invisible through the
@@ -918,6 +1021,18 @@
   /* Still delayed — the delay is about noise, not motion — but no fade. */
   .route-loading-label {
     animation-duration: 1ms;
+  }
+
+  .viz-draw,
+  .viz-grow-y,
+  .viz-grow-x,
+  .viz-arrive,
+  .viz-flow,
+  .viz-breathe {
+    animation: none;
+  }
+  .viz-draw {
+    stroke-dasharray: none;
   }
 }
 
