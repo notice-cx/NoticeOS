@@ -130,6 +130,14 @@ export interface HostedTaskPlan {
     readonly argv: readonly string[];
 }
 export type HostedTaskPlanner = (serverSelectedWorkspaceId: string, request: HostedTaskRequest) => HostedTaskPlan;
+/** A write refused because the task it would change is a person's decision.
+ * Thrown only after admission and the task's own read, so naming the reason
+ * tells the caller nothing its access did not already show. */
+export declare class HumanDecisionRefused extends Error {
+    readonly taskId: string;
+    name: string;
+    constructor(taskId: string);
+}
 /** A person's decision: a gate, or a task labelled human. */
 export declare function isHumanDecision(row: {
     readonly issue_type?: unknown;

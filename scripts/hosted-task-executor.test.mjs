@@ -9,6 +9,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { createHostedTaskExecutor, HostedTaskRefused } from './hosted-task-executor.mjs';
+import { HumanDecisionRefused } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -169,7 +170,8 @@ test('generic closure and human-marker removal cannot bypass a current decision 
     for (const operation of [{ kind: 'close', taskId: 'tt-human', reason: 'Not a decision' },
       { kind: 'update', taskId: 'tt-human', status: 'closed' },
       { kind: 'update', taskId: 'tt-human', removeLabels: ['human'] }]) {
-      await refused(() => f.executor.execute(request(), A, task(operation)));
+      // The reason is named: the caller was admitted and the task was read.
+      await assert.rejects(f.executor.execute(request(), A, task(operation)), error => error instanceof HumanDecisionRefused && error.taskId === 'tt-human');
     }
   }
   await f.control({ human: false, taskType: 'task' });
@@ -181,7 +183,8 @@ test('a dependency on a gate or a human decision is never removed by an ordinary
   for (const state of [{ human: true, taskType: 'task' }, { human: false, taskType: 'gate', awaitType: 'human' },
     { human: false, taskType: 'task', humanIds: ['tt-gate'] }]) {
     await f.control(state);
-    await refused(() => f.executor.execute(request(), A, task({ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-gate' })));
+    await assert.rejects(f.executor.execute(request(), A, task({ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-gate' })),
+      error => error instanceof HumanDecisionRefused && error.taskId === (state.humanIds ? 'tt-gate' : 'tt-a'));
   }
   assert.equal((await f.commands()).filter(row => row.args.includes('dep')).length, 0);
   await f.control({ human: false, taskType: 'task', awaitType: undefined, humanIds: [] });

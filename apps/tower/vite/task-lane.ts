@@ -534,8 +534,10 @@ async function createTask(request: LaneRequest, opts: Resolved): Promise<LaneRep
     }
     args.push("--labels", (labels as string[]).join(","));
   }
+  // A child carries only the labels it names; Beads would copy its parent's,
+  // human among them, and put the child in Waiting on you.
   const parent = optionalString(input, "parent");
-  if (parent !== null) args.push("--parent", parent);
+  if (parent !== null) args.push("--parent", parent, "--no-inherit-labels");
   const acceptance = optionalString(input, "acceptance");
   if (acceptance !== null) args.push("--acceptance", acceptance);
   // The handoff metadata travels as a JSON object and reaches `bd` as one.

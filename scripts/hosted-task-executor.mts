@@ -11,7 +11,8 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, isHumanDecision, type HostedTaskRequest } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
+  type HostedTaskRequest } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
@@ -363,7 +364,9 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                   fail();
                 } else {
                   // Even for an operator: a decision has its own named verb.
-                  for (const taskId of decisionGuardTargets(operation)) if (isHumanDecision(await target(taskId))) fail();
+                  for (const taskId of decisionGuardTargets(operation)) {
+                    if (isHumanDecision(await target(taskId))) throw new HumanDecisionRefused(taskId);
+                  }
                 }
                 checkpoint(life);
                 return admission.withAdmission(action, { requestedWorkspaceId: workspaceId, correlationId: last.correlationId }, proof, async effect => {
@@ -436,7 +439,11 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
               });
             });
         });
-      } catch { fail(); }
+      } catch (error) {
+        // The one refusal whose reason is the caller's to learn; see its class.
+        if (error instanceof HumanDecisionRefused) throw error;
+        fail();
+      }
     },
     async verifyProject(input: TaskProjectMapping, controls?: TaskVerificationControls): Promise<VerifiedTaskProject> {
       try {

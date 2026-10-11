@@ -225,7 +225,9 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       if (Object.hasOwn(op, 'labels')) {
         const labels = labelList(op.labels, true); if (labels.length) argv.push(`--labels=${labels.join(',')}`);
       }
-      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`);
+      // A child carries only the labels it names. Beads would copy its parent's,
+      // human among them, and only a person may take that one off.
+      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`, '--no-inherit-labels');
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
         const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
@@ -289,6 +291,13 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
   return { kind, readOnly, argv: Object.freeze(argv) };
 }
 
+/** A write refused because the task it would change is a person's decision.
+ * Thrown only after admission and the task's own read, so naming the reason
+ * tells the caller nothing its access did not already show. */
+export class HumanDecisionRefused extends Error {
+  override name = 'HumanDecisionRefused';
+  constructor(readonly taskId: string) { super(`${taskId} is a person's decision.`); }
+}
 /** A person's decision: a gate, or a task labelled human. */
 export function isHumanDecision(row: { readonly issue_type?: unknown; readonly labels?: unknown }): boolean {
   return row.issue_type === 'gate' || Array.isArray(row.labels) && row.labels.includes('human');

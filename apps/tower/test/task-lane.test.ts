@@ -513,6 +513,8 @@ describe("the writes", () => {
     expect(argv).toContain("--labels");
     expect(argv?.[argv.indexOf("--labels") + 1]).toBe("tower,tasks");
     expect(argv?.[argv.indexOf("--metadata") + 1]).toBe('{"reindex_key":"item-openers"}');
+    // A child carries only its own labels, never its parent's human label.
+    expect(argv?.slice(argv.indexOf("--parent"), argv.indexOf("--parent") + 3)).toEqual(["--parent", "ro-epic", "--no-inherit-labels"]);
   });
 
   it("claims atomically, with --claim rather than two field writes", async () => {
