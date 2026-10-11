@@ -12,11 +12,11 @@ const SERVER = { info: { name: 'example', version: '1' }, tools: [{ name: 'echo'
   { name: 'élan', description: 'Echo.', inputSchema: { type: 'object' } }],
   async call(name, args) { if (args.slow) await new Promise(resolve => setTimeout(resolve, 30)); return { name, args }; } };
 
-async function exchange(lines, handle = request => serveMcp(request, SERVER)) {
+async function exchange(lines, handle = request => serveMcp(request, SERVER), headers) {
   const input = new PassThrough(), output = new PassThrough();
   let written = '';
   output.on('data', chunk => { written += chunk; });
-  const served = serveMcpStdio(handle, { input, output, url: URL });
+  const served = serveMcpStdio(handle, { input, output, url: URL, ...(headers ? { headers } : {}) });
   for (const line of lines) input.write(`${line}\n`);
   input.end();
   await served;
@@ -44,6 +44,13 @@ test('messages are answered as they finish, each with its own id, and input\'s e
   const answers = await exchange([message(1, 'tools/call', { name: 'echo', arguments: { slow: true } }),
     message(2, 'tools/call', { name: 'echo', arguments: {} })]);
   assert.deepEqual(answers.map(answer => answer.id), [2, 1]);
+});
+
+test('every message carries the headers the server was started with, as an HTTP client\'s would', async () => {
+  const seen = [];
+  await exchange([message(1, 'ping', {})], async request => { seen.push([request.headers.get('x-noticeos-actor'), request.headers.get('content-type')]);
+    return Response.json({ jsonrpc: '2.0', id: 1, result: {} }); }, { 'x-noticeos-actor': 'claude', 'content-type': 'text/plain' });
+  assert.deepEqual(seen, [['claude', 'application/json']]);
 });
 
 test('an unreadable line or a failed handler is still answered, without the failure\'s details', async () => {

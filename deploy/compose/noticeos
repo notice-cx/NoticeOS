@@ -9,7 +9,8 @@
 #       status, logs, start, stop, restart, apply, backup, capacity, run-job,
 #       update, rollback or migrate, with the options its pnpm os:* twin takes
 #   ~/noticeos/noticeos mcp [--actor <name>]
-#       the MCP server for agents on this machine, over stdio
+#       the MCP server an agent on this machine starts, over stdio; at a
+#       terminal it prints how to connect it
 #   ~/noticeos/noticeos bd [--project <prefix>] <arguments>
 #       the task client, in the installation's task project
 #
@@ -94,6 +95,25 @@ case $verb in
       image=$(sed -n 's/^NOTICEOS_APP_IMAGE="\(.*\)"$/\1/p' "$dir/installation.env"); fi
     [ -n "$image" ] || fail "neither the app nor installation.env names the installation's image." ;;
   mcp|bd)
+    if [ "$verb" = mcp ] && [ -t 0 ]; then
+      # An agent starts the server and talks to it over a pipe; a terminal would only wait.
+      actor=claude
+      [ "${1:-}" != --actor ] || [ $# -lt 2 ] || actor=$2
+      printf '%s\n' 'noticeos mcp is the MCP server an agent starts itself, so at a terminal it does not run.'
+      bind=$(sed -n 's/^NOTICEOS_TOWER_BIND="\(.*\)"$/\1/p' "$dir/installation.env")
+      port=$(sed -n 's/^NOTICEOS_TOWER_PORT="\([0-9]*\)"$/\1/p' "$dir/installation.env")
+      case ${bind:-127.0.0.1} in
+        127.*) if [ -n "$port" ]; then
+          printf '%s\n' 'The Tower serves the same tools on this machine:' \
+            "  claude mcp add --transport http noticeos http://${bind:-127.0.0.1}:$port/api/mcp --header 'X-NoticeOS-Actor: $actor'"
+          exit 0
+        fi ;;
+      esac
+      command=$dir/noticeos
+      case $command in *[!A-Za-z0-9_./-]*) command="'$command'" ;; esac
+      printf '%s\n' 'Connect it to an agent:' "  claude mcp add noticeos -- $command mcp --actor $actor"
+      exit 0
+    fi
     app=$(docker ps --quiet --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=noticeos)
     [ -n "$app" ] || fail "the app is not running; $launcher start starts it."
     # An MCP client reads plain lines; a person at a terminal gets one.

@@ -61,7 +61,7 @@ Connecting an agent to a hosted workspace is a single decision: the agent sends 
 - create, claim, update, comment on and close tasks, record what blocks what, and ask you for approval
 - read site reports and research
 
-On your own installation, an agent on the same machine connects through `pnpm os:mcp` with the same tools; see [Connect an agent](/guides/connect-an-agent).
+On your own installation, an agent on the same machine connects to the Tower's own `/api/mcp` with the same tools and no sign-in; see [Connect an agent](/guides/connect-an-agent).
 
 Your own role still limits what the agent may do. Once connected, an agent can read what NoticeOS knows about a site, pick up a task from the board, do the work in the site's code, and close the task with evidence. It can also file new tasks for work it notices rather than leaving a note nobody reads.
 

@@ -1,13 +1,18 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
-import { linkedProjects, main, parseOptions, runTaskClient } from './local-mcp.mjs';
+import { main, parseOptions } from './local-mcp.mjs';
 import { chooseProject, main as bdMain } from './local-bd.mjs';
+import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient } from './standalone-mcp.mjs';
 import { standaloneProjectId } from './standalone-tasks.mjs';
+import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
-// scripts/local-mcp.mjs and scripts/local-bd.mjs: the MCP server and the task
-// client a standalone installation runs inside its app container for this
-// machine (pnpm os:mcp, pnpm os:bd). The served tools are proved in
+// scripts/standalone-mcp.mts, local-mcp.mjs and local-bd.mjs: a standalone
+// installation's MCP endpoint (the Tower's /api/mcp and pnpm os:mcp) and its
+// task client for this machine (pnpm os:bd). The served tools are proved in
 // standalone-tasks.test.mjs and hosted-mcp.test.mjs; this is their setup.
 
 const PROJECTS = [{ asset: 'example', prefix: 'ex', database: 'example_tasks', repo: '/spokes/example' },
@@ -43,13 +48,46 @@ test('only linked projects are served, each in its own folder under a stable id,
   assert.equal(reads, 2);
 });
 
-test('the task client runs with the installation\'s declared client, bounded in time', async () => {
-  const calls = [];
-  const result = await runTaskClient(['--sandbox', '--json', 'ready'], '/spokes/example', { env: { BEADS_BD_BIN: '/usr/local/bin/bd', PATH: '/usr/bin' },
-    run: async (...args) => { calls.push(args); return { code: 0, stdout: '[]', stderr: 'notice' }; } });
-  assert.deepEqual(result, { code: 0, stdout: '[]' });
-  assert.deepEqual(calls, [['/usr/local/bin/bd', ['--sandbox', '--json', 'ready'], { cwd: '/spokes/example',
-    env: { BEADS_BD_BIN: '/usr/local/bin/bd', PATH: '/usr/bin' }, timeoutMs: 30_000 }]]);
+test('the task client runs in the project\'s folder with the installation\'s declared client, and its exit code is kept', async (t) => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'nos-task-client-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const bd = path.join(dir, 'bd');
+  writeFileSync(bd, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\nprocess.exit(process.argv.includes('fail') ? 3 : 0);\n`);
+  chmodSync(bd, 0o755);
+  const result = await runTaskClient(['--sandbox', '--json', 'ready'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH });
+  assert.deepEqual([result.code, JSON.parse(result.stdout)], [0, { args: ['--sandbox', '--json', 'ready'], cwd: dir }]);
+  assert.equal((await runTaskClient(['fail'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH })).code, 3);
+});
+
+test('a request acts as the agent its header names, or as agent', () => {
+  const named = value => new Request('http://localhost/api/mcp', { headers: value === undefined ? {} : { 'x-noticeos-actor': value } });
+  assert.equal(actorOf(named(undefined)), 'agent');
+  assert.equal(actorOf(named('claude:review-1')), 'claude:review-1');
+  for (const value of ['-x', 'a b', 'x'.repeat(129)]) assert.equal(actorOf(named(value)), null, value);
+});
+
+test('the endpoint serves the store\'s one workspace as the named agent, and the Tower\'s read models', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], forwarded = [];
+  let closed = false;
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; } },
+    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
+    run: async argv => { commands.push(argv); return { code: 0, stdout: argv.includes('lint') ? '{"results":null}' : '{"id":"ex-1"}' }; },
+    tower: 'http://127.0.0.1:5173', fetch: async (url, init) => { forwarded.push([url, init.headers.get('x-noticeos-mcp-part')]); return Response.json({ jsonrpc: '2.0', id: 1, result: { structuredContent: { properties: [] } } }); } });
+  const call = (name, args, headers = {}) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))
+    .then(response => response.json());
+  const created = await call('create_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), title: 'Probe', idempotency_key: 'local-create-0001' },
+    { 'x-noticeos-actor': 'claude' });
+  assert.equal(created.result.structuredContent.id, 'ex-1');
+  assert.equal(commands[0][2], '--actor=claude');
+  assert.match((await call('list_tasks', { workspace: WORKSPACE, project: standaloneProjectId('example') }, { 'x-noticeos-actor': 'a b' })).result.content[0].text, /^refused:/u);
+  assert.deepEqual((await call('list_properties', { workspace: WORKSPACE })).result.structuredContent, { properties: [] });
+  assert.deepEqual(forwarded, [['http://127.0.0.1:5173/api/mcp', 'read-models']]);
+  await mcp.close();
+  assert.equal(closed, true);
+  await assert.rejects(openStandaloneMcp({ store: { onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
+    /no single workspace/u);
+  assert.equal(closed, 'again', 'a store that names no workspace is closed');
 });
 
 test('os:bd runs in the one linked project, or the one --project names, as the operator', async () => {

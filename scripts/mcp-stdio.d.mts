@@ -5,6 +5,8 @@ export interface McpStdioOptions {
     readonly output: Writable;
     /** The URL each message is posted to: the handler's own route. */
     readonly url: string;
+    /** Sent with every message, as an HTTP client would send its own. */
+    readonly headers?: Readonly<Record<string, string>>;
 }
 /** Serves until `input` ends and every answer is written. */
 export declare function serveMcpStdio(handle: (request: Request) => Promise<Response>, options: McpStdioOptions): Promise<void>;

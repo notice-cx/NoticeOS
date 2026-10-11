@@ -9,8 +9,8 @@
 import { createInterface } from 'node:readline';
 const META_VERSION = 'io.modelcontextprotocol/protocolVersion';
 /** The headers the HTTP transport would carry for this message. */
-function headersFor(line) {
-    const headers = new Headers({ 'content-type': 'application/json' });
+function headersFor(line, fixed) {
+    const headers = new Headers({ ...fixed, 'content-type': 'application/json' });
     let message;
     try {
         message = JSON.parse(line);
@@ -31,12 +31,12 @@ function headersFor(line) {
 }
 /** Serves until `input` ends and every answer is written. */
 export async function serveMcpStdio(handle, options) {
-    const { input, output, url } = options;
+    const { input, output, url, headers = {} } = options;
     const pending = new Set();
     const answer = async (line) => {
         let text;
         try {
-            const response = await handle(new Request(url, { method: 'POST', headers: headersFor(line), body: line }));
+            const response = await handle(new Request(url, { method: 'POST', headers: headersFor(line, headers), body: line }));
             text = response.status === 202 ? '' : (await response.text()).trim();
         }
         catch {

@@ -27,6 +27,7 @@
     "scripts/hosted-mcp.mts",
     "scripts/mcp-stdio.mts",
     "scripts/standalone-tasks.mts",
+    "scripts/standalone-mcp.mts",
     "scripts/task-row.mts",
     "scripts/hosted-task-http.mts",
     "scripts/hosted-task-executor.mts",

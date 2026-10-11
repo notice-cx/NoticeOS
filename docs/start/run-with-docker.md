@@ -56,7 +56,7 @@ Apply refuses to point a database at other data, rename the project, take a port
 ::: warning No login
 Standalone has no user login: anyone who reaches the Tower can read and change your data. By default it listens on `127.0.0.1`, this machine only.
 
-To reach it from other devices, set `NOTICEOS_TOWER_BIND` in `installation.env` to `0.0.0.0` (every device on the network) or to one IPv4 address of this machine, then run `pnpm os:apply`. Do it only on a network you trust, or behind a VPN or an access proxy.
+To reach it from other devices, set `NOTICEOS_TOWER_BIND` in `installation.env` to `0.0.0.0` (every device on the network) or to one IPv4 address of this machine, then run `pnpm os:apply`. Do it only on a network you trust, or behind a VPN or an access proxy. An open Tower keeps agents' task changes on this machine: its MCP address then answers only site reports ([Connect an agent](/guides/connect-an-agent#when-the-tower-listens-on-your-network)).
 :::
 
 The plan warns before it opens the Tower. Devices open it by IP address, at the port `NOTICEOS_TOWER_PORT` names. To use a machine name instead, add it to `TOWER_ALLOWED_HOSTS`: the app runs in a container, so it does not know this machine's name. Keep that allowlist; never allow every host. Without a `NOTICEOS_TOWER_BIND` line in `installation.env`, the Tower listens on `127.0.0.1`.

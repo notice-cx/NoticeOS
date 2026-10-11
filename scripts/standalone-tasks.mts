@@ -7,7 +7,7 @@
 import { createHash } from 'node:crypto';
 import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
+import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, isHumanDecision,
   type HostedTaskRequest } from './hosted-task-command.mjs';
 
@@ -49,7 +49,7 @@ export function standaloneTaskDirectory(projects: () => Promise<readonly Standal
   });
 }
 
-export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOptions): Pick<HostedTaskExecutor, 'execute'> {
+export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOptions): TaskOperationExecutor {
   const { projects, run } = options;
   const admission: WorkspaceAdmission = options.admission;
   if (typeof admission?.withAdmission !== 'function' || typeof projects !== 'function' || typeof run !== 'function') refuse();
