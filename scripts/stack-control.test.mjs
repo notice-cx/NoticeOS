@@ -23,7 +23,7 @@ function fixture({ inventory = rows(), failure, changeAt, ndjson = false, revisi
     return { code: step[0] === failure ? 1 : 0, stdout: '', stderr: 'PRIVATE-SENTINEL' };
   };
   return { calls, run, out: { write: text => { output += text; } }, output: () => output, writes: () => calls.filter(step => step[0] !== 'ps'),
-    database: async () => ({ ok: true }) };
+    database: async () => ({ ok: true }), drift: async () => ({ changed: [] }) };
 }
 
 test('selector requires an explicit local socket and unique absolute declarations', () => {

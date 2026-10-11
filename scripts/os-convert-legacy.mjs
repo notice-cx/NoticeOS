@@ -41,6 +41,7 @@ import { parseServices, readSelector, validateSelector } from './stack-control.m
 import { composePrefix } from './stack-database.mjs';
 import { folderRefusal } from './os-setup.mjs';
 import { developStack } from './stack-development.mjs';
+import { recordApplied } from './stack-apply.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_SELECTOR = path.join(ROOT, '.local', 'stack.json');
@@ -150,6 +151,7 @@ export function readInstallation(model, { project, imageId, legacyRoot }) {
 export function convertedChoices(found, dir) {
   return installationChoices({
     dir, project: found.project, image: found.imageId, uid: found.uid, gid: found.gid,
+    towerBind: /^\d{1,3}(?:\.\d{1,3}){3}$/u.test(found.towerHostIp ?? '') ? found.towerHostIp : undefined,
     towerPort: found.towerPort, allowedHosts: found.allowedHosts, postgresPort: found.postgresPort, doltPort: found.doltPort,
     postgresVolume: found.postgresVolume, doltVolume: found.doltVolume,
     spokes: found.kept.spokes ?? null, backupAssets: found.kept.backupAssets ?? null, backupOffsite: found.kept.backupOffsite ?? null,
@@ -422,6 +424,7 @@ export async function convertLegacy(options, { run = runCommand, env = process.e
   }
   fs.copyFileSync(options.selectorFile, beforeFile);
   fs.writeFileSync(options.selectorFile, `${JSON.stringify(selector, null, 2)}\n`, { mode: 0o600 });
+  recordApplied(options.selectorFile, selector);
   say(`Converted: the stack runs from ${options.dir}. pnpm os:status shows it; pnpm os:convert-legacy -- --undo returns to the old declaration.`);
   if (live) {
     say('Following this checkout again.');

@@ -49,7 +49,7 @@ export function installationPaths(dir) {
 }
 
 /** Defaults a new installation starts from. */
-export const DEFAULTS = Object.freeze({ project: 'noticeos', towerPort: 5173, postgresPort: 5432, doltPort: 3306 });
+export const DEFAULTS = Object.freeze({ project: 'noticeos', towerBind: '127.0.0.1', towerPort: 5173, postgresPort: 5432, doltPort: 3306 });
 
 /** The variables an installation chooses, in the order the file lists them. */
 const CHOICES = [
@@ -58,6 +58,7 @@ const CHOICES = [
   ['NOTICEOS_APP_IMAGE', 'image'],
   ['NOTICEOS_APP_UID', 'uid'],
   ['NOTICEOS_APP_GID', 'gid'],
+  ['NOTICEOS_TOWER_BIND', 'towerBind'],
   ['NOTICEOS_TOWER_PORT', 'towerPort'],
   ['TOWER_ALLOWED_HOSTS', 'allowedHosts'],
   ['NOTICEOS_POSTGRES_PORT', 'postgresPort'],
@@ -84,6 +85,10 @@ const DERIVED = [
 const PROJECT = /^[a-z0-9][a-z0-9_-]{0,62}$/u;
 const VOLUME = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/u;
 const HOSTS = /^[A-Za-z0-9.:, -]{0,512}$/u;
+/** Where the Tower listens: this machine only, every interface, or one IPv4 address. */
+const BIND = /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/u;
+/** Choices an older installation.env may not set; Compose gives each its default. */
+const OPTIONAL = new Set(['NOTICEOS_TOWER_BIND']);
 const IMAGE = /^(?:sha256:[a-f0-9]{64}|[a-z0-9][a-z0-9._/-]{0,127}(?::[A-Za-z0-9_.-]{1,128})?(?:@sha256:[a-f0-9]{64})?)$/u;
 // A path is written inside double quotes, where Compose expands `$` and reads
 // `\` and `"` as escapes; none of those, and no line break, may be in one.
@@ -109,6 +114,8 @@ export function installationChoices(input) {
   if (!PROJECT.test(project)) fail(`The project name must be lower-case letters, digits, - and _ (got ${JSON.stringify(project)}).`);
   if (typeof input.image !== 'string' || !IMAGE.test(input.image)) fail('The app image must be an image ID or a plain image reference.');
   for (const id of ['uid', 'gid']) if (!Number.isInteger(input[id]) || input[id] < 0 || input[id] > 2 ** 31) fail(`The app ${id} must be a whole number.`);
+  const towerBind = input.towerBind ?? DEFAULTS.towerBind;
+  if (!BIND.test(towerBind)) fail(`The Tower's address must be 127.0.0.1, 0.0.0.0 or one IPv4 address (got ${JSON.stringify(towerBind)}).`);
   const allowedHosts = input.allowedHosts ?? '';
   if (!HOSTS.test(allowedHosts)) fail('TOWER_ALLOWED_HOSTS lists hostnames, separated by commas or spaces.');
   const volume = (value, fallback, name) => {
@@ -123,6 +130,7 @@ export function installationChoices(input) {
     image: input.image,
     uid: input.uid,
     gid: input.gid,
+    towerBind,
     towerPort: port(input.towerPort ?? DEFAULTS.towerPort, 'The Tower port'),
     allowedHosts,
     postgresPort: port(input.postgresPort ?? DEFAULTS.postgresPort, 'The Postgres port'),
@@ -175,7 +183,7 @@ export function readInstallationEnv(file, io = { readFileSync, lstatSync }) {
       return values[name];
     });
   }
-  for (const [name] of [...CHOICES, ...DERIVED]) if (!(name in values)) fail(`${file} does not set ${name}.`);
+  for (const [name] of [...CHOICES, ...DERIVED]) if (!(name in values) && !OPTIONAL.has(name)) fail(`${file} does not set ${name}.`);
   return values;
 }
 

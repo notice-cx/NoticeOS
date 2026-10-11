@@ -23,19 +23,40 @@ export function composePrefix(selector) {
 const ownEnv = (env) => Object.fromEntries(['PATH', 'HOME', 'DOCKER_CONFIG', 'XDG_CONFIG_HOME'].filter((key) => env[key] !== undefined).map((key) => [key, env[key]]));
 
 /**
- * The stack's Postgres secrets folder: the one holding the owner's secret in
- * the stack's resolved declaration (`docker compose config`). Throws a
- * sentence naming the fix; the declaration itself is never printed.
+ * The stack's Postgres as its resolved declaration (`docker compose config`)
+ * has it: the secrets folder holding the owner's secret, and the loopback port
+ * it is published on (null when it is not). Throws a sentence naming the fix;
+ * the declaration itself is never printed.
  */
-export async function stackSecretsDir(selector, { run = runCommand, env = process.env } = {}) {
+export async function stackPostgres(selector, { run = runCommand, env = process.env } = {}) {
   const result = await run('docker', [...composePrefix(selector), 'config', '--format', 'json'], { env: ownEnv(env), timeoutMs: 20_000 });
   if (result.code !== 0) throw new Error('Compose could not read the stack\'s declaration; is Docker running?');
-  let file;
-  try { file = JSON.parse(result.stdout)?.secrets?.[OWNER_SECRET]?.file; } catch { /* reported below */ }
+  let model;
+  try { model = JSON.parse(result.stdout); } catch { /* reported below */ }
+  const file = model?.secrets?.[OWNER_SECRET]?.file;
   if (typeof file !== 'string' || !path.isAbsolute(file)) {
     throw new Error(`the stack declares no ${OWNER_SECRET} secret file`);
   }
-  return path.dirname(file);
+  const published = Number((model.services?.postgres?.ports ?? []).find((row) => Number(row.target) === 5432)?.published);
+  return { secretsDir: path.dirname(file), port: Number.isInteger(published) && published > 0 ? published : null };
+}
+
+/** The stack's Postgres secrets folder (stackPostgres). */
+export async function stackSecretsDir(selector, options) {
+  return (await stackPostgres(selector, options)).secretsDir;
+}
+
+/**
+ * An address from the secrets folder on the port the stack publishes now:
+ * the file records the port Postgres was first published on, and
+ * installation.env may have moved it since. Only a loopback address moves.
+ */
+export function atPublishedPort(address, port) {
+  if (port === null) return address;
+  const url = new URL(address.url);
+  if (!['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname)) return address;
+  url.port = String(port);
+  return { ...address, url: url.href };
 }
 
 /** One login's address and the database it names, from `<folder>/<file>`. */

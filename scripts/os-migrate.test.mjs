@@ -4,13 +4,13 @@ import os from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
 import { main } from './os-migrate.mjs';
-import { composePrefix, secretAddress, stackDatabaseCurrent, stackSecretsDir } from './stack-database.mjs';
+import { atPublishedPort, composePrefix, secretAddress, stackDatabaseCurrent, stackSecretsDir } from './stack-database.mjs';
 
 const OWNER_URL = 'postgresql://noticeos_owner:s3cret@127.0.0.1:5432/noticeos';
 
 /** A stack selector, its Compose file and env file, and a Postgres secrets
  * folder in a different checkout's folder, as an installation may keep it. */
-function stack(t, { ownerUrl = OWNER_URL } = {}) {
+function stack(t, { ownerUrl = OWNER_URL, port = null } = {}) {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'os-migrate-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const compose = path.join(dir, 'compose.json');
@@ -28,7 +28,8 @@ function stack(t, { ownerUrl = OWNER_URL } = {}) {
     assert.equal(command, 'docker');
     assert.deepEqual(args.slice(0, composePrefix(declared).length), composePrefix(declared));
     assert.deepEqual(args.slice(composePrefix(declared).length), ['config', '--format', 'json']);
-    return { code: 0, stdout: JSON.stringify({ services: { app: { environment: { DATABASE_URL: 'PRIVATE' } } }, secrets: { noticeos_owner: { file: path.join(secrets, 'noticeos_owner') } } }) };
+    const postgres = port === null ? {} : { postgres: { ports: [{ host_ip: '127.0.0.1', target: 5432, published: String(port) }] } };
+    return { code: 0, stdout: JSON.stringify({ services: { app: { environment: { DATABASE_URL: 'PRIVATE' } }, ...postgres }, secrets: { noticeos_owner: { file: path.join(secrets, 'noticeos_owner') } } }) };
   };
   return { dir, selector, secrets, declared, docker };
 }
@@ -75,6 +76,16 @@ test('with no flags it shows status for the stack’s database, the address only
   assert.equal(result, 0);
   assert.deepEqual(calls, [{ args: ['status', '--database', 'noticeos', '--url-from', 'NOTICEOS_OWNER_URL'], url: OWNER_URL, targetFlags: '', planShown: false }]);
   assert.doesNotMatch(out + err, /s3cret/u);
+});
+
+test('the owner connects on the port the stack publishes now, not the one owner.url was first written with', async (t) => {
+  const { selector, docker } = stack(t, { port: 5440 });
+  const { calls } = await runMigrate(['--config', selector], { docker });
+  assert.equal(calls[0].url, OWNER_URL.replace(':5432/', ':5440/'));
+  const remote = { url: 'postgresql://noticeos_owner:s3cret@db.example.com:5432/noticeos', database: 'noticeos', where: 'x' };
+  assert.deepEqual(atPublishedPort(remote, 5440), remote);
+  const local = { url: OWNER_URL, database: 'noticeos', where: 'x' };
+  assert.deepEqual(atPublishedPort(local, null), local);
 });
 
 test('at a terminal, --apply shows the plan, asks for the name once, and applies with what was typed', async (t) => {
