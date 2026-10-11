@@ -78,6 +78,7 @@ function choice(value, values) {
 }
 const STATUSES = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const TYPES = ['task', 'bug', 'feature', 'epic', 'chore'];
+const DEPENDENCY_TYPES = ['blocks', 'related', 'discovered-from'];
 function labelList(value, empty = false) {
     if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels || !empty && value.length === 0
         || Reflect.ownKeys(value).length !== value.length + 1)
@@ -115,8 +116,8 @@ function handoffMetadata(value) {
 function command(input) {
     const op = record(input);
     const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
-        'snapshot', 'create', 'update', 'comment', 'close', 'respond', 'dismiss', 'resolve-gate']);
-    const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot'].includes(kind);
+        'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']);
+    const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
         case 'list':
@@ -136,6 +137,10 @@ function command(input) {
         case 'comments':
             keys(op, ['kind', 'taskId']);
             argv.push('comments', '--', task(op.taskId));
+            break;
+        case 'lint':
+            keys(op, ['kind', 'taskId']);
+            argv.push('lint', '--', task(op.taskId));
             break;
         case 'ready':
             keys(op, ['kind']);
@@ -250,6 +255,20 @@ function command(input) {
             keys(op, ['kind', 'taskId', 'reason']);
             argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
             break;
+        case 'depend':
+        case 'undepend': {
+            keys(op, ['kind', 'taskId', 'dependsOn', ...(kind === 'depend' ? ['type'] : [])]);
+            const from = task(op.taskId), to = task(op.dependsOn);
+            if (from === to)
+                invalid();
+            // A repeated add or remove changes nothing, and an add never retypes an existing edge.
+            argv.push('dep', ...(kind === 'depend' ? ['add', `--type=${choice(op.type, DEPENDENCY_TYPES)}`] : ['remove']), '--', from, to);
+            break;
+        }
+        case 'gate':
+            keys(op, ['kind', 'taskId', 'reason']);
+            argv.push('gate', 'create', '--type=human', `--blocks=${task(op.taskId)}`, `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--');
+            break;
         case 'respond':
             keys(op, ['kind', 'taskId', 'response']);
             argv.push('human', 'respond', `--response=${text(op.response, HOSTED_TASK_LIMITS.comment)}`, '--', task(op.taskId));
@@ -264,6 +283,22 @@ function command(input) {
             break;
     }
     return { kind, readOnly, argv: Object.freeze(argv) };
+}
+/** A person's decision: a gate, or a task labelled human. */
+export function isHumanDecision(row) {
+    return row.issue_type === 'gate' || Array.isArray(row.labels) && row.labels.includes('human');
+}
+/** The tasks an executor must find are not a person's decision before it runs
+ * this ordinary write: no close, marker removal or removed dependency stands
+ * in for the decision itself, which has its own named verb. */
+export function decisionGuardTargets(operation) {
+    if (operation.kind === 'close')
+        return [operation.taskId];
+    if (operation.kind === 'update')
+        return operation.status === 'closed' || operation.removeLabels?.includes('human') ? [operation.taskId] : [];
+    if (operation.kind === 'undepend')
+        return [operation.taskId, operation.dependsOn];
+    return [];
 }
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */

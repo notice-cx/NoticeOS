@@ -13,6 +13,8 @@ export declare const HOSTED_TASK_LIMITS: Readonly<{
 }>;
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
 export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore';
+/** blocks keeps the task out of ready work until the other closes; the others only record a link. */
+export type HostedTaskDependencyType = 'blocks' | 'related' | 'discovered-from';
 export type HostedTaskOperation = {
     readonly kind: 'list';
     readonly limit: number;
@@ -80,6 +82,24 @@ export type HostedTaskOperation = {
     readonly taskId: string;
     readonly reason: string;
 } | {
+    readonly kind: 'depend';
+    readonly taskId: string;
+    readonly dependsOn: string;
+    readonly type: HostedTaskDependencyType;
+} | {
+    readonly kind: 'undepend';
+    readonly taskId: string;
+    readonly dependsOn: string;
+}
+/** Opens a human gate the task waits on. Only a person's resolve-gate clears it. */
+ | {
+    readonly kind: 'gate';
+    readonly taskId: string;
+    readonly reason: string;
+} | {
+    readonly kind: 'lint';
+    readonly taskId: string;
+} | {
     readonly kind: 'respond';
     readonly taskId: string;
     readonly response: string;
@@ -110,6 +130,15 @@ export interface HostedTaskPlan {
     readonly argv: readonly string[];
 }
 export type HostedTaskPlanner = (serverSelectedWorkspaceId: string, request: HostedTaskRequest) => HostedTaskPlan;
+/** A person's decision: a gate, or a task labelled human. */
+export declare function isHumanDecision(row: {
+    readonly issue_type?: unknown;
+    readonly labels?: unknown;
+}): boolean;
+/** The tasks an executor must find are not a person's decision before it runs
+ * this ordinary write: no close, marker removal or removed dependency stands
+ * in for the decision itself, which has its own named verb. */
+export declare function decisionGuardTargets(operation: HostedTaskOperation): readonly string[];
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export declare function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide';

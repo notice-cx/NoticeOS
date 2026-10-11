@@ -23,7 +23,7 @@ export const MCP_PATH = AGENT_RESOURCE_PATH;
  * only: the Worker admits the forwarded call like any other. */
 export const READ_MODELS_HEADER = 'x-noticeos-mcp-part';
 const SERVER_INFO = Object.freeze({ name: 'noticeos', version: '1.0.0' });
-const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. Changes take an idempotency_key: reuse it when retrying.';
+const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it.';
 const BODY_BYTES = 256 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });

@@ -8,6 +8,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES } from '../packages/postgres/src/task-receipts.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
+import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { hostedTaskAction } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 /** A write's key cannot be honored on this server: no receipt store is configured. */
@@ -188,6 +189,38 @@ export function createHostedTaskOperations(options) {
             return read(proof, workspaceId, projectId, async (_project, run, _readAt, actorsOf) => {
                 await actorsOf();
                 return run({ kind: 'history', taskId, limit });
+            });
+        },
+        approval(proof, workspaceId, projectId, taskId, reason) {
+            const operation = Object.freeze({ kind: 'gate', taskId, reason });
+            hostedTaskAction(operation);
+            return admitted(proof, workspaceId, 'tasks.write', async (_context, catalog) => {
+                selected(catalog, projectId);
+                const run = (step) => executor.execute(proof, workspaceId, { projectId, operation: step });
+                const shown = await run({ kind: 'show', taskId });
+                const task = record(Array.isArray(shown) ? shown[0] : shown);
+                if (task.id !== taskId || task.status === 'closed')
+                    invalid();
+                const asked = gateReason(`Reason: ${reason}`);
+                const open = (Array.isArray(task.dependencies) ? task.dependencies : []).map(record).find(edge => edge.issue_type === 'gate'
+                    && edge.await_type === 'human' && edge.dependency_type === 'blocks' && edge.status !== 'closed' && gateReason(edge.description) === asked);
+                if (open)
+                    return Object.freeze({ gate: open, created: false });
+                const gate = record(await run(operation));
+                if (typeof gate.id !== 'string' || !TASK_ID.test(gate.id) || gate.issue_type !== 'gate' || gate.await_type !== 'human')
+                    invalid();
+                return Object.freeze({ gate, created: true });
+            });
+        },
+        lint(proof, workspaceId, projectId, taskId) {
+            return read(proof, workspaceId, projectId, async (_project, run) => {
+                const report = record(await run({ kind: 'lint', taskId }));
+                // A task with nothing missing is absent from the results, which are then null.
+                const found = report.results === null ? [] : rows(report.results).map(record).filter(row => row.id === taskId);
+                const missing = found.length ? found[0].missing : [];
+                if (found.length > 1 || !Array.isArray(missing) || missing.some(item => typeof item !== 'string'))
+                    invalid();
+                return Object.freeze([...missing]);
             });
         },
         async write(proof, workspaceId, request, idempotencyKey) {

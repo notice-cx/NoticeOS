@@ -40,9 +40,14 @@ export function memoryReceipts(clock) {
 /** An executor over one in-memory project. `principal()` is the admitted actor,
  * as the real executor passes it to every command. */
 export function fakeTaskExecutor({ principal, clock }) {
-  const tasks = new Map(), comments = [], effects = [], calls = [];
+  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [];
   let fail = null, hold = null;
-  const row = task => ({ ...task, issue_type: 'task', schema_version: 1 });
+  const row = task => ({ issue_type: 'task', ...task, schema_version: 1 });
+  // As show embeds them: the whole other task, with the edge's type.
+  const dependencies = id => edges.filter(edge => edge.from === id)
+    .map(edge => ({ ...row(tasks.get(edge.to) ?? { id: edge.to, title: 'Task', status: 'open' }), dependency_type: edge.type }));
+  const blocked = id => dependencies(id).some(edge => edge.dependency_type === 'blocks' && edge.status !== 'closed');
+  const edge = operation => ({ issue_id: operation.taskId, depends_on_id: operation.dependsOn, schema_version: 1 });
   const executor = { async execute(_proof, workspace, request) {
     const operation = request.operation; calls.push({ workspace, operation });
     if (hold && !['active-board', 'closed-board', 'comments', 'show', 'ready', 'epics', 'history'].includes(operation.kind)) await hold;
@@ -52,6 +57,7 @@ export function fakeTaskExecutor({ principal, clock }) {
       case 'create': {
         const id = `tt-${tasks.size + 1}`;
         tasks.set(id, { id, title: operation.title, status: 'open', priority: operation.priority ?? 2,
+          ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}),
           metadata: operation.operationId ? { noticeos_operation_id: operation.operationId } : {} });
         effects.push(['create', id]); value = row(tasks.get(id)); break;
       }
@@ -65,12 +71,40 @@ export function fakeTaskExecutor({ principal, clock }) {
         if (operation.kind === 'close') Object.assign(task, { status: 'closed', close_reason: operation.reason });
         if (operation.claim) Object.assign(task, { status: 'in_progress', assignee: principal() });
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
+        if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         tasks.set(task.id, task); effects.push([operation.kind, operation.taskId]); value = [row(task)]; break;
       }
       case 'active-board': value = [...tasks.values()].filter(task => task.status !== 'closed').map(row); break;
       case 'closed-board': value = []; break;
-      case 'ready': value = [...tasks.values()].filter(task => task.status === 'open').map(task => ({ id: task.id })); break;
-      case 'show': value = [row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' })]; break;
+      case 'ready': value = [...tasks.values()].filter(task => task.status === 'open' && task.issue_type !== 'gate' && !blocked(task.id))
+        .map(task => ({ id: task.id })); break;
+      case 'show': value = [{ ...row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }),
+        dependencies: dependencies(operation.taskId) }]; break;
+      case 'depend': {
+        // Beads keeps one edge per pair and never retypes it.
+        const found = edges.find(edge => edge.from === operation.taskId && edge.to === operation.dependsOn);
+        if (found && found.type !== operation.type) throw new Error('the dependency exists with another type');
+        if (!found) { edges.push({ from: operation.taskId, to: operation.dependsOn, type: operation.type }); effects.push(['depend', operation.taskId]); }
+        value = { ...edge(operation), type: operation.type, status: 'added' }; break;
+      }
+      case 'undepend': {
+        const at = edges.findIndex(edge => edge.from === operation.taskId && edge.to === operation.dependsOn);
+        if (at >= 0) { edges.splice(at, 1); effects.push(['undepend', operation.taskId]); }
+        value = { ...edge(operation), status: 'removed' }; break;
+      }
+      case 'gate': {
+        const id = `tt-${tasks.size + 1}`;
+        tasks.set(id, { id, title: 'Gate: human', status: 'open', priority: 2, issue_type: 'gate', await_type: 'human',
+          description: `Ad-hoc gate blocking ${operation.taskId}\n\nReason: ${operation.reason}` });
+        edges.push({ from: operation.taskId, to: id, type: 'blocks' }); effects.push(['gate', id]);
+        value = row(tasks.get(id)); break;
+      }
+      case 'lint': {
+        const task = tasks.get(operation.taskId);
+        const missing = task && task.issue_type === undefined && !task.acceptance_criteria ? ['## Acceptance Criteria'] : [];
+        value = missing.length ? { total: 1, issues: 1, results: [{ id: task.id, title: task.title, type: 'task', missing, warnings: 1 }] }
+          : { total: 0, issues: 0, results: null }; break;
+      }
       case 'comments': value = comments.filter(comment => comment.issue_id === operation.taskId); break;
       case 'history': value = [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',
         Issue: row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }) }]; break;
@@ -79,5 +113,5 @@ export function fakeTaskExecutor({ principal, clock }) {
     if (fail === 'after') { fail = null; throw new Error('reply lost after the effect'); }
     return value;
   } };
-  return { executor, tasks, comments, effects, calls, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
+  return { executor, tasks, comments, edges, effects, calls, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
 }

@@ -5,11 +5,17 @@
  * and command output never reach a client.
  *
  * Human decisions (respond, dismiss, resolve) are not tools: write access
- * must not give an agent a route to answer its own question. Writes require
- * an idempotency key so an agent can retry an interrupted call safely.
+ * must not give an agent a route to answer its own question. An agent may
+ * open a human gate; only a person resolves it. Writes that would repeat
+ * their effect require an idempotency key so an agent can retry an
+ * interrupted call safely; dependency and gate requests repeat harmlessly.
+ * A created or changed task comes back with what lint finds missing, as
+ * advice: nothing is refused for it.
  */
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
+import { HOSTED_TASK_LIMITS, type HostedTaskDependencyType, type HostedTaskOperation, type HostedTaskStatus,
+  type HostedTaskType } from './hosted-task-command.mjs';
+import { GATE_REASON_MAX, gateReason } from '../packages/contract/src/task-gate.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
@@ -18,6 +24,7 @@ const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const TYPES: readonly HostedTaskType[] = ['task', 'bug', 'feature', 'epic', 'chore'];
+const DEPENDENCY_TYPES: readonly HostedTaskDependencyType[] = ['blocks', 'related', 'discovered-from'];
 
 
 function refuse(message: string): never { throw new McpToolError(message); }
@@ -111,7 +118,7 @@ const READ = Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorld
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 
 async function write(context: ToolContext, projectId: string, operation: HostedTaskOperation, idempotencyKey: string,
-  present: (value: unknown) => unknown): Promise<unknown> {
+  present: (value: unknown) => unknown): Promise<Record<string, unknown>> {
   let outcome: HostedTaskWriteOutcome;
   try {
     outcome = await context.operations.write(context.proof, context.workspaceId, { projectId, operation }, idempotencyKey);
@@ -124,6 +131,17 @@ async function write(context: ToolContext, projectId: string, operation: HostedT
   }
   if (outcome.status === 'conflict') refuse('conflict: this idempotency_key was already used for a different change');
   return { ...(present(outcome.value) as object), replayed: outcome.replayed };
+}
+/** A write that repeats without a second effect, so it takes no key. */
+async function change(context: ToolContext, projectId: string, operation: HostedTaskOperation): Promise<void> {
+  const outcome = await context.operations.write(context.proof, context.workspaceId, { projectId, operation });
+  if (outcome.status !== 'done') refuse('unavailable: the change could not be confirmed; retry it');
+}
+/** What lint finds missing from a task just written, or null when it could
+ * not be read. The write has already happened either way. */
+async function linted(context: ToolContext, projectId: string, taskId: unknown): Promise<{ readonly missing: readonly string[] } | null> {
+  if (typeof taskId !== 'string') return null;
+  try { return { missing: await context.operations.lint(context.proof, context.workspaceId, projectId, taskId) }; } catch { return null; }
 }
 
 export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
@@ -175,7 +193,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
           at: typeof row.CommitDate === 'string' ? row.CommitDate : null, task: taskOf(row.Issue) };
       }) };
     } },
-  { name: 'create_task', description: 'Create a task in a project.',
+  { name: 'create_task', description: 'Create a task in a project. The result\'s lint names sections it still lacks; add them with update_task.',
     inputSchema: schema({ project: PROJECT, title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
       description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body }, type: { type: 'string', enum: TYPES },
       priority: { type: 'integer', minimum: 0, maximum: 4, description: '0 is most urgent.' },
@@ -191,7 +209,9 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         priority: priority(args), labels: labels(args, 'labels'),
         parent: args.parent === undefined ? undefined : task(args, 'parent'),
         acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true) });
-      return write(context, project(args), operation, key(args), value => value);
+      const projectId = project(args);
+      const result = await write(context, projectId, operation, key(args), value => value);
+      return { ...result, lint: await linted(context, projectId, result.id) };
     } },
   { name: 'claim_task', description: 'Assign an open task to yourself and start it. Fails if someone else holds it.',
     inputSchema: schema({ project: PROJECT, task: TASK, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
@@ -200,7 +220,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       only(args, ['project', 'task', 'idempotency_key']);
       return write(context, project(args), { kind: 'update', taskId: task(args), claim: true }, key(args), value => ({ task: taskOf(value) }));
     } },
-  { name: 'update_task', description: 'Change a task\'s fields. Use close_task to close one and claim_task to take one.',
+  { name: 'update_task', description: 'Change a task\'s fields. Use close_task to close one and claim_task to take one. The result\'s lint names sections it still lacks.',
     inputSchema: schema({ project: PROJECT, task: TASK, status: { type: 'string', enum: STATUSES.filter(status => status !== 'closed') },
       priority: { type: 'integer', minimum: 0, maximum: 4 }, title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
       description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body }, assignee: { type: 'string' },
@@ -222,7 +242,9 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         defer: textArg(args, 'defer', 10, false, true), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
         addLabels: labels(args, 'add_labels'), removeLabels: labels(args, 'remove_labels') });
       if (Object.keys(operation).length === 2) refuse('invalid arguments: name at least one field to change');
-      return write(context, project(args), operation, key(args), value => ({ task: taskOf(value) }));
+      const projectId = project(args);
+      const result = await write(context, projectId, operation, key(args), value => ({ task: taskOf(value) }));
+      return { ...result, lint: await linted(context, projectId, operation.taskId) };
     } },
   { name: 'comment_on_task', description: 'Add a comment to a task.',
     inputSchema: schema({ project: PROJECT, task: TASK, text: { type: 'string', maxLength: HOSTED_TASK_LIMITS.comment },
@@ -232,6 +254,40 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       only(args, ['project', 'task', 'text', 'idempotency_key']);
       return write(context, project(args), { kind: 'comment', taskId: task(args), text: textArg(args, 'text', HOSTED_TASK_LIMITS.comment)! },
         key(args), value => ({ comment: toComment(value) }));
+    } },
+  { name: 'add_dependency', description: 'Record that a task depends on another. A blocks dependency, the default, keeps the task out of ready work until the other is closed.',
+    inputSchema: schema({ project: PROJECT, task: TASK, depends_on: { type: 'string', description: 'The task id it depends on.' },
+      type: { type: 'string', enum: DEPENDENCY_TYPES, description: 'blocks (default), related or discovered-from.' } }, ['project', 'task', 'depends_on']),
+    annotations: WRITE,
+    async run(context, args) {
+      only(args, ['project', 'task', 'depends_on', 'type']);
+      const operation = { kind: 'depend' as const, taskId: task(args), dependsOn: task(args, 'depends_on'),
+        type: choice(args, 'type', DEPENDENCY_TYPES) ?? 'blocks' };
+      if (operation.taskId === operation.dependsOn) refuse('invalid arguments: a task cannot depend on itself');
+      await change(context, project(args), operation);
+      return { task: operation.taskId, dependsOn: operation.dependsOn, type: operation.type };
+    } },
+  { name: 'remove_dependency', description: 'Remove a dependency between two tasks. One on a human gate or decision stays until a person decides it.',
+    inputSchema: schema({ project: PROJECT, task: TASK, depends_on: { type: 'string', description: 'The task id it depends on.' } },
+      ['project', 'task', 'depends_on']),
+    annotations: Object.freeze({ ...WRITE, destructiveHint: true }),
+    async run(context, args) {
+      only(args, ['project', 'task', 'depends_on']);
+      const operation = { kind: 'undepend' as const, taskId: task(args), dependsOn: task(args, 'depends_on') };
+      if (operation.taskId === operation.dependsOn) refuse('invalid arguments: a task cannot depend on itself');
+      await change(context, project(args), operation);
+      return { task: operation.taskId, dependsOn: operation.dependsOn, removed: true };
+    } },
+  { name: 'request_human_approval', description: 'Ask a person to approve before a task proceeds: the task is not ready until someone approves it in the Tower. Asking again with the same reason returns the open request.',
+    inputSchema: schema({ project: PROJECT, task: TASK,
+      reason: { type: 'string', maxLength: GATE_REASON_MAX, description: 'What the person is asked to approve.' } }, ['project', 'task', 'reason']),
+    annotations: WRITE,
+    async run({ proof, workspaceId, operations }, args) {
+      only(args, ['project', 'task', 'reason']);
+      const taskId = task(args);
+      const { gate, created } = await operations.approval(proof, workspaceId, project(args), taskId,
+        textArg(args, 'reason', GATE_REASON_MAX)!);
+      return { task: taskId, approval: { id: gate.id, status: gate.status, reason: gateReason(gate.description) }, created };
     } },
   { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },

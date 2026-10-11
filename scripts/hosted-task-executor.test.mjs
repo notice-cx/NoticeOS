@@ -67,7 +67,7 @@ else if(args.includes('sql')){
  else console.log(JSON.stringify({rows:[{database:db,branch:'main',user:process.env.BEADS_DOLT_SERVER_USER,host:'%',permissions:'write'}]}));
 }else if(c.failBlocked&&args.includes('blocked')){process.exit(1)}
 else if(c.overflow){process.stdout.write('x'.repeat(9*1024*1024))}
-else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human?['human']:[],await_type:c.awaitType,close_reason:c.closeReason}))}
+else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason}))}
 else if((args.includes('human')||args.includes('gate'))&&args.some(value=>['respond','dismiss','resolve'].includes(value))){
  if(c.decisionFailure)process.exit(1);
  const response=args.find(a=>a.startsWith('--response='))?.slice(11), reason=args.find(a=>a.startsWith('--reason='))?.slice(9);
@@ -175,6 +175,25 @@ test('generic closure and human-marker removal cannot bypass a current decision 
   await f.control({ human: false, taskType: 'task' });
   await refused(() => f.executor.execute(request(), A, task({ kind: 'update', taskId: 'tt-human', status: 'closed', addLabels: ['human'] })));
   assert.equal((await f.commands()).filter(row => row.args.includes('close') || row.args.includes('update')).length, 0);
+}));
+
+test('a dependency on a gate or a human decision is never removed by an ordinary write; opening one is', () => fixture(async f => {
+  for (const state of [{ human: true, taskType: 'task' }, { human: false, taskType: 'gate', awaitType: 'human' },
+    { human: false, taskType: 'task', humanIds: ['tt-gate'] }]) {
+    await f.control(state);
+    await refused(() => f.executor.execute(request(), A, task({ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-gate' })));
+  }
+  assert.equal((await f.commands()).filter(row => row.args.includes('dep')).length, 0);
+  await f.control({ human: false, taskType: 'task', awaitType: undefined, humanIds: [] });
+  for (const operation of [{ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b' }, { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' },
+    { kind: 'gate', taskId: 'tt-a', reason: 'Approve the rollout' }]) {
+    const output = await f.executor.execute(request(), A, task(operation));
+    assert.equal(output.args[2], '--actor=' + PERSON);
+  }
+  const shows = (await f.commands()).filter(row => row.args.includes('show')).map(row => row.args.at(-1));
+  assert.deepEqual(shows, ['tt-a', 'tt-a', 'tt-a', 'tt-gate', 'tt-a', 'tt-b'], 'both ends are read before a removal, and only then');
+  assert.deepEqual((await f.executor.execute(request(), A, task({ kind: 'lint', taskId: 'tt-a' }))).args,
+    ['--sandbox', '--json', '--actor=' + PERSON, '--readonly', 'lint', '--', 'tt-a']);
 }));
 
 test('wrong target, already decided and failed decision refuse without close/comment fallbacks', () => fixture(async f => {
