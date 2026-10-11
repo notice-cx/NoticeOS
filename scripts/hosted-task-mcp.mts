@@ -94,6 +94,19 @@ function presentTask(task: LiveTask, withReady: boolean): Record<string, unknown
     closedAt: task.closedAt, closeReason: task.closeReason, awaitingHuman: task.awaitType === 'human',
   };
 }
+/** A task as a list shows it: enough to choose one, which get_task then reads in full. */
+function summaryOf(task: LiveTask): Record<string, unknown> {
+  return {
+    id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
+    assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: task.awaitType === 'human',
+    deferUntil: task.deferUntil, createdAt: task.createdAt, updatedAt: task.updatedAt, closedAt: task.closedAt,
+  };
+}
+/** Most urgent first, then oldest, so pages read in a stable order. */
+function byUrgency(a: LiveTask, b: LiveTask): number {
+  return a.priority - b.priority || (a.createdAt ?? '\uffff').localeCompare(b.createdAt ?? '\uffff') || a.id.localeCompare(b.id);
+}
+const PAGE = 50;
 function taskOf(value: unknown): Record<string, unknown> {
   return presentTask(toLiveTask(Array.isArray(value) ? value[0] : value, new Set()), false);
 }
@@ -152,22 +165,31 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       return { projects: (await operations.projects(proof, workspaceId)).map(entry => ({
         projectId: entry.projectId, key: entry.logicalKey, name: entry.displayName, prefix: entry.prefix })) };
     } },
-  { name: 'list_tasks', description: 'List a project\'s tasks: every open one and those closed in the last 7 days.',
+  { name: 'list_tasks', description: 'List a project\'s tasks, most urgent first: every open one and those closed in the last 7 days. '
+      + 'Each is a summary; get_task reads one in full. Answers a page at a time: pass nextOffset as offset for the next.',
     inputSchema: schema({ project: PROJECT,
       status: { type: 'array', items: { type: 'string', enum: STATUSES }, description: 'Only these statuses.' },
-      ready: { type: 'boolean', description: 'Only tasks with nothing blocking them.' } }, ['project']),
+      ready: { type: 'boolean', description: 'Only tasks with nothing blocking them.' },
+      limit: { type: 'integer', minimum: 1, maximum: HOSTED_TASK_LIMITS.rows, description: `At most this many (default ${PAGE}).` },
+      offset: { type: 'integer', minimum: 0, description: 'Skip this many, from the previous answer\'s nextOffset.' } }, ['project']),
     annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
-      only(args, ['project', 'status', 'ready']);
+      only(args, ['project', 'status', 'ready', 'limit', 'offset']);
       const projectId = project(args);
       const statuses = args.status === undefined ? STATUSES : args.status;
       if (!Array.isArray(statuses) || statuses.length < 1 || new Set(statuses).size !== statuses.length
         || statuses.some(status => !STATUSES.includes(status as HostedTaskStatus))) refuse('invalid arguments: status');
       if (args.ready !== undefined && typeof args.ready !== 'boolean') refuse('invalid arguments: ready');
+      const limit = args.limit ?? PAGE, offset = args.offset ?? 0;
+      if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > HOSTED_TASK_LIMITS.rows) {
+        refuse(`invalid arguments: limit (1–${HOSTED_TASK_LIMITS.rows})`);
+      }
+      if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) refuse('invalid arguments: offset (0 or more)');
       const board = await operations.board(proof, workspaceId, projectId, statuses as HostedTaskStatus[]);
-      const tasks = (board.tasks as LiveTask[]).filter(row => args.ready !== true || row.ready);
-      return { project: board.project, readAt: board.readAt, closedSince: board.closedSince,
-        tasks: tasks.map(row => presentTask(row, true)) };
+      const tasks = (board.tasks as LiveTask[]).filter(row => args.ready !== true || row.ready).sort(byUrgency);
+      const page = tasks.slice(offset, offset + limit);
+      return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
+        tasks: page.map(summaryOf), nextOffset: offset + page.length < tasks.length ? offset + page.length : null };
     } },
   { name: 'get_task', description: 'Read one task with its comments.',
     inputSchema: schema({ project: PROJECT, task: TASK }, ['project', 'task']), annotations: READ,

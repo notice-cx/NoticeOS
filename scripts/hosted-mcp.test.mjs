@@ -224,6 +224,25 @@ test('dependencies and human approval decide what is ready; lint advises on ever
   assert.equal((await call(f, 'request_human_approval', ask, { bearer: READER, status: 403 })).headers.get('www-authenticate').includes('scope="tasks:write"'), true);
 });
 
+test('a project\'s tasks come a page of summaries at a time, most urgent first, and get_task reads one in full', async () => {
+  const f = fixture();
+  for (const [title, priority] of [['Later', 3], ['Now', 0], ['Soon', 1]]) {
+    await call(f, 'create_task', { workspace: A, project: P, title, priority, idempotency_key: `create-${title.toLowerCase()}-0001` });
+  }
+  const list = async extra => (await call(f, 'list_tasks', { workspace: A, project: P, ...extra })).structuredContent;
+  const first = await list({ limit: 2 });
+  assert.deepEqual([first.total, first.tasks.map(task => task.title), first.nextOffset], [3, ['Now', 'Soon'], 2]);
+  assert.deepEqual(Object.keys(first.tasks[0]).sort(), ['assignee', 'awaitingHuman', 'closedAt', 'createdAt', 'deferUntil', 'id', 'labels',
+    'parent', 'priority', 'ready', 'status', 'title', 'type', 'updatedAt'], 'no body, acceptance, metadata or dependency detail');
+  const rest = await list({ limit: 2, offset: first.nextOffset });
+  assert.deepEqual([rest.total, rest.tasks.map(task => task.title), rest.nextOffset], [3, ['Later'], null]);
+  assert.equal((await list({})).tasks.length, 3, 'the default page holds 50');
+  for (const bad of [{ limit: 0 }, { limit: 201 }, { limit: 2.5 }, { offset: -1 }]) {
+    assert.match((await call(f, 'list_tasks', { workspace: A, project: P, ...bad })).content[0].text, /^invalid arguments: (limit|offset)/u);
+  }
+  assert.equal((await call(f, 'get_task', { workspace: A, project: P, task: first.tasks[0].id })).structuredContent.task.title, 'Now');
+});
+
 test('refusals are readable tool errors and never reveal which check refused', async () => {
   const f = fixture();
   const error = async (name, args) => { const result = await call(f, name, args); assert.equal(result.isError, true); return result.content[0].text; };
