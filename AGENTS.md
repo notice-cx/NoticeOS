@@ -194,7 +194,7 @@ ignored `.local/stack.json` selects it, and every `pnpm os:*` command acts on
 that stack ([Docker guide](deploy/compose/README.md)). Every installation runs
 from the one definition `deploy/compose/stack.yaml` and its folder's
 `installation.env`; `pnpm os:setup` makes one and `pnpm os:convert-legacy` moves a
-existing one in, and nobody writes a Compose file. A development stack's
+legacy one in, and nobody writes a Compose file. A development stack's
 app runs this checkout's live source; a production stack's app runs a
 prepared image. Do not guess from a port, inspect containers by hand or read
 `.local/` by hand:
