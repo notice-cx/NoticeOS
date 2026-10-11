@@ -73,6 +73,27 @@ export function parseServices(stdout, project) {
   for (const service of ['noticeos', 'postgres', 'dolt']) if (!seen.has(service)) refuse('Stack is missing a required existing service.');
   return seen;
 }
+/**
+ * Which of `names` did not become healthy, what each is doing, and where to
+ * look. When the app is one, the database's migration state is named too: an
+ * app whose database lacks this code's migrations refuses to start.
+ */
+export async function notHealthy(names, inventory, database) {
+  let rows = null;
+  try { rows = await inventory(); } catch { /* the sentence below still names the step */ }
+  const failed = names.filter(name => !rows || rows.get(name)?.health !== 'healthy');
+  const shown = (failed.length ? failed : names).map(name => {
+    const row = rows?.get(name);
+    return row ? `${name} (${row.state}${row.health ? ', ' + row.health : ''})` : name;
+  });
+  const lines = [`${shown.join(', ')} did not become healthy; nothing after it was started. pnpm os:logs -- ${(failed[0] ?? names[0])} shows why.`];
+  if ((failed.length ? failed : names).includes('noticeos')) {
+    const current = await database().catch(() => null);
+    if (current && !current.ok) lines.push(`The database: ${current.line}`);
+  }
+  return lines.join('\n');
+}
+
 /** The action's own arguments, checked before Docker is asked anything. */
 export function actionArgs(action, args) {
   if (action === 'logs') {
@@ -174,7 +195,12 @@ export async function stackControl(action, input, { run = runCommand, out = proc
     if (current.size !== original.size || [...original].some(([service, row]) => current.get(service)?.id !== row.id)) refuse('Stack containers changed; no next step ran.');
     const names = step.filter(word => SERVICES.includes(word));
     out.write(`${step[0]} ${names.join(', ')}\n`);
-    await call(step, `Stack ${step[0]}`, 130000);
+    try {
+      await call(step, `Stack ${step[0]}`, 130000);
+    } catch (error) {
+      if (!step.includes('--wait')) throw error;
+      refuse(await notHealthy(names, inventory, () => database(selector, { root })));
+    }
   }
   out.write(`Stack ${action} complete.\n`);
 }

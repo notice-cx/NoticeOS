@@ -4,29 +4,29 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
 import { probeTcp } from '../../scripts/runner/host-tools.mjs';
-import { developmentDependencies } from './development.mjs';
+import { ContainerRefusal, developmentDependencies } from './development.mjs';
 
 export function containerEnvironment(env = process.env, { fs: io = fs, readClient = readDeclaredTaskClient, checkDependencies = developmentDependencies } = {}) {
   const mode = env.NOTICEOS_CONTAINER_MODE ?? 'prepared';
-  if (!['prepared', 'development'].includes(mode)) throw new Error('Choose prepared or development container mode.');
+  if (!['prepared', 'development'].includes(mode)) throw new ContainerRefusal('Choose prepared or development container mode.');
   if (mode === 'development') checkDependencies({ fs: io, metadataFile:'/dependency-image.json' });
   const home = '/state';
   const profileFile = path.join(home, 'task-client.json');
   const profile = readClient(profileFile);
-  if (profile.host !== 'dolt' || profile.port !== 3306 || profile.credentialsFile !== '/state/dolt/credentials' || profile.clientHome !== '/state/dolt/client-home') throw new Error('The container needs its declared internal task service.');
+  if (profile.host !== 'dolt' || profile.port !== 3306 || profile.credentialsFile !== '/state/dolt/credentials' || profile.clientHome !== '/state/dolt/client-home') throw new ContainerRefusal('The container needs its declared internal task service.');
   for (const dir of [home, '/spokes', '/state/installation', '/state/.local', '/state/.wrangler', '/state/workers/ingest']) {
     const stat = io.lstatSync(dir);
-    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('The prepared installation mount is incomplete.');
+    if (!stat.isDirectory() || stat.isSymbolicLink()) throw new ContainerRefusal('The prepared installation mount is incomplete.');
   }
   const file = '/state/workers/ingest/.dev.secrets.json';
   const stat = io.lstatSync(file);
-  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 16384) throw new Error('Bootstrap secrets must be a private regular file.');
+  if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o077) || stat.size > 16384) throw new ContainerRefusal('Bootstrap secrets must be a private regular file.');
   const bindings = JSON.parse(io.readFileSync(file, 'utf8'));
   const database = new URL(bindings.DATABASE_URL);
-  if (!['postgres:', 'postgresql:'].includes(database.protocol) || database.hostname !== 'postgres' || (database.port || '5432') !== '5432' || !database.password) throw new Error('The container needs its declared internal database.');
+  if (!['postgres:', 'postgresql:'].includes(database.protocol) || database.hostname !== 'postgres' || (database.port || '5432') !== '5432' || !database.password) throw new ContainerRefusal('The container needs its declared internal database.');
   // A new installation may have no asset tokens yet (doc 06).
   if (typeof bindings.CREDENTIALS_KEY !== 'string' || !bindings.CREDENTIALS_KEY.trim() ||
-    typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new Error('The prepared bootstrap credentials are incomplete.');
+    typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new ContainerRefusal('The prepared bootstrap credentials are incomplete.');
   const selected = {};
   for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS']) if (env[key] !== undefined) selected[key] = env[key];
   // The standalone runtime serves through Vite; its React transforms need development mode.
@@ -56,15 +56,19 @@ export function containerCommand(argv) {
   return null;
 }
 
-export async function main(argv = process.argv.slice(2)) {
+export async function main(argv = process.argv.slice(2), { environment = containerEnvironment, err = process.stderr } = {}) {
   const command = containerCommand(argv);
-  if (command === null) { process.stderr.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>" or capacity [--json].\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or backup, run-job "<cron>" or capacity [--json].\n'); return 2; }
   let env;
   try {
-    env = containerEnvironment();
-    if (!await probeTcp('dolt', 3306, 5000)) throw new Error('The declared task service is unavailable.');
+    env = environment();
+    if (!await probeTcp('dolt', 3306, 5000)) throw new ContainerRefusal('The declared task service is unavailable.');
   }
-  catch { process.stderr.write('NoticeOS container refused: prepare its mounted installation and internal service credentials.\n'); return 1; }
+  catch (error) {
+    const reason = error instanceof ContainerRefusal ? error.message : 'prepare its mounted installation and internal service credentials.';
+    err.write(`NoticeOS container refused: ${reason}\n`);
+    return 1;
+  }
   const child = spawn(process.execPath, command, { cwd: '/opt/noticeos', env, stdio: 'inherit' });
   const forward = signal => { if (child.exitCode === null && child.signalCode === null) child.kill(signal); };
   const onTerm = () => forward('SIGTERM');

@@ -135,7 +135,8 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 
 - An `os:*` command says the selector is invalid or a service is unexpected: `.local/stack.json` must name exactly `project`, `files`, `envFile` and `dockerHost`, with absolute paths and a `unix://` socket, and the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 - `os:update` refuses changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.
-- `os:dev` refuses to start: a changed lockfile refuses startup rather than running mismatched dependencies. Run `pnpm install --frozen-lockfile` and try again.
+- The development app stops after a pull: the checkout's packages changed since its image was built, and `pnpm os:logs -- noticeos` says so. Run `pnpm os:dev`; it builds a matching image and moves the app onto it.
+- `os:restart` or `os:update` names a service that is not healthy: `pnpm os:logs -- <service>` shows why.
 
 More symptoms are in [Troubleshooting](/operate/troubleshooting). The full guide, including the backup worker and running report scripts inside the container, is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/README.md.
 

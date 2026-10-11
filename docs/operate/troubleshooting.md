@@ -37,8 +37,11 @@ The database address in the secrets file is unusable, or the database is behind 
 **Exit code 3, with an `lsof` line.**
 Another scheduler already holds the data port (8791), and two would fire every schedule twice. Restart the app with `pnpm os:restart`.
 
-**`REFUSING to start Tower: prepared dependencies are unavailable or stale`.**
-On a development stack, run `pnpm install --frozen-lockfile`, then `pnpm os:dev`. On a production stack, run `pnpm os:update` to build a matching image.
+**`REFUSING to start Tower: prepared dependencies are unavailable or stale`, or `NoticeOS container refused: The checkout's packages changed since this image was built`.**
+On a development stack, run `pnpm os:dev`: it builds a matching image and moves the app onto it. On a production stack, run `pnpm os:update` to build a matching image.
+
+**`pnpm os:restart` or `pnpm os:update` names a service that is not healthy.**
+`pnpm os:logs -- <service>` shows why. When it is the app and the database lacks this code's migrations, the message says so: run `pnpm os:migrate -- --apply`, then `pnpm os:restart`.
 
 ## Runtime log lines
 

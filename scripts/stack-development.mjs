@@ -13,7 +13,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { readSelector, validateSelector } from './stack-control.mjs';
 import { runCommand } from './run-command.mjs';
 import { DEPENDENCY_PATHS } from '../deploy/compose/development.mjs';
-import { stackSnapshot, stackRecoverySnapshot, stackComposition, stackCompose,
+import { buildDevelopmentImage, stackImageMetadata, stackSnapshot, stackRecoverySnapshot, stackComposition, stackCompose,
   stackAtomic, stackInputSeal, stackSameInputs } from './stack-deploy.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -109,7 +109,7 @@ function regular(file) {
 }
 
 export async function developStack({ root = ROOT, selectorFile, disable = false, image = null,
-  run = runCommand, env = process.env, out = process.stdout } = {}) {
+  run = runCommand, env = process.env, out = process.stdout, build = buildDevelopmentImage } = {}) {
   root = fs.realpathSync(root);
   const selector = readSelector(selectorFile);
   const dir = path.join(path.dirname(selectorFile), 'stack-development');
@@ -126,14 +126,19 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
   let retainLock = false; let started = false;
   const oldSelector = regular(selectorFile);
   let selected; let before; let inputHashes; let targetBefore; let targetImage; let added=[];
+  let active = false; let previousOverride = null;
   const journal = value => stackAtomic(journalFile,json(value));
   const up = selection => stackCompose(run,selection,
     ['up','--detach','--no-deps','--no-build','--pull','never','--force-recreate','--wait','--wait-timeout','90','noticeos'],env,'Development app switch',130_000);
   try {
     fs.writeFileSync(handle,json({ pid: process.pid, operation:'os:dev', selectorFile }));
-    inputHashes = stackInputSeal(selectorFile,selector);
     const model = await stackComposition(run,selector,env);
-    const active = model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development';
+    active = model.value.services.noticeos.environment?.NOTICEOS_CONTAINER_MODE === 'development';
+    // The stack as declared without this command's own override file, which
+    // os:dev rewrites when the dependency image changes.
+    const declared = active ? validateSelector({ ...selector, files: selector.files.filter(file=>file!==overrideFile) }) : selector;
+    const baseModel = active ? await stackComposition(run,declared,env) : model;
+    inputHashes = stackInputSeal(selectorFile,declared);
     // A broken edit must not prevent restoring the prepared image. Stores
     // still need to be healthy; only the development app may be unhealthy.
     const inspectStack = active ? stackRecoverySnapshot : stackSnapshot;
@@ -152,32 +157,53 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       assertPreserved(prior.before,before,{ image:before.noticeos.image, added:JSON.parse(regular(overrideFile)).services.noticeos.volumes });
     } else {
       if (active && !selector.files.includes(overrideFile)) fail('This stack uses development mounts owned by another selector.');
+      if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');
+      const ownEnv = Object.fromEntries(['PATH','HOME','DOCKER_CONFIG','XDG_CONFIG_HOME'].filter(key => env[key] !== undefined).map(key => [key,env[key]]));
+      // Does this image's node_modules match the checkout's lockfile and
+      // manifests? No installation mounts, network, scheduler or providers.
+      const probe = async (candidate) => {
+        const name = `noticeos-dev-check-${randomUUID()}`;
+        journal({ phase:'checking-dependencies', resource:name, project:selector.project, image:candidate, source:root });
+        let result;
+        try { result = await run('docker',['--host',selector.dockerHost,'run','--rm','--name',name,'--network','none','--read-only',
+          '--user',model.value.services.noticeos.user ?? '1000:1000','--volume',root+':/source:ro','--entrypoint','node',
+          candidate,'/source/deploy/compose/development.mjs','--check'],{ env:ownEnv, timeoutMs:30_000 }); }
+        catch { retainLock=true; journal({phase:'recovery-required',resource:name,reason:'dependency probe termination uncertain'}); fail('Dependency check termination is uncertain; retain its resource record and stack lock.'); }
+        if (result.timedOut) {
+          retainLock = true;
+          journal({phase:'recovery-required',resource:name,reason:'dependency probe termination uncertain'});
+          fail('Dependency check timed out; retain its owned resource record for recovery.');
+        }
+        return result;
+      };
       targetImage = image ?? before.noticeos.image;
+      let checked = await probe(targetImage);
+      let rebuilt = false;
+      if (checked.code !== 0 && image === null) {
+        // The checkout's lockfile or manifests changed since the app's image
+        // was built: build its packages into a new development image.
+        out.write('The checkout\'s packages changed since the app\'s image was built.\n');
+        const { platform } = await stackImageMetadata(run, selector, before.noticeos.image, env);
+        targetImage = (await build({ root, dockerHost: selector.dockerHost, platform, run, env, out })).image;
+        rebuilt = true;
+        checked = await probe(targetImage);
+      }
+      if (checked.code !== 0) fail('The checkout\'s packages do not match this image. Run pnpm os:dev without --image to build a matching one.');
       const stateSource=before.noticeos.mounts.find(m=>m.target==='/state' && m.type==='bind')?.source;
       const dependencyFile=path.join(dir,`dependencies-${targetImage.slice(7)}.json`);
       const override = developmentOverride(root,targetImage,{project:selector.project,stateSource,dependencyFile});
-      if (!active && model.value.services.noticeos.volumes.some(m => m.target === '/source' || m.target.startsWith('/opt/noticeos/') && m.type !== 'tmpfs')) fail('The app already has conflicting source mounts.');
       const oldOverride = active ? regular(overrideFile) : null;
-      if (oldOverride !== null && oldOverride !== json(override)) fail('Run pnpm os:prod before selecting another checkout or dependency image.');
+      previousOverride = oldOverride;
+      if (oldOverride !== null && oldOverride !== json(override) &&
+        !(rebuilt && JSON.parse(oldOverride).services?.noticeos?.labels?.['cx.noticeos.checkout'] === override.services.noticeos.labels['cx.noticeos.checkout'])) {
+        fail('Run pnpm os:prod before selecting another checkout or dependency image.');
+      }
       stackAtomic(overrideFile,json(override));
       selected = validateSelector({ ...selector, files:[...selector.files.filter(file=>file!==overrideFile),overrideFile] });
       const afterModel = await stackComposition(run,selected,env);
-      assertDevelopmentComposition(model.value,afterModel.value,override);
-      // No installation mounts, network, scheduler or providers in this dependency probe.
-      const name = `noticeos-dev-check-${randomUUID()}`;
-      const ownEnv = Object.fromEntries(['PATH','HOME','DOCKER_CONFIG','XDG_CONFIG_HOME'].filter(key => env[key] !== undefined).map(key => [key,env[key]]));
-      journal({ phase:'checking-dependencies', resource:name, project:selector.project, image:targetImage, source:root });
-      let checked;
-      try { checked = await run('docker',['--host',selector.dockerHost,'run','--rm','--name',name,'--network','none','--read-only',
-        '--user',model.value.services.noticeos.user ?? '1000:1000','--volume',root+':/source:ro','--entrypoint','node',
-        targetImage,'/source/deploy/compose/development.mjs','--check'],{ env:ownEnv, timeoutMs:30_000 }); }
-      catch { retainLock=true; journal({phase:'recovery-required',resource:name,reason:'dependency probe termination uncertain'}); fail('Dependency check termination is uncertain; retain its resource record and stack lock.'); }
-      if (checked.timedOut) {
-        retainLock = true;
-        journal({phase:'recovery-required',resource:name,reason:'dependency probe termination uncertain'});
-        fail('Dependency check timed out; retain its owned resource record for recovery.');
-      }
-      if (checked.code !== 0) fail('The mounted lockfile does not match this Linux dependency image. Build a matching image before switching.');
+      // Compared with the stack as declared without development, so a new
+      // dependency image may replace the old one's volumes.
+      assertDevelopmentComposition(baseModel.value,afterModel.value,override);
       const checkedValue=JSON.parse(checked.stdout);
       if(!Number.isSafeInteger(checkedValue.freeBytes) || checkedValue.freeBytes<12*1024**3) fail('Development dependency volumes need 4 GiB headroom while keeping 8 GiB free.');
       const dependencies=checkedValue.dependencies;
@@ -202,7 +228,7 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
         before, image:before.noticeos.image, source:root }));
     }
     if (!stackSameInputs(inputHashes) || !equal(before,await inspectStack(run,selector,env)) ||
-      model.seal !== (await stackComposition(run,selector,env)).seal) fail('Stack declarations or containers changed during preparation.');
+      baseModel.seal !== (await stackComposition(run,declared,env)).seal) fail('Stack declarations or containers changed during preparation.');
     journal({ phase:'applying',project:selector.project,source:root,image:targetImage,previousImage:before.noticeos.image,disable,
       expectedAdditionalBytes:4*1024**3,dependencyVolumes:added.filter(m=>m.type==='volume').map(m=>m.source) });
     started = true;
@@ -233,12 +259,22 @@ export async function developStack({ root = ROOT, selectorFile, disable = false,
       const sameApp=(base,extra)=>{try {assertPreserved(base,current,{image:current.noticeos.image,added:extra});return true;}catch{return false;}};
       if(![before.noticeos.image,targetImage].includes(current.noticeos.image) ||
         !(sameApp(before,[]) || sameApp(targetBefore,added))) fail('Unexpected app image or mount drift; recovery refused.');
+      if (active && !disable && before.noticeos.health !== 'healthy') {
+        // The development app was already broken: going back to it helps no
+        // one. It stays on the new image, which the next os:dev or os:prod
+        // starts from.
+        journal({ phase:'failed-development', image:targetImage, after:current });
+        retainLock = false;
+        throw Object.assign(new Error(`The development app did not become healthy on the new image; pnpm os:logs -- noticeos shows why, and pnpm os:prod returns to the prepared image.`), { settled:true });
+      }
+      if (previousOverride !== null) stackAtomic(overrideFile, previousOverride);
       await up(selector);
       const recovered = await stackSnapshot(run,selector,env);
       assertPreserved(before,recovered,{ image:before.noticeos.image });
       stackAtomic(selectorFile,oldSelector);
       journal({ phase:'rolled-back',image:before.noticeos.image,after:recovered });
-    } catch {
+    } catch (recovery) {
+      if (recovery.settled) throw recovery;
       retainLock = true;
       journal({ phase:'recovery-required',previousImage:before.noticeos.image });
       fail('App switch and recovery did not complete; retain the journal and stack lock.');

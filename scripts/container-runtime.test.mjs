@@ -6,7 +6,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { createServer as createHttpServer } from 'node:http';
-import { containerCommand, containerEnvironment } from '../deploy/compose/entrypoint.mjs';
+import { containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
+import { ContainerRefusal } from '../deploy/compose/development.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
 
 const profile = { host: 'dolt', port: 3306, user: 'noticeos', credentialsFile: '/state/dolt/credentials', clientHome: '/state/dolt/client-home' };
@@ -45,6 +46,17 @@ test('the container runs the runner, or one named job beside it, and nothing els
   for (const argv of [['shell'], ['backup', '--now'], ['run-job'], ['run-job', '$(id)'], ['run-job', '0 6 * * *', 'x'], ['capacity', '--all']]) {
     assert.equal(containerCommand(argv), null, argv.join(' '));
   }
+});
+
+test('a refused container says why in its own words, and never repeats another error', async () => {
+  let written = '';
+  const err = { write: (text) => { written += text; } };
+  const refuse = (error) => () => { throw error; };
+  assert.equal(await containerMain([], { err, environment: refuse(new ContainerRefusal("The checkout's packages changed since this image was built; pnpm os:dev builds a matching one.")) }), 1);
+  assert.equal(written, "NoticeOS container refused: The checkout's packages changed since this image was built; pnpm os:dev builds a matching one.\n");
+  written = '';
+  assert.equal(await containerMain([], { err, environment: refuse(new SyntaxError('Unexpected token in JSON near "PRIVATE-SENTINEL"')) }), 1);
+  assert.equal(written, 'NoticeOS container refused: prepare its mounted installation and internal service credentials.\n');
 });
 
 test('container health requires a fresh supervised runner and both answering internal doors', async () => {
