@@ -6,8 +6,12 @@
  * and command output never reach a client.
  *
  * Human decisions (respond, dismiss, resolve) are not tools: write access
- * must not give an agent a route to answer its own question. Writes require
- * an idempotency key so an agent can retry an interrupted call safely.
+ * must not give an agent a route to answer its own question. An agent may
+ * open a human gate; only a person resolves it. Writes that would repeat
+ * their effect require an idempotency key so an agent can retry an
+ * interrupted call safely; dependency and gate requests repeat harmlessly.
+ * A created or changed task comes back with what lint finds missing, as
+ * advice: nothing is refused for it.
  */
 import { type HostedTaskOperations } from './hosted-task-operations.mjs';
 type Args = Record<string, unknown>;

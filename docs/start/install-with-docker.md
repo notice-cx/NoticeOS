@@ -117,8 +117,10 @@ Each is the twin of a `pnpm os:*` command from a checkout, with the same options
 | `noticeos run-job "<cron>"` | `pnpm os:run-job -- "<cron>"` | Fire the jobs scheduled on one cron expression now |
 | `noticeos update`, `rollback` | `pnpm os:update`, `os:rollback` | Move to the newest published version, or back |
 | `noticeos migrate` | `pnpm os:migrate` | Pending database changes; `--apply` applies them |
+| `noticeos mcp` | `pnpm os:mcp` | The MCP server for an agent on this machine; see [Connect an agent](/guides/connect-an-agent) |
+| `noticeos bd` | `pnpm os:bd` | The task tool, run inside the app |
 
-`setup`, `update` and `migrate` run main's newest published image, which the launcher fetches first. Every other command runs the image the app runs. A message that would name a `pnpm os:*` command names the launcher instead. `os:dev`, `os:prod` and `os:convert-legacy` need a checkout.
+`setup`, `update` and `migrate` run main's newest published image, which the launcher fetches first. `mcp` and `bd` run inside the app itself. Every other command runs the image the app runs. A message that would name a `pnpm os:*` command names the launcher instead. `os:dev`, `os:prod` and `os:convert-legacy` need a checkout.
 
 [Daily operations](/operate/daily-operations) covers what each command tells you. **Settings** > **Installation** in the Tower shows the folder, ports and version, read-only.
 

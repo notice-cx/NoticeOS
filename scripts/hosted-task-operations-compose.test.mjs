@@ -99,5 +99,40 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     assert.equal(result.structuredContent.task.id, replay.value.id);
     assert.equal(result.structuredContent.comments.length, 1);
     assert.doesNotMatch(JSON.stringify(result), /issue_type|schema_version/u);
+
+    // Dependencies and approvals: what is ready follows blocks edges and open
+    // gates, and no ordinary write unhooks or closes a gate.
+    let next = 10;
+    const tool = async (name, args) => (await (await mcp(new Request(origin + MCP_PATH, { method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer compose-agent-token-0001' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: next++, method: 'tools/call',
+        params: { name, arguments: { workspace: workspaceId, project: projectId, ...args } } }) }))).json()).result;
+    const ok = async (name, args) => {
+      const answer = await tool(name, args);
+      assert.equal(answer.isError, undefined, `${name}: ${JSON.stringify(answer)}`);
+      return answer.structuredContent;
+    };
+    const lead = await ok('create_task', { title: 'Lead', idempotency_key: 'compose-lead-0001' });
+    assert.deepEqual(lead.lint, { missing: ['## Acceptance Criteria'] });
+    const follow = await ok('create_task', { title: 'Follow', acceptance: 'It reads back', idempotency_key: 'compose-follow-0001' });
+    assert.deepEqual(follow.lint, { missing: [] });
+    assert.deepEqual((await ok('update_task', { task: lead.id, acceptance: 'It ships', idempotency_key: 'compose-lead-0002' })).lint, { missing: [] });
+    const ready = async () => (await ok('list_tasks', { ready: true })).tasks.map(task => task.id);
+    await ok('add_dependency', { task: follow.id, depends_on: lead.id });
+    await ok('add_dependency', { task: follow.id, depends_on: lead.id });
+    assert.equal((await ready()).includes(follow.id), false);
+    assert.match((await tool('add_dependency', { task: follow.id, depends_on: lead.id, type: 'related' })).content[0].text, /^refused:/u);
+    await ok('remove_dependency', { task: follow.id, depends_on: lead.id });
+    assert.equal((await ready()).includes(follow.id), true);
+    const asked = await ok('request_human_approval', { task: lead.id, reason: 'Approve the rollout' });
+    assert.deepEqual([asked.created, asked.approval.status, asked.approval.reason], [true, 'open', 'Approve the rollout']);
+    assert.deepEqual(await ok('request_human_approval', { task: lead.id, reason: 'Approve the rollout' }), { ...asked, created: false });
+    assert.equal((await ready()).includes(lead.id), false);
+    for (const [name, args] of [['remove_dependency', { task: lead.id, depends_on: asked.approval.id }],
+      ['close_task', { task: asked.approval.id, reason: 'Approved it myself', idempotency_key: 'compose-gate-0001' }]]) {
+      assert.match((await tool(name, args)).content[0].text, /^refused:/u, name);
+    }
+    const gated = (await ok('get_task', { task: lead.id })).task;
+    assert.deepEqual(gated.dependencies.filter(edge => edge.id === asked.approval.id).map(edge => [edge.type, edge.status]), [['blocks', 'open']]);
   });
 });

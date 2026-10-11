@@ -228,8 +228,9 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 (`pnpm os:backup`) → `pnpm os:migrate` → `pnpm os:migrate -- --apply` →
 `pnpm os:update` ([database migrations](scripts/README.md#database-migrations)).
 `os:start`, `os:stop`, `os:dev`, `os:prod`, `os:migrate`, `os:rollback`,
-`os:convert-legacy` and `os:apply` are operator-directed. An agent's verbs are `os:status`, `os:logs` and
-`os:restart` and, after a verified merge, `os:update`; never `os:migrate`.
+`os:convert-legacy` and `os:apply` are operator-directed. An agent's verbs are `os:status`, `os:logs`,
+`os:restart`, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
+`os:update`; never `os:migrate`.
 
 `pnpm os:setup` on a machine that already runs an installation refuses on its
 selector; an agent runs it only with a throwaway `--dir`, `--project` and
@@ -243,6 +244,15 @@ In a checkout connected to a Beads hub, the hub is the only register of open
 work: one hub, one database per asset, configured through the
 [task-project contract](config/beads.README.md). Public contributors need no
 access to a maintainer's private hub; follow [CONTRIBUTING.md](CONTRIBUTING.md).
+
+Reach it through the NoticeOS MCP server's task tools when your client has
+them: `pnpm os:mcp` serves them to an agent on this machine, a hosted
+workspace at `/api/mcp` ([Connect an agent](docs/guides/connect-an-agent.md)).
+They name the same operations as the `bd` verbs below (`create_task`,
+`list_tasks` with `ready`, `claim_task`, `close_task`, `add_dependency`,
+`request_human_approval`) and answer every create or update with what lint
+finds missing. Without them, run `bd` in the checkout, or `pnpm os:bd --
+<command>` where this machine has no `bd`.
 
 - Found new work? File a task with `bd create` in the repo that owns it, never
   a TODO comment, a follow-up list or a memory note.

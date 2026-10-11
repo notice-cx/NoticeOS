@@ -16,6 +16,8 @@ export const HOSTED_TASK_LIMITS = Object.freeze({
 
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
 export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore';
+/** blocks keeps the task out of ready work until the other closes; the others only record a link. */
+export type HostedTaskDependencyType = 'blocks' | 'related' | 'discovered-from';
 export type HostedTaskOperation =
   | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
   | { readonly kind: 'show'; readonly taskId: string }
@@ -39,6 +41,11 @@ export type HostedTaskOperation =
       readonly addLabels?: readonly string[]; readonly removeLabels?: readonly string[] }
   | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
   | { readonly kind: 'close'; readonly taskId: string; readonly reason: string }
+  | { readonly kind: 'depend'; readonly taskId: string; readonly dependsOn: string; readonly type: HostedTaskDependencyType }
+  | { readonly kind: 'undepend'; readonly taskId: string; readonly dependsOn: string }
+  /** Opens a human gate the task waits on. Only a person's resolve-gate clears it. */
+  | { readonly kind: 'gate'; readonly taskId: string; readonly reason: string }
+  | { readonly kind: 'lint'; readonly taskId: string }
   | { readonly kind: 'respond'; readonly taskId: string; readonly response: string }
   | { readonly kind: 'dismiss'; readonly taskId: string; readonly reason?: string }
   | { readonly kind: 'resolve-gate'; readonly taskId: string; readonly reason?: string };
@@ -116,6 +123,7 @@ function choice(value: unknown, values: readonly string[]): string {
 }
 const STATUSES: readonly string[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const TYPES: readonly string[] = ['task', 'bug', 'feature', 'epic', 'chore'];
+const DEPENDENCY_TYPES: readonly string[] = ['blocks', 'related', 'discovered-from'];
 function labelList(value: unknown, empty = false): readonly string[] {
   if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels || !empty && value.length === 0
     || Reflect.ownKeys(value).length !== value.length + 1) invalid();
@@ -147,8 +155,8 @@ function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
 function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
   const op = record(input);
   const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
-    'snapshot', 'create', 'update', 'comment', 'close', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
-  const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot'].includes(kind);
+    'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
+  const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
   const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
   switch (kind) {
     case 'list':
@@ -167,6 +175,10 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
     case 'comments':
       keys(op, ['kind', 'taskId']);
       argv.push('comments', '--', task(op.taskId));
+      break;
+    case 'lint':
+      keys(op, ['kind', 'taskId']);
+      argv.push('lint', '--', task(op.taskId));
       break;
     case 'ready':
       keys(op, ['kind']); argv.push('ready', '--limit=0');
@@ -249,6 +261,19 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       keys(op, ['kind', 'taskId', 'reason']);
       argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
       break;
+    case 'depend':
+    case 'undepend': {
+      keys(op, ['kind', 'taskId', 'dependsOn', ...(kind === 'depend' ? ['type'] : [])]);
+      const from = task(op.taskId), to = task(op.dependsOn);
+      if (from === to) invalid();
+      // A repeated add or remove changes nothing, and an add never retypes an existing edge.
+      argv.push('dep', ...(kind === 'depend' ? ['add', `--type=${choice(op.type, DEPENDENCY_TYPES)}`] : ['remove']), '--', from, to);
+      break;
+    }
+    case 'gate':
+      keys(op, ['kind', 'taskId', 'reason']);
+      argv.push('gate', 'create', '--type=human', `--blocks=${task(op.taskId)}`, `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--');
+      break;
     case 'respond':
       keys(op, ['kind', 'taskId', 'response']);
       argv.push('human', 'respond', `--response=${text(op.response, HOSTED_TASK_LIMITS.comment)}`, '--', task(op.taskId));
@@ -262,6 +287,20 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
   }
   return { kind, readOnly, argv: Object.freeze(argv) };
+}
+
+/** A person's decision: a gate, or a task labelled human. */
+export function isHumanDecision(row: { readonly issue_type?: unknown; readonly labels?: unknown }): boolean {
+  return row.issue_type === 'gate' || Array.isArray(row.labels) && row.labels.includes('human');
+}
+/** The tasks an executor must find are not a person's decision before it runs
+ * this ordinary write: no close, marker removal or removed dependency stands
+ * in for the decision itself, which has its own named verb. */
+export function decisionGuardTargets(operation: HostedTaskOperation): readonly string[] {
+  if (operation.kind === 'close') return [operation.taskId];
+  if (operation.kind === 'update') return operation.status === 'closed' || operation.removeLabels?.includes('human') ? [operation.taskId] : [];
+  if (operation.kind === 'undepend') return [operation.taskId, operation.dependsOn];
+  return [];
 }
 
 /** Semantic action classification after the same strict command validation.

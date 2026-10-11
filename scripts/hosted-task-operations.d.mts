@@ -44,6 +44,14 @@ export interface HostedTaskOperations {
     task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;
     history(proof: Request, workspaceId: string, projectId: string, taskId: string, limit: number): Promise<unknown>;
     write(proof: Request, workspaceId: string, request: HostedTaskRequest, idempotencyKey?: string): Promise<HostedTaskWriteOutcome>;
+    /** Opens a human gate the task waits on, or returns the open one already
+     * asking the same thing, so a retried request never asks a person twice. */
+    approval(proof: Request, workspaceId: string, projectId: string, taskId: string, reason: string): Promise<{
+        readonly gate: Record<string, unknown>;
+        readonly created: boolean;
+    }>;
+    /** The sections the task's type expects that it still lacks, as Beads' lint names them. */
+    lint(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<readonly string[]>;
 }
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export declare class HostedTaskReceiptsUnavailable extends Error {

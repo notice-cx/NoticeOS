@@ -1,4 +1,5 @@
-/** NoticeOS's one MCP endpoint in a hosted or demo deployment:
+/** NoticeOS's one MCP endpoint in a hosted or demo deployment, and on a
+ * standalone installation's own machine (local-mcp.mjs, over stdio):
  * one connection and one sign-in for every feature in every workspace its
  * person belongs to. The task tools run here over the shared task operations;
  * the read-model tools run in the Tower Worker, and this endpoint forwards
@@ -10,6 +11,8 @@
  * Hosted, every request carries an agent access token (agent-access.mts); one
  * without gets a 401 naming where to sign in, and a call outside the token's
  * scopes a 403 naming the scope. The demo takes no credential and reads only.
+ * Standalone takes no credential either: whoever may start its process
+ * operates the installation, in its one workspace.
  */
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp, type McpMessage, type McpServer, type McpTool } from './mcp-protocol.mjs';
@@ -24,7 +27,7 @@ export const MCP_PATH = AGENT_RESOURCE_PATH;
  * only: the Worker admits the forwarded call like any other. */
 export const READ_MODELS_HEADER = 'x-noticeos-mcp-part';
 const SERVER_INFO = Object.freeze({ name: 'noticeos', version: '1.0.0' });
-const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. Changes take an idempotency_key: reuse it when retrying.';
+const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it.';
 const BODY_BYTES = 256 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 
@@ -35,9 +38,11 @@ export interface HostedMcpWorkspace {
   readonly status: 'active' | 'provisioning' | 'suspended';
 }
 export interface HostedMcpOptions {
-  readonly profile: 'hosted' | 'demo';
+  readonly profile: 'hosted' | 'demo' | 'standalone';
   readonly trustedOrigin: string;
   readonly demoWorkspaceId?: string;
+  /** Standalone only, and required there: the installation's one workspace. */
+  readonly standaloneWorkspaceId?: string;
   readonly operations: HostedTaskOperations;
   /** Hosted only, and required there: the request's verified token, and its
    * person's workspaces. Admission verifies again, per workspace, per call. */
@@ -80,12 +85,14 @@ function access(scopes: readonly string[], workspace: HostedMcpWorkspace): strin
 export function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
   const { profile, operations, agents, readModels } = options;
-  if (!['hosted', 'demo'].includes(profile) || !operations || typeof operations.write !== 'function'
+  if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
     || readModels !== undefined && typeof readModels !== 'function') throw new Error('MCP configuration refused');
-  const demo = profile === 'demo' && typeof options.demoWorkspaceId === 'string' && UUID.test(options.demoWorkspaceId)
-    ? options.demoWorkspaceId : undefined;
-  if (profile === 'demo' && (!demo || agents !== undefined)
-    || profile === 'hosted' && (options.demoWorkspaceId !== undefined || !agents
+  /** The one workspace a demo or standalone endpoint serves. */
+  const named = profile === 'demo' ? options.demoWorkspaceId : options.standaloneWorkspaceId;
+  const only = profile !== 'hosted' && typeof named === 'string' && UUID.test(named) ? named : undefined;
+  if (profile !== 'hosted' && (!only || agents !== undefined
+      || (profile === 'demo' ? options.standaloneWorkspaceId : options.demoWorkspaceId) !== undefined)
+    || profile === 'hosted' && (options.demoWorkspaceId !== undefined || options.standaloneWorkspaceId !== undefined || !agents
       || typeof agents.verify !== 'function' || typeof agents.workspaces !== 'function')) throw new Error('MCP configuration refused');
   const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : [])]);
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
@@ -128,20 +135,22 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       try { token = await agents.verify(original); } catch { token = null; }
       if (!token) return bearerChallenge(origin, { error: 'invalid_token' });
       scopes = token.scopes;
-    } else if (bearer !== null) return invalid('the demo takes no credentials');
+    } else if (bearer !== null) return invalid('this endpoint takes no credentials');
     // The parsed body is not forwarded: admission reads only request metadata.
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
     const server: McpServer = { info: SERVER_INFO, instructions: INSTRUCTIONS, tools, async call(name, args) {
       if (name === 'list_workspaces') {
         if (Object.keys(args).length) throw new McpToolError('invalid arguments: list_workspaces takes none');
-        if (!agents) return { workspaces: [{ workspaceId: demo, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
-        const workspaces = await agents.workspaces(original).catch(() => null);
+        if (profile === 'demo') return { workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
+        if (profile === 'standalone') return { workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
+          access: ['tasks:read', 'tasks:write', ...(readModels ? ['evidence:read'] : [])] }] };
+        const workspaces = await agents!.workspaces(original).catch(() => null);
         if (!workspaces) throw refused();
         return { workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
           role: workspace.role, status: workspace.status, access: access(scopes!, workspace) })) };
       }
       const { workspace, ...rest } = args;
-      if (typeof workspace !== 'string' || !UUID.test(workspace) || (demo && workspace !== demo)) {
+      if (typeof workspace !== 'string' || !UUID.test(workspace) || (only && workspace !== only)) {
         throw new McpToolError('invalid arguments: workspace (a workspaceId from list_workspaces)');
       }
       const task = TASK_MCP_TOOLS.find(tool => tool.name === name);

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHostedTaskPlanner, HOSTED_TASK_LIMITS, hostedTaskAction } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -48,6 +48,11 @@ const cases = [
   [{ kind: 'respond', taskId: 'tt-a', response: '--file=literal answer' }, false, ['human', 'respond', '--response=--file=literal answer', '--', 'tt-a']],
   [{ kind: 'dismiss', taskId: 'tt-a', reason: '--database=literal reason' }, false, ['human', 'dismiss', '--reason=--database=literal reason', '--', 'tt-a']],
   [{ kind: 'resolve-gate', taskId: 'tt-a' }, false, ['gate', 'resolve', '--', 'tt-a']],
+  [{ kind: 'lint', taskId: 'tt-a' }, true, ['lint', '--', 'tt-a']],
+  [{ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' }, false, ['dep', 'add', '--type=blocks', '--', 'tt-a', 'tt-b']],
+  [{ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b' }, false, ['dep', 'remove', '--', 'tt-a', 'tt-b']],
+  [{ kind: 'gate', taskId: 'tt-a', reason: '--file=literal ask' }, false,
+    ['gate', 'create', '--type=human', '--blocks=tt-a', '--reason=--file=literal ask', '--']],
 ];
 for (const [operation, readOnly, tokens] of cases) test(`${operation.kind} has a fixed bounded command shape`, () => {
   const plan = createHostedTaskPlanner(entries)(A, request(operation));
@@ -66,6 +71,29 @@ test('decision classification validates payloads and never treats generic closur
     { kind: 'dismiss', taskId: 'tt-a', file: '/owned/caller' },
     { kind: 'resolve-gate', taskId: '--global' },
     { kind: 'resolve-gate', taskId: 'tt-a', actor: 'operator' }]) denied(() => hostedTaskAction(operation));
+});
+
+test('an agent opens a gate with write access; dependency edges are bounded and never onto the task itself', () => {
+  assert.equal(hostedTaskAction({ kind: 'gate', taskId: 'tt-a', reason: 'Approve' }), 'tasks.write');
+  assert.equal(hostedTaskAction({ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'discovered-from' }), 'tasks.write');
+  assert.equal(hostedTaskAction({ kind: 'lint', taskId: 'tt-a' }), 'tasks.read');
+  for (const operation of [{ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-a', type: 'blocks' },
+    { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b' }, { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'parent-child' },
+    { kind: 'undepend', taskId: 'tt-a', dependsOn: '--all' }, { kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' },
+    { kind: 'gate', taskId: 'tt-a', reason: '' }, { kind: 'gate', taskId: 'tt-a', reason: 'Approve', type: 'timer' },
+    { kind: 'lint', taskId: 'tt-a', fix: true }]) denied(() => hostedTaskAction(operation));
+});
+
+test('closing, unmarking or unhooking a human decision names the tasks an executor must check first', () => {
+  assert.deepEqual(decisionGuardTargets({ kind: 'close', taskId: 'tt-a', reason: 'Done' }), ['tt-a']);
+  assert.deepEqual(decisionGuardTargets({ kind: 'update', taskId: 'tt-a', status: 'closed' }), ['tt-a']);
+  assert.deepEqual(decisionGuardTargets({ kind: 'update', taskId: 'tt-a', removeLabels: ['human'] }), ['tt-a']);
+  assert.deepEqual(decisionGuardTargets({ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-g' }), ['tt-a', 'tt-g']);
+  for (const operation of [{ kind: 'update', taskId: 'tt-a', title: 'New' }, { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-g', type: 'blocks' },
+    { kind: 'gate', taskId: 'tt-a', reason: 'Approve' }, { kind: 'show', taskId: 'tt-a' }]) assert.deepEqual(decisionGuardTargets(operation), []);
+  assert.equal(isHumanDecision({ issue_type: 'gate' }), true);
+  assert.equal(isHumanDecision({ issue_type: 'task', labels: ['human'] }), true);
+  assert.equal(isHumanDecision({ issue_type: 'task', labels: ['humane'] }), false);
 });
 
 test('option-shaped titles are attached values and comments remain literal data', () => {

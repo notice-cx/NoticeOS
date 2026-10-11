@@ -91,7 +91,8 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
-    'create_task', 'claim_task', 'update_task', 'comment_on_task', 'close_task', ...READ_MODEL_TOOL_NAMES]);
+    'create_task', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
+    'close_task', ...READ_MODEL_TOOL_NAMES]);
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
     assert.equal(tool.inputSchema.required.includes('workspace'), tool.name !== 'list_workspaces', `${tool.name} names its workspace`);
@@ -124,8 +125,9 @@ test('list_workspaces shows every workspace with what this connection may do the
 test('task tools act in the workspace each call names, bounded there by the role and everywhere by the scopes', async () => {
   const f = fixture();
   const args = { workspace: A, project: P, title: 'Investigate the drop', priority: 1, idempotency_key: 'agent-create-0001' };
-  assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { id: 'tt-1', project: 'example', replayed: false });
-  assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { id: 'tt-1', project: 'example', replayed: true });
+  const lint = { missing: ['## Acceptance Criteria'] };
+  assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { id: 'tt-1', project: 'example', replayed: false, lint });
+  assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { id: 'tt-1', project: 'example', replayed: true, lint });
   const modernRetry = (await (await f.mcp(modern('tools/call', { name: 'create_task', arguments: args }))).json()).result;
   assert.deepEqual([modernRetry.resultType, modernRetry.structuredContent.replayed], ['complete', true]);
   const claimed = (await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-0001' })).structuredContent;
@@ -181,8 +183,45 @@ test('HTTP and MCP share one receipt: a change retried through the other surface
     body: JSON.stringify({ projectId: P, title: 'Same change' }) }));
   assert.equal(viaHttp.status, 200);
   assert.deepEqual((await call(f, 'create_task', { workspace: A, project: P, title: 'Same change', idempotency_key: key })).structuredContent,
-    { id: 'tt-1', project: 'example', replayed: true });
+    { id: 'tt-1', project: 'example', replayed: true, lint: { missing: ['## Acceptance Criteria'] } });
   assert.equal(f.effects.length, 1);
+});
+
+test('dependencies and human approval decide what is ready; lint advises on every created or changed task', async () => {
+  const f = fixture();
+  const ready = async () => (await call(f, 'list_tasks', { workspace: A, project: P, ready: true })).structuredContent.tasks.map(task => task.id);
+  const create = async (title, extra = {}) => (await call(f, 'create_task', { workspace: A, project: P, title, idempotency_key: `create-${title}`, ...extra })).structuredContent;
+  assert.deepEqual((await create('First')).lint, { missing: ['## Acceptance Criteria'] });
+  assert.deepEqual((await create('Second', { acceptance: 'The test passes' })).lint, { missing: [] });
+  const fixed = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', acceptance: 'It reads back', idempotency_key: 'agent-update-0002' })).structuredContent;
+  assert.deepEqual(fixed.lint, { missing: [] });
+  assert.deepEqual(await ready(), ['tt-1', 'tt-2']);
+  const link = { workspace: A, project: P, task: 'tt-1', depends_on: 'tt-2' };
+  assert.deepEqual((await call(f, 'add_dependency', link)).structuredContent, { task: 'tt-1', dependsOn: 'tt-2', type: 'blocks' });
+  assert.deepEqual((await call(f, 'add_dependency', link)).structuredContent, { task: 'tt-1', dependsOn: 'tt-2', type: 'blocks' }, 'repeating it changes nothing');
+  assert.deepEqual(await ready(), ['tt-2']);
+  assert.deepEqual((await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent.task.dependencies,
+    [{ id: 'tt-2', type: 'blocks', title: 'Second', status: 'open' }]);
+  assert.deepEqual((await call(f, 'remove_dependency', link)).structuredContent, { task: 'tt-1', dependsOn: 'tt-2', removed: true });
+  assert.deepEqual(await ready(), ['tt-1', 'tt-2']);
+  await call(f, 'add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'discovered-from' });
+  assert.deepEqual(await ready(), ['tt-1', 'tt-2'], 'only blocks holds a task back');
+
+  const ask = { workspace: A, project: P, task: 'tt-2', reason: 'Approve the schema change' };
+  const opened = (await call(f, 'request_human_approval', ask)).structuredContent;
+  assert.deepEqual(opened, { task: 'tt-2', approval: { id: 'tt-3', status: 'open', reason: 'Approve the schema change' }, created: true });
+  assert.deepEqual((await call(f, 'request_human_approval', ask)).structuredContent, { ...opened, created: false }, 'a retry never asks twice');
+  assert.deepEqual(await ready(), ['tt-1']);
+  assert.equal((await call(f, 'request_human_approval', { ...ask, reason: 'Approve the rollout' })).structuredContent.approval.id, 'tt-4');
+  assert.deepEqual(f.effects.filter(([kind]) => kind === 'gate'), [['gate', 'tt-3'], ['gate', 'tt-4']]);
+
+  const error = async (name, args, options) => (await call(f, name, args, options)).content[0].text;
+  assert.match(await error('add_dependency', { ...link, depends_on: 'tt-1' }), /cannot depend on itself/u);
+  assert.match(await error('add_dependency', { ...link, type: 'parent-child' }), /^invalid arguments: type/u);
+  assert.match(await error('add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'related' }), /^refused:/u, 'an edge is never retyped');
+  assert.match(await error('request_human_approval', { ...ask, reason: 'x'.repeat(401) }), /^invalid arguments: reason/u);
+  assert.match(await error('add_dependency', { ...link, workspace: B }), /^refused:/u);
+  assert.equal((await call(f, 'request_human_approval', ask, { bearer: READER, status: 403 })).headers.get('www-authenticate').includes('scope="tasks:write"'), true);
 });
 
 test('refusals are readable tool errors and never reveal which check refused', async () => {

@@ -10,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createHostedTaskPlanner, hostedTaskAction } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, isHumanDecision } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
@@ -368,12 +368,12 @@ export function createHostedTaskExecutor(options) {
                                 await current(selected, life, readMapping);
                                 admission.assertContext(last, action);
                                 const operation = snapshot.operation;
-                                const target = async () => {
-                                    if (!('taskId' in operation))
+                                const target = async (taskId = 'taskId' in operation ? operation.taskId : null) => {
+                                    if (taskId === null)
                                         fail();
-                                    const found = await run(['--sandbox', '--readonly', '--json', 'show', '--', operation.taskId]);
+                                    const found = await run(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
                                     const row = record(Array.isArray(found) && found.length === 1 ? found[0] : found);
-                                    if (row.id !== operation.taskId || typeof row.issue_type !== 'string'
+                                    if (row.id !== taskId || typeof row.issue_type !== 'string'
                                         || typeof row.status !== 'string' || !['open', 'in_progress', 'blocked', 'deferred', 'closed'].includes(row.status)
                                         || row.labels !== undefined && (!Array.isArray(row.labels) || row.labels.some(label => typeof label !== 'string')))
                                         fail();
@@ -393,13 +393,11 @@ export function createHostedTaskExecutor(options) {
                                 else if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) {
                                     fail();
                                 }
-                                else if (operation.kind === 'close' || operation.kind === 'update'
-                                    && (operation.status === 'closed' || operation.removeLabels?.includes('human'))) {
-                                    const before = await target();
-                                    // No ordinary close or marker removal substitutes for a human
-                                    // decision, even for an operator. Use its exact named verb.
-                                    if (before.issue_type === 'gate' || Array.isArray(before.labels) && before.labels.includes('human'))
-                                        fail();
+                                else {
+                                    // Even for an operator: a decision has its own named verb.
+                                    for (const taskId of decisionGuardTargets(operation))
+                                        if (isHumanDecision(await target(taskId)))
+                                            fail();
                                 }
                                 checkpoint(life);
                                 return admission.withAdmission(action, { requestedWorkspaceId: workspaceId, correlationId: last.correlationId }, proof, async (effect) => {

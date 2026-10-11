@@ -103,6 +103,7 @@ export default defineConfig({
           { text: 'Connect data sources', link: '/guides/connect-data-sources' },
           { text: 'Connect Google', link: '/guides/connect-google' },
           { text: 'Connect a task project', link: '/guides/connect-a-task-project' },
+          { text: 'Connect an agent', link: '/guides/connect-an-agent' },
           { text: 'Send your own report', link: '/guides/send-your-own-report' },
           { text: 'Record revenue and costs', link: '/guides/record-revenue-and-costs' },
           { text: 'Arrange the Wall', link: '/guides/arrange-the-wall' },

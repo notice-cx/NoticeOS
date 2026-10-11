@@ -29,7 +29,7 @@ Every task has an owner, which may be a person or an agent. An agent claims a ta
 
 Some steps need you and nobody else: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Waiting on you**, where the board takes your answer.
 
-When a step must block until you approve it, the task carries a **gate**. A gated task leaves the ready list and stays out of it until you resolve the gate. Approval is a gate you open, never something an agent assumes.
+When a step must block until you approve it, the task carries a **gate**. A gated task leaves the ready list and stays out of it until you resolve the gate. An agent may ask for your approval by opening a gate, but only you resolve one: approval is never something an agent assumes.
 
 ## The key that links a finding to its outcome
 
@@ -55,11 +55,13 @@ This applies to people and agents alike. An honest "I did not finish this part" 
 
 NoticeOS itself runs no AI model. Nothing in the product calls one. An agent is a tool you run, such as a coding agent in a terminal, that you connect to NoticeOS.
 
-Connecting an agent is a single decision: the agent sends you to a page in NoticeOS that shows its name and the access it asks for, and you allow it or not. The access an agent can ask for is:
+Connecting an agent to a hosted workspace is a single decision: the agent sends you to a page in NoticeOS that shows its name and the access it asks for, and you allow it or not. The access an agent can ask for is:
 
 - read tasks and their history
-- create, claim, update, comment on and close tasks
+- create, claim, update, comment on and close tasks, record what blocks what, and ask you for approval
 - read site reports and research
+
+On your own installation, an agent on the same machine connects through `pnpm os:mcp` with the same tools; see [Connect an agent](/guides/connect-an-agent).
 
 Your own role still limits what the agent may do. Once connected, an agent can read what NoticeOS knows about a site, pick up a task from the board, do the work in the site's code, and close the task with evidence. It can also file new tasks for work it notices rather than leaving a note nobody reads.
 
@@ -81,5 +83,6 @@ The design describes a ladder where a kind of change on a site earns more autono
 
 - [Tasks](/tower/tasks), the screen
 - [Connect a task project](/guides/connect-a-task-project)
+- [Connect an agent](/guides/connect-an-agent)
 - [Attribution and measurement](/concepts/attribution-and-measurement)
 - [Budgets and the kill switch](/operate/budgets-and-the-kill-switch)

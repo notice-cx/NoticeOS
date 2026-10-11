@@ -12,9 +12,11 @@ export interface HostedMcpWorkspace {
     readonly status: 'active' | 'provisioning' | 'suspended';
 }
 export interface HostedMcpOptions {
-    readonly profile: 'hosted' | 'demo';
+    readonly profile: 'hosted' | 'demo' | 'standalone';
     readonly trustedOrigin: string;
     readonly demoWorkspaceId?: string;
+    /** Standalone only, and required there: the installation's one workspace. */
+    readonly standaloneWorkspaceId?: string;
     readonly operations: HostedTaskOperations;
     /** Hosted only, and required there: the request's verified token, and its
      * person's workspaces. Admission verifies again, per workspace, per call. */
