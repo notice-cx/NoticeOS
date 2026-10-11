@@ -225,7 +225,9 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       if (Object.hasOwn(op, 'labels')) {
         const labels = labelList(op.labels, true); if (labels.length) argv.push(`--labels=${labels.join(',')}`);
       }
-      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`);
+      // A child carries only the labels it names. Beads would copy its parent's,
+      // human among them, and only a person may take that one off.
+      if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`, '--no-inherit-labels');
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
         const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),

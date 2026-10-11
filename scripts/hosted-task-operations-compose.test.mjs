@@ -134,5 +134,10 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     }
     const gated = (await ok('get_task', { task: lead.id })).task;
     assert.deepEqual(gated.dependencies.filter(edge => edge.id === asked.approval.id).map(edge => [edge.type, edge.status]), [['blocks', 'open']]);
+
+    // A child filed under a person's decision carries only its own labels.
+    const decision = await ok('create_task', { title: 'Decide the rollout', labels: ['human', 'area-rollout'], idempotency_key: 'compose-decision-0001' });
+    const child = await ok('create_task', { title: 'Build the rollout', parent: decision.id, labels: ['frontend'], idempotency_key: 'compose-child-0001' });
+    assert.deepEqual((await ok('get_task', { task: child.id })).task.labels, ['frontend']);
   });
 });

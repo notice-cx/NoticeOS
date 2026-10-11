@@ -202,8 +202,10 @@ function command(input) {
                 if (labels.length)
                     argv.push(`--labels=${labels.join(',')}`);
             }
+            // A child carries only the labels it names. Beads would copy its parent's,
+            // human among them, and only a person may take that one off.
             if (Object.hasOwn(op, 'parent'))
-                argv.push(`--parent=${task(op.parent)}`);
+                argv.push(`--parent=${task(op.parent)}`, '--no-inherit-labels');
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
             if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
