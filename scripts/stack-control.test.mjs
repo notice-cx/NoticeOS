@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { actionArgs, main, readSelector, validateSelector, parseServices, stackControl } from './stack-control.mjs';
+import { fileURLToPath } from 'node:url';
+import { actionArgs, main, mcpConnectHelp, readSelector, validateSelector, parseServices, stackControl } from './stack-control.mjs';
 
 const selector = { project: 'synthetic-stack', files: ['/fixture/compose.yaml'], envFile: '/fixture/compose.env', dockerHost: 'unix:///fixture/docker.sock' };
 const rows = (backup = true) => ['noticeos','postgres','dolt',...(backup ? ['backup'] : [])].map((Service, i) => ({ Project: selector.project, Service, ID: String(i + 1).repeat(64), State: 'running', Health: 'healthy' }));
@@ -146,6 +147,20 @@ test('the MCP server and the task client run inside the running app, over this t
   }
   assert.throws(() => actionArgs('mcp', ['--http']), /pnpm os:mcp -- --actor <name>/u);
   assert.throws(() => actionArgs('bd', []), /pnpm os:bd -- list/u);
+});
+test('at a terminal the MCP server does not wait for messages: it says how to connect it and starts nothing', async () => {
+  let output = ''; const out = { write: value => { output += value; } };
+  const io = { lstatSync: () => ({ isFile: () => true, isSymbolicLink: () => false, size: 100 }), readFileSync: () => JSON.stringify(selector) };
+  const script = fileURLToPath(new URL('./stack-control.mjs', import.meta.url));
+  const own = fixture();
+  assert.equal(await main(['mcp', '--config', '/fixture/stack.json'], { out, err: out, io, run: own.run, interactive: true }), 0, output);
+  assert.equal(output, 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\nConnect it to an agent:\n'
+    + `  claude mcp add noticeos -- node ${script} mcp --actor claude --config /fixture/stack.json\n`);
+  assert.deepEqual(own.writes(), []);
+  assert.match(mcpConnectHelp(['--actor', 'agent 1'], '/my folder/stack.json'), / mcp --actor 'agent 1' --config '\/my folder\/stack\.json'\n$/u);
+  const piped = fixture();
+  assert.equal(await main(['mcp', '--config', '/fixture/stack.json'], { out, err: out, io, run: piped.run, interactive: false }), 0);
+  assert.deepEqual(piped.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','mcp']]);
 });
 test('the command line takes the action\'s arguments and --config in any order', async () => {
   let output = ''; const out = { write: value => { output += value; } };

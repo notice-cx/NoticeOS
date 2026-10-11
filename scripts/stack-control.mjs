@@ -13,7 +13,7 @@
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
-//   pnpm os:mcp         The MCP server for agents on this machine, over stdio; `-- --actor <name>` names the agent.
+//   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
 //   pnpm os:bd -- <arguments>  Run bd in the installation's task project; `--project <prefix>` picks one of several.
 //
 // The stack is the one `.local/stack.json` (or --config) selects.
@@ -227,7 +227,17 @@ export async function stackControl(action, input, { run = runCommand, out = proc
   }
   out.write(`Stack ${action} complete.\n`);
 }
-export async function main(argv = process.argv.slice(2), { out = process.stdout, err = process.stderr, ...options } = {}) {
+/** Shell-safe as printed: a word with nothing a shell would read is left bare. */
+const shellWord = word => /^[A-Za-z0-9_./:=@%+-]+$/u.test(word) ? word : `'${word.replaceAll("'", "'\\''")}'`;
+/** What a person who runs the MCP server at a terminal reads instead of a server waiting for an agent's messages. */
+export function mcpConnectHelp(args, selectorFile = null) {
+  const command = ['node', fileURLToPath(import.meta.url), 'mcp', ...(args.length ? args : ['--actor', 'claude']),
+    ...(selectorFile ? ['--config', selectorFile] : [])].map(shellWord).join(' ');
+  return 'pnpm os:mcp is the MCP server an agent starts itself, so at a terminal it does not run.\n'
+    + `Connect it to an agent:\n  claude mcp add noticeos -- ${command}\n`;
+}
+export async function main(argv = process.argv.slice(2), { out = process.stdout, err = process.stderr, interactive = process.stdin.isTTY === true,
+  ...options } = {}) {
   if (argv.length === 1 && ['--help','-h'].includes(argv[0])) { out.write(HELP + '\n'); return 0; }
   try {
     const action = argv[0]; const args = argv.slice(1).filter(word => word !== '--');
@@ -237,7 +247,10 @@ export async function main(argv = process.argv.slice(2), { out = process.stdout,
     const file = at === -1 ? path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../.local/stack.json') : args[at + 1];
     const own = at === -1 ? args : [...args.slice(0, at), ...args.slice(at + 2)];
     actionArgs(action, own);
-    await stackControl(action, readSelector(file, options.io), { ...options, out, args: own }); return 0;
+    const selector = readSelector(file, options.io);
+    // An agent starts the server and talks to it over a pipe; a terminal would only wait.
+    if (action === 'mcp' && interactive) { out.write(mcpConnectHelp(own, at === -1 ? null : file)); return 0; }
+    await stackControl(action, selector, { ...options, out, args: own }); return 0;
   } catch (error) { err.write(`${error.message}\n`); return 1; }
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) process.exitCode = await main();

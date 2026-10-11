@@ -17,7 +17,7 @@ You need:
 
 ## Add the server to the agent
 
-The server talks to the agent over its standard input and output; it has no network address. Register its command with the agent. `--actor` names the agent: the board records its changes and claims under that name.
+The server talks to the agent over its standard input and output; it has no network address, and the agent starts it. Run at a terminal, `pnpm os:mcp` prints the line below for your installation. Register its command with the agent. `--actor` names the agent: the board records its changes and claims under that name.
 
 From a checkout:
 
@@ -82,7 +82,7 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 
 - **The app is not running**: start it with `pnpm os:start` or `~/noticeos/noticeos start`.
 - **No projects**: link a checkout; see [Connect a task project](/guides/connect-a-task-project#where-the-checkout-link-goes).
-- **The agent lists no tools**: run the command yourself. It prints `NoticeOS MCP: serving this installation's tasks and reports as …` and waits for input; Ctrl-D ends it.
+- **The agent lists no tools**: send the server one message yourself. `echo '{"jsonrpc":"2.0","id":1,"method":"ping"}' | pnpm --silent os:mcp` answers `{"jsonrpc":"2.0","id":1,"result":{}}`; anything else names what is wrong. Run at a terminal with nothing piped in, `pnpm os:mcp` only prints how to connect it.
 
 ## Next steps
 
