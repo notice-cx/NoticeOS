@@ -161,16 +161,17 @@ test('mcp at a terminal says how to connect it and runs nothing', (t) => {
   const result = spawnSync('script', args, { encoding: 'utf8',
     env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
   assert.equal(result.status, 0, result.stderr);
-  assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\nWhere the Tower listens is unknown \\(installation\\.env names no NOTICEOS_TOWER_PORT\\), so connect this command instead:\\n  claude mcp add --scope user noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'),
+  assert.match(result.stdout.replaceAll('\r', ''), new RegExp(`at a terminal it does not run\\.\\ninstallation\\.env names no Tower port, so connect this command instead:\\n  claude mcp add --scope user noticeos -- ${dir.replaceAll('.', '\\.')}/noticeos mcp --actor claude\\n`, 'u'),
     'an installation.env naming no Tower port has only the command');
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_PORT="5180"\n`);
   const loopback = spawnSync('script', process.platform === 'linux' ? ['-qec', `${command.join(' ')} --actor dev-1`, '/dev/null'] : ['-q', '/dev/null', ...command, '--actor', 'dev-1'],
     { encoding: 'utf8', env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
-  assert.match(loopback.stdout.replaceAll('\r', ''), /The Tower serves the same tools on this machine; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n/u);
+  assert.match(loopback.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n/u);
   writeFileSync(path.join(dir, 'installation.env'), `COMPOSE_PROJECT_NAME="nos-test"\nNOTICEOS_TOWER_BIND="0.0.0.0"\nNOTICEOS_TOWER_PORT="5180"\n`);
   const network = spawnSync('script', process.platform === 'linux' ? ['-qec', command.join(' '), '/dev/null'] : ['-q', '/dev/null', ...command],
     { encoding: 'utf8', env: { PATH: `${path.join(own.base, 'bin')}:${process.env.PATH}`, HOME: own.home, FAKE_LOG: path.join(own.base, 'docker.log') } });
-  assert.match(network.stdout.replaceAll('\r', ''), /The Tower listens on 0\.0\.0\.0, beyond this machine, so its own MCP address serves only site reports; connect this command instead:\n  claude mcp add --scope user noticeos -- \S+\/noticeos mcp --actor claude\n/u);
+  assert.match(network.stdout.replaceAll('\r', ''), /The Tower serves the same tools; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: claude'\n/u,
+    'a Tower on every interface answers on loopback too');
   assert.equal(existsSync(path.join(own.base, 'docker.log')) && readFileSync(path.join(own.base, 'docker.log'), 'utf8').includes('"exec"'), false);
 });
 

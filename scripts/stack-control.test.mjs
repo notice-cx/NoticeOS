@@ -163,7 +163,7 @@ test('at a terminal the MCP server does not wait for messages: it says how to co
   assert.equal(await main(['mcp', '--config', '/fixture/stack.json'], { out, err: out, io, run: piped.run, interactive: false }), 0);
   assert.deepEqual(piped.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','mcp']]);
 });
-test('at a terminal, a Tower on this machine only is named by its own MCP address; on the network, the command is', async () => {
+test('at a terminal, the Tower is named by an MCP address this machine reaches, whatever address it listens on', async () => {
   const envFile = '/srv/noticeos/installation.env';
   const lines = ['COMPOSE_PROJECT_NAME="noticeos"', 'NOTICEOS_INSTALLATION="/srv/noticeos"', `NOTICEOS_APP_IMAGE="sha256:${'a'.repeat(64)}"`,
     'NOTICEOS_APP_UID="1000"', 'NOTICEOS_APP_GID="1000"', 'NOTICEOS_TOWER_PORT="5180"', 'TOWER_ALLOWED_HOSTS=""', 'NOTICEOS_POSTGRES_PORT="5432"',
@@ -178,10 +178,10 @@ test('at a terminal, a Tower on this machine only is named by its own MCP addres
     assert.equal(await main(['mcp', '--actor', 'dev-1', '--config', '/srv/noticeos/stack.json'], { out, err: out, io, run: fixture().run, interactive: true }), 0, output);
     return output;
   };
-  for (const bind of [null, '127.0.0.1']) {
-    assert.match(await help(bind), /The Tower serves the same tools on this machine; connect it for every repository:\n  claude mcp add --scope user --transport http noticeos http:\/\/127\.0\.0\.1:5180\/api\/mcp --header 'X-NoticeOS-Actor: dev-1'\n$/u);
+  // A Tower on every interface answers on loopback too; one bound to an address answers only there.
+  for (const [bind, host] of [[null, '127\\.0\\.0\\.1'], ['127.0.0.1', '127\\.0\\.0\\.1'], ['0.0.0.0', '127\\.0\\.0\\.1'], ['192.168.1.20', '192\\.168\\.1\\.20']]) {
+    assert.match(await help(bind), new RegExp(`The Tower serves the same tools; connect it for every repository:\\n  claude mcp add --scope user --transport http noticeos http://${host}:5180/api/mcp --header 'X-NoticeOS-Actor: dev-1'\\n$`, 'u'), String(bind));
   }
-  assert.match(await help('0.0.0.0'), /The Tower listens on 0\.0\.0\.0, beyond this machine, so its own MCP address serves only site reports; connect this command instead:\n  claude mcp add --scope user noticeos -- node \S+stack-control\.mjs mcp --actor dev-1 --config \/srv\/noticeos\/stack\.json\n$/u);
   // An installation.env the reader refuses still answers, and says what the reader said.
   assert.match(await help(null, lines.filter(line => !line.startsWith('NOTICEOS_NETWORK')).join('\n')),
     /Where the Tower listens is unknown \(\/srv\/noticeos\/installation\.env does not set NOTICEOS_NETWORK\), so connect this command instead:\n  claude mcp add --scope user noticeos -- node /u);

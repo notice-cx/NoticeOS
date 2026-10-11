@@ -1,8 +1,8 @@
 /** A standalone installation's MCP endpoint: the hosted endpoint's tools
  * (hosted-mcp.mts, standalone profile) over the installation's own database,
- * linked task projects and Tower. The Tower serves it at /api/mcp while it
- * listens on this machine only (apps/tower/vite/mcp-lane.ts); local-mcp.mjs
- * serves it over stdio. Whoever reaches either operates the installation.
+ * linked task projects and Tower. The Tower serves it at /api/mcp
+ * (apps/tower/vite/mcp-lane.ts) and local-mcp.mjs over stdio. Whoever reaches
+ * either operates the installation, as with the Tower's own pages.
  */
 import { execFile } from 'node:child_process';
 import path from 'node:path';

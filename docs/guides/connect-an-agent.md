@@ -31,9 +31,9 @@ Any other MCP client that speaks HTTP takes the same address and header, for exa
 { "mcpServers": { "noticeos": { "type": "http", "url": "http://127.0.0.1:5173/api/mcp", "headers": { "X-NoticeOS-Actor": "claude" } } } }
 ```
 
-### When the Tower listens on your network
+### Without the Tower's address
 
-The Tower answers every tool only while it listens on this machine alone, the default. An installation that opens it to its network (`NOTICEOS_TOWER_BIND` in `installation.env`) keeps changes on this machine: there, `/api/mcp` answers only the site reports, and an agent here runs the server itself, over its standard input and output:
+An agent that cannot reach the Tower's address can run the same server itself, over its standard input and output:
 
 ```sh
 claude mcp add --scope user noticeos -- node /absolute/noticeos-checkout/scripts/stack-control.mjs mcp --actor claude
@@ -58,7 +58,7 @@ Creating, changing, claiming, commenting on and closing take an `idempotency_key
 
 - **Approvals.** No tool approves a request or answers a task labelled **human**; you do both on **Tasks**. An agent cannot close a pending approval or remove a task's dependency on one.
 - **Everything else in [What agents are not allowed to touch](/concepts/tasks-and-agents#what-agents-are-not-allowed-to-touch).**
-- **Who may connect.** Any program on this machine that reaches the Tower, or can run Docker, has full task access in the installation, as the Tower's own pages do.
+- **Who may connect.** Anything that reaches the Tower has full task access in the installation, as the Tower's own pages do: this machine by default, and every device on your network once you open the Tower to it. Open it only on a network you trust.
 
 ## Use the task tool without installing it
 
@@ -85,7 +85,7 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 
 - **The app is not running**: start it with `pnpm os:start` or `~/noticeos/noticeos start`.
 - **No projects**: link a checkout; see [Connect a task project](/guides/connect-a-task-project#where-the-checkout-link-goes).
-- **The agent lists only the site report tools**: the Tower listens on your network, or the app was started before the Tower could tell. `pnpm os:status` names a pending `pnpm os:apply`; otherwise see [When the Tower listens on your network](#when-the-tower-listens-on-your-network).
+- **The agent lists only the site report tools**: the Tower runs a version from before it served every tool. Update it, or restart a development stack with `pnpm os:restart`.
 - **The agent lists no tools**: send one message yourself. `curl -s http://127.0.0.1:5173/api/mcp -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"ping"}'` answers `{"jsonrpc":"2.0","id":1,"result":{}}`; anything else names what is wrong.
 
 ## Next steps
