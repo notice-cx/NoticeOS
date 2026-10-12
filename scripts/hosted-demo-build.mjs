@@ -10,12 +10,14 @@ import { stripJsonc } from './jsonc.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');
-function refuse() { throw new Error('Demo artifact build refused.'); }
+class Refusal extends Error {}
+/** The reason is written for the operator who runs the build; it names no secret. */
+function refuse(reason) { throw new Refusal(`Demo artifact build refused: ${reason}.`); }
 function inventory(root, relative = '') {
   return readdirSync(path.join(root, relative), { withFileTypes: true }).flatMap(entry => {
     const name = relative ? `${relative}/${entry.name}` : entry.name;
     if (entry.isDirectory()) return inventory(root, name);
-    if (!entry.isFile()) refuse();
+    if (!entry.isFile()) refuse(`${name} in the output is not a plain file`);
     return [name];
   });
 }
@@ -25,9 +27,10 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
   if (typeof out !== 'string' || !path.isAbsolute(out) || existsSync(out)
     || realpathSync(path.dirname(out)) !== path.dirname(out)
     || typeof configurationRoot !== 'string' || !path.isAbsolute(configurationRoot)
-    || realpathSync(configurationRoot) !== configurationRoot) refuse();
+    || realpathSync(configurationRoot) !== configurationRoot) refuse('the output must be a new absolute folder and the defaults root a real absolute folder');
   const capacity = statfsSync(path.dirname(out));
-  if (Number(capacity.bavail) * Number(capacity.bsize) - 2 * 1024 ** 3 < 8 * 1024 ** 3) refuse();
+  const free = Number(capacity.bavail) * Number(capacity.bsize);
+  if (free - 2 * 1024 ** 3 < 8 * 1024 ** 3) refuse(`it needs 10 GiB free beside ${path.dirname(out)} and ${(free / 1024 ** 3).toFixed(1)} GiB is free`);
   const require = createRequire(path.join(ROOT, 'apps/tower/package.json'));
   const wrangler = createRequire(require.resolve('wrangler/package.json'));
   const { build: compile } = wrangler('esbuild');
@@ -58,7 +61,7 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
     } }] });
   const selectors = ['NOTICEOS_WORKER_CONFIG_ROOT', 'NOTICEOS_WORKSPACE_PROFILE', 'CLOUDFLARE_ENV'];
   const previous = Object.fromEntries(selectors.map(key => [key, process.env[key]]));
-  if (previous.CLOUDFLARE_ENV !== undefined) refuse();
+  if (previous.CLOUDFLARE_ENV !== undefined) refuse('CLOUDFLARE_ENV is set');
   process.env.NOTICEOS_WORKER_CONFIG_ROOT = work; process.env.NOTICEOS_WORKSPACE_PROFILE = 'demo';
   let release, towerConfig;
   try {
@@ -75,7 +78,7 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
     await builder.buildApp();
     towerConfig = inventory(out).filter(name => name.endsWith('/wrangler.json')).map(name => ({ name, value: JSON.parse(readFileSync(path.join(out, name), 'utf8')) }))
       .find(({ value }) => value.name === 'noticeos-tower');
-    if (!towerConfig) refuse();
+    if (!towerConfig) refuse('the Tower build wrote no worker configuration');
   } finally {
     for (const key of selectors) if (previous[key] === undefined) delete process.env[key]; else process.env[key] = previous[key];
   }
@@ -108,7 +111,7 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
   });
   const files = Object.fromEntries(inventory(out).filter(name => !name.startsWith('build-config/') && !name.endsWith('.map')).map(name => [name, sha(readFileSync(path.join(out, name)))]));
   const towerRoot = path.dirname(towerConfig.name), client = 'client';
-  if (!files['client/index.html'] || !files['ingest/compiled-ingest.js']) refuse();
+  if (!files['client/index.html'] || !files['ingest/compiled-ingest.js']) refuse('the client page or the ingest worker is missing from the output');
   const manifest = { version: 1, release, client,
     tower: { main: path.posix.normalize(`${towerRoot}/${towerConfig.value.main}`), modulesRoot: towerRoot, compatibilityDate: towerConfig.value.compatibility_date, compatibilityFlags: towerConfig.value.compatibility_flags },
     ingest: { main: 'ingest/compiled-ingest.js', modulesRoot: 'ingest', compatibilityDate: '2026-07-06', compatibilityFlags: ['nodejs_compat'] },
@@ -120,8 +123,11 @@ export async function buildHostedDemo({ out, configurationRoot = path.join(ROOT,
 if (process.argv[1] && path.resolve(process.argv[1]) === import.meta.filename) {
   try {
     const args = process.argv.slice(2);
-    if (![2, 4].includes(args.length) || args[0] !== '--out' || args.length === 4 && args[2] !== '--configuration-root') refuse();
+    if (![2, 4].includes(args.length) || args[0] !== '--out' || args.length === 4 && args[2] !== '--configuration-root') refuse('usage: --out <new folder> [--configuration-root <folder>]');
     const manifest = await buildHostedDemo({ out: args[1], ...(args.length === 4 ? { configurationRoot: args[3] } : {}) });
     process.stdout.write(`Demo artifact ${manifest.release}\n`);
-  } catch { process.stderr.write('Demo artifact build failed.\n'); process.exitCode = 1; }
+  } catch (error) {
+    process.stderr.write(`${error instanceof Refusal ? error.message : `Demo artifact build failed: ${error instanceof Error ? error.message : String(error)}`}\n`);
+    process.exitCode = 1;
+  }
 }
