@@ -327,6 +327,23 @@ describe("the Wall nobody rearranged is the default", () => {
     }
   });
 
+  it("shares a column's height by its rows' sizes when they have them, the fill row weighing one", () => {
+    const sized = JSON.parse(JSON.stringify(DEFAULT_WALL_LAYOUT)) as typeof DEFAULT_WALL_LAYOUT;
+    const business = sized.rows[2]!.widgets[0]!;
+    if (business.type !== "column") throw new Error("the default's first body slot is a column");
+    business.rows[0]!.size = 1;
+    business.rows[1]!.size = 2;
+    const view = canvas(sized);
+    const timeline = view.container.querySelector("[data-wall-row='timeline']")!;
+    expect(timeline).toHaveClass("tv:grow-(--wall-row-grow)", "tv:basis-0", "tv:min-h-0");
+    expect(timeline).not.toHaveClass("tv:flex-1");
+    expect(timeline.getAttribute("style")).toContain("--wall-row-grow: 1");
+    expect(view.container.querySelector("[data-wall-row='sites']")?.getAttribute("style")).toContain("--wall-row-grow: 2");
+    // The other column is untouched: its rows still fit and fill.
+    expect(view.container.querySelector("[data-wall-row='work']")).toHaveClass("tv:flex-1");
+    expect(view.container.querySelector("[data-wall-row='money']")?.getAttribute("data-wall-row-size")).toBeNull();
+  });
+
   it("spaces its regions on the frame tokens: 20px stacked, 28px side by side", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     expect(view.container.querySelector("[data-wall-canvas]")).toHaveClass("gap-wall-region");

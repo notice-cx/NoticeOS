@@ -229,18 +229,27 @@ export function WallCanvas({
       .map((slot: WallSlot, index) => ({ slot, index }))
       .filter(({ slot }) => shows(slot));
     if (drawn.length === 0) return null;
+    // A sized row shares its column's height by its weight, as the fill row
+    // does by one.
+    const size = column !== null && "size" in row ? row.size : undefined;
     return (
       <div
         key={row.id}
         data-wall-row={row.id}
         data-wall-row-height={row.height}
+        data-wall-row-size={size}
         // A row is a box only at the TV's width; below it, it dissolves into
         // the canvas's one column (`stacked` below).
         className={cn(
           "contents tv:grid tv:grid-cols-(--wall-row-tracks) tv:gap-x-wall-region-x tv:gap-y-wall-region",
-          row.height === "fill" ? "tv:min-h-0 tv:flex-1" : null,
+          size !== undefined
+            ? "tv:min-h-0 tv:shrink tv:basis-0 tv:grow-(--wall-row-grow)"
+            : row.height === "fill" ? "tv:min-h-0 tv:flex-1" : null,
         )}
-        style={{ "--wall-row-tracks": wallRowTracks(drawn.map((d) => d.slot)) } as CSSProperties}
+        style={{
+          "--wall-row-tracks": wallRowTracks(drawn.map((d) => d.slot)),
+          ...(size !== undefined ? { "--wall-row-grow": size } : {}),
+        } as CSSProperties}
       >
         {drawn.map(({ slot, index }) => {
           if (isWallColumn(slot)) {

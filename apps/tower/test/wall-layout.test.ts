@@ -474,6 +474,39 @@ describe("a column slot", () => {
     expect(wallLayoutWarnings(work)).toEqual(["Work squeezed into a fixed-height row"]);
   });
 
+  it("takes a height weight on a column's row, on the width's grid, and nowhere else", () => {
+    const sized = layoutWith((l) => {
+      column(l).rows[0]!.size = 1;
+      column(l).rows[1]!.size = 2.5;
+    });
+    const check = validateWallLayout(sized);
+    expect(check.ok ? column(check.layout).rows.map((r) => r.size) : check.reason).toEqual([1, 2.5]);
+    // Normalised like a width: the value written is the value accepted.
+    const drifted = validateWallLayout(layoutWith((l) => void (column(l).rows[0]!.size = 0.25 + 0.05 * 3)));
+    expect(drifted.ok ? column(drifted.layout).rows[0]?.size : null).toBe(0.4);
+    expect(refusal((l) => void (column(l).rows[0]!.size = 0.1))).toBe(
+      "Row 3, column 1, row 1 needs a size between 0.25 and 12 in steps of 0.05.",
+    );
+    expect(refusal((l) => void ((row(l, 0) as WallRow & { size?: number }).size = 1))).toBe(
+      "Row 1 can take a size only inside a column.",
+    );
+  });
+
+  it("keeps a layout saved without sizes byte for byte, columns included", () => {
+    const saved = { layout: DEFAULT_WALL_LAYOUT, history: [] };
+    const before = JSON.stringify(saved);
+    expect(JSON.stringify(parseWallConfig(JSON.parse(before)))).toBe(before);
+    expect(wallOpRefusal({ kind: "file-json-set", file: "config/tower.json", pointer: "/wall", value: saved }, "op 1")).toBeNull();
+  });
+
+  it("does not call a sized row inside a stretching column squeezed", () => {
+    const sized = layoutWith((l) => {
+      column(l).rows[1]!.height = "auto";
+      column(l).rows[1]!.size = 2;
+    });
+    expect(wallLayoutWarnings(sized)).toEqual([]);
+  });
+
   it("loads a saved default layout without columns unchanged", () => {
     const saved = {
       layout: {
