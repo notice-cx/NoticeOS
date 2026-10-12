@@ -384,7 +384,7 @@ export function WatchComposer({
             glyph={<Target className="size-3" aria-hidden />}
             subject="watch:draft"
             label={
-              <span className="truncate">
+              <span className="break-words">
                 {scope.kind === "query" ? `Only “${scope.query}”` : "Whole site"}
               </span>
             }

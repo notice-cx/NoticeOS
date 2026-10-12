@@ -51,6 +51,7 @@ import { formatInt, formatSeriesDate, formatTimestamp } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { Eyebrow, Hero, Panel, LaneAge } from "@/routes/asset-detail/shared";
 import { SetupChecklistPanel } from "@/routes/asset-detail/SetupChecklist";
+import { SourceGraph } from "@/routes/asset-detail/SourceGraph";
 import { MediavineSettings } from '@/routes/asset-detail/MediavineSettings';
 import {
   GA4_LANE_ID,
@@ -92,6 +93,7 @@ export function SourcesTab({
     <IntegrationsSection
       integrations={data.integrations}
       asset={data.asset.id}
+      assetName={data.asset.displayName}
       isOs={data.asset.isOs}
       ga4Config={data.ga4Config}
       nowMs={nowMs}
@@ -190,6 +192,7 @@ export function sourcesAnswer(direct: readonly { lane: { catalog: { label: strin
 function IntegrationsSection({
   integrations,
   asset,
+  assetName,
   isOs,
   ga4Config,
   nowMs,
@@ -197,6 +200,7 @@ function IntegrationsSection({
   integrations: AssetIntegrations;
   /** Whose page this is — the `{asset}` a per-asset config register is scoped to. */
   asset: string;
+  assetName: string;
   /** The System's own page — which scope rule makes a source not apply. */
   isOs: boolean;
   ga4Config: AssetGa4Config;
@@ -248,6 +252,7 @@ function IntegrationsSection({
   return (
     <div id="integrations" className="flex scroll-mt-4 flex-col gap-2">
       <PageAnswer answer={answer.answer} detail={answer.detail} className="mb-1.5" marks={{ "data-sources-answer": answer.mark }} />
+      <SourceGraph asset={{ id: asset, displayName: assetName }} integrations={integrations} nowMs={nowMs} />
       <ListPanel
         title="Data sources"
         limit={7}
@@ -702,7 +707,7 @@ function SiteHealthSection({
                   className="flex items-center justify-between gap-2 text-xs"
                   data-hygiene-bot={bot.bot}
                 >
-                  <span className="truncate text-muted-foreground">{bot.bot}</span>
+                  <span className="min-w-0 break-words text-muted-foreground">{bot.bot}</span>
                   {/* Glyph and word: allowed/blocked survives a screenshot with
                       the colour stripped. */}
                   <span

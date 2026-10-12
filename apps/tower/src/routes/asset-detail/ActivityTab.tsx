@@ -26,6 +26,10 @@ import { ageMs, formatAge } from "@shared/freshness";
 import { type WatchSeed } from "@shared/watch-windows";
 import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { PanelReviewLine } from "@/components/PanelReviewLine";
+import { SegmentBar } from "@/components/SegmentBar";
+import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { EventTimeline } from "@/components/viz/EventTimeline";
+import { ACTIVITY_LANES, ACTIVITY_WINDOW_DAYS, activityEvents } from "@/routes/asset-detail/activity-timeline";
 import { ANNOTATION_KIND } from "@/components/annotation-kind";
 import { useAnnotationWriter } from "@/hooks/useAnnotationWriter";
 import { ListPanel, ListRow, type ListRowTone } from "@/components/surface/ListPanel";
@@ -209,42 +213,71 @@ function TimelineSection({
       {/* `#timeline` is a live deep link: an alert's change chip points at it,
           and `HASH_TAB` brings the page to this tab to land on it. */}
       <Hero id="timeline">
-        <ListPanel
-          title="Timeline"
-          count={count}
-          action={writable ? { label: "Log a change", onClick: () => setComposing("event") } : undefined}
-          limit={3}
-          // The answer above already says there are none; the panel says
-          // what comes next.
-          empty="Log the first change to see it here"
-        >
-          {items.map((item) => (
-            <TimelineRow
-              key={item.id}
-              item={item}
-              beads={data.handoffBeads}
-              nowMs={nowMs}
-            />
-          ))}
-          {/* The end of the read, said out loud. A history that simply stops
-              reads as a history that ends — so the cut names its own size and
-              says the rows are still in the store. */}
-          {data.annotations.olderCount > 0 ? (
-            <ListRow
-              tone="info"
-              glyph="…"
-              title={`${data.annotations.olderCount} older ${
-                data.annotations.olderCount === 1 ? "change" : "changes"
-              } not shown`}
-            />
-          ) : null}
-        </ListPanel>
+        <div className="flex flex-col gap-3.5">
+          <ActivityPicture data={data} nowMs={nowMs} />
+          <ListPanel
+            title="Timeline"
+            count={count}
+            action={writable ? { label: "Log a change", onClick: () => setComposing("event") } : undefined}
+            limit={3}
+            // The answer above already says there are none; the panel says
+            // what comes next.
+            empty="Log the first change to see it here"
+          >
+            {items.map((item) => (
+              <TimelineRow
+                key={item.id}
+                item={item}
+                beads={data.handoffBeads}
+                nowMs={nowMs}
+              />
+            ))}
+            {/* The end of the read, said out loud. A history that simply stops
+                reads as a history that ends — so the cut names its own size and
+                says the rows are still in the store. */}
+            {data.annotations.olderCount > 0 ? (
+              <ListRow
+                tone="info"
+                glyph="…"
+                title={`${data.annotations.olderCount} older ${
+                  data.annotations.olderCount === 1 ? "change" : "changes"
+                } not shown`}
+              />
+            ) : null}
+          </ListPanel>
+        </div>
       </Hero>
 
       {/* The strip is its own `ListPanel`, so it needs no `Panel` around it to
           carry a heading. */}
       <WatchesStrip watches={data.watches} beads={data.handoffBeads} />
     </>
+  );
+}
+
+/**
+ * The last ninety days on one axis that ends at now: every recorded change a
+ * mark on the Changes row, every bet a mark where it was registered and
+ * another where its verdict came in. Nothing to mark draws nothing: the
+ * answer above already says no change was logged.
+ */
+function ActivityPicture({ data, nowMs }: { data: AssetDetailFor<"activity">; nowMs: number }) {
+  const events = activityEvents(data.annotations.items, data.watches, nowMs);
+  if (events.length === 0) return null;
+  const lanes = ACTIVITY_LANES.filter((lane) => events.some((event) => event.lane === lane.id));
+  return (
+    <section aria-label={`The last ${ACTIVITY_WINDOW_DAYS} days`} data-activity-timeline="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
+      <h2 className={cn("m-0 pb-1", eyebrowClass)}>Last {ACTIVITY_WINDOW_DAYS} days</h2>
+      <EventTimeline
+        lanes={lanes}
+        events={events}
+        window={{ from: new Date(nowMs - ACTIVITY_WINDOW_DAYS * 86_400_000).toISOString(), to: new Date(nowMs).toISOString() }}
+        nowMs={nowMs}
+        timeZone={data.osTimeZone}
+        ariaLabel={`Changes and bets on ${data.asset.displayName} over the last ${ACTIVITY_WINDOW_DAYS} days`}
+        className="[--timeline-name:6rem]"
+      />
+    </section>
   );
 }
 
@@ -509,7 +542,20 @@ const RECLAMATION_STAGE: Record<
   dead: { label: "link gone", icon: Unlink, tone: "text-muted-foreground" },
 };
 
-/** The stages the arrow line walks. `skip` and `dead` are exits from the funnel,
+/** Each stage's share of the bar: deepening ink as a pitch gets further, the
+ * reclaimed link in the win's green. */
+const RECLAMATION_FILL: Record<ReclamationStatus, string> = {
+  queued: "bg-muted-foreground/25",
+  sent: "bg-muted-foreground/45",
+  opened: "bg-muted-foreground/65",
+  clicked: "bg-foreground/70",
+  replied: "bg-foreground",
+  won: "bg-milestone",
+  skip: "bg-transparent",
+  dead: "bg-transparent",
+};
+
+/** The stages the bar walks. `skip` and `dead` are exits from the funnel,
  * not steps along it, so they follow as a separate quiet clause. */
 const RECLAMATION_FUNNEL_STAGES: ReclamationStatus[] = [
   "queued",
@@ -537,19 +583,24 @@ function ReclamationSection({ reclamation }: { reclamation: ReclamationSlice | n
   );
   return (
     <Panel title="Link outreach" count={`${formatInt(reclamation.total)} targets in all`}>
-      {/* A list holding only never-pitch hosts has no funnel to draw; the
-          exits line below still states what is there. */}
-      <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm empty:hidden">
-        {funnel.map((status, index) => {
+      {/* Where every target stands now, as one split bar whose legend is the
+          figures, the stages in the order a pitch walks them. A list holding
+          only never-pitch hosts has no stage to draw; the exits line below
+          still states what is there. */}
+      {funnel.length > 0 ? (
+        <SegmentBar
+          ariaLabel={`Link outreach: ${funnel.map((status) => `${formatInt(byStatus.get(status) ?? 0)} ${RECLAMATION_STAGE[status].label}`).join(", ")}`}
+          className="mb-2 h-2"
+          segments={funnel.map((status) => ({ name: status, value: byStatus.get(status) ?? 0, fill: RECLAMATION_FILL[status] }))}
+        />
+      ) : null}
+      <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm empty:hidden">
+        {funnel.map((status) => {
           const stage = RECLAMATION_STAGE[status];
           const Icon = stage.icon;
           return (
-            <span key={status} className="flex items-center gap-1.5">
-              {index > 0 ? (
-                <span className="text-muted-foreground" aria-hidden>
-                  →
-                </span>
-              ) : null}
+            <span key={status} className="flex items-center gap-1.5" data-outreach-stage={status}>
+              <span aria-hidden className={cn("size-2 shrink-0 rounded-full", RECLAMATION_FILL[status])} />
               <Icon className={cn("size-3.5 shrink-0", stage.tone)} aria-hidden />
               <span className={cn("font-medium tabular-nums", stage.tone)}>
                 {formatInt(byStatus.get(status) ?? 0)}
