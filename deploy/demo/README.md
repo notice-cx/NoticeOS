@@ -184,7 +184,16 @@ target, cutoff = now, the rest copied), prepared and seeded by the fresh-setup
 steps above and switched in on the same loopback port; the env file then names
 the new generation. If the new generation fails health, the previous one is
 brought back and the command fails naming both commits. Previous generations
-stay stopped with their volumes; the purge command is printed, never run. The
+stay stopped with their volumes; the purge command is printed, never run.
+
+Every build adds an image of about 2 GB, so the script keeps the disk from
+filling. Before building it checks that Docker has 12 GiB free (the artifact
+build refuses below 10). When it has not, it removes `noticeos-demo` images no
+container uses, never the running release, and build cache no image needs; if
+that is still not enough it stops before building, changes nothing, and prints
+the purge of each stopped generation, whose containers keep their image. After
+a healthy deploy it removes the same unused images, keeping the new release and
+the one it replaced. It never removes a container or a volume. The
 script takes no backup, and after fetching the target source it continues with
 that commit's own copy of itself and installs it over the copy it was started
 from. Keep a copy outside the checkout and run it from the demo host:
