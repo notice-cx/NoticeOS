@@ -201,6 +201,16 @@ export function demoDayShare(minuteOfDay: number): number {
   return DEMO_HOUR_SHARE.slice(0, hour).reduce((a, b) => a + b, 0)
     + DEMO_HOUR_SHARE[hour]! * ((minuteOfDay % 60) + 1) / 60;
 }
+/** Each day one site's home page answers HTTP 503 for this many minutes,
+ * from ten minutes before an hour: that hour's home-page check and its retry
+ * find it down, and the next hour's finds it back. The site and the hour move
+ * from day to day. */
+export const DEMO_OUTAGE_MINUTES = 25;
+export interface DemoHomeOutage { asset: string; domain: string; from: string; to: string; checkAt: string; }
+/** A home page as the hourly check reads it: a status and the HTML. */
+export type DemoHomeFetch = (input: string | URL | Request) => Promise<Response>;
+const HOME_WORDS = ['plan', 'week', 'guide', 'notes', 'list', 'ideas', 'today', 'saved', 'simple', 'steps', 'season',
+  'start', 'collection', 'favourites', 'quick', 'fresh', 'tips', 'browse', 'popular', 'new'];
 /** Each site's two alternating weekly cycles: a review, then a ship whose
  * close records a change and registers its comparison. */
 const WORK: Readonly<Record<string, readonly [review: readonly [string, string], ship: readonly [string, string]]>> = {
@@ -230,6 +240,8 @@ export function createDemoActivity(input: DemoScenario): {
   collection(at: string): DemoActivityCollection;
   adRevenue(asset: string, date: string): number;
   seededReports(): DemoSearchReport[];
+  homeOutage(date: string): DemoHomeOutage;
+  homeFetch(at: string): DemoHomeFetch;
 } {
   const scenario = generateDemoScenario(input.manifest);
   const hash = demoScenarioHash(scenario);
@@ -481,7 +493,36 @@ export function createDemoActivity(input: DemoScenario): {
     if (`${monday}T05:30:00.000Z` > scenario.manifest.cutoff) monday = shiftDemoDay(monday, -7);
     return searchReports(monday);
   };
-  return Object.freeze({ day, collection, adRevenue, seededReports, batch(first: string, last: string): DemoActivityDay[] {
+  const homes = scenario.assets.filter(asset => !asset.isOs && asset.domain);
+  const homeOutage = (date: string): DemoHomeOutage => {
+    const site = homes[dateNumber(date) % homes.length]!;
+    // Hours 1 to 22, so the outage and the check after it stay in its day.
+    const hour = 1 + Math.floor(draw(seed, `home-outage:${date}`) * 22);
+    const checkAt = `${date}T${String(hour).padStart(2, '0')}:00:00.000Z`;
+    const from = Date.parse(checkAt) - 10 * 60_000;
+    return { asset: site.id, domain: site.domain!, from: new Date(from).toISOString(),
+      to: new Date(from + DEMO_OUTAGE_MINUTES * 60_000).toISOString(), checkAt };
+  };
+  // A fixed page per site: the same words every hour, so the page-depth rule
+  // the same check arms reads a steady page.
+  const homeHtml = new Map(homes.map(site => {
+    const count = 300 + Math.floor(draw(seed, `home-words:${site.id}`) * 400);
+    const words = Array.from({ length: count }, (_, i) => HOME_WORDS[(i * 7 + site.prefix.length) % HOME_WORDS.length]).join(' ');
+    return [site.domain!, `<!doctype html><html><head><title>${site.name}</title></head><body><main><p>${words}</p></main></body></html>`];
+  }));
+  const homeFetch = (at: string): DemoHomeFetch => {
+    const outage = homeOutage(at.slice(0, 10));
+    return async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      let host = '';
+      try { host = new URL(url).hostname; } catch { /* not a URL: answered as no page */ }
+      const html = homeHtml.get(host);
+      if (html === undefined) return new Response(null, { status: 404 });
+      if (host === outage.domain && at >= outage.from && at < outage.to) return new Response(null, { status: 503 });
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    };
+  };
+  return Object.freeze({ day, collection, adRevenue, seededReports, homeOutage, homeFetch, batch(first: string, last: string): DemoActivityDay[] {
     const days = dateNumber(last) - dateNumber(first) + 1;
     if (days < 1 || days > DEMO_ACTIVITY_LIMITS.daysPerBatch) refuse();
     return Array.from({ length: days }, (_, i) => day(shiftDemoDay(first, i)));

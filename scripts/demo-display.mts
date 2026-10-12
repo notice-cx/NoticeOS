@@ -48,9 +48,10 @@ export function generateDemoDisplay(scenario: DemoScenario) {
 /** The sources the scenario actually collects, declared live from each
  * site's first day and mapped to the properties its runs name: GA4 and
  * Search Console everywhere, Bing on the two content sites, the ad network
- * where ads are sold. Product analytics the apps want and the recipe site's
- * session recordings are declared but not connected; every other source is
- * skipped with its reason or does not apply. The OS collects nothing. */
+ * where ads are sold, and the hourly home-page check on every site. Product
+ * analytics the apps want and the recipe site's session recordings are
+ * declared but not connected; every other source is skipped with its reason
+ * or does not apply. The OS collects nothing. */
 export function demoIntegrationAssets(scenario: DemoScenario) {
   return Object.fromEntries(scenario.assets.map(asset => {
     // The OS's own sources: the demo sends no notifications and runs no agents.
@@ -75,7 +76,7 @@ export function demoIntegrationAssets(scenario: DemoScenario) {
       clarity: asset.prefix === 'wp' ? { status: 'needs-setup', since, note: 'Waiting for a Clarity project.' }
         : { status: 'skipped', since, note: 'Reason: session recordings are not used here.' },
       dataforseo: { status: 'skipped', since, note: 'Reason: rank tracking is not bought for this site.' },
-      uptime: { status: 'skipped', since, note: 'Reason: the host monitors uptime.' },
+      uptime: { status: 'live', since },
       'affiliate-cj': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
       'affiliate-amazon': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
       'deploy-annotations': { status: 'skipped', since, note: 'Reason: changes are recorded when their tasks close.' },

@@ -12,7 +12,7 @@ import { prepareFreshPostgres, startPostgresPlan } from './start-postgres.mjs';
 import { ADDRESS_FILE, DATABASE } from './postgres-secrets.mjs';
 import { DEVELOPMENT, PROFILE_SETTING } from './postgres-profile.mjs';
 import { runCommand } from './run-command.mjs';
-import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { fillDemo as fillStore } from './demo-store.mjs';
 import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mjs';
 import { createDemoTasks, configureDemoTasks } from './demo-tasks.mjs';
@@ -164,6 +164,36 @@ export async function recordDemoFreshness(capability, scenario, runFreshnessChec
     if (result.fired !== 1 || rows.length !== 1 || rows[0].asset !== scenario.manifest.reportGap.asset) throw new Error('The freshness check did not find the declared late report.');
     return { fired: result.fired, stale: result.stale, asset: rows[0].asset };
 }
+/** Days before the reference day whose home-page outage the seed replays. */
+const UPTIME_SEED_DAYS = 6;
+/** The release's hourly home-page check as the hourly lane ran it over the
+ * last week: each day's brief outage found down at its hour and back the hour
+ * after, then every site read in the cutoff's hour. Runs go in time order,
+ * because a reading younger than half an hour stands for the next run. */
+export async function recordDemoUptime(capability, scenario, runUptimeChecks) {
+    if (typeof runUptimeChecks !== 'function') throw new Error('The released uptime check is absent.');
+    const activity = createDemoActivity(scenario);
+    const { cutoff, referenceDate } = scenario.manifest;
+    const hour = 3_600_000;
+    const runs = [];
+    for (let back = UPTIME_SEED_DAYS; back >= 0; back -= 1) {
+        const outage = activity.homeOutage(shiftDemoDay(referenceDate, -back));
+        for (const at of [outage.checkAt, new Date(Date.parse(outage.checkAt) + hour).toISOString()])
+            if (at <= cutoff) runs.push(at);
+    }
+    const last = new Date(Math.floor(Date.parse(cutoff) / hour) * hour).toISOString();
+    if (last > runs[runs.length - 1]) runs.push(last);
+    let fired = 0;
+    let resolved = 0;
+    for (const at of runs) {
+        const result = await runUptimeChecks(capability, { nowMs: Date.parse(at), fetchImpl: activity.homeFetch(at), confirmWaitMs: 0 });
+        if (result.failed.length > 0) throw new Error('The uptime check could not read a synthetic home page.');
+        fired += result.fired;
+        resolved += result.resolved;
+    }
+    if (fired === 0) throw new Error('The uptime check found none of the declared outages.');
+    return { runs: runs.length, fired, resolved };
+}
 /** The latest seeded week's search reports through the ordinary snapshot
  * writer, so every site's search movers and findings read from the first
  * visit; the simulator writes each Monday after. */
@@ -233,6 +263,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const watch = await evaluateDemoWatch(store, scenario, helpers.runWatchWindows);
         const joins = await demoFlagJoins(watch.capability, scenario);
         const freshness = await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
+        const uptime = await recordDemoUptime(watch.capability, scenario, helpers.runUptimeChecks);
         const searchReports = await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
         const taskReceipt = await tasks({ plan, scenario, createdPostgres: setup, capability: watch.capability, writeSnapshot: helpers.writeBeadsSnapshot, joins, env, binary });
         const taskConfig = await configureTasks({ plan, scenario, receipt: taskReceipt, capability: watch.capability, helpers });
@@ -242,7 +273,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const workflowHistory = await writeDemoWorkflowHistory({ home, history,
             writeRuns: (input, nowMs) => helpers.writeJobRuns(watch.capability, input, nowMs) });
         const schema = setup.schema;
-        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, freshness, searchReports, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
+        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, freshness, uptime, searchReports, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
         writeFileSync(path.join(home, 'demo-manifest.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
         // Wall clock completion is distinct from the scenario's historical
         // cutoff. A viewer may use this receipt only after every real seed

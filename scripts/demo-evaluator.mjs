@@ -24,6 +24,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
       jobs: path.join(root, 'workers/ingest/src/job-runs.ts'),
       reports: path.join(root, 'workers/ingest/src/db.ts'),
       insights: path.join(root, 'workers/ingest/src/insight-snapshots.ts'),
+      uptime: path.join(root, 'workers/ingest/src/hygiene.ts'),
       ...(activity ? { activity: path.join(root, 'workers/ingest/src/demo-activity.ts'), evaluation: path.join(root, 'packages/contract/src/rules.ts') } : {}),
     };
     const result = await build({
@@ -58,6 +59,7 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const jobs = await import(pathToFileURL(path.join(output, 'jobs.mjs')).href);
     const reports = await import(pathToFileURL(path.join(output, 'reports.mjs')).href);
     const insights = await import(pathToFileURL(path.join(output, 'insights.mjs')).href);
+    const uptime = await import(pathToFileURL(path.join(output, 'uptime.mjs')).href);
     const live = activity ? await import(pathToFileURL(path.join(output, 'activity.mjs')).href) : null;
     const evaluation = activity ? await import(pathToFileURL(path.join(output, 'evaluation.mjs')).href) : null;
     if (typeof watch.runWatchWindows !== 'function' || typeof snapshots.writeBeadsSnapshot !== 'function') throw new Error('The released demo Worker helpers are absent.');
@@ -65,9 +67,10 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     if (typeof jobs.writeJobRuns !== 'function') throw new Error('The released demo workflow writer is absent.');
     if (typeof reports.runAssetZeroPulse !== 'function' || typeof reports.runFreshnessCheck !== 'function') throw new Error('The released demo OS reporter is absent.');
     if (typeof insights.writeInsightSnapshot !== 'function') throw new Error('The released demo report writer is absent.');
+    if (typeof uptime.runUptimeChecks !== 'function') throw new Error('The released demo uptime check is absent.');
     return { runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
-      writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot,
+      writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot, runUptimeChecks: uptime.runUptimeChecks,
       ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, writeDemoOutcomeChecks: live.writeDemoOutcomeChecks, evaluatePulse: evaluation.evaluatePulse } : {}),
       provenance: { compiler: require('esbuild/package.json').version, inputs, artifacts } };
   } finally { rmSync(output, { recursive: true, force: true }); }

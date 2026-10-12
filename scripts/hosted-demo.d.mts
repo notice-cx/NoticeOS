@@ -4,7 +4,7 @@ import type { WorkspaceServiceGrant } from '../packages/postgres/src/service-gra
 import { type HostedJobDefinition, type HostedJobReceipt } from './hosted-job-runner.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
-import { type DemoActivityCollection, type DemoActivityDay } from './demo-activity.mjs';
+import { type DemoActivityCollection, type DemoActivityDay, type DemoHomeFetch } from './demo-activity.mjs';
 import { type DemoScenario } from './demo-scenario.mjs';
 export interface DemoActivityWriter {
     write(store: WorkspaceStore, day: DemoActivityDay): Promise<{
@@ -31,6 +31,7 @@ export interface DemoActivityWriter {
     }>;
     outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
     freshness(store: WorkspaceStore, at: string): Promise<unknown>;
+    uptime(store: WorkspaceStore, at: string, homePages: DemoHomeFetch): Promise<unknown>;
 }
 export interface HostedDemoOptions {
     readonly workspaceId: string;

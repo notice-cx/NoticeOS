@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, demoDayShare } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 
 const input = { seed: 'continuing-portfolio', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
@@ -322,4 +322,31 @@ test('dated generation has finite work/output and rejects malformed or historica
   assert.ok(Buffer.byteLength(JSON.stringify(lastDay)) < 32768);
   assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 32768);
   assert.throws(() => activity.day(shiftDemoDay(last, 1)));
+});
+
+test('each day one fictional home page is down briefly, across the hourly check and its retry', async () => {
+  const activity = createDemoActivity(scenario);
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  const outages = sites.map((_, i) => activity.homeOutage(shiftDemoDay(scenario.manifest.referenceDate, i)));
+  // Every site takes its turn, and the outage stays inside its day.
+  assert.equal(new Set(outages.map(outage => outage.asset)).size, sites.length);
+  for (const outage of outages) {
+    assert.equal(Date.parse(outage.to) - Date.parse(outage.from), DEMO_OUTAGE_MINUTES * 60_000);
+    assert.ok(outage.from < outage.checkAt && outage.checkAt < outage.to);
+    assert.equal(outage.from.slice(0, 10), outage.to.slice(0, 10));
+    const during = activity.homeFetch(outage.checkAt);
+    assert.equal((await during(`https://${outage.domain}/`)).status, 503);
+    const other = sites.find(site => site.id !== outage.asset);
+    const page = await during(new URL(`https://${other.domain}/`));
+    assert.equal(page.status, 200);
+    assert.match(page.headers.get('content-type'), /^text\/html/);
+    const after = new Date(Date.parse(outage.checkAt) + 3_600_000).toISOString();
+    assert.equal((await activity.homeFetch(after)(`https://${outage.domain}/`)).status, 200);
+  }
+  // The same page every hour (no outage starts before 00:50 or ends after
+  // 22:15), and no answer for a site the demo does not hold.
+  const home = `https://${sites[0].domain}/`;
+  const at = (hour) => `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T${hour}:00:00.000Z`;
+  assert.equal(await (await activity.homeFetch(at('00'))(home)).text(), await (await activity.homeFetch(at('23'))(home)).text());
+  assert.equal((await activity.homeFetch(at('00'))('https://example.org/')).status, 404);
 });

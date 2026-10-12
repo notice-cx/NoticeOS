@@ -182,6 +182,20 @@ export interface DemoActivityDay {
 export declare const DEMO_HOUR_SHARE: readonly number[];
 /** The share of a UTC day's activity counted by the end of `minuteOfDay`. */
 export declare function demoDayShare(minuteOfDay: number): number;
+/** Each day one site's home page answers HTTP 503 for this many minutes,
+ * from ten minutes before an hour: that hour's home-page check and its retry
+ * find it down, and the next hour's finds it back. The site and the hour move
+ * from day to day. */
+export declare const DEMO_OUTAGE_MINUTES = 25;
+export interface DemoHomeOutage {
+    asset: string;
+    domain: string;
+    from: string;
+    to: string;
+    checkAt: string;
+}
+/** A home page as the hourly check reads it: a status and the HTML. */
+export type DemoHomeFetch = (input: string | URL | Request) => Promise<Response>;
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
  * Cumulative counters use bounded closed-form sums, not a scan of elapsed days.
@@ -192,4 +206,6 @@ export declare function createDemoActivity(input: DemoScenario): {
     collection(at: string): DemoActivityCollection;
     adRevenue(asset: string, date: string): number;
     seededReports(): DemoSearchReport[];
+    homeOutage(date: string): DemoHomeOutage;
+    homeFetch(at: string): DemoHomeFetch;
 };

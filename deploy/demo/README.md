@@ -100,7 +100,10 @@ release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported sites' daily estimates
 arrive each morning, an hourly freshness check raises and clears the alert for
 a site whose nightly report has gone quiet, and the task board refreshes every
-five minutes. Their executions are System health's background operations. A
+five minutes. The same hourly lane runs the release's home-page check against
+each fictional site's synthetic page, so no site is fetched. Each day one site
+in turn answers HTTP 503 for 25 minutes: the check marks it down and raises its
+alert, and the next hour's check marks it up and closes the alert. Their executions are System health's background operations. A
 daily outcome check over the demo's own watch windows is the Workflows page's
 history. The banner's generation time is the demo service's latest write.
 

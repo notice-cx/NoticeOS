@@ -11,7 +11,7 @@ import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { HostedTaskOperation } from './hosted-task-command.mjs';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay, type DemoTaskIntention } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay, type DemoHomeFetch, type DemoTaskIntention } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
 
@@ -28,6 +28,7 @@ export interface DemoActivityWriter {
   snapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }>;
   outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
   freshness(store: WorkspaceStore, at: string): Promise<unknown>;
+  uptime(store: WorkspaceStore, at: string, homePages: DemoHomeFetch): Promise<unknown>;
 }
 export interface HostedDemoOptions {
   readonly workspaceId: string;
@@ -87,7 +88,8 @@ export function createHostedDemo(options: HostedDemoOptions): {
   if (!UUID.test(workspaceId) || !UUID.test(serviceId) || !store || !grant
     || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
     || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
-    || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function') refuse();
+    || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function'
+    || typeof writer?.uptime !== 'function') refuse();
   const scenario = generateDemoScenario(options.scenario.manifest);
   const hash = demoScenarioHash(scenario);
   if (workspaceId !== scenario.manifest.workspaceId || hash !== demoScenarioHash(options.scenario)) refuse();
@@ -177,7 +179,8 @@ export function createHostedDemo(options: HostedDemoOptions): {
   // The release's own job identities, so the hosted scheduler records each
   // execution in the journal Workflows and System health read: the
   // quarter-hour Google refresh writes today's provisional counts, the hourly
-  // freshness check raises and clears late-report alerts, the outcome check
+  // freshness check raises and clears late-report alerts and reads each
+  // fictional home page (one has its brief daily outage), the outcome check
   // reads the demo's windows, the board refresh reads the real task service.
   // Input is the scheduler's minute, never a payload.
   const minuteOf = (input: unknown): string => {
@@ -201,7 +204,12 @@ export function createHostedDemo(options: HostedDemoOptions): {
     { key: 'counters', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'google', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.collect(scoped, activity.collection(minuteOf(input)))) }] },
     { key: 'freshness', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'freshness', kind: 'database', action: 'workflows.run',
-      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.freshness(scoped, minuteOf(input))) }] },
+      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.freshness(scoped, minuteOf(input))) },
+    { key: 'uptime', kind: 'database', action: 'workflows.run',
+      run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => {
+        const at = minuteOf(input);
+        return writer.uptime(scoped, at, activity.homeFetch(at));
+      }) }] },
     { key: 'watch-windows', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'outcomes', kind: 'database', action: 'workflows.run',
       run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.outcomes(scoped, minuteOf(input))) }] },
     { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',

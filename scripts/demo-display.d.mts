@@ -52,9 +52,10 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
 /** The sources the scenario actually collects, declared live from each
  * site's first day and mapped to the properties its runs name: GA4 and
  * Search Console everywhere, Bing on the two content sites, the ad network
- * where ads are sold. Product analytics the apps want and the recipe site's
- * session recordings are declared but not connected; every other source is
- * skipped with its reason or does not apply. The OS collects nothing. */
+ * where ads are sold, and the hourly home-page check on every site. Product
+ * analytics the apps want and the recipe site's session recordings are
+ * declared but not connected; every other source is skipped with its reason
+ * or does not apply. The OS collects nothing. */
 export declare function demoIntegrationAssets(scenario: DemoScenario): any;
 /** Saved run times for the demo's scheduled lanes: the task board refreshes
  * every five minutes rather than every minute, a smaller always-on load. */
