@@ -7,6 +7,8 @@ description: "Add a website to NoticeOS from Home in one step, and see what the 
 
 This page gets your first site into NoticeOS and leaves you on the screen where its data gets connected.
 
+A **site** is one website or product you want NoticeOS to watch: its visitors, search, money, alerts and work. You add it by its domain. Everything about it then lives on the site's own page in the Tower, with a tab for each part: its data sources, its tasks, its settings and the rest.
+
 ## Before you begin
 
 - The site's domain, such as `example.com`. That is the only thing the product asks for.

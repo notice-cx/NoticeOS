@@ -5,6 +5,8 @@ description: "What fired, how serious it is, what kind of thing it is, and what 
 
 # Alerts
 
+An **alert** is NoticeOS saying that a number on a site, or in NoticeOS's own collection, is unlikely to be normal, with the evidence attached. The **Alerts** page is where every open alert waits until it is fixed, snoozed or read. Why one fires is in [Alerts](/concepts/alerts).
+
 Alerts answers one question: what needs attention right now, and how badly.
 
 ## What you see

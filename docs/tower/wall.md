@@ -5,6 +5,8 @@ description: "The Wall: the at-a-glance view for a television, a laptop or a pho
 
 # TV dashboard
 
+The **Wall** is the Tower's TV view: one screen at `/wall`, made for a television or a second monitor across the room. The sidebar calls it **TV dashboard**. It shows the same data as the desk, large enough to read from a distance, and refreshes itself every minute, so it can stay on all day with nobody touching it.
+
 The Wall answers, at a glance: where the business is in its loop, what is broken and since when, how each site is doing right now, whether the month is on track, and what the work looks like.
 
 ## What you see
@@ -13,7 +15,7 @@ The Wall is drawn from a layout you arrange on the desk. It has no navigation an
 
 **Top strip.** The time, the next meeting from a connected calendar feed, and a countdown if one is set.
 
-**The loop.** Sense, Attribute, Decide, Act and Learn across the screen, each with its live count: the data sources working out of those you expect (and how many are failing), what is waiting on you, the work in progress, and the outcomes ready to read. A stage nothing measures yet says so (**not measured yet**, **not read**) instead of showing a number.
+**The loop.** Sense, Attribute, Decide, Act and Learn across the screen, the five steps NoticeOS runs over and over ([How NoticeOS thinks](/concepts/how-noticeos-thinks)), each with its live count: the data sources working out of those you expect (and how many are failing), what is waiting on you, the work in progress, and the outcomes ready to read. A stage nothing measures yet says so (**not measured yet**, **not read**) instead of showing a number.
 
 **Last 24 hours.** Each open problem as a bar on its site's row, from when it started to now, and what happened (shipped, resolved, money, wins) as marks on the same time axis. A problem older than the window is a bar clipped at the left with its age written on it. The heading counts the errors and warnings, or says **Nothing broken**; the TV draws the three worst lines and counts any other problems as **+2 more**. A dashed rule marks **Since last night**. The same problems, at a smaller size, are the issue mark beside a site's name.
 

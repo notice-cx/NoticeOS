@@ -13,7 +13,7 @@ NoticeOS is built to improve the return on a set of websites, and to need less o
 
 Take `example.com`, a recipe site that earns from ads.
 
-1. **Observe.** Every night `example.com` sends NoticeOS a short report of what it could count on its own servers: recipes saved, newsletter sign-ups, comments. NoticeOS also pulls what the outside world knows about the site: Google Analytics, Search Console, Bing, ad revenue. All of it lands in one store, by site and by day.
+1. **Sense.** Every night `example.com` sends NoticeOS a short report of what it could count on its own servers: recipes saved, newsletter sign-ups, comments. NoticeOS also pulls what the outside world knows about the site: Google Analytics, Search Console, Bing, ad revenue. All of it lands in one store, by site and by day.
 2. **Attribute.** When something changes on the site, NoticeOS asks whether the numbers moved because of that change, or for some other reason. It only says "yes" when it can show it. Otherwise it says "could not be measured".
 3. **Decide.** The things worth doing next are ranked by what they are likely to earn, in money, against what they cost, including your own time.
 4. **Act.** A change gets built, checked by someone other than the builder, and shipped. Today you do the shipping. NoticeOS tracks the task, the change and the outcome check that follows.
@@ -25,9 +25,9 @@ The full design is in [doc 01, Architecture](../01-architecture.md) and the mone
 
 ## What you see of the loop
 
-Each step has a home in the Control Tower.
+Each step has a home in the Tower, NoticeOS's web app.
 
-- **Observe** is the **Sites** list, a site's **Overview**, **Growth** and **Search** tabs, and **Alerts**.
+- **Sense** is the **Sites** list, a site's **Overview**, **Growth** and **Search** tabs, and **Alerts**.
 - **Attribute** is a site's **Activity** tab, where you log a change and register an outcome check against it.
 - **Decide** and **Act** are **Tasks**: one shared board where you, your team and your AI agents see the same work.
 - **Learn** is the verdict on each outcome check, posted back to the task that caused the change.

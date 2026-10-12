@@ -7,6 +7,8 @@ description: "Go from a machine with Docker to the first number on a site's Over
 
 This page gets you from a machine with Docker to the first number on a site's Overview.
 
+NoticeOS runs on your own machine as a few Docker containers, and you use it through the **Tower**, its web app, in your browser. There you add a **site**, one of your websites or products; connect a **data source**, a service that already holds the site's numbers, such as Google Analytics; and read the site's first figures on its **Overview**, the first tab of the site's own page. Any other word you meet is in the [Glossary](/concepts/glossary).
+
 ## Before you begin
 
 You need one thing on the machine:

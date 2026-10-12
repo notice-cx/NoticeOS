@@ -9,7 +9,16 @@ This page covers how an installation runs once it exists: its folder, the comman
 
 ## Before you begin
 
-NoticeOS runs as one Docker Compose stack of the app (`noticeos`), `postgres`, `dolt` and an optional `backup` worker. The app packages the Tower, the data receiver, the scheduler and the task client in one read-only image. It **never** creates or migrates a database.
+An installation is a handful of Docker containers that work together. Docker Compose starts, stops and updates them as one unit, the **stack**:
+
+| Container | What it does |
+|---|---|
+| `noticeos`, the app | Serves the Tower, receives the reports sites send (the data receiver), runs the scheduled jobs (the scheduler) and reads and writes tasks (the task client) |
+| `postgres` | The store: every report, reading, ledger row and setting |
+| `dolt` | The task database: every project's tasks |
+| `backup` | Optional: takes the nightly backup. See [Backups and restore](/operate/backups-and-restore) |
+
+The app runs from one read-only image and **never** creates or migrates a database.
 
 The stack has one definition for every installation, `deploy/compose/stack.yaml`. An installation is a folder that definition reads: [one Docker command](/start/install-with-docker) or [`pnpm os:setup`](/start/install-from-source) makes a new one, and `pnpm os:convert-legacy` moves a legacy one into it. Nobody writes a Compose file.
 

@@ -7,6 +7,8 @@ description: "Give a coding agent on this machine your tasks and site reports th
 
 This page connects an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, and reads site reports. It needs no task tool and no credential of its own.
 
+MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your sites are doing, the way you would on the desk. Approving work stays with you.
+
 ## Before you begin
 
 You need:

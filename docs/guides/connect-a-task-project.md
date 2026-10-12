@@ -7,6 +7,8 @@ description: "Give a site's code repository its own task list on the shared boar
 
 This page connects a site's code repository to the shared **Tasks** board, so people and agents working in that checkout read and update the tasks you see. Use it for a new project, or for an existing project whose checkout has moved.
 
+A **task project** is one site's list of tasks. Every project lives in the installation's one **task database**, which runs in the `dolt` container of the stack, and every task id starts with its project's short prefix, such as `ex-a1b2`. The site's **checkout** is the copy of its code repository on your machine, where you and your agents work. Connecting the two means anyone working in that checkout sees and changes the same tasks as the **Tasks** page. The task model comes from [Beads](https://github.com/gastownhall/beads), and `bd` is its command-line tool.
+
 ## Before you begin
 
 NoticeOS keeps one shared task database for the whole installation. Every project you connect gets its own list inside it, identified by a short prefix. Status, owners, blockers and approvals live in one place.

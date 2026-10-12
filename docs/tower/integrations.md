@@ -5,6 +5,8 @@ description: "What you are connected with, whether each connection works, and wh
 
 # Integrations
 
+An **integration** is your account with a provider, such as Google or an ad network, connected so NoticeOS can collect from it, usually once for every site it covers. Credentials are entered here, encrypted in the store, and never written in a file. A site's own **Data sources** tab shows the same connections for that one site.
+
 Integrations answers one question: what am I connected with, and can I connect something.
 
 ## What you see

@@ -20,11 +20,11 @@ It brings four things together:
 
 ## The Tower and the Wall
 
-The **Tower** is the web app you work in. Its pages are Home, Workflows, Sites, Alerts, Tasks, Money, System health, Integrations and Settings.
+The **Tower** is the web app you work in, in your browser. Its pages with a sidebar, the **desk**, are Home, Workflows, Sites, Alerts, Tasks, Money, System health, Integrations and Settings, and every site you add gets a page of its own. [The Tower](/tower/) introduces each one.
 
 The **Wall** is the Tower's at-a-glance view, built for a TV or a second screen. It fits one 1920×1080 screen with nothing to scroll. Open it at `/wall` and lay it out at `/wall/edit`.
 
-Both read the same data. The Tower is where you act; the Wall is where you glance.
+Both read the same data. The desk is where you act; the Wall is where you glance. Words these docs use without stopping to explain are in the [Glossary](/concepts/glossary).
 
 ## Unknown is never zero
 

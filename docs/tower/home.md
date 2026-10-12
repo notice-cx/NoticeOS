@@ -5,6 +5,8 @@ description: "How the business is doing, what is broken and what needs you, draw
 
 # Home
 
+**Home** is the page the Tower opens on: one page that sums up every site, so you can tell in a minute whether anything needs you. New to the Tower? Start with [The Tower](/tower/).
+
 Home answers three questions, in this order: how is the business doing, what is broken, and what needs you.
 
 ## What you see

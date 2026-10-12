@@ -5,6 +5,8 @@ description: "The shared board of work across your projects: what waits on you, 
 
 # Tasks
 
+A **task** is one piece of work, for a site or for NoticeOS itself, with its status, owner, blockers and the evidence that closed it. People and AI agents share the same tasks, each site in its own project. The **Tasks** page shows every project at once. How tasks connect to changes and outcomes is in [Tasks and agents](/concepts/tasks-and-agents).
+
 Tasks answers one question: how big is the queue, and what in it cannot move without me.
 
 ## What you see

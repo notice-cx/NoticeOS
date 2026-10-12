@@ -7,6 +7,8 @@ description: "Set up NoticeOS with one Docker command, with no checkout, Node or
 
 This page gets you from a machine with Docker to the Tower open in your browser, with no checkout of the repository.
 
+Setup makes an **installation**: a folder on your machine, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; the others hold your data and your tasks, and one takes backups. A small **launcher** script in the folder checks, restarts and updates them. You never need a copy of NoticeOS's source code, a checkout, on this path.
+
 ## Before you begin
 
 You need one thing on the machine:

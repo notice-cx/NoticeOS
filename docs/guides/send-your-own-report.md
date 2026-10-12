@@ -7,10 +7,12 @@ description: "Have a product report its own daily counts to NoticeOS, in the exa
 
 This page gets a product you run reporting its own daily counts into NoticeOS, so they sit beside its traffic and revenue.
 
+Most of what NoticeOS knows about a site comes from data sources you connect on Integrations, such as Google Analytics. A **report** adds what only your product's own servers know: sign-ups, saved items, rows in its database. Once a day your product either sends it to the installation or answers when the installation asks for it, and NoticeOS shows those counts on the site's page and raises an alert when one moves unusually. Most sites do not need one; add it when the numbers that matter to you are ones no outside service sees.
+
 ## Before you begin
 
 - The site added in NoticeOS. Its id is its domain as added in the product.
-- The site's token. Each site has one secret shared with the installation. It authenticates a push and it is what NoticeOS presents when it fetches. The installation holds the map of site id to token in its secrets file, `workers/ingest/.dev.secrets.json`, under `ASSET_TOKENS`. Whoever runs the installation sets it; it is one of the four bootstrap secrets that are never entered in the product. Your product holds its own copy and gates its metrics endpoint with it.
+- The site's token. Each site has one secret shared with the installation. It authenticates a push and it is what NoticeOS presents when it fetches. The installation holds the map of site id to token in its secrets file, `workers/ingest/.dev.secrets.json`, under `ASSET_TOKENS`. Whoever runs the installation sets it; it is one of the four [bootstrap secrets](/operate/secrets-and-credentials#four-bootstrap-secrets-stay-in-the-environment) that are never entered in the product. Your product holds its own copy and gates its metrics endpoint with it.
 
 ### What belongs in a report
 

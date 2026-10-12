@@ -5,6 +5,8 @@ description: "Which site needs you, and one site's own page: its verdict, its nu
 
 # Sites
 
+A **site** is one website or product you added to NoticeOS. The **Sites** page compares them all side by side, and each site's name opens its own page, where everything about that one site lives.
+
 Sites answers one question: which site needs me.
 
 ## What you see

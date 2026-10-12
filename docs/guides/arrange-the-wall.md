@@ -7,9 +7,11 @@ description: "Drag, stack, split and resize the TV view's widgets on its own pic
 
 This page gets the TV view laid out the way you want it, saved as a version to go back to.
 
+The **Wall** is the Tower's TV view, at `/wall`: one screen of tiles, called widgets here, that shows how every site is doing to anyone across the room. See [The Wall](/tower/wall) for what each widget shows.
+
 ## Open the editor
 
-The Wall itself has no controls. You arrange it from the desk.
+The Wall itself has no controls. You arrange it from the desk, the Tower's ordinary pages with the sidebar.
 
 1. In the sidebar, find the **TV dashboard** entry at the bottom. On a phone, open the menu first.
 2. Select the pencil beside it, **Edit the TV layout**. The **TV layout** page opens with the television's own picture in the middle, drawn by the same component the TV uses, and **Open the TV** in the header.

@@ -77,7 +77,7 @@ export default defineConfig({
     nav: [
       { text: 'Start', link: '/start/what-is-noticeos' },
       { text: 'Guides', link: '/guides/add-your-first-site' },
-      { text: 'The Tower', link: '/tower/home' },
+      { text: 'The Tower', link: '/tower/' },
       { text: 'Operate', link: '/operate/daily-operations' },
       { text: 'Concepts', link: '/concepts/how-noticeos-thinks' },
       { text: 'Reference', link: '/reference/commands' },
@@ -112,6 +112,7 @@ export default defineConfig({
       {
         text: 'The Tower',
         items: [
+          { text: 'What the Tower is', link: '/tower/' },
           { text: 'Home', link: '/tower/home' },
           { text: 'Sites', link: '/tower/sites' },
           { text: 'Alerts', link: '/tower/alerts' },

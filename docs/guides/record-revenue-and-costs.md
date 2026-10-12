@@ -7,6 +7,8 @@ description: "Where revenue arrives on its own, and how to declare the subscript
 
 This page gets your money picture complete: revenue collected automatically, and the costs you declare once so every month books them.
 
+NoticeOS keeps money in one **ledger**: revenue and cost rows per site, per month, which the **Money** page and each site's **Money** tab show. Revenue from a connected ad network arrives by itself. Costs no service reports, such as a hosting plan or a domain order, you declare here.
+
 ## Before you begin
 
 - For ad revenue, Mediavine connected. See [Connect data sources](/guides/connect-data-sources).
@@ -17,7 +19,7 @@ This page gets your money picture complete: revenue collected automatically, and
 
 Ad revenue from Mediavine arrives on its own once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests yesterday explicitly. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the site's **Data sources** tab shows **Reported through** with an **Estimates** chip.
 
-Revenue from other networks has no connector yet. The ingest has an operator-only import route for revenue rows; it needs the operator token, so it belongs to whoever runs the installation.
+Revenue from other networks has no connector yet. NoticeOS's data receiver has an import route for revenue rows, but it needs the installation's operator token, so it belongs to whoever runs the installation.
 
 ### Where the tables are
 

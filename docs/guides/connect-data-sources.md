@@ -7,6 +7,8 @@ description: "Connect traffic, search, product and revenue sources once, match t
 
 This page gets a data source connected, tested and collecting for the sites it covers, and tells you what each status on screen means.
 
+A **data source** is a service that already holds numbers about your site: Google Analytics for visitors, Search Console for search clicks, an ad network for revenue. You connect your account with each provider once, an **integration**, and NoticeOS then collects from it on a schedule, so the numbers arrive by themselves and land on the site's pages.
+
 ## Before you begin
 
 - At least one site added. See [Add your first site](/guides/add-your-first-site).

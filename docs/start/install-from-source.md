@@ -7,6 +7,8 @@ description: "Set up a new NoticeOS installation on any Docker host with one com
 
 This page gets you from a clone of the repository to the Tower open in your browser.
 
+Setup makes the same **installation** as [Install with Docker](/start/install-with-docker): a folder, `~/noticeos`, and a set of Docker containers, the **stack**, that keeps running in the background. One container serves the **Tower**, the NoticeOS web app you open in your browser; the others hold your data and your tasks, and one takes backups. The difference is the clone: you control the installation with `pnpm os:*` commands from it, and you can change NoticeOS and build its image yourself.
+
 ## Before you begin
 
 You need three things on the machine, and nothing else:
