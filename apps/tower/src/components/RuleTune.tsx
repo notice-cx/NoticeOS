@@ -407,11 +407,11 @@ export function previewRefusal(err: unknown): string {
       return "The store no longer has this site, so there is nothing to replay.";
     }
     if (err.code === "validation") {
-      return "The detector refused one of these values. Change it and the replay comes back.";
+      return "The detector rejected one of these values. Change it to run the replay again.";
     }
-    return "The replay did not answer. The settings above are unchanged.";
+    return "The replay returned no result. The settings above are unchanged.";
   }
-  return "The replay did not answer. The settings above are unchanged.";
+  return "The replay returned no result. The settings above are unchanged.";
 }
 
 /** The saved value for every untouched field, the draft for an edited one;

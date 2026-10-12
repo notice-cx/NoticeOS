@@ -51,7 +51,7 @@ claude mcp add --scope user noticeos -- ~/noticeos/noticeos mcp --actor claude  
 | `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. Each response lists what a task still lacks, such as acceptance criteria; a task is not rejected for missing them |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence |
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes |
-| `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Waiting on you**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |
+| `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Your decisions**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |
 | `list_properties`, `property_report`, `research_lookup` | Read site reports and stored research |
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.

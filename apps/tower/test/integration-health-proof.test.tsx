@@ -141,7 +141,7 @@ describe("health headline, audit summary and cell labels agree", () => {
     state.data = matrix;
     const { container } = render(<MemoryRouter><HealthRoute /></MemoryRouter>);
     expect(container.querySelector("[data-connections-unconfirmed]")).toHaveTextContent("Not confirmed");
-    expect(screen.queryByText("Nothing needs you")).toBeNull();
+    expect(screen.queryByText("Nothing needs attention")).toBeNull();
     expect(screen.queryByText(/every connection.*working/)).toBeNull();
   });
 });

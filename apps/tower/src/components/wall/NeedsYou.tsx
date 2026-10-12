@@ -60,13 +60,13 @@ export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
 
   return (
     <section
-      aria-label="Needs you"
+      aria-label="Needs attention"
       className="flex min-w-0 flex-col gap-3"
       data-wall-needs={total > 0 ? "rows" : "calm"}
       data-material-condition={[...conditions].join(" ")}
     >
       <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h2 className={eyebrow}>Needs you</h2>
+        <h2 className={eyebrow}>Needs attention</h2>
         {total > 0 || urgent ? (
           <span className="inline-flex items-center gap-1.5 text-wall-micro text-muted-foreground tabular-nums" data-needs-meta>
             {total > 0 ? `${shown.length} of ${total}` : null}
@@ -88,7 +88,7 @@ export function NeedsYou({ issues, operator, system, nowMs }: NeedsYouProps) {
           <CircleCheck className="size-6 shrink-0 text-healthy" aria-hidden />
           {/* An urgent task is still something that needs the operator; the
               calm line then only says nothing is broken. */}
-          {urgent ? "Nothing broken" : "Nothing needs you"}
+          {urgent ? "Nothing broken" : "Nothing needs attention"}
         </div>
       ) : (
         <ol className="flex min-w-0 flex-col gap-3">

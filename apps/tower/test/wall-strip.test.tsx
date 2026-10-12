@@ -1,5 +1,5 @@
 // The Wall's one top strip: the local time/date, the next meeting and a
-// recognizable countdown. System problems live in Needs you rather than as
+// recognizable countdown. System problems live in Needs attention rather than as
 // an aggregate header badge.
 
 import { render } from "./render";
@@ -131,9 +131,9 @@ describe("the one system state", () => {
     expect(failingSourceCount([site("a.example", "skipped")], NO_READS, NOW)).toBe(0);
   });
 
-  // The strip and Needs you read one derivation (`failingSources`), so one
+  // The strip and Needs attention read one derivation (`failingSources`), so one
   // screen never states two counts of one fact.
-  it("agrees with Needs you when one provider fails on two sites", () => {
+  it("agrees with Needs attention when one provider fails on two sites", () => {
     const card = (id: string, uptime: "live" | "degraded" = "live"): AssetCard =>
       ({ ...site(id, uptime), status: "live", pulseReceivedAt: null, panelReview: null, latestPanelDate: null }) as AssetCard;
     const assets = [card("a.example", "degraded"), card("b.example", "degraded"), card("c.example")];

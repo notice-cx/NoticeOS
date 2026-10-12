@@ -420,9 +420,9 @@ function lanePicker(
   const unavailable = loading
     ? null
     : query.isError || payload === undefined
-      ? "Google did not answer"
+      ? "No response from Google"
       : payload.ok === false
-        ? (payload.account ? "Google gave no list" : "Google not connected")
+        ? (payload.account ? "Google returned no list" : "Google not connected")
         : options.length === 0
           ? `No ${label}`
           : null;

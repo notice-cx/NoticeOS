@@ -55,9 +55,9 @@ describe("PaceBar", () => {
 
   it("names where the month is heading and last month's total, without a same-day figure it lacks", () => {
     const words = paceSummary({ value: 364, label: "Oct so far", previousAtSameDay: null, previousTotal: 1127, previousLabel: "Sep", projected: 1020, format: (n) => formatUsd(n) });
-    expect(words).toBe("Oct so far $364; no Sep figure to compare; heading for $1,020; Sep total $1,127");
+    expect(words).toBe("Oct so far $364; no Sep figure to compare; projected $1,020; Sep total $1,127");
     render(<PaceBar value={364} label="Oct so far" previousAtSameDay={null} previousTotal={1127} previousLabel="Sep" projected={1020} tone="text-financial-revenue" />);
-    expect(screen.getByRole("img").getAttribute("aria-label")).toContain("heading for $1,020");
+    expect(screen.getByRole("img").getAttribute("aria-label")).toContain("projected $1,020");
   });
 });
 

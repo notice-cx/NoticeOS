@@ -472,7 +472,7 @@ const towerHandler = {
                 catch (error) { receiverFailed = true; throw error; }
               },
             });
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -497,7 +497,7 @@ const towerHandler = {
             const response = panel.method === 'ga4Realtime'
               ? await handleGa4RealtimeRequest(request, ingest)
               : await handleCalendarUpcomingRequest(request, ingest);
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -521,7 +521,7 @@ const towerHandler = {
             const response = collection.method === 'collectNow'
               ? await handleCollectRequest(request, new URL(request.url), ingest, collection.provider)
               : await handleMediavineRequest(request, new URL(request.url), ingest);
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -562,7 +562,7 @@ const towerHandler = {
                 : credentialWrite.method === 'putSiteToken'
                   ? await handleIntegrationSiteTokenRequest(request, url, ingest, credentialWrite.provider)
                   : await handleIntegrationCredentialRequest(request, url, ingest, credentialWrite.provider);
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -596,13 +596,13 @@ const towerHandler = {
                     ingest, store,
                     config: async () => {
                       const cfg = await resolve();
-                      if (receiverFailed) throw new Error('Workspace receiver refused.');
+                      if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
                       return { integrations: cfg.integrations, capUsd: cfg.monthlyCaps.dataUsd };
                     },
                     spend: (now, capUsd) => loadSpendPreview(store, now, capUsd),
                   }, readiness.provider, 'sites');
                 });
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -637,10 +637,10 @@ const towerHandler = {
               ? await handleRuleBacktestRequest(request, new URL(request.url), ingest)
               : await call.withStore(ctx, async store => {
                 const cfg = await towerConfigResolver(ingest, compiledConfig())();
-                if (receiverFailed) throw new Error('Workspace receiver refused.');
+                if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
                 return handleMcpRequest(request, store, mcpDependencies(cfg, ingest), viewer);
               });
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch {
@@ -662,7 +662,7 @@ const towerHandler = {
               },
             };
             const response = await handleWatchQueryHistoryRequest(request, new URL(request.url), ingest, watchHistory.asset);
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });
         } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
@@ -710,7 +710,7 @@ const towerHandler = {
           const resolveConfig = towerConfigResolver(ingest, fallbacks);
           const config = async () => {
             const value = await resolveConfig();
-            if (receiverFailed) throw new Error('Workspace receiver refused.');
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return value;
           };
           const response = storedRead
@@ -722,7 +722,7 @@ const towerHandler = {
             : await handleConfigRequest(request, { ingest, config });
           // Hosted receiver denial never becomes the resolver's standalone
           // compiled-default fallback or a successful tenant response.
-          if (receiverFailed || response === null) throw new Error('Workspace receiver refused.');
+          if (receiverFailed || response === null) throw new Error('Workspace receiver rejected the request.');
           // Existing payload builders carry detailed standalone diagnostics.
           // A hosted failure exposes no query, connection or internal detail.
           if (storedRead) {

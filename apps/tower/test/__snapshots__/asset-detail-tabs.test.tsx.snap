@@ -347,7 +347,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 <span class="grid justify-items-end gap-0.5 text-end">
 <span class="text-[13px] font-semibold tabular-nums text-foreground">11h</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">first seen</span>
+<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">first detected</span>
 </span>
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-down size-4 text-muted-foreground motion-safe:transition-transform" aria-hidden="true" data-row-affordance="expand">
 <path d="m6 9 6 6 6-6">
@@ -2033,9 +2033,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 <div class="grid gap-5 @4xl:grid-cols-2 [&amp;>*]:min-w-0">
-<section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Needs you">
+<section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Needs attention">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Needs you</h2>
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Needs attention</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">
 <span class="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
 <span>Last known: 0 urgent · 0 waiting</span>
@@ -2952,7 +2952,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <th class="py-1 pr-3 font-medium">Rank</th>
 <th class="py-1 pr-3 font-medium">Links</th>
 <th class="py-1 pr-3 font-medium">Spam</th>
-<th class="py-1 pr-3 font-medium">First seen</th>
+<th class="py-1 pr-3 font-medium">First found</th>
 </tr>
 </thead>
 <tbody>

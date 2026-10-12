@@ -13,7 +13,7 @@ export type MemberCommand =
   | { kind: 'remove'; memberId: string };
 export class MembershipRefused extends Error {
   constructor(readonly status: number, readonly invitationId?: string) {
-    super(invitationId ? 'Invitation saved; delivery failed. Use Resend.' : 'Access change refused. Refresh and try again.');
+    super(invitationId ? 'Invitation saved; delivery failed. Use Resend.' : 'Access change rejected. Refresh and try again.');
   }
 }
 const uuid = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u.test(value);

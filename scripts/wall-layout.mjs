@@ -127,7 +127,7 @@ export const WALL_WIDGET_LIBRARY = {
     work: {
         type: 'work',
         label: 'Work',
-        shows: ['Waiting on you', 'In progress', 'Done this week', 'Blocked'],
+        shows: ['Your decisions', 'In progress', 'Done this week', 'Blocked'],
         defaultWidth: 1,
         minWidthRem: 0,
         maxWidthRem: null,
@@ -139,7 +139,7 @@ export const WALL_WIDGET_LIBRARY = {
     },
     needs: {
         type: 'needs',
-        label: 'Needs you',
+        label: 'Needs attention',
         shows: ['Errors', 'Warnings', 'Urgent tasks'],
         defaultWidth: 1,
         minWidthRem: 0,
@@ -203,7 +203,7 @@ export function wallLayoutWidgets(layout) {
  * columns — the last 24 hours over the site rows, beside revenue over the
  * work. Revenue's band sits beside the sites rather than over them because
  * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
- * way (`pnpm audit:wall-fit`). Needs you and the live feed stay in the library
+ * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
  * for a Wall that wants them.
  */
 export const DEFAULT_WALL_LAYOUT = {

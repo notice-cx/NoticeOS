@@ -449,7 +449,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     })]);
     const row = within(board()).getByText("Signups well below normal").closest("li")!;
     expect(row).toHaveTextContent("Confirmed 3h ago");
-    expect(row).toHaveTextContent("first seen");
+    expect(row).toHaveTextContent("first detected");
     expect(row.querySelector("button button")).toBeNull();
     expect(container.querySelectorAll('[role="tooltip"]')).toHaveLength(0);
   });
@@ -475,7 +475,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
     fireEvent.click(within(body).getByRole("button", { name: /^Why this fired/ }));
     const panel = screen.getByRole("dialog");
     expect(panel).toHaveTextContent("Arrived");
-    expect(panel).toHaveTextContent(/First seen\s*·/);
+    expect(panel).toHaveTextContent(/First detected\s*·/);
     expect(panel).toHaveTextContent(/Last confirmed\s*·/);
     expect(panel).toHaveTextContent("Central metric rule");
     expect(panel).toHaveTextContent("Last check is past its freshness window");
@@ -777,7 +777,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       expect(section.querySelector('[data-snooze-state="active"]')).not.toBeNull();
       expect(section.textContent).toContain("Aug 4, 2026");
       expect(section.textContent).toContain("Last known");
-      expect(section.textContent).toContain("first seen");
+      expect(section.textContent).toContain("first detected");
       expect(section.querySelector("button button")).toBeNull();
 
       // Unsnooze is the one verb this row has, inside the row.

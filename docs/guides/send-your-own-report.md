@@ -54,7 +54,7 @@ Each metric is one name with three numbers: how many in the last 24 hours, the a
 
 1. On the site's **Settings** tab, open **Data collection**.
 2. Set **Metrics endpoint** to the address where your product serves its metrics.
-3. Under **Answers with**, select **Nightly report envelope** when the address returns the report shape, or **Prometheus metrics page** when it exposes a metrics page that NoticeOS maps into it.
+3. Under **Response format**, select **Nightly report envelope** when the address returns the report shape, or **Prometheus metrics page** when it exposes a metrics page that NoticeOS maps into it.
 4. Check that **Nightly fetch** shows **Enabled**, not **Paused**.
 
 The same panel shows **Report endpoint** and **Auth source** for push, **Schedule**, and **Last report** once one has arrived. The nightly fetch runs at 02:30 UTC; change it on **Settings** > **Data collection** under **Nightly reports**.

@@ -187,7 +187,7 @@ export function WallStrip({ countdown, meetings, calendarState, heldSince = null
       <a
         href={demoDocumentUrl("/")}
         aria-label="NoticeOS"
-        title="Leave TV mode for the desk home."
+        title="Back to Home"
         className="wall-strip-widget wall-strip-brand rounded text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         data-strip-home
       >

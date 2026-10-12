@@ -184,7 +184,7 @@ function replayConflict(stableId: string, upload: Booked, stored: StoredRow): st
   ) {
     reasons.push(
       `'${stableId}' is already stored as ${money(stored.amount_minor, stored.currency)} ` +
-        `(${stored.booking_state}); this upload says ${money(upload.amountMinor, upload.currency)} ` +
+        `(${stored.booking_state}); this upload has ${money(upload.amountMinor, upload.currency)} ` +
         `(${upload.bookingState}). A restated figure is a reconciliation — post it ` +
         `as a reconciled row with supersedes_external_id='${stableId}'.`,
     );
@@ -208,7 +208,7 @@ function replayConflict(stableId: string, upload: Booked, stored: StoredRow): st
     const uploadLink =
       upload.supersedes === null ? 'replaces nothing' : `replaces '${upload.supersedes}'`;
     reasons.push(
-      `'${stableId}' is stored as a row that ${storedLink}; this upload says it ${uploadLink}. ` +
+      `'${stableId}' is stored as a row that ${storedLink}; in this upload it ${uploadLink}. ` +
         'A booked link cannot be changed — post a new reconciled row instead.',
     );
   }

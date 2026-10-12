@@ -84,7 +84,7 @@ describe('POST /api/pulse — validation', () => {
 });
 
 describe('POST /api/pulse — write + flag explosion + central rules', () => {
-  it('stays quiet until four matching weekdays establish a central baseline', async () => {
+  it('raises no alert until four matching weekdays establish a central baseline', async () => {
     const res = await call(pulseRequest(validEnvelope(), ASSET_TOKENS[MEADOW]));
     expect(res.status).toBe(201);
     const body = (await res.json()) as { centralFlags: number };

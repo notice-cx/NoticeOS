@@ -127,7 +127,7 @@ function ColumnHeads({ reading, rows, count }: { reading: boolean; rows: boolean
       <span aria-hidden className="col-start-1 row-start-1 size-5" />
       <span className="col-start-2 row-start-1 whitespace-nowrap text-xs tabular-nums">{count}</span>
       <span aria-hidden className="hidden whitespace-nowrap @2xl:col-start-3 @2xl:row-start-1 @2xl:block">{reading ? "Reading against usual" : ""}</span>
-      {rows ? <span aria-hidden className="hidden whitespace-nowrap text-end @2xl:col-start-4 @2xl:row-start-1 @2xl:block">First seen</span> : null}
+      {rows ? <span aria-hidden className="hidden whitespace-nowrap text-end @2xl:col-start-4 @2xl:row-start-1 @2xl:block">First detected</span> : null}
     </div>
   );
 }
@@ -255,7 +255,7 @@ function OpenAlertRow({ item, nowMs, focused, quiet = false, showSite = false }:
       }
       evidence={<Reading item={item} />}
       age={formatAge(ageMs(nowMs, item.firstFiredAt))}
-      ageLabel="first seen"
+      ageLabel="first detected"
       rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
       actions={
         <>
@@ -315,7 +315,7 @@ function GroupedAlertRow({ item, nowMs, focused, quiet = false }: { item: Attent
       }
       evidence={<Reading item={item} />}
       age={formatAge(ageMs(nowMs, item.firstFiredAt))}
-      ageLabel="first seen"
+      ageLabel="first detected"
     >
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <EvidencePopover
@@ -332,7 +332,7 @@ function GroupedAlertRow({ item, nowMs, focused, quiet = false }: { item: Attent
             <Drill interactive to={openSite(member.asset)} className="font-medium">
               {member.assetDisplayName}
             </Drill>
-            <span className="tabular-nums text-muted-foreground">First seen {formatAge(ageMs(nowMs, member.firedAt))} ago</span>
+            <span className="tabular-nums text-muted-foreground">First detected {formatAge(ageMs(nowMs, member.firedAt))} ago</span>
             <AlertVerification verification={member.verification} firstDetectedAt={member.firedAt} nowMs={nowMs} />
             <FlagActions flagId={member.id} assetId={member.asset} />
           </span>

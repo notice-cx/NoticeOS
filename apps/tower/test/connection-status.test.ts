@@ -106,7 +106,7 @@ describe("a connection's one status", () => {
   });
 
   it("is Failing when the provider refused the credential on its last use", () => {
-    const refused = credential({ lastError: "The provider refused this key.", lastOkAt: "2026-09-20T00:00:00.000Z", lastUsedAt: TODAY });
+    const refused = credential({ lastError: "The provider rejected this key.", lastOkAt: "2026-09-20T00:00:00.000Z", lastUsedAt: TODAY });
     const status = connectionStatus("google", refused, site("meadow.example"));
     expect(status.kind).toBe("failing");
     expect(needsOperator(status)).toBe(1);

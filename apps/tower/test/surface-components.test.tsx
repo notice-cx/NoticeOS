@@ -197,7 +197,7 @@ describe("Kpi", () => {
   it("keeps three KPIs together and lets enlarged words widen their cells", () => {
     const { container } = render(
       <KpiStrip columns={3}>
-        <Kpi label="Needs you" value="2" />
+        <Kpi label="Needs attention" value="2" />
         <Kpi label="Open alerts" value="1" />
         <Kpi label="System" value="—" />
       </KpiStrip>,
@@ -981,7 +981,7 @@ describe("SmallMultiple", () => {
 describe("ListPanel", () => {
   function panel() {
     return inRouter(
-      <ListPanel title="Needs you" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }}>
+      <ListPanel title="Needs attention" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }}>
         <ListRow tone="error" title="First" value="3d" valueLabel="open" />
         <ListRow tone="warn" title="Second" />
         <ListRow tone="info" title="Third" />
@@ -1037,7 +1037,7 @@ describe("ListPanel", () => {
    * row that does nothing has neither mark. */
   it("says what a press does with its last mark, and a static row says nothing", () => {
     const { container } = inRouter(
-      <ListPanel title="Waiting on you">
+      <ListPanel title="Your decisions">
         <ListRow title="Opens" to="/tasks/jt-1" />
         <ListRow title="Expands">The evidence.</ListRow>
         <ListRow title="Static" />
@@ -1071,7 +1071,7 @@ describe("ListPanel", () => {
    * suite and `pnpm audit:surfaces` both read these by selector. */
   it("spreads a caller's data marks onto the row itself", () => {
     const { container } = inRouter(
-      <ListPanel title="Needs you">
+      <ListPanel title="Needs attention">
         <ListRow
           title="Marked"
           marks={{
@@ -1137,13 +1137,13 @@ describe("ListPanel", () => {
   /** The panel's header is `SectionLabel`'s markup, not a lookalike. */
   it("draws its header through SectionLabel", () => {
     const panel = inRouter(
-      <ListPanel title="Needs you" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }} />,
+      <ListPanel title="Needs attention" count="10 urgent · 67 open" action={{ label: "All tasks", to: "/work" }} />,
     );
     const header = panel.container.querySelector("section")!.firstElementChild!;
 
     const label = inRouter(
       <SectionLabel
-        title="Needs you"
+        title="Needs attention"
         caption="10 urgent · 67 open"
         action={{ label: "All tasks →", to: "/work" }}
         className="px-4 pb-2 pt-3"
@@ -1207,7 +1207,7 @@ describe("the audit contract", () => {
         </SmallMultipleStrip>
         <Sparkline data={RISING} data-spark="" />
         <ListPanel
-          title="Needs you"
+          title="Needs attention"
           action={{ label: "All tasks", to: "/work" }}
         >
           <ListRow tone="error" title="First" />

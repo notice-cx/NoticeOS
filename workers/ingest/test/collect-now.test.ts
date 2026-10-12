@@ -213,7 +213,7 @@ describe('discoverSites lists what the connected account holds', () => {
     expect(await storedHealthStates()).toEqual([]);
   });
 
-  it("says Bing refused the key rather than listing nothing", async () => {
+  it("says Bing rejected the key rather than listing nothing", async () => {
     const refusing = (async () => Response.json({ ErrorCode: 3, Message: 'InvalidApiKey' }, { status: 401 })) as typeof fetch;
     expect(await discoverSites(env, 'bing-webmaster', { fetchImpl: refusing, nowMs: NOW }))
       .toEqual({ ok: false, provider: 'bing-webmaster', checkedAt: new Date(NOW).toISOString(), reason: 'refused' });

@@ -253,7 +253,7 @@ describe("the Wall nobody rearranged is the default", () => {
     expect(rowsOf("business")).toEqual(["timeline", "sites"]);
     expect(rowsOf("side")).toEqual(["money", "work"]);
     expect(regions(view.container)).toEqual(DEFAULT_REGIONS);
-    // Needs you and the feed stay in the library, off the default.
+    // Needs attention and the feed stay in the library, off the default.
     expect(view.container.querySelector("[data-wall-needs], [data-wall-feed]")).toBeNull();
   });
 

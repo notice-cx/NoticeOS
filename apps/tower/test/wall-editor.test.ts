@@ -241,11 +241,11 @@ describe("the version's description when there is no note", () => {
     const before = run(start(), { type: "remove", widgetId: "feed" }).layout;
     let state = start(before);
     state = run(state, { type: "remove", widgetId: "needs" });
-    expect(wallChangeSummary(before, state.layout)).toBe("Removed Needs you");
+    expect(wallChangeSummary(before, state.layout)).toBe("Removed Needs attention");
     state = run(state, { type: "add", widget: "feed" });
     state = run(state, { type: "widths", widths: { revenue: 1.6 } });
     expect(wallChangeSummary(before, state.layout)).toBe(
-      "Added Live feed · removed Needs you · resized Revenue",
+      "Added Live feed · removed Needs attention · resized Revenue",
     );
   });
 
@@ -261,7 +261,7 @@ describe("the version's description when there is no note", () => {
 
   it("names a stack as one move: the widget stacked onto keeps its place", () => {
     const layout = drop(FLAT, "needs", "feed", "bottom")!.layout;
-    expect(wallChangeSummary(FLAT, layout)).toBe("Moved Needs you");
+    expect(wallChangeSummary(FLAT, layout)).toBe("Moved Needs attention");
   });
 
   it("names a row swap as rearranged rows", () => {
@@ -287,7 +287,7 @@ describe("the Add drawer's rows", () => {
       rows: [{ id: "one", height: "fill", widgets: [{ id: "a", type: "needs", width: 1 }, { id: "b", type: "needs", width: 1 }] }],
     };
     const check = validateWallLayout(twice);
-    expect(check.ok ? null : check.reason).toBe("Needs you can appear only once on the Wall.");
+    expect(check.ok ? null : check.reason).toBe("Needs attention can appear only once on the Wall.");
   });
 
   it("offers a widget again once it is taken off", () => {
@@ -562,7 +562,7 @@ describe("the Move menu", () => {
 
   it("says where the widget is, for the announcement", () => {
     expect(wallPositionSentence(DEFAULT_WALL_LAYOUT, "revenue")).toBe("Revenue: row 3 of 3, column 2 of 2, 1 of 2 in its column");
-    expect(wallPositionSentence(FLAT, "needs")).toBe("Needs you: row 1 of 2, column 3 of 3");
+    expect(wallPositionSentence(FLAT, "needs")).toBe("Needs attention: row 1 of 2, column 3 of 3");
   });
 });
 

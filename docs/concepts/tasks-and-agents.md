@@ -11,7 +11,7 @@ This page covers the **Tasks** page, how a piece of work stays linked to its cau
 
 NoticeOS keeps one task database. Every site gets its own project in it, and NoticeOS itself has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
 
-The **Tasks** page shows all projects together. At the top is **Waiting on you**: decisions that only you can make. Under it, **Next up** is work that is ready with nothing blocking it, then **Urgent**, **Blocked** and **Closed this week**. Filters narrow it by project, status, priority, label and owner, and any task opens to its history and comments.
+The **Tasks** page shows all projects together. At the top is **Your decisions**: decisions that only you can make. Under it, **Next up** is work that is ready with nothing blocking it, then **Urgent**, **Blocked** and **Closed this week**. Filters narrow it by project, status, priority, label and owner, and any task opens to its history and comments.
 
 A site's own **Tasks** tab shows the same board narrowed to that site.
 
@@ -27,7 +27,7 @@ The steps for connecting a project are in [Connect a task project](/guides/conne
 
 Every task has an owner, which may be a person or an agent. An agent claims a task before starting it, so the board always shows who is working on what.
 
-Some steps need you and nobody else: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Waiting on you**, where you record your answer.
+Some steps only you can do: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Your decisions**, where you record your answer.
 
 When a step must block until you approve it, the task carries a **gate**. A gated task leaves the ready list and stays out of it until you resolve the gate. An agent may ask for your approval by opening a gate, but only you resolve one: approval is never something an agent assumes.
 

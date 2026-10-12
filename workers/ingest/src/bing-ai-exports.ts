@@ -97,8 +97,8 @@ export function bingAiCount(value: string, column: string): number {
     fail(
       'bing_ai_export_bad_count',
       `${column} carried "${value}", which is not a whole number of citations. ` +
-        'This parser refuses rather than coerce: a separator or a decimal here would ' +
-        'silently change the count.',
+        'The parser rejects it instead of converting it, because a separator or a decimal ' +
+        'here would change the count.',
     );
   }
   const count = Number(text);
@@ -195,8 +195,8 @@ export function detectBingAiFormat(header: readonly string[]): BingAiFormat {
     fail(
       'bing_ai_export_unknown_format',
       `Unrecognized header [${header.join(', ')}]. This importer reads exactly three Bing ` +
-        `AI Performance exports: ${describeFormats()}. It refuses everything else rather ` +
-        'than guess which column is which.',
+        `AI Performance exports: ${describeFormats()}. It rejects any other format ` +
+        'instead of guessing which column is which.',
     );
   }
   return match;

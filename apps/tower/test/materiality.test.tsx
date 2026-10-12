@@ -158,7 +158,7 @@ describe("the Wall's destinations", () => {
       }
     }
     // The default Wall's widgets: problems on the timeline, the inbox on the
-    // work chart. Needs you is in the library, not on the default.
+    // work chart. Needs attention is in the library, not on the default.
     expect(
       Object.fromEntries(MATERIAL_CONDITIONS.map((condition) => {
         const wall = MATERIALITY[condition].wall;
@@ -273,9 +273,9 @@ describe("material current-state fixtures", () => {
   });
 });
 
-// Needs you is no longer on the default Wall but stays in the library; a Wall
+// Needs attention is no longer on the default Wall but stays in the library; a Wall
 // that places it still draws every condition it names.
-describe("Needs you, when a layout places it", () => {
+describe("Needs attention, when a layout places it", () => {
   const calm: SystemData = {
     ...system,
     spendTodayUsd: 1,

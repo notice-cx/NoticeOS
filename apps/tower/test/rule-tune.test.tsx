@@ -183,7 +183,7 @@ describe("BacktestStrip", () => {
     expect(container.querySelectorAll("[data-backtest-stored]")).toHaveLength(3);
   });
 
-  it("says an asset filed nothing rather than that the rule would stay quiet", () => {
+  it("says an asset filed nothing rather than that the rule would raise no alert", () => {
     const { container } = render(
       <BacktestStrip backtest={backtest(() => ({ state: "no-report" }))} />,
     );

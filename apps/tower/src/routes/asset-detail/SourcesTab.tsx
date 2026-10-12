@@ -166,7 +166,7 @@ export function sourcesAnswer(direct: readonly { lane: { catalog: { label: strin
   const connected = used.filter(({ reading }) => CONNECTED.has(reading.kind));
   if (problems.length > 0) {
     return {
-      answer: problems.length === 1 ? `${problems[0]!.lane.catalog.label} needs you` : `${problems.length} of ${total} sources need you`,
+      answer: problems.length === 1 ? `${problems[0]!.lane.catalog.label} needs attention` : `${problems.length} of ${total} sources need attention`,
       detail: problems.map(({ lane, reading }) => `${lane.catalog.label} ${reading.kind === "failing" ? "failing" : "overdue"}`).join(" · "),
       mark: "problem",
     };

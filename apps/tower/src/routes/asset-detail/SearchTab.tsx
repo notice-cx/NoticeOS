@@ -525,7 +525,7 @@ function SearchContextRows({
       ? {
           key: "domains",
           summary: `Linking domains · ${formatInt(snapshot.referringDomains.length)} named, best ranked first`,
-          head: ["Domain", "Rank", "Links", "Spam", "First seen"],
+          head: ["Domain", "Rank", "Links", "Spam", "First found"],
           rows: snapshot.referringDomains.map((entry) => [
             entry.domain,
             formatInt(entry.rank),

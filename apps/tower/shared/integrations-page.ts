@@ -433,12 +433,12 @@ const OAUTH_FAILURE_MESSAGES: Record<GoogleOAuthFailure | Extract<GoogleOAuthSta
     "That sign-in did not come back from where it started. Try Sign in with Google again.",
   state_expired: "That sign-in sat too long before coming back. Try it again.",
   app_missing:
-    "Google has not been told about this OS yet — add the OAuth client ID and secret first.",
+    "Google sign-in is not set up for this installation yet — add the OAuth client ID and secret first.",
   redirect_unusable: "Google won't return to this address.",
   key_missing:
     "There is no encryption key, so a sign-in could not be stored. Set CREDENTIALS_KEY first.",
-  exchange_failed: "Google refused to finish the sign-in.",
-  unreachable: "Google did not answer. Try again.",
+  exchange_failed: "Google did not complete the sign-in.",
+  unreachable: "No response from Google. Try again.",
   no_refresh_token: "Google sent a sign-in that expires within the hour.",
   scope_incomplete:
     "Analytics or Search Console was not granted. Connect again and leave both boxes ticked.",

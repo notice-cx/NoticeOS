@@ -3150,7 +3150,7 @@ describe("a snoozed condition leaves the whole Wall, then comes back", () => {
     expect(p.snoozed).toHaveLength(1);
     expect(p.snoozed[0]).toMatchObject({
       occurrences: 3,
-      // The last date, because the row is quiet until its last member is.
+      // The last date, because the row is snoozed until its last member is.
       snoozeUntil: "2026-07-12T12:00:00.000Z",
     });
   });

@@ -7,9 +7,9 @@ const shown = (kind: ConnectionStatus["kind"], sitesFailing = 0): ConnectionStat
 });
 
 describe("the Integrations page's one answer", () => {
-  it("names the one connection that needs you, and says why", () => {
+  it("names the one connection that needs attention, and says why", () => {
     expect(integrationsAnswer([{ name: "Google", shown: shown("failing") }, { name: "Bing", shown: shown("working") }]))
-      .toEqual({ answer: "Google needs you", detail: "Google failing", mark: "problem" });
+      .toEqual({ answer: "Google needs attention", detail: "Google failing", mark: "problem" });
   });
 
   it("counts a working connection that fails on a site as needing you", () => {
@@ -17,10 +17,10 @@ describe("the Integrations page's one answer", () => {
       { name: "Google", shown: shown("working", 1) },
       { name: "Bing", shown: shown("overdue") },
       { name: "PostHog", shown: shown("working") },
-    ])).toEqual({ answer: "2 of 3 integrations need you", detail: "Google failing · Bing overdue", mark: "problem" });
+    ])).toEqual({ answer: "2 of 3 integrations need attention", detail: "Google failing · Bing overdue", mark: "problem" });
   });
 
-  it("counts what is connected when nothing needs you", () => {
+  it("counts what is connected when nothing needs attention", () => {
     expect(integrationsAnswer([{ name: "Google", shown: shown("working") }, { name: "Bing", shown: shown("not-connected") }]).answer)
       .toBe("1 of 2 integrations connected");
     expect(integrationsAnswer([{ name: "Google", shown: shown("working") }, { name: "Bing", shown: shown("collecting") }]).answer)

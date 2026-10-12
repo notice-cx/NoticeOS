@@ -125,7 +125,7 @@ export function VisualKitGallery() {
               role="money"
               size="display"
               history={<PaceBar value={364} label="Oct so far" previousAtSameDay={null} previousTotal={1127} previousLabel="Sep" projected={1020} tone="text-financial-revenue" format={usdWhole} />}
-              context={<>Heading for <b>$1,020</b> by Oct 31, <b>9% under</b> September</>}
+              context={<>Projected <b>$1,020</b> by Oct 31, <b>9% under</b> September</>}
             />
             <StatTile
               label="Revenue, yesterday"

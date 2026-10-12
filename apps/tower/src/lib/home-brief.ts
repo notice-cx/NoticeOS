@@ -73,7 +73,7 @@ export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard
   if (money.pace) {
     const change = money.pace.changePercent;
     return {
-      label: `${month} heading for`,
+      label: `${month} projected`,
       value: formatUsd(money.pace.projected),
       note: change === null ? undefined : `${change >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(change))}%`,
       mark: "month-figure",

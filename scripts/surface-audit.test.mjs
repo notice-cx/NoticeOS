@@ -420,12 +420,12 @@ test('kpiOffenders: a declared composition answers for a number with no history'
       },
       // The neighbour proves the mark is a declaration and not a blanket
       // amnesty: this one shows neither a series nor a composition.
-      { tag: 'div', attrs: { 'data-kpi': 'Needs you' }, text: '25', sparks: [] },
+      { tag: 'div', attrs: { 'data-kpi': 'Needs attention' }, text: '25', sparks: [] },
     ],
   });
   const offenders = kpiOffenders(withAttribute(nodes, 'data-kpi'));
   assert.equal(offenders.length, 1);
-  assert.equal(offenders[0].text, 'Needs you');
+  assert.equal(offenders[0].text, 'Needs attention');
 });
 
 // THE THIRD ANSWER: "not yet". A payload with no history has no series to draw
@@ -661,7 +661,7 @@ test('routeVerdict: a surface that meets doc 14 has no offenders at all', () => 
     desk: {
       pageHeight: 1480,
       hero: { found: true, source: '[data-surface-hero]', bottom: 700 },
-      paragraphs: dom({ tag: 'p', text: 'What needs you today' }),
+      paragraphs: dom({ tag: 'p', text: 'What needs attention today' }),
       owners: [],
       kpis: dom({
         tag: 'div',

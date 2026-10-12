@@ -10,13 +10,13 @@ import { captureIdentityMail, type IdentityMailBindings } from './identity-mail'
 type Bindings = WorkspaceEntryBindings & IdentityMailBindings;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const HEADERS = { 'cache-control': 'no-store', vary: 'Cookie' };
-function refuse(): never { throw new Error('Membership entry refused'); }
+function refuse(): never { throw new Error('Membership entry rejected'); }
 async function body(request: Request): Promise<Record<string, unknown>> {
   if (request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') refuse();
   const reader = request.body?.getReader(); if (!reader) refuse();
   const chunks: Uint8Array[] = []; let size = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Membership input refused')), 5000); });
+  const deadline = new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error('Membership input rejected')), 5000); });
   try {
     for (;;) {
       const item = await Promise.race([reader.read(), deadline]); if (item.done) break;

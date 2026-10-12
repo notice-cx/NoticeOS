@@ -1052,7 +1052,7 @@ describe("Home — Decide", () => {
     workState.data = workPayload([capped]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/24\s*waiting on you/);
+    expect(panel).toHaveTextContent(/24\s*for you to decide/);
     expect(within(panel).getAllByRole("listitem")).toHaveLength(4);
     fireEvent.click(within(panel).getByRole("button", { name: "Show 6 more" }));
     expect(within(panel).getAllByRole("listitem")).toHaveLength(10);
@@ -1091,7 +1091,7 @@ describe("Home — Decide", () => {
     workState.data = workPayload([project("Meadow Board", [waiting()])], "2026-07-29T11:00:00.000Z");
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/1\s*waiting on you · oldest 1h · outdated/);
+    expect(panel).toHaveTextContent(/1\s*for you to decide · oldest 1h · outdated/);
     expect(panel.textContent!.match(/outdated/g)).toHaveLength(1);
   });
 
@@ -1104,7 +1104,7 @@ describe("Home — Decide", () => {
     workState.data = workPayload([known, failed]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/12\s*waiting on you · oldest 1h · partial read/);
+    expect(panel).toHaveTextContent(/12\s*for you to decide · oldest 1h · partial read/);
     expect(panel).not.toHaveTextContent("111");
   });
 
@@ -1114,7 +1114,7 @@ describe("Home — Decide", () => {
     workState.data = workPayload([emptyPreview]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/12\s*waiting on you/);
+    expect(panel).toHaveTextContent(/12\s*for you to decide/);
     expect(panel).toHaveTextContent("No request details read.");
     expect(panel).not.toHaveTextContent("Nothing to decide.");
   });
@@ -1220,7 +1220,7 @@ describe("Home and Wall phase scoping", () => {
     expect(business.querySelector("[data-wall-row='sites'] > [data-wall-slot] > [data-wall-sites]")).not.toBeNull();
     expect(side.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-revenue]")).not.toBeNull();
     expect(side.querySelector("[data-wall-row='work'] > [data-wall-slot] > [data-wall-work]")).not.toBeNull();
-    // Needs you and the feed stay in the library, off the default.
+    // Needs attention and the feed stay in the library, off the default.
     expect(container.querySelector("[data-wall-needs], [data-wall-feed]")).toBeNull();
     expect(strip!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip!.textContent).toContain("Team offsite - August 2026");
@@ -1271,7 +1271,7 @@ describe("Home and Wall phase scoping", () => {
     expect(waiting).toHaveTextContent("4 urgent");
     const decide = container.querySelector('[data-flow-node="decide"]')!;
     expect(decide).toHaveAttribute("data-state", "warn");
-    expect(decide).toHaveTextContent("waiting on you · 4 urgent");
+    expect(decide).toHaveTextContent("for you to decide · 4 urgent");
   });
 
   it("gives the TV one link, Home, on the strip's brand, and no controls", () => {

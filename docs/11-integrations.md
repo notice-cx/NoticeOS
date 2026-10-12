@@ -652,8 +652,8 @@ the stopped run, so no other record is written.
 `GET /api/projects/` reads, one per region, at once) and when the panel lists
 the account's sites (the project list, then each project's details and saved
 insights, at most 20 projects). Every read is bounded at 10 seconds; a rejection
-in both regions shows "PostHog refused this key", anything else "PostHog did
-not answer", with Try again (`workers/ingest/src/posthog-account.ts`).
+in both regions shows "PostHog rejected this key", anything else "No response
+from PostHog", with Try again (`workers/ingest/src/posthog-account.ts`).
 
 **Connection test.** The Test button reads each mapped site's project settings
 once (the account key's project list when no site is mapped yet). No query

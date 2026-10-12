@@ -52,7 +52,7 @@ it('groups connections by provider, then site: one row per provider with its one
     healthy({ id: 'b2', provider: 'bing-webmaster', capability: 'bing-daily', label: 'Bing daily reports', asset: 'a.test' }),
     healthy({ id: 'b3', provider: 'bing-webmaster', capability: 'bing-daily', label: 'Bing daily reports', asset: 'b.test' })]);
   const { container } = render(<MemoryRouter><IntegrationHealthPanel data={data} nowMs={NOW} providers={[connected('google'), connected('bing-webmaster'), { ...connected('discord'), credential: { ...connected('discord').credential, source: 'none', fields: [] } }]} /></MemoryRouter>);
-  // Needs you: Bing only, with the one failing site under it.
+  // Needs attention: Bing only, with the one failing site under it.
   const rows = container.querySelectorAll('[data-connection-row]');
   expect([...rows].map((row) => row.getAttribute('data-connection-row'))).toEqual(['bing-webmaster']);
   const bing = rows[0]!;

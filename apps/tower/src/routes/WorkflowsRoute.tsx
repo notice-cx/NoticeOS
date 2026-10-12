@@ -43,9 +43,9 @@ export function workflowsAnswer(states: readonly WorkflowState[], noun: string):
   if (states.length === 0) return { answer: `No ${noun} installed`, detail: '', mark: 'empty' };
   const attention = states.filter((state) => ATTENTION.has(state)).length;
   if (attention > 0) {
-    return { answer: `${attention} of ${states.length} ${noun} need you`, detail: tally(['failed', 'unknown', 'running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'attention' };
+    return { answer: `${attention} of ${states.length} ${noun} need attention`, detail: tally(['failed', 'unknown', 'running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'attention' };
   }
-  return { answer: `No ${noun} need you`, detail: tally(['running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'clear' };
+  return { answer: `No ${noun} need attention`, detail: tally(['running', 'waiting', 'succeeded', 'skipped', 'paused', 'never']), mark: 'clear' };
 }
 
 function WorkflowsAnswer({ states, noun }: { states: readonly WorkflowState[]; noun: string }) {

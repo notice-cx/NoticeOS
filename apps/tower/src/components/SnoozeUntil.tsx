@@ -38,7 +38,7 @@ export function SnoozeUntil({ until, nowMs, className }: SnoozeUntilProps) {
       title={Number.isNaN(at.getTime()) ? until : at.toISOString()}
     >
       <Glyph className="size-3.5" aria-hidden />
-      <span>{ended ? "back since" : "quiet until"}</span>
+      <span>{ended ? "back since" : "snoozed until"}</span>
       <span className="tabular-nums">{date}</span>
       <span className="tabular-nums opacity-70">{ended ? `${distance} ago` : `in ${distance}`}</span>
     </span>

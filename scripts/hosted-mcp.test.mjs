@@ -390,7 +390,7 @@ test('create_tasks files many in one call, links them by place, and a retry file
   assert.equal(f.effects.length, before, 'a malformed call files nothing');
 });
 
-test('awaitingHuman reads as Waiting on you does: an open human gate, or a ready task labelled human', async () => {
+test('awaitingHuman reads as Your decisions does: an open human gate, or a ready task labelled human', async () => {
   const f = fixture();
   const create = filer(f);
   await create('Answer the question', { labels: ['human'] });

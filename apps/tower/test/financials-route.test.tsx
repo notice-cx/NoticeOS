@@ -341,7 +341,7 @@ describe("/financials — a month the ledger cannot answer", () => {
     );
 
     expect(screen.getByText("Nothing recorded for January 2020")).toBeInTheDocument();
-    expect(screen.queryByText("The ledger did not answer")).toBeNull();
+    expect(screen.queryByText("The ledger could not be read")).toBeNull();
     expect(container.querySelector("[data-period-missing]")).toHaveAttribute(
       "data-period-missing",
       "2020-01",
@@ -397,7 +397,7 @@ describe("/financials — a month the ledger cannot answer", () => {
   it("still shows the ledger error for a failure that is not about the month", () => {
     renderRefusal(new Error("GET /api/financials failed: 500"), "/financials");
 
-    expect(screen.getByText("The ledger did not answer")).toBeInTheDocument();
+    expect(screen.getByText("The ledger could not be read")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Reload" })).toBeInTheDocument();
     expect(screen.queryByText(/Nothing recorded for/)).toBeNull();
   });
@@ -407,7 +407,7 @@ describe("/financials — a month the ledger cannot answer", () => {
     const { container } = renderPage(payload());
 
     expect(container.querySelector("[data-money-answer]")).not.toBeNull();
-    expect(screen.queryByText("The ledger did not answer")).toBeNull();
+    expect(screen.queryByText("The ledger could not be read")).toBeNull();
   });
 });
 
@@ -1560,9 +1560,9 @@ describe("/financials — the month, drawn", () => {
     }), "/financials?period=2026-09");
     const hero = container.querySelector<HTMLElement>("[data-money-answer]")!;
     expect(hero).toHaveAttribute("data-money-answer", "open");
-    expect(hero.querySelector("[data-money-context]")).toHaveTextContent("Heading for $450 revenue · 9 days left");
+    expect(hero.querySelector("[data-money-context]")).toHaveTextContent("Projected $450 revenue · 9 days left");
     const pace = hero.querySelector("[data-pace-bar]")!;
-    expect(pace).toHaveTextContent("heading for $450 · Aug total $400");
+    expect(pace).toHaveTextContent("projected $450 · Aug total $400");
     expect(pace.querySelector("[data-pace-projection]")).not.toBeNull();
     // The site's change is where it is heading, an estimate in neutral ink.
     const change = container.querySelector('[data-money-site="meadow.example"] [data-money-change]')!;

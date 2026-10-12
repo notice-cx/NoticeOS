@@ -324,7 +324,7 @@ export function PanelOverviews({ panel, className }: { panel: SerpPanelSnapshot;
           key: "aio-cites-us",
           label: "Cites us",
           value: board.aioPresent === 0 ? null : board.aioCitesUs,
-          note: board.aioPresent === 0 ? "no overview seen" : `of ${formatInt(board.aioPresent)} shown`,
+          note: board.aioPresent === 0 ? "no AI overview found" : `of ${formatInt(board.aioPresent)} shown`,
           fill: "bg-traffic",
           marks: { "data-serp-panel-stat": "aio-cites-us" },
         },
@@ -569,7 +569,7 @@ function RankCell({
     const reason = devices
       .map(
         (row) =>
-          `${serpPanelDeviceNoun(row.device)}: ${row.providerStatus ?? "provider did not answer"}`,
+          `${serpPanelDeviceNoun(row.device)}: ${row.providerStatus ?? "no response from the provider"}`,
       )
       .join("; ");
     return (
@@ -639,7 +639,7 @@ function FailedCallGlyph({ devices }: { devices: SerpPanelQuery[] }) {
   const title = devices
     .map(
       (row) =>
-        `${serpPanelDeviceNoun(row.device)}: ${row.providerStatus ?? "provider did not answer"}`,
+        `${serpPanelDeviceNoun(row.device)}: ${row.providerStatus ?? "no response from the provider"}`,
     )
     .join("; ");
   return (

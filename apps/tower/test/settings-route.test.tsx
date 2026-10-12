@@ -758,7 +758,7 @@ describe("/settings", () => {
 
     expect(screen.queryByRole("button", { name: "Set a countdown" })).toBeNull();
     const chip = container.querySelector('[data-settings-countdown-refused] [data-status-for="wall:countdown"]');
-    expect(chip?.textContent).toBe("Saved countdown refused");
+    expect(chip?.textContent).toBe("Saved countdown is invalid");
     expect((screen.getByLabelText("Countdown label") as HTMLInputElement).value).toBe("Launch day");
     fireEvent.change(screen.getByLabelText("Countdown emoji"), { target: { value: "🚀" } });
     fireEvent.click(

@@ -23,7 +23,7 @@ const span = (id: string, lane: string, severity: "error" | "warn", hoursAgo: nu
 const mark = (id: string, lane: string, hoursAgo: number): TimelineEvent => ({ id, lane, at: at(hoursAgo), kind: "win", label: id });
 
 describe("the timeline's budget", () => {
-  it("is Needs you's three", () => {
+  it("is Needs attention's three", () => {
     expect(WALL_TIMELINE_ROWS).toBe(3);
   });
 
@@ -87,9 +87,9 @@ describe("the loop", () => {
     const operator = { waiting: 3, urgent: 1, measuredProjects: 1, urgentMeasuredProjects: 1, projectCount: 2, capturedAt: at(0) };
     const nodes = byId(loopNodes({ assets: [asset("a.example", WORK), asset("b.example", WORK)], attention: [], operator }, NO_READS, NOW));
     expect(nodes.act).toMatchObject({ value: "4", caption: "in progress", state: "active" });
-    expect(nodes.decide).toMatchObject({ value: "3+", caption: "waiting on you · 1+ urgent", state: "warn" });
+    expect(nodes.decide).toMatchObject({ value: "3+", caption: "for you to decide · 1+ urgent", state: "warn" });
     const unknown = byId(loopNodes({ assets: [], attention: [], operator: { ...operator, waiting: 0, urgent: 0 } }, NO_READS, NOW));
-    expect(unknown.decide).toMatchObject({ caption: "waiting on you · unknown" });
+    expect(unknown.decide).toMatchObject({ caption: "for you to decide · unknown" });
     expect(unknown.decide?.value).toBeUndefined();
   });
 });
@@ -114,6 +114,6 @@ describe("the work chart", () => {
     const operator = { waiting: 2, urgent: 0, measuredProjects: 2, urgentMeasuredProjects: 2, projectCount: 2, capturedAt: at(0) };
     const { container } = render(<WallWork assets={[asset("a.example", WORK), asset("b.example", WORK)]} operator={operator} nowMs={NOW} />);
     expect([...container.querySelectorAll("[data-work-row]")].map((row) => row.getAttribute("data-work-row"))).toEqual(["a.example", "b.example"]);
-    expect(container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("Waiting on you2");
+    expect(container.querySelector('[data-material-condition~="human-gates"]')).toHaveTextContent("Your decisions2");
   });
 });

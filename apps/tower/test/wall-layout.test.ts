@@ -119,7 +119,7 @@ describe("the default layout", () => {
     expect(wallLayoutWarnings(DEFAULT_WALL_LAYOUT)).toEqual([]);
   });
 
-  it("places each of its widgets once, at the weight a fresh one gets, and leaves Needs you and the feed in the library", () => {
+  it("places each of its widgets once, at the weight a fresh one gets, and leaves Needs attention and the feed in the library", () => {
     const placed = wallLayoutWidgets(DEFAULT_WALL_LAYOUT);
     expect(placed.map((w) => w.type)).toEqual(["strip", "loop", "timeline", "sites", "revenue", "work"]);
     for (const widget of placed) {
@@ -268,7 +268,7 @@ describe("warnings leave the decision with the operator", () => {
       rows: [{ id: "top", height: "fill", widgets: [{ id: "strip", type: "strip", width: 1 }] }],
     };
     expect(wallLayoutWarnings(bare)).toEqual(["No sites on the TV", "No alerts on the TV"]);
-    // Either the timeline or Needs you puts the problems on the TV.
+    // Either the timeline or Needs attention puts the problems on the TV.
     const withNeeds: WallLayout = {
       version: 1,
       rows: [{ id: "top", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1 }, { id: "needs", type: "needs", width: 1 }] }],
@@ -523,7 +523,7 @@ describe("a column slot", () => {
           { id: "sites", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1 }] },
         ],
       },
-      history: [{ savedAt: "2026-09-05T10:00:00.000Z", reason: "Needs you wider", layout: DEFAULT_WALL_LAYOUT }],
+      history: [{ savedAt: "2026-09-05T10:00:00.000Z", reason: "Needs attention wider", layout: DEFAULT_WALL_LAYOUT }],
     };
     const before = JSON.stringify(saved);
     const config = parseWallConfig(saved);

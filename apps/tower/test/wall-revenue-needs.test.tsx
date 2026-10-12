@@ -1,4 +1,4 @@
-// The Wall's revenue and Needs you widgets, drawn from the synthetic Wall fixture.
+// The Wall's revenue and Needs attention widgets, drawn from the synthetic Wall fixture.
 
 import { render, within } from "./render";
 import { describe, expect, it, vi } from "vitest";
@@ -368,7 +368,7 @@ it('names partial dated previous-month coverage without calling it a portfolio t
   expect(container.querySelector('[data-revenue-change]')).toBeNull();
 });
 
-describe("Needs you", () => {
+describe("Needs attention", () => {
   it("is one calm line when nothing needs the operator", () => {
     const { container } = render(
       <NeedsYou
@@ -378,7 +378,7 @@ describe("Needs you", () => {
       />,
     );
     const calm = container.querySelector("[data-needs-calm]")!;
-    expect(calm.textContent).toBe("Nothing needs you");
+    expect(calm.textContent).toBe("Nothing needs attention");
     expect(calm.querySelector("svg")).not.toBeNull();
     expect(container.querySelector("[data-needs-row]")).toBeNull();
     expect(container.querySelector("[data-needs-meta]")).toBeNull();
@@ -421,7 +421,7 @@ describe("Needs you", () => {
 });
 
 describe("the Wall draws both from a layout", () => {
-  it("places revenue and Needs you in one row", () => {
+  it("places revenue and Needs attention in one row", () => {
     const layout: WallLayout = {
       version: 1,
       rows: [

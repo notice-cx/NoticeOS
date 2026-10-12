@@ -25,7 +25,7 @@ The editor also opens from **Settings** > **TV dashboard** > **Edit layout**, or
 - **The side panel**: the selected widget's settings. With nothing selected, it lists the widgets on the TV to pick from. **Add a widget** and **Versions** open in the same place.
 - **Site order**, under the side panel: **Move example.com up** or **down** sets the order the site rows are drawn in, everywhere.
 
-The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs you** and **Live feed**. The default layout places the first six. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Sites**, **Last 24 hours**, **Work** and **Needs you** can each be narrowed to some sites. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
+The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs attention** and **Live feed**. The default layout places the first six. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Sites**, **Last 24 hours**, **Work** and **Needs attention** can each be narrowed to some sites. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
 
 ## Move a widget
 

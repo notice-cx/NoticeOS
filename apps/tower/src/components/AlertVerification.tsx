@@ -59,7 +59,7 @@ const STATE_GLYPH: Record<SignalVerification["state"], LucideIcon> = {
 export const VERIFICATION_REASON_LABEL: Record<VerificationReason, string> = {
   "recorded-closed": "Closed in the store; recovery not checked",
   "recorded-event": "A recorded event",
-  "decision-owed": "Waiting on your decision",
+  "decision-owed": "Needs your decision",
   "report-unreadable": "No readable dated report",
   "report-still-flags": "Latest report still flags it",
   "report-too-old": "Last flagging report is too old",
@@ -69,7 +69,7 @@ export const VERIFICATION_REASON_LABEL: Record<VerificationReason, string> = {
   "linked-report-confirms": "Current report produced it",
   "linked-evaluation-too-old": "Linked evaluation is too old",
   "no-verifier": "No source check for this rule",
-  "no-check-after-onset": "No valid check since first seen",
+  "no-check-after-onset": "No valid check since first detected",
   "source-confirms": "Source confirmed it recently",
   "confirmation-stale": "Last check is past its freshness window",
   "mixed-states": "Sites differ; open each one",
@@ -87,7 +87,7 @@ export function verificationEvidence(
 ): IntegrationEvidence[] {
   const rows: IntegrationEvidence[] = [];
   const first = evidenceInstant(firstDetectedAt, nowMs);
-  if (first) rows.push({ polarity: "supporting", source: "First seen", detail: "", at: first });
+  if (first) rows.push({ polarity: "supporting", source: "First detected", detail: "", at: first });
   const confirmed = evidenceInstant(verification?.lastConfirmedAt, nowMs);
   if (confirmed) {
     rows.push({ polarity: "supporting", source: "Last confirmed", detail: verification?.source?.trim() ?? "", at: confirmed });
@@ -149,7 +149,7 @@ export function AlertVerification({ verification, firstDetectedAt, nowMs, intera
     {interactive ? <InfoTooltip label="Alert verification details" trigger={face}>
       <span className="font-medium">{label}</span>
       <dl className="m-0 grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-        <Fact label="First seen"><Instant value={firstDetectedAt} nowMs={nowMs} /></Fact>
+        <Fact label="First detected"><Instant value={firstDetectedAt} nowMs={nowMs} /></Fact>
         <Fact label="Last confirmed"><Instant value={verification?.lastConfirmedAt} nowMs={nowMs} /></Fact>
         <Fact label="Last checked"><Instant value={verification?.lastEvaluatedAt} nowMs={nowMs} /></Fact>
         <Fact label="Checked by">{verification?.source?.trim() || "—"}</Fact>

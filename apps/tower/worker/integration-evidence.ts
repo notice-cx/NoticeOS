@@ -258,7 +258,7 @@ export function uptimeState(
   return {
     effective: "degraded",
     evidence: [{
-      polarity: "against", source: "Home page did not answer",
+      polarity: "against", source: "Home page could not be reached",
       detail: check.httpStatus === null ? "No response" : `HTTP ${check.httpStatus}`,
       at: check.observedAt,
     }],

@@ -64,7 +64,7 @@ the same fixture's `WallFixtureVariant`s — one, two, three,
 six, seven and eight sites, and on fire — at 1920×1080 and fails if any reaches
 past the TV, paints outside its own box, cuts text off or draws half a feed row
 (the measurement `pnpm audit:wall-fit` runs, `scripts/wall-fit-measure.mts`), if a
-seventh site's row is not a full 70 px, or if the strip, Needs you and the site
+seventh site's row is not a full 70 px, or if the strip, Needs attention and the site
 marks do not say what is on fire.
 The Wall journeys set this up through `wall-scene.ts`. `wallScene` pins the
 clock and answers the Wall's five reads once, with each load starting from an

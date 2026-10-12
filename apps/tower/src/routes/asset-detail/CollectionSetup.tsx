@@ -99,7 +99,7 @@ export function FetchEndpointEditor({ asset }: { asset: string }) {
         {bad ? <p className="m-0 text-xs text-error">A full https:// URL</p> : null}
       </div>
       <div className="flex flex-col gap-1.5">
-        <label htmlFor={formatId} className="text-sm font-medium">Answers with</label>
+        <label htmlFor={formatId} className="text-sm font-medium">Response format</label>
         <select
           id={formatId}
           value={format}

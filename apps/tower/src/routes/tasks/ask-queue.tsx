@@ -41,9 +41,9 @@ export function AskQueue({ asks, total, complete, nowMs, showProject, className 
       items={items}
       total={total > 0 ? total : null}
       totalNote={complete ? undefined : "partial read"}
-      title="Waiting on you"
+      title="Your decisions"
       limit={ASK_ROWS}
-      empty={complete ? "Nothing is waiting on you." : "Waiting work is unknown for unread projects."}
+      empty={complete ? "No decisions for you." : "Waiting work is unknown for unread projects."}
       className={className}
     >
       {asks.map((ask, index) => (

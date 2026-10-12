@@ -341,7 +341,7 @@ function clarityProviderError(status: number, body: unknown): SignalError {
   if (status === 402 || status === 429) {
     return new SignalError(
       'clarity_daily_cap_reached',
-      `Clarity refused the call within its 10-per-project-per-day cap (HTTP ${status}). ${message}`.slice(
+      `Clarity rejected the call within its 10-per-project-per-day cap (HTTP ${status}). ${message}`.slice(
         0,
         500,
       ),

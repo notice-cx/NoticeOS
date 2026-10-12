@@ -35,7 +35,7 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
     }
     if (asset.pulse !== null) {
       const result = await ingestPulseEnvelope(env, asset.pulse);
-      if (!result.ok) throw new Error('Synthetic report refused by the ordinary writer.');
+      if (!result.ok) throw new Error('Synthetic report rejected by the ordinary writer.');
       written++;
     }
   }
@@ -48,7 +48,7 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
       note: row.note, coverage_start: row.coverageStart, coverage_end: row.coverageEnd,
       coverage_complete: row.coverageComplete,
     })), store);
-    if (result.failed || result.reviewRequired) throw new Error('Synthetic ledger input refused by the ordinary writer.');
+    if (result.failed || result.reviewRequired) throw new Error('Synthetic ledger input rejected by the ordinary writer.');
     written += result.inserted;
   }
   // A ship's change and its comparison, and a Monday's search reports, go
@@ -60,17 +60,17 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
   const clockMs = Math.max(Date.now(), Date.parse(`${day.date}T00:00:00.000Z`) + DAY_MS);
   for (const change of day.changes) {
     const annotation = await writeAnnotation(ingest, { asset: change.asset, kind: change.kind, at: change.at, ref: change.ref, note: change.note }, clockMs);
-    if (!annotation.ok) throw new Error('Synthetic change refused by the ordinary writer.');
+    if (!annotation.ok) throw new Error('Synthetic change rejected by the ordinary writer.');
     const watch = await writeWatchWindow(ingest, { asset: change.asset, ref_kind: 'annotation', ref: change.ref,
       metric_integration: change.watch.metricIntegration, metric: change.watch.metric, registered_at: change.at,
       baseline_start: change.watch.baselineStart, baseline_end: change.watch.baselineEnd, check_offsets: change.watch.checkOffsets,
       thresholds: change.watch.thresholds, note: change.watch.note }, clockMs);
-    if (!watch.ok) throw new Error('Synthetic comparison refused by the ordinary writer.');
+    if (!watch.ok) throw new Error('Synthetic comparison rejected by the ordinary writer.');
     written += 2;
   }
   for (const report of day.reports) {
     const result = await writeInsightSnapshot(ingest, JSON.stringify(report), clockMs);
-    if (!result.ok) throw new Error('Synthetic search report refused by the ordinary writer.');
+    if (!result.ok) throw new Error('Synthetic search report rejected by the ordinary writer.');
     written++;
   }
   // Observe the actual stored inputs at execution time. Catch-up never forges
@@ -149,6 +149,6 @@ export async function writeDemoOutcomeChecks(store: WorkspaceStore, at: string):
 
 export async function writeDemoTaskSnapshot(store: WorkspaceStore, snapshot: BeadsSnapshotInput): Promise<{ written: number }> {
   const result = await writeBeadsSnapshot({ STORE: store }, snapshot);
-  if (!result.ok) throw new Error('Synthetic task summary refused by the ordinary writer.');
+  if (!result.ok) throw new Error('Synthetic task summary rejected by the ordinary writer.');
   return { written: result.unchanged ? 0 : 1 };
 }

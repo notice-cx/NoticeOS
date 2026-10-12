@@ -231,7 +231,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const nothingWaits = totals.waiting === 0 && countsComplete;
   const answer = (
     <PageAnswer
-      answer={nothingWaits ? "Nothing waits on you" : waitingCount === "—" ? "Couldn't read what waits on you" : `${waitingCount} ${totals.waiting === 1 && countsComplete ? "decision waits" : "decisions wait"} on you`}
+      answer={nothingWaits ? "No decisions for you" : waitingCount === "—" ? "Couldn't read your decisions" : `${waitingCount} ${totals.waiting === 1 && countsComplete ? "decision" : "decisions"} for you`}
       detail={[
         gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : null,
         // The yardstick the three figures are read against.
@@ -251,7 +251,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
       <AskQueue asks={inbox} total={totals.waiting} complete={countsComplete} nowMs={now} showProject={!scoped} />
       {/* A list the eye can finish. */}
       {inbox.length > 0 && countsComplete ? (
-        <FinishLine line="That's everything waiting on you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} className="min-h-0 py-2.5" />
+        <FinishLine line="That's every decision for you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} className="min-h-0 py-2.5" />
       ) : null}
     </div>
   );

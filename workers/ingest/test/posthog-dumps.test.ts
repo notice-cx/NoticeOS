@@ -388,7 +388,7 @@ describe('PostHog product analytics archive', () => {
     // One short line a site's Data sources row draws.
     const stored = await pgAll<{ m: string }>(`SELECT DISTINCT error_message AS m FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`);
     expect(stored.results.map((row) => row.m)).toEqual([
-      'PostHog refused the key · HTTP 401 · Personal API key found in request Authorization header is invalid.',
+      'PostHog rejected the key · HTTP 401 · Personal API key found in request Authorization header is invalid.',
     ]);
     // The health classifier files it under access.
     const state = (await storedHealthStates()).find((row) => row.provider === 'posthog');

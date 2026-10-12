@@ -83,7 +83,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await expect(action).toBeInViewport();
           }
           if (state === 'populated' && name === 'sites') {
-            // The answer names the sites that need you, each a way in.
+            // The answer names the sites that need attention, each a way in.
             const row = main.locator('[data-portfolio-row]').first();
             const named = answer.locator('a[data-sites-answer-site]').first();
             await (await named.count() ? named : row.getByRole('link').first()).click();

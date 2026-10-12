@@ -107,7 +107,7 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-figure tabular-nums text-foreground">{formatInt(count)}</span>
             <span className="text-sm text-muted-foreground">
-              waiting on you{oldest !== null ? <> · oldest <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
+              for you to decide{oldest !== null ? <> · oldest <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
               {totalNote ? ` · ${totalNote}` : null}
             </span>
           </div>

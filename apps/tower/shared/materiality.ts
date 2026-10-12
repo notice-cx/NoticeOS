@@ -115,9 +115,9 @@ export const MATERIALITY = {
       "Urgent includes open human gates and blocker-aware P0/P1 human work. Missing task readings remain unknown in the asset preview.",
     priority: "critical",
     wall: { placement: "fixed-horizon", component: "WallWork", selector: '[data-material-condition~="human-gates"]' },
-    asset: { placement: "primary-content", component: "OverviewTab / NeedsYou", selector: 'section[aria-label="Needs you"]' },
+    asset: { placement: "primary-content", component: "OverviewTab / NeedsYou", selector: 'section[aria-label="Needs attention"]' },
     behavior: {
-      empty: "Complete measured zero renders calm.",
+      empty: "Complete measured zero renders in the neutral colour.",
       unknown: "Partial or stale hub coverage cannot render zero.",
       stale: "The hub photograph age remains attached to the posture.",
     },
@@ -154,7 +154,7 @@ export const MATERIALITY = {
   },
   "rollback-failure": {
     source: "watch-window-closed open flag with ruleInputs.outcome = kill_confirmed",
-    derivation: "A measured decline asks for a revert decision; it never claims rollback already happened.",
+    derivation: "A measured decline requires a revert decision; it never states that rollback already happened.",
     priority: "critical",
     wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="rollback-failure"]' },
     asset: { placement: "primary-content", component: "AlertsTab / AlertRow", selector: '[data-material-condition~="rollback-failure"]' },
@@ -189,14 +189,14 @@ export const WALL_PAYLOAD_INVENTORY = {
   // keeps fields no screen draws: `bookedDelta` (the last two closed months),
   // `residue`, `daysIn` and `trendGranularity` reach agents only.
   portfolio: { class: "material-current", placement: "primary-content", destination: "RevenueHero + Home and Sites net; MCP list_properties returns the whole band" },
-  system: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline System row and its calm line + Home System tile" },
+  system: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline System row and its neutral line + Home System tile" },
   dashboard: { class: "configuration", placement: "primary-content", destination: "WallStrip countdown + the saved Wall layout" },
   assets: { class: "material-current", placement: "primary-content", destination: "SiteRows + WallLoop + WallWork" },
   attention: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline problem bars + SiteRows issue marks" },
   // History: a snoozed condition is a decision already made, so it belongs on
   // `/alerts`, never on the Wall.
   snoozed: { class: "history", placement: "primary-content", destination: "AlertsRoute Snoozed list" },
-  operator: { class: "material-current", placement: "fixed-horizon", destination: "WallWork Waiting on you + WallLoop Decide" },
+  operator: { class: "material-current", placement: "fixed-horizon", destination: "WallWork Your decisions + WallLoop Decide" },
   ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen)" },
 } satisfies Record<keyof WallPayload, PayloadConcern>;
 

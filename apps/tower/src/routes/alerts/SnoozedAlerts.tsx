@@ -59,7 +59,7 @@ export function SnoozedAlerts({ items, nowMs }: { items: readonly SnoozedItem[];
                 </>
               }
               age={formatAge(ageMs(nowMs, item.firstFiredAt))}
-              ageLabel="first seen"
+              ageLabel="first detected"
               ageLabelAlways
               actions={<FlagActions flagId={item.id} assetId={item.asset} snoozed />}
             >
