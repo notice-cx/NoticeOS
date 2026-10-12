@@ -562,7 +562,9 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
             const bing = payload.providers.find(row => row.provider.id === 'bing-webmaster').credential;
             assert.equal(bing.metadata.account, `${slug} generated account`);
             assert.equal(bing.source, 'store');
-            assert.equal(payload.providers.find(row => row.provider.id === 'mediavine').credential.source, 'none');
+            // Only the fixed demo holds demo connections, and only where it
+            // stores no credential of its own.
+            assert.equal(payload.providers.find(row => row.provider.id === 'mediavine').credential.source, workspace === demo ? 'demo' : 'none');
           } else assert.equal(payload.countsHistory.series.sitesFailing[0].v, count);
         }
       }

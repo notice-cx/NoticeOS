@@ -2,7 +2,7 @@ import { env } from 'cloudflare:test';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { connectionState } from '@noticeos/contract';
 import { emptyTables, reset, storedCount, storeSignalRun } from './helpers.js';
-import { credentialSummary, listCredentialSummaries, resolveCredential } from '../src/credentials.js';
+import { credentialSummary, listCredentialSummaries, putCredential, resolveCredential } from '../src/credentials.js';
 import { readIntegrationHealth } from '../src/integration-health-read.js';
 import { persistReport } from '../src/mediavine.js';
 import { forgetConfigCache, getConfigDocument, seedConfigDocuments } from '../src/config-store.js';
@@ -86,6 +86,16 @@ it('a failed refresh reads as failing, and the next success as working again', a
     finished_at: minutesAgo(1) });
   const back = (await readIntegrationHealth(demo, NOW)).items.find(entry => entry.capability === 'ga4-daily' && entry.asset === ASSET);
   expect(back?.state).toBe('healthy');
+});
+
+it('a credential the demo workspace stores is the answer, never a demo connection', async () => {
+  await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-stored-key' } });
+  const demo = await demoEnv();
+  const state = await listCredentialSummaries(demo);
+  expect(state.summaries.find(summary => summary.provider === 'bing-webmaster')?.source).toBe('store');
+  expect(state.summaries.find(summary => summary.provider === 'google')?.source).toBe('demo');
+  expect((await resolveCredential(demo, 'bing-webmaster')).source).toBe('store');
+  expect((await credentialSummary(demo, 'bing-webmaster'))?.source).toBe('store');
 });
 
 it('any other profile or workspace with the same rows reads not connected', async () => {

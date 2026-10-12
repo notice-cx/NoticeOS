@@ -2,8 +2,9 @@
 // with no login. No secret or key exists and nothing is fetched. Only the
 // server's demo profile holds one, and only for the one demo workspace its
 // composition names; any other profile or workspace, whatever its rows say,
-// reads these providers as not connected. Their evidence is the collection
-// runs the demo's simulator records.
+// reads these providers as not connected, and a credential the workspace
+// stores is always the answer. Their evidence is the collection runs the
+// demo's simulator records.
 
 import type { IntegrationProviderId } from '@noticeos/contract';
 import { readProductEnv, workspaceProfile } from '../../../scripts/product-env.mjs';

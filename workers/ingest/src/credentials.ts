@@ -673,7 +673,7 @@ export async function listCredentialSummaries(
     keyReason: demo ? null : key.reason,
     blockers: key.blocker === null || demo ? [] : [key.blocker],
     summaries: INTEGRATION_PROVIDERS.map((provider) =>
-      demo && DEMO_CONNECTED_PROVIDERS.includes(provider.id) ? demoSummary(provider)
+      demo && DEMO_CONNECTED_PROVIDERS.includes(provider.id) && !byProvider.has(provider.id) ? demoSummary(provider)
         : summarize(provider, byProvider.get(provider.id) ?? null, env, register),
     ),
   };
@@ -687,8 +687,8 @@ export async function credentialSummary(
 ): Promise<CredentialSummary | null> {
   const provider = integrationProvider(providerId);
   if (provider === null) return null;
-  if (await demoConnection(env, provider.id)) return demoSummary(provider);
   const row = await readRow(env.STORE, provider.id);
+  if (row === null && await demoConnection(env, provider.id)) return demoSummary(provider);
   if (row === null && policy === 'store-only') return null;
   return summarize(provider, row, env, policy === 'store-only' ? undefined : await legacyRegister(env));
 }
@@ -1473,11 +1473,12 @@ export async function resolveCredential(
   if (provider === null) {
     return { workspaceId, connectionId: null, provider: providerId, source: 'none', fields: {}, legacySlots: {} };
   }
-  if (await demoConnection(env, provider.id)) {
+  const row = await readRow(env.STORE, provider.id);
+  // A stored credential is always the answer; a demo connection only stands
+  // in where the demo workspace stores none.
+  if (row === null && await demoConnection(env, provider.id)) {
     return { workspaceId, connectionId: null, provider: provider.id, source: 'demo', fields: {}, legacySlots: {} };
   }
-
-  const row = await readRow(env.STORE, provider.id);
   if (row !== null) {
     try {
       return {
