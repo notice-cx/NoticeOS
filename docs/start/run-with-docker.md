@@ -169,7 +169,7 @@ The app mounts the checkout read-only and refreshes the Tower live. The Wall cap
 
 - An `os:*` command reports that the selector is invalid or a service is unexpected: `.local/stack.json` is missing or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; the stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 - `pnpm os:convert-legacy` stops: the error message names what the layout cannot hold (another service, a stack that is not healthy, a network of the same name it did not create). Nothing was changed.
-- `pnpm os:apply` stops: the error message gives the reason, and nothing was changed. See [`pnpm os:apply` refusals](/operate/troubleshooting#pnpm-os-apply-refusals).
+- `pnpm os:apply` stops: the error message gives the reason, and nothing was changed. See [When `pnpm os:apply` stops](/operate/troubleshooting#when-pnpm-os-apply-stops).
 - `pnpm os:apply` reports that starting a service failed: the message shows whether the stack returned to its earlier settings. Fix `installation.env` with Docker's output and `pnpm os:logs -- <service>`, then apply again.
 - `os:update` or `os:setup` reports that the published image "was not built from this checkout's source": nothing was changed. Add `-- --build` to build it here.
 - `os:update` stops on changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again.

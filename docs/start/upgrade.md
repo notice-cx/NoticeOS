@@ -118,7 +118,7 @@ The demo has its own updater, `deploy/demo/update.sh`, which builds the target c
 - The apply exits non-zero: 1 means it failed and rolled back, 2 means it stopped with nothing changed, 3 means no Postgres tools on this machine.
 - `noticeos update` reports that `installation.env` has an edit that is not applied yet: run `~/noticeos/noticeos apply`, or undo the edit, then update again.
 - The update reports that the published image "was not built from this checkout's source": nothing changed. Run `pnpm os:update -- --build` to build it here.
-- The update stops on changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again. See [Troubleshooting](/operate/troubleshooting#update-refusals).
+- The update stops on changed source, declarations or image labels: the stack changed between preparing and applying the plan. Run `pnpm os:status`, then update again. See [Troubleshooting](/operate/troubleshooting#when-an-update-stops).
 
 The policy itself is in [the release policy](../reference/release-policy.md). The migration tool's full contract is at https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/README.md#applying-it-to-an-installations-own-database.
 
