@@ -23,9 +23,15 @@ const workerSteps = {
     dataforseo: [action('search', 'Collect search intelligence', 'Retrieves paid ranking and backlink data within the existing budget.', 'collection')],
     counters: [action('counters', 'Refresh asset counters', 'Retrieves configured public asset counters.', 'collection'), action('google', 'Refresh Google signals', 'Retrieves current Google traffic and search snapshots.', 'collection')],
 };
+// What a local job's one stage does, where a hosted service runs it too and
+// "this machine" would not be true.
+const localSteps = {
+    'beads-snapshot': 'Reads each project’s task board and keeps its summary.',
+    'watch-readbacks': 'Posts each closed outcome’s verdict on the task that owns its reading.',
+};
 export const WORKFLOW_DEFINITIONS = SCHEDULED_JOBS.map((job) => {
     const stages = job.local
-        ? [action('execute', job.label, 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
+        ? [action('execute', job.label, localSteps[job.id] ?? 'Runs in the local service on this machine.', job.group === 'Monitoring' ? 'check' : 'task', [])]
         : [action('config', 'Load collection settings', 'Reads the saved configuration for this execution.', 'task', []), ...workerSteps[job.id]];
     return { ...job, version: 1, triggerKind: 'schedule', stages: [...stages,
             action('record', 'Record execution', 'Persists this run’s result for operational history.', 'storage', job.local ? ['execute'] : workerSteps[job.id].map((s) => s.id))] };
