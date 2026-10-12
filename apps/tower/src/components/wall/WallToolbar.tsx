@@ -134,7 +134,7 @@ export function WallToolbar({
               <StateChip label="Unsaved changes" tone="caution" subject="wall:layout" />
             ) : state === "refused" ? (
               <StateChip
-                label="Saved layout refused"
+                label="Saved layout is invalid"
                 tone="critical"
                 glyph={<TriangleAlert className="size-3" aria-hidden />}
                 title={replacing ?? undefined}
@@ -157,7 +157,7 @@ export function WallToolbar({
               data-wall-countdown-refused
             >
               <StateChip
-                label="Saved countdown refused"
+                label="Saved countdown is invalid"
                 tone="critical"
                 glyph={<TriangleAlert className="size-3" aria-hidden />}
                 title={countdownRefused}

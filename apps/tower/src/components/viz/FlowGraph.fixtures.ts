@@ -82,7 +82,7 @@ export const FLOW_DEPENDENCIES: FlowFixture = {
   nodes: [
     { id: "headline", label: "Write the new headline", caption: "closed 2d ago", state: "ok", stateLabel: "Done" },
     { id: "variant", label: "Build variant B", caption: "agent working", state: "active", stateLabel: "In progress" },
-    { id: "access", label: "Grant analytics access", caption: "waiting on you", state: "error", stateLabel: "Blocked", since: ago(2 * 24 * 60), column: 1 },
+    { id: "access", label: "Grant analytics access", caption: "for you to decide", state: "error", stateLabel: "Blocked", since: ago(2 * 24 * 60), column: 1 },
     { id: "launch", label: "Launch the test", caption: "1 of 2 ready", state: "warn", stateLabel: "Waiting" },
     { id: "read", label: "Read the result", caption: "14 days after launch", state: "idle", stateLabel: "Not started" },
   ],

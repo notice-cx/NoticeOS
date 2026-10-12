@@ -338,7 +338,7 @@ test('the reader follows the Tower\'s service binding into the ingest it calls',
     '}',
     '',
   ].join('\n'));
-  checkout.write('workers/ingest/src/probes.ts', "import { grantHint } from './hint';\nexport function probeCredential(provider: string) {\n  return { ok: false, message: `${provider} refused the key. ${grantHint()}` };\n}\n");
+  checkout.write('workers/ingest/src/probes.ts', "import { grantHint } from './hint';\nexport function probeCredential(provider: string) {\n  return { ok: false, message: `${provider} rejected the key. ${grantHint()}` };\n}\n");
   checkout.write('workers/ingest/src/hint.ts', 'export const grantHint = () => "Add the account as Viewer.";\n');
   checkout.write('workers/ingest/src/pulse.ts', `export const handlePulse = (request: Request) => new Response("${HELPER}", { status: 400 });\n`);
   const scope = traceScope(workingTree(checkout.root));

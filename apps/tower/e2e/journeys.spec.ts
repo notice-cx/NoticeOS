@@ -354,7 +354,7 @@ test('Mediavine signs in in the panel, its site is matched by domain and synced 
   await panel.getByLabel('Password', { exact: true }).fill('not-the-password');
   await keyboardActivate(page, panel.getByRole('button', { name: 'Connect', exact: true }));
   // A refused login is never kept, and its password is not left on screen.
-  await expect(panel.locator('[data-connect-state="refused"]')).toHaveText('Mediavine refused these details');
+  await expect(panel.locator('[data-connect-state="refused"]')).toHaveText('Mediavine rejected these details');
   await expect(panel.getByLabel('Password', { exact: true })).toHaveValue('');
   let state = await (await page.request.get('/__journey/status')).json();
   expect(state.requests.filter((row: { path: string }) => row.path === '/api/integrations/mediavine/connect')).toHaveLength(1);
@@ -665,7 +665,7 @@ function expectStackedInOrder(stack: ReturnType<typeof wallStack>, at: string) {
   expect(stack.feed.shown, `${at}: the feed lists at most the TV's rows`).toBe(Math.min(stack.feed.fetched, WALL_FEED_TV_ROWS));
   expect(stack.feed.newestFirst, `${at}: the feed newest first`).toBe(true);
   const order = [...stack.regions].sort((a, b) => a.top - b.top).map((region) => region.name);
-  expect(order, `${at}: strip, revenue, sites, Needs you, feed`).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
+  expect(order, `${at}: strip, revenue, sites, Needs attention, feed`).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
   for (const region of stack.regions) {
     expect(Math.abs(region.left - stack.canvas.left), `${at}: ${region.name} starts at the column's edge`).toBeLessThanOrEqual(1);
     expect(Math.abs(region.right - stack.canvas.right), `${at}: ${region.name} spans the column`).toBeLessThanOrEqual(1);
@@ -843,13 +843,13 @@ test.describe(() => {
       });
       // One scale for the whole Wall: the TV's 1920 × 1080 fitted to the screen.
       expect(found.zoom, `${at}: the TV's box fitted to the screen`).toBeCloseTo(Math.min(width / 1920, height / 1080), 3);
-      // The TV's arrangement: the strip on top; revenue beside Needs you over
+      // The TV's arrangement: the strip on top; revenue beside Needs attention over
       // the site rows; the feed to the right of all three, the body's height.
       expect(found.revenue.top, `${at}: revenue under the strip`).toBeGreaterThanOrEqual(found.strip.bottom);
-      expect(found.needs.left, `${at}: Needs you beside revenue`).toBeGreaterThanOrEqual(found.revenue.right);
+      expect(found.needs.left, `${at}: Needs attention beside revenue`).toBeGreaterThanOrEqual(found.revenue.right);
       expect(found.sites.top, `${at}: the site rows under revenue`).toBeGreaterThanOrEqual(found.revenue.bottom);
       expect(found.feed.left, `${at}: the feed right of the site rows`).toBeGreaterThanOrEqual(found.sites.right);
-      expect(found.feed.left, `${at}: the feed right of Needs you`).toBeGreaterThanOrEqual(found.needs.right);
+      expect(found.feed.left, `${at}: the feed right of Needs attention`).toBeGreaterThanOrEqual(found.needs.right);
       expect(Math.abs(found.feed.top - found.revenue.top), `${at}: the feed from the body's top`).toBeLessThanOrEqual(1);
       // Bounded: its share of the row between 21 and 30 rem of the TV's box —
       // about a quarter of the screen — and the site rows take the rest.
@@ -1371,7 +1371,7 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
   const layoutState = (state: "saved" | "refused") => bar.locator(`[data-save-state="${state}"] [data-status-for="wall:layout"]`);
   const refusal = page.locator('[data-sonner-toast][data-type="error"]');
   const saved = page.locator('[data-sonner-toast][data-type="success"]', { hasText: "Saved — TV layout" });
-  await expect(layoutState("refused")).toHaveText("Saved layout refused");
+  await expect(layoutState("refused")).toHaveText("Saved layout is invalid");
   await expect(layoutState("refused")).toHaveAttribute("title", /at least one row/);
   await expect(page.locator("[data-wall-unreadable]")).toHaveCount(0);
   await bar.getByRole("button", { name: /^Versions/ }).click();
@@ -1407,7 +1407,7 @@ test("a saved countdown the Tower cannot read leaves the layout standing, and it
   await expect(page.locator("[data-wall-edit-widget]")).toHaveCount(2); // the saved strip and sites, not the default
   await expect(bar.locator('[data-save-state="saved"] [data-status-for="wall:layout"]')).toHaveText("On the TV");
   const countdown = bar.locator('[data-wall-countdown-refused] [data-status-for="wall:countdown"]');
-  await expect(countdown).toHaveText("Saved countdown refused");
+  await expect(countdown).toHaveText("Saved countdown is invalid");
   await page.screenshot({ path: testInfo.outputPath("wall-countdown-refused.png") });
 
   // The chip opens the strip's form, which starts from what still reads.
@@ -1535,7 +1535,7 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   );
   expect(lineSizes.length).toBeGreaterThan(0);
   for (const { drawn, step } of lineSizes) expect(drawn).toBe(step);
-  // One list ramp: a Needs you row and a feed row draw their label, main line
+  // One list ramp: a Needs attention row and a feed row draw their label, main line
   // and meta at the same sizes, so neither list reads louder than the other.
   await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(1);
   const ramp = await page.evaluate(() => {
@@ -1548,7 +1548,7 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
       feed: [size("[data-feed-label]"), size("[data-feed-text]"), size("[data-feed-time]")],
     };
   });
-  expect(ramp.needs, "Needs you and the feed share one list ramp").toEqual(ramp.feed);
+  expect(ramp.needs, "Needs attention and the feed share one list ramp").toEqual(ramp.feed);
   expect(ramp.feed, "label, main line and meta at 1920").toEqual([14, 18, 14]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-before.png") });
 
@@ -1601,7 +1601,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   // no green state, no stored credential.
   await key.fill("journey-wrong-key");
   await keyboardActivate(page, panel.getByRole("button", { name: "Connect", exact: true }));
-  await expect(panel.locator('[data-connect-state="refused"]')).toHaveText("Bing Webmaster Tools refused this key");
+  await expect(panel.locator('[data-connect-state="refused"]')).toHaveText("Bing Webmaster Tools rejected this key");
   await expect(key).toHaveValue("");
   await expect(panel.getByText("Key accepted")).toHaveCount(0);
   expect((await (await page.request.get("/__journey/status")).json()).connected).toBe(false);
@@ -1797,7 +1797,7 @@ test("empty install → saved asset → fake connection and mapping → real met
   expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
   expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Example headline --json --actor"))).toBe(true);
   // Said once, in the answer; an emptied queue draws no empty panel.
-  await expect(page.locator("[data-tasks-answer]")).toContainText("Nothing waits on you");
+  await expect(page.locator("[data-tasks-answer]")).toContainText("No decisions for you");
   await expect(page.locator("[data-waiting-list]")).toHaveCount(0);
   await assertNoPageOverflow(page);
 

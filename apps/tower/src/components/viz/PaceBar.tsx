@@ -90,7 +90,7 @@ export function PaceBar({
         </span>
         {/* Each fact keeps its words together; the line may break between them. */}
         <span>
-          {projected !== null ? <><span className="whitespace-nowrap">heading for <span className="font-medium text-foreground">{format(projected)}</span></span> · </> : null}
+          {projected !== null ? <><span className="whitespace-nowrap">projected <span className="font-medium text-foreground">{format(projected)}</span></span> · </> : null}
           <span className="whitespace-nowrap">{previousTotal !== null ? `${previousLabel} total ${format(previousTotal)}` : `${previousLabel} total not known`}</span>
         </span>
       </div>
@@ -134,7 +134,7 @@ export function paceSummary({
   } else {
     parts.push(`no ${previousLabel} figure to compare`);
   }
-  if (projected !== null) parts.push(`heading for ${format(projected)}`);
+  if (projected !== null) parts.push(`projected ${format(projected)}`);
   if (previousTotal !== null) parts.push(`${previousLabel} total ${format(previousTotal)}`);
   return parts.join("; ");
 }

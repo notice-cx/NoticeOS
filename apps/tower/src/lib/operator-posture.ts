@@ -35,7 +35,7 @@ export function operatorState(operator: OperatorPosture | null | undefined, nowM
 }
 
 /**
- * The inbox in words: "3 urgent · 12 need you", "Inbox unknown", "0 need you".
+ * The inbox in words: "3 urgent · 12 need attention", "Inbox unknown", "0 need attention".
  *
  * Beside `operatorState` so every surface says exactly the same sentence. The
  * `+` suffixes are load-bearing — a partial snapshot renders a visible LOWER
@@ -44,7 +44,7 @@ export function operatorState(operator: OperatorPosture | null | undefined, nowM
  */
 export function operatorLabel(operator: OperatorPosture, nowMs: number): string {
   const state = operatorState(operator, nowMs)!;
-  const total = `${operator.waiting}${state.complete ? "" : "+"} need you`;
+  const total = `${operator.waiting}${state.complete ? "" : "+"} need attention`;
   return operator.waiting > 0
     ? state.urgentComplete
       ? `${operator.urgent} urgent · ${total}`
@@ -55,7 +55,7 @@ export function operatorLabel(operator: OperatorPosture, nowMs: number): string 
       ? "Inbox unknown"
       : state.stale
         ? "Inbox stale"
-        : "0 need you";
+        : "0 need attention";
 }
 
 /**

@@ -612,7 +612,7 @@ export function NeedsYou({
         : "Nothing waiting";
   return (
     <ListPanel
-      title="Needs you"
+      title="Needs attention"
       count={<span className="inline-flex flex-wrap items-center gap-x-2 gap-y-1">
         <span>{count}
           {measured && rows.length < operator.waiting! ? ` · ${rows.length} shown` : ""}

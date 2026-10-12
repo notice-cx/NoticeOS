@@ -828,7 +828,7 @@ describe("buildIntegrationsMatrix", () => {
     expect(nomUptime.effective).toBe("degraded");
     // Its own check, not the overdue report.
     expect(nomUptime.evidence).toEqual([{
-      polarity: "against", source: "Home page did not answer", detail: "HTTP 503",
+      polarity: "against", source: "Home page could not be reached", detail: "HTTP 503",
       at: new Date(NOW_MS - 20 * 60_000).toISOString(),
     }]);
 
@@ -1102,7 +1102,7 @@ describe("the L0 egress lane", () => {
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Reference sites that did not answer",
+      source: "Reference sites that could not be reached",
       // Dated from the first down verdict, so the row ages from when the
       // connection went rather than from the last time the gate re-asked.
       at: "2026-07-04T02:30:00.000Z",
@@ -1262,7 +1262,7 @@ describe("the L0 egress lane", () => {
       evidence: [
         {
           polarity: "against",
-          source: "Reference sites that did not answer",
+          source: "Reference sites that could not be reached",
           detail: "",
           at: "2026-07-04T02:30:00.000Z",
         },
@@ -1654,14 +1654,14 @@ describe("a full register renders completely", () => {
       credential_ref: "POSTHOG_KEYS", property_ref: "us:424242", report_date: "2026-07-05",
       requested_at: "2026-07-05T11:50:00.000Z", finished_at: "2026-07-05T11:50:01.000Z", status: "error",
       error_code: "posthog_query_budget_exceeded",
-      error_message: "PostHog refused the query (HTTP 429, hourly query budget used up).",
+      error_message: "PostHog rejected the query (HTTP 429, hourly query budget used up).",
     });
     m = await buildIntegrationsMatrix(ctx.call, deps(fullRegister));
     cell = m.cells["meadow.example"]![index(m)]!;
     expect(cell.effective).toBe("degraded");
     expect(cell.evidence[0]).toMatchObject({ polarity: "against", source: "PostHog collector failed",
     });
-    expect(cell.evidence[0]!.detail).toContain("exceptions: PostHog refused the query");
+    expect(cell.evidence[0]!.detail).toContain("exceptions: PostHog rejected the query");
   });
 
   // Clarity is collector-backed the same way: its export writes one manifest

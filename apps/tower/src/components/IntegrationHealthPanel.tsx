@@ -177,10 +177,10 @@ export function IntegrationHealthPanel({ data, isError = false, nowMs, provider,
       <Kpi label="Sites working" value={known ? counts.sitesWorking : '—'} valueTone={known && counts.sitesWorking ? 'healthy' : 'default'} caption="latest attempt" {...history('sitesWorking')} />
     </KpiStrip>
     <div className="flex items-center gap-1 border-t border-border px-4 py-2 md:px-6" aria-label="Show connections" role="group">
-      {([['needs', `Needs you · ${pressing.length}`], ['all', `All · ${statuses.length}`]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setChosen(value)} className={cn('min-h-11 rounded-md px-3 text-xs font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring', filter === value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>{label}</button>)}
+      {([['needs', `Needs attention · ${pressing.length}`], ['all', `All · ${statuses.length}`]] as const).map(([value, label]) => <button key={value} type="button" aria-pressed={filter === value} onClick={() => setChosen(value)} className={cn('min-h-11 rounded-md px-3 text-xs font-medium tabular-nums outline-none focus-visible:ring-2 focus-visible:ring-ring', filter === value ? 'bg-foreground text-background' : 'text-muted-foreground hover:bg-muted')}>{label}</button>)}
     </div>
     {!known ? <p className="flex items-center gap-2 border-t border-border px-4 py-6 text-sm text-muted-foreground md:px-6" data-connections-unconfirmed><CircleHelp className="size-4" aria-hidden />Not confirmed</p>
-      : shown.length === 0 ? <p className="flex items-center gap-2 border-t border-border px-4 py-6 text-sm text-muted-foreground md:px-6"><Check className="size-4 text-connected" aria-hidden />Nothing needs you</p> : null}
+      : shown.length === 0 ? <p className="flex items-center gap-2 border-t border-border px-4 py-6 text-sm text-muted-foreground md:px-6"><Check className="size-4 text-connected" aria-hidden />Nothing needs attention</p> : null}
     <ul aria-label="Connections">
       {shown.map(({ entry, status }) => {
         const id = entry.provider.id;

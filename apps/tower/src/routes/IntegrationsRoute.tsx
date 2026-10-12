@@ -354,7 +354,7 @@ export function integrationsAnswer(rows: readonly { name: string; shown: Connect
   const problems = rows.filter(({ shown }) => needsYou(shown));
   if (problems.length > 0) {
     return {
-      answer: problems.length === 1 ? `${problems[0]!.name} needs you` : `${problems.length} of ${total} integrations need you`,
+      answer: problems.length === 1 ? `${problems[0]!.name} needs attention` : `${problems.length} of ${total} integrations need attention`,
       detail: problems.map(({ name, shown }) => `${name} ${shown.kind === "overdue" ? "overdue" : "failing"}`).join(" · "),
       mark: "problem",
     };

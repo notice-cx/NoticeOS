@@ -138,7 +138,7 @@ export default function FinancialsRoute() {
         /* Only a ledger that never answered: a failed refresh keeps the
            last-good figures on screen. The way out is the button. */
         <EmptyState
-          title="The ledger did not answer"
+          title="The ledger could not be read"
           hint={
             <button
               type="button"

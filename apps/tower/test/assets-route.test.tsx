@@ -189,7 +189,7 @@ afterEach(() => {
   state.isPending = false;
 });
 
-describe("/assets — which site needs you, and how each is doing", () => {
+describe("/assets — which site needs attention, and how each is doing", () => {
   it("draws one row per site in the saved order, each with its one health word, its name opening the site", () => {
     const { container } = renderAssets();
 
@@ -225,18 +225,18 @@ describe("/assets — which site needs you, and how each is doing", () => {
     expect(screen.getAllByRole("button", { name: "Add a site" })).toHaveLength(1);
   });
 
-  it("opens with one answer: which sites need you, each named a way in", () => {
+  it("opens with one answer: which sites need attention, each named a way in", () => {
     const { container } = renderAssets();
 
     const answer = container.querySelector<HTMLElement>("[data-sites-answer]")!;
     expect(answer).toHaveAttribute("data-surface-hero");
     expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
-    expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need you");
+    expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need attention");
     expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meadow Board", "Northwind"]);
     expect(answer.querySelector("[data-visitors-figure]")).toHaveTextContent("1,500");
   });
 
-  it("says All on track when no site needs you, and counts the ones still setting up apart", () => {
+  it("says All on track when no site needs attention, and counts the ones still setting up apart", () => {
     const calm = [assetCard({ id: "one.example" }), assetCard({ id: "two.example" })];
     const { container, unmount } = renderAssets("/assets", calm);
     expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("All 2 sites on track");
@@ -249,7 +249,7 @@ describe("/assets — which site needs you, and how each is doing", () => {
   it("answers for the portfolio, not the narrowed view", () => {
     const { container } = renderAssets("/assets?status=live");
 
-    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 sites need you");
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 sites need attention");
     expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · stage: live");
   });
 
@@ -366,10 +366,10 @@ describe("/assets — the orderings", () => {
     expect(screen.queryByRole("link", { name: "Clear" })).toBeNull();
   });
 
-  it("orders from the URL: who needs you, people and name", () => {
+  it("orders from the URL: who needs attention, people and name", () => {
     const byHealth = renderAssets("/assets?sort=health");
     expect(shown(byHealth.container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
-    expect(pressed("Order")).toEqual(["Needs you"]);
+    expect(pressed("Order")).toEqual(["Needs attention"]);
     byHealth.unmount();
 
     // A site with no finished day sinks below every measured one.
@@ -435,7 +435,7 @@ describe("/assets — the comparison arrives with a second site", () => {
   it("with two sites, compares them", () => {
     const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
     const shownMachinery = machinery(container);
-    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need you");
+    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need attention");
     expect(shownMachinery.split).not.toBeNull();
     expect(shownMachinery.order).not.toBeNull();
     expect(shownMachinery.stage).not.toBeNull();

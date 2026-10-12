@@ -10,7 +10,7 @@ async function post(fetch: ApiTransport, path: string, body: unknown, signal: Ab
   if (sessionId !== undefined) headers.set(WORKSPACE_SESSION_HEADER, sessionId);
   const response = await fetch(path, { method: 'POST', body: JSON.stringify(body), headers, credentials: 'same-origin',
     mode: 'same-origin', cache: 'no-store', signal: AbortSignal.any([AbortSignal.timeout(10_000), signal]) });
-  if (!response.ok) { void response.body?.cancel().catch(() => {}); throw new Error('Agent request refused.'); }
+  if (!response.ok) { void response.body?.cancel().catch(() => {}); throw new Error('Agent request rejected.'); }
   return response.json();
 }
 export async function describeAgent(fetch: ApiTransport, query: string, signal: AbortSignal): Promise<AgentRequest> {

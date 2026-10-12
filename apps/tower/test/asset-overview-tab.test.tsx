@@ -855,7 +855,7 @@ describe("Asset Overview — the two lists", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
     fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    const needs = within(container.querySelector<HTMLElement>('section[aria-label="Needs you"]')!);
+    const needs = within(container.querySelector<HTMLElement>('section[aria-label="Needs attention"]')!);
     const task = needs.getByRole("link", { name: /Move every recurring charge off the closing card/ });
     expect(task).toHaveAttribute("href", "/tasks/md-1");
     fireEvent.click(task);
@@ -868,11 +868,11 @@ describe("Asset Overview — the two lists", () => {
     await screen.findByRole("tablist");
 
     const needs = within(
-      container.querySelector<HTMLElement>('section[aria-label="Needs you"]')!,
+      container.querySelector<HTMLElement>('section[aria-label="Needs attention"]')!,
     );
     expect(needs.getByText("Last known: 2 urgent · 4 waiting")).toBeTruthy();
     const rows = container.querySelectorAll(
-      'section[aria-label="Needs you"] ul > li',
+      'section[aria-label="Needs attention"] ul > li',
     );
     expect(rows).toHaveLength(3);
     expect(rows[0]!.textContent).toContain("Move every recurring charge off");
@@ -899,7 +899,7 @@ describe("Asset Overview — the two lists", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    const rings = [...container.querySelectorAll('section[aria-label="Needs you"] ul > li')].map(
+    const rings = [...container.querySelectorAll('section[aria-label="Needs attention"] ul > li')].map(
       (row) => row.querySelector("[aria-hidden]")!,
     );
     // A task's priority is not a severity: every ask is warn, a top one too;
@@ -917,7 +917,7 @@ describe("Asset Overview — the two lists", () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
 
-    const needs = within(container.querySelector<HTMLElement>('section[aria-label="Needs you"]')!);
+    const needs = within(container.querySelector<HTMLElement>('section[aria-label="Needs attention"]')!);
     expect(needs.getByText("Count unavailable")).toBeVisible();
     expect(needs.getByText("Tasks not read yet")).toBeVisible();
     expect(needs.queryByText("Nothing waiting")).toBeNull();

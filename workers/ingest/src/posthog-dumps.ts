@@ -889,7 +889,7 @@ async function collectAsset(env: IngestEnv, run: AssetRun): Promise<SignalDumpOu
     // A key PostHog refuses for one query is refused for all of them: the rest
     // of today's windows carry the same failure without asking again.
     if (outcome.status === 'error' && outcome.errorCode === ACCESS_DENIED) {
-      const error = new SignalError(ACCESS_DENIED, 'Not asked · PostHog refused the key earlier in this run');
+      const error = new SignalError(ACCESS_DENIED, 'Not asked · PostHog rejected the key earlier in this run');
       for (const rest of asks.slice(index + 1)) {
         if (!rest.owed) outcomes.push(await failFamily(env, run, rest.family, rest.window, error));
       }
@@ -1128,7 +1128,7 @@ function posthogProviderError(status: number, payload: unknown, state: RunState)
     stringField(record, 'detail') ?? stringField(record, 'error') ?? `PostHog returned HTTP ${status}.`;
   if (status === 401 || status === 403) {
     // The refusal and its status, then PostHog's own words.
-    return new SignalError(ACCESS_DENIED, `PostHog refused the key · HTTP ${status} · ${detail}`.slice(0, 500));
+    return new SignalError(ACCESS_DENIED, `PostHog rejected the key · HTTP ${status} · ${detail}`.slice(0, 500));
   }
   if (status === 429) {
     const budget = stringField(record, 'code') === 'api_queries_budget_exceeded';
@@ -1137,7 +1137,7 @@ function posthogProviderError(status: number, payload: unknown, state: RunState)
       : { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.' };
     return new SignalError(
       budget ? 'posthog_query_budget_exceeded' : 'posthog_rate_limit',
-      `PostHog refused the query (HTTP 429${budget ? ', hourly query budget used up' : ', request rate limit'}). ${detail}`.slice(0, 500),
+      `PostHog rejected the query (HTTP 429${budget ? ', hourly query budget used up' : ', request rate limit'}). ${detail}`.slice(0, 500),
     );
   }
   return new SignalError(`posthog_http_${status}`, detail.slice(0, 500));

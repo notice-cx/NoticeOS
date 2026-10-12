@@ -93,7 +93,7 @@ describe("when a task source is connected", () => {
 });
 
 describe("the beads adapter wraps today's snapshot unchanged", () => {
-  it("answers the board, Needs you and a site's inbox from one reading", async () => {
+  it("answers the board, Needs attention and a site's inbox from one reading", async () => {
     await seedSnapshot(ctx, CAPTURED, connectedProjects());
     const reading = await beadsTaskSource.read({ store: ctx.call });
     expect(reading.status.connected).toBe(true);

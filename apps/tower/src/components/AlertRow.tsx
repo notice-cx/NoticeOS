@@ -221,7 +221,7 @@ export function AlertRow({
           formatAge(ageMs(nowMs, flag.firstFiredAt))
         )
       }
-      valueLabel={history ? (openMs !== null ? "open for" : "first seen") : "first seen"}
+      valueLabel={history ? (openMs !== null ? "open for" : "first detected") : "first detected"}
       // Snooze and Resolve sit on the row; Mark read and Tune wait in the
       // opened row, after the evidence.
       rowActions={history || snoozed ? undefined : <FlagActions flagId={flag.id} assetId={assetId} only={["snooze", "resolve"]} />}

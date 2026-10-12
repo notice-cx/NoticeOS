@@ -763,7 +763,7 @@ function egressDown(facts: AlertFacts): AlertLanguage {
   if (beacons.length > 0) {
     evidence.push({
       polarity: "supporting",
-      source: "Reference sites that did not answer",
+      source: "Reference sites that could not be reached",
       // Verbatim: the argument for suppressing the asset alerts is that
       // unrelated sites failed the same way.
       detail: beacons

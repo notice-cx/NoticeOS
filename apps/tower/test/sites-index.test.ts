@@ -142,7 +142,7 @@ describe("the Sites orderings", () => {
     expect(ids("seed")).toEqual(["calm.example", "rich.example", "broken.example", "busy.example"]);
   });
 
-  it("puts the site that needs you first, worst first", () => {
+  it("puts the site that needs attention first, worst first", () => {
     expect(ids("health")).toEqual(["broken.example", "rich.example", "calm.example", "busy.example"]);
   });
 

@@ -79,9 +79,9 @@ describe("the row's one status", () => {
     expect(connectsInPanel(integrationProvider("google")!)).toBe(true);
     expect(connectsInPanel(integrationProvider("discord")!)).toBe(true);
     expect(connectsInPanel(integrationProvider("calendar")!)).toBe(true);
-    expect(refusalLine(BING, "refused")).toBe("Bing Webmaster Tools refused this key");
-    expect(refusalLine(DATAFORSEO, "refused")).toBe("DataForSEO refused these details");
-    expect(refusalLine(BING, "unreachable")).toBe("Bing Webmaster Tools did not answer");
+    expect(refusalLine(BING, "refused")).toBe("Bing Webmaster Tools rejected this key");
+    expect(refusalLine(DATAFORSEO, "refused")).toBe("DataForSEO rejected these details");
+    expect(refusalLine(BING, "unreachable")).toBe("No response from Bing Webmaster Tools");
   });
 });
 
@@ -151,7 +151,7 @@ describe("the connect panel", () => {
     fireEvent.change(within(dialog).getByLabelText("API password"), { target: { value: SECRET } });
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
 
-    expect(dialog.querySelector('[data-connect-state="refused"]')).toHaveTextContent("DataForSEO refused these details");
+    expect(dialog.querySelector('[data-connect-state="refused"]')).toHaveTextContent("DataForSEO rejected these details");
     expect(within(dialog).getByLabelText("API password")).toHaveValue("");
     expect(within(dialog).getByLabelText("API login")).toHaveValue("op@example.test");
     expect(within(dialog).queryByText("Key accepted")).toBeNull();
@@ -163,7 +163,7 @@ describe("the connect panel", () => {
     const dialog = screen.getByRole("dialog");
     fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: SECRET } });
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
-    expect(dialog.querySelector('[data-connect-state="unreachable"]')).toHaveTextContent("Bing Webmaster Tools did not answer");
+    expect(dialog.querySelector('[data-connect-state="unreachable"]')).toHaveTextContent("No response from Bing Webmaster Tools");
     expect(within(dialog).getByRole("button", { name: "Connect" })).toBeEnabled();
     await act(async () => fireEvent.click(within(dialog).getByRole("button", { name: "Connect" })));
     expect(onConnect).toHaveBeenCalledTimes(2);

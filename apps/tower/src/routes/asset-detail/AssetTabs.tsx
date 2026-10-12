@@ -181,7 +181,7 @@ export function AssetTabs({
           ) : undefined,
         title:
           waitingOnYou > 0
-            ? `${openTasks} open task${openTasks === 1 ? "" : "s"} — ${waitingOnYou} waiting on you`
+            ? `${openTasks} open task${openTasks === 1 ? "" : "s"} — ${waitingOnYou} for you to decide`
             : `${openTasks} open task${openTasks === 1 ? "" : "s"} in this site's project`,
       };
     }

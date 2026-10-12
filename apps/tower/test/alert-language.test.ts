@@ -781,7 +781,7 @@ describe("os-egress-down — the outage that is the OS's own", () => {
 
   it("keeps the reference sites' own errors verbatim — they are the whole argument", () => {
     const a = translateAlert(outage);
-    const beacons = a.evidence.find((e) => e.source === "Reference sites that did not answer")!;
+    const beacons = a.evidence.find((e) => e.source === "Reference sites that could not be reached")!;
     // Two unrelated operators failing the same way is what licenses
     // suppressing the asset alerts; a paraphrase would not be evidence.
     expect(beacons.detail).toContain("cloudflare.com");

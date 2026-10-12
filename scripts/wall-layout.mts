@@ -111,7 +111,7 @@ export interface WallWidgetSpec {
   /**
    * Its place in the one column the Wall becomes on a portrait tablet or a
    * phone: the strip, revenue, the site rows, then what is broken (the last
-   * 24 hours, Needs you), the work, the feed and the loop last. The sites come
+   * 24 hours, Needs attention), the work, the feed and the loop last. The sites come
    * before the problems because their numbers are what changes. By type, so
    * any saved layout reads the same.
    */
@@ -283,7 +283,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   work: {
     type: 'work',
     label: 'Work',
-    shows: ['Waiting on you', 'In progress', 'Done this week', 'Blocked'],
+    shows: ['Your decisions', 'In progress', 'Done this week', 'Blocked'],
     defaultWidth: 1,
     minWidthRem: 0,
     maxWidthRem: null,
@@ -295,7 +295,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   },
   needs: {
     type: 'needs',
-    label: 'Needs you',
+    label: 'Needs attention',
     shows: ['Errors', 'Warnings', 'Urgent tasks'],
     defaultWidth: 1,
     minWidthRem: 0,
@@ -378,7 +378,7 @@ export function wallLayoutWidgets(layout: WallLayout): WallWidget[] {
  * columns — the last 24 hours over the site rows, beside revenue over the
  * work. Revenue's band sits beside the sites rather than over them because
  * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
- * way (`pnpm audit:wall-fit`). Needs you and the live feed stay in the library
+ * way (`pnpm audit:wall-fit`). Needs attention and the live feed stay in the library
  * for a Wall that wants them.
  */
 export const DEFAULT_WALL_LAYOUT: WallLayout = {

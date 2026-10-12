@@ -1418,7 +1418,7 @@ describe("connecting in the panel", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Replace API key" }));
     fireEvent.change(within(dialog).getByLabelText("API key"), { target: { value: "SEKRIT-typo" } });
     fireEvent.click(within(dialog).getByRole("button", { name: "Connect" }));
-    expect(await within(dialog).findByText("bing-webmaster refused this key")).toBeInTheDocument();
+    expect(await within(dialog).findByText("bing-webmaster rejected this key")).toBeInTheDocument();
     expect(within(dialog).getByLabelText("API key")).toHaveValue("");
     expect(api.remove).not.toHaveBeenCalled();
     expect(api.save).not.toHaveBeenCalled();
@@ -2014,7 +2014,7 @@ describe("coming back from Google", () => {
     });
     expect(googleOAuthNotice("exchange_failed")?.action?.href).toBe("https://console.cloud.google.com/apis/credentials");
     // Google not answering is not Google refusing: no console press, just try again.
-    expect(googleOAuthNotice("unreachable")).toEqual({ tone: "bad", message: "Google did not answer. Try again." });
+    expect(googleOAuthNotice("unreachable")).toEqual({ tone: "bad", message: "No response from Google. Try again." });
     expect(googleOAuthNotice("no_refresh_token")?.action?.external).toBe(true);
     expect(googleOAuthNotice("denied")?.action).toBeUndefined();
   });

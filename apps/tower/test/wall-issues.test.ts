@@ -1,5 +1,5 @@
 // @vitest-environment node
-// What the Wall lists as broken: one ordered list that Needs you states as
+// What the Wall lists as broken: one ordered list that Needs attention states as
 // sentences and a site row as one short mark.
 
 import { describe, expect, it } from "vitest";

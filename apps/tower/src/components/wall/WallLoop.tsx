@@ -42,10 +42,10 @@ export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "oper
     : waitingKnown
       ? {
           id: "decide", label: "Decide", column: 2, icon: Gavel, value: `${waiting.count}${more}`,
-          caption: waiting.urgent > 0 ? `waiting on you · ${waiting.urgent}${more} urgent` : "waiting on you",
+          caption: waiting.urgent > 0 ? `for you to decide · ${waiting.urgent}${more} urgent` : "for you to decide",
           state: waiting.urgent > 0 ? "warn" : "ok",
         }
-      : { id: "decide", label: "Decide", column: 2, icon: Gavel, caption: waiting.partial ? "waiting on you · unknown" : "waiting on you · stale", state: "idle" };
+      : { id: "decide", label: "Decide", column: 2, icon: Gavel, caption: waiting.partial ? "for you to decide · unknown" : "for you to decide · stale", state: "idle" };
   const act: FlowNode = counted.length === 0
     ? { id: "act", label: "Act", column: 3, icon: Hammer, caption: "not read", state: "idle" }
     : { id: "act", label: "Act", column: 3, icon: Hammer, value: String(inProgress), caption: "in progress", state: inProgress > 0 ? "active" : "idle" };

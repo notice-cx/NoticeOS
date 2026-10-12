@@ -48,7 +48,7 @@ describe("an asset that sends its own reports, switched to being fetched", () =>
     expect(calls).toHaveLength(0);
 
     fireEvent.change(screen.getByLabelText("Metrics endpoint"), { target: { value: "https://journey.example/api/metrics" } });
-    fireEvent.change(screen.getByLabelText("Answers with"), { target: { value: "prometheus" } });
+    fireEvent.change(screen.getByLabelText("Response format"), { target: { value: "prometheus" } });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0]).toMatchObject({

@@ -204,7 +204,7 @@ export function SitePicker({
         {failed || refused ? (
           <p className="flex items-center gap-2 text-sm text-error" data-sites-state="failed">
             <TriangleAlert className="size-4 shrink-0" aria-hidden />
-            {refused && discovery?.reason === "refused" ? `${name} refused the key` : `${name} did not answer`}
+            {refused && discovery?.reason === "refused" ? `${name} rejected the key` : `No response from ${name}`}
             {onRetry ? (
               <Button type="button" size="sm" variant="outline" className="ms-auto" onClick={onRetry}>
                 Try again

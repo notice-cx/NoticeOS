@@ -90,7 +90,7 @@ export function ListPanel({
 
       {rows.length === 0 ? (
         <div className="px-4 pb-4 text-xs text-muted-foreground">
-          {empty ?? "Nothing needs you here."}
+          {empty ?? "Nothing needs attention here."}
         </div>
       ) : shownGroups ? (
         <ul className="m-0 flex list-none flex-col gap-1.5 p-2 pt-0">

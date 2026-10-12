@@ -118,8 +118,8 @@ export function refusalLine(
   verdict: "refused" | "unreachable",
 ): string {
   const name = providerName(provider);
-  if (verdict === "unreachable") return `${name} did not answer`;
+  if (verdict === "unreachable") return `No response from ${name}`;
   const typed = provider.fields.filter((field) => field.managed !== true).length;
   // Named for what was given, as the accepted chip is: an address is not a key.
-  return `${name} refused ${typed > 1 ? "these details" : acceptedAs(provider) === "url" ? "this URL" : "this key"}`;
+  return `${name} rejected ${typed > 1 ? "these details" : acceptedAs(provider) === "url" ? "this URL" : "this key"}`;
 }

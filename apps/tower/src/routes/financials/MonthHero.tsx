@@ -38,7 +38,7 @@ export function MonthHero({ equation, days, lastMonth, pace, bySite, className }
   const reported = days?.days.filter((day) => day.v !== null).length ?? 0;
   const total = bySite.reduce((sum, site) => sum + site.amount, 0);
   const context: ReactNode[] = [
-    open && pace ? <>Heading for <b>{whole(pace.projected)}</b> revenue · <b>{pace.daysLeft}</b> {pace.daysLeft === 1 ? "day" : "days"} left</> : null,
+    open && pace ? <>Projected <b>{whole(pace.projected)}</b> revenue · <b>{pace.daysLeft}</b> {pace.daysLeft === 1 ? "day" : "days"} left</> : null,
     equation.confirmed !== null && equation.turnover !== null && equation.turnover > 0
       ? <span data-money-confirmed="">{equation.confirmed === 0 ? "none confirmed yet" : <><b>{whole(equation.confirmed)}</b> of {whole(equation.turnover)} confirmed</>}</span>
       : null,

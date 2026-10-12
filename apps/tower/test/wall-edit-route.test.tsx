@@ -353,7 +353,7 @@ describe("the page it opens on", () => {
   it("names a layout that reached the browser unreadable as refused, and saves nothing on its own", () => {
     renderEditor({ layout: { version: 9, rows: [] } });
     const chip = refusedChip("wall:layout");
-    expect(chip?.textContent).toBe("Saved layout refused");
+    expect(chip?.textContent).toBe("Saved layout is invalid");
     expect(chip?.getAttribute("title")).toContain("version 1");
     expect(state.saves).toEqual([]);
   });
@@ -392,7 +392,7 @@ describe("a saved layout the Tower refused", () => {
     renderRefused();
     expect(drawn()).toEqual(DEFAULT_DRAWN);
     const chip = refusedChip("wall:layout");
-    expect(chip?.textContent).toBe("Saved layout refused");
+    expect(chip?.textContent).toBe("Saved layout is invalid");
     expect(chip?.getAttribute("title")).toBe(REASON);
     expect(layoutState("On the TV")).toBeNull();
     expect(document.querySelector("[data-wall-unreadable]")).toBeNull();
@@ -454,7 +454,7 @@ describe("a saved countdown the Tower refused", () => {
     renderRefusedCountdown();
     expect(layoutState("On the TV")).not.toBeNull();
     const chip = refusedChip("wall:countdown");
-    expect(chip?.textContent).toBe("Saved countdown refused");
+    expect(chip?.textContent).toBe("Saved countdown is invalid");
     expect(chip?.getAttribute("title")).toBe(REASON);
     fireEvent.click(document.querySelector("[data-wall-countdown-refused]") as HTMLElement);
     expect(document.querySelector('[data-wall-widget-panel="strip"]')).not.toBeNull();
@@ -525,7 +525,7 @@ describe("adding and removing", () => {
     expect(screen.queryByRole("button", { name: "Add Work" })).toBeNull();
     const row = document.querySelector('[data-wall-library-item="work"]');
     expect(row?.querySelector('[data-wall-library-refusal="On the TV"]')).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Add Needs you" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Needs attention" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Live feed" })).toBeTruthy();
     // An offered widget can be dragged onto the TV as well as added.
     expect(document.querySelector('[data-wall-library-item="feed"]')?.getAttribute("draggable")).toBe("true");

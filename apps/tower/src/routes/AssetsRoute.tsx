@@ -38,7 +38,7 @@ type HealthFilter = "all" | SiteHealthKey;
 /** The orderings, each one press; the first is the default. */
 const ORDERS: { value: SitesOrder; label: string }[] = [
   { value: "seed", label: "Your order" },
-  { value: "health", label: "Needs you" },
+  { value: "health", label: "Needs attention" },
   { value: "money", label: "Money" },
   { value: "users", label: "People" },
   { value: "name", label: "A–Z" },
@@ -227,7 +227,7 @@ function sitesAnswer(lines: readonly SiteLine[]): { key: string; line: string; d
   const settingUp = lines.filter((line) => line.health.key === "setting-up");
   const needs = [...offTrack, ...atRisk];
   if (needs.length > 0) {
-    const word = atRisk.length === 0 ? "off track" : offTrack.length === 0 ? "at risk" : "need you";
+    const word = atRisk.length === 0 ? "off track" : offTrack.length === 0 ? "at risk" : "need attention";
     // Each named site is its own way in: the answer's one action.
     return {
       key: "needs-you",

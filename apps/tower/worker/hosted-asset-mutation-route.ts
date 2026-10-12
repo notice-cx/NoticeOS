@@ -51,14 +51,14 @@ export async function handleHostedAssetMutation(request: Request,
       else if (selected.kind === 'annotation') response = await handleAnnotationRequest(message, url, ingest, selected.asset);
       else {
         const context = call.context;
-        if (context.principalKind !== 'person' || !context.sessionId) throw new Error('Mutation refused.');
+        if (context.principalKind !== 'person' || !context.sessionId) throw new Error('Mutation rejected.');
         const actor: MutationActor = Object.freeze({ workspaceId: context.workspaceId,
           principalId: context.principalId, sessionId: context.sessionId });
         response = await call.withStore(ctx, store => selected.kind === 'decision'
           ? handleDecisionsRequest(message, url, store, selected.asset, new Date().toISOString(), actor)
           : handleFlagRequest(message, url, store, selected.number, new Date().toISOString(), actor));
       }
-      if (receiverFailed) throw new Error('Workspace receiver refused.');
+      if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
       // Never expose internal SQL/connection details from a failed hosted write.
       return response.status >= 500
         ? Response.json({ error: 'workspace_mutation_unavailable' }, { status: 503 }) : response;

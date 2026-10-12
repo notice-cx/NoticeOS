@@ -195,7 +195,7 @@ describe("task board read", () => {
   });
 });
 
-// The one rule the board's Waiting on you and a task's own page both read:
+// The one rule the board's Your decisions and a task's own page both read:
 // what the operator's inbox asks of a task.
 describe("what the inbox asks of a task", () => {
   it("approves a human gate, answers a ready human ask, and asks nothing of anything else", () => {

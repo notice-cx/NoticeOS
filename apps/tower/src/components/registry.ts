@@ -47,7 +47,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/IntegrationHealthPanel.tsx",
     purpose:
       "Connections grouped by provider, then site, under a strip of four counts (sites failing, overdue, reports missing, sites working). Each provider is one row with its connection status and compact facts; the sites that need the operator sit under it with their status, the reason on the row, and what to do when opened. Without a current read nothing reads fine.",
-    variants: ["needs you", "all connections", "provider sites", "failing site opened", "monitoring not confirmed", "counts with history"],
+    variants: ["needs attention", "all connections", "provider sites", "failing site opened", "monitoring not confirmed", "counts with history"],
   },
   {
     name: "IntegrationLogo",
@@ -909,8 +909,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "NeedsYou / IssueGlyph",
     file: "components/wall/NeedsYou.tsx",
     purpose:
-      "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § Needs you). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Sites that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
-    variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs you"],
+      "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § The Wall). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Sites that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
+    variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs attention"],
   },
   {
     name: "WallLoop / loopNodes",
@@ -1215,7 +1215,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/viz/PaceBar.tsx",
     purpose:
       "Progress through a period against the last one: the period so far filled, where it is heading dashed, the last period's total as the end of the ruler, and the last period at the same day as a marker when that figure exists.",
-    variants: ["heading for, against last month's total", "with a same-day marker", "figure printed beside it (showValue off)"],
+    variants: ["projected, against last month's total", "with a same-day marker", "figure printed beside it (showValue off)"],
   },
   {
     name: "NormalBand",

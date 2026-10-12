@@ -97,7 +97,7 @@ function Legend() {
       <LegendItem label="would fire">
         <span className="block h-3 w-1.5 rounded-[1px] bg-foreground" />
       </LegendItem>
-      <LegendItem label="quiet">
+      <LegendItem label="no alert">
         <span className="mt-auto block h-1 w-1.5 rounded-[1px] bg-muted-foreground/40" />
       </LegendItem>
       <LegendItem label="not judged">
@@ -157,7 +157,7 @@ function dayTitle(day: RuleBacktestDay): string {
     day.state === "fired"
       ? `would fire — ${day.firings.map((firing) => firing.metric).join(", ")}`
       : day.state === "quiet"
-        ? "would stay quiet"
+        ? "would raise no alert"
         : day.state === "no-report"
           ? "no report filed"
           : day.reason === "out-of-regime"

@@ -37,6 +37,6 @@ describe("coming back from Google with a failure", () => {
     // Every call names the same toast, so Sonner updates it instead of adding one.
     const ids = new Set(toast.error.mock.calls.map(([, options]) => (options as { id?: string }).id));
     expect([...ids]).toEqual(["google-oauth-unreachable"]);
-    expect(toast.error.mock.calls[0]![0]).toBe("Google did not answer. Try again.");
+    expect(toast.error.mock.calls[0]![0]).toBe("No response from Google. Try again.");
   });
 });

@@ -80,7 +80,7 @@ export function WorkFlow({ rows, waiting = null, title = "Work", action, compact
         {action}
       </header>
       {figures ? <div className={cn("grid gap-x-6 gap-y-3", compact ? "grid-cols-4" : "grid-cols-2 @xl:grid-cols-4")}>
-        <Figure icon={<Hand aria-hidden className="size-4" />} label="Waiting on you" ink={waiting && waiting.count > 0 ? "text-warn" : undefined} condition="human-gates">
+        <Figure icon={<Hand aria-hidden className="size-4" />} label="Your decisions" ink={waiting && waiting.count > 0 ? "text-warn" : undefined} condition="human-gates">
           <WaitingFigure waiting={waiting} />
         </Figure>
         <Figure label="In progress">{counted ? formatInt(total.inProgress) : unread}</Figure>

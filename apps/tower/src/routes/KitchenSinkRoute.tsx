@@ -2612,7 +2612,7 @@ const demoEgressLane: DerivedLaneRow = {
       evidence: [
         {
           polarity: "against",
-          source: "Reference sites that did not answer",
+          source: "Reference sites that could not be reached",
           detail:
             "https://www.cloudflare.com/cdn-cgi/trace: internal error; reference = 9f2a; https://www.google.com/generate_204: internal error; reference = 3b71",
           at: iso(6 * HOUR),
@@ -2826,9 +2826,9 @@ export function KitchenSinkRoute() {
             <div className="flex w-full flex-col gap-4">
               <PageAnswer answer="1 of 7 sites at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
               <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
-              <PageAnswer answer="Nothing waits on you" detail="read 1m ago" />
+              <PageAnswer answer="No decisions for you" detail="read 1m ago" />
               <FinishLine line="That's every open alert." age="data as of 4m ago" />
-              <FinishLine quiet line="Nothing waits on you." age="read 1m ago" />
+              <FinishLine quiet line="No decisions for you." age="read 1m ago" />
               <FinishLine line="That's everything." />
             </div>
           </Section>
@@ -3182,7 +3182,7 @@ export function KitchenSinkRoute() {
                 urgent inside the operator inbox (warn + the muted rest)
               </span>
               <SegmentBar
-                ariaLabel="3 of 12 waiting on you are urgent"
+                ariaLabel="3 of 12 decisions for you are urgent"
                 segments={[
                   { name: "urgent", value: 3, fill: "bg-warn" },
                   { name: "rest", value: 9, fill: "bg-muted-foreground/30" },
@@ -4304,7 +4304,7 @@ export function KitchenSinkRoute() {
                   { polarity: "supporting", source: "Arrived", detail: "22 in 24h", at: null },
                   { polarity: "supporting", source: "Normal · 7-day average", detail: "39.3/day", at: null },
                   { polarity: "supporting", source: "Chance if nothing changed", detail: "0.2% · fires below 1%", at: null },
-                  { polarity: "supporting", source: "First seen", detail: "", at: new Date(NOW - 2 * 86_400_000).toISOString() },
+                  { polarity: "supporting", source: "First detected", detail: "", at: new Date(NOW - 2 * 86_400_000).toISOString() },
                 ]}
                 nowMs={NOW}
                 question="Why this fired"
@@ -5477,7 +5477,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="NeedsYou (top three with urgent tasks / nothing broken but urgent tasks / nothing needs you)">
+          <Section title="NeedsYou (top three with urgent tasks / nothing broken but urgent tasks / nothing needs attention)">
             <div className="wall-root w-full max-w-3xl rounded-lg bg-background p-4">
               <NeedsYou
                 issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
@@ -5705,7 +5705,7 @@ const WALL_DEMO_PAYLOAD: WallPayload = {
 const WALL_DEMO_HISTORY: WallLayoutVersion[] = [
   {
     savedAt: iso(2 * DAY),
-    reason: "Moved Needs you up so it reads from the sofa",
+    reason: "Moved Needs attention up so it is easier to see from across the room",
     layout: {
       version: 1,
       rows: [
@@ -5775,7 +5775,7 @@ const ADD_SITE_DEMOS: {
     incomplete: {
       state: {
         id: "journey.example",
-        reason: "The config store did not answer",
+        reason: "The config store could not be reached",
         changeset: JSON.stringify({ version: 1, slug: "add-asset-journey-example", ops: [{ kind: "file-json-insert", file: "config/integrations.json", pointer: "/assets/journey.example" }] }, null, 2),
       },
       retrying: false,
@@ -6388,7 +6388,7 @@ function SurfaceSections() {
             spark={windowSeries(OPEN_ALERTS, range)}
           />
           <Kpi
-            label="Needs you"
+            label="Needs attention"
             value={24}
             valueTone="warn"
             caption="urgent · 67 more waiting"
@@ -6397,7 +6397,7 @@ function SurfaceSections() {
             footer={
               <SegmentBar
                 className="mt-2"
-                ariaLabel="24 of 91 waiting on you are urgent"
+                ariaLabel="24 of 91 decisions for you are urgent"
                 segments={[
                   { name: "urgent", value: 24, fill: "bg-warn" },
                   { name: "rest", value: 67, fill: "bg-muted-foreground/30" },
@@ -6698,7 +6698,7 @@ function SurfaceSections() {
       <Section title="ListPanel — three rows, an expander for the rest, evidence in place">
         <div className="grid w-full gap-4 lg:grid-cols-2">
           <ListPanel
-            title="Needs you"
+            title="Needs attention"
             count="10 urgent · 67 open"
             action={{ label: "All tasks", to: "/work" }}
           >
@@ -6784,7 +6784,7 @@ function SurfaceSections() {
 
           {/* Decisions on the row: Approve on a gate, Answer and Dismiss on an
               ask, and the answer box Answer opens. */}
-          <ListPanel title="Waiting on you" count="2 asks · 1 gate">
+          <ListPanel title="Your decisions" count="2 asks · 1 gate">
             <ListRow
               tone="warn"
               glyph="△"

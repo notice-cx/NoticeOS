@@ -187,7 +187,7 @@ function epicNode(task: BoardTask, waitingOn: number, nowMs: number, actors: rea
   }
   const ask = inboxAsk(task);
   if (ask !== null) {
-    return { ...base, state: "warn", stateLabel: "Needs you", caption: ask === "approve" ? "your approval" : "your answer", since: task.updatedAt };
+    return { ...base, state: "warn", stateLabel: "Needs attention", caption: ask === "approve" ? "your approval" : "your answer", since: task.updatedAt };
   }
   if (task.status === "blocked") return { ...base, state: "warn", stateLabel: "Blocked", since: task.updatedAt };
   if (task.status === IN_PROGRESS) {
@@ -204,7 +204,7 @@ function epicNode(task: BoardTask, waitingOn: number, nowMs: number, actors: rea
 function epicEdge(from: BoardTask, to: string): FlowEdge {
   if (from.status === "closed") return { from: from.id, to, state: "idle" };
   if (from.status === "blocked" || from.status === PARKED) return { from: from.id, to, state: "broken" };
-  if (inboxAsk(from) !== null) return { from: from.id, to, state: "idle", label: "needs you" };
+  if (inboxAsk(from) !== null) return { from: from.id, to, state: "idle", label: "needs attention" };
   if (from.status === IN_PROGRESS) return { from: from.id, to, state: "flowing" };
   return { from: from.id, to, state: "idle" };
 }
@@ -262,7 +262,7 @@ export function epicGraphs({ projects, snapshots, nowMs, href }: {
         nodes: pinRoots(nodes, edges),
         edges,
         stuck: new Set(edges.filter((edge) => edge.state === "broken").map((edge) => edge.from)).size,
-        asks: nodes.filter((node) => node.stateLabel === "Needs you").length,
+        asks: nodes.filter((node) => node.stateLabel === "Needs attention").length,
         progress: epic && epic.total > 0 ? { closed: epic.closed, total: epic.total } : null,
         hidden: children.filter((task) => !shown.has(task.id)).length,
       });

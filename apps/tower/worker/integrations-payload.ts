@@ -116,7 +116,7 @@ export function egressState(
         polarity: "against",
         // The same words this fact has in the attention band
         // (shared/alert-language.ts `egressDown`); only the polarity differs.
-        source: "Reference sites that did not answer",
+        source: "Reference sites that could not be reached",
         // Verbatim: the argument for not blaming the assets is that unrelated
         // sites failed the same way.
         detail: beacons.join(" · "),

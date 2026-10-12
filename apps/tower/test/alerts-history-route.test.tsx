@@ -408,7 +408,7 @@ describe("/alerts/history — what already closed", () => {
     fireEvent.click(within(line).getByRole("button", { expanded: false }));
     expect(line).toHaveTextContent("resolved 1d ago");
     expect(line).toHaveTextContent("Check after the campaign");
-    expect(line).not.toHaveTextContent("quiet until");
+    expect(line).not.toHaveTextContent("snoozed until");
     expect(line.querySelector('[data-snooze-state="active"]')).toBeNull();
   });
 

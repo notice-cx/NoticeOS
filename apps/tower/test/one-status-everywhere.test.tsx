@@ -1,6 +1,6 @@
 // One source, one status, on every screen: Integrations, the asset's Data
 // sources tab, its header and its Home grid cell agree, and the Wall shows site
-// health and specific Needs you concerns. The payloads are built by the
+// health and specific Needs attention concerns. The payloads are built by the
 // Worker's own functions over the suite's frozen register (`fixture-config/`).
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";

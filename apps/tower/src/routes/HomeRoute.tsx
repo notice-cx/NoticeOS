@@ -196,7 +196,7 @@ function Answer({ money, issues, since, changed, nowMs }: { money: HomeMoney | n
   const moneyWords = !money || month === null
     ? null
     : money.projected !== null
-      ? `${month} is heading for ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
+      ? `${month} is projected at ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
       : money.soFar !== null
         ? `${month} so far ${usd(money.soFar)}${money.estimated ? " est." : "."}`
         : null;

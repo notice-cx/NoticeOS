@@ -43,7 +43,7 @@ export function MoneyHero({ money, className }: { money: HomeMoney; className?: 
           <span className="text-sm text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">
             {money.projected !== null ? (
               <>
-                Heading for <b>{usd(money.projected)}</b>
+                Projected <b>{usd(money.projected)}</b>
                 {money.changePercent !== null && previous ? (
                   <>
                     {" · "}

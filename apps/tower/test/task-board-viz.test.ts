@@ -165,13 +165,13 @@ describe("one epic's dependencies", () => {
     expect(node("md-e.4")).toMatchObject({ state: "idle", stateLabel: "Waiting", caption: "waits on 3" });
     expect(node("md-e.5")).toMatchObject({ state: "idle", stateLabel: "Ready" });
     // The approval sits beside the step it holds, not at the start.
-    expect(node("md-g")).toMatchObject({ state: "warn", stateLabel: "Needs you", caption: "your approval", column: 1 });
+    expect(node("md-g")).toMatchObject({ state: "warn", stateLabel: "Needs attention", caption: "your approval", column: 1 });
     // `related` is not a dependency the queue waits on.
     expect(graph!.edges).toEqual(expect.arrayContaining([
       { from: "md-e.1", to: "md-e.2", state: "idle" },
       { from: "md-e.2", to: "md-e.4", state: "flowing" },
       { from: "md-e.3", to: "md-e.4", state: "broken" },
-      { from: "md-g", to: "md-e.4", state: "idle", label: "needs you" },
+      { from: "md-g", to: "md-e.4", state: "idle", label: "needs attention" },
     ]));
     expect(graph!.edges).toHaveLength(4);
     expect(graph).toMatchObject({ stuck: 1, asks: 1, hidden: 0 });

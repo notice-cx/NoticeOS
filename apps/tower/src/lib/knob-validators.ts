@@ -82,7 +82,7 @@ export function validateTimeZone(raw: string): Validated<string> {
   if (!isIanaTimeZone(value)) {
     return {
       ok: false,
-      error: `Not a timezone this machine knows. Use an IANA name like ${localZoneExample()}.`,
+      error: `This machine has no time zone with that name. Use an IANA name like ${localZoneExample()}.`,
     };
   }
   return { ok: true, value };

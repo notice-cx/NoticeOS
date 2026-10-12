@@ -383,7 +383,7 @@ function TvDashboardSection({
           <div className="flex flex-col gap-2" data-settings-countdown-refused>
             <span className="self-start">
               <StateChip
-                label="Saved countdown refused"
+                label="Saved countdown is invalid"
                 tone="critical"
                 glyph={<TriangleAlert className="size-3" aria-hidden />}
                 title={refused.reason}
@@ -1009,7 +1009,7 @@ function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
     return (
       <dl className="m-0 flex flex-col gap-1 text-xs" data-collection-scale="panel-refresh-window">
         <div className="flex items-baseline justify-between gap-2">
-          <dt className="text-muted-foreground">Each pass asks for</dt>
+          <dt className="text-muted-foreground">Each pass requests</dt>
           <dd className="m-0 shrink-0 tabular-nums text-foreground">
             {weeks} {weeks === 1 ? "week" : "weeks"}
           </dd>
@@ -1040,7 +1040,7 @@ function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
           className="mt-1.5"
           value={n}
           max={windowDays}
-          ariaLabel="Panel freshness bar as a share of the history window one pass asks for"
+          ariaLabel="Panel freshness bar as a share of the history window one pass requests"
         />
         <StateChip
           className="mt-1.5"

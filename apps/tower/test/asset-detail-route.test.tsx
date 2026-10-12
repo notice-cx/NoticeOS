@@ -655,7 +655,7 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     const title = await findByText("Nightly report fetch failing 5 nights — latest: 401 unauthorized");
     const row = title.closest("li")!;
     expect(row).toHaveTextContent("Last known");
-    expect(row).toHaveTextContent("first seen");
+    expect(row).toHaveTextContent("first detected");
     expect(row).not.toHaveTextContent("Confirmed");
     expect(row.querySelector("button button")).toBeNull();
   });
@@ -720,8 +720,8 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     expect(getByRole("button", { name: "Resolve alert" })).toBeTruthy();
     expect(container.textContent).toContain("26d");
     fireEvent.click(screen.getByRole("button", { name: /^Why this fired/ }));
-    expect(screen.getByRole("dialog").textContent).toMatch(/First seen\s*·\s*26d ago/);
-    expect(screen.getByRole("dialog").textContent).not.toMatch(/First seen\s*·\s*6h ago/);
+    expect(screen.getByRole("dialog").textContent).toMatch(/First detected\s*·\s*26d ago/);
+    expect(screen.getByRole("dialog").textContent).not.toMatch(/First detected\s*·\s*6h ago/);
   });
 
   it("parks a snoozed alert under Snoozed with Unsnooze, and History counts only what is settled", async () => {
@@ -866,7 +866,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     } });
     stubFetch(200, data);
     const { container, findByText } = renderRoute("meadow.example");
-    await findByText("Needs you");
+    await findByText("Needs attention");
     const preview = materialAsset(container, "human-gates");
     expect(preview).toHaveTextContent("2 urgent · 6 waiting · 1 shown");
     expect(preview).toHaveTextContent("Approve the nutrition-source change");
@@ -878,7 +878,7 @@ describe("AssetDetailRoute — material state on the current screens", () => {
   it("keeps an unread task count unknown instead of certifying an empty inbox", async () => {
     stubFetch(200, payload({ operator: { capturedAt: null, waiting: null, urgent: null, items: [] } }));
     const { container, findByText } = renderRoute("meadow.example");
-    await findByText("Needs you");
+    await findByText("Needs attention");
     const preview = materialAsset(container, "human-gates");
     expect(preview).toHaveTextContent("Count unavailable");
     expect(preview).toHaveTextContent("Tasks not read yet");
@@ -992,7 +992,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       numbers.compareDocumentPosition(findings) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(container.querySelector("[data-overview-chart]")).not.toBeNull();
-    expect(container.querySelector('section[aria-label="Needs you"]')).not.toBeNull();
+    expect(container.querySelector('section[aria-label="Needs attention"]')).not.toBeNull();
     expect(container.textContent).not.toContain("Where is growth moving?");
     expect(container.textContent).not.toContain("Can I trust the inputs?");
     expect(container.textContent).not.toContain("Jump to");
@@ -2058,7 +2058,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       verification: { kind: "collection-success" as const, laneId: "uptime" } }, "working", "Up", "checked 12m ago"],
     ["live", { polarity: "supporting" as const, source: "Home page answered", detail: "1 failed try",
       verification: { kind: "collection-success" as const, laneId: "uptime" } }, "working", "Up", "checked 12m ago · 1 failed try"],
-    ["degraded",{ polarity: "against" as const, source: "Home page did not answer", detail: "HTTP 503" },
+    ["degraded",{ polarity: "against" as const, source: "Home page could not be reached", detail: "HTTP 503" },
       "failing", "Down", "HTTP 503 · checked 12m ago"],
   ] as const)("reads a %s uptime check as Up or Down with its age", async (effective, evidence, kind, word, caption) => {
     const uptime = {
@@ -2224,7 +2224,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const row = view.container.querySelector("#integrations li")!;
     expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "failing");
     expect(row).toHaveTextContent("Access was refused.");
-    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs you");
+    expect(view.container.querySelector("[data-sources-answer]")).toHaveTextContent("Google Search Console needs attention");
     expect(view.container.querySelector("[data-page-answer-detail]")).toHaveTextContent("Google Search Console failing");
     expect(within(row as HTMLElement).getByRole("link", { name: "Fix Google" })).toHaveAttribute("href", "/integrations?provider=google");
   });
@@ -3011,7 +3011,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     await findByText("Google Analytics");
     openLane("Google Analytics");
     await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
-    expect(picker().textContent).toContain("Google did not answer");
+    expect(picker().textContent).toContain("No response from Google");
     expect(within(picker()).getByRole("textbox")).toBeInTheDocument();
     expect(within(picker()).queryByRole("combobox")).toBeNull();
   });
@@ -5533,7 +5533,7 @@ describe("AssetDetailRoute — Tasks tab", () => {
         t.textContent?.startsWith("Tasks"),
       )!;
       expect(tab.textContent).toBe("Tasks3");
-      expect(tab.getAttribute("title")).toBe("3 open tasks — 2 waiting on you");
+      expect(tab.getAttribute("title")).toBe("3 open tasks — 2 for you to decide");
       expect(tab.querySelector("svg")).not.toBeNull();
     });
   });

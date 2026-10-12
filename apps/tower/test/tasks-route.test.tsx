@@ -283,10 +283,10 @@ function fig(container: HTMLElement, mark: "urgent" | "blocked" | "closed"): HTM
   return found;
 }
 
-/** The queue's size, as its header draws it beside "waiting on you". */
+/** The queue's size, as its header draws it beside "for you to decide". */
 function waitingCount(container: HTMLElement): string | null {
   const header = container.querySelector("[data-waiting-list] [data-decision-queue] header");
-  expect(header?.textContent).toContain("waiting on you");
+  expect(header?.textContent).toContain("for you to decide");
   return header?.querySelector(".text-figure")?.textContent ?? null;
 }
 
@@ -322,7 +322,7 @@ describe("/tasks — the first screen answers the page's one question", () => {
 
   it("answers what waits on you, with the three counts that change what you do next", () => {
     const { container } = renderBoard();
-    expect(answerLine(container)).toBe("Nothing waits on you");
+    expect(answerLine(container)).toBe("No decisions for you");
     expect(figures(container)).toEqual(["Urgent", "Blocked", "Closed this week"]);
   });
 
@@ -727,7 +727,7 @@ describe("/tasks — the filters are the URL", () => {
   });
 });
 
-describe("/tasks — Waiting on you leads, and it can be answered", () => {
+describe("/tasks — Your decisions leads, and it can be answered", () => {
   const withInbox = payload({
     projects: [
       project({
@@ -863,7 +863,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(container.querySelector("[data-inbox-evidence]")).toHaveTextContent("Spend $40 on the launch ads.");
   });
 
-  it("lists a waiting task once: in Waiting on you, not again in All tasks", () => {
+  it("lists a waiting task once: in Your decisions, not again in All tasks", () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: {
       "meadow.example": board([
         liveTask({ id: "md-gate", title: "Gate: human — approve the spend", issueType: "gate", awaitType: "human" }),
@@ -877,7 +877,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     expect(container.querySelector('tr[data-task-row="md-1w2"]')).not.toBeNull();
   });
 
-  it("says nothing else is queued when every task is waiting on you", () => {
+  it("says nothing else is queued when every task is for you to decide", () => {
     renderBoard({ data: withInbox, live: true, boards: {
       "meadow.example": board([
         liveTask({ id: "md-9k1", title: "Decide the Korea trip", priority: 1, labels: ["human"], ready: true }),
@@ -1007,7 +1007,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
   it("says nothing is waiting once, in the answer, rather than drawing an empty panel", () => {
     const { container } = renderBoard();
-    expect(answerLine(container)).toBe("Nothing waits on you");
+    expect(answerLine(container)).toBe("No decisions for you");
     expect(container.querySelector("[data-waiting-list]")).toBeNull();
   });
 });
@@ -1653,11 +1653,11 @@ it("shows unavailable project totals as unknown and never declares an empty queu
     expect(fig(container, mark)).toHaveTextContent("—");
     expect(fig(container, mark)).not.toHaveTextContent("0+");
   }
-  expect(answerLine(container)).toBe("Couldn't read what waits on you");
+  expect(answerLine(container)).toBe("Couldn't read your decisions");
   expect(container.querySelector("[data-lane-error]")).toHaveTextContent("Meadow Board");
   expect(screen.getByText("Waiting work is unknown for unread projects.")).toBeInTheDocument();
   expect(screen.getByText("Task availability is unknown for unread projects.")).toBeInTheDocument();
-  expect(screen.queryByText("Nothing is waiting on you.")).not.toBeInTheDocument();
+  expect(screen.queryByText("No decisions for you.")).not.toBeInTheDocument();
   expect(screen.queryByText("Nothing is queued.")).not.toBeInTheDocument();
 });
 

@@ -221,7 +221,7 @@ describe("SnoozeUntil — when a parked alert comes back", () => {
     );
     const chip = container.querySelector("[data-snooze-state]")!;
     expect(chip.getAttribute("data-snooze-state")).toBe("active");
-    expect(chip.textContent).toContain("quiet until");
+    expect(chip.textContent).toContain("snoozed until");
     expect(chip.textContent).toContain("Sep 7, 2026");
     expect(chip.textContent).toContain("in 3d");
   });
@@ -232,7 +232,7 @@ describe("SnoozeUntil — when a parked alert comes back", () => {
     );
     const chip = container.querySelector("[data-snooze-state]")!;
     // An expired snooze is an open alert whose row still records the silence;
-    // it must never read "quiet until" a date in the past.
+    // it must never read "snoozed until" a date in the past.
     expect(chip.getAttribute("data-snooze-state")).toBe("ended");
     expect(chip.textContent).toContain("back since");
     expect(chip.textContent).toContain("2d ago");

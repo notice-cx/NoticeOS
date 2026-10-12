@@ -47,7 +47,7 @@ function toastFor(action: FlagAction, until: string | null): string {
   if (action === "acknowledge") return "Alert marked read";
   if (action === "resolve") return "Alert resolved";
   if (action === "unsnooze") return "Alert back on the open list";
-  return `Alert quiet until ${formatCalendarDate((until ?? "").slice(0, 10))}`;
+  return `Alert snoozed until ${formatCalendarDate((until ?? "").slice(0, 10))}`;
 }
 
 /**
@@ -149,7 +149,7 @@ export function FlagActions({
           if (event.key === "Escape") setPicking(false);
         }}
       >
-        <span className="text-xs text-muted-foreground">Quiet for</span>
+        <span className="text-xs text-muted-foreground">Snooze for</span>
         {SNOOZE_PRESETS.map((preset) => (
           <Button
             key={preset.days}

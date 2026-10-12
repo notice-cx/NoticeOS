@@ -490,7 +490,7 @@ export async function seedConfigDocuments(
   forgetConfigCache(env.STORE);
   for (const file of files) {
     if (!CONFIG_DOCUMENT_FILES.includes(file)) {
-      refused.push({ file, detail: 'not a config document this OS knows how to edit' });
+      refused.push({ file, detail: 'not a config document this OS can edit' });
       continue;
     }
     if (force.has(file) && (input.reason ?? '').trim() === '') {

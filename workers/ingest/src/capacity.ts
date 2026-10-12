@@ -28,7 +28,7 @@ const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 function quote(identifier: string): string {
   if (!IDENTIFIER.test(identifier)) {
-    throw new Error(`capacity: refusing an unexpected identifier ${JSON.stringify(identifier)}`);
+    throw new Error(`capacity: rejecting an unexpected identifier ${JSON.stringify(identifier)}`);
   }
   return `"${identifier}"`;
 }

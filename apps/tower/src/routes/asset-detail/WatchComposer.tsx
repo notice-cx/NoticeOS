@@ -221,7 +221,7 @@ export function WatchComposer({
       toast.error(
         err instanceof Error && err.message.length > 0
           ? err.message
-          : "Not registered — the store refused the check",
+          : "Not registered — the store rejected the check",
       );
     } finally {
       setSaving(false);
