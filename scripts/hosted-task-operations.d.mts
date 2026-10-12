@@ -3,7 +3,7 @@ import type { TaskDirectory, TaskProjectCatalogEntry } from '../packages/postgre
 import { type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import { type HostedTaskRequest, type HostedTaskStatus } from './hosted-task-command.mjs';
+import { type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus } from './hosted-task-command.mjs';
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
 export interface TaskOperationExecutor {
     execute(proof: Request, workspaceId: string, request: HostedTaskRequest, controls?: {
@@ -46,7 +46,8 @@ export interface HostedTaskCapabilities {
 export interface HostedTaskOperations {
     projects(proof: Request, workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]>;
     capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
-    board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+    /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
+    board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
     task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;
     history(proof: Request, workspaceId: string, projectId: string, taskId: string, limit: number): Promise<unknown>;
     write(proof: Request, workspaceId: string, request: HostedTaskRequest, idempotencyKey?: string): Promise<HostedTaskWriteOutcome>;
@@ -65,4 +66,11 @@ export declare class HostedTaskReceiptsUnavailable extends Error {
     constructor();
 }
 export declare const EDITABLE_TASK_FIELDS: readonly string[];
+/** The board's closed week, and the longest history a closed read may ask for. */
+export declare const CLOSED_DAYS = 7;
+export declare const CLOSED_HISTORY_DAYS = 56;
+/** Who closed a task, written onto it after its close: the task client keeps
+ * no closer. The close stands whether or not this lands; a task without it
+ * shows its close and no closer. `closeOutput` is the close's own answer. */
+export declare function recordCloser(run: (operation: HostedTaskOperation) => Promise<unknown>, taskId: string, closeOutput: unknown, closedBy: string, model?: string): Promise<void>;
 export declare function createHostedTaskOperations(options: HostedTaskOperationsOptions): HostedTaskOperations;

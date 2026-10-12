@@ -127,19 +127,19 @@ describe("the default layout", () => {
       // Taking a widget off and adding it back puts back the same weight.
       expect(WALL_WIDGET_LIBRARY[widget.type].defaultWidth).toBe(widget.width);
     }
-    for (const type of ["needs", "feed"] as const) {
+    for (const type of ["needs", "feed", "agents"] as const) {
       expect(placed.some((w) => w.type === type)).toBe(false);
       expect(WALL_WIDGET_TYPES).toContain(type);
     }
   });
 
-  it("stacks on a phone as the operator reads: the money, the sites, what is broken, the work, the loop last", () => {
+  it("stacks on a phone as the operator reads: the money, the sites, what is broken, the work and who did it, the loop last", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
-    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "feed", "loop"]);
+    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop"]);
   });
 
   it("offers none of the retired widgets", () => {
-    expect(WALL_WIDGET_TYPES).toEqual(["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed"]);
+    expect(WALL_WIDGET_TYPES).toEqual(["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents"]);
     for (const type of RETIRED_WALL_WIDGET_TYPES) {
       expect(Object.keys(WALL_WIDGET_LIBRARY)).not.toContain(type);
     }

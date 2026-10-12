@@ -264,3 +264,34 @@ test('a create carries the server operation identity as metadata; a caller canno
   assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'create', title: 'Task', operationId: 'not-a-uuid' } }));
   assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'update', taskId: 'tt-a', title: 'x', operationId } }));
 });
+
+test('a claim keeps its model in the same write; only the server records who closed a task', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const claim = plan(A, request({ kind: 'update', taskId: 'tt-a', claim: true, model: 'Opus 5.5' }));
+  assert.deepEqual(claim.argv.slice(2), ['update', '--claim', `--metadata=${JSON.stringify({ noticeos_claimed_model: 'Opus 5.5' })}`, '--', 'tt-a']);
+  // The close names its model for the attribution that follows it; the close itself is unchanged.
+  assert.deepEqual(plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Done', model: 'Opus 5.5' })).argv,
+    plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Done' })).argv);
+  const attributed = plan(A, request({ kind: 'attribute', taskId: 'tt-a', closedBy: 'claude', closedAt: '2026-10-15T16:00:00Z', model: 'Opus 5.5' }));
+  assert.equal(attributed.readOnly, false);
+  assert.deepEqual(attributed.argv.slice(2), ['update', `--metadata=${JSON.stringify({ noticeos_closed_by: 'claude',
+    noticeos_closed_at: '2026-10-15T16:00:00Z', noticeos_closed_model: 'Opus 5.5' })}`, '--', 'tt-a']);
+  for (const operation of [
+    { kind: 'update', taskId: 'tt-a', title: 'x', model: 'Opus 5.5' },
+    { kind: 'update', taskId: 'tt-a', claim: true, model: 'two\nlines' },
+    { kind: 'update', taskId: 'tt-a', claim: true, model: ' padded' },
+    { kind: 'update', taskId: 'tt-a', claim: true, model: 'x'.repeat(HOSTED_TASK_LIMITS.identifier + 1) },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', model: '' },
+    { kind: 'attribute', taskId: 'tt-a', closedBy: 'claude', closedAt: 'yesterday' },
+    { kind: 'attribute', taskId: 'tt-a', closedAt: '2026-10-15T16:00:00Z' },
+    ...['noticeos_closed_by', 'noticeos_closed_model', 'noticeos_closed_at', 'noticeos_claimed_model']
+      .map(name => ({ kind: 'create', title: 'Task', metadata: { [name]: 'forged' } })),
+  ]) denied(() => plan(A, request(operation)));
+});
+
+test('a closed read may span the Agents page history, and no further', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const until = '2026-10-16T12:00:00.000Z';
+  assert.ok(plan(A, request({ kind: 'closed-board', since: '2026-08-21', until })).argv.includes('--closed-after=2026-08-21'));
+  denied(() => plan(A, request({ kind: 'closed-board', since: '2026-08-19', until })));
+});

@@ -40,7 +40,7 @@ export function memoryReceipts(clock) {
 /** An executor over one in-memory project. `principal()` is the admitted actor,
  * as the real executor passes it to every command. */
 export function fakeTaskExecutor({ principal, clock }) {
-  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [];
+  const tasks = new Map(), comments = [], effects = [], calls = [], edges = [], attributions = [];
   let fail = null, hold = null;
   const row = task => ({ issue_type: 'task', ...task, schema_version: 1 });
   // As show embeds them: the whole other task, with the edge's type.
@@ -79,8 +79,10 @@ export function fakeTaskExecutor({ principal, clock }) {
       }
       case 'update': case 'close': {
         const task = tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open', priority: 2 };
-        if (operation.kind === 'close') Object.assign(task, { status: 'closed', close_reason: operation.reason });
+        if (operation.kind === 'close') Object.assign(task, { status: 'closed', close_reason: operation.reason,
+          closed_at: new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z') });
         if (operation.claim) Object.assign(task, { status: 'in_progress', assignee: principal() });
+        if (operation.model !== undefined) task.metadata = { ...task.metadata, noticeos_claimed_model: operation.model };
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];
@@ -89,6 +91,14 @@ export function fakeTaskExecutor({ principal, clock }) {
         tasks.set(task.id, task); effects.push([operation.kind, operation.taskId]);
         // The task client's reply to a change carries neither parent nor links.
         const { parent: _parent, ...changed } = row(task); value = [changed]; break;
+      }
+      case 'attribute': {
+        // As the task client merges --metadata into what the task carries.
+        if (fail === 'attribute') { fail = null; throw new Error('the closer was not recorded'); }
+        const task = tasks.get(operation.taskId);
+        task.metadata = { ...task.metadata, noticeos_closed_by: operation.closedBy, noticeos_closed_at: operation.closedAt,
+          ...(operation.model === undefined ? {} : { noticeos_closed_model: operation.model }) };
+        attributions.push([operation.taskId, operation.closedBy]); value = [row(task)]; break;
       }
       case 'active-board': value = [...tasks.values()].filter(task => task.status !== 'closed').map(row); break;
       case 'closed-board': value = []; break;
@@ -133,5 +143,5 @@ export function fakeTaskExecutor({ principal, clock }) {
     if (fail === 'after') { fail = null; throw new Error('reply lost after the effect'); }
     return value;
   } };
-  return { executor, tasks, comments, edges, effects, calls, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
+  return { executor, tasks, comments, edges, effects, calls, attributions, fail: when => { fail = when; }, hold: promise => { hold = promise; } };
 }

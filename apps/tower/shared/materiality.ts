@@ -197,6 +197,7 @@ export const WALL_PAYLOAD_INVENTORY = {
   // `/alerts`, never on the Wall.
   snoozed: { class: "history", placement: "primary-content", destination: "AlertsRoute Snoozed list" },
   operator: { class: "material-current", placement: "fixed-horizon", destination: "WallWork Your decisions + WallLoop Decide" },
+  agents: { class: "material-current", placement: "primary-content", destination: "WallAgents standings" },
   ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen)" },
 } satisfies Record<keyof WallPayload, PayloadConcern>;
 

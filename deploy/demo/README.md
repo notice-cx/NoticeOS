@@ -104,7 +104,9 @@ under the release's job identities: a quarter-hour refresh writes today's provis
 synthetic traffic and search counts, the ad-supported sites' daily estimates
 arrive each morning, an hourly freshness check raises and clears the alert for
 a site whose nightly report has stopped arriving, and the task board refreshes every
-five minutes. The same hourly job runs the release's home-page check against
+five minutes. Each site's weekly task is claimed and closed as `codex` for a
+review and as `claude` for a change, with the model and the closer recorded, so
+the Agents page and the Wall keep crediting the named agents after the cutoff. The same hourly job runs the release's home-page check against
 each fictional site's synthetic page, so no site is fetched. Each day one site
 in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
 alert, and the next hour's check marks it up and closes the alert. System health
@@ -139,7 +141,14 @@ recipe site whose traffic is rising with its season, an outdoor guide losing
 traffic after a redesign the outcome check rejected, and a product weeks old;
 two of them have ad income. Last night's synthetic backup failed, open
 decisions range from hours to weeks old, and each project's board has work
-done this week, in progress and blocked. The release's own evaluators produce every alert and verdict from
+done this week, in progress and blocked. The work is credited to two named
+agents: `claude` builds, records the model it used (Opus 5.5 for urgent work,
+Haiku 5.5 for quick fixes, Sonnet 5.5 for the rest), and closes each task with
+its commit and the page where the change appears, after `codex` checks it;
+`codex` also checks each day's changes. The Agents page shows eight weeks of
+their earlier work, and the last 7 days rank the four agent models within a
+few points of each other. The release's own
+evaluators produce every alert and verdict from
 the synthetic history; none is seeded as a finished result.
 Visitor writes and provider actions are rejected. A passing health check does
 not show that any remote domain has been deployed or that an expired grant can

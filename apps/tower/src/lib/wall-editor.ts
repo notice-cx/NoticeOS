@@ -435,6 +435,7 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   work: { width: 340, height: 260 },
   needs: { width: 260, height: 160 },
   feed: { width: 336, height: 300 },
+  agents: { width: 288, height: 200 },
 };
 
 /** The preset a fraction lands on when it is within `tolerance` of one. */

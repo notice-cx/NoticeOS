@@ -21,6 +21,8 @@ import {
   taskFieldAvailable,
   taskOperationAvailable,
   taskActorLabel,
+  claimedModel,
+  closeAttribution,
   TASK_PROJECTS_PATH,
   type LiveEpic,
   type LiveTask,
@@ -1239,11 +1241,12 @@ function Activity({
       out.push({ key: "created", at: task.createdAt, icon: Circle, label: "Filed", note: null });
     }
     if (task.startedAt) {
+      const model = claimedModel(task);
       out.push({
         key: "claimed",
         at: task.startedAt,
         icon: CircleDot,
-        label: task.assignee ? `Claimed by ${taskActorLabel(task.assignee, actors)}` : "Claimed",
+        label: task.assignee ? `Claimed by ${taskActorLabel(task.assignee, actors)}${model ? ` · ${model}` : ""}` : "Claimed",
         note: null,
       });
     }
@@ -1258,11 +1261,12 @@ function Activity({
       });
     }
     if (task.closedAt) {
+      const closer = closeAttribution(task);
       out.push({
         key: "closed",
         at: task.closedAt,
         icon: Check,
-        label: "Closed",
+        label: closer ? `Closed by ${taskActorLabel(closer.by, actors)}${closer.model ? ` · ${closer.model}` : ""}` : "Closed",
         note: task.closeReason,
       });
     }

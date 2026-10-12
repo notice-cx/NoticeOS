@@ -57,7 +57,31 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_operation_id";
         legacy: "noticeos_operation_id";
     }>;
+    /** The model the claimer named when it claimed the task. Server-set. */
+    claimedModel: Readonly<{
+        name: "noticeos_claimed_model";
+        legacy: "noticeos_claimed_model";
+    }>;
+    /** Who closed the task. The task client keeps no closer, so the server
+     * records it after the close; it describes only the close at `closedAt`. */
+    closedBy: Readonly<{
+        name: "noticeos_closed_by";
+        legacy: "noticeos_closed_by";
+    }>;
+    /** The model the closer named. Server-set, with `closedBy`. */
+    closedModel: Readonly<{
+        name: "noticeos_closed_model";
+        legacy: "noticeos_closed_model";
+    }>;
+    /** The close `closedBy` describes; a reopened and closed task no longer matches it. */
+    closedAt: Readonly<{
+        name: "noticeos_closed_at";
+        legacy: "noticeos_closed_at";
+    }>;
 }>;
+/** The names only the server writes. A caller's metadata never carries them,
+ * so no filer can forge who closed a task or a write's identity. */
+export declare const SERVER_TASK_METADATA: readonly string[];
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 /** The label every Tower handoff bead carries from now on. */
 export declare const HANDOFF_LABEL = "noticeos-handoff";

@@ -6,9 +6,9 @@ import { demoTaskIssuesAt } from './demo-task-facts.mjs';
 const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 test('one scenario names six real task projects and all cross-store story identities', () => {
   const scenario = generateDemoScenario(input);
-  assert.equal(scenario.manifest.scenarioVersion, 6);
+  assert.equal(scenario.manifest.scenarioVersion, 7);
   assert.equal(scenario.manifest.taskProjects.length, 6);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 77);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 217);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 3);
   assert.equal(new Set(scenario.tasks.map(task => task.id)).size, scenario.tasks.length);
@@ -69,11 +69,13 @@ test('bd import rows retain dated comments, owners, acceptance, closure and only
   assert.ok(repair.created_at < repair.started_at && repair.started_at < repair.closed_at);
   assert.ok(repair.closed_at > scenario.manifest.stories.repair.annotationAt);
   assert.match(repair.close_reason, /repair annotation/u);
-  assert.equal(repair.comments.at(-1).author, 'Verifier');
+  assert.equal(repair.comments.at(-1).author, 'codex');
   for (const issue of issues) {
     assert.ok(issue.comments.every(comment => comment.created_at <= input.cutoff));
     assert.ok(issue.created_at <= issue.updated_at && issue.updated_at <= input.cutoff);
-    assert.ok(issue.assignee && issue.acceptance_criteria && issue.description);
+    assert.ok(issue.acceptance_criteria && issue.description);
+    // Open work waits unclaimed unless someone already owns it; everything else has a holder.
+    assert.ok(issue.assignee || issue.status === 'open', issue.id);
   }
   const blocked = new Set(issues.flatMap(issue => issue.dependencies.filter(edge => edge.type === 'blocks').map(() => issue.id)));
   assert.ok(issues.some(issue => issue.status === 'open' && issue.issue_type === 'task' && !blocked.has(issue.id)));
@@ -91,7 +93,9 @@ test('ordinary task briefs and closure evidence are specific, with only resolvab
   for (const task of ordinary) {
     assert.equal(task.description.includes('Synthetic acceptance'), false);
     for (const text of [task.title, task.description, task.acceptance, task.closeEvidence, ...task.comments.map(comment => comment.text)].filter(Boolean)) {
-      assert.ok(text.trim().split(/\s+/u).length <= 12, `Task ${task.id} exceeds the visible-copy budget: ${text}`);
+      // Evidence pointers are not copy: a commit, a link and the dot between them.
+      const words = text.trim().split(/\s+/u).filter(word => !/^(?:·|[0-9a-f]{7}[.;]?|[a-z0-9-]+\.example\S*)$/u.test(word));
+      assert.ok(words.length <= 12, `Task ${task.id} exceeds the visible-copy budget: ${text}`);
       assert.doesNotMatch(text, /report coverage/iu);
     }
     for (const text of [task.description, ...task.comments.map(comment => comment.text)]) {
@@ -123,4 +127,72 @@ test('dated projections never backfill future tasks or comments into an earlier 
   assert.ok(!issues.some(issue => issue.id === scenario.manifest.stories.problem.ref));
   assert.ok(!issues.some(issue => issue.id === scenario.manifest.stories.repair.readbackTaskId && issue.status === 'closed'));
   assert.throws(() => demoTaskIssuesAt(scenario.tasks, 'today'));
+});
+
+test('agents do the work by name: the builder closes with evidence and its model, a different agent verifies', () => {
+  const scenario = generateDemoScenario(input);
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const built = issues.filter(issue => issue.issue_type === 'task' && issue.status === 'closed' && issue.assignee === 'claude');
+  assert.ok(built.length >= 60);
+  for (const issue of built) {
+    assert.match(issue.close_reason, / · [0-9a-f]{7}(?: · |$)/u, issue.id);
+    assert.equal(issue.metadata.noticeos_closed_by, 'claude');
+    assert.equal(issue.metadata.noticeos_closed_at, issue.closed_at);
+    assert.ok(['Opus 5.5', 'Sonnet 5.5', 'Haiku 5.5'].includes(issue.metadata.noticeos_closed_model));
+    assert.equal(issue.metadata.noticeos_claimed_model, issue.metadata.noticeos_closed_model);
+    assert.ok(issue.comments.some(comment => comment.author === 'claude' && /[0-9a-f]{7}/u.test(comment.text)), issue.id);
+  }
+  // The website's example: claimed, fixed and closed by the builder, checked by the verifier.
+  const example = issues.find(issue => issue.title === 'Fix the export button on mobile');
+  assert.deepEqual([example.assignee, example.metadata.noticeos_closed_model], ['claude', 'Opus 5.5']);
+  assert.deepEqual(example.comments.map(comment => comment.author), ['Mara', 'claude', 'codex']);
+  assert.match(example.close_reason, /^Exports pass on all three phone widths · [0-9a-f]{7} · lightbrief\.example\/briefs$/u);
+  // Nothing is attributed before it happened.
+  const earlier = demoTaskIssuesAt(scenario.tasks, new Date(Date.parse(example.closed_at) - 1000).toISOString())
+    .find(issue => issue.id === example.id);
+  assert.equal(earlier.status, 'in_progress');
+  assert.equal(earlier.metadata.noticeos_closed_by, undefined);
+  assert.equal(earlier.metadata.noticeos_claimed_model, 'Opus 5.5');
+});
+
+test('eight weeks of closed agent work, the builder pace rising into the reference week', () => {
+  const scenario = generateDemoScenario(input);
+  const cutoff = Date.parse(input.cutoff);
+  const weekly = Array.from({ length: 8 }, () => ({ claude: 0, codex: 0 }));
+  for (const task of scenario.tasks.filter(task => task.issueType === 'task')) {
+    const last = task.events.at(-1);
+    const week = Math.floor((cutoff - Date.parse(last.at)) / (7 * 86_400_000));
+    if (last.status === 'closed' && week < 8 && last.assignee in weekly[week]) weekly[week][last.assignee]++;
+  }
+  assert.ok(weekly.every(week => week.claude > 0 && week.codex > 0), JSON.stringify(weekly));
+  assert.ok(weekly[0].claude > weekly[7].claude);
+});
+
+test('the week is a close contest: four agent models, a different leader for each award, closes every day', () => {
+  const scenario = generateDemoScenario(input);
+  const cutoff = Date.parse(input.cutoff), DAY = 86_400_000;
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const week = issues.filter(issue => issue.status === 'closed' && cutoff - Date.parse(issue.closed_at) <= 7 * DAY && issue.metadata.noticeos_closed_model);
+  const players = new Map();
+  for (const issue of week) {
+    const key = `${issue.metadata.noticeos_closed_by} · ${issue.metadata.noticeos_closed_model}`;
+    const player = players.get(key) ?? { closes: 0, points: 0, urgent: 0, hours: [] };
+    player.closes++; player.points += [5, 3, 2, 1, 1][issue.priority]; player.urgent += issue.priority <= 1 ? 1 : 0;
+    player.hours.push((Date.parse(issue.closed_at) - Date.parse(issue.started_at)) / 3_600_000);
+    players.set(key, player);
+  }
+  const best = (score) => [...players.entries()].sort((a, b) => score(b[1]) - score(a[1]))[0][0];
+  assert.deepEqual([...players.keys()].sort(), ['claude · Haiku 5.5', 'claude · Opus 5.5', 'claude · Sonnet 5.5', 'codex · GPT-5-Codex']);
+  // Opus leads the ranking on urgent work by a point or two; Sonnet closed more.
+  const ranked = [...players.values()].sort((a, b) => b.points - a.points);
+  assert.ok(ranked[0].points - ranked[1].points <= 3, 'the leader is within reach');
+  assert.equal(best(player => player.points), 'claude · Opus 5.5');
+  assert.equal(best(player => player.closes), 'claude · Sonnet 5.5');
+  assert.equal(best(player => player.urgent), 'claude · Opus 5.5');
+  assert.equal(best(player => -Math.min(...player.hours)), 'claude · Haiku 5.5');
+  // Every day of the week has closes, and the verifier is checking right now.
+  const days = Array.from({ length: 7 }, (_, day) => week.filter(issue => Math.floor((cutoff - Date.parse(issue.closed_at)) / DAY) === day).length);
+  assert.ok(days.every(count => count >= 3), JSON.stringify(days));
+  assert.ok(issues.some(issue => issue.status === 'in_progress' && issue.assignee === 'codex' && cutoff - Date.parse(issue.started_at) <= 2 * 3_600_000));
+  assert.ok(week.some(issue => issue.assignee === 'codex' && cutoff - Date.parse(issue.closed_at) <= DAY));
 });

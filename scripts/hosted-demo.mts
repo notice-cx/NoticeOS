@@ -9,6 +9,7 @@ import { createHostedJobRunner, type HostedJobDefinition, type HostedJobReceipt,
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { HostedTaskOperation } from './hosted-task-command.mjs';
+import { recordCloser } from './hosted-task-operations.mjs';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import type { BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS, type DemoActivityCollection, type DemoActivityDay, type DemoHomeFetch, type DemoTaskIntention } from './demo-activity.mjs';
@@ -177,13 +178,16 @@ export function createHostedDemo(options: HostedDemoOptions): {
       if (typeof found.id !== 'string' || found.issue_type !== 'task'
         || found.created_by !== serviceId || !Array.isArray(found.labels) || !found.labels.includes('synthetic-demo')
         || found.labels.includes('human')) refuse();
+      // The simulator works as the demo's named agents, so the board, the
+      // Agents page and the Wall credit them rather than its service account.
       if (task.phase === 'start') {
         if (found.status !== 'open') refuse();
-        await execute({ kind: 'update', taskId: found.id, claim: true });
+        await execute({ kind: 'update', taskId: found.id, status: 'in_progress', assignee: task.agent });
         return 'written';
       }
-      if (found.status !== 'in_progress' || found.assignee !== serviceId) refuse();
-      await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+      if (found.status !== 'in_progress' || found.assignee !== task.agent) refuse();
+      const closed = await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+      await recordCloser(execute, found.id, closed, task.agent, task.model);
       return 'closed';
     }
   }

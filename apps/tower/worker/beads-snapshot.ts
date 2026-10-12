@@ -8,7 +8,7 @@
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
-import { PRIORITY_BANDS, type WorkCounts, type WorkEpic, type WorkItem } from "../shared/work";
+import { PRIORITY_BANDS, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
 
 type SnapshotRow = {
   captured_at: string;
@@ -60,6 +60,9 @@ export interface SnapshotProject {
    * anything. Only the second licenses a finding card to present itself as
    * untouched work. */
   handoffs: HandoffBead[] | undefined;
+  /** Who did the work; absent when the snapshot carries none. */
+  workers?: WorkWorker[];
+  recentWork?: WorkEvent[];
 }
 
 export interface BeadsSnapshot {
@@ -277,7 +280,22 @@ function readProject(value: unknown): SnapshotProject | null {
     // A repo the poller could not open told it nothing: "did not look".
     panelReview: ok ? readPanelReview(value.panelReview) : undefined,
     handoffs: ok ? readHandoffs(value.handoffs) : undefined,
+    ...(ok ? readWork(value) : {}),
   };
+}
+
+/** Who did the work, each row read alone so one unreadable row costs only itself. */
+function readWork(value: Record<string, unknown>): Pick<SnapshotProject, "workers" | "recentWork"> {
+  const workers = (Array.isArray(value.workers) ? value.workers : []).flatMap((entry): WorkWorker[] => {
+    if (!isRecord(entry) || !text(entry.id)) return [];
+    return [{ id: text(entry.id), model: nullableText(entry.model), closedRecent: count(entry.closedRecent), inProgress: count(entry.inProgress) }];
+  });
+  const recentWork = (Array.isArray(value.recentWork) ? value.recentWork : []).flatMap((entry): WorkEvent[] => {
+    if (!isRecord(entry) || (entry.kind !== "claimed" && entry.kind !== "closed") || !text(entry.taskId) || !text(entry.by) || !nullableText(entry.at)) return [];
+    return [{ kind: entry.kind, taskId: text(entry.taskId), title: text(entry.title, text(entry.taskId)), by: text(entry.by),
+      model: nullableText(entry.model), at: text(entry.at), evidence: nullableText(entry.evidence) }];
+  });
+  return { ...(workers.length ? { workers } : {}), ...(recentWork.length ? { recentWork } : {}) };
 }
 
 /** The newest snapshot, or null when none has ever been filed. Project order

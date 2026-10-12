@@ -5,6 +5,7 @@
 /** The closed vocabulary, one entry per kind of line. */
 export const WALL_FEED_KINDS = [
   "task-done",
+  "task-claimed",
   "task-filed",
   "alert",
   "resolved",
@@ -31,6 +32,7 @@ export type WallFeedTone = "healthy" | "error" | "warn" | "info" | "revenue" | "
 /** The kind's word, shown in capitals above the line. */
 export const WALL_FEED_LABEL: Readonly<Record<WallFeedKind, string>> = {
   "task-done": "Task done",
+  "task-claimed": "Claimed",
   "task-filed": "New task",
   alert: "Alert",
   resolved: "Resolved",
@@ -65,6 +67,12 @@ export interface WallFeedItem {
   /** How many stored events the line folds; 1 for a single event. */
   count: number;
   tone: WallFeedTone;
+  /** A task line's worker, when the snapshot named who claimed or closed it:
+   * the line reads "claude closed …", with the model beside the name. */
+  who?: string;
+  model?: string | null;
+  /** A close's evidence as the closer gave it: its commit and links become chips. */
+  evidence?: string | null;
 }
 
 export interface WallFeedPayload {

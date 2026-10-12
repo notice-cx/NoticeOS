@@ -11,7 +11,7 @@ import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
 import type { HostedTaskStatus, HostedTaskRequest } from './hosted-task-command.mjs';
 import { readHostedTaskCommand } from './hosted-task-http.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
-import { createHostedTaskOperations, HostedTaskReceiptsUnavailable, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
+import { CLOSED_HISTORY_DAYS, createHostedTaskOperations, HostedTaskReceiptsUnavailable, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 
@@ -87,7 +87,7 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       } else {
         const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history))?)?$/iu.exec(path);
         if (!match) invalid();
-        query = selections(url, match[1] ? match[2] ? ['project', 'limit'] : ['project'] : ['project', 'status']);
+        query = selections(url, match[1] ? match[2] ? ['project', 'limit'] : ['project'] : ['project', 'status', 'closedDays']);
         if (!query.project || !UUID.test(query.project)) invalid();
         if (match[2] && query.limit !== undefined && (!/^[1-9]\d{0,2}$/u.test(query.limit) || Number(query.limit) > 200)) invalid();
         if (!match[1]) {
@@ -95,6 +95,9 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
           if (selectedStatuses.length < 1 || selectedStatuses.length > 5 || new Set(selectedStatuses).size !== selectedStatuses.length
             || selectedStatuses.some(status => !STATUSES.includes(status as HostedTaskStatus))) invalid();
           statuses = selectedStatuses as HostedTaskStatus[];
+          // A longer closed history is a closed-only read: the board's own week stays cheap.
+          if (query.closedDays !== undefined && (!/^[1-9]\d?$/u.test(query.closedDays) || Number(query.closedDays) > CLOSED_HISTORY_DAYS
+            || selectedStatuses.join(',') !== 'closed')) invalid();
         }
       }
     } catch { return response(400, { error: 'invalid_hosted_task_request' }); }
@@ -110,7 +113,8 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       if (history) return response(200, await operations.history(proof, workspace, query.project!, taskId!, query.limit ? Number(query.limit) : 100));
       if (taskId) return response(200, await operations.task(proof, workspace, query.project!, taskId));
       if (!statuses) invalid();
-      return response(200, await operations.board(proof, workspace, query.project!, statuses));
+      return response(200, await operations.board(proof, workspace, query.project!, statuses,
+        query.closedDays === undefined ? undefined : Number(query.closedDays)));
     } catch (error) {
       if (error instanceof HostedTaskReceiptsUnavailable) return response(503, { error: 'idempotency_unavailable' });
       return response(403, { error: 'hosted_task_refused' });

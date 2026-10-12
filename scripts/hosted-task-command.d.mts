@@ -11,6 +11,8 @@ export declare const HOSTED_TASK_LIMITS: Readonly<{
     label: 128;
     metadataValue: 2048;
     links: 32;
+    /** The longest closed read: the Agents page's eight weeks and the day it starts in. */
+    closedDays: 57;
 }>;
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
 export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore' | 'decision';
@@ -81,14 +83,27 @@ export type HostedTaskOperation = {
     readonly acceptance?: string;
     readonly addLabels?: readonly string[];
     readonly removeLabels?: readonly string[];
+    /** With a claim only: the model the claimer names, kept on the task. */
+    readonly model?: string;
 } | {
     readonly kind: 'comment';
     readonly taskId: string;
     readonly text: string;
-} | {
+}
+/** `model` is the closer's, recorded by the attribution that follows the close. */
+ | {
     readonly kind: 'close';
     readonly taskId: string;
     readonly reason: string;
+    readonly model?: string;
+}
+/** Server-only: who closed a task, written after its close. Request parsers never construct it. */
+ | {
+    readonly kind: 'attribute';
+    readonly taskId: string;
+    readonly closedBy: string;
+    readonly closedAt: string;
+    readonly model?: string;
 } | {
     readonly kind: 'depend';
     readonly taskId: string;

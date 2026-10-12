@@ -88,11 +88,18 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   const discovered = (await (await f.mcp(modern('server/discover'))).json()).result;
   assert.deepEqual([discovered.resultType, discovered.supportedVersions], ['complete', [MODERN]]);
   assert.match(discovered.instructions, /list_workspaces/u);
+  // Every agent is told to name its model on each claim and close, so its work is ranked.
+  assert.match(discovered.instructions, /On every claim_task and close_task, pass model/u);
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
+  for (const name of ['claim_task', 'close_task']) {
+    const tool = tools.find(entry => entry.name === name);
+    assert.match(tool.description, /naming your model/u, name);
+    assert.match(tool.inputSchema.properties.model.description, /Pass it on every claim and close/u, name);
+  }
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
     assert.equal(tool.inputSchema.required.includes('workspace'), tool.name !== 'list_workspaces', `${tool.name} names its workspace`);
@@ -429,4 +436,16 @@ test('the demo takes no credential, lists its one workspace and only reads', asy
   assert.equal((await (await anonymous('create_task', { workspace: DEMO, project: P, title: 'x', idempotency_key: 'demo-create-0001' })).json()).result.isError, true);
   assert.equal((await demo.mcp(post({ jsonrpc: '2.0', id: 1, method: 'ping' }))).status, 400, 'a demo token is never accepted');
   assert.deepEqual(demo.effects, []);
+});
+
+test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {
+  const f = fixture();
+  await call(f, 'create_task', { workspace: A, project: P, title: 'Fix the export button', idempotency_key: 'agent-create-0101' });
+  const claimed = (await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', model: 'Opus 5.5', idempotency_key: 'agent-claim-0101' })).structuredContent;
+  assert.equal(claimed.task.metadata.noticeos_claimed_model, 'Opus 5.5');
+  const closed = (await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Exports pass · 3f2a91c', model: 'Opus 5.5',
+    idempotency_key: 'agent-close-0101' })).structuredContent;
+  assert.deepEqual([closed.task.metadata.noticeos_closed_by, closed.task.metadata.noticeos_closed_model], [PERSON, 'Opus 5.5']);
+  assert.match((await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Done', model: 'two\nlines',
+    idempotency_key: 'agent-close-0102' })).content[0].text, /^invalid arguments: model/u);
 });

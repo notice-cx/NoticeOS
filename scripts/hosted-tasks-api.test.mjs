@@ -118,3 +118,15 @@ test('an Idempotency-Key is checked before admission and needs a receipt store',
   assert.equal(writeResponse({status:'pending'}).status,409);assert.equal(writeResponse({status:'conflict'}).status,409);
   assert.deepEqual(await writeResponse({status:'done',value:{id:'tt-a'},replayed:true}).json(),{id:'tt-a'});
 });
+test('a closed-only read may ask for eight weeks of history; any other read keeps its week',async()=>{
+  const f=fixture();
+  const reply=await f.handler(request(`/api/tasks?project=${P}&status=closed&closedDays=56`));assert.equal(reply.status,200);
+  const data=await reply.json();
+  assert.equal(data.closedSince,new Date(Date.parse(data.readAt)-56*86400000).toISOString().slice(0,10));
+  assert.deepEqual(f.calls.map(call=>call.command.operation.kind),['closed-board']);
+  for(const path of[`/api/tasks?project=${P}&closedDays=56`,`/api/tasks?project=${P}&status=open,closed&closedDays=56`,
+    `/api/tasks?project=${P}&status=closed&closedDays=57`,`/api/tasks?project=${P}&status=closed&closedDays=0`,
+    `/api/tasks?project=${P}&status=closed&closedDays=2w`]){
+    assert.equal((await f.handler(request(path))).status,400,path);
+  }
+});

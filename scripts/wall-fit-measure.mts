@@ -68,7 +68,7 @@ export interface WallFitMeasurement {
   ink: WallFitLeak[];
   clipped: WallFitLeak[];
   /** The regions, where the Wall draws them; null for one the layout does not place. */
-  regions: Record<"strip" | "loop" | "revenue" | "sites" | "timeline" | "work" | "needs" | "feed", WallFitBox | null>;
+  regions: Record<"strip" | "loop" | "revenue" | "sites" | "timeline" | "work" | "needs" | "feed" | "agents", WallFitBox | null>;
   /** The site region: its tier, each row's height, and the height left under
    * the last row (null in the one-site tier, which draws tiles, not rows). */
   sites: { density: string | null; rows: { id: string; height: number }[]; spare: number | null };
@@ -320,6 +320,7 @@ export function measureWallFit(): WallFitMeasurement | { error: string } {
       work: boxOf("[data-wall-work]"),
       needs: boxOf("[data-wall-needs]"),
       feed: boxOf("[data-wall-feed]"),
+      agents: boxOf("[data-wall-agents]"),
     },
     sites: { density, rows, spare },
     feed: { shown: shown.length, lastRowWhole },

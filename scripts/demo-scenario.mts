@@ -3,7 +3,7 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 
-export const SCENARIO_VERSION = 6;
+export const SCENARIO_VERSION = 7;
 const DAY_MS = 86_400_000;
 export interface DemoAsset { id: string; name: string; prefix: string; days: number; sessions: number | null; revenue: number | null; revenueFamily: 'subs' | 'licensing' | null; cost: number; event: string | null; isOs?: boolean;
   /** Ad income per 1,000 sessions, in cents, before season and weekday; only an ad-supported site has one. */

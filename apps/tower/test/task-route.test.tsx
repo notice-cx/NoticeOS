@@ -471,6 +471,19 @@ describe("the task page", () => {
     expect(within(activity).getByText("Comment from Example Operator")).toBeInTheDocument();
   });
 
+  it("names who claimed and who closed it, with the models they named", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({
+      status: "closed", assignee: "claude", closedAt: "2026-09-04T11:30:00Z", closeReason: "Facts render · abc1234",
+      metadata: { noticeos_claimed_model: "Opus 5.5", noticeos_closed_by: "claude", noticeos_closed_model: "Opus 5.5",
+        noticeos_closed_at: "2026-09-04T11:30:00Z" },
+    }) }));
+    const { container } = renderTask();
+    await screen.findByText("Closed by claude · Opus 5.5");
+    const activity = container.querySelector("[data-task-activity]") as HTMLElement;
+    expect(within(activity).getByText("Claimed by claude · Opus 5.5")).toBeInTheDocument();
+    expect(within(activity).getByText("Facts render · abc1234")).toBeInTheDocument();
+  });
+
   // Every place `Age` renders pairs it with a word that needs it, so a bare
   // em-dash after "created" reads as a rendering failure. `formatAge` keeps
   // its own dash.

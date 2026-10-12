@@ -54,6 +54,8 @@ import {
   type SignalTrendSet,
   type SnoozedItem,
   type SystemBand,
+  type WallAgents,
+  type WallAgentStanding,
   type WallPayload,
   type WorkSummary,
 } from "../shared/wall";
@@ -242,6 +244,31 @@ export function cardWorkOf(snapshot: BeadsSnapshot | null): Map<string, WorkSumm
   }
   return out;
 }
+
+/** The Agents widget's standings from the newest snapshot: each agent and
+ * model's closes and held work summed across the projects read. Null until a
+ * worker has named a model. */
+export function wallAgentsOf(snapshot: BeadsSnapshot | null): WallAgents | null {
+  if (!snapshot) return null;
+  const rows = snapshot.projects.filter((project) => project.ok).flatMap((project) => project.workers ?? []);
+  const agents = new Set(rows.filter((row) => row.model !== null).map((row) => row.id));
+  if (agents.size === 0) return null;
+  const merged = new Map<string, WallAgentStanding>();
+  for (const row of rows.filter((entry) => agents.has(entry.id))) {
+    const key = `${row.id}\0${row.model ?? ""}`;
+    const entry = merged.get(key) ?? { id: row.id, model: row.model, closed: 0, inProgress: 0 };
+    merged.set(key, { ...entry, closed: entry.closed + row.closedRecent, inProgress: entry.inProgress + row.inProgress });
+  }
+  const standings = [...merged.values()].sort((a, b) => b.closed - a.closed || b.inProgress - a.inProgress || a.id.localeCompare(b.id));
+  return {
+    standings: standings.slice(0, WALL_AGENT_ROWS),
+    closed: standings.reduce((sum, entry) => sum + entry.closed, 0),
+    inProgress: standings.reduce((sum, entry) => sum + entry.inProgress, 0),
+    capturedAt: snapshot.capturedAt,
+  };
+}
+/** The most standings a Wall's Agents widget draws. */
+export const WALL_AGENT_ROWS = 6;
 
 export async function buildWallPayload(
   /** The call's store, which every read below takes. */
@@ -753,6 +780,7 @@ export async function buildWallPayload(
     attention,
     snoozed,
     operator,
+    agents: wallAgentsOf(beadsSnapshot),
     ledgerRecordedAt: ledger?.ts ? javascriptInstant(ledger.ts) : null,
   };
 }

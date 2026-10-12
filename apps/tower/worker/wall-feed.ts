@@ -289,6 +289,21 @@ SELECT list, asset, id, title, at FROM first_seen
  ORDER BY at COLLATE "C" DESC, list, id
  LIMIT $4`;
 
+/**
+ * Who claimed and closed work, from the newest snapshot's `recentWork`: the
+ * newest claims and closes per project, each with its worker, model and a
+ * close's evidence. A task the snapshot names here reads as that worker's line.
+ */
+export const FEED_WORK_SQL = `SELECT p.value ->> 'asset' AS asset, w.value ->> 'kind' AS kind, w.value ->> 'taskId' AS id,
+       w.value ->> 'title' AS title, w.value ->> 'by' AS who, w.value ->> 'model' AS model,
+       w.value ->> 'evidence' AS evidence, w.value ->> 'at' AS at
+  FROM (SELECT payload FROM noticeos.task_snapshots ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1) s
+ CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END) AS p(value)
+ CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(p.value -> 'recentWork') WHEN 'array' THEN p.value -> 'recentWork' ELSE '[]' END) AS w(value)
+ WHERE w.value ->> 'at' COLLATE "C" >= $1::text
+ ORDER BY w.value ->> 'at' COLLATE "C" DESC
+ LIMIT $2`;
+
 // ─── raw events ─────────────────────────────────────────────────────────────
 
 interface Site {
@@ -310,6 +325,10 @@ interface FeedEvent {
   foldKey: string | null;
   /** The folded line's words for `n` events over `sites` sites. */
   many?: (n: number, sites: number) => string;
+  /** A task line's worker, model and evidence (`WallFeedItem`). */
+  who?: string;
+  model?: string | null;
+  evidence?: string | null;
 }
 
 const ms = (iso: string): number => Date.parse(iso);
@@ -539,6 +558,16 @@ type JobRow = {
   job: string;
   at: string;
 };
+type WorkRow = {
+  asset: string | null;
+  kind: string | null;
+  id: string | null;
+  title: string | null;
+  who: string | null;
+  model: string | null;
+  evidence: string | null;
+  at: string | null;
+};
 type TaskRow = {
   list: "recentlyClosed" | "recentlyCreated";
   asset: string | null;
@@ -674,6 +703,7 @@ function fold(events: readonly FeedEvent[], sites: ReadonlyMap<string, Site>): W
       text: feedSentence(text),
       count,
       tone: top.tone,
+      ...(top.who && group.length === 1 ? { who: top.who, model: top.model ?? null, evidence: top.evidence ?? null } : {}),
     };
   });
 }
@@ -742,6 +772,11 @@ async function hygieneRows(store: WorkspaceStore, since: string, cap: number): P
   return found.map((row) => ({ ...row, at: javascriptInstant(row.at) }));
 }
 
+/** Claims and closes the newest photograph names a worker for. */
+async function workRows(store: WorkspaceStore, since: string, cap: number): Promise<WorkRow[]> {
+  return store.read((tx) => tx.query<WorkRow>(FEED_WORK_SQL, [since, cap]));
+}
+
 /** Tasks done and filed since `since`, from the store's task photographs. */
 async function taskRows(store: WorkspaceStore, since: string, now: string, cap: number): Promise<TaskRow[]> {
   return store.read((tx) => tx.query<TaskRow>(FEED_TASKS_SQL, [since, now, since, cap]));
@@ -790,6 +825,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     configs,
     jobs,
     tasks,
+    work,
   ] = await Promise.all([
     readSites(store),
     storeRows<FlagRow>(store, FEED_FLAGS_FIRED_SQL, since, cap),
@@ -807,6 +843,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     configRows(store, since, cap),
     jobRows(store, runStart, since, cap),
     taskRows(store, since, nowIso, cap),
+    workRows(store, since, cap),
   ]);
 
   const sites = new Map<string, Site>(assetRows.map((row) => [row.id, { name: assetDisplayName(row.isOs, row.displayName), isOs: row.isOs === 1 }]));
@@ -1129,10 +1166,33 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     });
   }
 
+  // Who closed what, and who claimed what, when the snapshot names them. A
+  // named close is the task's line; the board's own close is then the same
+  // event and is not added twice.
+  const closers = new Map<string, WorkRow>();
+  for (const row of work) {
+    if (!row.id || !row.at || !row.who) continue;
+    if (row.kind === "closed") closers.set(`${row.asset}\0${row.id}`, row);
+    if (row.kind === "claimed") {
+      add({
+        id: `task-claimed:${row.id}:${row.at}`,
+        atMs: ms(row.at),
+        kind: "task-claimed",
+        asset: known(row.asset),
+        text: row.title?.trim() || row.id,
+        tone: "neutral",
+        foldKey: null,
+        who: row.who,
+        model: row.model,
+      });
+    }
+  }
+
   // Tasks done and tasks filed, once per task whichever snapshots held it.
   for (const row of tasks) {
     if (!row.id || !row.at) continue;
     const done = row.list === "recentlyClosed";
+    const closer = done ? closers.get(`${row.asset}\0${row.id}`) : undefined;
     add({
       id: `${done ? "task" : "task-filed"}:${row.id}`,
       atMs: ms(row.at),
@@ -1141,6 +1201,22 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       text: row.title?.trim() || row.id,
       tone: done ? "healthy" : "neutral",
       foldKey: null,
+      ...(closer ? { who: closer.who!, model: closer.model, evidence: closer.evidence } : {}),
+    });
+  }
+  // A named close the board's capped list no longer holds still gets its line.
+  for (const row of closers.values()) {
+    add({
+      id: `task:${row.id}`,
+      atMs: ms(row.at!),
+      kind: "task-done",
+      asset: known(row.asset),
+      text: row.title?.trim() || row.id!,
+      tone: "healthy",
+      foldKey: null,
+      who: row.who!,
+      model: row.model,
+      evidence: row.evidence,
     });
   }
 

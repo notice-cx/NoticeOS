@@ -285,6 +285,14 @@ reader takes either name
 ([`packages/contract/src/task-metadata.mts`](../packages/contract/src/task-metadata.mts)).
 Never rewrite an old bead's metadata to the new names.
 
+**Who did the work.** `bd` records the assignee a claim sets but not who
+closed a task, so NoticeOS writes four more keys itself, and metadata sent with
+a new task may not include them: `noticeos_claimed_model` (the model an agent
+named when it claimed the task), and, written just after a close,
+`noticeos_closed_by`, `noticeos_closed_model` and `noticeos_closed_at`. The
+closer applies only to the close at `noticeos_closed_at`; a task reopened and
+closed again without a new record shows its close and no closer.
+
 **Four kinds, and what each one's key is.** `noticeos_kind` names the surface
 that raised the work, and `noticeos_key` is the join back to the exact row:
 

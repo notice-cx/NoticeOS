@@ -90,6 +90,32 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
 });
 
+test('an agent\'s claim and close name its model, and its close records the agent as the closer', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], CLOSED_AT = '2026-10-12T10:00:00Z';
+  const row = status => ({ id: 'ex-1', title: 'Probe', status, issue_type: 'task', priority: 2, assignee: 'claude', labels: [],
+    ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Done · abc1234' } : {}) });
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
+    run: async argv => {
+      commands.push(argv);
+      const stdout = argv.includes('lint') ? { results: null } : argv.includes('comments') ? [] : [row(argv.includes('close') ? 'closed' : 'in_progress')];
+      return { code: 0, stdout: JSON.stringify(stdout) };
+    } });
+  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
+    .then(response => response.json());
+  const writes = () => commands.filter(argv => !argv.includes('--readonly'));
+  assert.equal((await call('claim_task', { task: 'ex-1', model: 'Example Model 1', idempotency_key: 'local-claim-0001' })).result.isError, undefined);
+  assert.deepEqual(writes().at(-1).slice(2), ['--actor=claude', 'update', '--claim', '--metadata={"noticeos_claimed_model":"Example Model 1"}', '--', 'ex-1']);
+  assert.equal((await call('close_task', { task: 'ex-1', reason: 'Done · abc1234', model: 'Example Model 1', idempotency_key: 'local-close-0001' })).result.isError, undefined);
+  const [close, recorded] = writes().slice(-2);
+  assert.ok(close.includes('close') && close.includes('--actor=claude'));
+  assert.deepEqual(JSON.parse(recorded.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)),
+    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_closed_model: 'Example Model 1' });
+  await mcp.close();
+});
+
 test('os:bd runs in the project a task id or --project names, or the only linked one, as the operator', async () => {
   assert.equal(chooseProject([PROJECTS[0], PROJECTS[2]]).asset, 'example');
   assert.equal(chooseProject(PROJECTS, undefined, ['show', 'se-1x2.3']).asset, 'second', 'a task id names its project by its prefix');

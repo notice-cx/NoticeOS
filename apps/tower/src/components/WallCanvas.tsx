@@ -25,6 +25,7 @@ import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { WallFeedWidget } from "@/components/wall/WallFeed";
+import { WallAgents } from "@/components/wall/WallAgents";
 import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
 import { WallTimelineWidget } from "@/components/wall/WallTimeline";
@@ -215,6 +216,8 @@ export function WallCanvas({
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
         return <WallFeedWidget nowMs={nowMs} />;
+      case "agents":
+        return <WallAgents agents={data.agents} />;
     }
   }
 

@@ -163,3 +163,19 @@ describe("feedClock", () => {
     expect(feedClock(new Date(2026, 8, 21, 6, 40).getTime(), NOW)).toBe("6:40a");
   });
 });
+
+describe("an agent's line", () => {
+  it("names who closed it, the model, and the commit and link as chips", () => {
+    render(<WallFeed feed={payload([
+      item("a", 5, { text: "Fix the export button", who: "claude", model: "Opus 5.5", evidence: "Exports pass · 3f2a91c · lightbrief.example/briefs" }),
+      item("b", 9, { kind: "task-claimed", label: "Claimed", tone: "neutral", text: "Restore the nightly report", who: "codex", model: null }),
+    ])} nowMs={NOW} />);
+    const [closed, claimed] = screen.getAllByRole("listitem");
+    expect(within(closed!).getByText("claude")).toBeInTheDocument();
+    expect(closed).toHaveTextContent("claude closed Fix the export button");
+    const evidence = closed!.querySelector("[data-feed-evidence]") as HTMLElement;
+    expect([...evidence.children].map((chip) => chip.textContent)).toEqual(["Opus 5.5", "3f2a91c", "lightbrief.example/briefs"]);
+    expect(claimed).toHaveTextContent("codex claimed Restore the nightly report");
+    expect(claimed!.querySelector("[data-feed-evidence]")).toBeNull();
+  });
+});

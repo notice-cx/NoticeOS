@@ -48,7 +48,8 @@ export interface HostedTaskCapabilities {
 export interface HostedTaskOperations {
   projects(proof: Request, workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]>;
   capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
-  board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+  /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
+  board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
   task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;
   history(proof: Request, workspaceId: string, projectId: string, taskId: string, limit: number): Promise<unknown>;
   write(proof: Request, workspaceId: string, request: HostedTaskRequest, idempotencyKey?: string): Promise<HostedTaskWriteOutcome>;
@@ -72,6 +73,9 @@ const ACTIVE = Object.freeze(['open', 'in_progress', 'blocked', 'deferred'] as c
 const RECEIPTED: readonly string[] = ['create', 'update', 'comment', 'close'];
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const DAY_MS = 86_400_000;
+/** The board's closed week, and the longest history a closed read may ask for. */
+export const CLOSED_DAYS = 7;
+export const CLOSED_HISTORY_DAYS = 56;
 function invalid(): never { throw new Error('Hosted task operation refused'); }
 function rows(value: unknown): unknown[] {
   if (!Array.isArray(value)) invalid(); return value;
@@ -88,6 +92,23 @@ function canonical(value: unknown): string {
     return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(',')}}`;
   }
   return JSON.stringify(value);
+}
+
+/** Who closed a task, written onto it after its close: the task client keeps
+ * no closer. The close stands whether or not this lands; a task without it
+ * shows its close and no closer. `closeOutput` is the close's own answer. */
+export async function recordCloser(run: (operation: HostedTaskOperation) => Promise<unknown>, taskId: string,
+  closeOutput: unknown, closedBy: string, model?: string): Promise<void> {
+  try {
+    const closedAt = (found: unknown) => {
+      const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry as Record<string, unknown> : {})
+        .find(entry => entry.id === taskId);
+      return row?.status === 'closed' && typeof row.closed_at === 'string' ? row.closed_at : null;
+    };
+    const at = closedAt(closeOutput) ?? closedAt(await run({ kind: 'show', taskId }));
+    if (at === null) return;
+    await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }) }));
+  } catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
 }
 
 export function createHostedTaskOperations(options: HostedTaskOperationsOptions): HostedTaskOperations {
@@ -171,6 +192,13 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
     return undefined;
   }
 
+  async function attribute(proof: Request, workspaceId: string, request: HostedTaskRequest, value: unknown, principalId: string): Promise<void> {
+    const operation = request.operation;
+    if (operation.kind !== 'close') return;
+    await recordCloser(step => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step }),
+      operation.taskId, value, principalId, operation.model);
+  }
+
   return Object.freeze({
     projects(proof, workspaceId) {
       return admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => catalog);
@@ -183,15 +211,18 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         editableFields: EDITABLE_TASK_FIELDS,
       }));
     },
-    board(proof, workspaceId, projectId, statuses) {
+    board(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
       if (!Array.isArray(statuses) || statuses.length < 1 || statuses.length > 5 || new Set(statuses).size !== statuses.length
         || statuses.some(status => !STATUSES.includes(status))) invalid();
+      if (!Number.isInteger(closedDays) || closedDays < 1 || closedDays > CLOSED_HISTORY_DAYS) invalid();
       return read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {
         const actors = await actorsOf();
-        const ready = new Set(rows(await run({ kind: 'ready' })).map(row => record(row).id).filter((id): id is string => typeof id === 'string'));
-        const closedSince = new Date(Date.parse(readAt) - 7 * DAY_MS).toISOString().slice(0, 10);
-        const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
         const active = statuses.filter((status): status is Exclude<HostedTaskStatus, 'closed'> => status !== 'closed');
+        // A closed task is never ready, so a closed-only read skips the ready list.
+        const ready = new Set(active.length === 0 ? [] : rows(await run({ kind: 'ready' })).map(row => record(row).id)
+          .filter((id): id is string => typeof id === 'string'));
+        const closedSince = new Date(Date.parse(readAt) - closedDays * DAY_MS).toISOString().slice(0, 10);
+        const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
         for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
           const task = toLiveTask(row, ready); if (!task.id) invalid(); tasks.set(task.id, task);
         }
@@ -200,7 +231,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           if (task.status === 'closed' && task.closedAt !== null && task.closedAt >= `${closedSince}T00:00:00.000Z` && task.closedAt <= readAt) tasks.set(task.id, task);
         }
         let epics = null;
-        try { epics = rows(await run({ kind: 'epics' })).map(toEpic).filter(value => value !== null); } catch { /* Unknown stays null; never invent progress. */ }
+        if (active.length) try { epics = rows(await run({ kind: 'epics' })).map(toEpic).filter(value => value !== null); } catch { /* Unknown stays null; never invent progress. */ }
         return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, closedSince, tasks: [...tasks.values()], epics, actors };
       });
     },
@@ -265,8 +296,13 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       return admitted(proof, workspaceId, action, async (context, catalog): Promise<HostedTaskWriteOutcome> => {
         const project = selected(catalog, request.projectId);
         const answer = (value: unknown) => kind === 'create' ? created(value, project) : value;
+        const effect = async (planned: HostedTaskRequest) => {
+          const value = await executor.execute(proof, workspaceId, planned);
+          await attribute(proof, workspaceId, planned, value, context.principalId);
+          return answer(value);
+        };
         if (idempotencyKey === undefined || !receipts) {
-          return { status: 'done', value: answer(await executor.execute(proof, workspaceId, request)), replayed: false };
+          return { status: 'done', value: await effect(request), replayed: false };
         }
         const identity: TaskReceiptIdentity = Object.freeze({ principalId: context.principalId,
           operation: kind as TaskReceiptIdentity['operation'], idempotencyKey });
@@ -289,12 +325,12 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           if (!next) return { status: 'pending' };
           receipt = next;
         }
-        const effect: HostedTaskRequest = kind === 'create'
+        const planned: HostedTaskRequest = kind === 'create'
           ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation, operationId: receipt.operationId }) })
           : request;
         let value: unknown;
         try {
-          value = answer(await executor.execute(proof, workspaceId, effect));
+          value = await effect(planned);
         } catch (error) {
           // The effect may or may not have happened; the next retry checks.
           try { await receipts.interrupt(workspaceId, identity, receipt); } catch { /* Stays pending until the window passes. */ }
