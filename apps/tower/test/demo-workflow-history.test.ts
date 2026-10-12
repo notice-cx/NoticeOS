@@ -18,10 +18,13 @@ it('the ordinary history reader opens all synthetic run details and lets old rec
     evaluatedAt: scenario.manifest.stories.repair.checkAt,
     result: { readings: 0, closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }], failed: [] },
     reading: { checked_at: scenario.manifest.stories.repair.checkAt, outcome: 'ship_confirmed', baseline: '{"days":28}', post: '{"days":28}' },
+    slide: { evaluatedAt: scenario.manifest.slide.checkAt,
+      result: { readings: 0, closed: [{ id: scenario.manifest.slide.watchId, outcome: 'kill_confirmed' }], failed: [] },
+      reading: { checked_at: scenario.manifest.slide.checkAt, outcome: 'kill_confirmed', baseline: '{"days":28}', post: '{"days":28}' } },
   } });
   const home = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-demo-workflow-reader-'))); homes.push(home);
   await fs.writeFile(path.join(home, 'demo-tasks.json'), JSON.stringify(tasks), { flag: 'wx', mode: 0o600 });
-  await writeDemoWorkflowHistory({ home, history, writeRuns: async () => ({ ok: true, created: 4, duplicate: 0, stale: 0, pruned: 0 }) });
+  await writeDemoWorkflowHistory({ home, history, writeRuns: async () => ({ ok: true, created: history.runs.length, duplicate: 0, stale: 0, pruned: 0 }) });
   const read = createWorkflowHistoryReader(home);
   for (const trace of history.traces) {
     const result = await read(Date.parse(history.cutoff), trace.id);

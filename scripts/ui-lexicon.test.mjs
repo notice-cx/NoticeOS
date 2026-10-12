@@ -168,8 +168,18 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/routes/asset-detail/SiteLead.tsx',
   'apps/tower/src/routes/asset-detail/AssetHeader.tsx',
   'apps/tower/src/lib/home-brief.ts',
+  'apps/tower/src/lib/home-money.ts',
+  'apps/tower/src/routes/home/MoneyHero.tsx',
+  'apps/tower/src/lib/sites-index.ts',
+  'apps/tower/src/routes/assets/HealthSplit.tsx',
+  'apps/tower/src/lib/money-page.ts',
+  'apps/tower/src/routes/financials/MonthHero.tsx',
+  'apps/tower/src/routes/financials/SiteMoneyRows.tsx',
+  'apps/tower/src/routes/financials/CostComposition.tsx',
+  'apps/tower/src/routes/asset-detail/OverviewChart.tsx',
+  'apps/tower/src/routes/asset-detail/SourceHistory.tsx',
+  'apps/tower/src/routes/asset-detail/overview-measures.ts',
   'apps/tower/src/lib/site-health.ts',
-  'apps/tower/src/components/HighlightCard.tsx',
   // The Sites list is the portfolio's business index.
   'apps/tower/src/routes/AssetsRoute.tsx',
   'apps/tower/src/routes/assets/AssetsTable.tsx',
@@ -214,6 +224,9 @@ const ALLOWED_ON_BUSINESS = [
   '"rankings"',
   // Material-condition wire values the materiality suite reads (shared/materiality.ts).
   '"signal-freshness"',
+  // A rule id compared in code and a chart class name: neither reaches the screen.
+  '"ingest-freshness"',
+  'chart-bar-provisional',
 ];
 
 /** The spans of a file that end up in front of a person: string and template

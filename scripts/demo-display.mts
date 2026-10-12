@@ -1,6 +1,6 @@
 // Ordinary saved display settings for the positively owned synthetic scenario.
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from './wall-layout.mjs';
-import { generateDemoScenario, demoScenarioHash, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoProperties, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -28,7 +28,7 @@ export function generateDemoDisplay(scenario: DemoScenario) {
   if (!siteWidget) throw new Error('The released Wall has no site region.');
   siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event!]])) };
   const labels: Record<string, string> = {
-    brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves',
+    brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves', route_downloads: 'Route downloads',
   };
   return {
     'config/tower.json': {
@@ -45,19 +45,42 @@ export function generateDemoDisplay(scenario: DemoScenario) {
   };
 }
 
-/** The sources the scenario actually collects, declared live from each site's
- * first day: GA4 and Search Console, and the ad network for the ad-supported
- * site. No other source is claimed, and the OS collects none. The hosted
- * scheduler's lanes keep their evidence fresh. */
+/** The sources the scenario actually collects, declared live from each
+ * site's first day and mapped to the properties its runs name: GA4 and
+ * Search Console everywhere, Bing on the two content sites, the ad network
+ * where ads are sold, and the hourly home-page check on every site. Product
+ * analytics the apps want and the recipe site's session recordings are
+ * declared but not connected; every other source is skipped with its reason
+ * or does not apply. The OS collects nothing. */
 export function demoIntegrationAssets(scenario: DemoScenario) {
   return Object.fromEntries(scenario.assets.map(asset => {
-    if (asset.isOs) return [asset.id, {}];
+    // The OS's own sources: the demo sends no notifications and runs no agents.
+    if (asset.isOs) {
+      const since = asset.createdAt.slice(0, 10);
+      return [asset.id, {
+        uptime: { status: 'skipped', since, note: 'Reason: the host monitors uptime.' },
+        'github-app': { status: 'skipped', since, note: 'Reason: agent execution is manual in this release.' },
+        'discord-webhooks': { status: 'skipped', since, note: 'Reason: the demo sends no notifications.' },
+      }];
+    }
     const since = asset.createdAt.slice(0, 10);
+    const properties = demoProperties(asset);
     const ads = scenario.manifest.adSites.find(site => site.asset === asset.id);
     return [asset.id, {
-      ga4: { status: 'live', since },
-      gsc: { status: 'live', siteUrl: `sc-domain:${asset.domain}`, since },
-      ...(ads ? { 'ad-network': { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } } : {}),
+      ga4: { status: 'live', since, propertyId: properties.ga4 },
+      gsc: { status: 'live', siteUrl: properties.gsc, since },
+      'bing-webmaster': properties.bing ? { status: 'live', siteUrl: properties.bing, since } : { status: 'skipped', since, note: 'Reason: little search traffic comes from Bing.' },
+      'ad-network': ads ? { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } : { status: 'not-applicable', since, note: 'No ads are sold on this site.' },
+      posthog: ['lb', 'fr'].includes(asset.prefix) ? { status: 'needs-setup', since, note: 'Waiting for its PostHog project.' }
+        : { status: 'skipped', since, note: 'Reason: no product analytics on this site.' },
+      clarity: asset.prefix === 'wp' ? { status: 'needs-setup', since, note: 'Waiting for a Clarity project.' }
+        : { status: 'skipped', since, note: 'Reason: session recordings are not used here.' },
+      dataforseo: { status: 'skipped', since, note: 'Reason: rank tracking is not bought for this site.' },
+      uptime: { status: 'live', since },
+      'affiliate-cj': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
+      'affiliate-amazon': { status: 'not-applicable', since, note: 'No affiliate links on this site.' },
+      'deploy-annotations': { status: 'skipped', since, note: 'Reason: changes are recorded when their tasks close.' },
+      'github-app': { status: 'skipped', since, note: 'Reason: agent execution is manual in this release.' },
     }];
   }));
 }

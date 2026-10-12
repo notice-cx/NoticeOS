@@ -10,6 +10,7 @@
 // readings in sessionStorage, and a restored reading from an earlier load
 // would measure the wrong variant's Wall.
 import type { Page } from "@playwright/test";
+import type { WallLayout } from "../shared/wall-layout";
 import { expect } from "./journey-test";
 import {
   WALL_FIXTURE_NOW, wallFixtureCalendar, wallFixtureHealth, wallFixturePayload, wallFixtureProviders, wallFixtureRealtime,
@@ -17,6 +18,34 @@ import {
 } from "./wall-fixture";
 
 type WallReads = Record<"wall" | "realtime" | "calendar" | "health" | "providers", unknown>;
+
+/**
+ * A saved layout that places the live feed and Needs you, which the default
+ * leaves in the library: the strip, then a column of revenue beside Needs you
+ * over the site rows, beside the full-height feed. The feed's journeys draw it.
+ */
+export const WALL_FEED_LAYOUT: WallLayout = {
+  version: 1,
+  rows: [
+    { id: "strip", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
+    {
+      id: "body",
+      height: "fill",
+      widgets: [
+        {
+          id: "business",
+          type: "column",
+          width: 3.1,
+          rows: [
+            { id: "money", height: "auto", widgets: [{ id: "revenue", type: "revenue", width: 1.55 }, { id: "needs", type: "needs", width: 1 }] },
+            { id: "sites", height: "fill", widgets: [{ id: "sites", type: "sites", width: 1 }] },
+          ],
+        },
+        { id: "feed", type: "feed", width: 1 },
+      ],
+    },
+  ],
+};
 
 export interface WallScene {
   /** What the Wall's next reads answer; a journey may switch it between loads. */
@@ -26,16 +55,21 @@ export interface WallScene {
 /**
  * Answer the Wall's reads from the fixture's `variant`, and pin the browser's
  * clock at the fixture's 12:30 PM PT unless `clock` is false: the live-feed
- * journey runs on the journey server's own clock.
+ * journey runs on the journey server's own clock. With `layout`, the payload
+ * carries it as the saved layout; without, the Wall draws its default.
  */
-export async function wallScene(page: Page, variant: WallFixtureVariant = "six", { clock = true } = {}): Promise<WallScene> {
+export async function wallScene(
+  page: Page,
+  variant: WallFixtureVariant = "six",
+  { clock = true, layout }: { clock?: boolean; layout?: WallLayout } = {},
+): Promise<WallScene> {
   const scene: WallScene = { variant };
   const built = new Map<WallFixtureVariant, WallReads>();
   const reads = () => {
     let found = built.get(scene.variant);
     if (!found) {
       found = {
-        wall: wallFixturePayload(scene.variant),
+        wall: savedLayout(wallFixturePayload(scene.variant), layout),
         realtime: wallFixtureRealtime(20, scene.variant),
         calendar: wallFixtureCalendar(),
         health: wallFixtureHealth(scene.variant),
@@ -53,6 +87,10 @@ export async function wallScene(page: Page, variant: WallFixtureVariant = "six",
   await page.route("**/api/integrations/health", (route) => route.fulfill({ json: reads().health }));
   await page.route("**/api/integrations/providers", (route) => route.fulfill({ json: reads().providers }));
   return scene;
+}
+
+function savedLayout(payload: ReturnType<typeof wallFixturePayload>, layout: WallLayout | undefined) {
+  return layout ? { ...payload, dashboard: { ...payload.dashboard, wall: { layout, history: [] } } } : payload;
 }
 
 type Size = readonly [width: number, height: number];

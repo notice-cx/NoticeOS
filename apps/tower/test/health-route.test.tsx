@@ -409,12 +409,13 @@ describe("/health — the page leads with what to unblock next", () => {
    * one of these five figures has a series: the store keeps the current state
    * of every connection and no by-day record, so each declares how its total
    * divides (`data-composition`). */
-  it("declares its hero: the connections, with their counts", () => {
+  it("declares its hero: the system map, with the connections and their counts under it", () => {
     const { container } = renderRoute(blocked);
 
     const hero = container.querySelector("[data-surface-hero]")!;
-    expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-connections] [data-kpi-strip]")).not.toBeNull();
+    expect(hero).toHaveAttribute("data-system-map");
+    expect(hero.querySelector("[data-flow-graph]")).not.toBeNull();
+    expect(container.querySelector("[data-connections] [data-kpi-strip]")).not.toBeNull();
 
     openPanel("spend");
     const kpis = [...container.querySelectorAll("[data-kpi]")].filter((kpi) => !kpi.closest("[data-connections]"));
@@ -423,6 +424,17 @@ describe("/health — the page leads with what to unblock next", () => {
       const kpi = container.querySelector(`[data-kpi="${label}"]`)!;
       expect(kpi.querySelector("[data-composition]"), label).not.toBeNull();
     }
+  });
+
+  /** The week of scheduled runs sits under the map it explains; a read with
+   * nothing in it says so rather than drawing an empty week. */
+  it("draws the week of scheduled runs under the map, and names a history it could not read", () => {
+    const { container } = renderRoute(blocked);
+    const map = container.querySelector("[data-system-map]")!;
+    const runs = container.querySelector("[data-job-runs]")!;
+    expect(map.compareDocumentPosition(runs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(runs).toHaveTextContent("Scheduled jobs · last 7 days");
+    expect(runs.querySelector("[data-job-runs-empty]")).toHaveTextContent("Run history could not be read");
   });
 
   /** The catalog's full name earns every word in the audit matrix; in a

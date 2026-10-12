@@ -27,10 +27,13 @@ const WEEK: readonly Slot[] = [
   { days: [3], start: '21:00', minutes: 30, title: 'onboarding review', site: 'fr' },
   { days: [4], start: '18:00', minutes: 45, title: 'pricing plan', site: 'fr' },
   { days: [4], start: '21:00', minutes: 30, title: 'ad revenue check', site: 'wp' },
+  { days: [1], start: '17:00', minutes: 30, title: 'redesign decision', site: 'tn' },
+  { days: [5], start: '15:00', minutes: 30, title: 'winter series planning', site: 'tn' },
   { days: [5], start: '17:00', minutes: 30, title: 'Weekly numbers review' },
   { days: [5], start: '20:00', minutes: 30, title: 'Release notes' },
   { days: [6], start: '15:00', minutes: 120, title: 'recipe photo shoot', site: 'wp' },
   { days: [0], start: '18:00', minutes: 30, title: 'Week ahead planning' },
+  { days: [1, 2, 3, 4, 5, 6], start: '02:30', minutes: 15, title: 'Evening wrap-up' },
 ];
 
 function refuse(): never { throw new Error('Demo calendar reading refused.'); }

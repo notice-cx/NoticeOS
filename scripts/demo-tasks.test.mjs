@@ -21,6 +21,8 @@ test('the own project map uses the ordinary register apply and version guard; fa
     const root = path.join(home, 'public'); mkdirSync(root); mkdirSync(path.join(root, 'config'));
     writeFileSync(path.join(root, 'config/beads.json'), '{"spokes":[]}');
     writeFileSync(path.join(root, 'config/integrations.json'), '{"assets":{}}');
+    writeFileSync(path.join(root, 'config/ga4-custom-dimensions.json'), '{"assets":{}}');
+    writeFileSync(path.join(root, 'config/serp-panel.json'), '{"assets":{}}');
     const constants = JSON.parse(readFileSync(new URL('../packages/contract/test/fixture-config/constants.json', import.meta.url), 'utf8'));
     if (defect !== 'missing-constants') writeFileSync(path.join(root, 'config/constants.json'), JSON.stringify(constants));
     const installation = path.join(home, 'installation');
@@ -29,7 +31,7 @@ test('the own project map uses the ordinary register apply and version guard; fa
     const helpers = {
       getConfigDocuments: async () => {
         calls.push('read');
-        return ['config/beads.json', 'config/integrations.json', 'config/constants.json'].map(file => {
+        return ['config/beads.json', 'config/integrations.json', 'config/constants.json', 'config/ga4-custom-dimensions.json', 'config/serp-panel.json'].map(file => {
           const held = seeded || defect === 'held-config' || (defect === 'held-constants' && file.endsWith('constants.json'));
           return { file, version: held ? 1 : null, source: held ? 'store' : 'file', body: seeded?.[file] ?? (file.endsWith('beads.json') ? { spokes: [] } : file.endsWith('constants.json') ? constants : { assets: {} }) };
         });
@@ -38,9 +40,18 @@ test('the own project map uses the ordinary register apply and version guard; fa
         calls.push('seed'); assert.equal(input.actor, 'synthetic-demo-seeder');
         // Only the sources the scenario collects are declared, from each site's first day.
         assert.deepEqual(input.documents['config/integrations.json'].assets, demoIntegrationAssets(scenario));
+        // Every catalog source is declared on every site: collected, wanted,
+        // skipped with its reason, or not applicable; the OS declares its own.
         for (const asset of scenario.assets) {
-          assert.deepEqual(Object.keys(input.documents['config/integrations.json'].assets[asset.id]), asset.isOs ? [] : asset.adRpm ? ['ga4', 'gsc', 'ad-network'] : ['ga4', 'gsc']);
+          const lanes = input.documents['config/integrations.json'].assets[asset.id];
+          assert.deepEqual(Object.keys(lanes).sort(), asset.isOs ? ['discord-webhooks', 'github-app', 'uptime']
+            : ['ad-network', 'affiliate-amazon', 'affiliate-cj', 'bing-webmaster', 'clarity', 'dataforseo', 'deploy-annotations', 'ga4', 'github-app', 'gsc', 'posthog', 'uptime']);
+          assert.ok(Object.values(lanes).every(lane => lane.status !== 'skipped' || /reason/iu.test(lane.note)));
+          if (!asset.isOs) assert.equal(lanes['ad-network'].status, asset.adRpm ? 'live' : 'not-applicable');
         }
+        // The source inventory's other two documents are saved at their defaults.
+        assert.deepEqual(input.documents['config/ga4-custom-dimensions.json'], { assets: {} });
+        assert.deepEqual(input.documents['config/serp-panel.json'], { assets: {} });
         assert.deepEqual(input.documents['config/beads.json'].spokes, []);
         // The schedule reader needs this physical generic document. Copying it
         // into the store adds only the demo's saved run times; measurement

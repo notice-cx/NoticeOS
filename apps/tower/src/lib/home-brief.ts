@@ -1,219 +1,12 @@
-import type { ConnectionReads } from "@shared/connection-status";
-import { ageMs, formatAge } from "@shared/freshness";
 import { shiftLabel } from "@shared/surface";
-import type { AssetCard, AttentionItem, PortfolioBand, SeriesPoint, SystemBand } from "@shared/wall";
-import type { WallFeedItem, WallFeedPayload } from "@shared/wall-feed";
-import type { HighlightKind, HighlightSpark } from "@/components/HighlightCard";
+import type { AssetCard, PortfolioBand, SeriesPoint } from "@shared/wall";
 import type { AnswerFigure } from "@/components/surface/PageAnswer";
-import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatUsd } from "@/lib/format";
-import { wallIssues, type WallIssue, type WallIssueCondition, type WallIssueInputs } from "@/lib/wall-issues";
-import { monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
-import { withSystemIssues } from "@/lib/wall-system-state";
+import { formatInt, formatPercent, formatSeriesDate, formatUsd } from "@/lib/format";
+import { monthRevenue } from "@/lib/wall-revenue";
 
-/**
- * The morning brief: what changed since the operator last looked, as at most
- * five highlight cards, the first the big thing. Nothing here is synthesized:
- * every card stands for a stored fact the Tower already reads (`wallIssues`,
- * `monthRevenue`, the asset cards' daily users, `/api/wall/feed`). A quiet
- * day is a brief with no cards and a finish line. Ranking is severity, then
- * dollars, then kind; within a rank the newest first.
- */
-export const BRIEF_LIMIT = 5;
-
-/** How far a day's visitors have to move against the same weekday last week
- * before the brief says so. Two percent on a day's traffic is weather. */
-export const PEOPLE_MOVED_PERCENT = 10;
-
-export interface BriefCard {
-  key: string;
-  kind: HighlightKind;
-  severity?: "error" | "warn";
-  site: string | null;
-  assetId: string | null;
-  /** One sentence under twelve words. */
-  title: string;
-  detail: string | null;
-  figure?: string;
-  spark?: HighlightSpark;
-  action?: { label: string; to: string };
-  /** Lower first. */
-  rank: number;
-  /** Newest first within a rank. */
-  at: string | null;
-  /** The flag this card stands for, when it is an open alert. */
-  flagId?: number;
-  conditions: WallIssueCondition[];
-}
-
-export interface HomeBrief {
-  /** At most `BRIEF_LIMIT`, ranked. */
-  cards: BriefCard[];
-  /** Everything that changed, before the cap. */
-  changed: number;
-  /** The window's start (the feed's), or null before the feed has answered. */
-  since: string | null;
-  /** The open problems the cards were drawn from, in Needs you's order. */
-  issues: WallIssue[];
-  people: PeopleYesterday | null;
-}
-
-export interface HomeBriefInputs {
-  assets: readonly AssetCard[];
-  attention: readonly AttentionItem[];
-  portfolio: PortfolioBand;
-  system?: SystemBand;
-  connections: ConnectionReads;
-  calendarState?: WallIssueInputs["calendarState"];
-  feed: WallFeedPayload | null;
-  nowMs: number;
-  /** Where a site's page is, for a card's one action. */
-  sitePath: (assetId: string) => string;
-}
-
-const RANK = { broken: 0, error: 0, warn: 1, money: 2, people: 3, win: 4, shipped: 5, search: 6 } as const;
-
-/** The feed kinds the brief draws, and as what. Alerts, failures and late
- * reports are OPEN problems and come from `wallIssues` instead; money comes
- * from the projection; collections, reports and saved settings are the OS's
- * own housekeeping and never a highlight. */
-const FEED_KIND: Partial<Record<WallFeedItem["kind"], HighlightKind>> = {
-  resolved: "win",
-  "task-done": "win",
-  "source-back": "win",
-  deployed: "shipped",
-  change: "shipped",
-  insights: "search",
-};
-
-export function homeBrief(inputs: HomeBriefInputs): HomeBrief {
-  const { assets, attention, portfolio, system, connections, calendarState, feed, nowMs, sitePath } = inputs;
-  const issues = withSystemIssues(wallIssues({ assets, attention, connections, calendarState, nowMs }), system, nowMs);
-  const byId = new Map(assets.map((asset) => [asset.id, asset]));
-  const cards: BriefCard[] = [];
-
-  for (const issue of issues) {
-    const broken = issue.key.startsWith("source-") || issue.key.startsWith("system-") || issue.key === "calendar-read";
-    const asset = issue.assets.length === 1 ? issue.assets[0]! : null;
-    const age = issue.since ? ageMs(nowMs, issue.since) : null;
-    cards.push({
-      key: issue.key,
-      kind: broken ? "broken" : "alert",
-      severity: issue.severity,
-      site: issue.site,
-      assetId: asset,
-      title: issue.line,
-      detail: age === null ? null : `since ${formatAge(age)} ago`,
-      action: asset && byId.has(asset)
-        ? { label: "Look", to: sitePath(asset) }
-        : broken
-          ? { label: "Look", to: "/health" }
-          : { label: "Look", to: "/alerts" },
-      rank: broken ? RANK.broken : RANK[issue.severity],
-      at: issue.since,
-      flagId: issue.flagId,
-      conditions: issue.conditions,
-    });
-  }
-
-  const money = moneyCard(portfolio, assets, nowMs);
-  if (money) cards.push(money);
-
-  const people = peopleYesterday(assets);
-  if (people && people.changePercent !== null && Math.abs(people.changePercent) >= PEOPLE_MOVED_PERCENT) {
-    const up = people.changePercent > 0;
-    cards.push({
-      key: "people-yesterday",
-      kind: "people",
-      site: null,
-      assetId: null,
-      title: `Visitors ${up ? "up" : "down"} ${formatPercent(Math.abs(people.changePercent))}% on the same day last week`,
-      detail: `${formatInt(people.total)} yesterday · ${formatInt(people.previous!)} a week before`,
-      spark: { data: people.series, tone: "traffic", area: true, label: "Visitors a day, last two weeks" },
-      action: assets.length === 1 ? { label: "Look", to: sitePath(assets[0]!.id) } : { label: "Sites", to: "/assets" },
-      rank: RANK.people,
-      at: people.date,
-      conditions: [],
-    });
-  }
-
-  let fromFeed = 0;
-  for (const item of feed?.items ?? []) {
-    const kind = FEED_KIND[item.kind];
-    if (!kind) continue;
-    fromFeed += 1;
-    const age = ageMs(nowMs, item.at);
-    cards.push({
-      key: `feed-${item.id}`,
-      kind,
-      site: item.site,
-      assetId: item.asset,
-      title: item.text,
-      detail: `${item.count > 1 ? `${formatInt(item.count)} together · ` : ""}${age === null ? "" : `${formatAge(age)} ago`}`.replace(/ · $/, "") || null,
-      action: item.asset && byId.has(item.asset) ? { label: "Open", to: sitePath(item.asset) } : undefined,
-      rank: RANK[kind === "win" ? "win" : kind === "shipped" ? "shipped" : "search"],
-      at: item.at,
-      conditions: [],
-    });
-  }
-
-  cards.sort((a, b) => a.rank - b.rank || Date.parse(b.at ?? "") - Date.parse(a.at ?? "") || a.key.localeCompare(b.key));
-  return {
-    cards: cards.slice(0, BRIEF_LIMIT),
-    changed: issues.length + fromFeed + (people && people.changePercent !== null && Math.abs(people.changePercent) >= PEOPLE_MOVED_PERCENT ? 1 : 0),
-    since: feed?.since ?? null,
-    issues,
-    people,
-  };
-}
-
-/** The month's money as one card: the pace while there is one, else the
- * month so far and why there is no pace yet (a new installation's first
- * weeks). Null when no site has a revenue source. */
-function moneyCard(portfolio: PortfolioBand, assets: readonly AssetCard[], nowMs: number): BriefCard | null {
-  const model = monthRevenue(portfolio, assets);
-  if (!model) return null;
-  const yesterday = yesterdayTotal(assets, nowMs);
-  const month = formatPeriodMonthLong(model.period);
-  const yesterdayWords = yesterday && yesterday.amount !== null && !yesterday.mixedBasis
-    ? `yesterday ${formatUsd(yesterday.amount, { cents: true })} est.`
-    : null;
-  if (model.pace) {
-    const { pace } = model;
-    const change = pace.changePercent === null
-      ? ""
-      : pace.changePercent === 0
-        ? ", level with last month"
-        : `, ${pace.changePercent > 0 ? "up" : "down"} ${formatPercent(Math.abs(pace.changePercent))}%`;
-    const actual = pace.points.filter((point) => !point.projected).map((point) => ({ t: point.date, v: point.cumulative }));
-    return {
-      key: "money-pace",
-      kind: "money",
-      site: null,
-      assetId: null,
-      title: `${month} on pace for ${formatUsd(pace.projected)}${change}`,
-      detail: [yesterdayWords, `${pace.daysLeft} ${pace.daysLeft === 1 ? "day" : "days"} left`].filter(Boolean).join(" · "),
-      spark: actual.length >= 2
-        ? { data: actual, tone: "revenue", area: true, format: (value) => formatUsd(value), label: `${month} revenue so far, by day` }
-        : undefined,
-      action: { label: "Money", to: "/financials" },
-      rank: RANK.money,
-      at: null,
-      conditions: [],
-    };
-  }
-  return {
-    key: "money-so-far",
-    kind: "money",
-    site: null,
-    assetId: null,
-    title: model.revenue === null ? `${month} revenue not reported yet` : `${month} revenue so far ${formatUsd(model.revenue)}`,
-    detail: [yesterdayWords, model.waiting].filter(Boolean).join(" · ") || null,
-    action: { label: "Money", to: "/financials" },
-    rank: RANK.money,
-    at: null,
-    conditions: [],
-  };
-}
+// The portfolio's readings that are not Home's money hero: yesterday's
+// visitors across the sites, the word for the hour, and the month and the
+// visitors as an index page's answer figures.
 
 export interface PeopleYesterday {
   /** The latest settled day any site reported. */
@@ -270,9 +63,9 @@ export function greeting(nowMs: number): string {
   return hour < 5 ? "Good evening" : hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
 }
 
-/** The month's money as one figure, the same derivation Home's brief and the
+/** The month's money as one figure, the same derivation Home's hero and the
  * Wall use: the pace while there is one, else the month so far, else nothing.
- * "October pace $1,310 ↑ 16%". */
+ * "October heading for $1,310 ↑ 16%". */
 export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard[]): AnswerFigure | null {
   const money = monthRevenue(portfolio, assets);
   if (!money) return null;
@@ -280,7 +73,7 @@ export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard
   if (money.pace) {
     const change = money.pace.changePercent;
     return {
-      label: `${month} pace`,
+      label: `${month} heading for`,
       value: formatUsd(money.pace.projected),
       note: change === null ? undefined : `${change >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(change))}%`,
       mark: "month-figure",

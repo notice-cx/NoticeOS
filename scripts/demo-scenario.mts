@@ -3,26 +3,45 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 
-export const SCENARIO_VERSION = 5;
+export const SCENARIO_VERSION = 6;
 const DAY_MS = 86_400_000;
 export interface DemoAsset { id: string; name: string; prefix: string; days: number; sessions: number | null; revenue: number | null; revenueFamily: 'subs' | 'licensing' | null; cost: number; event: string | null; isOs?: boolean;
   /** Ad income per 1,000 sessions, in cents, before season and weekday; only an ad-supported site has one. */
-  adRpm?: number; }
+  adRpm?: number;
+  /** Only observed, never acted on: the OS itself and a site still setting up. */
+  senseOnly?: boolean; }
 export interface DemoSite extends DemoAsset { createdAt: string; domain: string | null; status: string; }
-export interface DemoDay { asset: string; date: string; sessions: number; age: number; pageViews: number; activeUsers: number; events: number; eventCount: number; clicks: number; impressions: number; ctr: number; position: number; reportMissing: boolean; provisional: boolean; }
+/** `reportMissing` is a GA4 day the provider never answered; `pulseMissing`
+ * a night the site's own report never arrived. Neither is a zero. */
+export interface DemoDay { asset: string; date: string; sessions: number; age: number; pageViews: number; activeUsers: number; events: number; eventCount: number; clicks: number; impressions: number; ctr: number; position: number; reportMissing: boolean; pulseMissing: boolean; provisional: boolean; }
 export interface DemoLedger { key: string; currency: string; note: string; asset: string; period: string; kind: 'revenue' | 'cost'; family: string; minor: number; state: 'estimated' | 'reconciled'; source: string; recordedAt: string; coverageStart?: string; coverageEnd?: string; coverageComplete?: boolean; supersedes?: string; }
 /** One synthetic daily ad-network estimate, recorded once that day is reported. */
 export interface DemoAdDay { asset: string; siteId: string; date: string; minor: number; recordedAt: string; }
 export interface DemoPulse { asset: string; date: string; generatedAt: string; capabilities: string[]; metrics: Record<string, { last24h: number; avg7d: number; total: number }>; }
 export interface DemoInput { seed: string; cutoff: string; release: string; timeZone?: string; }
 
+/** Five sites with their own shapes: a steady subscription product, a
+ * licensed tool, a recipe site growing into its season, an outdoor guide
+ * sliding out of its season and a search slump, and a product weeks old. */
 export const DEMO_ASSETS: readonly DemoAsset[] = Object.freeze([
   { id: 'lightbrief.example', name: 'Light Brief', prefix: 'lb', days: 400, sessions: 66000, revenue: 180000, revenueFamily: 'subs', cost: 26000, event: 'brief_exports' },
   { id: 'pinwell.example', name: 'Pinwell', prefix: 'pw', days: 400, sessions: 28000, revenue: 52000, revenueFamily: 'licensing', cost: 13000, event: 'source_saves' },
   { id: 'weeknightpantry.example', name: 'Weeknight Pantry', prefix: 'wp', days: 400, sessions: 150000, revenue: null, revenueFamily: null, cost: 9000, event: 'recipe_saves', adRpm: 2400 },
-  { id: 'freshrows.example', name: 'Fresh Rows', prefix: 'fr', days: 24, sessions: null, revenue: null, revenueFamily: null, cost: 6000, event: 'completed_checks' },
-  { id: 'noticeos', name: 'NoticeOS', prefix: 'no', days: 400, sessions: null, revenue: null, revenueFamily: null, cost: 21000, event: null, isOs: true },
+  { id: 'trailnotes.example', name: 'Trail Notes', prefix: 'tn', days: 400, sessions: null, revenue: null, revenueFamily: null, cost: 7000, event: 'route_downloads', adRpm: 2100 },
+  { id: 'freshrows.example', name: 'Fresh Rows', prefix: 'fr', days: 24, sessions: null, revenue: null, revenueFamily: null, cost: 6000, event: 'completed_checks', senseOnly: true },
+  { id: 'noticeos', name: 'NoticeOS', prefix: 'no', days: 400, sessions: null, revenue: null, revenueFamily: null, cost: 21000, event: null, isOs: true, senseOnly: true },
 ]);
+
+/** The outdoor guide's slide: search visibility lost over its last
+ * `DEMO_SLIDE_DAYS` days, to `1 − DEMO_SLIDE_DEPTH` of its level, and the
+ * redesign `DEMO_REDESIGN_AGE` days before the reference day cost a further
+ * step. Scenario choices; the outcome check measures them like any change. */
+export const DEMO_SLIDE_DAYS = 110;
+export const DEMO_SLIDE_DEPTH = 0.3;
+export const DEMO_REDESIGN_AGE = -36;
+/** Light Brief's nightly report stops this many days before the reference
+ * day; the simulator's recurring gaps continue the same cadence. */
+export const DEMO_REPORT_GAP_DAYS = 2;
 
 export function shiftDemoDay(day: string, offset: number) {
   return new Date(Date.parse(`${day}T00:00:00Z`) + offset * DAY_MS).toISOString().slice(0, 10);
@@ -34,30 +53,60 @@ export function shiftDemoMonth(period: string, offset: number) {
 }
 
 /** Each site's demand by weekday, Sunday first: software is used on workdays,
- * recipes are cooked at weekends. The simulator continues the same shape. */
+ * recipes are cooked and trails walked at weekends. The simulator continues
+ * the same shape. */
 export function demoWeekShape(prefix: string): readonly number[] {
-  return prefix === 'wp' ? [1.24, 0.98, 0.95, 0.96, 0.98, 0.9, 1.06] : [0.82, 1.08, 1.08, 1.08, 1.08, 1.08, 0.82];
+  return prefix === 'wp' ? [1.24, 0.98, 0.95, 0.96, 0.98, 0.9, 1.06]
+    : prefix === 'tn' ? [1.34, 0.86, 0.84, 0.86, 0.9, 0.98, 1.42]
+      : [0.82, 1.08, 1.08, 1.08, 1.08, 1.08, 0.82];
 }
 
 /** How a visit turns into pages, users, tracked actions and search results.
- * A recipe site: more pages a visit, more of it from search, higher in results. */
+ * A content site: more pages a visit, more of it from search, higher in results. */
 export function demoTrafficShape(prefix: string) {
   return prefix === 'wp'
     ? { pages: 2.2, pagesSpread: 0.4, activeUsers: 0.84, events: 0.035, clicks: 0.66, impressionsPerClick: 21, position: 4, positionSpread: 1.5 }
-    : { pages: 1.55, pagesSpread: 0.3, activeUsers: 0.79, events: 0.065, clicks: 0.57, impressionsPerClick: 18, position: 6, positionSpread: 2 };
+    : prefix === 'tn'
+      ? { pages: 2.6, pagesSpread: 0.5, activeUsers: 0.86, events: 0.05, clicks: 0.7, impressionsPerClick: 24, position: 7, positionSpread: 2.5 }
+      : { pages: 1.55, pagesSpread: 0.3, activeUsers: 0.79, events: 0.065, clicks: 0.57, impressionsPerClick: 18, position: 6, positionSpread: 2 };
 }
 
-/** A recipe site's year peaks in late November (day 328) and is quietest in
- * early summer: demand is `1 + DEMO_RECIPE_SEASON × cos(angle)`. */
-export const DEMO_RECIPE_SEASON = 0.22;
-export function demoRecipeSeasonAngle(date: string): number {
+/** A content site's year: demand is `1 + amplitude × cos(angle)`, peaking on
+ * day `peakDay` — recipes in late November, trails in mid-July. The
+ * simulator continues with the gentler `continuing` amplitude. */
+export function demoSeason(prefix: string): { peakDay: number; amplitude: number; continuing: number } | null {
+  return prefix === 'wp' ? { peakDay: 328, amplitude: 0.22, continuing: 0.22 }
+    : prefix === 'tn' ? { peakDay: 196, amplitude: 0.3, continuing: 0.12 } : null;
+}
+export function demoSeasonAngle(date: string, peakDay: number): number {
   const dayOfYear = (Date.parse(`${date}T00:00:00Z`) - Date.UTC(Number(date.slice(0, 4)), 0, 1)) / DAY_MS;
-  return 2 * Math.PI * (dayOfYear - 328) / 365.25;
+  return 2 * Math.PI * (dayOfYear - peakDay) / 365.25;
+}
+
+/** The outdoor guide's level at `age` days from the reference day, before
+ * season and noise: the slide, then the redesign's step. */
+export function demoSlide(age: number): number {
+  const slid = age < -DEMO_SLIDE_DAYS ? 1 : 1 - DEMO_SLIDE_DEPTH * ((age + DEMO_SLIDE_DAYS) / DEMO_SLIDE_DAYS) ** 1.2;
+  return slid * (age >= DEMO_REDESIGN_AGE ? 0.93 : 1);
 }
 
 /** The ad network's site identity for a fictional ad-supported site. */
 export function demoAdSiteId(asset: Pick<DemoAsset, 'prefix'>): string {
   return `demo-${asset.prefix}`;
+}
+
+/** The sites that read Bing as well as Google: the two content sites. */
+const BING_SITES: readonly string[] = ['wp', 'tn'];
+/** Bing's share of a content site's search clicks and impressions. */
+export const DEMO_BING_SHARE = 0.09;
+
+/** Each site's properties as its synthetic sources name them: a GA4
+ * property id, a Search Console domain property and, for a content site, a
+ * Bing site. Signal runs and the saved register use the same references. */
+export function demoProperties(asset: Pick<DemoAsset, 'id' | 'prefix'>): { ga4: string; gsc: string; bing: string | null } {
+  const index = DEMO_ASSETS.findIndex(entry => entry.prefix === asset.prefix);
+  if (index < 0) throw new Error('Demo properties need a declared site.');
+  return { ga4: String(381204401 + index), gsc: `sc-domain:${asset.id}`, bing: BING_SITES.includes(asset.prefix) ? `https://${asset.id}/` : null };
 }
 
 /** Ad income per 1,000 sessions by month: an autumn ramp to a December peak and
@@ -126,24 +175,27 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
   const daily: DemoDay[] = [];
   for (const asset of assets.filter(a => !a.isOs)) {
     const rows: DemoDay[] = [];
+    const season = demoSeason(asset.prefix);
+    const recipes = asset.prefix === 'wp', trails = asset.prefix === 'tn';
     for (let age = -asset.days; age < 0; age++) {
       const date = shiftDemoDay(referenceDate, age);
       const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-      const recipes = asset.prefix === 'wp';
-      const annual = recipes ? Math.cos(demoRecipeSeasonAngle(date)) : Math.sin(2 * Math.PI * (Date.parse(`${date}T00:00:00Z`) / DAY_MS % 365.25) / 365.25);
+      const annual = season ? Math.cos(demoSeasonAngle(date, season.peakDay)) : Math.sin(2 * Math.PI * (Date.parse(`${date}T00:00:00Z`) / DAY_MS % 365.25) / 365.25);
       const ownWeek = demoWeekShape(asset.prefix)[weekday]!;
       const noise = 0.92 + draw(seed, `${asset.id}/${date}/demand`) * 0.16;
       const shared = 0.96 + draw(seed, `${date}/shared-demand`) * 0.08;
-      const trend = asset.days === 24 ? (1 + (24 + age) * 0.027) : (1 + (400 + age) * (recipes ? 0.0006 : 0.00015));
-      const referralSpike = !recipes && age >= -95 && age <= -93;
+      const trend = asset.days === 24 ? (1 + (24 + age) * 0.027)
+        : trails ? (1 + (400 + age) * 0.0002) * demoSlide(age)
+          : (1 + (400 + age) * (recipes ? 0.0006 : 0.00015));
+      const referralSpike = !season && age >= -95 && age <= -93;
       const repair = asset.prefix === 'lb' && age >= -60 && age <= -43;
       // The recipe site's faster pages shipped a week before the reference day
       // (`manifest.ship`): a modest lift, still inside its 28-day comparison.
       const faster = recipes && age >= -7;
-      const base = asset.days === 24 ? 18 : asset.prefix === 'lb' ? 2000 : recipes ? 5000 : 820;
-      const amplitude = asset.prefix === 'pw' ? 0.2 : recipes ? DEMO_RECIPE_SEASON : 0.09;
+      const base = asset.days === 24 ? 18 : asset.prefix === 'lb' ? 2000 : recipes ? 5000 : trails ? 3300 : 820;
+      const amplitude = season ? season.amplitude : asset.prefix === 'pw' ? 0.2 : 0.09;
       const traffic = Math.max(1, Math.round(base * ownWeek * (1 + annual * amplitude) * noise * shared * trend * (referralSpike ? 1.7 : 1) * (repair ? 0.68 : 1) * (faster ? 1.09 : 1)));
-      rows.push({ pageViews: 0, activeUsers: 0, events: 0, eventCount: 0, clicks: 0, impressions: 0, ctr: 0, position: 0, reportMissing: false, provisional: false, asset: asset.id, date, sessions: traffic, age });
+      rows.push({ pageViews: 0, activeUsers: 0, events: 0, eventCount: 0, clicks: 0, impressions: 0, ctr: 0, position: 0, reportMissing: false, pulseMissing: false, provisional: false, asset: asset.id, date, sessions: traffic, age });
     }
     // This completed month is the brief's exact readable accounting anchor.
     const anchor = rows.filter(r => r.date.startsWith(referencePeriod));
@@ -153,16 +205,21 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     }
     const shape = demoTrafficShape(asset.prefix);
     for (const row of rows) {
+      // Pinwell's saves broke two days ago and are still broken; the recipe
+      // site's saves failed for one day and came back the next.
+      const rate = asset.prefix === 'pw' && row.age >= -2 ? 0.001 : recipes && row.age === -2 ? shape.events * 0.15 : shape.events;
       row.pageViews = Math.round(row.sessions * (shape.pages + draw(seed, `${asset.id}/${row.date}/pages`) * shape.pagesSpread));
       row.activeUsers = Math.max(1, Math.round(row.sessions * shape.activeUsers));
-      row.events = Math.round(row.sessions * (asset.prefix === 'pw' && row.age >= -2 ? 0.001 : shape.events));
+      row.events = Math.round(row.sessions * rate);
       row.eventCount = row.pageViews + row.sessions + row.events;
       row.clicks = Math.round(row.sessions * shape.clicks);
       row.impressions = row.clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${row.date}/search`) * 100);
       row.ctr = row.clicks / row.impressions;
       row.position = Math.round((shape.position + draw(seed, `${asset.id}/${row.date}/position`) * shape.positionSpread) * 100) / 100;
       row.reportMissing = asset.prefix === 'pw' && row.age === -5;
-      row.provisional = row.age >= -3;
+      row.pulseMissing = asset.prefix === 'lb' && row.age >= -DEMO_REPORT_GAP_DAYS;
+      // GA4 keeps yesterday provisional until it is collected again.
+      row.provisional = row.age >= -1;
       daily.push(row);
     }
   }
@@ -223,22 +280,44 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     const rows = daily.filter(d => d.asset === asset.id);
     let total = 0;
     rows.forEach((row, i) => {
+      // A night with no report sends no envelope; the site's own all-time
+      // counter keeps counting, so the next report's total includes it.
       total += row.events;
+      if (row.pulseMissing) return;
       const recent = rows.slice(Math.max(0, i - 6), i + 1);
       pulses.push({ asset: asset.id, date: row.date, generatedAt: `${row.date}T23:30:00.000Z`, capabilities: [asset.event!], metrics: { [asset.event!]: { last24h: row.events, avg7d: recent.reduce((sum, r) => sum + r.events, 0) / recent.length, total } } });
     });
   }
   const taskFacts = generateDemoTaskFacts({ assets, seed, referenceDate, cutoff });
+  const site = (prefix: string) => assets.find(asset => asset.prefix === prefix)!;
+  const day = (offset: number, time: string) => `${shiftDemoDay(referenceDate, offset)}T${time}.000Z`;
   const stories = {
-    repair: { asset: assets[0]!.id, findingDate: shiftDemoDay(referenceDate, -60), ref: taskFacts.storyIds.repair, readbackTaskId: taskFacts.storyIds.readback, annotationAt: `${shiftDemoDay(referenceDate, -42)}T12:00:00.000Z`, registeredAt: `${shiftDemoDay(referenceDate, -42)}T00:00:00.000Z`, baselineStart: shiftDemoDay(referenceDate, -70), baselineEnd: shiftDemoDay(referenceDate, -43), checkAt: `${shiftDemoDay(referenceDate, -14)}T23:59:00.000Z`, watchId: 'demo-navigation-repair' },
-    problem: { asset: assets[1]!.id, ref: taskFacts.storyIds.problem, date: shiftDemoDay(referenceDate, -2), metric: assets[1]!.event },
+    repair: { asset: site('lb').id, findingDate: shiftDemoDay(referenceDate, -60), ref: taskFacts.storyIds.repair, readbackTaskId: taskFacts.storyIds.readback, annotationAt: day(-42, '12:00:00'), registeredAt: day(-42, '00:00:00'), baselineStart: shiftDemoDay(referenceDate, -70), baselineEnd: shiftDemoDay(referenceDate, -43), checkAt: day(-14, '23:59:00'), watchId: 'demo-navigation-repair' },
+    problem: { asset: site('pw').id, ref: taskFacts.storyIds.problem, date: shiftDemoDay(referenceDate, -2), metric: site('pw').event },
   };
   // A change shipped a week ago with its comparison still counting: the
   // recipe site's faster pages, annotated when its task closed and watched on
   // sessions for 28 days against the 28 days before it. No outcome is claimed.
-  const ship = { asset: assets[2]!.id, ref: taskFacts.storyIds.ship, readbackTaskId: taskFacts.storyIds.shipReadback, annotationAt: `${shiftDemoDay(referenceDate, -7)}T15:00:00.000Z`, registeredAt: `${shiftDemoDay(referenceDate, -7)}T00:00:00.000Z`, baselineStart: shiftDemoDay(referenceDate, -35), baselineEnd: shiftDemoDay(referenceDate, -8), checkOffsets: [28], watchId: 'demo-faster-recipe-pages' };
+  const ship = { asset: site('wp').id, ref: taskFacts.storyIds.ship, readbackTaskId: taskFacts.storyIds.shipReadback, annotationAt: day(-7, '15:00:00'), registeredAt: day(-7, '00:00:00'), baselineStart: shiftDemoDay(referenceDate, -35), baselineEnd: shiftDemoDay(referenceDate, -8), checkOffsets: [28], watchId: 'demo-faster-recipe-pages' };
+  // The outdoor guide's redesign shipped into its slide. Its comparison
+  // reached its final check eight days ago; the release's evaluator reads it
+  // from the stored sessions, and the verdict is whatever that reading says.
+  const slide = { asset: site('tn').id, ref: taskFacts.storyIds.slide, readbackTaskId: taskFacts.storyIds.slideReadback, annotationAt: day(DEMO_REDESIGN_AGE, '15:00:00'), registeredAt: day(DEMO_REDESIGN_AGE, '00:00:00'), baselineStart: shiftDemoDay(referenceDate, DEMO_REDESIGN_AGE - 28), baselineEnd: shiftDemoDay(referenceDate, DEMO_REDESIGN_AGE - 1), checkAt: day(DEMO_REDESIGN_AGE + 28, '23:59:00'), watchId: 'demo-trail-redesign' };
+  // The recipe site's saves failed for one day; its next report was back to
+  // normal, which closed the alert. Pinwell's repair shipped hours ago, after
+  // its last report, so its alert stays open until a report says otherwise.
+  const dip = { asset: site('wp').id, date: shiftDemoDay(referenceDate, -2), metric: site('wp').event, resolvedAt: day(-1, '23:30:00') };
+  const fix = { asset: site('pw').id, ref: taskFacts.storyIds.problem, annotationAt: new Date(Date.parse(cutoff) - 4 * 3_600_000).toISOString() };
+  const reportGap = { asset: site('lb').id, from: shiftDemoDay(referenceDate, -DEMO_REPORT_GAP_DAYS) };
   const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
-  return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
+  return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship, slide, dip, fix, reportGap }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
+}
+
+/** A day's counts as each source reports them. */
+export function demoSourceValues(row: DemoDay, integration: 'ga4' | 'gsc' | 'bing-webmaster'): Record<string, number> {
+  if (integration === 'ga4') return { sessions: row.sessions, active_users: row.activeUsers, page_views: row.pageViews, event_count: row.eventCount };
+  if (integration === 'gsc') return { clicks: row.clicks, impressions: row.impressions, ctr: row.ctr, position: row.position };
+  return { clicks: Math.round(row.clicks * DEMO_BING_SHARE), impressions: Math.round(row.impressions * DEMO_BING_SHARE) };
 }
 
 export function demoScenarioHash(scenario: DemoScenario) {

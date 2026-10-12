@@ -18,14 +18,14 @@ The editor also opens from **Settings** > **TV dashboard** > **Edit layout**, or
 
 ### What is on the page
 
-- **Widgets**, on the left: the five tiles the Wall can draw: **Top strip**, **Revenue**, **Needs you**, **Sites** and **Live feed**. Select **Add Sites** (and so on) to place one. A tile already on the Wall is greyed out with the reason.
+- **Widgets**, on the left: the eight tiles the Wall can draw: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs you** and **Live feed**. The default places the first six; select **Add Needs you** or **Add Live feed** (and so on) to place one. A tile already on the Wall is greyed out with the reason.
 - The preview. Click a tile to select it, drag it to move it (**Drag to move Sites**), or select **Remove Sites** on it.
 - **Rows**, under the preview: **Add a row**, and per row **Move row 1 up**, **Move row 1 down**, **Remove row 1**. One row is marked **Remaining height**: it takes whatever height the others leave.
 - **Site order**: **Move example.com up** or **down** sets the order the site rows are drawn in.
 - The selected tile's panel, on the right: **Narrower** and **Wider** (widths are shares of a row, not columns), **Move left**, **Move right**, **Move up a row**, **Move down a row**, and **Stack in column** or **Take out of column**. The **Top strip** also holds the countdown; **Not set** means none is set.
 - **Versions**, at the bottom right: every saved layout, newest first, each with **Revert**.
 
-The Wall answers four fixed questions, so there is no way to invent new tile types or change what a tile shows beyond its settings. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**.
+The tiles are a fixed library, so there is no way to invent new tile types or change what a tile shows beyond its settings. **Sites**, **Last 24 hours**, **Work** and **Needs you** can each be narrowed to some sites. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**.
 
 ## Move a widget and save
 
@@ -62,7 +62,7 @@ A landscape laptop draws the TV's layout scaled down; a portrait tablet or a pho
 - The chip says the layout runs past the TV: make a row the **Remaining height**, narrow a tile, or remove one.
 - The television still shows the old layout: it redraws on its next poll; the Wall never blanks between reads. See [Troubleshooting](/operate/troubleshooting).
 
-The Wall's design and the four questions it answers are in [doc 14, Design](../14-design.md#the-wall). The fit check: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#auditwall-fit--does-the-wall-still-fit-the-tv.
+The Wall's design is in [doc 14, Design](../14-design.md#the-wall). The fit check: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#auditwall-fit--does-the-wall-still-fit-the-tv.
 
 ## Next steps
 

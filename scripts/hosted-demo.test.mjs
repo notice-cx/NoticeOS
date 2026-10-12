@@ -21,6 +21,7 @@ import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 import { openHostedDemo, startHostedDemo } from './hosted-demo-runtime.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
 import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
+import { createDemoActivity } from './demo-activity.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 import { proveHostedDemoBrowser } from './test-fixtures/hosted-demo-browser.mjs';
@@ -41,7 +42,7 @@ const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocat
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -51,8 +52,8 @@ test('demo composition refuses a foreign workspace, changed seed and ambiguous t
 test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } });
-  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'watch-windows', 'beads-snapshot']);
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {}, uptime() {} } });
+  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'freshness', 'watch-windows', 'beads-snapshot']);
   for (const lane of demo.schedule) {
     const stages = WORKFLOW_DEFINITIONS.find(definition => definition.id === lane.key)?.stages.map(stage => stage.id);
     assert.ok(lane.steps.every(step => stages?.includes(step.key)), lane.key);
@@ -82,20 +83,63 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks } });
+      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {}, uptime() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'watch-windows');
     const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
     const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
-    // The seeded repair window is due; the ordinary sweep closes it with the
-    // scenario's declared outcome. The recipe site's shipped change is still
-    // counting, so its window stays open and is scanned again, closed never.
+    // The seeded repair and redesign windows are due; the ordinary sweep
+    // closes each with what the scenario's sessions say. The recipe site's
+    // shipped change is still counting, so its window stays open and is
+    // scanned again, closed never.
     const first = await run();
-    assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })) },
-      { scanned: 2, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] });
+    assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })).sort((a, b) => a.id.localeCompare(b.id)) },
+      { scanned: 3, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }, { id: scenario.manifest.slide.watchId, outcome: 'kill_confirmed' }].sort((a, b) => a.id.localeCompare(b.id)) });
     const again = await run();
     assert.equal(again.scanned, 1);
     assert.deepEqual(again.closed, []);
     assert.equal(stepResult(again).state, 'succeeded');
+  } finally {
+    await store?.close(); await closeAdmin?.(); owner?.close();
+    assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the demo's hourly lane reads each fictional home page with the release's own check, and the day's outage is down then back", { timeout: 180000 }, async t => {
+  const tools = findPostgres();
+  const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-uptime-'));
+  let owner, closeAdmin, store;
+  try {
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
+    applyMigrations(owner);
+    const admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
+    closeAdmin = trackFixturePool(admin);
+    await admin.query("INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES($1,'demo-uptime','Demo uptime','active')", [workspace]);
+    const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
+    store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
+    await store.write(async tx => {
+      await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+    });
+    const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
+    const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
+      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {},
+        uptime: (scoped, at, homePages) => helpers.runUptimeChecks({ STORE: scoped }, { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 }) } });
+    const lane = demo.schedule.find(entry => entry.key === 'freshness');
+    assert.deepEqual(lane.steps.map(step => step.key), ['freshness', 'uptime']);
+    const uptime = lane.steps.find(step => step.key === 'uptime');
+    const outage = createDemoActivity(scenario).homeOutage(shiftDemoDay(scenario.manifest.referenceDate, 1));
+    const run = at => store.write(tx => uptime.run({ input: at, signal: new AbortController().signal }, tx));
+    const open = () => store.read(tx => tx.query("SELECT asset_id AS asset, severity FROM noticeos.flags WHERE rule_id = 'hygiene-home-unreachable' AND resolved_at IS NULL"));
+    // The check and its retry both meet the 503; every other site answers.
+    const down = await run(outage.checkAt);
+    assert.deepEqual({ checked: down.checked, retried: down.retried, fired: down.fired, failed: down.failed },
+      { checked: assets.length, retried: 1, fired: 1, failed: [] });
+    assert.deepEqual(await open(), [{ asset: outage.asset, severity: 'error' }]);
+    // The next hour's check finds it back and closes the alert.
+    const back = await run(new Date(Date.parse(outage.checkAt) + 3_600_000).toISOString());
+    assert.deepEqual({ checked: back.checked, retried: back.retried, resolved: back.resolved }, { checked: assets.length, retried: 0, resolved: 1 });
+    assert.deepEqual(await open(), []);
   } finally {
     await store?.close(); await closeAdmin?.(); owner?.close();
     assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
@@ -166,7 +210,8 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, async snapshot(store, snapshot) {
+        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, freshness: (store, at) => helpers.runFreshnessCheck({ STORE: store }, Date.parse(at)),
+          uptime: (store, at, homePages) => helpers.runUptimeChecks({ STORE: store }, { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 }), async snapshot(store, snapshot) {
           const result = await helpers.writeDemoTaskSnapshot(store, snapshot);
           if (failSnapshot) { failSnapshot = false; throw new Error('Controlled rollback after task summary write'); }
           return result;

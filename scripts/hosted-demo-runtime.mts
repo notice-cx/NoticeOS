@@ -60,13 +60,19 @@ export async function openHostedDemo(options: HostedDemoRuntimeOptions): Promise
     const helpers = await buildDemoWorkerHelpers(sourceRoot, { activity: true, configurationRoot });
     if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
       || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function'
-      || typeof helpers.writeDemoOutcomeChecks !== 'function') throw new Error('Released demo input writer absent.');
+      || typeof helpers.writeDemoOutcomeChecks !== 'function' || typeof helpers.runFreshnessCheck !== 'function'
+      || typeof helpers.runUptimeChecks !== 'function') throw new Error('Released demo input writer absent.');
     const write: DemoActivityWriter['write'] = helpers.writeDemoActivity;
     const collect: DemoActivityWriter['collect'] = helpers.writeDemoCollection;
     const revenue: DemoActivityWriter['revenue'] = helpers.writeDemoAdRevenue;
     const snapshot: DemoActivityWriter['snapshot'] = helpers.writeDemoTaskSnapshot;
     const outcomes: DemoActivityWriter['outcomes'] = helpers.writeDemoOutcomeChecks;
-    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, revenue, snapshot, outcomes }, tasks, now,
+    const freshness: DemoActivityWriter['freshness'] = (scoped, at) => helpers.runFreshnessCheck(Object.freeze({ STORE: scoped }), Date.parse(at));
+    // The release's own home-page check, its fetch answered by the fictional
+    // sites' pages. They answer by the run's minute, so the retry asks at once.
+    const uptime: DemoActivityWriter['uptime'] = (scoped, at, homePages) => helpers.runUptimeChecks(Object.freeze({ STORE: scoped }),
+      { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 });
+    demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, revenue, snapshot, outcomes, freshness, uptime }, tasks, now,
       projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
     const opened = demo;
     // The ordinary hosted scheduler owns its own connections and timers; a

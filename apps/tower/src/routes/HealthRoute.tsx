@@ -1,7 +1,13 @@
+import { FlowGraph } from "@/components/viz/FlowGraph";
+import { useWall } from "@/hooks/useWall";
+import { systemFlow } from "@/lib/system-flow";
 import { Link } from "react-router-dom";
 import { TabPanel } from "@/components/Tabs";
 import { HealthNavigation } from "./health/HealthNavigation";
+import { JobRunGrid } from "./health/JobRunGrid";
 import { ServiceOverview } from "./health/ServiceOverview";
+import { useWorkflows } from "@/hooks/useWorkflows";
+import { jobRunWeek } from "@/lib/health-job-runs";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
 import { utcRunReference } from "@shared/scheduled-jobs";
 import { Button } from "@/components/ui/button";
@@ -99,6 +105,27 @@ function todayOf(nowMs: number): string {
  * words; the rest of the page holds only what no provider collects (the
  * asset's own wiring, uptime, revenue) and the audit grid, in the same words.
  */
+/** The System as one picture: where data comes from, where it goes, and the
+ * part that is broken lit where it sits. */
+function SystemMap({ credentials, items, nowMs }: { credentials: Parameters<typeof systemFlow>[0]["credentials"]; items: Parameters<typeof systemFlow>[0]["items"]; nowMs: number }) {
+  const wall = useWall();
+  const graph = systemFlow({ credentials, items, system: wall.data?.system ?? null, nowMs });
+  return (
+    <section aria-label="How the System runs" className="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="" data-system-map="">
+      <SectionLabel title="How the System runs" className="mb-4" />
+      <FlowGraph nodes={graph.nodes} edges={graph.edges} nowMs={nowMs} ariaLabel="How the System runs: data sources, collectors, store, the Tower and backups" />
+    </section>
+  );
+}
+
+/** The week of scheduled runs under the map: the read Background operations
+ * also draws, as one row per System job and one cell per day. */
+function JobRuns({ nowMs }: { nowMs: number }) {
+  const { data, isError, isPending } = useWorkflows();
+  const week = data && data.historyAvailable ? jobRunWeek(data, nowMs) : null;
+  return <JobRunGrid week={week} nowMs={nowMs} state={week ? "ready" : isPending && !isError ? "loading" : "unavailable"} />;
+}
+
 export function HealthRoute() {
   const { data, isPending, isError, refetch } = useIntegrations();
   const { providers, monitoring, credentials, items } = useConnections();
@@ -117,9 +144,9 @@ export function HealthRoute() {
       <HealthNavigation />
       <TabPanel idBase="health-view" id="health-view-panel" activeKey="overview" className="space-y-6">
       <ServiceOverview dataCurrent={current} degraded={wiring?.failing ?? 0} unverified={wiring?.unchecked ?? 0} setup={wiring?.setup ?? 0} integrations={monitoring.status} />
-      <div data-surface-hero>
-        <IntegrationHealthPanel data={monitoring.data} isError={monitoring.isError} nowMs={now} providers={providers.data?.providers} />
-      </div>
+      <SystemMap credentials={credentials} items={items} nowMs={now} />
+      <JobRuns nowMs={now} />
+      <IntegrationHealthPanel data={monitoring.data} isError={monitoring.isError} nowMs={now} providers={providers.data?.providers} />
       {data && !current ? (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-warn/30 bg-warn/5 px-4 py-2 text-sm" data-snapshot-stale data-status-for="snapshot:health">
           <StateChip tone="caution" label="Last recorded snapshot" subject="snapshot:health" />
@@ -352,7 +379,7 @@ function Layers({
                 key={report.id}
                 className="min-w-0 grid-cols-[minmax(0,1fr)]"
                 label={
-                  <span className="block truncate" title={`${report.label} · ${utcRunReference(report.at)}`}>
+                  <span className="block break-words leading-snug" title={`${report.label} · ${utcRunReference(report.at)}`}>
                     {shortLaneName(report.id, report.label)}
                   </span>
                 }
@@ -512,7 +539,7 @@ function DataSpend({
               className="flex items-baseline justify-between gap-3 text-[13px]"
               data-spend-asset={row.asset}
             >
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 break-words text-muted-foreground">
                 {displayNames.get(row.asset) ?? row.asset}
               </span>
               <span className="shrink-0 tabular-nums text-foreground">
@@ -526,7 +553,7 @@ function DataSpend({
               className="flex items-baseline justify-between gap-3 text-[13px]"
               data-spend-unattributed
             >
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 break-words text-muted-foreground">
                 Research, not tied to a site
               </span>
               <span className="shrink-0 tabular-nums text-foreground">

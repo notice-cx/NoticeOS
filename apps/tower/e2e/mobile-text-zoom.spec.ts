@@ -40,7 +40,7 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             : state === 'error' ? main.locator('[data-read-failed]')
             : state === 'empty' ? main.locator({ home: '[data-first-run]', sites: '[data-assets-empty]',
               alerts: '[data-surface-hero]', tasks: '[data-task-hub-unavailable]' }[name])
-            : main.locator({ home: '[data-home-brief]', sites: '[data-sites-answer], [data-asset-row]',
+            : main.locator({ home: '[data-home-brief]', sites: '[data-sites-answer], [data-portfolio-row]',
               alerts: '[data-surface-hero]', tasks: '[data-tasks-answer], [data-inbox-row], [data-task-row]' }[name]).first();
           await expect(answer).toBeVisible();
           const baselineFont = await heading.evaluate(el => parseFloat(getComputedStyle(el).fontSize));
@@ -73,9 +73,9 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             expect(measurements).toMatchObject({ width: 390, height: 844, overflowX: 0, clipped: [], incorrectMarks: 0 });
           }
           if (state === 'populated' && name === 'home') {
-            // The brief's first card keeps its one action reachable by keyboard
-            // at double text, and scrolls it into view.
-            const action = main.locator('[data-highlight-action]').first();
+            // The data-sources grid keeps its one tab stop reachable by
+            // keyboard at double text, and scrolls it into view.
+            const action = main.locator('[data-health-grid] [data-health-target][tabindex="0"]');
             for (let n = 0; n < 80 && !await action.evaluate(el => el === document.activeElement); n += 1) {
               await page.keyboard.press('Tab');
             }
@@ -83,10 +83,8 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             await expect(action).toBeInViewport();
           }
           if (state === 'populated' && name === 'sites') {
-            // The answer names the sites that need you, each a way in; a row
-            // still draws its › on the stacked card.
-            const row = main.locator('[data-asset-row]').first();
-            expect(await row.evaluate(el => getComputedStyle(el, '::after').content)).toBe('""');
+            // The answer names the sites that need you, each a way in.
+            const row = main.locator('[data-portfolio-row]').first();
             const named = answer.locator('a[data-sites-answer-site]').first();
             await (await named.count() ? named : row.getByRole('link').first()).click();
             await expect(page).toHaveURL(/\/assets\/[^/]+/);

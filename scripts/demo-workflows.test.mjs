@@ -14,7 +14,10 @@ function fixture(cutoff = '2026-09-15T12:00:00.000Z') {
     projects: scenario.assets.map(asset => ({ asset: asset.id })), tasks: 38, snapshots: 401 };
   const watch = { evaluatedAt: scenario.manifest.stories.repair.checkAt,
     result: { readings: 0, closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }], failed: [] },
-    reading: { outcome: 'ship_confirmed', checked_at: scenario.manifest.stories.repair.checkAt, baseline: '{"days":28}', post: '{"days":28}' } };
+    reading: { outcome: 'ship_confirmed', checked_at: scenario.manifest.stories.repair.checkAt, baseline: '{"days":28}', post: '{"days":28}' },
+    slide: { evaluatedAt: scenario.manifest.slide.checkAt,
+      result: { readings: 0, closed: [{ id: scenario.manifest.slide.watchId, outcome: 'kill_confirmed' }], failed: [] },
+      reading: { outcome: 'kill_confirmed', checked_at: scenario.manifest.slide.checkAt, baseline: '{"days":28}', post: '{"days":28}' } } };
   return { scenario, tasks, watch };
 }
 
@@ -23,9 +26,15 @@ test('finished traces, coarse runs and the original missing report stay consiste
     const inputs = fixture(cutoff); const before = JSON.stringify(inputs.scenario);
     const history = generateDemoWorkflows(inputs);
     assert.deepEqual(generateDemoWorkflows(inputs), history);
-    assert.equal(history.traces.length, 4);
-    assert.equal(history.records.length, 4);
-    assert.equal(history.runs.length, 4);
+    assert.equal(history.traces.length, 5);
+    // Every traced workflow, then three weeks of nightly backups.
+    assert.equal(history.records.length, 26);
+    assert.equal(history.runs.length, 26);
+    const backups = history.runs.filter(run => run.job === 'backup');
+    assert.equal(backups.length, 21);
+    assert.ok(backups.every(run => run.startedAt.endsWith('T04:00:00.000Z') && run.startedAt <= cutoff && Date.parse(cutoff) - Date.parse(run.startedAt) < 30 * 86_400_000));
+    assert.deepEqual(backups.map(run => run.outcome), [...Array(20).fill('ran'), 'failed']);
+    assert.ok(Date.parse(cutoff) - Date.parse(backups.at(-1).startedAt) < 86_400_000);
     for (const [index, trace] of history.traces.entries()) {
       const record = history.records[index]; const run = history.runs[index];
       assert.equal(trace.id, `${trace.workflowId}@${run.startedAt}`);
@@ -50,6 +59,7 @@ test('finished traces, coarse runs and the original missing report stay consiste
     assert.ok(failed.finishedAt < recovered.startedAt);
     assert.match(recovered.steps.find(step => step.id === 'google').summary, /earlier report remains missing/);
     assert.equal(history.traces.find(trace => trace.id === history.links.outcomeCheck).finishedAt, inputs.watch.evaluatedAt);
+    assert.equal(history.traces.find(trace => trace.id === history.links.redesignCheck).finishedAt, inputs.watch.slide.evaluatedAt);
     assert.equal(JSON.stringify(inputs.scenario), before);
     assert.equal(inputs.scenario.daily.filter(day => day.reportMissing).length, 1);
   }
@@ -63,9 +73,11 @@ test('workflow outcomes require matching completed seed evidence', () => {
     input => { input.watch.result.closed = []; },
     input => { input.watch.reading.outcome = 'inconclusive'; },
     input => { input.watch.evaluatedAt = input.scenario.manifest.cutoff; },
+    input => { input.watch.slide.reading.outcome = 'inconclusive'; },
+    input => { input.watch.slide.result.closed = []; },
   ]) {
     const input = fixture(); change(input);
-    assert.throws(() => generateDemoWorkflows(input), /completed matching task seed|actual matching watch reading/);
+    assert.throws(() => generateDemoWorkflows(input), /completed matching task seed|actual matching watch reading|actual matching redesign reading/);
   }
 });
 
@@ -80,7 +92,7 @@ test('new history files and the store mirror share exact facts; a repeat refuses
   const { home, history } = await ownedHome(t); let calls = 0;
   const writeRuns = async (input, now) => {
     calls++; assert.deepEqual(input.runs, history.runs); assert.equal(now, Date.parse(history.cutoff));
-    return { ok: true, created: 4, duplicate: 0, stale: 0, pruned: 0 };
+    return { ok: true, created: history.runs.length, duplicate: 0, stale: 0, pruned: 0 };
   };
   const receipt = await writeDemoWorkflowHistory({ home, history, writeRuns });
   assert.equal(Object.keys(receipt.files).length, 2);

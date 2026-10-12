@@ -19,6 +19,7 @@
 !db/**
 !deploy/
 !deploy/**
+!docs/package.json
 **/node_modules
 **/.*
 **/test

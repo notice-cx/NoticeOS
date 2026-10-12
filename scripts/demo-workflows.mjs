@@ -77,11 +77,30 @@ export function generateDemoWorkflows({ scenario, watch, tasks }) {
         id: 'outcomes', state: 'succeeded', summary: 'the registered comparison has a final reading.',
         output: output({ readings: 1, closed: watch.result.closed }),
     });
+    const { slide } = scenario.manifest;
+    if (watch.slide.evaluatedAt !== slide.checkAt || watch.slide.result.closed.length !== 1 || watch.slide.result.closed[0]?.id !== slide.watchId
+        || watch.slide.reading.outcome !== 'kill_confirmed' || Date.parse(watch.slide.reading.checked_at) !== Date.parse(slide.checkAt)) {
+        throw new Error('Workflow history needs the actual matching redesign reading.');
+    }
+    const redesignCheck = append('watch-windows', watch.slide.evaluatedAt, 700, {
+        id: 'outcomes', state: 'succeeded', summary: 'the redesign comparison has a final reading.',
+        output: output({ readings: 1, closed: watch.slide.result.closed }),
+    });
     const taskRefresh = append('beads-snapshot', cutoff, 1_600, {
         id: 'execute', state: 'succeeded', summary: 'task histories recorded.',
         output: output({ found: tasks.tasks, checked: tasks.snapshots, projects: tasks.projects.map(project => ({ asset: project.asset, ok: true })) }),
     });
-    return { version: 1, synthetic: true, scenarioHash, workspaceId, release, cutoff, records, traces, runs, links: { collectionFailure, collectionRecovery, outcomeCheck, taskRefresh } };
+    // Nightly backups of the synthetic store, as the runner records them; last
+    // night's copy failed and nothing has run since.
+    const lastNight = Date.parse(`${cutoff.slice(0, 10)}T04:00:00.000Z`) <= Date.parse(cutoff) ? cutoff.slice(0, 10) : shiftDemoDay(cutoff.slice(0, 10), -1);
+    for (let night = 20; night >= 0; night--) {
+        const startedAt = `${shiftDemoDay(lastNight, -night)}T04:00:00.000Z`;
+        const failed = night === 0;
+        const record = { job: 'backup', at: startedAt, ms: failed ? 41_000 : 96_000 + night * 1_000, outcome: failed ? 'failed' : 'ran', detail: `Synthetic scenario ${scenarioHash}` };
+        records.push(record);
+        runs.push({ job: record.job, startedAt, ms: record.ms, outcome: record.outcome, detail: record.detail });
+    }
+    return { version: 1, synthetic: true, scenarioHash, workspaceId, release, cutoff, records, traces, runs, links: { collectionFailure, collectionRecovery, outcomeCheck, redesignCheck, taskRefresh } };
 }
 /** Caller supplies only the unchanged job-run writer bound to its owned STORE. */
 export async function writeDemoWorkflowHistory({ home, history, writeRuns }) {

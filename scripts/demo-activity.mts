@@ -2,8 +2,8 @@
 // ordinary writers, never precomputed alerts, deliveries or business outcomes.
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
-import { demoAdPayment, demoAdRevenueMinor, demoRecipeSeasonAngle, demoScenarioHash, demoTrafficShape, demoWeekShape,
-  generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_RECIPE_SEASON, type DemoScenario } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle,
+  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS, type DemoScenario } from './demo-scenario.mjs';
 
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -13,15 +13,19 @@ const DAY = 86_400_000;
  * recovers on its own. Pinwell's matches its seeded story; the young site has
  * none, so no fake low-volume alarm. */
 const INCIDENTS: Readonly<Record<string, readonly [number, number, number, number]>> = {
-  pw: [42, 12, 2, 0.6], lb: [19, 7, 4, 0.55], wp: [13, 2, 4, 0.6],
+  pw: [42, 12, 2, 0.6], lb: [19, 7, 4, 0.55], wp: [13, 2, 4, 0.6], tn: [17, 5, 3, 0.55],
 };
+/** Light Brief's nightly report goes quiet for `length` nights every
+ * `period`, starting the scenario's own gap; the freshness rule finds it and
+ * the next report closes it. No envelope stands in for a missing night. */
+const REPORT_GAPS: Readonly<Record<string, readonly [period: number, length: number]>> = { lb: [23, DEMO_REPORT_GAP_DAYS + 1] };
 /** Recurring synthetic surges in a site's visits, as [period, first day,
  * length, height]: a recipe shared widely, a brief template linked from a
  * newsletter. Visits and tracked actions rise together and fall back on their
  * own, so Home's brief can say "visitors up" one week and "down" the next
  * without any story being invented for it. The young site has none. */
 const BURSTS: Readonly<Record<string, readonly [number, number, number, number]>> = {
-  wp: [11, 4, 2, 0.5], lb: [23, 15, 1, 0.3], pw: [31, 20, 2, 0.35],
+  wp: [11, 4, 2, 0.5], lb: [23, 15, 1, 0.3], pw: [31, 20, 2, 0.35], tn: [19, 9, 2, 0.4],
 };
 /** Every site's search queries, as a synthetic report names them: eight a
  * site, each a fixed share of the site's impressions and a position that
@@ -30,12 +34,13 @@ const QUERIES: Readonly<Record<string, readonly string[]>> = {
   lb: ['one page brief template', 'weekly brief example', 'how to write a project brief', 'brief export pdf', 'client brief generator', 'project brief checklist', 'creative brief outline', 'brief vs proposal'],
   pw: ['save sources from the web', 'research source manager', 'cite a web page later', 'collect reference links', 'source library app', 'pin research sources', 'organize saved articles', 'web clipper for research'],
   wp: ['weeknight pasta bake', '30 minute chicken dinner', 'sheet pan sausage and peppers', 'easy pantry soup', 'one pot rice and beans', 'quick vegetarian dinner', 'leftover roast chicken recipes', 'freezer friendly meals'],
+  tn: ['easy waterfall hikes', 'lakeside loop trail', 'dog friendly hiking trails', 'sunrise ridge walk', 'family hikes near me', 'trail parking tips', 'autumn foliage hikes', 'winter hiking gear list'],
   fr: ['csv row checker', 'validate csv before import', 'find duplicate rows csv', 'csv empty cells check', 'spreadsheet cleanup tool', 'csv number format errors', 'check csv columns online', 'csv validation rules'],
 };
 const QUERY_SHARE: readonly number[] = [0.22, 0.17, 0.14, 0.11, 0.1, 0.09, 0.09, 0.08];
 
 export interface DemoActivitySignal {
-  integration: 'ga4' | 'gsc';
+  integration: 'ga4' | 'gsc' | 'bing-webmaster';
   propertyRef: string;
   credentialRef: 'synthetic-demo';
   timeZone: 'UTC';
@@ -179,12 +184,13 @@ function dateNumber(value: unknown): number {
 const draw = (seed: string, key: string): number =>
   createHash('sha256').update(`${seed}\0activity-v${DEMO_ACTIVITY_VERSION}\0${key}`).digest().readUInt32BE(0) / 2 ** 32;
 const mean = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0) / values.length;
-/** Share of a day's activity in each UTC hour: quiet overnight, busiest early
- * afternoon, an evening bump. The live minute pulse and the quarter-hour
- * refresh read the same day shape. */
+/** Share of a day's activity in each UTC hour, for readers on both sides of
+ * the Atlantic: busiest from the European afternoon into the American one,
+ * still busy through the American evening, quietest before a European dawn.
+ * The live minute pulse and the quarter-hour refresh read the same day shape. */
 export const DEMO_HOUR_SHARE: readonly number[] = (() => {
-  const weights = [1.2, 0.9, 0.7, 0.6, 0.6, 0.8, 1.3, 2.2, 3.4, 4.6, 5.4, 5.8,
-    5.9, 6.0, 6.1, 6.0, 5.6, 5.0, 4.4, 4.2, 4.5, 4.2, 3.2, 2.0];
+  const weights = [3.6, 3.0, 2.4, 1.8, 1.2, 0.9, 0.9, 1.4, 2.4, 3.4, 4.2, 4.8,
+    5.2, 5.6, 6.0, 6.2, 6.2, 6.0, 5.6, 5.2, 4.8, 4.6, 4.4, 4.0];
   const total = weights.reduce((a, b) => a + b, 0);
   return Object.freeze(weights.map(weight => weight / total));
 })();
@@ -195,6 +201,16 @@ export function demoDayShare(minuteOfDay: number): number {
   return DEMO_HOUR_SHARE.slice(0, hour).reduce((a, b) => a + b, 0)
     + DEMO_HOUR_SHARE[hour]! * ((minuteOfDay % 60) + 1) / 60;
 }
+/** Each day one site's home page answers HTTP 503 for this many minutes,
+ * from ten minutes before an hour: that hour's home-page check and its retry
+ * find it down, and the next hour's finds it back. The site and the hour move
+ * from day to day. */
+export const DEMO_OUTAGE_MINUTES = 25;
+export interface DemoHomeOutage { asset: string; domain: string; from: string; to: string; checkAt: string; }
+/** A home page as the hourly check reads it: a status and the HTML. */
+export type DemoHomeFetch = (input: string | URL | Request) => Promise<Response>;
+const HOME_WORDS = ['plan', 'week', 'guide', 'notes', 'list', 'ideas', 'today', 'saved', 'simple', 'steps', 'season',
+  'start', 'collection', 'favourites', 'quick', 'fresh', 'tips', 'browse', 'popular', 'new'];
 /** Each site's two alternating weekly cycles: a review, then a ship whose
  * close records a change and registers its comparison. */
 const WORK: Readonly<Record<string, readonly [review: readonly [string, string], ship: readonly [string, string]]>> = {
@@ -204,10 +220,15 @@ const WORK: Readonly<Record<string, readonly [review: readonly [string, string],
     ['Ship the revised collection labels', 'Apply the synthetic label revision and record the shipped collections.']],
   wp: [['Check printed recipe card margins', 'Print the synthetic recipe cards and check their margins.'],
     ['Ship the seasonal recipe updates', 'Publish the synthetic seasonal recipe updates and record the shipped pages.']],
+  tn: [['Check trail access notes', 'Compare the synthetic access notes with their trail pages.'],
+    ['Ship the refreshed trail guides', 'Publish the synthetic trail guide refresh and record the shipped routes.']],
   fr: [['Verify repeated-row warnings', 'Review the fictional repeated-row examples and their warnings.'],
     ['Ship the CSV input checklist', 'Publish the synthetic CSV input checklist and record the shipped help route.']],
 };
 const round1 = (value: number): number => Math.round(value * 10) / 10;
+/** A shipped change's comparison is named for the change: "Ship the grouped
+ * brief library" is the bet "Grouped brief library". */
+const betName = (title: string): string => { const name = title.replace(/^Ship the /u, ''); return name.charAt(0).toUpperCase() + name.slice(1); };
 
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
@@ -218,6 +239,9 @@ export function createDemoActivity(input: DemoScenario): {
   batch(first: string, last: string): DemoActivityDay[];
   collection(at: string): DemoActivityCollection;
   adRevenue(asset: string, date: string): number;
+  seededReports(): DemoSearchReport[];
+  homeOutage(date: string): DemoHomeOutage;
+  homeFetch(at: string): DemoHomeFetch;
 } {
   const scenario = generateDemoScenario(input.manifest);
   const hash = demoScenarioHash(scenario);
@@ -231,12 +255,12 @@ export function createDemoActivity(input: DemoScenario): {
     // ordinary demand baseline precedes that incident; new observations show
     // recovery without manufacturing a measured causal explanation.
     const stable = rows.filter(row => row.age < -2).slice(-28);
-    const last = scenario.pulses.filter(row => row.asset === asset.id).at(-1)!;
-    const initialTotal = last.metrics[asset.event!]!.total;
+    // The site's own all-time counter through the last seeded day, reported
+    // or not: a night without a report still counted its actions.
+    const initialTotal = rows.reduce((sum, row) => sum + row.events, 0);
     const baseEvents = mean(stable.map(row => row.events));
     const baseSessions = mean(stable.map(row => row.sessions));
-    const recipes = asset.prefix === 'wp';
-    const growth = asset.prefix === 'fr' ? 0.45 : recipes ? 0.15 : 0.06;
+    const growth = asset.prefix === 'fr' ? 0.45 : asset.prefix === 'wp' ? 0.15 : asset.prefix === 'tn' ? 0.02 : 0.06;
     const phase = draw(seed, `${asset.id}/season`) * 2 * Math.PI;
     const week = demoWeekShape(asset.prefix), weekTotal = week.reduce((a, b) => a + b, 0);
     const weekly = (n: number): number => {
@@ -248,12 +272,14 @@ export function createDemoActivity(input: DemoScenario): {
     const incidentDays = (n: number): number => Math.floor(n / period) * length + Math.min(length, Math.max(0, n % period - first));
     const [burstPeriod, burstFirst, burstLength, burstHeight] = BURSTS[asset.prefix] ?? [1, 0, 0, 0];
     const burstDays = (n: number): number => Math.floor(n / burstPeriod) * burstLength + Math.min(burstLength, Math.max(0, n % burstPeriod - burstFirst));
-    // A recipe site continues the seeded year (`demoRecipeSeasonAngle`), relative
-    // to its level at the anchor; the others keep a gentle wave of their own.
-    const omega = 2 * Math.PI / 365.25, angle = demoRecipeSeasonAngle(referenceDate);
-    const season = (n: number): number => recipes
-      ? DEMO_RECIPE_SEASON / (1 + DEMO_RECIPE_SEASON * Math.cos(angle)) * ((Math.sin(angle + n * omega) - Math.sin(angle)) / omega - n * Math.cos(angle))
+    // A content site continues its seeded year (`demoSeason`), relative to its
+    // level at the anchor; the others keep a gentle wave of their own.
+    const year = demoSeason(asset.prefix);
+    const omega = 2 * Math.PI / 365.25, angle = year ? demoSeasonAngle(referenceDate, year.peakDay) : 0;
+    const season = (n: number): number => year
+      ? year.continuing / (1 + year.continuing * Math.cos(angle)) * ((Math.sin(angle + n * omega) - Math.sin(angle)) / omega - n * Math.cos(angle))
       : 0.07 / omega * (Math.cos(phase) - Math.cos(phase + n * omega));
+    const [gapPeriod, gapLength] = REPORT_GAPS[asset.prefix] ?? [1, 0];
     const area = (n: number, metric: 'events' | 'sessions'): number => {
       if (n === 0) return 0;
       const trend = growth * (n <= 365 ? n * n / 730 : n - 182.5);
@@ -274,7 +300,9 @@ export function createDemoActivity(input: DemoScenario): {
       return { clicks, impressions: clicks * shape.impressionsPerClick + Math.round(draw(seed, `${asset.id}/${date}/search`) * 100),
         position: Math.round((shape.position + draw(seed, `${asset.id}/${date}/position`) * shape.positionSpread) * 100) / 100 };
     };
-    return { asset, rows, initialTotal, cumulative, count, search };
+    /** Whether night `n` sends no report: the scenario's gap continues, then recurs. */
+    const quiet = (n: number): boolean => (n + DEMO_REPORT_GAP_DAYS) % gapPeriod < gapLength;
+    return { asset, rows, initialTotal, cumulative, count, search, quiet };
   });
   /** One day's synthetic ad estimate: seeded sessions before the anchor, the
    * continuation's after it. */
@@ -291,26 +319,72 @@ export function createDemoActivity(input: DemoScenario): {
     return days;
   };
   const firstMonday = anchor + (8 - anchorWeekday) % 7;
+  /** One Monday's search reports for every site, the seeded weeks before the
+   * anchor included. */
+  const searchReports = (date: string): DemoSearchReport[] => {
+    const ordinal = dateNumber(date) - anchor, dayIndex = anchor + ordinal - firstMonday;
+    if (dayIndex % 7 !== 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor) refuse();
+    const reports: DemoSearchReport[] = [];
+    const week = dayIndex / 7;
+    const currentStart = shiftDemoDay(date, -7), currentEnd = shiftDemoDay(date, -1);
+    const previousStart = shiftDemoDay(date, -14), previousEnd = shiftDemoDay(date, -8);
+    for (const { asset, search } of assetInputs) {
+      const weekly = (from: number): number => Array.from({ length: 7 }, (_, i) => search(from + i).impressions).reduce((a, b) => a + b, 0);
+      const current = weekly(ordinal - 7), previous = weekly(ordinal - 14);
+      const movers = QUERIES[asset.prefix]!.map((query, k): DemoSearchMover => {
+        const share = QUERY_SHARE[k]!, base = 2 + k * 1.6;
+        const phaseOf = draw(seed, `${asset.id}/query-${k}/phase`) * 2 * Math.PI;
+        const position = (w: number): number => Math.max(1, round1(base + 2.5 * Math.sin(phaseOf + (w + k * 0.9) * 1.1)));
+        const currentImpressions = Math.round(current * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${currentStart}`) * 0.3));
+        const previousImpressions = Math.round(previous * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${previousStart}`) * 0.3));
+        const currentPosition = position(week), previousPosition = position(week - 1);
+        return { query, currentImpressions, previousImpressions, impressionDelta: currentImpressions - previousImpressions,
+          impressionDeltaPercent: previousImpressions === 0 ? 0 : round1((currentImpressions - previousImpressions) / previousImpressions * 100),
+          currentPosition, previousPosition, positionImprovement: round1(previousPosition - currentPosition) };
+      });
+      const ranked = [...movers].sort((a, b) => b.positionImprovement - a.positionImprovement);
+      const rising = ranked[0]!.positionImprovement > 0;
+      const lead = rising ? ranked[0]! : ranked.at(-1)!;
+      const places = Math.abs(lead.positionImprovement).toFixed(1);
+      reports.push({ schemaVersion: 1, asset: asset.id, generatedAt: `${date}T05:30:00.000Z`, windowStart: previousStart, windowEnd: currentEnd, sourceArchiveCount: 14,
+        items: [{ key: `search-${rising ? 'riser' : 'faller'}-${date}`, kind: rising ? 'insight' : 'warning',
+          title: `“${lead.query}” ${rising ? 'climbed' : 'slipped'} ${places} places to #${lead.currentPosition}`,
+          summary: `Synthetic search report: “${lead.query}” moved from position ${lead.previousPosition} to ${lead.currentPosition} week over week.`,
+          whyItMatters: rising ? 'A query climbing toward the first results brings more visits for the same pages.' : 'A query slipping down the results loses visits the pages used to earn.',
+          primary: { value: `#${lead.currentPosition}`, label: 'position this week' }, confidence: 'medium', windowStart: currentStart, windowEnd: currentEnd,
+          evidence: [{ label: 'Position last week', value: String(lead.previousPosition) }, { label: 'Impressions this week', value: String(lead.currentImpressions) }],
+          sources: ['Synthetic search report'], caveat: 'Synthetic data; no search provider was read.' }],
+        suppressedItems: [], methodology: ['Synthetic weekly query report derived from the demo scenario; no provider was called.'],
+        searchQueries: { google: { provider: 'google', currentStart, currentEnd, previousStart, previousEnd, daysPerWindow: 7, movers,
+          evidence: [{ label: 'Grounding queries excluded', value: '0', detail: 'No quoted-literal queries in this window' }],
+          source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null } });
+    }
+    return reports;
+  };
   const day = (date: string): DemoActivityDay => {
     const ordinal = dateNumber(date) - anchor;
     if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor) refuse();
     const key = `${demoActivityPrefix(hash)}${date}`;
-    const assets = assetInputs.map(({ asset, rows, initialTotal, cumulative, count, search }) => {
+    const assets = assetInputs.map(({ asset, rows, initialTotal, cumulative, count, search, quiet }) => {
       const sessions = count(ordinal, 'sessions'), events = count(ordinal, 'events'), shape = demoTrafficShape(asset.prefix);
       const pageViews = Math.round(sessions * (shape.pages + draw(seed, `${asset.id}/${date}/pages`) * shape.pagesSpread));
       const activeUsers = Math.round(sessions * shape.activeUsers);
       const { clicks, impressions, position } = search(ordinal);
       const reportMissing = asset.prefix === 'pw' && ordinal % 29 === 10;
       const observations = (values: Record<string, number>) => Object.entries(values).map(([metric, value]) => ({ date, metric, value }));
+      const properties = demoProperties(asset);
       const signals: DemoActivitySignal[] = [
-        { integration: 'ga4', propertyRef: `demo-${asset.prefix}-ga4`, credentialRef: 'synthetic-demo', timeZone: 'UTC',
+        { integration: 'ga4', propertyRef: properties.ga4, credentialRef: 'synthetic-demo', timeZone: 'UTC',
           observations: reportMissing ? null : observations({ sessions, active_users: activeUsers, page_views: pageViews, event_count: sessions + pageViews + events }) },
-        { integration: 'gsc', propertyRef: `demo-${asset.prefix}-gsc`, credentialRef: 'synthetic-demo', timeZone: 'UTC',
+        { integration: 'gsc', propertyRef: properties.gsc, credentialRef: 'synthetic-demo', timeZone: 'UTC',
           observations: observations({ clicks, impressions, ctr: impressions === 0 ? 0 : clicks / impressions, position }) },
+        // A content site's Bing answers once a day, with its share of the site's search.
+        ...(properties.bing ? [{ integration: 'bing-webmaster' as const, propertyRef: properties.bing, credentialRef: 'synthetic-demo' as const, timeZone: 'UTC' as const,
+          observations: observations({ clicks: Math.round(clicks * DEMO_BING_SHARE), impressions: Math.round(impressions * DEMO_BING_SHARE) }) }] : []),
       ];
       const recent = Array.from({ length: 7 }, (_, i) => ordinal - 6 + i).map(n =>
         n < 0 ? rows.at(n)!.events : count(n, 'events'));
-      const pulse: DemoActivityPulse | null = reportMissing ? null : {
+      const pulse: DemoActivityPulse | null = reportMissing || quiet(ordinal) ? null : {
         asset: asset.id, generatedAt: `${date}T23:30:00.000Z`, capabilities: [asset.event!],
         metrics: { [asset.event!]: { last24h: events, avg7d: mean(recent), total: initialTotal + cumulative(ordinal + 1, 'events') } },
       };
@@ -378,48 +452,12 @@ export function createDemoActivity(input: DemoScenario): {
           note: `Synthetic change: ${copy[0].replace(/^Ship /u, '')}. No live deployment.`,
           watch: { metricIntegration: 'ga4', metric: 'sessions', baselineStart: shiftDemoDay(date, -28), baselineEnd: shiftDemoDay(date, -1), checkOffsets: [28],
             thresholds: { ship: { direction: 'up', min_delta_pct: 10 }, kill: { direction: 'down', min_delta_pct: 10 } },
-            note: 'Synthetic comparison; no causal revenue claim.' } });
+            note: betName(copy[0]) } });
       }
     });
     // Every Monday, each site's search report: this week's queries against
     // last week's, from the same daily impressions the signals carry.
-    const reports: DemoSearchReport[] = [];
-    if (dayIndex >= 0 && dayIndex % 7 === 0) {
-      const week = dayIndex / 7;
-      const currentStart = shiftDemoDay(date, -7), currentEnd = shiftDemoDay(date, -1);
-      const previousStart = shiftDemoDay(date, -14), previousEnd = shiftDemoDay(date, -8);
-      for (const { asset, search } of assetInputs) {
-        const weekly = (from: number): number => Array.from({ length: 7 }, (_, i) => search(from + i).impressions).reduce((a, b) => a + b, 0);
-        const current = weekly(ordinal - 7), previous = weekly(ordinal - 14);
-        const movers = QUERIES[asset.prefix]!.map((query, k): DemoSearchMover => {
-          const share = QUERY_SHARE[k]!, base = 2 + k * 1.6;
-          const phaseOf = draw(seed, `${asset.id}/query-${k}/phase`) * 2 * Math.PI;
-          const position = (w: number): number => Math.max(1, round1(base + 2.5 * Math.sin(phaseOf + (w + k * 0.9) * 1.1)));
-          const currentImpressions = Math.round(current * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${currentStart}`) * 0.3));
-          const previousImpressions = Math.round(previous * share * (0.85 + draw(seed, `${asset.id}/query-${k}/${previousStart}`) * 0.3));
-          const currentPosition = position(week), previousPosition = position(week - 1);
-          return { query, currentImpressions, previousImpressions, impressionDelta: currentImpressions - previousImpressions,
-            impressionDeltaPercent: previousImpressions === 0 ? 0 : round1((currentImpressions - previousImpressions) / previousImpressions * 100),
-            currentPosition, previousPosition, positionImprovement: round1(previousPosition - currentPosition) };
-        });
-        const ranked = [...movers].sort((a, b) => b.positionImprovement - a.positionImprovement);
-        const rising = ranked[0]!.positionImprovement > 0;
-        const lead = rising ? ranked[0]! : ranked.at(-1)!;
-        const places = Math.abs(lead.positionImprovement).toFixed(1);
-        reports.push({ schemaVersion: 1, asset: asset.id, generatedAt: `${date}T05:30:00.000Z`, windowStart: previousStart, windowEnd: currentEnd, sourceArchiveCount: 14,
-          items: [{ key: `search-${rising ? 'riser' : 'faller'}-${date}`, kind: rising ? 'insight' : 'warning',
-            title: `“${lead.query}” ${rising ? 'climbed' : 'slipped'} ${places} places to #${lead.currentPosition}`,
-            summary: `Synthetic search report: “${lead.query}” moved from position ${lead.previousPosition} to ${lead.currentPosition} week over week.`,
-            whyItMatters: rising ? 'A query climbing toward the first results brings more visits for the same pages.' : 'A query slipping down the results loses visits the pages used to earn.',
-            primary: { value: `#${lead.currentPosition}`, label: 'position this week' }, confidence: 'medium', windowStart: currentStart, windowEnd: currentEnd,
-            evidence: [{ label: 'Position last week', value: String(lead.previousPosition) }, { label: 'Impressions this week', value: String(lead.currentImpressions) }],
-            sources: ['Synthetic search report'], caveat: 'Synthetic data; no search provider was read.' }],
-          suppressedItems: [], methodology: ['Synthetic weekly query report derived from the demo scenario; no provider was called.'],
-          searchQueries: { google: { provider: 'google', currentStart, currentEnd, previousStart, previousEnd, daysPerWindow: 7, movers,
-            evidence: [{ label: 'Grounding queries excluded', value: '0', detail: 'No quoted-literal queries in this window' }],
-            source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null } });
-      }
-    }
+    const reports = dayIndex >= 0 && dayIndex % 7 === 0 ? searchReports(date) : [];
     return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports };
   };
   /** Today so far: each provisional count is the finished day's count scaled
@@ -433,7 +471,8 @@ export function createDemoActivity(input: DemoScenario): {
     const minute = new Date(instant).getUTCHours() * 60 + new Date(instant).getUTCMinutes();
     const share = demoDayShare(minute);
     const partial = (value: number) => Math.round(value * share);
-    const assets = facts.assets.map(({ asset, signals }) => ({ asset, signals: signals.map((signal): DemoActivitySignal => {
+    // The quarter-hour refresh reads Google only; Bing answers once a day.
+    const assets = facts.assets.map(({ asset, signals }) => ({ asset, signals: signals.filter(signal => signal.integration !== 'bing-webmaster').map((signal): DemoActivitySignal => {
       if (signal.observations === null) return signal;
       const final = Object.fromEntries(signal.observations.map(row => [row.metric, row.value]));
       const values: Record<string, number> = signal.integration === 'ga4'
@@ -446,7 +485,44 @@ export function createDemoActivity(input: DemoScenario): {
     }) }));
     return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, at, date, assets };
   };
-  return Object.freeze({ day, collection, adRevenue, batch(first: string, last: string): DemoActivityDay[] {
+  /** The reports of the latest Monday the cutoff has reached: the week the
+   * seed already holds, so a site's search movers read from the first visit. */
+  const seededReports = (): DemoSearchReport[] => {
+    const back = (new Date(anchor * DAY).getUTCDay() + 6) % 7;
+    let monday = shiftDemoDay(referenceDate, -back);
+    if (`${monday}T05:30:00.000Z` > scenario.manifest.cutoff) monday = shiftDemoDay(monday, -7);
+    return searchReports(monday);
+  };
+  const homes = scenario.assets.filter(asset => !asset.isOs && asset.domain);
+  const homeOutage = (date: string): DemoHomeOutage => {
+    const site = homes[dateNumber(date) % homes.length]!;
+    // Hours 1 to 22, so the outage and the check after it stay in its day.
+    const hour = 1 + Math.floor(draw(seed, `home-outage:${date}`) * 22);
+    const checkAt = `${date}T${String(hour).padStart(2, '0')}:00:00.000Z`;
+    const from = Date.parse(checkAt) - 10 * 60_000;
+    return { asset: site.id, domain: site.domain!, from: new Date(from).toISOString(),
+      to: new Date(from + DEMO_OUTAGE_MINUTES * 60_000).toISOString(), checkAt };
+  };
+  // A fixed page per site: the same words every hour, so the page-depth rule
+  // the same check arms reads a steady page.
+  const homeHtml = new Map(homes.map(site => {
+    const count = 300 + Math.floor(draw(seed, `home-words:${site.id}`) * 400);
+    const words = Array.from({ length: count }, (_, i) => HOME_WORDS[(i * 7 + site.prefix.length) % HOME_WORDS.length]).join(' ');
+    return [site.domain!, `<!doctype html><html><head><title>${site.name}</title></head><body><main><p>${words}</p></main></body></html>`];
+  }));
+  const homeFetch = (at: string): DemoHomeFetch => {
+    const outage = homeOutage(at.slice(0, 10));
+    return async (input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      let host = '';
+      try { host = new URL(url).hostname; } catch { /* not a URL: answered as no page */ }
+      const html = homeHtml.get(host);
+      if (html === undefined) return new Response(null, { status: 404 });
+      if (host === outage.domain && at >= outage.from && at < outage.to) return new Response(null, { status: 503 });
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    };
+  };
+  return Object.freeze({ day, collection, adRevenue, seededReports, homeOutage, homeFetch, batch(first: string, last: string): DemoActivityDay[] {
     const days = dateNumber(last) - dateNumber(first) + 1;
     if (days < 1 || days > DEMO_ACTIVITY_LIMITS.daysPerBatch) refuse();
     return Array.from({ length: days }, (_, i) => day(shiftDemoDay(first, i)));

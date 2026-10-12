@@ -307,14 +307,14 @@ function googleAnswers(items: { capability: string; state: "healthy" | "failing"
 }
 
 // Home keeps each source's one status; the Wall draws no icon row, and a
-// failing source becomes the site's health bar and a specific Needs you concern.
+// failing source becomes the site's health bar and a bar on the Wall's timeline.
 describe("Home shows each source's one status, and the Wall marks only a failing one", () => {
   const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
   const nightly: CardDataSource = { id: "nightly-report", label: "Nightly report", state: "live", observedAt: "2026-07-29T11:00:00Z", verification: { kind: "collection-success", laneId: "nightly-report" } };
   const statusOn = (container: HTMLElement, label: string) =>
     [...container.querySelectorAll('[role="img"]')].find((mark) => mark.getAttribute("aria-label")?.startsWith(`${label}: `))?.getAttribute("aria-label");
   const siteHealthOn = (container: HTMLElement) => container.querySelector('[data-status-for="asset:meadow.example"][data-site-health]');
-  const needsOn = (container: HTMLElement) => container.querySelector("[data-wall-needs]")!;
+  const timelineOn = (container: HTMLElement) => container.querySelector("[data-wall-timeline]")!;
 
   it.each([
     ["configuration only", { ...nightly, observedAt: null, verification: undefined }],
@@ -331,7 +331,7 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(statusOn(wall.container, "Nightly report")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
-    expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
+    expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 
   it("never shows a provider's source Working before the monitoring read answers", () => {
@@ -343,11 +343,11 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
-    expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
+    expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
 
-  it("shows the monitoring model's Failing on Home, and the Wall's health bar and Needs you despite a successful 15-minute run", () => {
+  it("shows the monitoring model's Failing on Home, and the Wall's health bar and timeline despite a successful 15-minute run", () => {
     googleAnswers([{ capability: "ga4-daily", state: "healthy" }, { capability: "ga4-archive", state: "failing" }]);
     payload.assets = [{ ...SEEDED_ASSETS[0]!, dataSources: [ga4] }];
     const home = renderHome();
@@ -357,7 +357,9 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(statusOn(wall.container, "Google Analytics")).toBeUndefined();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "error");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: GA4 failing");
-    expect(within(needsOn(wall.container) as HTMLElement).getByText("GA4 collection failing")).toBeVisible();
+    expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "problems");
+    expect(timelineOn(wall.container).querySelector('[data-span^="source-ga4"]')).toHaveAttribute("data-severity", "error");
+    expect(timelineOn(wall.container).querySelector("[data-event-timeline-list]")).toHaveTextContent("GA4 collection failing");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
   });
 
@@ -372,24 +374,15 @@ describe("Home shows each source's one status, and the Wall marks only a failing
     expect(wall.container.querySelector("[data-source]")).toBeNull();
     expect(siteHealthOn(wall.container)).toHaveAttribute("data-site-health", "healthy");
     expect(siteHealthOn(wall.container)).toHaveAccessibleName("Site health: On track");
-    expect(needsOn(wall.container)).toHaveAttribute("data-wall-needs", "calm");
+    expect(timelineOn(wall.container)).toHaveAttribute("data-wall-timeline", "calm");
   });
 });
 
-/** A `ListPanel` by its title: the accessible name it gives its own section.
+/** A panel by its title: the accessible name it gives its own section.
  * The assertions reach for the vocabulary's own marks rather than a route's
  * private class names, so they break only when the composition does. */
 function panelFor(name: string): HTMLElement {
   return screen.getByRole("region", { name });
-}
-
-/** A `ListRow`'s tone, read off the ring that carries it. The glyph is
- * `aria-hidden`, so this is deliberately the one thing here read from a class. */
-const ROW_TONES = ["text-error", "text-warn", "text-healthy", "text-muted-foreground"];
-
-function rowTone(row: Element): string | undefined {
-  const ring = row.querySelector("[aria-hidden]");
-  return ring?.className.split(" ").find((name) => ROW_TONES.includes(name));
 }
 
 /** An open flag whose rule the translator has never heard of, so its headline
@@ -714,7 +707,8 @@ describe("Home — a site still being set up", () => {
 
     expect(container.querySelector("[data-first-run]")).toBeNull();
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
-    expect(container.querySelectorAll("[data-site-cell]")).toHaveLength(2);
+    expect([...container.querySelectorAll("[data-portfolio-row]")].map((row) => row.getAttribute("data-portfolio-row")))
+      .toEqual(["first.example", "second.example"]);
   });
 });
 
@@ -742,27 +736,32 @@ describe("Home and the Wall with an unread core task hub", () => {
     const { container } = renderWall();
     payload.operator = prior;
 
-    const needs = container.querySelector("[data-wall-needs]")!;
-    expect(needs.querySelector("[data-needs-meta]")).toHaveTextContent("Tasks unknown");
-    expect(needs.getAttribute("data-material-condition")?.split(" ")).toEqual([
-      "open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail",
+    // The inbox is unread, so the work chart's waiting figure says so; the
+    // site's own snapshot still counts its work.
+    const waiting = container.querySelector('[data-wall-work] [data-material-condition~="human-gates"]')!;
+    expect(waiting).toHaveTextContent("not read");
+    expect(waiting.textContent).not.toMatch(/\d/);
+    // Every non-task concern is still evaluated, and calm.
+    const timeline = container.querySelector("[data-wall-timeline]")!;
+    expect(timeline.getAttribute("data-material-condition")?.split(" ")).toEqual([
+      "open-flags", "rollback-failure", "signal-freshness", "os-runner-health", "scheduled-lane-health", "budget-guardrail",
     ]);
-    expect(needs.querySelector('[data-material-condition="human-gates"]')).toHaveTextContent("Tasks unknown");
-    expect(needs.querySelector("[data-needs-calm]")?.textContent).toBe("Nothing broken");
-    expect(needs.textContent).not.toContain("0 urgent tasks");
+    expect(timeline.querySelector("[data-timeline-status]")).toHaveTextContent("Nothing broken");
+    expect(container.querySelector('[data-flow-node="decide"]')).toHaveTextContent("not read");
+    expect(container.textContent).not.toContain("0 urgent");
   });
 });
 
 /** With one site the portfolio is that site, so Home draws the site's own
- * strip and chart under the brief, never a comparison table of one row. */
+ * strip and chart under the money, never a site list of one row. */
 describe("Home — one site leads with its own numbers", () => {
-  it("draws the site's strip fused to its chart under the brief, and no one-row table", () => {
+  it("draws the site's own strip and chart under the money, and no one-row site list", () => {
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
     expect(detail.asked).toContain("meadow.example:overview");
     const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(hero).toHaveAttribute("data-home-brief");
+    expect(hero.closest("[data-home-brief]")).not.toBeNull();
     const lead = container.querySelector<HTMLElement>('[data-one-site-lead="meadow.example"]')!;
     expect(hero.compareDocumentPosition(lead) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
     const traffic = within(lead).getByRole("region", { name: "Traffic · last 28 days" });
@@ -771,7 +770,7 @@ describe("Home — one site leads with its own numbers", () => {
     expect(within(lead).getByRole("link", { name: "Meadow Board →" })).toHaveAttribute("href", "/assets/meadow.example");
 
     expect(container.querySelector("table")).toBeNull();
-    expect(container.querySelector("[data-sites-strip]")).toBeNull();
+    expect(container.querySelector("[data-portfolio-rows]")).toBeNull();
     expect(screen.queryByRole("link", { name: "All sites →" })).toBeNull();
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.textContent).not.toMatch(/portfolio|1 site/i);
@@ -802,21 +801,25 @@ describe("Home — one site leads with its own numbers", () => {
     expect(container.querySelector("table")).toBeNull();
   });
 
-  it("draws the sites strip, and reads no single site, from two sites", () => {
+  it("lists the sites, and reads no single site, from two sites", () => {
     withSecondSite();
     detail.data = viewOf(everyTabPayload(), "overview");
     const { container } = renderHome();
 
     expect(container.querySelector("[data-one-site-lead]")).toBeNull();
     expect(detail.asked).toEqual([]);
-    expect(container.querySelectorAll("[data-site-cell]")).toHaveLength(2);
+    expect(container.querySelectorAll("[data-portfolio-rows] [data-portfolio-row]")).toHaveLength(2);
     expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
-    expect(container.querySelector("[data-surface-hero]")).toHaveAttribute("data-home-brief");
+    expect(container.querySelector("[data-home-brief] [data-surface-hero]")).not.toBeNull();
   });
 });
 
-describe("Home — the Morning Brief", () => {
-  it("opens with the greeting line, the month's money as a card, and an end", () => {
+describe("Home — the answer, the money and what is broken", () => {
+  const answerLine = (container: HTMLElement) => container.querySelector("[data-home-answer] h2");
+  const incidentKeys = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-incident-list] [data-incident]")].map((row) => row.getAttribute("data-incident"));
+
+  it("opens with the greeting and one sentence on the month and what is broken, then the month's money as the lead", () => {
     withSecondSite();
     const { container } = renderHome();
 
@@ -824,40 +827,40 @@ describe("Home — the Morning Brief", () => {
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toContain("2 sites · updated");
     expect(container.querySelector("[data-portfolio-census]")!.textContent).not.toMatch(/portfolio/i);
 
-    // The audit measures the brief's bottom edge against 900px.
-    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(hero).toHaveAttribute("data-home-brief");
-    expect(within(hero).getByRole("heading", { level: 2 })).toHaveTextContent(/^Good (morning|afternoon|evening)$/);
-    expect(hero.querySelector("[data-brief-since]")).toHaveTextContent("nothing changed");
+    const answer = container.querySelector<HTMLElement>("[data-home-answer]")!;
+    expect(answer.querySelector("[data-brief-since]")).toHaveTextContent(/^Good (morning|afternoon|evening) · since .+ · nothing changed$/);
+    expect(answerLine(container)).toHaveTextContent("July so far $45 est. Nothing is broken.");
 
-    const money = hero.querySelector<HTMLElement>('[data-highlight="money"]')!;
-    expect(money).not.toBeNull();
-    expect(money).toHaveTextContent("July revenue so far");
-    expect(money.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/financials");
+    // The audit measures the lead's bottom edge against 900px.
+    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
+    expect(answer.compareDocumentPosition(hero) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    const money = hero.querySelector<HTMLElement>("[data-money-hero]")!;
+    expect(money).toHaveAccessibleName("Revenue, July so far");
+    // The month's ledger rows are an estimate, and the figure says so.
+    expect(money.querySelector("[data-money-figure]")).toHaveTextContent("$45est.");
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toHaveAttribute("href", "/financials");
+    expect(container.querySelector('[data-stat="Visitors, yesterday"]')).toHaveAttribute("href", "/assets");
 
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
+    expect(container.querySelector("[data-about]")).toBeNull();
     expect(container.textContent).not.toMatch(/\bfresh\b|\bjobs?\b|snapshot|captured in preview/i);
 
-    const end = hero.querySelector("[data-finish-line]")!;
-    expect(end).toHaveTextContent("That's everything");
-    expect(end).toHaveTextContent("data as of 5m ago");
+    // The page ends on the last day drawn on a time axis.
+    const regions = [...container.querySelectorAll("[data-home-brief] section[aria-label]")];
+    expect(regions.at(-1)).toHaveAttribute("data-home-timeline");
 
+    expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
     expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
   });
 
-  it("needs no About: its facts are on the cards they qualify", () => {
-    const { container } = renderHome();
-    expect(container.querySelector("[data-about]")).toBeNull();
-    expect(container.querySelectorAll("p")).toHaveLength(0);
-  });
-
   // On the first days of a month the payload falls back to the latest month
-  // that has ledger rows, and the card names that month.
-  it("names the fallback month on the money card when the newest ledger rows are not this month's", () => {
+  // that has ledger rows, and the money names that month.
+  it("names the fallback month on the money hero and in the answer when the newest ledger rows are not this month's", () => {
     payload.portfolio = { ...POPULATED_PORTFOLIO, period: "2026-08", periodIsCurrent: false };
     const { container } = renderHome();
-    expect(container.querySelector('[data-highlight="money"]')).toHaveTextContent("August revenue so far");
+    expect(container.querySelector("[data-money-hero]")).toHaveAccessibleName("Revenue, August so far");
+    expect(answerLine(container)).toHaveTextContent(/^August so far \$45 est\./);
     expect(screen.queryByText("August 2026 · latest month on the ledger")).toBeNull();
   });
 
@@ -874,7 +877,7 @@ describe("Home — the Morning Brief", () => {
     expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
   });
 
-  it("ranks an error above a warning, makes the first card the big thing, and caps the brief at five", () => {
+  it("ranks errors above warnings, newest first, and folds what has been open over a week into one line", () => {
     payload.attention = Array.from({ length: 7 }, (_, index) =>
       alert({
         id: index + 1,
@@ -886,29 +889,45 @@ describe("Home — the Morning Brief", () => {
     );
 
     const { container } = renderHome();
-    const hero = container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    const cards = [...hero.querySelectorAll<HTMLElement>("[data-highlight]")];
+    expect(answerLine(container)).toHaveTextContent("4 things are broken, 3 at risk.");
+    const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
+    expect(list).toHaveTextContent("4 broken3 at risk");
+    expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3", "alert-6", "alert-4"]);
+    expect([...list.querySelectorAll("[data-incident]")].map((row) => row.getAttribute("data-state")))
+      .toEqual(["error", "error", "error", "warn", "warn"]);
+    const first = list.querySelector('[data-incident="alert-7"] a')!;
+    expect(first).toHaveAttribute("href", "/assets/meadow.example");
+    expect(first).toHaveAccessibleName(/^Meadow Board · Alert 7 · since 2d ago$/);
 
-    expect(cards).toHaveLength(5);
-    expect(hero.querySelector("[data-brief-since]")).toHaveTextContent("7 things changed");
-    expect(hero.querySelector("[data-finish-line]")).not.toBeNull();
-    expect(cards[0]).toHaveAttribute("data-highlight", "alert");
-    expect(cards[0]).toHaveAttribute("data-highlight-big");
-    expect(cards[0]).toHaveTextContent("Alert 7");
-    expect(cards.map((card) => card.getAttribute("data-highlight-big") !== null)).toEqual([true, false, false, false, false]);
-    expect(cards.slice(0, 4).map((card) => card.textContent)).toEqual(
-      expect.arrayContaining([expect.stringContaining("Alert 7"), expect.stringContaining("Alert 5"), expect.stringContaining("Alert 3"), expect.stringContaining("Alert 1")]),
-    );
-    expect(cards[4]).toHaveTextContent("Alert 6");
-    expect(screen.queryByText(/Alert 2/)).toBeNull();
-    expect(hero.querySelector('[data-highlight="money"]')).toBeNull();
-    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/meadow.example");
-    expect(cards[0]).toHaveTextContent("Alert · Meadow Board");
-    expect(cards[0]).toHaveTextContent("since");
+    // Alerts 1 and 2 have been open over a week: one quiet line, opened in place.
+    const fold = within(list).getByRole("button", { name: /^Open for over a week · 2/ });
+    expect(fold).toHaveAttribute("aria-expanded", "false");
+    expect(fold).toHaveTextContent("Alert 1 on Meadow Board · Alert 2 on Meadow Board");
+    fireEvent.click(fold);
+    expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3", "alert-6", "alert-4", "alert-1", "alert-2"]);
+  });
+
+  it("draws a failing source in the grid where it lives, and does not repeat it in the problems list", () => {
+    googleAnswers([{ capability: "ga4-daily", state: "failing" }]);
+    const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
+    payload.assets = [{ ...SEEDED_ASSETS[0]!, dataSources: [ga4] }];
+    payload.attention = [alert({ id: 5, severity: "warn" })];
+
+    const { container } = renderHome();
+    const cell = container.querySelector<HTMLElement>('[data-health-cell="meadow.example:ga4"]')!;
+    expect(cell).toHaveAttribute("data-state", "failing");
+    expect(within(cell).getByRole("link")).toHaveAccessibleName(/^Meadow Board · Google Analytics · Failing/);
+    expect(within(cell).getByRole("link")).toHaveAttribute("href", "/assets/meadow.example?tab=sources");
+    const headline = container.querySelector("[data-health-headline]")!;
+    expect(headline).toHaveAttribute("data-health-headline", "failing");
+    expect(headline).toHaveTextContent("Google Analytics on Meadow Board");
+
+    expect(incidentKeys(container)).toEqual(["alert-5"]);
+    expect(answerLine(container)).toHaveTextContent("1 thing is broken, 1 at risk.");
   });
 
   /** A site with no number yet opens on its Data sources, as the sidebar sends it. */
-  it("opens a site with no number yet on its Data sources from its alert card", () => {
+  it("opens a site with no number yet on its Data sources from its problem row", () => {
     const empty = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
     payload.assets = [...SEEDED_ASSETS, { ...SEEDED_ASSETS[0]!, id: "fresh.example", displayName: "Fresh Example",
       pulseReceivedAt: null, firstReportAt: null, activeUsers: empty, searchClicks: empty,
@@ -918,12 +937,11 @@ describe("Home — the Morning Brief", () => {
     payload.attention = [alert({ id: 4, asset: "fresh.example", assetDisplayName: "Fresh Example" })];
 
     const { container } = renderHome();
-    const card = container.querySelector<HTMLElement>('[data-highlight="alert"]')!;
-    expect(card.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/assets/fresh.example/sources");
+    expect(container.querySelector('[data-incident="alert-4"] a')).toHaveAttribute("href", "/assets/fresh.example/sources");
   });
 
-  /** One fact about four sites is one card, and the way through is `/alerts`. */
-  it("shows sites that have never reported as ONE card, pointing at Alerts", () => {
+  /** One fact about four sites is one problem, and the way through is `/alerts`. */
+  it("lists sites that have never reported as ONE problem, pointing at Alerts", () => {
     payload.attention = [
       alert({
         id: 31, asset: "ferns.example", assetDisplayName: "Fern Index", severity: "error",
@@ -939,43 +957,49 @@ describe("Home — the Morning Brief", () => {
     ];
 
     const { container } = renderHome();
-    const cards = container.querySelectorAll<HTMLElement>('[data-highlight="alert"]');
-    expect(cards).toHaveLength(1);
-    expect(cards[0]).toHaveTextContent("Four sites have no nightly reports");
-    expect(cards[0]!.textContent).not.toContain("recurred");
-    expect(cards[0]!.querySelector("[data-highlight-action]")).toHaveAttribute("href", "/alerts");
+    const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
+    // Open since July 5th, so it waits in the fold for what is over a week old.
+    fireEvent.click(within(list).getByRole("button", { name: /^Open for over a week · 1/ }));
+    const rows = list.querySelectorAll<HTMLElement>("[data-incident]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Four sites have no nightly reports");
+    expect(rows[0]!.textContent).not.toContain("recurred");
+    expect(rows[0]!.querySelector("a")).toHaveAttribute("href", "/alerts");
   });
 
-  it("says a visitors move in business words, and only when the week moved it", () => {
+  it("puts yesterday's visitors beside the money, against the same day a week before", () => {
     const days = Array.from({ length: 14 }, (_, index) => ({ t: `2026-07-${String(15 + index).padStart(2, "0")}`, v: index === 13 ? 130 : 100 }));
     payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days, provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
 
-    const moved = renderHome();
-    const hero = moved.container.querySelector<HTMLElement>("[data-surface-hero]")!;
-    expect(hero.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday130");
-    const card = hero.querySelector<HTMLElement>('[data-highlight="people"]')!;
-    expect(card).toHaveTextContent("Visitors up 30% on the same day last week");
-    expect(card).toHaveTextContent("130 yesterday · 100 a week before");
-    expect(card.querySelector("[data-spark]")).not.toBeNull();
-    moved.unmount();
+    const up = renderHome();
+    const tile = up.container.querySelector<HTMLElement>('[data-stat="Visitors, yesterday"]')!;
+    expect(tile.querySelector("[data-stat-figure]")).toHaveTextContent("130");
+    expect(within(tile).getByLabelText("30% up vs a week before")).toBeInTheDocument();
+    expect(within(tile).getByRole("img", { name: /^Visitors a day, last two weeks, Jul 15 to Jul 28/ })).toBeInTheDocument();
+    expect(tile).toHaveTextContent(/as of Jul 28/);
+    up.unmount();
 
-    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days.map((day, index) => ({ ...day, v: index === 13 ? 102 : 100 })), provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
-    const quiet = renderHome();
-    expect(quiet.container.querySelector("[data-page-answer-figures]")).toHaveTextContent("Visitors yesterday102");
-    expect(quiet.container.querySelector('[data-highlight="people"]')).toBeNull();
+    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days.map((day, index) => ({ ...day, v: index === 13 ? 70 : 100 })), provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
+    const down = renderHome();
+    const fell = down.container.querySelector<HTMLElement>('[data-stat="Visitors, yesterday"]')!;
+    expect(fell.querySelector("[data-stat-figure]")).toHaveTextContent("70");
+    expect(within(fell).getByLabelText("30% down vs a week before")).toBeInTheDocument();
   });
 
-  it("gives every site one cell with its health word, in seed order, that opens its page", () => {
+  it("gives every site one row with its health word, in seed order, that opens its page", () => {
     withSecondSite();
     payload.attention = [alert({ id: 9, severity: "error" })];
 
     const { container } = renderHome();
-    const cells = [...container.querySelectorAll<HTMLElement>("[data-site-cell]")];
-    expect(cells.map((cell) => cell.getAttribute("data-site-cell"))).toEqual(["meadow.example", "second.example"]);
-    expect(cells[0]!.querySelector('[data-status-for="asset:meadow.example"]')).toHaveTextContent("Off track");
-    expect(cells[1]!.querySelector('[data-status-for="asset:second.example"]')).toHaveTextContent("On track");
-    expect(within(cells[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
-    expect(cells[0]).toHaveTextContent("nothing reported yesterday");
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-portfolio-row]")];
+    expect(rows.map((row) => row.getAttribute("data-portfolio-row"))).toEqual(["meadow.example", "second.example"]);
+    expect(rows[0]).toHaveTextContent("Off track");
+    expect(rows[1]).toHaveTextContent("On track");
+    expect(within(rows[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
+    expect(rows[0]).toHaveTextContent("no visitors reported");
+    // The grid keeps the same order, with the System last.
+    expect([...container.querySelectorAll("[data-health-row]")].map((row) => row.getAttribute("data-health-row")))
+      .toEqual(["meadow.example", "second.example", "system"]);
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
   });
@@ -991,17 +1015,18 @@ describe("Home — Decide", () => {
     renderHome();
 
     const rows = within(panelFor("Decide")).getAllByRole("listitem");
-    expect(rows).toHaveLength(2);
     // A gate holds work out of the ready queue, so it leads regardless of its
     // own priority band.
+    expect(rows.map((row) => row.getAttribute("data-queue-item"))).toEqual(["ro-3z7", "md-9k1"]);
     expect(rows[0]).toHaveTextContent("Approve the spend cap");
-    expect(rows[0]).toHaveTextContent("needs your approval");
+    expect(within(rows[0]!).getByLabelText("Approval")).toBeInTheDocument();
     expect(rows[0]).toHaveTextContent("NoticeOS");
     expect(rows[0]!.textContent).not.toContain("· gate");
     expect(rows[0]!.textContent).not.toContain("ro-3z7");
     expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
     expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/tasks/ro-3z7");
     expect(rows[1]).toHaveTextContent("Top-priority ask");
+    expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("button", { name: "Answer" })).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
@@ -1019,7 +1044,7 @@ describe("Home — Decide", () => {
     expect(screen.queryByText("Nothing to decide.")).toBeNull();
   });
 
-  it("shows three rows, names the rest as the way out, and discloses them in place", () => {
+  it("counts the whole queue, shows four rows, and discloses the rest in place", () => {
     const capped = project("Meadow Board", Array.from({ length: 10 }, (_, index) =>
       waiting({ id: `md-${index}`, title: `Request ${index + 1}` }),
     ));
@@ -1027,11 +1052,11 @@ describe("Home — Decide", () => {
     workState.data = workPayload([capped]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent("24 waiting");
-    expect(within(panel).getAllByRole("listitem")).toHaveLength(3);
-    expect(within(panel).getByRole("link", { name: "7 more →" })).toHaveAttribute("href", "/tasks");
-    fireEvent.click(within(panel).getByRole("button", { name: "Show 7 more" }));
+    expect(panel).toHaveTextContent(/24\s*waiting on you/);
+    expect(within(panel).getAllByRole("listitem")).toHaveLength(4);
+    fireEvent.click(within(panel).getByRole("button", { name: "Show 6 more" }));
     expect(within(panel).getAllByRole("listitem")).toHaveLength(10);
+    expect(within(panel).getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
   });
 
   it("names the wait beside each row, and nothing about the read itself", () => {
@@ -1042,8 +1067,7 @@ describe("Home — Decide", () => {
     expect(panel).not.toHaveTextContent("captured in preview");
     expect(panel.querySelector("button button, a button")).toBeNull();
     const row = within(panel).getByRole("listitem");
-    expect(row).toHaveTextContent("28d");
-    expect(row).toHaveTextContent("waiting");
+    expect(within(row).getByLabelText("waiting 28d")).toHaveTextContent("28d");
   });
 
   it.each(["failed project", "unmeasured inbox", "no projects", "stale snapshot", "failed refresh"])(
@@ -1059,10 +1083,17 @@ describe("Home — Decide", () => {
       const panel = panelFor("Decide");
       expect(panel).not.toHaveTextContent("Nothing to decide.");
       expect(panel).toHaveTextContent(/not fully read|unknown/);
-      if (failure === "stale snapshot") expect(panel).toHaveTextContent("outdated");
       expect(panel.textContent!.match(/outdated/g)?.length ?? 0).toBeLessThanOrEqual(1);
     },
   );
+
+  it("names a stale count outdated, once, beside the count", () => {
+    workState.data = workPayload([project("Meadow Board", [waiting()])], "2026-07-29T11:00:00.000Z");
+    renderHome();
+    const panel = panelFor("Decide");
+    expect(panel).toHaveTextContent(/1\s*waiting on you · oldest 1h · outdated/);
+    expect(panel.textContent!.match(/outdated/g)).toHaveLength(1);
+  });
 
   it("states known totals as a lower bound when one project is unreadable", () => {
     const known = project("Meadow Board", [waiting()]);
@@ -1073,8 +1104,8 @@ describe("Home — Decide", () => {
     workState.data = workPayload([known, failed]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent("12+ waiting · partial read");
-    expect(panel).not.toHaveTextContent("111 waiting");
+    expect(panel).toHaveTextContent(/12\s*waiting on you · oldest 1h · partial read/);
+    expect(panel).not.toHaveTextContent("111");
   });
 
   it("keeps an authoritative nonzero queue visible even when no rows were captured", () => {
@@ -1083,7 +1114,7 @@ describe("Home — Decide", () => {
     workState.data = workPayload([emptyPreview]);
     renderHome();
     const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent("12 waiting");
+    expect(panel).toHaveTextContent(/12\s*waiting on you/);
     expect(panel).toHaveTextContent("No request details read.");
     expect(panel).not.toHaveTextContent("Nothing to decide.");
   });
@@ -1099,7 +1130,7 @@ describe("Home — Decide", () => {
     expect(panelFor("Decide")).not.toHaveTextContent("Could not read");
   });
 
-  it("gives every row the Tasks board's ask face — warn at every priority, a gate's △", () => {
+  it("gives every row the ask face — warn at every priority, a gate's triangle", () => {
     workState.data = workPayload([
       project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
       project("Meadow Board", [
@@ -1111,16 +1142,15 @@ describe("Home — Decide", () => {
 
     renderHome();
 
-    const panel = panelFor("Decide");
-    fireEvent.click(within(panel).getByRole("button", { name: "Show 1 more" }));
-    const rows = within(panel).getAllByRole("listitem");
+    const rows = within(panelFor("Decide")).getAllByRole("listitem");
+    const glyphs = rows.map((row) => row.querySelector("svg[aria-label]")!);
     // A task's priority is not a severity: priority is the order, not the colour.
-    expect(rows.map(rowTone)).toEqual(["text-warn", "text-warn", "text-warn", "text-warn"]);
-    // Never colour-only: a gate holding other work (`△`) reads differently
-    // from an ask (`!`) on a grayscale screen.
-    expect(rows.map((row) => row.querySelector("[aria-hidden]")!.textContent)).toEqual(["△", "!", "!", "!"]);
-    expect(rows[0]).toHaveTextContent("needs your approval");
-    expect(rows[3]!.textContent).not.toContain("needs your approval");
+    expect(glyphs.map((glyph) => glyph.classList.contains("text-warn"))).toEqual([true, true, true, true]);
+    // Never colour-only: a gate holding other work is a triangle, an ask a
+    // question mark, and each says which.
+    expect(glyphs.map((glyph) => glyph.getAttribute("aria-label"))).toEqual(["Approval", "Question", "Question", "Question"]);
+    expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(rows[3]!).queryByRole("button", { name: "Approve" })).toBeNull();
   });
 });
 
@@ -1171,10 +1201,10 @@ describe("Home and Wall phase scoping", () => {
     expect(screen.queryByRole("link", { name: "TV dashboard" })).toBeNull();
   });
 
-  // With nothing saved, the route draws the strip, then a column of revenue
-  // beside Needs you over the site rows, beside the full-height feed, and no
-  // header row above it.
-  it("draws the default layout when nothing is saved: the strip, revenue beside Needs you over the sites, the feed beside", () => {
+  // With nothing saved, the route draws the strip and the loop, then the last
+  // 24 hours over the site rows beside revenue over the work, and no header
+  // row above it.
+  it("draws the default layout when nothing is saved: the strip and the loop, the last 24 hours over the sites beside revenue over the work", () => {
     const { container } = renderWall();
 
     // Each widget sits in its slot, which is no box at the TV's width and
@@ -1183,11 +1213,15 @@ describe("Home and Wall phase scoping", () => {
     expect(strip).not.toBeNull();
     const body = container.querySelector("[data-wall-row='body']")!;
     expect(body).toHaveAttribute("data-wall-row-height", "fill");
-    const column = body.querySelector(":scope > [data-wall-column]")!;
-    expect(column.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-revenue]")).not.toBeNull();
-    expect(column.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-needs]")).not.toBeNull();
-    expect(column.querySelector("[data-wall-row='sites'] > [data-wall-slot] > [data-wall-sites]")).not.toBeNull();
-    expect(body.querySelector(":scope > [data-wall-slot] > [data-wall-feed]")).not.toBeNull();
+    expect(container.querySelector("[data-wall-row='loop'] > [data-wall-slot] > [data-wall-loop]")).not.toBeNull();
+    const business = body.querySelector(":scope > [data-wall-column='business']")!;
+    const side = body.querySelector(":scope > [data-wall-column='side']")!;
+    expect(business.querySelector("[data-wall-row='timeline'] > [data-wall-slot] > [data-wall-timeline]")).not.toBeNull();
+    expect(business.querySelector("[data-wall-row='sites'] > [data-wall-slot] > [data-wall-sites]")).not.toBeNull();
+    expect(side.querySelector("[data-wall-row='money'] > [data-wall-slot] > [data-wall-revenue]")).not.toBeNull();
+    expect(side.querySelector("[data-wall-row='work'] > [data-wall-slot] > [data-wall-work]")).not.toBeNull();
+    // Needs you and the feed stay in the library, off the default.
+    expect(container.querySelector("[data-wall-needs], [data-wall-feed]")).toBeNull();
     expect(strip!.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(strip!.textContent).toContain("Team offsite - August 2026");
     expect(strip!.querySelector("[data-strip-meeting-distance]")).toHaveTextContent("25M left");
@@ -1196,7 +1230,7 @@ describe("Home and Wall phase scoping", () => {
     expect(strip!.querySelector("[data-strip-agenda]")).not.toBeNull();
     expect(strip!.querySelector("[data-strip-countdown-value]")).not.toBeNull();
     expect(strip!.querySelector("[data-system-state]")).toBeNull();
-    expect(column.querySelector("[data-needs-calm]")).toHaveTextContent("Nothing needs you");
+    expect(business.querySelector("[data-timeline-status]")).toHaveTextContent("Nothing broken");
     expect(container.querySelector(".wall-root")).toHaveClass("md:px-wall-inset-x", "md:py-wall-inset-y");
     expect(screen.queryByRole("button", { name: "Configure" })).not.toBeInTheDocument();
   });
@@ -1206,7 +1240,9 @@ describe("Home and Wall phase scoping", () => {
 
     expect(container.querySelector("[data-wall-header]")).toBeNull();
     expect(container.querySelector("[data-work-flow-legend]")).toBeNull();
-    expect(container.querySelector("[data-work-flow]")).toBeNull();
+    // The work chart is the Wall's one task surface, in its own region.
+    expect(container.querySelectorAll("[data-work-flow]")).toHaveLength(1);
+    expect(container.querySelector("[data-work-flow]")!.closest("[data-wall-work]")).not.toBeNull();
     expect(container.textContent).not.toMatch(/Integrations:/);
     expect(container.textContent).not.toMatch(/View refreshed|Refreshed .* ago/);
     expect(container.querySelector("[data-strip-held]")).toBeNull();
@@ -1230,9 +1266,12 @@ describe("Home and Wall phase scoping", () => {
     const { container } = renderWall();
     payload.operator = prior;
 
-    const needs = container.querySelector("[data-wall-needs]")!;
-    expect(needs.querySelector("[data-needs-meta]")?.textContent).toContain("4 urgent tasks");
-    expect(needs.textContent).not.toContain("Nothing needs you");
+    const waiting = container.querySelector('[data-wall-work] [data-material-condition~="human-gates"]')!;
+    expect(waiting).toHaveTextContent("12");
+    expect(waiting).toHaveTextContent("4 urgent");
+    const decide = container.querySelector('[data-flow-node="decide"]')!;
+    expect(decide).toHaveAttribute("data-state", "warn");
+    expect(decide).toHaveTextContent("waiting on you · 4 urgent");
   });
 
   it("gives the TV one link, Home, on the strip's brand, and no controls", () => {
@@ -1262,14 +1301,18 @@ describe("Home and Wall phase scoping", () => {
     }
   });
 
-  it("keeps task strips off the Wall and urgency on the desk", () => {
+  it("puts the work on the Wall as a chart with no way into the tasks, and leaves the tasks themselves to the desk", () => {
     const wall = renderWall();
-    expect(wall.container.textContent).not.toContain("3 urgent");
+    // The work chart: the site's project as a row, with its counts.
+    const work = wall.container.querySelector("[data-wall-work] [data-work-flow]")!;
+    expect(work).not.toBeNull();
+    expect([...work.querySelectorAll("[data-work-row]")].map((row) => row.getAttribute("data-work-row"))).toEqual(["meadow.example"]);
+    expect(work.querySelector('[data-work-row="meadow.example"]')).toHaveAccessibleName(/2 in progress, 1 blocked/u);
+    // Counts only: no task's own words, and nothing to press through to them.
     expect(wall.container.textContent).not.toContain("Active bet");
     expect(wall.container.textContent).not.toContain("Homepage answer-card experiment");
-    expect(wall.container.querySelector("[data-priority-bar]")).toBeNull();
-    expect(wall.container.querySelector("[data-work-status]")).toBeNull();
-    expect(wall.container.querySelector('a[href="/tasks"]')).toBeNull();
+    expect(wall.container.querySelector('a[href="/tasks"], a[href="/work"]')).toBeNull();
+    expect(wall.container.querySelector("[data-wall-work] a, [data-wall-work] button")).toBeNull();
     wall.unmount();
 
     withSecondSite();
@@ -1280,7 +1323,7 @@ describe("Home and Wall phase scoping", () => {
 });
 
 /** A month with no ledger row is one quiet line on the TV while the rest of
- * the Wall draws; Home's tile strip is fixed, so there it says so in one line. */
+ * the Wall draws; on Home the money gives its place to the visitors. */
 describe("Portfolio card with no ledger row at all", () => {
   const nothing: PortfolioBand = { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD',
     period: "2026-07",
@@ -1309,21 +1352,26 @@ describe("Portfolio card with no ledger row at all", () => {
     expect(
       screen.queryByText(/P&L starts with the first reconciled month/),
     ).not.toBeInTheDocument();
-    for (const region of ["strip", "needs", "sites", "feed"]) {
+    for (const region of ["strip", "loop", "timeline", "sites", "work"]) {
       expect(container.querySelector(`[data-wall-${region}]`)).not.toBeNull();
     }
   });
 
-  it("draws no money card on Home rather than a $0 nobody counted", () => {
+  it("draws no money on Home rather than a $0 nobody counted, and lets yesterday's visitors lead", () => {
     payload.portfolio = nothing;
 
     const { container } = renderHome();
 
-    // No money card, no $0, and no estimate word over nothing. The brief still ends.
-    expect(container.querySelector('[data-highlight="money"]')).toBeNull();
-    expect(container.querySelector("[data-page-answer]")!.textContent).not.toContain("$");
-    expect(screen.queryByText(/· estimated/)).toBeNull();
-    expect(container.querySelector("[data-finish-line]")).not.toBeNull();
+    // No money hero, no revenue tile, no $0, and no estimate word over nothing.
+    expect(container.querySelector("[data-money-hero]")).toBeNull();
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
+    expect(container.querySelector("[data-home-answer]")!.textContent).not.toContain("$");
+    expect(container.textContent).not.toContain("$0");
+    expect(screen.queryByText(/· estimated|est\./)).toBeNull();
+    // The visitors take the lead's place, once.
+    const visitors = container.querySelectorAll('[data-stat="Visitors, yesterday"]');
+    expect(visitors).toHaveLength(1);
+    expect(visitors[0]!.closest("[data-surface-hero]")).not.toBeNull();
   });
 
   it("brings the month's figure back on the first forecast-only row", () => {

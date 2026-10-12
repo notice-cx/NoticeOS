@@ -173,6 +173,12 @@ function assetCard(id: string, displayName: string): WallPayload["assets"][numbe
   };
 }
 
+/** The archive's list. The week's timeline above the tabs draws the same
+ * settled alerts on its bars, so a row is looked for here. */
+function settledList(): HTMLElement {
+  return screen.getByRole("list", { name: "Settled alerts" });
+}
+
 /** Rendered through the real `/alerts/:tab?` shape, so the tab genuinely
  * comes off the URL. */
 function renderAlerts(url: string) {
@@ -338,12 +344,12 @@ describe("/alerts/history — what already closed", () => {
     ]);
     renderAlerts("/alerts/history");
 
-    expect(screen.getByText("Signups well below normal")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Meadow Board/ })).toHaveAttribute(
+    expect(within(settledList()).getByText("Signups well below normal")).toBeInTheDocument();
+    expect(within(settledList()).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute(
       "href",
       "/assets/meadow.example/alerts",
     );
-    expect(screen.getByRole("link", { name: /Northwind/ })).toHaveAttribute(
+    expect(within(settledList()).getByRole("link", { name: /Northwind/ })).toHaveAttribute(
       "href",
       "/assets/northwind.example/alerts",
     );
@@ -355,7 +361,7 @@ describe("/alerts/history — what already closed", () => {
     state.history = history([row({ id: 11 })]);
     renderAlerts("/alerts/history");
 
-    expect(screen.getByRole("link", { name: "Meadow Board" })).toHaveAttribute(
+    expect(within(settledList()).getByRole("link", { name: "Meadow Board" })).toHaveAttribute(
       "href",
       "/assets/meadow.example/alerts",
     );
@@ -398,7 +404,7 @@ describe("/alerts/history — what already closed", () => {
     })]);
     renderAlerts("/alerts/history");
 
-    const line = screen.getByText("Signups well below normal").closest("li")!;
+    const line = within(settledList()).getByText("Signups well below normal").closest("li")!;
     fireEvent.click(within(line).getByRole("button", { expanded: false }));
     expect(line).toHaveTextContent("resolved 1d ago");
     expect(line).toHaveTextContent("Check after the campaign");

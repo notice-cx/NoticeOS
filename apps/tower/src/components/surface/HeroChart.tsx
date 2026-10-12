@@ -26,6 +26,7 @@ import { pillControlClass } from "@/components/ui/pill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SERIES_TONE_CLASS, type SeriesTone } from "@/components/surface/Sparkline";
 import { ChartDot } from "@/components/surface/ChartMarks";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { cn } from "@/lib/utils";
 import { ChartEventMarkers } from "@/components/ChartEventMarkers";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -595,8 +596,8 @@ export function HeroChart({
           {footnote || hasProvisional ? (
             <li className="flex items-center">
               <InfoTooltip label={`About ${typeof title === "string" ? title : ariaLabel ?? "this chart"}`}
-                trigger={hasProvisional ? <><ProvisionalKey />Provisional</> : undefined}>
-                {hasProvisional ? <span>Marked periods are provisional: those reported values are not yet final.</span> : null}
+                trigger={hasProvisional ? <><ProvisionalKey />Still counting</> : undefined}>
+                {hasProvisional ? <span>Marked periods are still being counted: those values are not final yet.</span> : null}
                 {footnote}
               </InfoTooltip>
             </li>
@@ -810,14 +811,15 @@ export function HeroChart({
           </svg>
 
           {windows.map((window) => (
-            <span
+            <FitLabel
               key={`span-label-${window.startIndex}-${window.label}`}
               data-hero-span-label=""
-              className="pointer-events-none absolute top-0.5 max-w-[45%] truncate rounded-sm bg-card/80 px-1 text-[10px] leading-4 text-warn"
+              className="pointer-events-none absolute top-0.5 max-w-[45%] text-[10px] leading-4 text-warn"
+              labelClassName="rounded-sm bg-card/80 px-1"
               style={{ left: `${Math.min(80, percentOf(Math.max(0, window.startIndex)))}%` }}
             >
               {window.label}
-            </span>
+            </FitLabel>
           ))}
 
           {marks.length > 0 ? <ChartEventMarkers
@@ -849,7 +851,7 @@ export function HeroChart({
                   </span>{averageCoverage(lane.averageReports[active]!)}</span> : null}
                   <span>{lane.smooth ? "Reported: " : ""}<span className="font-semibold text-foreground">
                     {lane.raw[active] === null ? "Not reported" : formatValue(lane.raw[active]!)}
-                  </span>{lane.raw[active] !== null && lane.provisionalAt >= 0 && active >= lane.provisionalAt ? " · Provisional" : ""}</span>
+                  </span>{lane.raw[active] !== null && lane.provisionalAt >= 0 && active >= lane.provisionalAt ? " · still counting" : ""}</span>
                 </span>
               ))}
               {notesByDate[domain[active]!] ? <span className="max-w-64 whitespace-normal">{notesByDate[domain[active]!]}</span> : null}
@@ -922,7 +924,7 @@ export function HeroChart({
                     {shown.map((lane) => (
                       <TableCell key={lane.name} className="text-right tabular-nums">
                         {lane.raw[index] === null ? "Not reported" : formatValue(lane.raw[index]!)}
-                        {lane.raw[index] !== null && lane.provisionalAt >= 0 && index >= lane.provisionalAt ? " · Provisional" : null}
+                        {lane.raw[index] !== null && lane.provisionalAt >= 0 && index >= lane.provisionalAt ? " · still counting" : null}
                         {lane.smooth && lane.average[index] !== null ? <span className="block text-xs text-muted-foreground">
                           {averageLabel}: {formatValue(lane.average[index]!)}{averageCoverage(lane.averageReports[index]!)}
                         </span> : null}

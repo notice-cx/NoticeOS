@@ -278,9 +278,12 @@ export function measureWallFit() {
         clipped: clipped.slice(0, 8),
         regions: {
             strip: boxOf("[data-wall-strip]"),
+            loop: boxOf("[data-wall-loop]"),
             revenue: boxOf("[data-wall-revenue]"),
-            needs: boxOf("[data-wall-needs]"),
             sites: boxOf("[data-wall-sites]"),
+            timeline: boxOf("[data-wall-timeline]"),
+            work: boxOf("[data-wall-work]"),
+            needs: boxOf("[data-wall-needs]"),
             feed: boxOf("[data-wall-feed]"),
         },
         sites: { density, rows, spare },

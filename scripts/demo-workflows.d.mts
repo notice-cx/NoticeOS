@@ -12,7 +12,7 @@ export interface DemoTaskRunEvidence {
     tasks: number;
     snapshots: number;
 }
-export interface DemoWatchRunEvidence {
+interface DemoWatchReading {
     evaluatedAt: string;
     result: {
         readings: number;
@@ -28,6 +28,10 @@ export interface DemoWatchRunEvidence {
         baseline: string;
         post: string;
     };
+}
+/** The repair's reading, and the redesign's beside it. */
+export interface DemoWatchRunEvidence extends DemoWatchReading {
+    slide: DemoWatchReading;
 }
 export interface DemoJobRunInput {
     job: string;
@@ -62,6 +66,7 @@ export declare function generateDemoWorkflows({ scenario, watch, tasks }: {
         collectionFailure: string;
         collectionRecovery: string;
         outcomeCheck: string;
+        redesignCheck: string;
         taskRefresh: string;
     };
 };
@@ -95,6 +100,8 @@ export declare function writeDemoWorkflowHistory({ home, history, writeRuns }: {
         collectionFailure: string;
         collectionRecovery: string;
         outcomeCheck: string;
+        redesignCheck: string;
         taskRefresh: string;
     };
 }>;
+export {};

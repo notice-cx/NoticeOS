@@ -89,27 +89,99 @@ The families, and what each means:
   `chart-distorted` for a day a reporting-timezone change made incomparable
   (a caveat about the measurement, in a quieter warn, never an alert), and
   `spark` for the neutral compact trend.
+- **The visual kit's furniture.** `viz-track` is the empty track a bar or a
+  band fills, `viz-grid` the hairline a grid or an axis is ruled in, and
+  `shadow-raised` the one elevation a screen's hero region may take. The
+  desk's type scale above Tailwind's steps (`text-display`, `text-figure`,
+  `text-figure-sm`, `text-micro`) is listed in `THEME_TEXT_SIZES`
+  (`lib/utils.ts`) so a class merge never drops it.
 - **The Wall's scale.** Every type step on the TV (`text-wall-*`) and every
   gap between its regions (`spacing-wall-*`) is a token, because the Wall is
   the one surface with a fixed height and whitespace there is budget. The
   brand accent feeds primary actions, selection and focus, and no state or
   series token points at it.
 
+## The bar
+
+A screen is done when someone would screenshot it to show what NoticeOS can
+do: the answer is a picture before it is a sentence, the most important thing
+is the biggest, every number says what it is compared with, time is on the
+screen, the broken part lights up where it lives, and nothing is squeezed,
+clipped or broken mid-word. Rectangles of text are an unfinished design, not a
+house style. Before a screen ships, its screenshot at desktop and phone width
+answers yes to each of these:
+
+1. Can a glance tell good from bad without reading a sentence?
+2. Is the most consequential thing the largest and the first the eye lands on?
+3. Does every figure carry its yardstick (a change against a named baseline, a
+   target, or its usual range) and its recent history?
+4. Is time drawn: a series, a strip, a timeline with now on it? And does every
+   line say when: a small line or strip without a full axis carries its first
+   and last date under it, so no squiggle is left unplaced in time?
+5. Are same-kind things grouped into one composite rather than one card each?
+6. Is every problem drawn on the thing it is about?
+7. Does every name, figure and sentence fit its box at every width?
+8. Is colour spent on data and state, with one thing to look at per region?
+
 ## Principles
 
-**One question per screen.** A surface answers one question and its first
-screen is the whole answer. Home: *what changed since I last looked, and what
-needs me.* A site's Overview: *how is it doing, what needs me, what matters.*
-Sites: *which one needs me.* Anything that answers a different question is a
-tab or a link, not a section further down.
+**One question per screen, answered with a picture first.** A surface answers
+one question and its first screen is the whole answer. Home: *how is the
+business doing, what is broken, and what needs me.* A site's Overview: *how is
+it doing, what needs me, what matters.* Sites: *which one needs me.* Anything
+that answers a different question is a tab or a link, not a section further
+down. Pictures carry the answer; words carry what a picture cannot: a name, a
+cause, a verb.
 
-**Charts lead; numbers ride them.** A number without its series is noise and
-a chart without its number is decoration, so a KPI is one unit: value, delta
-and the series it selects. The eye should read a shape before it reads a
-word: a trend has its line, a spend its meter against the cap, a comparison
-its signed delta, a state its glyph. If the visual answers nothing the figure
-does not, it is decoration and does not ship. Empty and first-run states earn
-a glyph and the next action, never a paragraph.
+**Choose the form from the shape of the data.** Each kind of data has a form
+that reads at a glance, and the kit has it:
+
+| The data is | Draw it as | In the kit |
+|---|---|---|
+| a quantity over time | its series with a yardstick: the comparison as a ghost or a dashed usual level, the newest value at its end | `HeroChart`, `Sparkline`, `BarStrip` |
+| progress through a period | the period so far against where it is heading and the last period's total | `PaceBar` |
+| a reading against its normal | the usual range as a band, the reading as a marker, the verdict as a word | `NormalBand` |
+| parts of a whole | one split bar whose legend is the figures | `SegmentBar` |
+| units compared on one measure | ruled rows with an inline line or bar and the value at the end | `PortfolioRows` |
+| many units × many states | a grid, one cell per pair, the state as fill, the age in the failing cell | `HealthGrid` |
+| events in time | lanes on a time axis with now drawn, problems as spans from onset to now | `EventTimeline` |
+| how things connect or flow | nodes and edges, each node in its state with its live count, the broken one lit where it sits | `FlowGraph` |
+| where things are | a map, when place is the data (visitors by country), never as scenery | — |
+| a queue | its size, its age spread, then the rows with age as a length | `DecisionQueue` |
+| open problems | one ranked panel: new since the last look first, the long-standing folded | `IncidentList` |
+
+A region is redesigned by the question it answers, not component by component:
+five alert cards may become one grid and one ranked list, six site cards one
+comparison panel. When no form in the kit fits a new kind of data, build the
+form; the table above grows.
+
+**Every number has a yardstick.** A figure is one unit of five parts: a label
+naming the measure and its window ("Revenue, yesterday"), the figure, its
+yardstick (a signed change against a named baseline, a target or the usual
+range), its recent history, and one context line with the key values in bold.
+`StatTile` is that unit at tile scale and `Kpi` in a strip. A number that
+cannot say whether it is good is noise; a chart without its number is
+decoration. A figure with no history yet says why rather than drawing a flat
+line. Empty and first-run states earn a glyph and the next action, never a
+paragraph.
+
+**Rank by consequence; size follows rank.** A screen has one hero region, a
+few modules and dense rows. Severity, freshness and money at stake decide
+order, size and colour: what broke since the operator last looked leads and is
+loudest, a problem open for over a week folds under its own heading, a healthy
+site is quiet. Equal weight for unequal things is a bug.
+
+**Group same-kind things; attach each to its subject.** Many alerts are one
+board, many sites one comparison, many data sources one grid. A card per item
+is the failure mode, not a layout. A failing data source lights its cell in its
+site's row, a failed backup lights its node in the system graph, an alert sits
+on the chart of the metric it is about: the operator never assembles the
+picture from boxes scattered across the page.
+
+**Annotate in place.** Label the mark rather than a legend: the newest value at
+the line's end, a named reference point ("Busiest day · Jul 11 · $42"), shaded
+bands for an outage, a measurement window or a usual range, a series' name at
+its line. A legend is for a chart with no room for labels on its marks.
 
 **Progressive disclosure.** Three rows by default, expand in place for
 evidence, "All →" for the rest. Names, units, essential periods and the
@@ -139,36 +211,58 @@ that repeats one subject is grouped under it. Undo over confirm for anything
 Tower-local; preview-then-commit for anything that deploys, spends or leaves
 the Tower.
 
-**Hierarchy from scale, not boxes.** One card shape with four tints. A card
-groups related things and never holds one fact; a region that is already
-distinct is not wrapped in another rounded box. Section titles are quiet
-eyebrows (`SectionLabel`: small, tracked, uppercase, muted) and the numbers
-are the large type. Shadows stay off cards; depth comes from tint and the
-highlight line.
+**Boxes by role, depth by rank.** A panel holds a group (a board, a grid, a
+comparison), never one fact; a region that is already distinct is not wrapped
+in another box. The hero region may be raised (`shadow-raised`) with a soft
+wash of its identity ink; everything else sits flat on hairline rings. Panel
+sizes differ because importance differs: the hero spans more of the grid than
+the modules beside it. Section titles are quiet eyebrows (`SectionLabel`) and
+the numbers are the large type. A `StatTile`'s top rule names its role on the
+screen (context, a problem, a win, money, people), so a row of tiles reads as
+an argument: context, then the problem, then what to do.
 
-**Colour is meaning.** Severity, the two business identities, a provider
-beside its name, and the recorded-execution and connectivity greens. Every
-other mark is neutral ink, so red means red when it appears. There is no
-decorative accent: the brand blue marks a control, a selection or focus, and
-nothing that carries data.
+**Colour is meaning, rationed.** Severity, the two business identities, a
+provider beside its name, and the recorded-execution and connectivity greens.
+Each region has one thing coloured to look at; the rest of its marks are
+neutral ink, so red means red when it appears: in a bar strip the newest day
+wears its identity and the days before it are grey; in a grid only the failing
+cell is red. Colour goes on data and state, not on controls: a row's verb is
+quiet until the row is pointed at or focused, and the brand blue marks the
+screen's one primary action, a selection or focus, never data. Hatching
+(`viz-hatch`) is "nothing measured here" and never a low value.
 
-**Rhythm.** The desk uses Tailwind's type and spacing steps as its defaults
-(`text-sm` and `text-xs` are the body and caption of most components), with a
-handful of sizes a composition fixed once in one component: the 11 px eyebrow,
-the 28 px KPI figure, a 13 px body line where the mockup wanted it. Those are
-the pattern, not a licence: a size belongs to the role it names, set in one
-place. On the Wall every size and gap is a token with no exceptions. The
-scale is a default, not pixel law; what matters is that one role has one size
-wherever it appears. Tabular digits wherever numbers align, baked into the
-stat components rather than applied by hand.
+**Type has a scale, and numbers own its top.** `text-display` (44 px) is a
+screen's lead figure, `text-figure` (30 px) a tile's, `text-figure-sm` (22 px)
+a row's or a strip's; body and caption are `text-sm` and `text-xs`, and
+`text-micro` (11 px) is the floor: nothing on the desk is set smaller. The
+largest type on a screen is a number or the screen's answer, never a greeting.
+Units, "est." and qualifiers are a step lighter than their figure. On the Wall
+every size and gap is a token with no exceptions. Tabular digits wherever
+numbers align, baked into the stat components rather than applied by hand.
+
+**Layout fits the content.** Regions sit on a grid with spans by importance.
+Components size themselves by their own container (`@container`), not the
+viewport, so a panel in half the page lays out for half the page. Nothing is
+cut to an ellipsis. A squeezed column drops before a name does, and a name
+too long for what is left wraps between its words, never mid-word and never a
+word a line. A label that must stay on one line (inside a timeline bar, over a
+grid column, on a chart) is shown whole or not at all (`FitLabel`). A filler line
+("that's everything") is a line inside its region, never a grid cell of its
+own.
+
+**Motion carries a change.** A figure counts to its new reading, a line draws
+in when its screen first paints, a bar or span grows from its baseline, a new
+row arrives, a live edge in a graph carries its flow, a source being collected
+breathes, a halo marks *now* and a slow pulse a series still being counted.
+Nothing loops without live data behind it, and all of it stops under
+`prefers-reduced-motion` (the `viz-*` classes in `src/index.css`). No
+photography, 3D renders, glass over numbers, or texture that encodes nothing.
 
 **Interactive where it pays.** A scoped range selector, series keys that
-toggle, hover readouts, click-to-select a metric, rows that expand in place.
-Nothing decorative moves. A halo marks *now*, a slow pulse marks a series
-still being counted, and both stop under `prefers-reduced-motion`; a feed row
-slides in once and not at all for a reader who asked for less motion.
+toggle, hover readouts, click-to-select a metric, rows that expand in place, a
+grid cell or a graph node that opens what it stands for.
 
-**Honest by construction, quiet by default.** A provisional day is a hollow
+**Honest by construction.** A provisional day is a hollow
 point; a projection is dashed and neutral; a day the measurement cannot
 compare is bracketed on the axis and its colour verdict withdrawn; a shipped
 change or a timezone move is a mark on the axis that explains itself on hover,
@@ -189,35 +283,71 @@ a number) beside it, replacing a strip of equal boxes. "2 open alerts, both
 warnings" over the alert list; "1 of 7 sites at risk", naming them, over the
 comparison table; "September net +$135 so far" over the money chart.
 
-**`HighlightCard`** is one thing that changed since the operator last looked:
-one kind (alert, money, people, shipped, win, milestone, bet), one short
-sentence, one shape (a line, a line over its normal band, or a display figure)
-and at most one verb. The card wears its kind's tint; the dot carries
-severity for an alert, the money or people identity otherwise.
-
 **`FinishLine`** ends a list the eye can finish: "That's every open alert" and
 how old the reading is. On an empty queue it is the whole list, so empty and
 finished read the same, and neither is a blank panel.
 
-**Home is the Morning Brief.** A greeting line with three small figures:
-yesterday's revenue, the month's pace and yesterday's visitors. Then at most
-five highlight cards, the first drawn larger as the big thing, ranked by
-severity, then dollars at stake, then kind; then the finish line that names
-the next sweep. Then *Decide*: at most three rows with their verbs on the row
-(Approve, Answer, Snooze). Then the sites in seed order, each with its one
-health word. The OS never describes itself on Home unless something is
-broken, and then the broken thing arrives as a highlight card. With one site,
-the brief is that site's.
+**Home answers how the business is doing, what is broken and what needs
+the operator**, in that order, each drawn. A quiet eyebrow carries the
+greeting, the window since the operator last looked and how many things
+changed in it; under it one sentence is the answer: where the month is
+heading and what is broken. The month's money is the hero (`MoneyHero`: the
+month so far as the largest figure on the screen, where it is heading against
+last month's total on a `PaceBar`, the month's days as a `BarStrip`, and which
+sites earned it), with yesterday's revenue and visitors as `StatTile`s beside
+it. With no revenue source anywhere, visitors lead and no money figure is
+drawn. Then every site's data sources as one calm `HealthGrid` with the
+System's own row, beside the ranked `IncidentList` of the problems the grid
+does not draw, so each problem appears once, and the `DecisionQueue` under it.
+Then the sites compared (`PortfolioRows`, in seed order; one site draws its own
+lead instead), and the last 24 hours as an `EventTimeline`. Home lays itself
+out by its own width: one column, two from about 768 px of content, twelve
+from about 1150 px, so a narrow window or a portrait monitor gets a layout
+made for it rather than a squeezed desktop one.
 
 **A site's Overview opens with a verdict**: the header carries one
 health word (`siteHealth` in `lib/site-health.ts`, the same derivation Home,
-the Sites table and the TV's site rows read) and one line of three facts
+the Sites page and the TV's site rows read) and one line of three facts
 joined by dots. Below it the hero row is money, people, search and the site's
-one product figure, over one chart that carries every shipped change as a
-labelled mark and every open watch window as a shaded span, so cause and
-effect sit on one axis. Then bets ranked by dollars, Needs you, the search
-movers, and product cells that say "normal" out loud. Provider names appear
-only as a chart key beside their own line.
+one product figure as `StatTile`s, each with its window, its change against
+the days before, its recent days as a dated `BarStrip` and one context line.
+The figure pressed is drawn on the chart: bars with the days before as a
+dashed level, the best and lowest day named on the bars, every shipped change
+a labelled mark, and shaded spans for an open alert (drawn with its onset and
+the rule's normal range), an outcome check or days not reported, so cause and
+effect sit on one axis. Then each data source's last 30 days as one row of
+day squares, led by the source that broke most recently, and the open alerts
+the chart does not already show. Bets, Needs you, the search movers and the
+product cells follow. Provider names appear only as a chart key beside their
+own line.
+
+**Sites answers which one needs me.** The answer names the sites that do, beside
+where the month is heading and yesterday's visitors; one bar splits every site
+by its health word, and its legend is the filter. The comparison is the hero:
+`PortfolioRows` with the sources column, one row per site with its people a day
+over four weeks (dated), yesterday's figure against a week before, yesterday's
+revenue, its share of the month and its data sources as pips where only a
+failing or late source takes a colour.
+
+**Alerts answers what is broken and since when**: the answer, the last seven
+days as an `EventTimeline` (open problems as bars to now, settled ones as closed
+bars), then one board grouped by site, worst first, each reading drawn on a
+`NormalBand` against the range its own rule computed, and anything open for over
+a week folded under one line.
+
+**Tasks shows the queue's shape**: what waits on the operator as a
+`DecisionQueue` with its age spread, closed and filed a day over two weeks as
+two dated `BarStrip`s on one scale, each project's week as the Wall's
+`WorkFlow` chart, and the most stuck epic as a `FlowGraph` whose blocked edges
+are drawn broken. The full task table follows.
+
+**Money is one equation**: revenue − cost = net for the month, net the largest,
+beside the month's days as a `BarStrip` (a day some source missed is outlined),
+the month against last month on a `PaceBar` and the split by site. Then where
+the cost goes, largest first, and the sites ranked by revenue with their net by
+month. **System health** leads with the System as a `FlowGraph` and, under it,
+every scheduled job's last seven days as one row of cells, the newest failure
+named at the top.
 
 **Index pages** follow the same bar: Sites, Alerts, Tasks, Money,
 Integrations and Workflows each open with a `PageAnswer`; Alerts and Tasks end
@@ -228,26 +358,33 @@ alert, Acknowledge and Tune in its expansion.
 
 ## The Wall
 
-The TV answers four questions in the order the eye takes them: *is anything
-on fire* (Needs you, and the issue mark beside a site's name); *are we on
-track this month* (the revenue figure, its pace, the month's line against last
-month's total); *which site needs me and how is each doing right now* (one row
-per site: live people, today against the same weekday last week, a 30-day
-trend, the month's money); *what just happened* (the live feed, newest on top,
-from stored events the Worker unions, never synthesized activity). Anything
-that answers none of these lives on the desk page that owns it.
+The TV answers five questions in the order the eye takes them: *where is the
+business in its own cycle* (the loop across the top: Sense, Attribute, Decide,
+Act, Learn, each with its live count and state); *is anything on fire* (the
+last 24 hours, one row per site and one for the System, every open problem a
+bar from its onset to now, and the issue mark beside a site's name); *are we
+on track this month* (the revenue figure, its pace, the month's line against
+last month's total); *which site needs me and how is each doing right now*
+(one row per site: live people, today against the same weekday last week, a
+30-day trend, the month's money); *is the work moving* (waiting on the
+operator, in progress, done this week and blocked, one row per project, done
+growing left of a centre line and the open queue right). Anything that
+answers none of these lives on the desk page that owns it; Needs you and the
+live feed stay in the library for a Wall that wants them.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of five widget types: the strip, revenue, Needs you, the site
-rows and the feed. `scripts/wall-layout.mts` owns the composition rules: how
-many rows and widgets a layout may hold, that widths are weights sharing a row
-rather than columns, each widget's floor and cap, which widgets are unique,
-which row takes the remaining height, and the one-column order a portrait
-tablet or a phone stacks into. The same validator runs at every door a layout
-can be written through, so the editor, the config pipeline and the renderer
-cannot disagree about what the Wall can draw. The operator arranges tiles at
-`/wall/edit` and never authors tile types; the editor previews through the
-very component the television uses.
+renders rows of eight widget types: the strip, the loop, revenue, the last 24
+hours, Needs you, the site rows, work and the feed. `scripts/wall-layout.mts`
+owns the composition rules: how many rows and widgets a layout may hold, that
+widths are weights sharing a row rather than columns, each widget's floor and
+cap, which widgets are unique, which row takes the remaining height, and the
+one-column order a portrait tablet or a phone stacks into. The same validator
+runs at every door a layout can be written through, so the editor, the config
+pipeline and the renderer cannot disagree about what the Wall can draw. The
+operator arranges tiles at `/wall/edit` and never authors tile types; the
+editor previews through the very component the television uses. The kit's
+desk components draw on the TV inside `.wall-root`, where their small type
+steps are scaled to the Wall's reading distance.
 
 One chart language, across every small chart on the TV and the desk's
 sparklines: a monotone line with round caps, an area whose wash eases to
@@ -346,7 +483,8 @@ may name providers, jobs, credentials and freshness. A surface speaks at its
 own altitude or lower, never higher: a business surface says "being watched ·
 verdict in 3 days", not "watch window"; "still counting", not "provisional";
 "people a day", not "GA4 users". A provider's name reaches a business surface
-only as a chart key beside its own line.
+only as a key beside its own mark: a chart key beside its line, or the header
+of its own column in a data-source grid.
 
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the lower altitudes' words
@@ -368,8 +506,13 @@ to choose between two. A new component states in one line what the registry
 has nothing for. A genuinely better component replaces the old one and takes
 its call sites, rather than living beside it.
 
-The vocabulary is small on purpose. One `Card` with four kinds. `PageAnswer`,
-`HighlightCard`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for a
+The vocabulary covers every shape of data the Tower draws, and grows when a
+new shape arrives: the form table under Principles names each form and its
+component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
+`EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue` and
+`IncidentList` in `components/viz/` are the kit, staged with invented figures
+at `/dev/visual-kit`. One `Card` with four kinds. `PageAnswer`,
+`FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for a
 figure fused to its series; `HeroChart` for a dated chart with keys, event
 marks and keyboard inspection; `Sparkline` and `MinutePulse` for the compact
 shapes. `ListPanel` / `ListRow` for three rows that expand in place or drill
@@ -386,7 +529,8 @@ from `ChartMarks`; the desk's `HeroChart` keys each series by its line exactly
 as drawn (tone, pattern, weight) in foreground ink, and with more than one
 series each key is a toggle. Prefer a label on the mark to a legend: the
 first and last date beside the plot, the value at the halo, an event's own
-label at its mark; a legend is a last resort and the Wall has none. A
+label at its mark, a series' name at its line; a legend is for a chart with no
+room for labels, and the Wall has none. A
 provisional point is hollow and keyed as such beside the other marks; a
 reference series is thinner and dotted so the lead reads first; an average
 is drawn only over completed observations, never over the shared calendar

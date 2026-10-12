@@ -52,6 +52,8 @@ export declare function generateDemoTaskFacts({ assets, seed, referenceDate, cut
         problem: string;
         ship: string;
         shipReadback: string;
+        slide: string;
+        slideReadback: string;
     };
 };
 /** Import the dated facts through bd; no task-table SQL writer exists here. */

@@ -39,11 +39,11 @@ vi.mock("@/hooks/useFinancials", () => ({
 
 // How many sites the installation has (the sidebar's read): unknown unless a
 // case says, which leaves the page to count the month's rows.
-const wall = vi.hoisted(() => ({ sites: null as number | null }));
+const wall = vi.hoisted(() => ({ sites: null as number | null, data: null as unknown }));
 vi.mock("@/hooks/useWall", () => ({
   useWall: () => ({
-    data: wall.sites === null ? undefined : { assets: Array.from({ length: wall.sites }, (_, index) => ({ id: `site-${index}` })) },
-    isPending: wall.sites === null,
+    data: wall.data ?? (wall.sites === null ? undefined : { assets: Array.from({ length: wall.sites }, (_, index) => ({ id: `site-${index}` })) }),
+    isPending: wall.sites === null && wall.data === null,
     isError: false,
   }),
 }));
@@ -131,16 +131,17 @@ function renderPage(data: FinancialsPayload | undefined, entry = "/financials") 
 const picker = () => screen.getByRole("combobox", { name: "Accounting period" });
 
 /* A signed estimated adjustment is still unchecked money, counted by its size
-   in Reconciled's "estimated" half. A signed sum would hide it: 100 booked +
-   (−10) estimated reads as a fully reconciled 90. */
+   in the turnover nobody has confirmed. A signed sum would hide it: 100 booked +
+   (−10) estimated reads as a fully confirmed 90. */
 it('counts signed estimated adjustments as unconfirmed money, never on the net', () => {
   const { container } = renderPage(payload({ months: [{ period: '2026-08',
     booked: { currency: 'USD', revenue: 100, cost: 0, net: 100 },
     estimated: { currency: 'USD', revenue: -10, cost: 0, net: -10 },
     total: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
   }] }));
-  expect(container.querySelector('[data-money-confirmed] dd')).toHaveTextContent('$100');
-  expect(container.querySelector('[data-money-answer] h2')).not.toHaveTextContent('estimate');
+  expect(container.querySelector('[data-money-confirmed]')).toHaveTextContent('$100 of $110 confirmed');
+  expect(container.querySelector('[data-money-net] dd')).toHaveTextContent('+$90');
+  expect(container.querySelector('[data-money-answer]')).not.toHaveTextContent('estimate');
 });
 
 it('shows daily portfolio coverage before asset contributions and keeps monthly costs outside its bars', () => {
@@ -150,6 +151,7 @@ it('shows daily portfolio coverage before asset contributions and keeps monthly 
     sources: [{ asset: 'meadow.example', displayName: 'Meadow Board', since: '2026-04-01' }, { asset: 'northwind.example', displayName: 'Northwind', since: '2026-08-10' }],
     coverage: [{ date: '2026-08-31', reported: 1, missingAssets: ['northwind.example'] }],
   } }));
+  openPanel('days');
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
   expect(daily).toHaveTextContent('Aug 1, 2026 – Aug 31, 2026');
   expect(daily.querySelector('[data-legend-partial]')).toHaveTextContent('1 partial day');
@@ -179,6 +181,7 @@ it('counts each source against the days since it first reported', () => {
       { date: '2026-09-03', reported: 2, missingAssets: [] },
     ],
   } }));
+  openPanel('days');
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
   expect(daily.querySelector('[data-source-coverage-asset="meadow.example"]')).toHaveTextContent(/Meadow Board\s*3\/3 days/);
   expect(daily.querySelector('[data-source-coverage-asset="northwind.example"]')).toHaveTextContent(/Northwind\s*1\/2 days/);
@@ -198,6 +201,7 @@ it('shows only the missing site as short when two sites share a display name', (
       { date: '2026-09-02', reported: 1, missingAssets: ['second.example'] },
     ],
   } }));
+  openPanel('days');
   const daily = screen.getByRole('region', { name: 'Daily revenue' });
   const first = daily.querySelector<HTMLLIElement>('[data-source-coverage-asset="first.example"]')!;
   const second = daily.querySelector<HTMLLIElement>('[data-source-coverage-asset="second.example"]')!;
@@ -270,6 +274,7 @@ afterEach(() => {
   state.error = null;
   state.asked = [];
   wall.sites = null;
+  wall.data = null;
   vi.unstubAllGlobals();
 });
 
@@ -311,7 +316,8 @@ describe("/financials — saying which month it is showing", () => {
   it("answers the page's question instead of asking it, on every month", () => {
     const { container } = renderPage(payload());
     expect(container.querySelector("[data-page-header]")?.textContent).not.toContain("Am I making money");
-    expect(container.querySelector("[data-money-answer] h2")?.textContent).toMatch(/^August net [+−-]?\$/u);
+    expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/^August 2026$/u);
+    expect(container.querySelector("[data-money-net] dd")?.textContent).toMatch(/^[+−-]?\$/u);
     expect(container.querySelector("[data-period-fallback]")).toBeNull();
   });
 
@@ -523,30 +529,37 @@ describe("/financials — the first screen answers the whole question", () => {
     });
 
   /** The audit measures the first screen against a block the page names, so
-   * the mark is part of the contract, not styling. */
-  it("declares the monthly summary and keeps accounting history in its disclosure", () => {
+   * the mark is part of the contract, not styling. The months are drawn on the
+   * first screen; their figures one cell at a time are a disclosure. */
+  it("declares the month as its hero, draws the months, and keeps the month table in its disclosure", () => {
     const { container } = renderPage(threeMonths());
 
     const hero = container.querySelector("[data-surface-hero]")!;
     expect(hero).not.toBeNull();
     expect(hero).toHaveAttribute("data-money-answer");
     expect(hero.querySelector("[data-hero-chart]")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
-    expect(container.querySelector('[data-panel="months"] [data-hero-chart]')).not.toBeNull();
+    expect(container.querySelector("[data-money-months] [data-hero-chart]")).not.toBeNull();
+    expect(container.querySelector('[data-panel="months"] table')).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Every month/ }));
+    expect(container.querySelector('[data-panel="months"] table')).not.toBeNull();
+    // Each row's net to date says which months it covers.
+    expect(container.querySelector('[data-panel="months"] [data-trend-dates]')).toHaveTextContent("Jun '26Aug '26");
   });
 
-  /** The month's net in a sentence, then revenue, cost and what is confirmed
-   * beside it. */
-  it("states the selected month as its net in a sentence, with revenue, cost and what is confirmed", () => {
+  /** One equation: revenue less cost is net, the net its answer, and how much
+   * of the month's money has been confirmed under it. */
+  it("draws the selected month as revenue − cost = net, with what is confirmed", () => {
     const { container } = renderPage(threeMonths());
 
     expect(container.querySelector("[data-kpi]")).toBeNull();
-    expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent("August net +$241");
-    const labels = [...container.querySelectorAll("[data-money-answer] dt")].map((node) => node.textContent);
-    expect(labels).toEqual(["Revenue", "Cost", "Confirmed"]);
+    const labels = [...container.querySelectorAll("[data-money-equation] dt")].map((node) => node.textContent);
+    expect(labels).toEqual(["Revenue", "Cost", "Net"]);
     expect(container.querySelector("[data-money-revenue] dd")).toHaveTextContent("$441");
     expect(container.querySelector("[data-money-cost] dd")).toHaveTextContent("$200");
-    expect(container.querySelector("[data-money-confirmed] dd")).toHaveTextContent("$300");
+    expect(container.querySelector("[data-money-net] dd")).toHaveTextContent("+$241");
+    expect(container.querySelector("[data-money-equation]")).toHaveTextContent("Revenue$441−Cost$200=Net+$241");
+    // Booked $300 of revenue; the month moved $300 + $140.94 + $200 in all.
+    expect(container.querySelector("[data-money-confirmed]")).toHaveTextContent("$300 of $641 confirmed");
   });
 
   it("says a cost nobody recorded is none recorded, never $0, and the net is revenue only", () => {
@@ -555,9 +568,10 @@ describe("/financials — the first screen answers the whole question", () => {
       estimated: { currency: 'USD', revenue: 0, cost: 0, net: 0 },
       total: { currency: 'USD', revenue: 90, cost: 0, net: 90 },
     }] }));
-    expect(container.querySelector("[data-money-cost] dd")).toHaveTextContent("—none recorded");
-    expect(container.querySelector("[data-money-answer]")).toHaveTextContent("revenue only");
-    expect(container.querySelector('[data-panel="cost-breakdown"]')).toBeNull();
+    expect(container.querySelector("[data-money-cost] dd")).toHaveTextContent("none recorded");
+    expect(container.querySelector("[data-money-cost] dd")).not.toHaveTextContent("$0");
+    expect(container.querySelector("[data-money-net]")).toHaveTextContent("revenue only");
+    expect(container.querySelector("[data-cost-composition]")).toBeNull();
   });
 
   /** The chart takes a signed domain, so the net is a line of its own and no
@@ -565,8 +579,7 @@ describe("/financials — the first screen answers the whole question", () => {
   it("draws revenue, cost and net as three toggles and no explanatory footnote", () => {
     const { container } = renderPage(threeMonths());
 
-    fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
-    const chart = container.querySelector("[data-hero-chart]")!;
+    const chart = container.querySelector("[data-money-months] [data-hero-chart]")!;
     expect(chart.textContent).toContain("Revenue");
     expect(chart.textContent).toContain("Cost");
     expect(chart.textContent).toContain("Net");
@@ -575,8 +588,7 @@ describe("/financials — the first screen answers the whole question", () => {
 
   it("gives each financial series one key with a distinct color and line pattern", () => {
     const { container } = renderPage(threeMonths());
-    fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
-    const chart = container.querySelector("[data-hero-chart]")! as HTMLElement;
+    const chart = container.querySelector("[data-money-months] [data-hero-chart]")! as HTMLElement;
     for (const [name, tone, pattern] of [
       ["Revenue", "text-financial-revenue", null],
       ["Cost", "text-financial-cost", "8 5"],
@@ -593,8 +605,7 @@ describe("/financials — the first screen answers the whole question", () => {
 
   it("preserves cents in chart point details and data while keeping the axis compact", async () => {
     const { container } = renderPage(threeMonths());
-    fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
-    const chart = container.querySelector("[data-hero-chart]")! as HTMLElement;
+    const chart = container.querySelector("[data-money-months] [data-hero-chart]")! as HTMLElement;
     const axisLabels = [...chart.querySelectorAll("[data-hero-gutter] > span")]
       .map((label) => label.textContent);
     expect(axisLabels).toEqual(["-$400", "-$200", "$0", "$200", "$400", "$600"]);
@@ -644,14 +655,19 @@ describe("/financials — the first screen answers the whole question", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: /Month by month/ }));
-    expect(container.querySelector("[data-hero-chart]")!).toHaveTextContent("Provisional");
-    fireEvent.click(screen.getByRole("button", { name: "About Monthly performance" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are provisional");
+    expect(container.querySelector("[data-money-months] [data-hero-chart]")!).toHaveTextContent("Still counting");
+    fireEvent.click(screen.getByRole("button", { name: "About Month by month" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are still being counted");
     expect(container.querySelector("[data-month-to-date]")).toHaveTextContent("Month to date");
     expect(container.querySelector("[data-money-answer] h2")).toHaveTextContent(/so far$/u);
     expect(container.querySelector("[data-money-answer]")!.textContent).not.toMatch(/%/);
+    // A month to date against a whole month is always short: no site carries
+    // a month-on-month change while its month is open.
+    expect(container.querySelector('[data-money-change="month"]')).toBeNull();
+    // Measured against August's whole total, with no change figure.
+    expect(container.querySelector("[data-money-answer] [data-pace-bar]")).toHaveTextContent("Aug total $441");
     expect(container).not.toHaveTextContent("still open");
+    openPanel("months");
     expect(container.querySelector('[data-panel="months"] [data-month-open]')).toHaveTextContent("to date");
   });
 
@@ -661,21 +677,23 @@ describe("/financials — the first screen answers the whole question", () => {
   });
 
   /** Everything read one cell at a time is a collapsed panel: the audit
-   * measures what a reader sees. */
-  it("keeps the month table, the cost breakdown and the registers closed", () => {
+   * measures what a reader sees. The cost lines are the equation's middle
+   * term opened up, so they are drawn. */
+  it("keeps the month table and the registers closed, and draws the cost lines", () => {
     const { container } = renderPage(threeMonths());
 
     const panels = [...container.querySelectorAll("[data-panel]")];
     expect(panels.map((panel) => panel.getAttribute("data-panel"))).toEqual([
       "months",
-      "cost-breakdown",
       "costs",
     ]);
     // Closed means not rendered, not merely hidden: a closed `<details>` still
     // lays its contents out.
     expect(panels.every((panel) => !panel.hasAttribute("data-panel-open"))).toBe(true);
     expect(container.querySelector("[data-collection-editor]")).toBeNull();
-    expect(container.querySelector("table")).not.toBeNull(); // the by-asset one
+    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("[data-money-sites]")).not.toBeNull();
+    expect(container.querySelector("[data-cost-composition]")).not.toBeNull();
 
     // The two registers are config files, which is what the audit's opt-out
     // declares: the chip rule is about a view surface printing an owner it
@@ -710,7 +728,7 @@ describe("/financials — each asset's slice of the month", () => {
     const bar = container.querySelector("[data-revenue-share]");
     expect(bar).not.toBeNull();
     expect(bar?.getAttribute("aria-label")).toBe(
-      "Meadow Board earned 100% of the period's revenue",
+      "Meadow Board earned 100% of the month's revenue",
     );
   });
 
@@ -761,11 +779,13 @@ describe("/financials — each asset's slice of the month", () => {
     expect(cell).not.toBeNull();
     const spark = cell!.querySelector("svg")!;
     expect(spark.getAttribute("aria-label")).toBe(
-      "Meadow Board net by month, 2026-06 to 2026-08",
+      "Meadow Board net by month, Jun '26 to Aug '26",
     );
     // Net's movement carries no verdict, so the line is `text-muted-foreground`
     // and never the positive/negative scale.
     expect(cell!.querySelector(".text-muted-foreground")).not.toBeNull();
+    // The months it covers, printed under it.
+    expect(cell!.querySelector("[data-trend-dates]")).toHaveTextContent("Jun '26Aug '26");
     // Three monthly points, drawn as they are: one move and two curved
     // segments, each ending on a month's reading.
     expect(spark.querySelector("[data-chart-line]")!.getAttribute("d")!.match(/[MC]/g)).toHaveLength(3);
@@ -871,7 +891,7 @@ describe("/financials — each asset's slice of the month", () => {
     expect(path.match(/M/g)).toHaveLength(2);
     expect(
       container.querySelector("[data-property-trend] svg")!.getAttribute("aria-label"),
-    ).toBe("Meadow Board net by month, 2026-05 to 2026-08");
+    ).toBe("Meadow Board net by month, May '26 to Aug '26");
   });
 
   /** The floor counts readings, not positions. */
@@ -936,14 +956,14 @@ describe("/financials — each asset's slice of the month", () => {
 
     expect(
       container.querySelector("[data-property-trend] svg")!.getAttribute("aria-label"),
-    ).toBe("Meadow Board net by month, 2026-05 to 2026-07");
+    ).toBe("Meadow Board net by month, May '26 to Jul '26");
   });
 });
 
 describe("/financials — where a cost figure came from", () => {
   /* The chip is the operator's own word for the kind; the source is the name
      the operator gave the subscription, not the key the row is filed under. */
-  it("names each cost's kind and source in plain words, with nothing behind them", () => {
+  it("names each cost's kind and source in plain words, largest first, with nothing behind them", () => {
     stubLane();
     const { container } = renderPage(
       withCosts({
@@ -955,13 +975,15 @@ describe("/financials — where a cost figure came from", () => {
         ],
       }),
     );
-    const panel = openPanel("cost-breakdown");
+    const panel = container.querySelector<HTMLElement>("[data-cost-composition]")!;
 
-    const types = [...panel.querySelectorAll('td[data-label="Type"]')].map((cell) => cell.textContent);
-    expect(types).toEqual(["Subscription", "Usage", "Prepaid yearly", "No source"]);
-    const sources = [...panel.querySelectorAll("td[data-cost-source]")].map((cell) => cell.textContent);
-    expect(sources).toEqual(["Claude Code (Max)", "DataForSEO×2", "Domain orders×5", "—"]);
-    expect(within(panel).queryAllByRole("button")).toHaveLength(1); // the panel's own toggle
+    const types = [...panel.querySelectorAll("[data-cost-type]")].map((cell) => cell.textContent);
+    expect(types).toEqual(["Subscription", "Prepaid yearly", "Usage", "No source"]);
+    const sources = [...panel.querySelectorAll("[data-cost-source]")].map((cell) => cell.textContent);
+    // A line with no source is named by what it is for; its chip says the rest.
+    expect(sources).toEqual(["Claude Code (Max)", "Domain orders×5", "DataForSEO×2", "operator"]);
+    expect(within(panel).queryAllByRole("button")).toHaveLength(0);
+    expect(panel).toHaveTextContent("$222.53 in August");
     expect(container).not.toHaveTextContent("recurring:claude-code");
   });
 });
@@ -1403,7 +1425,7 @@ describe("/financials — what the two files declare, by asset", () => {
 // What the page does not know is drawn where it applies: a dash in the row,
 // the Reconciled bar, and a chip on the domain order.
 describe("/financials — what the page does not know, on the figure it qualifies", () => {
-  it("prints a dash, not $0.00, for an asset nothing reported revenue for", () => {
+  it("names an asset nothing reported revenue for, never $0.00", () => {
     const { container } = renderPage(
       payload({
         properties: [
@@ -1427,12 +1449,12 @@ describe("/financials — what the page does not know, on the figure it qualifie
       }),
     );
 
-    const dash = container.querySelector('[data-revenue-unreported="acorn.example"]')!;
-    expect(dash).toHaveTextContent("—");
-    expect(dash.querySelector("[title]")).toBeNull();
-    fireEvent.focus(within(dash as HTMLElement).getByRole("button", { name: /no revenue reported$/ }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("No revenue reported");
+    const absent = container.querySelector('[data-revenue-unreported="acorn.example"]')!;
+    expect(absent).toHaveTextContent("none reported");
+    expect(absent).not.toHaveTextContent("$0.00");
     expect(container.querySelector('[data-revenue-share="acorn.example"]')).toBeNull();
+    // Ranked by what each earned: the site with revenue first.
+    expect([...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"))).toEqual(["meadow.example", "acorn.example"]);
     expect(container.querySelector('[data-revenue-unreported="meadow.example"]')).toBeNull();
   });
 
@@ -1469,6 +1491,108 @@ describe("/financials — what the page does not know, on the figure it qualifie
   });
 });
 
+// The month is drawn: its days against the usual day, its revenue against last
+// month's whole total (and, while open, where it is heading), which sites
+// earned it, and every site ranked by what it earned with its change.
+describe("/financials — the month, drawn", () => {
+  const usd = (revenue: number, cost = 0) => ({ currency: 'USD', revenue, cost, net: revenue - cost });
+  const none = usd(0);
+  const month = (period: string, revenue: number, cost = 0) => ({ period, booked: none, estimated: usd(revenue, cost), total: usd(revenue, cost) });
+  const site = (asset: string, displayName: string, revenue: number, previous: number | null, period = "2026-08") => ({
+    asset, displayName, isOs: false, revenueReported: true, figure: usd(revenue),
+    months: [
+      ...(previous === null ? [] : [{ period: previous === 0 ? "2026-06" : (period === "2026-09" ? "2026-08" : "2026-07"), figure: usd(previous) }]),
+      { period, figure: usd(revenue) },
+    ],
+  });
+
+  it("draws the month's days with a hole for a day nobody reported, and names a source that missed days under them", () => {
+    const { container } = renderPage(payload({ dailyRevenue: {
+      from: "2026-08-28", to: "2026-08-31", reportedThrough: "2026-08-31",
+      days: [{ date: "2026-08-28", amountMinor: 1000 }, { date: "2026-08-30", amountMinor: 900 }, { date: "2026-08-31", amountMinor: 2100 }],
+      sources: [{ asset: "meadow.example", displayName: "Meadow Board", since: "2026-04-01" }, { asset: "northwind.example", displayName: "Northwind", since: "2026-08-29" }],
+      coverage: [
+        { date: "2026-08-28", reported: 1, missingAssets: [] },
+        { date: "2026-08-29", reported: 0, missingAssets: ["meadow.example", "northwind.example"] },
+        { date: "2026-08-30", reported: 1, missingAssets: ["northwind.example"] },
+        { date: "2026-08-31", reported: 2, missingAssets: [] },
+      ],
+    } }));
+    const days = container.querySelector<HTMLElement>("[data-money-answer] [data-money-days]")!;
+    expect([...days.querySelectorAll("[data-bar]")].map((bar) => bar.getAttribute("data-bar"))).toEqual(["2026-08-28", "2026-08-29", "2026-08-30", "2026-08-31"]);
+    expect(days.querySelector('[data-bar="2026-08-29"]')).toHaveAttribute("data-state", "unreported");
+    // A day some owed source missed is outlined, never drawn as a whole day.
+    expect(days.querySelector('[data-bar="2026-08-30"]')).toHaveAttribute("data-state", "partial");
+    expect(days.querySelector('[data-bar="2026-08-28"]')).not.toHaveAttribute("data-state", "partial");
+    // Two complete days are not a usual day yet.
+    expect(days.querySelector("[data-bar-baseline]")).toBeNull();
+    const short = days.querySelector<HTMLElement>("[data-money-short-sources]")!;
+    expect(short).toHaveTextContent(/Meadow Board\s*3\/4 days/);
+    expect(short).toHaveTextContent(/Northwind\s*1\/3 days/);
+    expect(within(short).getByRole("link", { name: /Northwind/ })).toHaveAttribute("href", "/assets/northwind.example/financials");
+  });
+
+  it("measures a closed month against last month's whole total, with nothing projected", () => {
+    const { container } = renderPage(payload({ months: [month("2026-07", 40), month("2026-08", 440.94, 200)] }));
+    const pace = container.querySelector("[data-money-answer] [data-pace-bar]")!;
+    expect(pace).toHaveTextContent("Jul total $40");
+    expect(pace.querySelector("[data-pace-projection]")).toBeNull();
+  });
+
+  it("says when last month is not in the ledger rather than measuring against an older one", () => {
+    const { container } = renderPage(payload({ months: [month("2026-06", 40), month("2026-08", 440.94, 200)] }));
+    expect(container.querySelector("[data-money-answer] [data-pace-bar]")).toBeNull();
+  });
+
+  it("paces an open month with the number Home and the TV state, against last month's ledger", () => {
+    const points = Array.from({ length: 30 }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, "0")}`, cumulativeMinor: (index + 1) * 1500, projected: index >= 21 }));
+    wall.data = {
+      portfolio: { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD', period: "2026-09", periodIsCurrent: true, booked: none, forecast: usd(315),
+        netTrend: [], netTrendAll: [], trendGranularity: "monthly", bookedDelta: null, residue: { booked: none, forecast: none }, firstRun: false, daysIn: 22 },
+      assets: [{ id: "meadow.example", revenueProjection: { period: "2026-09", status: "ready", reason: null, reportedThrough: "2026-09-21",
+        earnedMinor: 31_500, projectedMinor: 45_000, dailyPaceMinor: 1500, previousPeriod: "2026-08", previousMonthMinor: 40_000, changePercent: 12.5,
+        historyDays: 84, holidayHistoryDays: 0, points } }],
+    };
+    const { container } = renderPage(payload({
+      period: "2026-09", periods: ["2026-08", "2026-09"], periodIsCurrent: true,
+      months: [month("2026-08", 400), month("2026-09", 315, 20)],
+      properties: [site("meadow.example", "Meadow Board", 315, 400, "2026-09")],
+    }), "/financials?period=2026-09");
+    const hero = container.querySelector<HTMLElement>("[data-money-answer]")!;
+    expect(hero).toHaveAttribute("data-money-answer", "open");
+    expect(hero.querySelector("[data-money-context]")).toHaveTextContent("Heading for $450 revenue · 9 days left");
+    const pace = hero.querySelector("[data-pace-bar]")!;
+    expect(pace).toHaveTextContent("heading for $450 · Aug total $400");
+    expect(pace.querySelector("[data-pace-projection]")).not.toBeNull();
+    // The site's change is where it is heading, an estimate in neutral ink.
+    const change = container.querySelector('[data-money-site="meadow.example"] [data-money-change]')!;
+    expect(change).toHaveAttribute("data-money-change", "heading");
+    expect(change).toHaveTextContent("13%pace vs Aug");
+    expect(change.querySelector("[data-tone]")).toHaveAttribute("data-tone", "neutral");
+  });
+
+  it("splits the month by site and ranks the rows by what each earned, each with its change on the month before", () => {
+    wall.sites = 2;
+    const { container } = renderPage(payload({
+      months: [month("2026-07", 360), month("2026-08", 440.94, 200)],
+      properties: [site("northwind.example", "Northwind", 140.94, 160), site("meadow.example", "Meadow Board", 300, 200)],
+    }));
+    const split = container.querySelector("[data-money-answer] [data-money-by-site]")!;
+    expect([...split.querySelectorAll("[data-money-site-share]")].map((item) => item.textContent)).toEqual([
+      "Meadow Board $300 · 68%",
+      "Northwind $141 · 32%",
+    ]);
+    expect([...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"))).toEqual(["meadow.example", "northwind.example"]);
+    const meadow = container.querySelector('[data-money-site="meadow.example"] [data-money-change]')!;
+    expect(meadow).toHaveAttribute("data-money-change", "month");
+    expect(meadow).toHaveTextContent("50%vs Jul");
+    expect(meadow.querySelector("[data-tone]")?.getAttribute("data-tone")).toMatch(/^positive/);
+    const northwind = container.querySelector('[data-money-site="northwind.example"] [data-money-change]')!;
+    expect(northwind).toHaveTextContent("12%vs Jul");
+    expect(northwind.querySelector("[data-tone]")?.getAttribute("data-tone")).toMatch(/^negative/);
+  });
+});
+
 /** With one site, a table whose every row equals its total reads as a broken
  * report, and one site has nothing to allocate. */
 describe("/financials — one site states its money once", () => {
@@ -1486,9 +1610,11 @@ describe("/financials — one site states its money once", () => {
   };
   const month = (revenue: number) => [{ period: "2026-08", booked: none,
     estimated: { currency: 'USD', revenue, cost: 0, net: revenue }, total: { currency: 'USD', revenue, cost: 0, net: revenue } }];
-  /** Each body row's first cell, the row's name. */
-  const rowNames = (container: HTMLElement) =>
-    [...container.querySelectorAll("tbody tr")].map((row) => row.querySelector("td")?.firstChild?.textContent?.trim() ?? "");
+  /** The rows the by-site panel adds up to, in order. */
+  const summaries = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-money-summary]")].map((row) => row.getAttribute("data-money-summary"));
+  const siteRows = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-money-site]")].map((row) => row.getAttribute("data-money-site"));
 
   it("draws no by-site table and no overhead rows when nothing is shared", () => {
     wall.sites = 1;
@@ -1497,8 +1623,9 @@ describe("/financials — one site states its money once", () => {
       overhead: none, costLines: [], dailyRevenue: daily,
     }));
     expect(screen.queryByRole("heading", { name: "By site" })).toBeNull();
-    expect(container.querySelector("table")).toBeNull();
+    expect(container.querySelector("[data-money-sites]")).toBeNull();
     expect(container.textContent).not.toMatch(/Sites, direct|Overhead|Total net|allocated/);
+    openPanel("days");
     const revenue = screen.getByRole("region", { name: "Daily revenue" });
     expect(revenue.querySelector("[data-source-coverage]")).toBeNull();
     expect(container.textContent).not.toMatch(/portfolio/i);
@@ -1512,9 +1639,8 @@ describe("/financials — one site states its money once", () => {
       overhead: { currency: 'USD', revenue: 0, cost: 20, net: -20 }, dailyRevenue: daily,
     }));
     expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
-    const names = rowNames(container);
-    expect(names[0]).toContain("Journey Example");
-    expect(names.slice(1)).toEqual(["Overhead", "Total net"]);
+    expect(siteRows(container)).toEqual(["journey.example"]);
+    expect(summaries(container)).toEqual(["overhead", "total"]);
     expect(container.textContent).not.toContain("Sites, direct");
   });
 
@@ -1526,7 +1652,8 @@ describe("/financials — one site states its money once", () => {
     }));
     expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
     // No overhead: "Sites, direct" would be the total again.
-    expect(rowNames(container).slice(1)).toEqual(["Total net"]);
+    expect(summaries(container)).toEqual(["total"]);
+    openPanel("days");
     expect(container.querySelector("[data-source-coverage]")).not.toBeNull();
   });
 
@@ -1537,10 +1664,8 @@ describe("/financials — one site states its money once", () => {
       overhead: none,
     }));
     expect(screen.getByRole("heading", { name: "By site" })).toBeInTheDocument();
-    const names = rowNames(container);
-    expect(names[0]).toContain("Journey Example");
-    expect(names[1]).toContain("Second Example");
-    expect(names.slice(2)).toEqual(["Total net"]);
+    expect(siteRows(container)).toEqual(["journey.example", "second.example"]);
+    expect(summaries(container)).toEqual(["total"]);
   });
 });
 
@@ -1556,12 +1681,11 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
       overhead: figure(0, 200), costLines: base.costLines.map(line => ({ ...line, currency: 'EUR' })),
     });
     const { container } = renderPage(data);
-    expect(container.querySelector('[data-money-answer] h2')).toHaveTextContent('+€241');
+    expect(container.querySelector('[data-money-net] dd')).toHaveTextContent('+€241');
     expect(container.querySelector('[data-money-revenue] dd')).toHaveTextContent('€441');
     expect(container.querySelector('[data-money-cost] dd')).toHaveTextContent('€200');
     expect(container.querySelector('[data-money-answer]')).not.toHaveTextContent('$');
-    fireEvent.click(screen.getByRole('button', { name: /Where the cost comes from/ }));
-    expect(screen.getAllByText('€200.00').length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-cost-composition]')).toHaveTextContent('€200.00');
   });
   it('keeps individual asset currencies readable when the portfolio total is unavailable', () => {
     const base = payload();
@@ -1573,8 +1697,9 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
       ], overhead: figure(0, 0, 'USD'), costLines: [],
     });
     const { container } = renderPage(data);
-    expect(container.querySelector('[data-money-answer] h2')).toHaveTextContent('Unavailable');
-    expect(container.querySelector('[data-money-answer] h2')).not.toHaveTextContent('$0');
+    expect(container.querySelector('[data-money-net] dd')).toHaveTextContent('Unavailable');
+    expect(container.querySelector('[data-money-answer]')).not.toHaveTextContent('$0');
+    expect(container.querySelector('[data-money-cost] dd')).not.toHaveTextContent('none recorded');
     expect(screen.getAllByText('€100.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('$200.00').length).toBeGreaterThan(0);
     expect(container.querySelector('[data-segment="reconciled"]')).toBeNull();

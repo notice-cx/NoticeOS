@@ -32,26 +32,37 @@ test('synthetic OS reporting uses the released store observer before workflow hi
 
 test('the unchanged demo watch reads only its own store, records before task closure and cannot change ledger rows', async () => {
   const facts = scenario();
-  for (const defect of [null, 'late', 'ledger', 'binding', 'failed']) {
-    let ledgerReads = 0; let evaluated = false;
-    const expected = facts.manifest.stories.repair.checkAt;
+  // The repair the evaluator confirms, then the redesign it rejects, each at its own final check.
+  const stories = [facts.manifest.stories.repair, facts.manifest.slide];
+  const outcome = id => id === facts.manifest.slide.watchId ? 'kill_confirmed' : 'ship_confirmed';
+  for (const defect of [null, 'late', 'ledger', 'binding', 'failed', 'verdict']) {
+    let ledgerReads = 0; let evaluated = 0;
     const store = { inWorkspace: async (workspace, work, options) => {
       assert.equal(workspace, facts.manifest.workspaceId);
       assert.deepEqual(options, { readOnly: true });
       return work({ query: async (sql, args) => {
         if (sql.includes('ledger_entries')) return [{ row: JSON.stringify({ amount: defect === 'ledger' && ledgerReads++ ? 101 : 100 }) }];
-        assert.deepEqual(args, [facts.manifest.stories.repair.watchId]);
-        return [{ status: 'closed', outcome: 'ship_confirmed', closed_at: defect === 'late' ? facts.manifest.cutoff : expected, checked_at: expected, baseline: '{"days":28}', post: '{"days":28}' }];
+        const story = stories.find(entry => entry.watchId === args[0]);
+        assert.ok(story);
+        return [{ status: 'closed', outcome: outcome(story.watchId), closed_at: defect === 'late' ? facts.manifest.cutoff : story.checkAt, checked_at: story.checkAt, baseline: '{"days":28}', post: '{"days":28}' }];
       } });
     } };
     const run = async (env, now) => {
-      evaluated = true; assert.equal(now, Date.parse(expected));
+      const story = stories[evaluated++];
+      assert.equal(now, Date.parse(story.checkAt));
       if (defect === 'binding') return env.SIGNAL_RAW;
-      return { failed: defect === 'failed' ? [{ id: 'failed' }] : [], overdue: [], closed: [{ id: facts.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] };
+      return { failed: defect === 'failed' ? [{ id: 'failed' }] : [], overdue: [], closed: [{ id: story.watchId, outcome: defect === 'verdict' ? 'inconclusive' : outcome(story.watchId) }] };
     };
     if (defect) await assert.rejects(evaluateDemoWatch(store, facts, run));
-    else { const receipt = await evaluateDemoWatch(store, facts, run); assert.equal(receipt.evaluatedAt, expected); assert.match(receipt.ledgerSha256, /^[a-f0-9]{64}$/u); }
-    assert.equal(evaluated, true);
+    else {
+      const receipt = await evaluateDemoWatch(store, facts, run);
+      assert.equal(receipt.evaluatedAt, facts.manifest.stories.repair.checkAt);
+      assert.equal(receipt.slide.evaluatedAt, facts.manifest.slide.checkAt);
+      assert.equal(receipt.slide.reading.outcome, 'kill_confirmed');
+      assert.match(receipt.ledgerSha256, /^[a-f0-9]{64}$/u);
+      assert.equal(evaluated, 2);
+    }
+    assert.ok(evaluated >= 1);
   }
 });
 function folder(t) {

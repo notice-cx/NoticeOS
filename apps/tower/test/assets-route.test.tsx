@@ -17,18 +17,13 @@ vi.mock("@/hooks/useNow", () => ({
   useNow: () => Date.parse("2026-08-01T12:00:00.000Z"),
 }));
 
-vi.mock("@/hooks/useGa4Realtime", () => ({
-  useGa4Realtime: () => ({
-    data: { generatedAt: "2026-08-01T12:00:00.000Z", assets: [] },
-    isError: false,
-    isPending: false,
-  }),
+// The connection reads have not answered: every source is unknown, never
+// "not connected".
+vi.mock("@/hooks/useConnections", () => ({
+  useConnections: () => ({ credentials: undefined, items: null }),
 }));
 
 import { AssetsRoute } from "@/routes/AssetsRoute";
-import { AssetsTable } from "@/routes/assets/AssetsTable";
-
-vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
   return { netByMonthCurrency: 'USD',
@@ -44,13 +39,9 @@ function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
     pulseReceivedAt: "2026-08-01T11:00:00.000Z",
     firstReportAt: null,
     dataSources: [],
-    // The two comparison columns. Empty by default, so a case that wants one says so.
     searchClicks: { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
     netByMonth: [],
     netByMonthProvisionalFrom: null,
-    // One point only, deliberately: enough for the "today's users" sort to
-    // have a value while staying below `MIN_TREND_POINTS`, so no card draws a
-    // chart and the assertions are about the route, not recharts.
     activeUsers: {
       series: [],
       provisionalFrom: null,
@@ -64,95 +55,58 @@ function assetCard(overrides: Partial<AssetCard> & { id: string }): AssetCard {
   };
 }
 
+/** One finished day of people, the 31st of July. */
+const users = (v: number): AssetCard["activeUsers"] => ({
+  series: [{ t: "2026-07-31", v }],
+  provisionalFrom: null,
+  collectedAt: null,
+  timeZoneChanges: [],
+});
+
 /**
- * Four assets that differ on every axis the page filters and sorts by, in the
- * payload's seed order. Read the fixture as the answer key:
+ * Four sites that differ on every axis the page filters and orders by, in the
+ * payload's saved order. Read the fixture as the answer key:
  *
- *   Meadow Board    live         automation enabled  1 error   P1×2   900 users  11:00
- *   Northwind        live         monitor only        2 warns   P1×0   500 users  10:00
- *   Areas   baselining   automation enabled  clear     none   100 users  Jul 30
- *   Fin        onboarding   automation enabled  clear     P1×1   no users   never
+ *   Meadow Board  live        1 error   900 people
+ *   Northwind     live        2 warns   500 people   monitor only
+ *   Areas         baselining  clear     100 people
+ *   Fin           onboarding  clear     no people    never reported
  */
 const ASSETS: AssetCard[] = [
   assetCard({
     id: "meadow.example",
     displayName: "Meadow Board",
-    status: "live",
     worstSeverity: "error",
     openError: 1,
-    activeUsers: {
-      series: [{ t: "2026-08-01", v: 900 }],
-      provisionalFrom: null,
-      collectedAt: null,
-      timeZoneChanges: [],
-    },
-    work: {
-      open: 5,
-      highPriority: 2,
-      inProgress: 1,
-      blocked: 0,
-      closedRecent: 0,
-      priorities: null,
-      capturedAt: "2026-08-01T11:00:00.000Z",
-    },
-    pulseReceivedAt: "2026-08-01T11:00:00.000Z",
+    activeUsers: users(900),
+    dataSources: [
+      { id: "ga4", label: "Google Analytics", state: "live" },
+      { id: "clarity", label: "Session recordings", state: "skipped" },
+    ],
   }),
   assetCard({
     id: "northwind.example",
     displayName: "Northwind",
-    status: "live",
     senseOnly: true,
     worstSeverity: "warn",
     openWarn: 2,
-    activeUsers: {
-      series: [{ t: "2026-08-01", v: 500 }],
-      provisionalFrom: null,
-      collectedAt: null,
-      timeZoneChanges: [],
-    },
-    work: {
-      open: 1,
-      highPriority: 0,
-      inProgress: 0,
-      blocked: 0,
-      closedRecent: 0,
-      priorities: null,
-      capturedAt: "2026-08-01T11:00:00.000Z",
-    },
+    activeUsers: users(500),
     pulseReceivedAt: "2026-08-01T10:00:00.000Z",
   }),
   assetCard({
     id: "acorn.example",
     displayName: "Areas",
     status: "baselining",
-    activeUsers: {
-      series: [{ t: "2026-08-01", v: 100 }],
-      provisionalFrom: null,
-      collectedAt: null,
-      timeZoneChanges: [],
-    },
+    activeUsers: users(100),
     pulseReceivedAt: "2026-07-30T10:00:00.000Z",
   }),
   assetCard({
     id: "ferns.example",
     displayName: "Fin",
     status: "onboarding",
-    work: {
-      open: 2,
-      highPriority: 1,
-      inProgress: 0,
-      blocked: 0,
-      closedRecent: 0,
-      priorities: null,
-      capturedAt: "2026-08-01T11:00:00.000Z",
-    },
     pulseReceivedAt: null,
   }),
 ];
-
-/** A second site with nothing reported, beside a case's own: the comparison
- * machinery exists from two sites. */
-const QUIET = assetCard({ id: "quiet.example", pulseReceivedAt: null });
 
 /** Only the slices `/assets` reads; every other band is another page's business. */
 function payload(assets: AssetCard[]): WallPayload {
@@ -200,29 +154,34 @@ function payload(assets: AssetCard[]): WallPayload {
   };
 }
 
-function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, portfolio: Partial<WallPayload["portfolio"]> = {}) {
+function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS) {
   state.data = payload(assets);
-  state.data.portfolio = { ...state.data.portfolio, ...portfolio };
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
-        <AssetsRoute />
+        <Routes>
+          <Route path="/assets" element={<AssetsRoute />} />
+          <Route path="/assets/*" element={<p>Site page</p>} />
+        </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-/** The table's order, read off the rows themselves. */
+/** The comparison's order, read off the rows themselves. */
 function shown(container: HTMLElement): string[] {
-  return [...container.querySelectorAll("[data-asset-row]")].map(
-    (row) => row.getAttribute("data-asset-row") ?? "",
-  );
+  return [...container.querySelectorAll("[data-portfolio-row]")].map((row) => row.getAttribute("data-portfolio-row") ?? "");
 }
 
-function chip(group: string, name: RegExp): HTMLElement {
-  return within(screen.getByRole("group", { name: group })).getByRole("button", {
-    name,
-  });
+function row(container: HTMLElement, id: string): HTMLElement {
+  return container.querySelector<HTMLElement>(`[data-portfolio-row="${id}"]`)!;
+}
+
+function pressed(group: string): string[] {
+  return within(screen.getByRole("group", { name: group }))
+    .getAllByRole("button")
+    .filter((button) => button.getAttribute("aria-pressed") === "true")
+    .map((button) => button.textContent ?? "");
 }
 
 afterEach(() => {
@@ -230,55 +189,30 @@ afterEach(() => {
   state.isPending = false;
 });
 
-describe("/assets — the portfolio index", () => {
-  it("states each site's one health word, with no control nested in the row, and the row opens its asset", () => {
-    // The Health cell is the site's one word, the same derivation as Home's
-    // strip and the site's header.
-    const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/assets"]}><Routes>
-      <Route path="/assets" element={<AssetsTable assets={ASSETS} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />} />
-      <Route path="/assets/:id" element={<p>Asset destination</p>} />
-    </Routes></MemoryRouter></QueryClientProvider>);
-    const health = (id: string) => container.querySelector(`[data-asset-row="${id}"] td[data-label="Health"] [data-status-for="asset:${id}"]`);
-    expect(health("meadow.example")).toHaveTextContent("Off track");
-    expect(health("northwind.example")).toHaveTextContent("At risk");
-    expect(health("acorn.example")).toHaveTextContent("Setting up");
-    expect(container.querySelector("[data-source]")).toBeNull();
-    expect(container.querySelector("button button, a button")).toBeNull();
-    fireEvent.click(container.querySelector('[data-asset-row="meadow.example"]')!);
-    expect(screen.getByText("Asset destination")).toBeVisible();
-  });
-
-  /** On a phone the card is its key status plus the ›; the desk keeps every column. */
-  it("on a phone, is a site's key status and the › that opens it", () => {
-    const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/assets"]}>
-      <AssetsTable assets={ASSETS} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />
-    </MemoryRouter></QueryClientProvider>);
-    const row = container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!;
-    expect(row).toHaveAttribute("data-row-opens");
-    expect(row).toHaveClass("cursor-pointer");
-    const table = container.querySelector("table")!;
-    expect(table.className).toContain("@max-[40rem]:[&_tr[data-row-opens]]:after:content-['']");
-    expect(table.className).toContain("@max-[40rem]:[&_tr[data-row-opens]]:after:rotate-45");
-    expect(row).toHaveAttribute("data-stack-fold");
-    const folded = [...row.querySelectorAll("td[data-fold]")].map((cell) => cell.getAttribute("data-label"));
-    expect(folded).toEqual(["Visitors · 28d", "Search clicks · 28d", "Net · August 2026", "Tasks"]);
-    const kept = [...row.querySelectorAll("td:not([data-fold])")].map((cell) => cell.getAttribute("data-label"));
-    expect(kept).toEqual([null, "Health", "Visitors"]);
-  });
-
-  it("renders every asset in seed order by default, with no filter to clear", () => {
+describe("/assets — which site needs you, and how each is doing", () => {
+  it("draws one row per site in the saved order, each with its one health word, its name opening the site", () => {
     const { container } = renderAssets();
 
     expect(screen.getByRole("heading", { level: 1, name: "Sites" })).toBeInTheDocument();
-    expect(shown(container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-    expect(screen.getByText("4 sites")).toBeInTheDocument();
-    expect(screen.getByLabelText("Sort")).toHaveValue("seed");
-    expect(screen.queryByRole("link", { name: "Clear" })).toBeNull();
+    expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+    expect(row(container, "meadow.example")).toHaveTextContent("Off track");
+    expect(row(container, "northwind.example")).toHaveTextContent("At risk");
+    expect(row(container, "acorn.example")).toHaveTextContent("Setting up");
+    expect(within(row(container, "meadow.example")).getByRole("link")).toHaveAttribute("href", "/assets/meadow.example");
+    // A site with no number yet has an empty Overview, so its row opens its Data sources.
+    expect(within(row(container, "ferns.example")).getByRole("link")).toHaveAttribute("href", "/assets/ferns.example/sources");
+    fireEvent.click(within(row(container, "meadow.example")).getByRole("link"));
+    expect(screen.getByText("Site page")).toBeVisible();
+  });
+
+  it("states each site's people, money and sources, and names what nobody reported", () => {
+    const { container } = renderAssets();
+
+    expect(row(container, "meadow.example")).toHaveTextContent("no revenue");
+    expect(row(container, "ferns.example")).toHaveTextContent("no visitors reported");
+    // A source the site does not use is not owed; the reads have not answered,
+    // so the one owed source is not counted live.
+    expect(within(row(container, "meadow.example")).getByText("0 of 1 data sources live")).toBeInTheDocument();
   });
 
   it("offers Add a site as the page's one primary action, opened over the page", () => {
@@ -291,242 +225,7 @@ describe("/assets — the portfolio index", () => {
     expect(screen.getAllByRole("button", { name: "Add a site" })).toHaveLength(1);
   });
 
-  it("counts every option against the whole portfolio, not against the other filters", () => {
-    renderAssets("/assets?status=live");
-
-    const options = within(screen.getByLabelText("Status"))
-      .getAllByRole("option")
-      .map((option) => option.textContent);
-    expect(options).toEqual([
-      "All stages · 4",
-      "Pre-launch · 0",
-      "Onboarding · 1",
-      "Baselining · 1",
-      "Live · 2",
-      "Retired · 0",
-    ]);
-
-    expect(
-      within(screen.getByRole("group", { name: "Health" }))
-        .getAllByRole("button")
-        .map((button) => button.textContent),
-    ).toEqual(["All 4", "Off track 1", "At risk 1", "Setting up 2"]);
-  });
-
-  it("reads its filters from the URL, so a narrowed grid is a link", () => {
-    const { container } = renderAssets("/assets?status=live&health=at-risk");
-
-    expect(shown(container)).toEqual(["northwind.example"]);
-    expect(screen.getByLabelText("Status")).toHaveValue("live");
-    expect(chip("Health", /At risk/)).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getByText("1 of 4 sites · status: live · health: at risk"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Clear" })).toBeInTheDocument();
-  });
-
-  it("narrows the grid when the operator picks a chip", () => {
-    const { container } = renderAssets();
-
-    fireEvent.click(chip("Health", /Off track/));
-
-    expect(shown(container)).toEqual(["meadow.example"]);
-    expect(chip("Health", /Off track/)).toHaveAttribute("aria-pressed", "true");
-    expect(
-      screen.getByText("1 of 4 sites · health: off track"),
-    ).toBeInTheDocument();
-  });
-
-  it("orders from the URL, worst first, with seed order as the tie-break", () => {
-    const { container } = renderAssets("/assets?sort=health");
-
-    expect(shown(container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-    expect(screen.getByLabelText("Sort")).toHaveValue("health");
-    expect(screen.getByText("4 sites · sorted by health")).toBeInTheDocument();
-  });
-
-  it("orders by name, urgent work and visitors", () => {
-    const byName = renderAssets("/assets?sort=name");
-    expect(shown(byName.container)).toEqual([
-      "acorn.example",
-      "ferns.example",
-      "meadow.example",
-      "northwind.example",
-    ]);
-    byName.unmount();
-
-    // An asset with no task snapshot at all is not "no urgent work": it sinks
-    // below the measured zero rather than joining it.
-    const byWork = renderAssets("/assets?sort=work");
-    expect(shown(byWork.container)).toEqual([
-      "meadow.example",
-      "ferns.example",
-      "northwind.example",
-      "acorn.example",
-    ]);
-    byWork.unmount();
-
-    const byUsers = renderAssets("/assets?sort=users");
-    expect(shown(byUsers.container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-  });
-
-  it("falls back to seed order when the URL carries an ordering it cannot name", () => {
-    const { container } = renderAssets("/assets?sort=whatever-an-old-bookmark-said");
-
-    expect(shown(container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-    expect(screen.getByText("4 sites")).toBeInTheDocument();
-  });
-
-  it("clears every filter and the ordering at once", () => {
-    const { container } = renderAssets("/assets?status=live&health=off-track&sort=name");
-
-    expect(shown(container)).toEqual(["meadow.example"]);
-
-    fireEvent.click(screen.getByRole("link", { name: "Clear" }));
-
-    expect(shown(container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-    expect(screen.getByText("4 sites")).toBeInTheDocument();
-    expect(screen.getByLabelText("Status")).toHaveValue("all");
-    expect(screen.getByLabelText("Sort")).toHaveValue("seed");
-    expect(screen.queryByRole("link", { name: "Clear" })).toBeNull();
-  });
-
-  it("says nothing matches, and never calls it an empty portfolio", () => {
-    const { container } = renderAssets("/assets?status=retired");
-
-    expect(screen.getByText("No sites match these filters")).toBeInTheDocument();
-    expect(screen.queryByText("No sites yet")).toBeNull();
-    expect(shown(container)).toEqual([]);
-    const summary = container.querySelector<HTMLElement>("[data-assets-summary]")!;
-    expect(summary).toHaveTextContent("0 of 4 sites · status: retired");
-    expect(within(summary).getByRole("link", { name: "Clear" })).toBeInTheDocument();
-    expect(screen.queryByText(/widen a filter/)).toBeNull();
-  });
-
-  it("still says the store is empty when the store is empty, with Add a site as the way on", () => {
-    renderAssets("/assets", []);
-
-    expect(screen.getByText("No sites yet")).toBeInTheDocument();
-    expect(screen.queryByText(/seed row/)).toBeNull();
-    expect(screen.getByRole("button", { name: "Add a site" })).toBeInTheDocument();
-    expect(screen.queryByText("No sites match these filters")).toBeNull();
-  });
-
-  // The table's own default is what any caller without an Add a site of its own gets.
-  it("gives any other empty site list the door: No sites yet, with Add a site beside it", () => {
-    const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter>
-      <AssetsTable assets={[]} nowMs={Date.parse("2026-08-01T12:00:00.000Z")} />
-    </MemoryRouter></QueryClientProvider>);
-    const door = container.querySelector<HTMLElement>("[data-no-sites]")!;
-    expect(door).toHaveTextContent("No sites yet");
-    expect(within(door).getByRole("button", { name: "Add a site" })).toBeInTheDocument();
-    expect(container.textContent).not.toMatch(/seed row|onboarded|nightly report/u);
-    expect(container.querySelector("table")).toBeNull();
-  });
-});
-
-/** Filters, a sort, a range and a strip adding the sites up are how sites are
- * compared; over one site they would filter a single row. */
-describe("/assets — the comparison arrives with a second site", () => {
-  /** Everything that exists to compare sites, by the handle each one wears. */
-  function machinery(container: HTMLElement) {
-    return {
-      range: screen.queryByRole("group", { name: "Traffic period" }),
-      filters: container.querySelector("[data-assets-filters]"),
-      chips: container.querySelectorAll("[data-assets-filter]").length,
-      sort: screen.queryByLabelText("Sort"),
-      status: screen.queryByLabelText("Status"),
-      answer: container.querySelector("[data-sites-answer]"),
-      summary: container.querySelector("[data-assets-summary]"),
-      about: container.querySelector("[data-about]"),
-      sortableHeaders: container.querySelectorAll("th[aria-sort]").length,
-    };
-  }
-
-  it("with no sites, is its header, Add a site and one empty state", () => {
-    const { container } = renderAssets("/assets", []);
-    expect(machinery(container)).toEqual({
-      range: null, filters: null, chips: 0, sort: null, status: null, answer: null, summary: null, about: null, sortableHeaders: 0,
-    });
-    expect(screen.getByText("No sites yet")).toBeInTheDocument();
-    expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Add a site" })]);
-    expect(container.querySelector("[data-assets-age]")).toBeNull();
-    expect(container.querySelector("table")).toBeNull();
-  });
-
-  it("with one site, is that site's row and nothing to filter, sort or add up", () => {
-    const { container } = renderAssets("/assets", [ASSETS[0]!]);
-    expect(machinery(container)).toEqual({
-      range: null, filters: null, chips: 0, sort: null, status: null, answer: null, summary: null, about: null, sortableHeaders: 0,
-    });
-    expect(shown(container)).toEqual(["meadow.example"]);
-    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!)
-      .getByRole("link", { name: "Meadow Board" }).getAttribute("href")).toMatch(/^\/assets\/meadow\.example/);
-    expect(container.querySelector("[data-assets-age]")).toHaveTextContent("updated");
-    renderAssets("/assets?status=retired&health=at-risk", [ASSETS[0]!]);
-    expect(screen.queryByText("No sites match these filters")).toBeNull();
-  });
-
-  it("with two sites, compares them as before", () => {
-    const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
-    const shownMachinery = machinery(container);
-    expect(shownMachinery.range).not.toBeNull();
-    expect(shownMachinery.filters).not.toBeNull();
-    expect(shownMachinery.chips).toBe(1);
-    expect(shownMachinery.sort).not.toBeNull();
-    expect(shownMachinery.status).not.toBeNull();
-    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need you");
-    expect(shownMachinery.summary).toHaveTextContent("2 sites");
-    expect(shownMachinery.about).toBeNull();
-    expect(shownMachinery.sortableHeaders).toBeGreaterThan(0);
-    expect(shown(container)).toEqual(["meadow.example", "northwind.example"]);
-  });
-
-  // jsdom has no layout, so the mechanism is what is pinned: the arrow is
-  // positioned out of the flow, before a right-aligned label and after a
-  // left-aligned one, so it takes no width.
-  it("orders by a header whose arrow takes no width, before a right-aligned label", () => {
-    const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
-    const headers = [...container.querySelectorAll<HTMLElement>("th[aria-sort]")];
-    expect(headers.length).toBe(6);
-    for (const header of headers) {
-      const glyph = header.querySelector("svg")!;
-      expect(glyph.getAttribute("class")).toContain("absolute");
-      expect(glyph.parentElement!.className).toContain("relative");
-      expect(header.querySelector("button")!.className).toContain("@max-[64rem]:px-2");
-    }
-    const glyphOf = (name: string) =>
-      headers.find((header) => header.textContent === name)!.querySelector("svg")!.getAttribute("class")!;
-    expect(glyphOf("Visitors")).toContain("right-full");
-    expect(glyphOf("Site")).toContain("left-full");
-    expect(glyphOf("Tasks")).toContain("left-full");
-  });
-});
-
-/** The page is a comparison: the strip is the portfolio added up and the
- * table is the same assets one per row. */
-describe("/assets", () => {
-  it("opens with one answer: which sites need you, by the one health word", () => {
+  it("opens with one answer: which sites need you, each named a way in", () => {
     const { container } = renderAssets();
 
     const answer = container.querySelector<HTMLElement>("[data-sites-answer]")!;
@@ -534,8 +233,7 @@ describe("/assets", () => {
     expect(answer).toHaveAttribute("data-sites-answer", "needs-you");
     expect(within(answer).getByRole("heading", { level: 2 })).toHaveTextContent("2 of 4 sites need you");
     expect([...answer.querySelectorAll("a[data-sites-answer-site]")].map((link) => link.textContent)).toEqual(["Meadow Board", "Northwind"]);
-    expect(container.querySelector("[data-kpi-strip]")).toBeNull();
-    expect(screen.getByRole("button", { name: "Filters & sort" })).toHaveAttribute("aria-expanded", "false");
+    expect(answer.querySelector("[data-visitors-figure]")).toHaveTextContent("1,500");
   });
 
   it("says All on track when no site needs you, and counts the ones still setting up apart", () => {
@@ -548,384 +246,199 @@ describe("/assets", () => {
     expect(second.container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 2 sites on track1 setting up");
   });
 
-  it("counts active filters on the phone control without counting traffic range or sort", () => {
-    const { container } = renderAssets("/assets?status=live&health=at-risk&range=7&sort=name");
-    // The badge is the digit, the name says what it counts.
-    const control = screen.getByRole("button", { name: "Filters & sort, 2 on" });
-    expect(control).toHaveAttribute("aria-expanded", "false");
-    expect(control).toHaveClass("sm:hidden");
-    const filters = container.querySelector("[data-assets-filters]")!;
-    expect(filters).toHaveClass("max-sm:hidden", "flex");
-    expect(control).toHaveAttribute("aria-controls", filters.id);
-    fireEvent.click(control);
-    expect(control).toHaveAttribute("aria-expanded", "true");
-    expect(filters).not.toHaveClass("max-sm:hidden");
-    fireEvent.change(screen.getByRole("combobox", { name: "Status" }), { target: { value: "all" } });
-    expect(screen.getByRole("button", { name: "Filters & sort, 1 on" })).toBeInTheDocument();
-    expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(control);
-    expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(screen.getByRole("group", { name: "Traffic period" }));
-  });
-
-  /** The audit's own rule, held locally so a regression fails in `pnpm test`
-   * rather than only under a browser. */
-  it("gives every KPI a series, a composition or a declared gap", () => {
-    const { container } = renderAssets();
-
-    for (const cell of container.querySelectorAll("[data-kpi]")) {
-      const answered =
-        cell.querySelector("[data-spark]") !== null ||
-        cell.querySelector("[data-composition]") !== null ||
-        cell.getAttribute("data-series") === "unavailable";
-      expect(
-        answered,
-        `${cell.getAttribute("data-kpi")} shows a bare number`,
-      ).toBe(true);
-      if (cell.getAttribute("data-series") === "unavailable") {
-        expect(cell.getAttribute("data-series-reason")).toBeTruthy();
-        fireEvent.click(within(cell as HTMLElement).getByRole("button", { name: `About ${cell.getAttribute("data-kpi")}` }));
-        expect(screen.getByRole("tooltip")).toHaveTextContent(cell.getAttribute("data-series-reason")!);
-        fireEvent.keyDown(window, { key: "Escape" });
-      }
-    }
-  });
-
-  it("answers for the portfolio, not the filtered view", () => {
+  it("answers for the portfolio, not the narrowed view", () => {
     const { container } = renderAssets("/assets?status=live");
 
-    // The answer is a fact about the portfolio; the summary line below owns
-    // the current view's arithmetic.
     expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("2 of 4 sites need you");
-    expect(screen.getByText("2 of 4 sites · status: live")).toBeInTheDocument();
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · stage: live");
   });
 
-
-  it("draws the urgent count and share in PriorityBar's ink, never an attention hue", () => {
+  it("leaves tasks, search clicks, the ledger and the traffic period to each site's own page", () => {
     const { container } = renderAssets();
 
-    // A task's priority is not a severity: "2 urgent" wears the foreground ink
-    // and the strip's urgent share is the same ramp as the table's bars.
-    const urgent = container.querySelector<HTMLElement>('[data-asset-row="meadow.example"] [data-urgent-count]')!;
-    expect(urgent.textContent).toBe("2 urgent");
-    expect(urgent.className).toContain("text-foreground");
-    expect(urgent.className).not.toMatch(/\btext-(error|warn|info)\b/);
-  });
-
-  it("sorts from the header row, and a second press returns to seed order", () => {
-    const { container } = renderAssets();
-
-    fireEvent.click(screen.getByRole("button", { name: /^Site/ }));
-    expect(shown(container)).toEqual([
-      "acorn.example",
-      "ferns.example",
-      "meadow.example",
-      "northwind.example",
-    ]);
-    expect(screen.getByLabelText("Sort")).toHaveValue("name");
-    expect(screen.getByText("4 sites · sorted by name")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /^Site/ }));
-    expect(shown(container)).toEqual([
-      "meadow.example",
-      "northwind.example",
-      "acorn.example",
-      "ferns.example",
-    ]);
-    expect(screen.getByLabelText("Sort")).toHaveValue("seed");
-  });
-
-  it("orders by net and by the 7-day move, with an unmeasured row last", () => {
-    const withMoney = [
-      assetCard({ id: "a.example", booked: { currency: 'USD', revenue: 10, cost: 1, net: 9 } }),
-      assetCard({ id: "b.example", booked: { currency: 'USD', revenue: 10, cost: 40, net: -30 } }),
-      assetCard({ id: "c.example" }),
-    ];
-    const { container } = renderAssets("/assets?sort=net", withMoney);
-
-    // Nothing booked is not the worst month: it is no month at all.
-    expect(shown(container)).toEqual(["a.example", "b.example", "c.example"]);
-  });
-
-  /** The other two sparkline columns, and the comparison column that follows
-   * the range. */
-  describe("the three things an operator compares", () => {
-    /** `n` consecutive days ending on 2026-08-01, the fixture's "today". */
-    const days = (n: number, from = 100) =>
-      Array.from({ length: n }, (_, index) => ({
-        t: new Date(
-          Date.parse("2026-08-01T00:00:00.000Z") - (n - 1 - index) * 86_400_000,
-        )
-          .toISOString()
-          .slice(0, 10),
-        v: from + index,
-      }));
-
-    const withSeries = () => [
-      assetCard({ netByMonthCurrency: 'USD',
-        id: "full.example",
-        activeUsers: {
-          // 62 days of context in front of 28 of readings: the ninety the
-          // payload carries.
-          contextSeries: days(90).slice(0, 62),
-          series: days(90).slice(62),
-          provisionalFrom: null,
-          collectedAt: null,
-          timeZoneChanges: [],
-        },
-        searchClicks: {
-          contextSeries: days(90, 500).slice(0, 62),
-          series: days(90, 500).slice(62),
-          provisionalFrom: null,
-          collectedAt: null,
-          timeZoneChanges: [],
-        },
-        netByMonth: [
-          { t: "2026-05", v: 120 },
-          // A month nothing was booked in is a hole, never a zero.
-          { t: "2026-06", v: null },
-          { t: "2026-07", v: 240 },
-          { t: "2026-08", v: 90 },
-        ],
-        netByMonthProvisionalFrom: "2026-08",
-        booked: { currency: 'USD', revenue: 100, cost: 10, net: 90 },
-      }),
-      QUIET,
-    ];
-
-
-    it("changes only traffic when switching 7 and 90 days", () => {
-      const { container } = renderAssets("/assets?range=7", withSeries(), {
-        firstRun: false,
-        booked: { currency: 'USD', revenue: 440, cost: 200, net: 240 },
-      });
-      const answer = container.querySelector("[data-sites-answer]")!.textContent;
-      const range = screen.getByRole("group", { name: "Traffic period" });
-      expect(container.querySelector("[data-assets-traffic-controls]")).toContainElement(range);
-      expect(screen.getByText("Traffic period")).toBeInTheDocument();
-      fireEvent.click(within(range).getByRole("button", { name: "90d" }));
-
-      expect(container.querySelector("[data-sites-answer]")!.textContent).toBe(answer);
-      expect(screen.getByRole("columnheader", { name: /^Visitors · 90d/ })).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: "full.example" })).toHaveAttribute("href", "/assets/full.example?range=90");
-    });
-
-
-
-    it("draws clicks and net beside users, each with its own line", () => {
-      const { container } = renderAssets("/assets", withSeries());
-
-      expect(container.querySelector("[data-users-spark]")).not.toBeNull();
-      expect(container.querySelector("[data-clicks-spark]")).not.toBeNull();
-      // Net's line lives in the Net cell rather than in a column of its own.
-      const net = container.querySelector<HTMLElement>('td[data-label="Net · August 2026"]')!;
-      expect(net.querySelector("[data-net-spark]")).not.toBeNull();
-      expect(net.textContent).toContain("$90");
-      expect(net.textContent).toContain("Booked");
-    });
-
-    it("windows all three by date when the range changes", () => {
-      const label = (container: HTMLElement, mark: string) =>
-        container
-          .querySelector(`[${mark}] [role='img']`)
-          ?.getAttribute("aria-label") ?? "";
-
-      const ninety = renderAssets("/assets?range=90", withSeries());
-      expect(label(ninety.container, "data-users-spark")).toContain("2026-05-04");
-      expect(label(ninety.container, "data-clicks-spark")).toContain("2026-05-04");
-      expect(
-        screen.getByRole("columnheader", { name: /^Visitors · 90d/ }),
-      ).toBeInTheDocument();
-      expect(
-        screen.getByRole("columnheader", { name: /^Search clicks · 90d/ }),
-      ).toBeInTheDocument();
-      ninety.unmount();
-
-      const week = renderAssets("/assets?range=7", withSeries());
-      expect(label(week.container, "data-users-spark")).toContain("2026-07-26");
-      expect(label(week.container, "data-clicks-spark")).toContain("2026-07-26");
-      // The monthly line does not window: it is the asset's whole ledger.
-      expect(
-        week.container.querySelector("[data-net-spark] [role='img']")
-          ?.getAttribute("aria-label"),
-      ).toContain("2026-05 to 2026-08");
-    });
-
-    /** The move rides the users line it describes, under the header that
-     * orders by it. At ninety days there is nothing to compare against. */
-    it("puts the range's move beside the users line, and draws none it cannot defend", () => {
-      const week = renderAssets("/assets?range=7", withSeries());
-      expect(screen.queryByRole("columnheader", { name: "7-day" })).toBeNull();
-      const users = week.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Visitors · 7d"]')!;
-      expect(users.querySelector("[data-users-spark]")).not.toBeNull();
-      expect(users.querySelector("[data-tone]")?.textContent).toMatch(/%/u);
-      expect(users.querySelector("[data-tone]")).toHaveAccessibleName(/Active users over/);
-      fireEvent.click(screen.getByRole("button", { name: /^Visitors · 7d/ }));
-      expect(screen.getByLabelText("Sort")).toHaveValue("trend");
-      week.unmount();
-
-      const ninety = renderAssets("/assets?range=90", withSeries());
-      const wide = ninety.container.querySelector<HTMLElement>('tr[data-asset-row="full.example"] td[data-label="Visitors · 90d"]')!;
-      expect(wide.querySelector("[data-users-spark]")).not.toBeNull();
-      expect(wide.textContent).not.toMatch(/%|—/u);
-    });
-
-    it("names daily users consistently and prints the settled report's older day", () => {
-      const { container } = renderAssets("/assets", [assetCard({
-        id: "older.example",
-        activeUsers: { series: [{ t: "2026-07-30", v: 900 }], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] },
-      })]);
-      expect(screen.getByRole("columnheader", { name: "Visitors" })).toBeInTheDocument();
-      expect(screen.queryByRole("columnheader", { name: "Today" })).toBeNull();
-      const daily = container.querySelector<HTMLElement>('tr[data-asset-row="older.example"] td[data-label="Visitors"]')!;
-      expect(daily.querySelector("time")).toHaveAttribute("dateTime", "2026-07-30");
-      expect(daily).toHaveTextContent("900Jul 30");
-      expect(daily.querySelector("[data-users-day]")).toHaveAttribute("data-users-day", "2026-07-30");
-      expect(daily.querySelector("[title]")).toBeNull();
-    });
-
-    it("says why a line is missing in a label rather than drawing a zero", () => {
-      const { container } = renderAssets();
-      const clicks = container.querySelector<HTMLElement>(
-        'td[data-label="Search clicks · 28d"]',
-      )!;
-      expect(clicks.textContent).toContain("—");
-      fireEvent.focus(within(clicks).getByRole("button", { name: "No days reported yet" }));
-      expect(screen.getByRole("tooltip")).toHaveTextContent("No days reported yet");
-    });
-
-    // The line says how it is drawn in its own readout; the header names the
-    // quantity and the window only.
-    it("names the quantity and window on the header, and the method on the line", () => {
-      const { container } = renderAssets("/assets", withSeries());
-      for (const name of ["Visitors · 28d", "Search clicks · 28d"]) {
-        const header = screen.getByRole("columnheader", { name });
-        expect(within(header).queryByRole("button", { name: /^About/ })).toBeNull();
-      }
-      for (const mark of ["data-users-spark", "data-clicks-spark"]) {
-        expect(within(container.querySelector<HTMLElement>(`tr[data-asset-row="full.example"] [${mark}]`)!)
-          .getByRole("img")).toHaveAccessibleDescription(/trailing 7-day average/);
-      }
-    });
-  });
-
-  it("re-derives the sparkline column when the range changes", () => {
-    /** `n` consecutive days ending on 2026-08-01, the fixture's "today". */
-    const days = (n: number) =>
-      Array.from({ length: n }, (_, index) => ({
-        t: new Date(
-          Date.parse("2026-08-01T00:00:00.000Z") - (n - 1 - index) * 86_400_000,
-        )
-          .toISOString()
-          .slice(0, 10),
-        v: 100 + index,
-      }));
-    const long = [
-      assetCard({
-        id: "long.example",
-        activeUsers: {
-          series: days(28),
-          provisionalFrom: null,
-          collectedAt: null,
-          timeZoneChanges: [],
-        },
-      }),
-      QUIET,
-    ];
-
-    const wide = renderAssets("/assets", long);
-    expect(
-      wide.container.querySelector("[data-users-spark] [role='img']")
-        ?.getAttribute("aria-label"),
-    ).toContain("2026-07-05 to 2026-08-01");
-    wide.unmount();
-
-    const narrow = renderAssets("/assets?range=7", long);
-    expect(
-      narrow.container.querySelector("[data-users-spark] [role='img']")
-        ?.getAttribute("aria-label"),
-    ).toContain("2026-07-26 to 2026-08-01");
-  });
-
-  it("offers all three windows", () => {
-    renderAssets();
-
-    const range = screen.getByRole("group", { name: "Traffic period" });
-    // The asset series is 62 days of context in front of 28 days of readings,
-    // which is the ninety the 90d button asks for.
-    expect(
-      within(range).getAllByRole("button").map((button) => button.textContent),
-    ).toEqual(["7d", "28d", "90d"]);
-  });
-
-  /** An asset's active bet, live counters, product totals, hourly chart and
-   * 28-day bars belong to one asset's Overview. */
-  it("shows no per-asset card content at all", () => {
-    const { container } = renderAssets();
-
-    expect(container.querySelector("[data-property-card]")).toBeNull();
-    expect(screen.queryByText(/All-time totals/)).toBeNull();
-    expect(container.querySelectorAll("[data-asset-row]")).toHaveLength(4);
-    expect(within(container.querySelector<HTMLElement>('[data-asset-row="meadow.example"]')!).getByRole("link", { name: "Meadow Board" })).toHaveAttribute(
-      "href",
-      "/assets/meadow.example",
-    );
-  });
-
-  /** A site with no number yet has an empty Overview, so its row opens its
-   * Data sources. */
-  it("opens a site with no number yet on its Data sources", () => {
-    renderAssets("/assets", [assetCard({ id: "meadow.example", displayName: "Meadow Board" }), QUIET]);
-
-    expect(screen.getByRole("link", { name: "quiet.example" })).toHaveAttribute("href", "/assets/quiet.example/sources");
-    expect(screen.getByRole("link", { name: "Meadow Board" })).toHaveAttribute("href", "/assets/meadow.example");
-  });
-
-  it("needs no About", () => {
-    const { container } = renderAssets();
-
-    expect(container.querySelector("[data-about]")).toBeNull();
-    expect(screen.queryByText(/About these numbers/)).toBeNull();
+    expect(screen.queryByRole("group", { name: "Traffic period" })).toBeNull();
+    expect(screen.queryByText(/open|urgent|No task data|Search clicks|Net ·/u)).toBeNull();
+    expect(container.querySelector("table")).toBeNull();
   });
 });
 
+describe("/assets — the health split is the Health filter", () => {
+  it("splits the whole portfolio by health word, worst first, with each count in its legend", () => {
+    const { container } = renderAssets();
 
-describe("Sites reasons support focus and tap", () => {
-  it("opens a missing task reason without activating its navigation row", () => {
-    const asset = assetCard({ id: "reason.example" });
-    const { container } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/assets"]}><Routes>
-      <Route path="/assets" element={<AssetsTable assets={[asset]} nowMs={Date.parse("2026-08-01T12:00:00Z")} />} />
-      <Route path="*" element={<div>Opened site</div>} />
-    </Routes></MemoryRouter></QueryClientProvider>);
-    const reason = screen.getByRole("button", { name: "No task data" });
-    fireEvent.focus(reason);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("No task data");
-    fireEvent.keyDown(window, { key: "Escape" });
-    expect(screen.queryByRole("tooltip")).toBeNull();
-    fireEvent.pointerDown(reason, { pointerType: "touch" });
-    fireEvent.click(reason);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("No task data");
-    expect(screen.queryByText("Opened site")).toBeNull();
-    fireEvent.click(container.querySelector('[data-asset-row="reason.example"]')!);
-    expect(screen.getByText("Opened site")).toBeVisible();
+    const bar = screen.getByRole("img", { name: "Site health: 1 off track, 1 at risk, 2 setting up" });
+    expect([...bar.querySelectorAll("[data-segment]")].map((segment) => segment.getAttribute("data-segment"))).toEqual([
+      "off-track", "at-risk", "setting-up",
+    ]);
+    expect(bar.querySelector('[data-segment="off-track"]')!.className).toContain("bg-error");
+    expect(bar.querySelector('[data-segment="setting-up"]')!.className).not.toMatch(/bg-(error|warn)/u);
+    expect(within(screen.getByRole("group", { name: "Health" })).getAllByRole("button").map((button) => button.textContent)).toEqual([
+      "1 off track", "1 at risk", "2 setting up",
+    ]);
+    expect(pressed("Health")).toEqual([]);
+    expect(container.querySelector("[data-assets-summary]")).toBeNull();
   });
 
-  it("explains incomparable users and the still-counted day through actual controls", () => {
-    const series = Array.from({ length: 28 }, (_, i) => ({ t: `2026-07-${String(i + 1).padStart(2, "0")}`, v: 100 }));
-    series.splice(15, 1);
-    const { unmount } = render(<QueryClientProvider client={new QueryClient()}><MemoryRouter><AssetsTable assets={[assetCard({ id: "reason.example", activeUsers: {
-      series, provisionalFrom: null, collectedAt: null, timeZoneChanges: [],
-    } })]} nowMs={Date.parse("2026-08-01T12:00:00Z")} rangeDays={7} /></MemoryRouter></QueryClientProvider>);
-    fireEvent.focus(screen.getByRole("button", { name: "Why users are not comparable" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Active users over");
-    unmount();
-    renderAssets("/assets", [assetCard({ id: "counting.example", activeUsers: {
-      series: [{ t: "2026-08-01", v: 0 }], provisionalFrom: "2026-08-01", collectedAt: null, timeZoneChanges: [],
-    } })]);
-    const today = screen.getByRole("button", { name: "About today's users" });
-    expect(screen.getByRole("columnheader", { name: "Visitors" })).toBeInTheDocument();
-    expect(today.closest("td")).toHaveAttribute("data-label", "Visitors");
-    expect(today.closest("[data-users-day]")).toHaveAttribute("data-users-day", "open");
-    expect(today).toHaveTextContent("0");
-    fireEvent.click(today);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("So far today, still being counted");
+  it("shows only a word's sites on a press, and all of them on a second", () => {
+    const { container } = renderAssets();
+
+    fireEvent.click(screen.getByRole("button", { name: "2 setting up" }));
+    expect(shown(container)).toEqual(["acorn.example", "ferns.example"]);
+    expect(pressed("Health")).toEqual(["2 setting up"]);
+    expect(container.querySelector('[data-segment="off-track"]')!.className).toContain("opacity-25");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("2 of 4 sites · health: setting up");
+
+    fireEvent.click(screen.getByRole("button", { name: "2 setting up" }));
+    expect(shown(container)).toHaveLength(4);
+    expect(pressed("Health")).toEqual([]);
+  });
+
+  it("reads its filters from the URL, so a narrowed list is a link, and keeps a picked word nobody wears pressable", () => {
+    const { container } = renderAssets("/assets?status=live&health=at-risk");
+    expect(shown(container)).toEqual(["northwind.example"]);
+    expect(screen.getByLabelText("Stage")).toHaveValue("live");
+    expect(pressed("Health")).toEqual(["1 at risk"]);
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent("1 of 4 sites · stage: live · health: at risk");
+
+    const nobody = renderAssets("/assets?health=on-track");
+    expect(within(nobody.container.querySelector<HTMLElement>("[data-health-split]")!).getByRole("button", { name: "0 on track" }))
+      .toHaveAttribute("aria-pressed", "true");
+    expect(nobody.container.querySelector("[data-assets-summary]")).toHaveTextContent("0 of 4 sites · health: on track");
+  });
+});
+
+describe("/assets — the stage", () => {
+  it("counts every stage against the whole portfolio, not against the other filter", () => {
+    renderAssets("/assets?health=off-track");
+
+    expect(within(screen.getByLabelText("Stage")).getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "All stages · 4",
+      "Pre-launch · 0",
+      "Onboarding · 1",
+      "Baselining · 1",
+      "Live · 2",
+      "Retired · 0",
+    ]);
+  });
+
+  it("says nothing matches, and never calls it an empty portfolio", () => {
+    const { container } = renderAssets("/assets?status=retired");
+
+    expect(screen.getByText("No sites match these filters")).toBeInTheDocument();
+    expect(screen.queryByText("No sites yet")).toBeNull();
+    expect(shown(container)).toEqual([]);
+    const summary = container.querySelector<HTMLElement>("[data-assets-summary]")!;
+    expect(summary).toHaveTextContent("0 of 4 sites · stage: retired");
+    expect(within(summary).getByRole("link", { name: "Clear" })).toBeInTheDocument();
+  });
+
+  it("clears both filters at once and keeps the order", () => {
+    const { container } = renderAssets("/assets?status=live&health=off-track&sort=name");
+    expect(shown(container)).toEqual(["meadow.example"]);
+
+    fireEvent.click(screen.getByRole("link", { name: "Clear" }));
+
+    expect(shown(container)).toEqual(["acorn.example", "ferns.example", "meadow.example", "northwind.example"]);
+    expect(screen.getByLabelText("Stage")).toHaveValue("all");
+    expect(pressed("Order")).toEqual(["A–Z"]);
+    expect(container.querySelector("[data-assets-summary]")).toBeNull();
+  });
+
+  /** On a phone the order and the stage wait behind one press; the health
+   * legend is the picture's own and stays in view. */
+  it("folds the order and the stage behind one phone control, counting only the stage", () => {
+    const { container } = renderAssets("/assets?status=live&health=at-risk&sort=name");
+    const control = screen.getByRole("button", { name: "Order & stage, 1 on" });
+    expect(control).toHaveClass("sm:hidden");
+    const filters = container.querySelector("[data-assets-filters]")!;
+    expect(filters).toHaveClass("max-sm:hidden");
+    expect(filters).toContainElement(screen.getByRole("group", { name: "Order" }));
+    expect(filters).not.toContainElement(screen.getByRole("group", { name: "Health" }));
+    fireEvent.click(control);
+    expect(filters).not.toHaveClass("max-sm:hidden");
+  });
+});
+
+describe("/assets — the orderings", () => {
+  it("keeps the saved order by default, with nothing to clear", () => {
+    renderAssets();
+    expect(pressed("Order")).toEqual(["Your order"]);
+    expect(screen.queryByRole("link", { name: "Clear" })).toBeNull();
+  });
+
+  it("orders from the URL: who needs you, people and name", () => {
+    const byHealth = renderAssets("/assets?sort=health");
+    expect(shown(byHealth.container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+    expect(pressed("Order")).toEqual(["Needs you"]);
+    byHealth.unmount();
+
+    // A site with no finished day sinks below every measured one.
+    const byPeople = renderAssets("/assets?sort=users", [ASSETS[3]!, ...ASSETS.slice(0, 3)]);
+    expect(shown(byPeople.container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+    byPeople.unmount();
+
+    const byName = renderAssets("/assets?sort=name");
+    expect(shown(byName.container)).toEqual(["acorn.example", "ferns.example", "meadow.example", "northwind.example"]);
+  });
+
+  it("falls back to the saved order when the URL carries an ordering it cannot name", () => {
+    for (const old of ["whatever-an-old-bookmark-said", "work", "trend", "net"]) {
+      const { container, unmount } = renderAssets(`/assets?sort=${old}`);
+      expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+      expect(pressed("Order")).toEqual(["Your order"]);
+      unmount();
+    }
+  });
+
+  it("orders on one press, and the saved order is one press back", () => {
+    const { container } = renderAssets();
+
+    fireEvent.click(within(screen.getByRole("group", { name: "Order" })).getByRole("button", { name: "A–Z" }));
+    expect(shown(container)).toEqual(["acorn.example", "ferns.example", "meadow.example", "northwind.example"]);
+    fireEvent.click(within(screen.getByRole("group", { name: "Order" })).getByRole("button", { name: "Your order" }));
+    expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+  });
+});
+
+/** The answer, the split and the controls are how sites are compared; over
+ * one site they would sort a single row. */
+describe("/assets — the comparison arrives with a second site", () => {
+  function machinery(container: HTMLElement) {
+    return {
+      answer: container.querySelector("[data-sites-answer]"),
+      split: container.querySelector("[data-health-split]"),
+      filters: container.querySelector("[data-assets-filters]"),
+      order: screen.queryByRole("group", { name: "Order" }),
+      stage: screen.queryByLabelText("Stage"),
+      summary: container.querySelector("[data-assets-summary]"),
+    };
+  }
+  const none = { answer: null, split: null, filters: null, order: null, stage: null, summary: null };
+
+  it("with no sites, is its header, Add a site and one empty state", () => {
+    const { container } = renderAssets("/assets", []);
+    expect(machinery(container)).toEqual(none);
+    expect(screen.getByText("No sites yet")).toBeInTheDocument();
+    expect(container.querySelector("[data-assets-empty]")).toHaveAttribute("data-surface-hero");
+    expect(screen.getAllByRole("button")).toEqual([screen.getByRole("button", { name: "Add a site" })]);
+    expect(container.querySelector("[data-assets-age]")).toBeNull();
+  });
+
+  it("with one site, is that site's row and nothing to filter, order or add up", () => {
+    const { container } = renderAssets("/assets?status=retired&health=at-risk", [ASSETS[0]!]);
+    expect(machinery(container)).toEqual(none);
+    expect(shown(container)).toEqual(["meadow.example"]);
+    expect(screen.queryByText("No sites match these filters")).toBeNull();
+    expect(container.querySelector("[data-assets-age]")).toHaveTextContent("updated");
+  });
+
+  it("with two sites, compares them", () => {
+    const { container } = renderAssets("/assets", ASSETS.slice(0, 2));
+    const shownMachinery = machinery(container);
+    expect(shownMachinery.answer).toHaveTextContent("2 of 2 sites need you");
+    expect(shownMachinery.split).not.toBeNull();
+    expect(shownMachinery.order).not.toBeNull();
+    expect(shownMachinery.stage).not.toBeNull();
+    expect(shown(container)).toEqual(["meadow.example", "northwind.example"]);
   });
 });

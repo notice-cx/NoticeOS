@@ -530,7 +530,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <svg aria-hidden="true" class="size-3 shrink-0 text-muted-foreground" viewBox="0 0 12 12">
 <circle cx="6" cy="6" r="3.5" class="fill-card stroke-current" stroke-width="1.5">
 </circle>
-</svg>Provisional</button>
+</svg>Still counting</button>
 </li>
 </ul>
 </div>
@@ -669,7 +669,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <svg aria-hidden="true" class="size-3 shrink-0 text-muted-foreground" viewBox="0 0 12 12">
 <circle cx="6" cy="6" r="3.5" class="fill-card stroke-current" stroke-width="1.5">
 </circle>
-</svg>Provisional</button>
+</svg>Still counting</button>
 </li>
 </ul>
 </div>
@@ -771,7 +771,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <svg aria-hidden="true" class="size-3 shrink-0 text-muted-foreground" viewBox="0 0 12 12">
 <circle cx="6" cy="6" r="3.5" class="fill-card stroke-current" stroke-width="1.5">
 </circle>
-</svg>Provisional</button>
+</svg>Still counting</button>
 </li>
 </ul>
 </div>
@@ -1005,309 +1005,419 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-overview" class="flex flex-col gap-4">
-<div class="flex flex-col gap-3.5">
-<div class="flex flex-wrap items-center gap-x-2 text-[14px] text-foreground" data-verdict-line="true">
+<div class="@container flex flex-col gap-5" data-site-overview="">
+<div class="flex flex-wrap items-center gap-x-2 text-sm text-foreground" data-verdict-line="true">
 <span class="tabular-nums">Jun net +$498</span>
 <span aria-hidden="true" class="text-muted-foreground">·</span>
 <span class="text-error">1 error open</span>
 <span aria-hidden="true" class="text-muted-foreground">·</span>
 <span class="tabular-nums">nothing being watched</span>
 </div>
-<section aria-labelledby="overview-traffic" data-traffic-window="true" class="overflow-hidden rounded-[10px] border border-border bg-card">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 border-b border-border/60 px-4 py-3">
-<h2 id="overview-traffic" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Traffic · last 28 days</h2>
+<section aria-label="The site's numbers · last 28 days" data-overview-numbers="" class="flex flex-col gap-3">
+<div class="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-4">
+<div data-measure="money" class="min-w-0">
+<a data-stat="Net, June" data-stat-role="money" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-financial-revenue h-full outline-none hover:ring-foreground/30 focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-shadow" href="/assets/meadow.example/financials" data-discover="true">
+<span class="text-xs font-medium leading-snug text-muted-foreground">Net, June</span>
+<span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+<span class="text-figure tabular-nums text-foreground" data-stat-figure="">+$498.10</span>
+</span>
+<span class="text-xs leading-snug text-muted-foreground [&amp;_b]:font-semibold [&amp;_b]:text-foreground">ads $498.10</span>
+</a>
 </div>
-<div data-kpi-strip="" data-phone-row="swipe" class="grid gap-px bg-border/60 grid-cols-2 sm:grid-cols-4 max-sm:grid-cols-none max-sm:grid-flow-col max-sm:auto-cols-[minmax(44%,max-content)] max-sm:overflow-x-auto max-sm:overscroll-x-contain max-sm:snap-x max-sm:snap-mandatory max-sm:[scrollbar-width:none] max-sm:[&amp;>*]:snap-start">
-<div data-kpi="Avg. daily users" data-kpi-selected="" class="relative grid content-start gap-1 text-start bg-muted/40 p-0 max-sm:p-0">
-<button type="button" aria-pressed="true" class="grid content-start gap-1 p-4 text-start max-sm:p-3 outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground pe-6">Avg. daily users</span>
-<span class="flex flex-wrap items-baseline justify-between gap-2">
-<span class="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-foreground">96</span>
-<span data-spark="" aria-hidden="true" class="relative inline-block align-middle text-muted-foreground shrink-0 max-sm:basis-full" style="width: 64px;">
-<svg class="block w-full overflow-visible rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" style="height: 22px;" viewBox="0 0 64 22" preserveAspectRatio="none" role="img" aria-label="Avg. daily users trend" aria-describedby="_rID_-semantics">
-<title>Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</title>
-<path d="M2 20 C5.33 17.25 8.67 14.5 12 12.5 C15.33 10.5 18.67 9.5 22 8 C25.33 6.5 28.67 4.5 32 3.5 C35.33 2.5 38.67 2 42 2 C45.33 2 48.67 2.67 52 4 C55.33 5.33 58.67 7.95 62 10.57" fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="2" data-chart-line="solid">
-</path>
-<g data-chart-dot="solid" data-x="62" data-y="10.571428571428562">
-<path d="M62 10.57h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M62 10.57h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-</g>
-</svg>
-<span id="_rID_-semantics" class="sr-only">Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</span>
+<button type="button" data-measure="people" aria-pressed="true" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
+<div data-stat="Visitors a day, 28 days" data-stat-role="people" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-traffic h-full ring-2 ring-primary/70">
+<span class="text-xs font-medium leading-snug text-muted-foreground">Visitors a day, 28 days</span>
+<span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+<span class="text-figure tabular-nums text-foreground" data-stat-figure="">96</span>
+</span>
+<div class="mt-1">
+<div class="@container/strip relative flex flex-col h-14" data-bar-strip="">
+<div role="img" aria-label="Visitors a day, last 28 days, Jun 8 to Jul 5; Jul 4 70; usual 96; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
+<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 81.81818181818183%; --viz-i: 20;">
 </span>
 </span>
-<span class="text-xs text-muted-foreground" data-delta="none">— No previous period</span>
-<span aria-hidden="true" class="absolute inset-x-4 bottom-0 h-0.5 bg-foreground max-sm:inset-x-3">
+<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 90.9090909090909%; --viz-i: 21;">
 </span>
+</span>
+<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 94.54545454545455%; --viz-i: 22;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 100%; --viz-i: 23;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 96.36363636363636%; --viz-i: 24;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 85.45454545454545%; --viz-i: 25;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 63.63636363636363%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 90%; --viz-i: 27;">
+</span>
+</span>
+<span aria-hidden="true" data-bar-baseline="" class="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/70" style="bottom: 87.53246753246754%;">
+</span>
+</div>
+<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<span class="whitespace-nowrap">Jun 8</span>
+<span class="hidden whitespace-nowrap @[15rem]/strip:inline">avg 96</span>
+<span class="whitespace-nowrap">Jul 5</span>
+</div>
+</div>
+</div>
+<span class="text-xs leading-snug text-muted-foreground [&amp;_b]:font-semibold [&amp;_b]:text-foreground">Jul 4 <b>70</b> · best <b>110</b>
+</span>
+</div>
 </button>
-<button type="button" aria-label="About Avg. daily users" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 16v-4">
-</path>
-<path d="M12 8h.01">
-</path>
-</svg>
-</button>
-</div>
-<div data-kpi="Sessions" data-series="unavailable" data-series-reason="No reports in this period." class="relative grid content-start gap-1 bg-card p-4 text-start max-sm:p-3">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground pe-6">Sessions</span>
-<span class="flex flex-wrap items-baseline justify-between gap-2">
-<span class="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-foreground">—</span>
+<button type="button" data-measure="search" aria-pressed="false" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
+<div data-stat="Search clicks, 28 days" data-stat-role="people" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-traffic h-full">
+<span class="text-xs font-medium leading-snug text-muted-foreground">Search clicks, 28 days</span>
+<span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+<span class="text-figure tabular-nums text-foreground" data-stat-figure="">333</span>
 </span>
-<span class="text-xs text-muted-foreground" data-delta="none">— No previous period</span>
-<button type="button" aria-label="About Sessions" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 16v-4">
-</path>
-<path d="M12 8h.01">
-</path>
-</svg>
-</button>
-</div>
-<div data-kpi="Search clicks" class="relative grid content-start gap-1 bg-card text-start p-0 max-sm:p-0">
-<button type="button" aria-pressed="false" class="grid content-start gap-1 p-4 text-start max-sm:p-3 outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground pe-6">Search clicks</span>
-<span class="flex flex-wrap items-baseline justify-between gap-2">
-<span class="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-foreground">333</span>
-<span data-spark="" aria-hidden="true" class="relative inline-block align-middle text-muted-foreground shrink-0 max-sm:basis-full" style="width: 64px;">
-<svg class="block w-full overflow-visible rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" style="height: 22px;" viewBox="0 0 64 22" preserveAspectRatio="none" role="img" aria-label="Search clicks trend" aria-describedby="_rID_-semantics">
-<title>Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</title>
-<path d="M2 20 C5.33 16.83 8.67 13.66 12 11.31 C15.33 8.97 18.67 7.48 22 5.93 C25.33 4.38 28.67 2 32 2 C35.33 2 38.67 2.37 42 3.12 C45.33 3.86 48.67 5.01 52 6.76 C55.33 8.51 58.67 11.06 62 13.62" fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="2" data-chart-line="solid">
-</path>
-<g data-chart-dot="solid" data-x="62" data-y="13.615763546798034">
-<path d="M62 13.62h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M62 13.62h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-</g>
-</svg>
-<span id="_rID_-semantics" class="sr-only">Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</span>
+<div class="mt-1">
+<div class="@container/strip relative flex flex-col h-14" data-bar-strip="">
+<div role="img" aria-label="Search clicks, last 28 days, Jun 8 to Jul 5; Jul 4 31; usual 48; 20 days not reported" class="relative flex min-h-0 flex-1 items-end gap-0.5">
+<span aria-hidden="true" data-bar="2026-06-08" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
+<span aria-hidden="true" data-bar="2026-06-09" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
 </span>
-<span class="text-xs text-muted-foreground" data-delta="none">— No previous period</span>
-</button>
-<button type="button" aria-label="About Search clicks" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 16v-4">
-</path>
-<path d="M12 8h.01">
-</path>
-</svg>
-</button>
-</div>
-<div data-kpi="Impressions" class="relative grid content-start gap-1 bg-card text-start p-0 max-sm:p-0">
-<button type="button" aria-pressed="false" class="grid content-start gap-1 p-4 text-start max-sm:p-3 outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer hover:bg-muted/40 motion-safe:transition-colors">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground pe-6">Impressions</span>
-<span class="flex flex-wrap items-baseline justify-between gap-2">
-<span class="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-foreground">6.7K</span>
-<span data-spark="" aria-hidden="true" class="relative inline-block align-middle text-muted-foreground shrink-0 max-sm:basis-full" style="width: 64px;">
-<svg class="block w-full overflow-visible rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" style="height: 22px;" viewBox="0 0 64 22" preserveAspectRatio="none" role="img" aria-label="Impressions trend" aria-describedby="_rID_-semantics">
-<title>Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</title>
-<path d="M2 20 C5.33 17.25 8.67 14.5 12 12.5 C15.33 10.5 18.67 9.5 22 8 C25.33 6.5 28.67 4.5 32 3.5 C35.33 2.5 38.67 2 42 2 C45.33 2 48.67 2.67 52 4 C55.33 5.33 58.67 7.95 62 10.57" fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="2" data-chart-line="solid">
-</path>
-<g data-chart-dot="solid" data-x="62" data-y="10.571428571428568">
-<path d="M62 10.57h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M62 10.57h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-</g>
-</svg>
-<span id="_rID_-semantics" class="sr-only">Line: precomputed trailing 7-day average. 2026-06-28 to 2026-07-04.</span>
+<span aria-hidden="true" data-bar="2026-06-10" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-11" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-12" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-13" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-14" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-15" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-16" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-17" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-18" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-19" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-20" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-21" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-22" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-23" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-24" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-25" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-26" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-27" data-state="unreported" class="relative flex h-full min-w-0 flex-1 items-end rounded-xs text-muted-foreground/60 viz-hatch">
+</span>
+<span aria-hidden="true" data-bar="2026-06-28" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 75%; --viz-i: 20;">
 </span>
 </span>
-<span class="text-xs text-muted-foreground" data-delta="none">— No previous period</span>
+<span aria-hidden="true" data-bar="2026-06-29" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 86.66666666666667%; --viz-i: 21;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-06-30" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 91.66666666666666%; --viz-i: 22;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-01" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 95%; --viz-i: 23;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-02" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 83.33333333333334%; --viz-i: 24;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-03" data-state="settled" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark bg-current/30" style="height: 71.66666666666667%; --viz-i: 25;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-04" data-state="now" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-traffic bg-current viz-glow" style="height: 51.66666666666667%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-bar="2026-07-05" data-state="provisional" class="relative flex h-full min-w-0 flex-1 items-end">
+<span class="viz-grow-y block w-full rounded-t-xs text-spark chart-bar-provisional bg-current/20" style="height: 100%; --viz-i: 27;">
+</span>
+</span>
+<span aria-hidden="true" data-bar-baseline="" class="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/70" style="bottom: 79.28571428571428%;">
+</span>
+</div>
+<div class="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden="true">
+<span class="whitespace-nowrap">Jun 8</span>
+<span class="hidden whitespace-nowrap @[15rem]/strip:inline">avg 48</span>
+<span class="whitespace-nowrap">Jul 5</span>
+</div>
+</div>
+</div>
+<span class="text-xs leading-snug text-muted-foreground [&amp;_b]:font-semibold [&amp;_b]:text-foreground">Jul 4 <b>31</b> · best <b>57</b>
+</span>
+</div>
 </button>
-<button type="button" aria-label="About Impressions" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
-<circle cx="12" cy="12" r="10">
-</circle>
-<path d="M12 16v-4">
-</path>
-<path d="M12 8h.01">
-</path>
-</svg>
+<button type="button" data-measure="product" aria-pressed="false" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
+<div data-stat="Signups, latest report" data-stat-role="context" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-foreground/25 h-full">
+<span class="text-xs font-medium leading-snug text-muted-foreground">Signups, latest report</span>
+<span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+<span class="text-figure tabular-nums text-foreground" data-stat-figure="">10</span>
+</span>
+<span class="text-xs leading-snug text-muted-foreground [&amp;_b]:font-semibold [&amp;_b]:text-foreground">No earlier reports to compare</span>
+</div>
 </button>
 </div>
+<div class="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="">
+<figure data-overview-chart="people" class="@container m-0 flex min-w-0 flex-col gap-3">
+<figcaption class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+<span class="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
+<span class="text-sm font-semibold text-foreground">Visitors a day</span>
+<span class="whitespace-nowrap text-xs tabular-nums text-muted-foreground">Jun 8–Jul 5, 2026</span>
+<span class="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-muted-foreground" data-overview-chart-key="">
+<span aria-hidden="true" class="h-2.5 w-1.5 rounded-[1px] bg-current text-traffic">
+</span>GA4</span>
+</span>
+<a class="whitespace-nowrap rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring" href="/assets/meadow.example/growth" data-discover="true">Growth →</a>
+</figcaption>
+<div class="flex gap-2">
+<div aria-hidden="true" class="shrink-0" style="width: 22px;">
+<div class="h-5">
 </div>
-<div class="border-t border-border/60 p-4">
-<figure data-hero-chart="" class="m-0 flex flex-col gap-2">
-<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
-<h3 class="m-0 text-[13px] font-semibold">Active users · daily</h3>
-<ul aria-label="Chart key" data-hero-key="" class="m-0 flex list-none flex-wrap items-center gap-x-3.5 gap-y-1 p-0 text-xs">
-<li data-hero-key-series="GA4" class="flex items-center">
-<button type="button" aria-pressed="true" class="inline-flex items-center gap-1.5 text-xs outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer rounded-md px-1.5 py-0.5 font-medium hover:bg-muted/60 motion-safe:transition-colors text-foreground">
-<span class="inline-flex">
-<svg aria-hidden="true" class="h-3 w-6 shrink-0 text-foreground" viewBox="0 0 24 12">
-<line x1="1.5" x2="22.5" y1="6" y2="6" stroke="currentColor" stroke-width="2.5" stroke-opacity="1" stroke-linecap="round">
-</line>
-</svg>
-</span>GA4 · 7-day average</button>
-</li>
-<li data-hero-key-series="Same day last week" class="flex items-center">
-<button type="button" aria-pressed="true" class="inline-flex items-center gap-1.5 text-xs outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring cursor-pointer rounded-md px-1.5 py-0.5 font-medium hover:bg-muted/60 motion-safe:transition-colors text-foreground">
-<span class="inline-flex">
-<svg aria-hidden="true" class="h-3 w-6 shrink-0 text-spark" viewBox="0 0 24 12">
-<line x1="1.5" x2="22.5" y1="6" y2="6" stroke="currentColor" stroke-width="1.5" stroke-opacity="1" stroke-dasharray="2 5" stroke-linecap="round">
-</line>
-</svg>
-</span>Same day last week</button>
-</li>
-<li class="inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-hero-key-method="raw">
-<svg aria-hidden="true" class="h-3 w-6 shrink-0 text-foreground" viewBox="0 0 24 12">
-<line x1="1.5" x2="22.5" y1="6" y2="6" stroke="currentColor" stroke-width="1" stroke-opacity="0.5" stroke-linecap="round">
-</line>
-</svg>Daily</li>
-<li class="flex items-center">
-<button type="button" aria-label="About Active users · daily" aria-expanded="false" data-info-tooltip-trigger="true" class="relative inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">
-<svg aria-hidden="true" class="size-3 shrink-0 text-muted-foreground" viewBox="0 0 12 12">
-<circle cx="6" cy="6" r="3.5" class="fill-card stroke-current" stroke-width="1.5">
-</circle>
-</svg>Provisional</button>
-</li>
-</ul>
+<div class="relative h-44 @3xl:h-56">
+<span class="absolute right-0 translate-y-1/2 whitespace-nowrap text-micro tabular-nums text-muted-foreground" style="bottom: 0%;">0</span>
+<span class="absolute right-0 translate-y-1/2 whitespace-nowrap text-micro tabular-nums text-muted-foreground" style="bottom: 50%;">75</span>
+<span class="absolute right-0 translate-y-1/2 whitespace-nowrap text-micro tabular-nums text-muted-foreground" style="bottom: 100%;">150</span>
 </div>
-<div class="grid gap-x-2" style="grid-template-columns: 22px minmax(0,1fr); padding-inline-end: 7px;">
-<div data-hero-gutter="22" class="relative h-(--hero-height) max-sm:h-[180px]" style="--hero-height: 240px;" aria-hidden="true">
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 97.5%;">70</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 74.16666666666667%;">80</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 50.83333333333333%;">90</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 27.500000000000004%;">100</span>
-<span class="absolute right-0 -translate-y-1/2 whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="top: 4.166666666666666%;">110</span>
 </div>
-<div class="relative h-(--hero-height) rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring max-sm:h-[180px]" style="--hero-height: 240px;" tabindex="0" role="group" aria-label="Explore GA4 and Same day last week values" aria-describedby="_rID_">
-<svg class="block h-full w-full overflow-visible" viewBox="0 0 1000 240" preserveAspectRatio="none" role="img" aria-label="GA4 and Same day last week over 28 days">
-<rect x="166.66666666666666" width="74.07407407407408" y="10" height="224" class="fill-chart-week-band opacity-60">
-</rect>
-<rect x="425.9259259259259" width="74.07407407407408" y="10" height="224" class="fill-chart-week-band opacity-60">
-</rect>
-<rect x="685.1851851851852" width="74.07407407407413" y="10" height="224" class="fill-chart-week-band opacity-60">
-</rect>
-<rect x="944.4444444444445" width="55.55555555555554" y="10" height="224" class="fill-chart-week-band opacity-60">
-</rect>
-<line x1="0" x2="1000" y1="234" y2="234" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="0" x2="1000" y1="178" y2="178" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="0" x2="1000" y1="122" y2="122" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="0" x2="1000" y1="66" y2="66" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="0" x2="1000" y1="10" y2="10" class="stroke-border opacity-60" stroke-width="1" vector-effect="non-scaling-stroke">
-</line>
-<line x1="962.9629629629629" x2="962.9629629629629" y1="10" y2="234" class="stroke-chart-distorted" stroke-width="1" stroke-dasharray="3 3" vector-effect="non-scaling-stroke">
-</line>
-<g class="text-foreground">
-<path data-hero-raw="GA4" d="M740.7407407407406 122 L777.7777777777778 66 L814.8148148148148 43.60000000000001 L851.8518518518518 10 L888.8888888888888 32.39999999999999 L925.925925925926 99.60000000000001 L962.9629629629629 234 L1000 71.60000000000001" class="fill-none stroke-current" stroke-width="1" stroke-opacity="0.5" vector-effect="non-scaling-stroke">
-</path>
-<path data-hero-line="GA4" data-hero-weight="lead" d="M740.7407407407406 122 L777.7777777777778 94 L814.8148148148148 77.20000000000002 L851.8518518518518 60.39999999999999 L888.8888888888888 54.79999999999999 L925.925925925926 62.26666666666663 L962.9629629629629 86.79999999999998" class="fill-none stroke-current" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
-</path>
-<g data-chart-dot="hollow" data-x="1000" data-y="71.60000000000001" data-hero-provisional="GA4">
-<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-<path d="M1000 71.6h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="2.2">
-</path>
-</g>
-</g>
-<g class="text-spark">
-<path data-hero-line="Same day last week" data-hero-weight="reference" d="M1000 122" class="fill-none stroke-current" stroke-width="1.5" stroke-dasharray="2 5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke">
-</path>
-<g data-chart-dot="solid" data-x="1000" data-y="122" data-hero-point="Same day last week">
-<path d="M1000 122h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M1000 122h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-</g>
-</g>
-</svg>
+<div class="flex min-w-0 flex-1 flex-col">
+<div class="relative">
+<div aria-hidden="true" class="relative h-5">
+<span data-overview-change-label="" style="left: calc(94.6429% - 14px);" class="h-[1lh] min-w-0 overflow-hidden pointer-events-none absolute top-0 hidden max-w-[40%] text-micro text-muted-foreground @xl:block -translate-x-full" data-fit-label="">
+<span aria-hidden="true" class="inline-block w-0">
+</span>
+<span class="inline-block whitespace-nowrap">July title batch</span>
+</span>
+</div>
+<div class="relative h-44 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring @3xl:h-56" tabindex="0" role="group" aria-label="Visitors a day by day, Jun 8 to Jul 5" aria-describedby="_rID_">
+<span aria-hidden="true" class="absolute inset-x-0 border-t border-viz-grid" style="bottom: 0%;">
+</span>
+<span aria-hidden="true" class="absolute inset-x-0 border-t border-viz-grid" style="bottom: 50%;">
+</span>
+<span aria-hidden="true" class="absolute inset-x-0 border-t border-viz-grid" style="bottom: 100%;">
+</span>
+<div role="img" aria-label="Visitors a day, Jun 8–Jul 5, 2026; newest Jul 4 70; best Jul 1 110; lowest Jul 4 70; average · 96 a day" class="absolute inset-0 grid" style="grid-template-columns: repeat(28, minmax(0,1fr));">
+<span aria-hidden="true" data-overview-day="2026-06-08" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-09" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-10" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-11" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-12" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-13" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-14" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-15" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-16" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-17" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-18" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-19" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-20" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-21" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-22" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-23" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-24" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-25" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-26" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-27" data-state="none" class="relative flex h-full items-end justify-center px-[16%]">
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-28" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 60%; --viz-i: 20;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-29" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 66.66666666666666%; --viz-i: 21;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-06-30" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 69.33333333333334%; --viz-i: 22;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-07-01" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 73.33333333333333%; --viz-i: 23;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-07-02" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 70.66666666666667%; --viz-i: 24;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-07-03" data-state="settled" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-spark bg-current/35" style="height: 62.66666666666667%; --viz-i: 25;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-07-04" data-state="now" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-traffic viz-glow bg-current" style="height: 46.666666666666664%; --viz-i: 26;">
+</span>
+</span>
+<span aria-hidden="true" data-overview-day="2026-07-05" data-state="counting" class="relative flex h-full items-end justify-center px-[16%]">
+<span class="viz-grow-y block w-full rounded-t-[3px] text-traffic chart-bar-provisional bg-current/15" style="height: 66%; --viz-i: 27;">
+</span>
+</span>
+</div>
+<span aria-hidden="true" data-overview-usual="" class="pointer-events-none absolute inset-x-0 border-t border-dashed border-muted-foreground/80" style="bottom: 64.1904761904762%;">
+</span>
+<span aria-hidden="true" class="pointer-events-none absolute left-1 rounded-xs bg-card/85 px-1 text-micro whitespace-nowrap text-muted-foreground" style="bottom: calc(64.1905% + 2px);">average · 96 a day</span>
+<span aria-hidden="true" class="pointer-events-none absolute inset-y-0 border-l border-dashed border-chart-distorted/70" style="left: 94.64285714285714%;">
+</span>
+<span aria-hidden="true" data-overview-landmark="" class="pointer-events-none absolute rounded-xs bg-card/85 px-1 whitespace-nowrap tabular-nums text-micro font-medium text-foreground -translate-x-1/2" style="left: 83.92857142857143%; bottom: calc(73.3333% + 4px);">Best · Jul 1 · 110</span>
+<span aria-hidden="true" data-overview-landmark="" class="pointer-events-none absolute rounded-xs bg-card/85 px-1 whitespace-nowrap tabular-nums text-xs font-semibold text-traffic -translate-x-full" style="left: calc(94.6429% + 4px); bottom: calc(46.6667% + 4px);">Lowest · 70</span>
+</div>
 <div class="pointer-events-none absolute inset-0 z-20" data-chart-events="true">
-<span aria-hidden="true" data-chart-event-line="true" class="pointer-events-auto absolute inset-y-0 w-3 -translate-x-1/2 cursor-help" style="left: 96.29629629629629%;">
+<span aria-hidden="true" data-chart-event-line="true" class="pointer-events-auto absolute inset-y-0 w-3 -translate-x-1/2 cursor-help" style="left: 94.64285714285714%;">
 </span>
-<button type="button" data-chart-event-dates="2026-07-04" class="pointer-events-auto absolute top-0 flex size-11 -translate-x-1/2 items-start justify-center rounded-sm text-xs text-chart-distorted outline-none hover:bg-chart-distorted/10 focus-visible:ring-2 focus-visible:ring-ring" style="left: 96.29629629629629%;" aria-label="Event on Jul 4, 2026: July title batch" aria-expanded="false">
+<button type="button" data-chart-event-dates="2026-07-04" class="pointer-events-auto absolute top-0 flex size-11 -translate-x-1/2 items-start justify-center rounded-sm text-xs text-chart-distorted outline-none hover:bg-chart-distorted/10 focus-visible:ring-2 focus-visible:ring-ring" style="left: 94.64285714285714%;" aria-label="Event on Jul 4, 2026: July title batch" aria-expanded="false">
 </button>
-<span aria-hidden="true" class="pointer-events-none absolute top-0 inline-flex -translate-x-1/2 items-center gap-0.5 rounded-sm bg-card px-0.5 text-xs font-semibold text-chart-distorted" style="left: 96.29629629629629%;">▲</span>
+<span aria-hidden="true" class="pointer-events-none absolute top-0 inline-flex -translate-x-1/2 items-center gap-0.5 rounded-sm bg-card px-0.5 text-xs font-semibold text-chart-distorted" style="left: 94.64285714285714%;">▲</span>
 </div>
 </div>
-<div data-hero-x-axis="true" class="relative col-start-2 mt-1 h-4" aria-hidden="true">
-<span data-hero-x-candidate="2026-06-08" data-chart-label-candidate="2026-06-08" data-hero-x-label="2026-06-08" class="absolute whitespace-nowrap text-xs tabular-nums text-muted-foreground" style="left: 0%;">Jun 8</span>
-<span data-hero-x-candidate="2026-06-14" data-chart-label-candidate="2026-06-14" data-hero-x-label="2026-06-14" class="absolute whitespace-nowrap text-xs tabular-nums text-muted-foreground -translate-x-1/2" style="left: 22.22222222222222%;">Jun 14</span>
-<span data-hero-x-candidate="2026-06-21" data-chart-label-candidate="2026-06-21" data-hero-x-label="2026-06-21" class="absolute whitespace-nowrap text-xs tabular-nums text-muted-foreground -translate-x-1/2" style="left: 48.148148148148145%;">Jun 21</span>
-<span data-hero-x-candidate="2026-06-28" data-chart-label-candidate="2026-06-28" data-hero-x-label="2026-06-28" class="absolute whitespace-nowrap text-xs tabular-nums text-muted-foreground -translate-x-1/2" style="left: 74.07407407407408%;">Jun 28</span>
-<span data-hero-x-candidate="2026-07-05" data-chart-label-candidate="2026-07-05" data-hero-x-label="2026-07-05" class="absolute whitespace-nowrap text-xs tabular-nums text-muted-foreground end-0">Jul 5</span>
+<div aria-hidden="true" class="relative mt-1 flex h-4 justify-between text-micro tabular-nums text-muted-foreground">
+<span class="whitespace-nowrap">Jun 8</span>
+<span class="whitespace-nowrap">Jun 21</span>
+<span class="whitespace-nowrap">Jul 5</span>
 </div>
 </div>
-<span id="_rID_" class="sr-only">Arrow keys step through dates; Home and End jump; Escape clears.</span>
-<details class="min-w-0">
-<summary class="w-fit cursor-pointer rounded-sm text-xs font-medium text-muted-foreground hover:text-foreground max-sm:content-center outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring">View data · 28 days</summary>
-</details>
+</div>
+<span id="_rID_" class="sr-only">Arrow keys step through the days; Home and End jump; Escape clears.</span>
 </figure>
 </div>
 </section>
-<div class="grid items-start gap-3.5 lg:grid-cols-2" data-independent-snapshots="true">
-<section aria-labelledby="overview-financials" data-financial-snapshot="true" class="overflow-hidden rounded-[10px] border border-border bg-card">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pt-3">
-<h2 id="overview-financials" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Money · June 2026</h2>
-<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meadow.example/financials" data-discover="true">View financials</a>
+<div class="grid gap-5 @6xl:grid-cols-12 [&amp;>*]:min-w-0">
+<section aria-labelledby="_rID_" data-source-history="" class="@container flex min-w-0 flex-col gap-3 rounded-xl bg-card p-5 ring-1 ring-border/70 @6xl:col-span-8">
+<header class="flex items-start justify-between gap-4">
+<div class="grid min-w-0 gap-1.5">
+<h2 id="_rID_" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Data sources · last 30 days</h2>
 </div>
-<div data-kpi="Net" data-series="unavailable" data-series-reason="At least three accounting months are needed for a trend." class="relative grid content-start gap-1 bg-card p-4 text-start max-sm:p-3">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground pe-6">Net</span>
-<span class="flex flex-wrap items-baseline justify-between gap-2">
-<span class="text-[28px] font-semibold leading-[1.1] tracking-[-0.02em] tabular-nums text-foreground">+$498.10<span class="ms-1 inline-block text-xs font-medium leading-snug tracking-normal text-muted-foreground"> <span class="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-xs font-medium tabular-nums transition-colors border-transparent bg-card text-muted-foreground ms-1 align-middle">Booked</span>
+<div class="shrink-0">
+<a class="whitespace-nowrap rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring" href="/assets/meadow.example/sources" data-discover="true">Data sources →</a>
+</div>
+</header>
+<span class="text-sm text-muted-foreground">No data source in use yet</span>
+<div id="_rID_-keys" class="flex flex-wrap items-center gap-x-4 gap-y-1 text-micro text-muted-foreground">
+</div>
+</section>
+<div data-alert-current="true" class="@6xl:col-span-4">
+<section aria-label="Open alerts" data-incident-list="" class="flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70">
+<header class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-5 pb-3 pt-4">
+<div class="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+<h2 class="m-0 whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Open alerts</h2>
+<span class="flex flex-wrap items-baseline gap-x-2 text-sm tabular-nums">
+<span class="whitespace-nowrap font-semibold text-error">1 broken</span>
 </span>
+</div>
+<a class="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring" href="/assets/meadow.example/alerts" data-discover="true">All alerts →</a>
+</header>
+<div data-incident-group="open" class="border-t border-border/60">
+<h3 class="m-0 px-5 pb-1 pt-2.5 text-micro font-medium text-muted-foreground">Still open</h3>
+<ul class="m-0 list-none p-0">
+<li data-incident="flag-91" data-state="error" class="viz-arrive @container" style="--viz-i: 0;">
+<a aria-label="Meadow Board · Signups — 22 in last24h (avg7d 39.3) · since 11h ago" class="relative grid grid-cols-[auto_minmax(0,1fr)_auto_auto] items-center gap-x-3 px-5 py-2.5 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" href="/assets/meadow.example/alerts" data-discover="true">
+<span aria-hidden="true" class="absolute inset-y-2 start-0 w-0.5 rounded-full bg-current text-error">
 </span>
-</span>
-<span class="text-xs text-muted-foreground">ads $498.10</span>
-<button type="button" aria-label="About Net" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-circle-alert size-4 shrink-0 text-error" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
 </circle>
-<path d="M12 16v-4">
-</path>
-<path d="M12 8h.01">
-</path>
+<line x1="12" x2="12" y1="8" y2="12">
+</line>
+<line x1="12" x2="12.01" y1="16" y2="16">
+</line>
 </svg>
-</button>
-</div>
-<details class="border-t border-border/60 px-4 py-2">
-<summary class="min-h-11 cursor-pointer py-3 text-xs font-medium">Monthly net history</summary>
-</details>
-</section>
-<div data-alert-current="true">
-<section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Open alerts">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
-<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Open alerts</h2>
-</div>
-<ul class="m-0 flex list-none flex-col gap-0.5 p-2 pt-0">
-<li class="m-0">
-<a class="grid w-full items-center gap-2.5 rounded-md p-2 text-start grid-cols-[auto_minmax(0,1fr)_auto_auto] outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring hover:bg-muted/60 motion-safe:transition-colors" href="/assets/meadow.example/alerts" data-discover="true">
-<span aria-hidden="true" class="grid size-4.5 shrink-0 place-items-center self-start rounded-full border-[1.5px] border-current text-[11px] font-semibold leading-none text-error">!</span>
-<span class="grid min-w-0 gap-0.5">
-<span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">1 error</span>
+<span class="flex min-w-0 flex-col gap-0.5">
+<span class="text-sm font-medium text-foreground" title="Signups — 22 in last24h (avg7d 39.3)">Signups — 22 in last24h (avg7d 39.3)</span>
+<span class="text-micro text-muted-foreground">Meadow Board</span>
 </span>
-<span class="grid justify-items-end gap-0.5 text-end">
-<span class="text-[13px] font-semibold tabular-nums text-foreground">11h</span>
-<span class="text-[10.5px] uppercase tracking-[0.04em] text-muted-foreground">last fired</span>
+<span class="flex w-12 shrink-0 flex-col items-end tabular-nums">
+<span class="text-sm font-semibold text-foreground">11h</span>
 </span>
-<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-chevron-right size-4 text-muted-foreground" aria-hidden="true" data-row-affordance="open">
-<path d="m9 18 6-6-6-6">
-</path>
-</svg>
 </a>
 </li>
 </ul>
+</div>
 </section>
 </div>
 </div>
-<div class="grid gap-3.5 lg:grid-cols-2">
+<div class="grid gap-5 @4xl:grid-cols-2 [&amp;>*]:min-w-0">
 <section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Needs you">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Needs you</h2>
@@ -1382,8 +1492,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground max-sm:wrap-anywhere" data-list-row-body="true">
 <dl class="grid gap-x-6 gap-y-1 sm:grid-cols-2">
 <div class="flex justify-between gap-3">
-<dt class="truncate text-muted-foreground">Average position</dt>
-<dd class="max-w-[16ch] truncate font-medium tabular-nums" title="6.1">6.1</dd>
+<dt class="min-w-0 break-words text-muted-foreground">Average position</dt>
+<dd class="max-w-[16ch] break-words text-end font-medium tabular-nums">6.1</dd>
 </div>
 </dl>
 <span data-recommendation-validity="unverified" class="block whitespace-normal text-xs font-normal normal-case tracking-normal text-muted-foreground tabular-nums">
@@ -1399,7 +1509,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </section>
 </div>
 </div>
-<div class="grid gap-3.5 lg:grid-cols-2">
+<div class="grid gap-5 @3xl:grid-cols-2 [&amp;>*]:min-w-0">
 <section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Bets">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Bets</h2>
@@ -1407,17 +1517,17 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <div class="px-4 pb-4 text-xs text-muted-foreground">Nothing being watched yet</div>
 </section>
-<section aria-label="Search movers" class="flex flex-col rounded-[10px] border border-border bg-card" data-search-movers="true">
+<section aria-label="Search movers" class="@container flex flex-col rounded-[10px] border border-border bg-card" data-search-movers="true">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Search movers</h2>
 <span class="min-w-0 text-xs tabular-nums text-muted-foreground">Jul 3, 2026 – Jul 4, 2026</span>
 <a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meadow.example/search" data-discover="true">Search →</a>
 </div>
-<div class="grid gap-x-6 gap-y-1 px-4 pb-3 sm:grid-cols-2">
+<div class="grid gap-x-6 gap-y-1 px-4 pb-3 @lg:grid-cols-2">
 <ul class="m-0 list-none p-0" data-movers="rising">
 <li class="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Rising</li>
 <li class="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject="query:weekly meal plan">
-<span class="min-w-0 truncate">weekly meal plan</span>
+<span class="min-w-0 break-words">weekly meal plan</span>
 <span class="shrink-0 tabular-nums text-trend-positive">▲ 7.4→6.1</span>
 </li>
 </ul>
@@ -1428,42 +1538,6 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </section>
 </div>
-<section aria-labelledby="product-report">
-<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 mb-2">
-<h2 id="product-report" class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Product use</h2>
-<span class="min-w-0 text-xs tabular-nums text-muted-foreground">Latest reported 24 hours</span>
-<a class="ms-auto text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring max-sm:-my-2.5 max-sm:inline-flex max-sm:items-center motion-safe:transition-colors" href="/assets/meadow.example/growth" data-discover="true">Growth →</a>
-<span class="flex items-center gap-2">
-<button type="button" aria-label="About product reports" aria-expanded="false" data-info-tooltip-trigger="true" class="relative inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">Report 12h ago</button>
-</span>
-</div>
-<div class="grid gap-px overflow-hidden rounded-[10px] border border-border bg-border/60 grid-cols-1">
-<div class="grid content-start gap-1 bg-card p-4">
-<span class="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Signups</span>
-<span class="text-xl font-semibold tabular-nums text-foreground">10<span class="ms-1.5 text-xs font-medium text-muted-foreground">in 24h</span>
-</span>
-<div class="text-xs tabular-nums text-muted-foreground">No earlier reports to compare</div>
-<span class="relative inline-block align-middle text-spark w-full mt-1">
-<svg class="block w-full overflow-visible rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" style="height: 30px;" viewBox="0 0 100 30" preserveAspectRatio="none" role="img" aria-label="Signups trend" tabindex="0" aria-describedby="_rID_-semantics _rID_-instructions">
-<title>Line: reported daily values, not averaged. 2026-07-05 to 2026-07-05.</title>
-<path d="M50 28" fill="none" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="2" data-chart-line="solid">
-</path>
-<g data-chart-dot="solid" data-x="50" data-y="28">
-<path d="M50 28h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-card" stroke-width="8.2">
-</path>
-<path d="M50 28h0" fill="none" stroke-linecap="round" vector-effect="non-scaling-stroke" class="chart-morph stroke-current" stroke-width="5.2">
-</path>
-</g>
-</svg>
-<span id="_rID_-semantics" class="sr-only">Line: reported daily values, not averaged. 2026-07-05 to 2026-07-05.</span>
-<span id="_rID_-instructions" class="sr-only">Arrow keys step through dates; Home and End jump; Escape clears.</span>
-</span>
-</div>
-</div>
-<div class="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground" data-product-history="true">
-<span>Daily counts · Jul 5, 2026</span>
-</div>
-</section>
 <details data-all-findings="true" class="group text-xs text-muted-foreground">
 <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 outline-none hover:text-foreground max-sm:min-h-11 focus-visible:ring-2 focus-visible:ring-ring [&amp;::-webkit-details-marker]:hidden">
 <span aria-hidden="true" class="group-open:rotate-90 motion-safe:transition-transform">›</span>All findings · 1</summary>

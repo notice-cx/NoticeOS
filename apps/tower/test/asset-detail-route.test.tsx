@@ -797,11 +797,11 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     };
     stubFetch(200, data);
     const { container, findByText } = renderPath("/assets/meadow.example?range=7");
-    await findByText("Avg. daily users");
-    const users = container.querySelector('[data-kpi="Avg. daily users"]');
+    await findByText("Visitors a day, 7 days");
+    const users = container.querySelector('[data-stat="Visitors a day, 7 days"]');
     expect(users).toHaveTextContent("120");
     expect(users).toHaveTextContent("20%");
-    expect(container.querySelector("[data-hero-chart]")).not.toBeNull();
+    expect(container.querySelector("[data-overview-chart]")).not.toBeNull();
   });
 
   it("names unavailable comparisons and keeps a first report neutral in the real header", async () => {
@@ -810,12 +810,14 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     data.performance.activeUsers = { ...emptyTrend(), series: [{ t: "2026-07-14", v: 12 }] };
     stubFetch(200, data);
     const { container, findByText } = renderPath("/assets/meadow.example?range=7");
-    await findByText("Avg. daily users");
+    await findByText("Visitors a day, 7 days");
     const report = materialAsset(container, "signal-freshness");
     expect(report).toHaveTextContent("No report");
     expect(report.querySelector("svg")).not.toBeNull();
     expect(report.querySelector(".lucide-check")).toBeNull();
-    expect(container.querySelector('[data-kpi="Avg. daily users"]')).toHaveTextContent("No previous period");
+    // One reported day is a named absence, never a figure or a change.
+    expect(container.querySelector('[data-stat="Visitors a day, 7 days"]')).toHaveTextContent("too few days yet");
+    expect(container.querySelector('[data-stat="Visitors a day, 7 days"] [data-tone]')).toBeNull();
     expect(report).not.toHaveTextContent("Healthy");
   });
 
@@ -962,12 +964,12 @@ describe("AssetDetailRoute — executive page identity", () => {
     const { container, findByText } = renderRoute("meadow.example");
 
     const findings = await findByText("What matters");
-    const strip = container.querySelector("[data-kpi-strip]")!;
+    const numbers = container.querySelector("[data-overview-numbers]")!;
 
     expect(
-      strip.compareDocumentPosition(findings) & Node.DOCUMENT_POSITION_FOLLOWING,
+      numbers.compareDocumentPosition(findings) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    expect(container.querySelector("[data-hero-chart]")).not.toBeNull();
+    expect(container.querySelector("[data-overview-chart]")).not.toBeNull();
     expect(container.querySelector('section[aria-label="Needs you"]')).not.toBeNull();
     expect(container.textContent).not.toContain("Where is growth moving?");
     expect(container.textContent).not.toContain("Can I trust the inputs?");
@@ -6013,7 +6015,7 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
     stubFetch(200, twoProviders());
     const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
-    expect(figure(overview.container, '[data-kpi="Search clicks"]')).toContain(
+    expect(figure(overview.container, '[data-stat="Search clicks, 7 days"]')).toContain(
       "1,001",
     );
     overview.unmount();
@@ -6028,20 +6030,17 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
     );
   });
 
-  it("prints the same impressions, in the same compact form, on both", async () => {
+  it("states impressions on Growth alone, so the Overview cannot disagree about them", async () => {
     stubFetch(200, twoProviders());
     const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
-    const strip = figure(overview.container, '[data-kpi="Impressions"]');
+    expect(overview.container.querySelector("[data-overview-numbers]")).not.toHaveTextContent(/impressions/i);
     overview.unmount();
 
     const growth = renderPath("/assets/meadow.example/growth?range=7");
     await growth.findByText("Audience");
-    const pair = figure(growth.container, '[data-growth-chart="Impressions"]');
-
-    // 9,100 + 910 = 10,010 -> "10K" on both; the format is part of the claim.
-    expect(strip).toContain("10K");
-    expect(pair).toContain("10K");
+    // 9,100 + 910 = 10,010 -> "10K"; the format is part of the claim.
+    expect(figure(growth.container, '[data-growth-chart="Impressions"]')).toContain("10K");
   });
 
   it("states a metric with fewer than three complete days as a dash on both", async () => {
@@ -6063,7 +6062,7 @@ describe("AssetDetailRoute — the Overview and Growth agree about a number", ()
 
     const overview = renderPath("/assets/meadow.example?range=7");
     await overview.findByText("What matters");
-    expect(figure(overview.container, '[data-kpi="Search clicks"]')).toContain("—");
+    expect(figure(overview.container, '[data-stat="Search clicks, 7 days"]')).toContain("too few days yet");
     overview.unmount();
 
     const growth = renderPath("/assets/meadow.example/growth?range=7");
@@ -6366,14 +6365,14 @@ describe("Growth headline and chart date scopes", () => {
     expect(rows).toHaveLength(range);
     expect(rows[0]!.querySelector("time")).toHaveAttribute("datetime", day(1 - range));
     expect(rows.at(-1)!.querySelector("time")).toHaveAttribute("datetime", day(0));
-    expect(within(rows.at(-1)!).getAllByRole("cell")[0]).toHaveTextContent(/^999 · Provisional$/);
+    expect(within(rows.at(-1)!).getAllByRole("cell")[0]).toHaveTextContent(/^999 · still counting$/);
     expect(within(rows.at(-1)!).getAllByRole("cell")[1]).toHaveTextContent(/^Not reported$/);
     const gap = table.querySelector(`time[datetime="${day(-3)}"]`)!.closest("tr")!;
     expect(within(gap).getAllByRole("cell").slice(0, 2).map((cell) => cell.textContent)).toEqual(["Not reported", "Not reported"]);
 
     fireEvent.click(view.getByRole("tab", { name: "Overview" }));
     await view.findByText("What matters");
-    expect(view.container.querySelector('[data-kpi="Search clicks"]')).toHaveTextContent(total);
+    expect(view.container.querySelector(`[data-stat="Search clicks, ${range} days"]`)).toHaveTextContent(total);
   });
 
   it("updates both visible date scopes when the traffic range changes", async () => {
@@ -6413,7 +6412,7 @@ describe("Growth headline and chart date scopes", () => {
     expect(chart.querySelector("[data-growth-headline-period]")).not.toHaveAttribute("data-window-end");
     expect(within(chart).getByText("Chart · Aug 30–Sep 5, 2026")).toBeVisible();
     fireEvent.click(within(chart).getByText("View data · 7 days"));
-    expect(await within(chart).findByRole("table")).toHaveTextContent("999 · Provisional");
+    expect(await within(chart).findByRole("table")).toHaveTextContent("999 · still counting");
   });
 
   it("names sparse completed coverage without bypassing the three-report floor", async () => {
@@ -6556,9 +6555,9 @@ describe("Growth provider annotations on the current chart", () => {
     const table = await within(element).findByRole("table");
     const row = table.querySelector('time[datetime="2026-07-28"]')!.closest("tr")!;
     const cells = within(row).getAllByRole("cell");
-    expect(cells[0]).toHaveTextContent("Provisional");
+    expect(cells[0]).toHaveTextContent("still counting");
     expect(cells[0]).not.toHaveTextContent("7-day avg");
-    expect(cells[1]).not.toHaveTextContent("Provisional");
+    expect(cells[1]).not.toHaveTextContent("still counting");
     expect(cells[1]).toHaveTextContent("7-day avg: 100");
   });
 });

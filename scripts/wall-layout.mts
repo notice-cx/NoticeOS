@@ -58,8 +58,9 @@ export const WALL_WIDTH_STEP: number = 0.05;
 export const WALL_TV_WIDTH: number = 1920;
 export const WALL_TV_HEIGHT: number = 1080;
 
-/** The Wall's widgets, in reading order. */
-export const WALL_WIDGET_TYPES = ['strip', 'revenue', 'needs', 'sites', 'feed'] as const;
+/** The Wall's widgets: the default's in its reading order, then the ones an
+ * operator may add. */
+export const WALL_WIDGET_TYPES = ['strip', 'loop', 'timeline', 'sites', 'revenue', 'work', 'needs', 'feed'] as const;
 
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 
@@ -109,9 +110,10 @@ export interface WallWidgetSpec {
   prefersFill: boolean;
   /**
    * Its place in the one column the Wall becomes on a portrait tablet or a
-   * phone: the strip, revenue, the site rows, Needs you, the feed. The sites
-   * come before Needs you and the feed because their numbers are what
-   * changes. By type, so any saved layout reads the same.
+   * phone: the strip, revenue, the site rows, then what is broken (the last
+   * 24 hours, Needs you), the work, the feed and the loop last. The sites come
+   * before the problems because their numbers are what changes. By type, so
+   * any saved layout reads the same.
    */
   stackOrder: number;
   /** Renders nothing — and yields its track — when it has nothing to show: an
@@ -135,8 +137,9 @@ export interface WallWidget {
 
 /**
  * A slot that stacks rows of widgets inside a row, so one widget can run the
- * full height beside several (the live feed beside the revenue band and the
- * site rows). It sits in its row's `widgets` like a widget and takes a width
+ * full height beside several, or two stacks stand side by side (the last 24
+ * hours over the site rows beside revenue over the work). It sits in its row's
+ * `widgets` like a widget and takes a width
  * like one. One level deep: a column holds rows of widgets and never another
  * column — the types say so and the validator refuses it.
  */
@@ -227,6 +230,21 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     settings: [],
     configuredAt: '/countdown',
   },
+  // Sense, Attribute, Decide, Act, Learn across the TV, each with its live
+  // count, so the room sees where the business is in its own cycle.
+  loop: {
+    type: 'loop',
+    label: 'The loop',
+    shows: ['Sense to Learn', 'Live counts'],
+    defaultWidth: 1,
+    minWidthRem: 0,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: false,
+    stackOrder: 8,
+    hidesWhenEmpty: false,
+    settings: [],
+  },
   revenue: {
     type: 'revenue',
     label: 'Revenue',
@@ -240,6 +258,34 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     hidesWhenEmpty: false,
     settings: [],
   },
+  // Every open problem as a bar from its onset to now, and what happened as
+  // marks, on one 24-hour axis: the Wall's account of what is broken.
+  timeline: {
+    type: 'timeline',
+    label: 'Last 24 hours',
+    shows: ['Problems as they ran', 'What happened when'],
+    defaultWidth: 1,
+    minWidthRem: 0,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: false,
+    stackOrder: 4,
+    hidesWhenEmpty: false,
+    settings: ['assets'],
+  },
+  work: {
+    type: 'work',
+    label: 'Work',
+    shows: ['Waiting on you', 'In progress', 'Done this week', 'Blocked'],
+    defaultWidth: 1,
+    minWidthRem: 0,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: true,
+    stackOrder: 6,
+    hidesWhenEmpty: false,
+    settings: ['assets'],
+  },
   needs: {
     type: 'needs',
     label: 'Needs you',
@@ -249,7 +295,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: null,
     unique: true,
     prefersFill: false,
-    stackOrder: 4,
+    stackOrder: 5,
     hidesWhenEmpty: false,
     settings: ['assets'],
   },
@@ -267,10 +313,8 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     settings: ['assets', 'pulseMetrics'],
   },
   // The live feed: what just happened, newest on top, from its own 30-second
-  // read. Never hides — an empty window says so. Its weight is the one it has
-  // beside the default's column, so taking it off and adding it back puts
-  // back the same Wall; its track is that share of the row between 21 rem and
-  // 30 rem.
+  // read. Never hides — an empty window says so. Its track is its share of
+  // the row between 21 rem and 30 rem.
   feed: {
     type: 'feed',
     label: 'Live feed',
@@ -280,7 +324,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     maxWidthRem: 30,
     unique: true,
     prefersFill: true,
-    stackOrder: 5,
+    stackOrder: 7,
     hidesWhenEmpty: false,
     settings: [],
   },
@@ -323,9 +367,12 @@ export function wallLayoutWidgets(layout: WallLayout): WallWidget[] {
 }
 
 /**
- * The default Wall: the strip on top; below it a column — revenue beside
- * Needs you, then the site rows taking the rest — beside the live feed, which
- * runs the body's full height.
+ * The default Wall: the strip, then the loop across the TV; below them two
+ * columns — the last 24 hours over the site rows, beside revenue over the
+ * work. Revenue's band sits beside the sites rather than over them because
+ * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
+ * way (`pnpm audit:wall-fit`). Needs you and the live feed stay in the library
+ * for a Wall that wants them.
  */
 export const DEFAULT_WALL_LAYOUT: WallLayout = {
   version: WALL_LAYOUT_VERSION,
@@ -336,21 +383,23 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
       widgets: [{ id: 'strip', type: 'strip', width: 1 }],
     },
     {
+      id: 'loop',
+      height: 'auto',
+      widgets: [{ id: 'loop', type: 'loop', width: 1 }],
+    },
+    {
       id: 'body',
       height: 'fill',
       widgets: [
         {
           id: 'business',
           type: 'column',
-          width: 3.1,
+          width: 1.4,
           rows: [
             {
-              id: 'money',
+              id: 'timeline',
               height: 'auto',
-              widgets: [
-                { id: 'revenue', type: 'revenue', width: 1.55 },
-                { id: 'needs', type: 'needs', width: 1 },
-              ],
+              widgets: [{ id: 'timeline', type: 'timeline', width: 1 }],
             },
             {
               id: 'sites',
@@ -359,7 +408,23 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
             },
           ],
         },
-        { id: 'feed', type: 'feed', width: 1 },
+        {
+          id: 'side',
+          type: 'column',
+          width: 1,
+          rows: [
+            {
+              id: 'money',
+              height: 'auto',
+              widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }],
+            },
+            {
+              id: 'work',
+              height: 'fill',
+              widgets: [{ id: 'work', type: 'work', width: 1 }],
+            },
+          ],
+        },
       ],
     },
   ],
@@ -633,7 +698,7 @@ export function wallLayoutWarnings(layout: WallLayout): string[] {
     }
   }
   if (!present.has('sites')) warnings.push('No sites on the TV');
-  if (!present.has('needs')) warnings.push('No alerts on the TV');
+  if (!present.has('timeline') && !present.has('needs')) warnings.push('No alerts on the TV');
   return warnings;
 }
 

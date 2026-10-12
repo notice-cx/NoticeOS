@@ -3,10 +3,9 @@ import type {
   AttentionItem,
   FlagKind,
   Severity,
-  SnoozedItem,
   WallPayload,
 } from "@shared/wall";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   ALERT_HISTORY_MAX_LIMIT,
   type AlertHistoryPageRefusal,
@@ -14,46 +13,28 @@ import {
   type AlertHistoryQuery,
   parseAlertHistoryQuery,
 } from "@shared/alert-history";
-import { translateAlert } from "@shared/alert-language";
-import { siteAddress } from "@shared/first-run";
 import { ageMs, formatAge } from "@shared/freshness";
-import {
-  ALERT_EVIDENCE_QUESTION,
-  AlertList,
-  AlertRow,
-  Recurrence,
-  alertPopoverEvidence,
-} from "@/components/AlertRow";
-import { AlertVerification } from "@/components/AlertVerification";
-import { alertTaskHandoff, isGrouped, memberNames } from "@/lib/attention";
-import { ChangeChip } from "@/components/ChangeChip";
-import { Drill } from "@/components/Drill";
+import { AlertList, AlertRow } from "@/components/AlertRow";
 import { EmptyState } from "@/components/EmptyState";
-import { EvidencePopover } from "@/components/EvidencePopover";
-import { FlagActions } from "@/components/FlagActions";
-import { HandoffBeadBadge } from "@/components/HandoffBeadBadge";
 import { PageHeader } from "@/components/PageHeader";
 import { alertsLine } from "@/lib/alerts-line";
 import { SeverityDot } from "@/components/SeverityDot";
 import { FinishLine, readingAge } from "@/components/surface/FinishLine";
 import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { ReadFailed } from "@/components/ReadFailed";
-import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { FilterBar } from "@/components/surface/FilterBar";
-import { ListPanel, ListRow } from "@/components/surface/ListPanel";
-import { FileTaskButton } from "@/components/TaskComposer";
 import { TabPanel, Tabs, type TabSpec } from "@/components/Tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { useAlertHistory } from "@/hooks/useAlertHistory";
 import { useNow } from "@/hooks/useNow";
-import { useSitePath } from "@/hooks/useSitePath";
 import { useWall } from "@/hooks/useWall";
 import { AlertHistoryPageError } from "@/lib/api";
 import { formatInt } from "@/lib/format";
-import { taskHandoffPrefill } from "@/lib/task-handoff";
+import { AlertBoard } from "@/routes/alerts/AlertBoard";
+import { AlertWeek } from "@/routes/alerts/AlertWeek";
+import { SnoozedAlerts } from "@/routes/alerts/SnoozedAlerts";
 
 const SEVERITIES: { value: Severity | "all"; label: string }[] = [
   { value: "all", label: "Any severity" },
@@ -132,11 +113,25 @@ function carriedFilters(params: URLSearchParams, to: AlertTab): string {
   return carried.toString();
 }
 
+/** Every filter Open honours, its kind included, for a link that lands on Open. */
+function openFilters(params: URLSearchParams): string {
+  const query = new URLSearchParams(carriedFilters(params, "open"));
+  const kind = offeredKind(params);
+  if (kind !== "all") query.set("kind", kind);
+  return query.toString();
+}
+
+/** The row a link names: `#alert-9001` opens that row and brings it into view. */
+function focusedAlert(hash: string): number | null {
+  const match = /^#alert-(\d+)$/.exec(hash);
+  return match ? Number(match[1]) : null;
+}
+
 /**
- * /alerts: the portfolio's alerts, open and settled. The strip is the
- * portfolio's, not the filtered view's. The tab and the filters live in the
- * URL; `Tabs` matches the active tab on the path, so a tab link can carry the
- * filters already set.
+ * /alerts: the portfolio's alerts, open and settled. The answer and the week
+ * drawn under it are the portfolio's, not the filtered view's. The tab and
+ * the filters live in the URL; `Tabs` matches the active tab on the path, so
+ * a tab link can carry the filters already set.
  */
 export function AlertsRoute() {
   const { tab: tabParam } = useParams();
@@ -144,11 +139,12 @@ export function AlertsRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const now = useNow();
   const navigate = useNavigate();
+  const { hash } = useLocation();
   const [params] = useSearchParams();
-  // The strip's settled figures: one page, the biggest this archive will hand
-  // over, ordered by when each row closed, so a week's settlements are exact
-  // whenever fewer than a hundred rows have closed since, and the KPI says so
-  // when they have not.
+  // The answer's settled figures and the week's closed bars: one page, the
+  // biggest this archive will hand over, ordered by when each row closed, so a
+  // week's settlements are exact whenever fewer than a hundred rows have closed
+  // since, and the figure says so when they have not.
   const settled = useAlertHistory(STRIP_HISTORY_QUERY);
 
   // `Tabs` matches on the path, so `/alerts/nonsense` would render Open with no
@@ -174,9 +170,18 @@ export function AlertsRoute() {
     };
   });
 
+  // A bar opens its row on Open, keeping the narrowing on screen when the
+  // row survives it and dropping it when it would hide the row.
+  const shown = new Set(data ? filterOpen(data.attention, params).map((item) => item.id) : []);
+  const openQuery = openFilters(params);
+  const openHref = (item: AttentionItem) => {
+    const query = shown.has(item.id) ? openQuery : "";
+    return `${tabPath("open")}${query ? `?${query}` : ""}#alert-${item.id}`;
+  };
+
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
-      {/* No description: the word Alerts over a strip saying how bad tonight is. */}
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+      {/* No description: the word Alerts over a sentence saying how bad tonight is. */}
       <PageHeader title="Alerts" />
 
       {!data ? (
@@ -187,10 +192,11 @@ export function AlertsRoute() {
         )
       ) : (
         <>
-          {/* One answer first: how many are open and how bad, in a sentence,
-              with the oldest and the week's settled count beside it. It sits
-              above the tabs because it is true of both. */}
+          {/* One answer first, then the same answer drawn: how many are open
+              and how bad, then the week on one axis. Both sit above the tabs
+              because they are true of both. */}
           <AlertsAnswer items={data.attention} settled={settled.data} settledFailed={settled.isError} nowMs={now} />
+          <AlertWeek open={data.attention} settled={settled.data?.rows ?? []} assets={data.assets} nowMs={now} openHref={openHref} />
 
           <Tabs
             label="Alert views"
@@ -203,7 +209,7 @@ export function AlertsRoute() {
             {tab === "history" ? (
               <HistoryView assets={data.assets} nowMs={now} />
             ) : (
-              <OpenView data={data} nowMs={now} />
+              <OpenView data={data} nowMs={now} focusId={focusedAlert(hash)} />
             )}
           </TabPanel>
           {/* No About panel: each fact is shown where it applies. */}
@@ -308,7 +314,7 @@ function useFilterWriter(): (name: string, value: string, resets?: string[]) => 
 }
 
 // --- Open -------------------------------------------------------------------
-function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
+function OpenView({ data, nowMs, focusId }: { data: WallPayload; nowMs: number; focusId: number | null }) {
   const [params] = useSearchParams();
   const setFilter = useFilterWriter();
 
@@ -385,28 +391,7 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
       </FilterBar>
 
       {filtered.length > 0 ? (
-        <ListPanel
-          title="Open"
-          // The strip owns the total; this says what is on screen only when a
-          // filter has made the two differ.
-          count={
-            filtering
-              ? `${filtered.length} of ${data.attention.length} open`
-              : undefined
-          }
-          // Every matching row, always. A queue that hid its tail behind "Show
-          // 9 more" would be a triage page keeping work out of sight, which is
-          // the one thing an alerts list may not do.
-          limit={filtered.length}
-        >
-          {filtered.map((item) =>
-            isGrouped(item) ? (
-              <GroupedAlertRow key={item.id} item={item} nowMs={nowMs} />
-            ) : (
-              <OpenAlertRow key={item.id} item={item} nowMs={nowMs} />
-            ),
-          )}
-        </ListPanel>
+        <AlertBoard items={filtered} total={data.attention.length} filtering={filtering} nowMs={nowMs} focusId={focusId} />
       ) : null}
       {/* A list the eye can finish: every open alert is above. */}
       {filtered.length > 0 && !filtering ? (
@@ -425,225 +410,6 @@ function OpenView({ data, nowMs }: { data: WallPayload; nowMs: number }) {
 
       <SnoozedAlerts items={data.snoozed} nowMs={nowMs} />
     </>
-  );
-}
-
-/** Which asset, on a surface that holds several: the favicon that asset's own
- * page wears in its heading. Not a link: the whole row opens. */
-function AssetTag({ id, displayName }: { id: string; displayName: string }) {
-  return (
-    // One line of one type: a muted prefix at the line's own size, with the
-    // separator doing the work a heavier weight would.
-    <>
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-muted-foreground">
-        <PropertyFavicon domain={id} displayName={displayName} className="size-4" />
-        {displayName}
-      </span>
-      <span aria-hidden className="text-muted-foreground">
-        {" · "}
-      </span>
-    </>
-  );
-}
-
-/**
- * One open alert, one line, its verbs inside the opened row. The age is the
- * recorded first-seen time, not tonight's re-reading; it does not prove the
- * condition stayed true between observations.
- */
-function OpenAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
-  const alert = translateAlert(item);
-  const openSite = useSitePath();
-  return (
-    <ListRow
-      tone={item.severity}
-      // The mark for a finding: the ring says how bad, the triangle says what
-      // kind, so an alert never reads as an unfinished task.
-      glyph="△"
-      // Not a flex row: `ListRow` truncates a closed row's title with `nowrap`,
-      // and a flex child inside that cannot break, so a long headline would run
-      // off the edge of a phone with no ellipsis. Inline content lets the
-      // ellipsis do its job, and an open row wraps the whole line.
-      title={
-        <>
-          <AssetTag id={item.asset} displayName={item.assetDisplayName} />
-          {alert.headline} <Recurrence item={item} nowMs={nowMs} />
-        </>
-      }
-      // The hint or nothing. The kind is a filter and a fact of the expanded
-      // row; printed as a caption it is one muted word under every line that
-      // says less than the headline above it already did.
-      caption={<>
-        <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
-        {alert.hint ? ` · ${alert.hint}` : null}
-      </>}
-      value={formatAge(ageMs(nowMs, item.firstFiredAt))}
-      valueLabel="first seen"
-      // Verbs in the row: Snooze and Resolve take an alert out of the queue
-      // without opening it first; Mark read, Tune, a task and the site are in
-      // the opened row, after the evidence.
-      rowActions={<FlagActions flagId={item.id} assetId={item.asset} only={["snooze", "resolve"]} />}
-      actions={
-        <>
-          {item.handoffBeads?.map((bead) => <HandoffBeadBadge key={bead.beadId} bead={bead} />)}
-          <FlagActions
-            flagId={item.id}
-            assetId={item.asset}
-            ruleId={item.ruleId}
-            metric={item.metric}
-            only={["acknowledge", "tune"]}
-          />
-          {/* Mark read and Resolve say what the operator did with the ALERT;
-              this says what they are doing about the CONDITION. Two different
-              questions, which is why filing does not touch the flag's own
-              lifecycle: a task exists and the alert stays open until the
-              condition clears. */}
-          <FileTaskButton
-            prefill={taskHandoffPrefill(alertTaskHandoff(item))}
-            subject={alert.headline}
-            variant="outline"
-          />
-          <Button asChild size="sm" variant="outline">
-            <Link to={openSite(item.asset)}>Open {item.assetDisplayName}</Link>
-          </Button>
-        </>
-      }
-    >
-      {/* One line of chips: the Evidence panel holds the rule's numbers, the
-          checks behind the caption's verification, the stored message and the
-          rule id. The caption already says Confirmed or Last known, so the
-          opened row does not say it a second time. */}
-      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <EvidencePopover
-          evidence={alertPopoverEvidence(alert, item, nowMs)}
-          question={ALERT_EVIDENCE_QUESTION}
-          contextLabel={item.ruleId}
-          nowMs={nowMs}
-          triggerLabel="Evidence"
-        />
-        <ChangeChip
-          changes={item.correlatedChanges}
-          firedAt={item.firedAt}
-          to={siteAddress(item.asset, "#timeline")}
-          interactive
-        />
-      </span>
-    </ListRow>
-  );
-}
-
-/**
- * One row for one fact, still actionable per asset. Four assets that have
- * never reported are one condition, not four events, so the row states it
- * once and the members are behind its disclosure, each with its own link, age
- * and Mark read / Resolve. No recurrence chip, because `occurrences` here
- * counts assets; no File task, because there is no single firing for a task
- * to name. The age is the oldest member's recorded first-seen time.
- */
-function GroupedAlertRow({ item, nowMs }: { item: AttentionItem; nowMs: number }) {
-  const alert = translateAlert(item);
-  const openSite = useSitePath();
-  const members = item.members ?? [];
-  return (
-    <ListRow
-      tone={item.severity}
-      glyph="△"
-      // No asset tag: a grouped row HAS no single asset, and printing the
-      // representative's name would attribute the portfolio's fact to one of
-      // its four members.
-      title={<span title={memberNames(item)}>{alert.headline}</span>}
-      caption={<>
-        <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
-        {` · ${alert.hint ?? memberNames(item) ?? "Grouped assets"}`}
-      </>}
-      value={formatAge(ageMs(nowMs, item.firstFiredAt))}
-      valueLabel="first seen"
-    >
-      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <EvidencePopover
-          evidence={alertPopoverEvidence(alert, item, nowMs)}
-          question={ALERT_EVIDENCE_QUESTION}
-          contextLabel={item.ruleId}
-          nowMs={nowMs}
-          triggerLabel="Evidence"
-        />
-      </span>
-      <span className="flex flex-col gap-1.5" data-attention-group={item.ruleId}>
-        {members.map((member) => (
-          <span
-            key={member.id}
-            className="flex flex-wrap items-center gap-x-2 gap-y-1"
-            data-attention-group-member={member.asset}
-          >
-            <Drill interactive to={openSite(member.asset)} className="font-medium">
-              {member.assetDisplayName}
-            </Drill>
-            <span className="tabular-nums text-muted-foreground">
-              First seen {formatAge(ageMs(nowMs, member.firedAt))} ago
-            </span>
-            <AlertVerification verification={member.verification} firstDetectedAt={member.firedAt} nowMs={nowMs} />
-            <FlagActions flagId={member.id} assetId={member.asset} />
-          </span>
-        ))}
-      </span>
-    </ListRow>
-  );
-}
-
-/**
- * What the operator put off, and until when: a snooze with no visible row
- * would be a mute. It belongs to Open (deferred, not settled), ignores the
- * filters above so a dropdown cannot hide a parked row, and lists info and
- * milestone rows too, because Snooze is offered on every open row.
- */
-function SnoozedAlerts({ items, nowMs }: { items: SnoozedItem[]; nowMs: number }) {
-  if (items.length === 0) return null;
-  return (
-    <div data-snoozed-alerts>
-      <ListPanel
-        title="Snoozed"
-        count={`${items.length} parked`}
-        limit={items.length}
-      >
-        {items.map((item) => (
-          <ListRow
-            key={item.id}
-            // A parked row is not asking for anything, so it wears the muted
-            // mark whatever its severity — the ledger's job is to be findable,
-            // not loud. What it WAS is in the expansion with the way back.
-            tone="info"
-            glyph="◦"
-            title={
-              <>
-                <AssetTag id={item.asset} displayName={item.assetDisplayName} />
-                {translateAlert(item).headline}
-              </>
-            }
-            caption={<>
-              <AlertVerification verification={item.verification} firstDetectedAt={item.firstFiredAt} nowMs={nowMs} interactive={false} />
-              {" · "}<SnoozeUntil until={item.snoozeUntil} nowMs={nowMs} />
-            </>}
-            value={formatAge(ageMs(nowMs, item.firstFiredAt))}
-            valueLabel="first seen"
-            actions={<FlagActions flagId={item.id} assetId={item.asset} snoozed />}
-          >
-            <span
-              className="flex flex-wrap items-center gap-x-2 gap-y-1"
-              data-flag-severity={item.severity}
-              data-visual-state="snoozed"
-            >
-              <EvidencePopover
-                evidence={alertPopoverEvidence(translateAlert(item), item, nowMs)}
-                question={ALERT_EVIDENCE_QUESTION}
-                contextLabel={item.ruleId}
-                nowMs={nowMs}
-                triggerLabel="Evidence"
-              />
-            </span>
-          </ListRow>
-        ))}
-      </ListPanel>
-    </div>
   );
 }
 
@@ -755,18 +521,21 @@ function HistoryView({
         )
       ) : (
         <>
-          <AlertList label="Settled alerts">
-            {data.rows.map((row) => (
-              <AlertRow
-                key={row.flag.id}
-                flag={row.flag}
-                asset={row.asset}
-                assetId={row.asset.id}
-                nowMs={nowMs}
-                history
-              />
-            ))}
-          </AlertList>
+          {/* The archive is one group, so one panel, like the board on Open. */}
+          <div className="rounded-xl bg-card p-2 ring-1 ring-border/70">
+            <AlertList label="Settled alerts">
+              {data.rows.map((row) => (
+                <AlertRow
+                  key={row.flag.id}
+                  flag={row.flag}
+                  asset={row.asset}
+                  assetId={row.asset.id}
+                  nowMs={nowMs}
+                  history
+                />
+              ))}
+            </AlertList>
+          </div>
           <Pager
             query={query}
             hasMore={data.hasMore}

@@ -16,9 +16,10 @@ vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
 /**
  * The DOM pin in `asset-detail-tabs.test.tsx` records what this tab renders;
- * these are the rules: the strip drives the chart, the range re-derives every
- * number under it, the prose is behind the one disclosure, and the banner is
- * there only while the setup is open.
+ * these are the rules: the figures drive the chart, the range re-derives every
+ * number that follows it, a problem is drawn once where it lives, the prose is
+ * behind the one disclosure, and the banner is there only while the setup is
+ * open.
  */
 vi.hoisted(() => {
   process.env.TZ = "UTC";
@@ -163,6 +164,13 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
         avg7d: 122,
         total: 4233,
         series: days(30, (index) => 20 + index),
+      },
+      {
+        name: "plansSaved",
+        last24h: 31,
+        avg7d: 30,
+        total: 1907,
+        series: days(30, () => 30),
       },
     ],
     flags: { open: [], notCurrent: [], snoozed: [], history: [], openError: 0, openWarn: 0 },
@@ -311,14 +319,6 @@ function renderOverview() {
   );
 }
 
-/** One KPI cell, by the label printed on it. */
-function kpi(container: HTMLElement, label: string): HTMLElement {
-  const cell = [...container.querySelectorAll<HTMLElement>("[data-kpi]")].find((one) =>
-    one.textContent?.startsWith(label),
-  );
-  if (!cell) throw new Error(`no KPI labelled ${label}`);
-  return cell;
-}
 
 beforeAll(loadAssetTabs);
 
@@ -334,107 +334,396 @@ afterEach(() => {
   resetTaskSourceMock();
 });
 
-describe("Asset Overview — the strip drives the chart", () => {
-  it("Growth displays Google rates from matching impressions rather than daily averages", async () => {
-    const body = payload();
-    body.performance.webSearchClicks.google = trend(days(3, (i) => [1, 10, 1][i]!), null);
-    body.performance.webSearchImpressions.google = trend(days(3, (i) => [1, 1000, 1][i]!), null);
-    body.performance.searchCtr = trend(days(3, () => .99), null);
-    body.performance.searchPosition = trend(days(3, (i) => [1, 10, 1][i]!), null);
-    stubJsonFetch(body);
+/** One figure in the hero row, by the measure it states. */
+function measure(container: HTMLElement, key: string): HTMLElement {
+  const node = container.querySelector<HTMLElement>(`[data-overview-numbers] [data-measure="${key}"]`);
+  if (!node) throw new Error(`no ${key} figure`);
+  return node;
+}
+
+/** The figure itself, or its named absence. */
+function figureOf(node: HTMLElement): string {
+  return (node.querySelector("[data-stat-figure]") ?? node.querySelector("[data-stat-absent]"))?.textContent ?? "";
+}
+
+function chartOf(container: HTMLElement): HTMLElement {
+  const chart = container.querySelector<HTMLElement>("[data-overview-chart]");
+  if (!chart) throw new Error("no chart");
+  return chart;
+}
+
+/** A warning the signups rule raised, on the given onset. */
+function signupsAlert(firstFiredAt: string) {
+  return {
+    ...everyTabPayload().flags.open[0]!,
+    id: 71,
+    severity: "warn" as const,
+    metric: "signups",
+    ruleId: "flow-poisson-low",
+    ruleInputs: { metric: "signups", observed: 12, baselinePerDay: 40, alpha: 0.01 },
+    firedAt: firstFiredAt,
+    firstFiredAt,
+  };
+}
+
+/** The same site with no Analytics, Search Console or Bing series at all. */
+function noTraffic(): AssetDetailPayload {
+  const body = payload();
+  const none = { google: emptyTrend(), bing: emptyTrend() };
+  body.performance = { ...body.performance, activeUsers: emptyTrend(), sessions: emptyTrend(),
+    webSearchClicks: none, webSearchImpressions: none };
+  return body;
+}
+
+/** Thirty days of ad revenue estimates ending on the fixture's last day,
+ * $5.00 a day. */
+function revenue() {
+  const revenueDays = Array.from({ length: 30 }, (_, index) => ({ date: shiftLabel(LAST_DAY, index - 29), amountMinor: 500 }));
+  return { from: shiftLabel(LAST_DAY, -89), to: LAST_DAY, days: revenueDays, reportedThrough: LAST_DAY };
+}
+
+describe("Asset Overview — the site's numbers over one chart", () => {
+  it("leads with money, then people, search and the product figure, each naming its window and its role", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    fireEvent.click(screen.getByRole("tab", { name: "Growth" }));
-    const strip = container.querySelector("#also-collected")!;
-    expect(strip.textContent).toContain("Click rate1.2%");
-    expect(strip.textContent).toContain("Average position10.0");
-    expect(strip.textContent).not.toContain("99.0%");
+    const numbers = container.querySelector<HTMLElement>("[data-overview-numbers]")!;
+    const stats = [...numbers.querySelectorAll<HTMLElement>("[data-stat]")];
+    expect(stats.map((one) => one.getAttribute("data-stat"))).toEqual([
+      "Net, July", "Visitors a day, 28 days", "Search clicks, 28 days", "Signups, latest report",
+    ]);
+    expect(stats.map((one) => one.getAttribute("data-stat-role"))).toEqual(["money", "people", "people", "context"]);
+    // Every figure carries its recent days, at stat scale.
+    for (const key of ["people", "search", "product"]) expect(measure(container, key).querySelector("[data-bar-strip]")).not.toBeNull();
   });
 
-  it("never reconstructs a daily alert trend from current records", async () => {
+  it("states people as a daily mean and search clicks as Google and Bing added", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    const alerts = container.querySelector<HTMLElement>("[data-alert-current]")!;
-    expect(alerts.textContent).toContain("None open");
-    expect(alerts.querySelector("[data-spark]")).toBeNull();
-    expect(alerts.querySelector("[data-hero-chart]")).toBeNull();
-    expect(alerts.querySelector("[data-info-tooltip-trigger]")).toBeNull();
-    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meadow.example/alerts");
+    // A person who visits on two days is one person: 28 complete days rising
+    // by two average 91, never a sum.
+    expect(figureOf(measure(container, "people"))).toBe("91");
+    // Clicks are Google plus Bing on the same days: 28 × (10 + 5).
+    expect(figureOf(measure(container, "search"))).toBe("420");
+    expect(figureOf(measure(container, "product"))).toBe("59");
   });
 
-  it("states the open alerts as the split the operator acts on", async () => {
+  it("names the window each change is made against, and its direction", async () => {
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const change = measure(container, "people").querySelector("[data-tone]")!;
+    expect(change.getAttribute("data-tone")).toMatch(/^positive/);
+    expect(change).toHaveAttribute("aria-label", expect.stringContaining("vs prior 28 days"));
+  });
+
+  it("re-derives every figure that follows the range, and leaves the month and the report alone", async () => {
+    const { container, getByTestId } = renderOverview();
+    await screen.findByRole("tablist");
+    const money = figureOf(measure(container, "money"));
+    // The default is the bare URL, not `?range=28`: one page, one address.
+    expect(getByTestId("url").textContent).toBe("/assets/meadow.example");
+
+    fireEvent.click(screen.getByRole("button", { name: "7d" }));
+
+    // The figures count to their new readings.
+    await waitFor(() => expect(figureOf(measure(container, "people"))).toBe("112"), { timeout: 3000 });
+    await waitFor(() => expect(figureOf(measure(container, "search"))).toBe("105"), { timeout: 3000 });
+    expect(measure(container, "people").querySelector("[data-stat]")).toHaveAttribute("data-stat", "Visitors a day, 7 days");
+    expect(figureOf(measure(container, "money"))).toBe(money);
+    expect(figureOf(measure(container, "product"))).toBe("59");
+    expect(getByTestId("url").textContent).toBe("/assets/meadow.example?range=7");
+  });
+
+  it("states the accounting month's net to the cent, estimated, with what it is made of, and opens Money", async () => {
     const body = payload();
-    const flag = everyTabPayload().flags.open[0]!;
-    body.flags = {
-      ...body.flags,
-      open: [flag, { ...flag, id: 92, severity: "warn" }, { ...flag, id: 93, severity: "warn" }],
-      openError: 1,
-      openWarn: 2,
+    body.ledger.periods[0]!.forecast = {
+      figure: { currency: "USD", revenue: 441.37, cost: 5.18, net: 436.19 },
+      revenueByFamily: [{ currency: "USD", family: "ads", amount: 441.37 }],
+      costByFamily: [{ currency: "USD", family: "inference", amount: 5.18 }],
     };
     stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    const alerts = container.querySelector<HTMLElement>("[data-alert-current]")!;
-    const row = within(alerts).getByRole("link", { name: /1 error · 2 warnings/ });
-    expect(row).toHaveAttribute("href", "/assets/meadow.example/alerts");
-    expect(row).toHaveTextContent("last fired");
+    const money = measure(container, "money");
+    expect(money).toHaveTextContent("+$436.19est.");
+    expect(money).toHaveTextContent("ads $441.37 · costs $5.18");
+    expect(money.querySelector("a")).toHaveAttribute("href", "/assets/meadow.example/financials");
+    // Booked and estimated never join: one month on this side is no history.
+    expect(money.querySelector("[data-bar-strip]")).toBeNull();
   });
 
-  it("draws daily users with their 7-day average, last week's same weekday and the weekly change", async () => {
+  it("opens the chart on the first measure with days and moves it when another figure is pressed", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    const chart = container.querySelector<HTMLElement>("[data-hero-chart]")!;
-    expect(chart.querySelector('[data-hero-raw="GA4"]')).not.toBeNull();
-    expect(chart.querySelector('[data-hero-line="GA4"]')).not.toBeNull();
-    expect(chart.textContent).toContain("7-day average");
-    const lastWeek = chart.querySelector('[data-hero-line="Same day last week"]')!;
-    expect(lastWeek.getAttribute("stroke-dasharray")).toBe("2 5");
-    // A reference, so it reads second: thinner than the lead.
-    expect(lastWeek).toHaveAttribute("data-hero-weight", "reference");
-    expect(chart.querySelector('[data-hero-line="GA4"]')).toHaveAttribute("data-hero-weight", "lead");
-    expect(chart.querySelector('[data-hero-raw="Same day last week"]')).toBeNull();
-    // The series rises by two a day, so the last seven complete days average
-    // 14 more than the seven before them.
-    const weekly = chart.querySelector<HTMLElement>("[data-weekly-change]")!;
-    expect(weekly.textContent).toBe("7 days vs the 7 before14%");
-    expect(weekly.querySelector("[data-tone]")).toHaveAttribute("data-tone", "positive");
-    expect(weekly.querySelector("[data-time-zone-caveat]")).toBeNull();
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "people");
+    expect(measure(container, "people")).toHaveAttribute("aria-pressed", "true");
+    expect(chartOf(container)).toHaveTextContent("GA4");
+
+    fireEvent.click(measure(container, "search"));
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "search");
+    expect(chartOf(container)).toHaveTextContent("Google + Bing");
+    expect(measure(container, "people")).toHaveAttribute("aria-pressed", "false");
+    expect(container.querySelectorAll('[data-overview-numbers] [aria-pressed="true"]')).toHaveLength(1);
+
+    // The operator's pick survives a range change.
+    fireEvent.click(screen.getByRole("button", { name: "7d" }));
+    await waitFor(() => expect(measure(container, "search").querySelector("[data-stat]")).toHaveAttribute("data-stat", "Search clicks, 7 days"));
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "search");
   });
 
-  it("keeps the weekly change's number and takes its colour away across a reporting-timezone change", async () => {
+  it("names the best and lowest complete days at their bars, and shows the unfinished day as still counting", async () => {
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const chart = chartOf(container);
+    // Jul 5 is still being counted, so Jul 4 is both the newest and the best.
+    expect([...chart.querySelectorAll("[data-overview-landmark]")].map((label) => label.textContent)).toEqual([
+      "Best · Jul 4 · 118", "Lowest · Jun 8 · 66",
+    ]);
+    expect(chart.querySelector('[data-overview-day="2026-07-05"]')).toHaveAttribute("data-state", "counting");
+    expect(chart.querySelector('[data-overview-day="2026-07-04"]')).toHaveAttribute("data-state", "now");
+    // The yardstick: the 28 days before, a day at a time, as a dashed level.
+    expect(chart.querySelector("[data-overview-usual]")).not.toBeNull();
+    expect(chart).toHaveTextContent("prior 28 days · 35 a day");
+  });
+
+  it("marks every shipped change on the axis, each opening its own note", async () => {
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    expect(within(chartOf(container)).getByRole("button", { name: "Event on Jul 2, 2026: July title batch" })).toBeInTheDocument();
+  });
+
+  it("steps through the days from the keyboard with the same readout the pointer shows", async () => {
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    // The chart names the days it covers.
+    const plot = within(chartOf(container)).getByRole("group", { name: "Visitors a day by day, Jun 8 to Jul 5" });
+    fireEvent.focus(plot);
+    expect(within(plot).getByRole("status")).toHaveTextContent("Jul 5120 visitors · still counting");
+    fireEvent.keyDown(plot, { key: "ArrowLeft" });
+    expect(within(plot).getByRole("status")).toHaveTextContent("Jul 4118 visitors");
+    fireEvent.keyDown(plot, { key: "Escape" });
+    expect(within(plot).queryByRole("status")).toBeNull();
+  });
+
+  it("draws a day only one search source reported as partial and a day neither did as missing, and names the hole", async () => {
     const body = payload();
-    body.performance.activeUsers = {
-      ...body.performance.activeUsers,
-      timeZoneChanges: [{ effectiveOn: "2026-06-30", from: "America/Los_Angeles", to: "America/New_York" }],
-    };
+    const gone = ["2026-06-29", "2026-06-30", "2026-07-01", "2026-07-02"];
+    body.performance.webSearchClicks.google = trend(days(60, () => 10).filter((point) => !gone.includes(point.t)));
+    body.performance.webSearchClicks.bing = trend(days(60, () => 5).filter((point) => point.t !== "2026-07-02"));
     stubJsonFetch(body);
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    const weekly = container.querySelector<HTMLElement>("[data-weekly-change]")!;
-    expect(weekly.textContent).toContain("14%");
-    expect(weekly.querySelector("[data-tone]")).toHaveAttribute("data-tone", "neutral");
-    expect(weekly.querySelector("[data-time-zone-caveat]")).toHaveAttribute("data-time-zone-caveat", "2026-06-30");
+    fireEvent.click(measure(container, "search"));
+    const chart = chartOf(container);
+    expect(chart.querySelector('[data-overview-day="2026-06-30"]')).toHaveAttribute("data-state", "partial");
+    expect(chart.querySelector('[data-overview-day="2026-07-02"]')).toHaveAttribute("data-state", "missed");
+    expect(chart.querySelector('[data-overview-lane="gap"]')).toHaveTextContent("Google not reported · Jun 29–Jul 1 · 1 more");
+    // A partial or missing day is never the lowest day.
+    expect(chart).not.toHaveTextContent("Lowest · Jun 30");
   });
 
-  it("draws the selected metric and moves the chart when another KPI is pressed", async () => {
+  it("shades a window being watched on the measure it watches, named by what changed", async () => {
+    stubJsonFetch(payload({ watches: { open: [{
+      id: "watch-1", metricIntegration: "ga4", metric: "active_users", scope: null, refKind: "annotation", ref: "41",
+      registeredAt: "2026-07-02T12:00:00.000Z", nextCheckDate: "2026-07-10", readings: 0, checks: 3, status: "open",
+      outcome: null, outcomeNote: null, closedAt: null, note: "July title batch",
+    }], closed: [], history: [] } }));
     const { container } = renderOverview();
     await screen.findByRole("tablist");
+    expect(chartOf(container).querySelector('[data-overview-span="watch"]')).not.toBeNull();
+    expect(chartOf(container).querySelector('[data-overview-lane="watch"]')).toHaveTextContent("Watching July title batch · verdict Jul 10");
+    fireEvent.click(measure(container, "search"));
+    expect(chartOf(container).querySelector('[data-overview-span="watch"]')).toBeNull();
+  });
+});
 
-    expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector("[data-hero-chart]")?.textContent).toContain(
-      "Active users · daily",
-    );
-
-    fireEvent.click(kpi(container, "Search clicks").querySelector("button[aria-pressed]")!);
-
-    expect(kpi(container, "Search clicks").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
-    expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "false");
-    const chart = container.querySelector("[data-hero-chart]")!;
-    expect(chart.textContent).toContain("Search clicks · daily");
-    expect(within(chart as HTMLElement).getByRole("button", { name: "Google" })).toBeTruthy();
-    expect(within(chart as HTMLElement).getByRole("button", { name: "Bing" })).toBeTruthy();
+describe("Asset Overview — an alert drawn on the series it is about", () => {
+  it("lets a fresh alert take the chart: its onset, the rule's normal and its own words, linked to Alerts", async () => {
+    const body = payload();
+    body.flags = { ...body.flags, open: [signupsAlert("2026-07-05T03:00:00.000Z")], openWarn: 1 };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const product = measure(container, "product");
+    expect(product.querySelector("[data-stat]")).toHaveAttribute("data-stat-role", "warning");
+    expect(product).toHaveTextContent("Alert since Jul 5 · normally ~40 a day");
+    const chart = chartOf(container);
+    expect(chart).toHaveAttribute("data-overview-chart", "product");
+    expect(chart.querySelector('[data-overview-span="alert"]')).not.toBeNull();
+    expect(chart.querySelector("[data-overview-normal]")).not.toBeNull();
+    expect(chart).toHaveTextContent("normally ~40 a day · range 26–55");
+    const alert = within(chart.querySelector<HTMLElement>('[data-overview-lane="alert"]')!).getByRole("link");
+    expect(alert).toHaveTextContent("Signups well below normal — 12 vs ~40/day");
+    expect(alert).toHaveAttribute("href", "/assets/meadow.example/alerts");
+    // Drawn once: the alert list does not repeat it.
+    expect(container.querySelector("[data-alert-current]")).toBeNull();
   });
 
+  it("keeps a week-old alert on its figure and leaves the chart to the first measure", async () => {
+    const body = payload();
+    body.flags = { ...body.flags, open: [signupsAlert("2026-06-20T03:00:00.000Z")], openWarn: 1 };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "people");
+    expect(measure(container, "product").querySelector("[data-stat]")).toHaveAttribute("data-stat-role", "warning");
+    expect(measure(container, "product")).toHaveTextContent("Alert since Jun 20");
+  });
+
+  it("lists the open alerts the page does not already draw, worst first, each linking to Alerts", async () => {
+    const body = payload();
+    const home = {
+      ...everyTabPayload().flags.open[0]!, id: 72, severity: "error" as const, metric: "home", ruleId: "hygiene-home-unreachable",
+      ruleInputs: { url: "https://meadow.example/", http_status: 503 }, firstFiredAt: "2026-07-06T09:00:00.000Z",
+    };
+    body.flags = { ...body.flags, open: [signupsAlert("2026-07-05T03:00:00.000Z"), home], openError: 1, openWarn: 1 };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const list = container.querySelector<HTMLElement>("[data-alert-current]")!;
+    const rows = list.querySelectorAll("[data-incident]");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveAttribute("data-state", "error");
+    expect(rows[0]).toHaveTextContent("Home page");
+    expect(within(list).getByRole("link", { name: /Home page/ })).toHaveAttribute("href", "/assets/meadow.example/alerts");
+    expect(within(list).getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/assets/meadow.example/alerts");
+    expect(container.querySelector("[data-verdict-line]")).toHaveTextContent("1 error · 1 warning open");
+  });
+
+  it("draws no alert box when nothing else is open", async () => {
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    expect(container.querySelector("[data-alert-current]")).toBeNull();
+    expect(container.querySelector("[data-verdict-line]")).toHaveTextContent("no open alerts");
+  });
+});
+
+describe("Asset Overview — leads with the numbers the site has", () => {
+  const clarity = { source: "clarity" as const, reportDate: LAST_DAY,
+    collectedAt: "2026-07-05T11:00:00.000Z", windowHours: 72 as const, truncated: false,
+    page: { url: "https://meadow.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
+
+  it("opens a revenue-only site on its ad revenue, on the network's own days", async () => {
+    stubJsonFetch({ ...noTraffic(), dailyRevenue: revenue() });
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const money = measure(container, "money");
+    // 28 days × $5.00, an estimate.
+    expect(money.querySelector("[data-stat]")).toHaveAttribute("data-stat", "Ad revenue, 28 days");
+    expect(money).toHaveTextContent("$140est.");
+    expect(money).toHaveTextContent("July net +$436 est.");
+    expect(chartOf(container)).toHaveAttribute("data-overview-chart", "money");
+    expect(container.querySelector('[data-measure="people"]')).toBeNull();
+    // 7 × $5.00.
+    fireEvent.click(screen.getByRole("button", { name: "7d" }));
+    // The figure counts to its new reading.
+    await waitFor(() => expect(figureOf(measure(container, "money"))).toBe("$35.00"), { timeout: 3000 });
+  });
+
+  it("draws people a day from product analytics when that is where the site's people are", async () => {
+    const body = noTraffic();
+    const productDays = Array.from({ length: 28 }, (_, index) => ({ date: shiftLabel(LAST_DAY, index - 27), people: 100, pageviews: 500, sessions: 140 }));
+    body.executive = { ...body.executive!, product: {
+      source: "posthog", observedAt: LAST_DAY, collectedAt: null, families: [],
+      webDaily: { windowStart: productDays[0]!.date, windowEnd: LAST_DAY, reportDate: LAST_DAY, days: productDays },
+      funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "",
+    } };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    expect(measure(container, "people").querySelector("[data-stat]")).toHaveAttribute("data-stat", "People a day, 28 days");
+    expect(figureOf(measure(container, "people"))).toBe("100");
+    expect(chartOf(container)).toHaveTextContent("PostHog");
+  });
+
+  it("keeps a session report beside the numbers, with its named page and its fixed 72 hours", async () => {
+    const body = noTraffic();
+    body.executive = { ...body.executive!, clarity: { ...clarity, truncated: true } };
+    stubJsonFetch(body);
+    renderOverview();
+    const lead = await screen.findByRole("region", { name: "Session report · 72 hours" });
+    expect(within(lead).getByRole("link", { name: "meadow.example/planner" })).toHaveAttribute("href", clarity.page.url);
+    expect(lead).toHaveTextContent("Limited export");
+    expect(lead.querySelector("[data-hero-chart]")).toBeNull();
+  });
+
+  it("keeps a weekly ranking beside the numbers, declaring there is no series", async () => {
+    const body = noTraffic();
+    body.executive = { ...body.executive!, searchIntelligence: {
+      observedAt: "2026-07-01", costUsd: 0.1,
+      rankings: { keywords: 312, top3: 4, top10: 21, top20: 60, estimatedVisits: 880, estimatedPaidTrafficCost: 410, aiOverviewReferences: 2 },
+      backlinks: null, ai: { googleMentions: null, googleSearchVolume: null, chatgptMentions: null, chatgptSearchVolume: null },
+      referringDomains: [], anchors: null, keywordIdeas: [], competitors: [],
+    } };
+    stubJsonFetch(body);
+    renderOverview();
+    const lead = await screen.findByRole("region", { name: "Search position" });
+    expect(lead.querySelectorAll('[data-series="unavailable"]')).toHaveLength(4);
+  });
+
+  it("names the absence and the way to the data sources when the site has no numbers at all", async () => {
+    const body = noTraffic();
+    body.metrics = [];
+    body.ledger = { periods: [], recentRows: [], empty: true, currency: "USD" };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const empty = container.querySelector<HTMLElement>('[data-overview-numbers="empty"]')!;
+    expect(empty).toHaveTextContent("No numbers reported yet");
+    expect(within(empty).getByRole("link", { name: "Data sources →" })).toHaveAttribute("href", "/assets/meadow.example/sources");
+    expect(container.querySelector("[data-overview-chart]")).toBeNull();
+  });
+});
+
+describe("Asset Overview — data sources over thirty days", () => {
+  const source = (id: string, label: string, state: "live" | "degraded", observedAt = "2026-07-06T09:00:00.000Z") =>
+    ({ id, label, state, observedAt, verification: { kind: "collection-success" as const, laneId: id } });
+
+  it("draws each source in use a cell per day, names the longest hole, and keeps the rest on one line", async () => {
+    const body = payload();
+    const hole = ["2026-06-20", "2026-06-21", "2026-06-22"];
+    body.performance.webSearchClicks.google = trend(days(60, () => 10).filter((point) => !hole.includes(point.t)));
+    body.performance.webSearchImpressions.google = trend(days(60, () => 400).filter((point) => !hole.includes(point.t)));
+    body.integrations = { ...body.integrations, sources: [source("gsc", "Google Search Console", "live"), source("dataforseo", "DataForSEO", "live")] };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const strip = container.querySelector<HTMLElement>("[data-source-history]")!;
+    expect(strip).toHaveTextContent("Data sources · last 30 days");
+    expect(strip.querySelector("[data-source-history-headline]")).toHaveTextContent("Search missed 3 days · Jun 20–22");
+    const search = strip.querySelector<HTMLElement>('[data-source-row="gsc"]')!;
+    expect(search.querySelectorAll("[data-source-day]")).toHaveLength(30);
+    expect(search.querySelector('[data-source-day="2026-06-21"]')).toHaveAttribute("data-state", "missed");
+    expect(search.querySelector('[data-source-day="2026-06-23"]')).toHaveAttribute("data-state", "reported");
+    expect(within(search).getByRole("img")).toHaveAccessibleName(/^Google Search Console, Jun 7 to Jul 6: reported \d+ of \d+ days; missed Jun 20–22/);
+    // The strip prints the days it covers.
+    expect(strip).toHaveTextContent("Jun 7");
+    expect(strip).toHaveTextContent("Jul 6");
+    // A weekly source has no day-by-day record here, and keeps its state on one line.
+    expect(strip.querySelector('[data-source-undaily] [data-source-row="dataforseo"]')).not.toBeNull();
+    expect(within(strip).getByRole("link", { name: "Data sources →" })).toHaveAttribute("href", "/assets/meadow.example/sources");
+  });
+
+  it("draws a nightly report that stopped arriving where it lives, and does not list its alert again", async () => {
+    const body = payload();
+    body.metrics = body.metrics.map((metric) => ({ ...metric, series: metric.series.filter((point) => point.t <= "2026-07-02") }));
+    body.integrations = { ...body.integrations, sources: [source("nightly-report", "Nightly report", "degraded", "2026-07-02T02:00:00.000Z")] };
+    body.flags = { ...body.flags, openWarn: 1, open: [{
+      ...everyTabPayload().flags.open[0]!, id: 73, severity: "warn" as const, metric: "pulse", ruleId: "ingest-freshness",
+      ruleInputs: { rule: "ingest-freshness", state: "stale", lastReceivedAt: "2026-07-02T02:00:00.000Z", ageHours: 82, thresholdHours: 48 },
+      firstFiredAt: "2026-07-04T02:00:00.000Z",
+    }] };
+    stubJsonFetch(body);
+    const { container } = renderOverview();
+    await screen.findByRole("tablist");
+    const report = container.querySelector<HTMLElement>('[data-source-row="nightly-report"]')!;
+    expect(report.querySelector('[data-source-day="2026-07-02"]')).toHaveAttribute("data-state", "reported");
+    expect(report.querySelector('[data-source-day="2026-07-05"]')).toHaveAttribute("data-state", "late");
+    expect(container.querySelector("[data-alert-current]")).toBeNull();
+  });
+});
+
+/** The chart the one-site lead opens on, which Home still draws. */
+describe("SiteLead — the chart it opens on", () => {
   it("derives the chart it opens on from the data, in the strip's own order", () => {
     const strip = (drawable: string[]) =>
       (["activeUsers", "sessions", "clicks", "impressions"] as const).map((key) => ({ key, selectable: drawable.includes(key) }));
@@ -444,83 +733,44 @@ describe("Asset Overview — the strip drives the chart", () => {
     expect(leadMetric(strip(["clicks", "impressions"]), "impressions")).toBe("impressions");
     expect(leadMetric(strip(["clicks", "impressions"]), "sessions")).toBe("clicks");
   });
+});
 
-  /** The first number a site collects lands on a chart of that number. */
-  function onlyTraffic(keep: "users" | "search" | "none"): AssetDetailPayload {
-    const body = payload();
-    const none = { google: emptyTrend(), bing: emptyTrend() };
-    body.performance = {
-      ...body.performance,
-      activeUsers: keep === "users" ? body.performance.activeUsers : emptyTrend(),
-      sessions: keep === "users" ? body.performance.sessions : emptyTrend(),
-      webSearchClicks: keep === "search" ? { google: emptyTrend(), bing: trend(days(28, () => 21), null) } : none,
-      webSearchImpressions: keep === "search" ? { google: emptyTrend(), bing: trend(days(28, () => 200), null) } : none,
-    };
-    return body;
-  }
-
-  it("opens a users-only site on its daily users", async () => {
-    stubJsonFetch(onlyTraffic("users"));
+describe("Asset Overview — explanations are disclosed, essential context stays visible", () => {
+  it("keeps report freshness visible while hiding long explanatory paragraphs", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
-    expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("Active users · daily");
-    expect(container.textContent).not.toContain("No series yet");
+
+    const panel = container.querySelector('[role="tabpanel"]')!;
+    const loose = [...panel.querySelectorAll("p")].filter(
+      (paragraph) => !paragraph.closest("details:not([open])"),
+    );
+    expect(loose).toEqual([]);
+    expect(screen.getByRole("button", { name: "About product reports" })).toHaveTextContent(/Report .*ago/);
+    expect(screen.queryByText(/Report received/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "About product reports" }));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Report received");
   });
 
-  it("opens a search-only site on its clicks, not on an empty users chart", async () => {
-    stubJsonFetch(onlyTraffic("search"));
+  it("states the product figure once: the hero row has it, the product cells have the rest", async () => {
     const { container } = renderOverview();
     await screen.findByRole("tablist");
-    expect(kpi(container, "Search clicks").textContent).toContain("588");
-    expect(kpi(container, "Search clicks").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
-    expect(kpi(container, "Avg. daily users").querySelector("button[aria-pressed]")).toBeNull();
-    const chart = container.querySelector<HTMLElement>("[data-hero-chart]")!;
-    expect(chart).toHaveTextContent("Search clicks · daily");
-    expect(chart.querySelector('[data-hero-line="Bing"]')).not.toBeNull();
-    expect(container.textContent).not.toContain("No series yet");
-    expect(container.querySelectorAll('[data-kpi] button[aria-pressed="true"]')).toHaveLength(1);
+    const product = screen.getByRole("region", { name: "Product use" });
+    expect(product).toHaveTextContent(/plans saved/i);
+    expect(product).not.toHaveTextContent(/signups/i);
+    expect(measure(container, "product")).toHaveTextContent("Signups");
   });
 
-  it("draws no empty chart for a site with no traffic series at all", async () => {
-    stubJsonFetch(onlyTraffic("none"));
-    renderOverview();
+  it("explains nothing the surface already draws", async () => {
+    const { container } = renderOverview();
     await screen.findByRole("tablist");
-    const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
-    expect(traffic.querySelector('button[aria-pressed="true"]')).toBeNull();
-    for (const figure of traffic.querySelectorAll("[data-kpi]")) {
-      expect(figure).toHaveAttribute("data-series", "unavailable");
-      expect(figure).toHaveAttribute("data-series-reason", "No reports in this period.");
+    expect(container.querySelector("[data-about]")).toBeNull();
+    for (const name of ["About traffic figures", "About this financial snapshot", "About open alert counts"]) {
+      expect(screen.queryByRole("button", { name })).toBeNull();
     }
-    expect(traffic.querySelector("[data-hero-chart]")).toBeNull();
-    expect(traffic.textContent).not.toContain("No series yet");
-  });
-
-  it("keeps the operator's own pick over the default once made", async () => {
-    stubJsonFetch(onlyTraffic("search"));
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    fireEvent.click(kpi(container, "Impressions").querySelector("button[aria-pressed]")!);
-    expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("Impressions · daily");
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    await screen.findByRole("region", { name: "Traffic · last 7 days" });
-    expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("Impressions · daily");
-  });
-
-  it("states a daily count of people per day, and events as their total", async () => {
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-
-    // A person who visits on two days is one person, so active users is a
-    // mean: 28 complete days rising by two average 91.
-    expect(kpi(container, "Avg. daily users").textContent).toContain("91");
-    // Sessions are events and add up: 28 × 200.
-    expect(kpi(container, "Sessions").textContent).toContain("5,600");
-    // Clicks are Google plus Bing on the same days: 28 × (10 + 5).
-    expect(kpi(container, "Search clicks").textContent).toContain("420");
+    expect(measure(container, "money")).toHaveTextContent("est.");
   });
 });
+
 
 // The site's all-time totals live on its own Overview.
 describe("Asset Overview — the site's all-time totals", () => {
@@ -569,313 +819,6 @@ describe("Asset Overview — the site's all-time totals", () => {
     const second = renderOverview();
     await screen.findByRole("tablist");
     expect(second.container.querySelector("[data-site-totals]")).toBeNull();
-  });
-});
-
-describe("Asset Overview — leads with the number the site has", () => {
-  /** The same site with no Analytics, Search Console or Bing series at all. */
-  function noTraffic(): AssetDetailPayload {
-    const body = payload();
-    const none = { google: emptyTrend(), bing: emptyTrend() };
-    body.performance = { ...body.performance, activeUsers: emptyTrend(), sessions: emptyTrend(),
-      webSearchClicks: none, webSearchImpressions: none };
-    return body;
-  }
-
-  const clarity = { source: "clarity" as const, reportDate: LAST_DAY,
-    collectedAt: "2026-07-05T11:00:00.000Z", windowHours: 72 as const, truncated: false,
-    page: { url: "https://meadow.example/planner", sessions: 114, scriptErrors: 19 }, unattributedSessions: null };
-
-  it("opens Clarity on its named reported page and fixed72-hour facts, without a daily chart", async () => {
-    const body = noTraffic();
-    body.executive = { ...body.executive!, clarity: { ...clarity, truncated: true } };
-    stubJsonFetch(body);
-    const { container } = renderOverview();
-    const lead = await screen.findByRole("region", { name: "Session report · 72 hours" });
-    expect(kpiLabels(container).slice(0, 2)).toEqual(["Page sessions", "Script errors"]);
-    expect(kpi(lead, "Page sessions")).toHaveTextContent("114");
-    expect(kpi(lead, "Script errors")).toHaveTextContent("19");
-    expect(within(lead).getByRole("link", { name: "meadow.example/planner" })).toHaveAttribute("href", clarity.page.url);
-    expect(lead).toHaveTextContent("Collected Jul 5, 2026");
-    expect(lead).toHaveTextContent("Limited export");
-    expect(lead).not.toHaveTextContent("No previous period");
-    expect(lead.querySelector("[data-hero-chart]")).toBeNull();
-    expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    await waitFor(() => expect(kpi(lead, "Script errors")).toHaveTextContent("19"));
-    expect(lead).toHaveTextContent("72 hours");
-  });
-
-  it("names an unattributed bucket honestly and keeps an explicit zero distinct from Unknown", async () => {
-    const body = noTraffic();
-    body.executive = { ...body.executive!, clarity: { ...clarity, page: null, unattributedSessions: 0 } };
-    stubJsonFetch(body);
-    const first = renderOverview();
-    const lead = await screen.findByRole("region", { name: "Session report · 72 hours" });
-    expect(kpi(lead, "Unattributed sessions")).toHaveTextContent("0");
-    expect(lead).not.toHaveTextContent("Page sessions");
-    first.unmount();
-    stubJsonFetch({ ...body, executive: { ...body.executive!, clarity: { ...clarity, page: null, collectedAt: null } } });
-    renderOverview();
-    const unknown = await screen.findByRole("region", { name: "Session report · 72 hours" });
-    expect(kpi(unknown, "Unattributed sessions")).toHaveTextContent("Unknown");
-    expect(unknown).toHaveTextContent("Reported Jul 5, 2026");
-    expect(unknown).not.toHaveTextContent("Collected");
-  });
-
-  it("preserves traffic, revenue and PostHog priority ahead of Clarity", async () => {
-    const traffic = payload();
-    traffic.executive = { ...traffic.executive!, clarity };
-    stubJsonFetch(traffic);
-    const first = renderOverview();
-    await screen.findByRole("region", { name: "Traffic · last 28 days" });
-    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
-    first.unmount();
-    const body = noTraffic();
-    body.executive = { ...body.executive!, clarity };
-    stubJsonFetch({ ...body, dailyRevenue: revenue() });
-    const second = renderOverview();
-    await screen.findByRole("region", { name: "Daily revenue" });
-    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
-    second.unmount();
-    body.executive.product = { source: "posthog", observedAt: LAST_DAY, collectedAt: null, families: [],
-      webDaily: { windowStart: LAST_DAY, windowEnd: LAST_DAY, reportDate: LAST_DAY,
-        days: [{ date: LAST_DAY, people: 10, pageviews: 20, sessions: 12 }] },
-      funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "" };
-    stubJsonFetch(body); renderOverview();
-    await screen.findByRole("region", { name: "Traffic · last 28 days" });
-    expect(screen.queryByRole("region", { name: "Session report · 72 hours" })).toBeNull();
-  });
-
-  /** Every [data-kpi] on the tab, in document order: what is drawn first. */
-  function kpiLabels(container: HTMLElement): string[] {
-    return [...container.querySelectorAll<HTMLElement>('[role="tabpanel"] [data-kpi]')].map((one) => one.getAttribute("data-kpi") ?? "");
-  }
-
-  /** Thirty days of ad revenue estimates ending on yesterday (the fixture's
-   * saved clock: 2026-07-05), $5.00 a day. */
-  function revenue() {
-    const days = Array.from({ length: 30 }, (_, index) => ({ date: shiftLabel(LAST_DAY, index - 29), amountMinor: 500 }));
-    return { from: shiftLabel(LAST_DAY, -89), to: LAST_DAY, days, reportedThrough: LAST_DAY };
-  }
-
-  it("opens a revenue-only site on its daily revenue, not on four dashes", async () => {
-    stubJsonFetch({ ...noTraffic(), dailyRevenue: revenue() });
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
-    const lead = screen.getByRole("region", { name: "Daily revenue" });
-    // 28 days × $5.00.
-    expect(kpiLabels(container)[0]).toBe("Reported earnings");
-    expect(kpi(lead, "Reported earnings")).toHaveTextContent("$140.00");
-    expect(lead.querySelector("[data-hero-chart]")).not.toBeNull();
-    expect(container.textContent).not.toContain("Avg. daily users");
-    // 7 × $5.00.
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    await waitFor(() => expect(kpi(screen.getByRole("region", { name: "Daily revenue" }), "Reported earnings")).toHaveTextContent("$35.00"));
-  });
-
-  it("opens a PostHog-only site on its people a day, in the traffic strip, with PostHog named on the chart", async () => {
-    const body = noTraffic();
-    const days = Array.from({ length: 28 }, (_, index) => ({ date: shiftLabel(LAST_DAY, index - 27), people: 100, pageviews: 500, sessions: 140 }));
-    body.executive = { ...body.executive!, product: {
-      source: "posthog", observedAt: LAST_DAY, collectedAt: null, families: [],
-      webDaily: { windowStart: days[0]!.date, windowEnd: LAST_DAY, reportDate: LAST_DAY, days },
-      funnels: [], vitals: null, exceptions: null, rageClicks: null, onceEvents: [], checks: [], caveat: "",
-    } };
-    stubJsonFetch(body);
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    expect(kpiLabels(container).slice(0, 3)).toEqual(["People a day", "Page views", "Sessions"]);
-    expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(3);
-    expect(kpi(traffic, "People a day")).toHaveTextContent("100");
-    expect(kpi(traffic, "Page views")).toHaveTextContent("14K");
-    expect(kpi(traffic, "People a day").querySelector("button[aria-pressed]")).toHaveAttribute("aria-pressed", "true");
-    const chart = traffic.querySelector<HTMLElement>("[data-hero-chart]")!;
-    expect(chart).toHaveTextContent("People · daily");
-    expect(chart.querySelector('[data-hero-line="PostHog"]')).not.toBeNull();
-    expect(traffic.textContent).not.toContain("Search clicks");
-  });
-
-  it("opens a DataForSEO-only site on its rankings, declaring there is no series yet", async () => {
-    const body = noTraffic();
-    body.executive = { ...body.executive!, searchIntelligence: {
-      observedAt: "2026-07-01", costUsd: 0.1,
-      rankings: { keywords: 312, top3: 4, top10: 21, top20: 60, estimatedVisits: 880, estimatedPaidTrafficCost: 410, aiOverviewReferences: 2 },
-      backlinks: null, ai: { googleMentions: null, googleSearchVolume: null, chatgptMentions: null, chatgptSearchVolume: null },
-      referringDomains: [], anchors: null, keywordIdeas: [], competitors: [],
-    } };
-    stubJsonFetch(body);
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const lead = screen.getByRole("region", { name: "Search position" });
-    expect(kpiLabels(container).slice(0, 4)).toEqual(["Keywords", "Top 10", "Visits a month", "Traffic value"]);
-    expect(kpi(lead, "Keywords")).toHaveTextContent("312");
-    expect(lead.querySelectorAll('[data-series="unavailable"]')).toHaveLength(4);
-    expect(screen.queryByRole("region", { name: "Traffic · last 28 days" })).toBeNull();
-  });
-
-  it("keeps a site with Bing or Analytics data on its traffic chart, whatever else it has", async () => {
-    const body = payload();
-    stubJsonFetch({ ...body, dailyRevenue: revenue() });
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
-    expect(traffic.querySelector("[data-hero-chart]")).toHaveTextContent("Active users · daily");
-    expect(kpiLabels(container)[0]).toBe("Avg. daily users");
-    expect(screen.queryByRole("region", { name: "Daily revenue" })).toBeNull();
-  });
-});
-
-describe("Asset Overview — the range controls traffic, not independent snapshots", () => {
-  it("recomputes the value, the delta's window and the URL", async () => {
-    const { container, getByTestId } = renderOverview();
-    await screen.findByRole("tablist");
-
-    expect(kpi(container, "Avg. daily users").textContent).toContain("91");
-    expect(kpi(container, "Avg. daily users").querySelector("[data-tone]")).toHaveAttribute(
-      "aria-label",
-      expect.stringContaining("28 days"),
-    );
-    // The default is the bare URL, not `?range=28`: one page, one address.
-    expect(getByTestId("url").textContent).toBe("/assets/meadow.example");
-
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-
-    await waitFor(() =>
-      expect(kpi(container, "Avg. daily users").textContent).toContain("112"),
-    );
-    expect(kpi(container, "Avg. daily users").querySelector("[data-tone]")).toHaveAttribute(
-      "aria-label",
-      expect.stringContaining("7 days"),
-    );
-    expect(getByTestId("url").textContent).toBe("/assets/meadow.example?range=7");
-  });
-
-  it("groups four traffic metrics separately from the accounting month and recorded alert status", async () => {
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const traffic = screen.getByRole("region", { name: "Traffic · last 28 days" });
-    const financials = screen.getByRole("region", { name: "Money · July 2026" });
-    const alerts = screen.getByRole("region", { name: "Open alerts" });
-    expect(alerts).toHaveTextContent("last fired");
-    expect(traffic.querySelectorAll("[data-kpi]")).toHaveLength(4);
-    expect(traffic.querySelector("[data-hero-chart]")).not.toBeNull();
-    expect(traffic).not.toHaveTextContent("Net");
-    expect(traffic).not.toHaveTextContent("Open alerts");
-    expect(traffic.compareDocumentPosition(financials) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    expect(traffic.compareDocumentPosition(alerts) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
-    const net = kpi(financials, "Net").textContent;
-    expect(net).toContain("436");
-    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meadow.example/financials");
-    expect(container.querySelector("#product-report")).toHaveTextContent("Product use");
-    expect(container.querySelector("#product-use")).toBeNull();
-    expect(screen.getByRole("region", { name: "Product use" })).toHaveTextContent("Latest reported 24 hours");
-
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    await screen.findByRole("region", { name: "Traffic · last 7 days" });
-    expect(kpi(container, "Sessions")).toHaveTextContent("1,400");
-    expect(kpi(financials, "Net").textContent).toBe(net);
-    expect(screen.getByRole("region", { name: "Money · July 2026" })).toBe(financials);
-    expect(within(alerts).getByRole("link", { name: /None open/ })).toHaveAttribute("href", "/assets/meadow.example/alerts?range=7");
-    expect(within(financials).getByRole("link", { name: "View financials" })).toHaveAttribute("href", "/assets/meadow.example/financials");
-  });
-
-  it("keeps net history available as accounting months outside the traffic selector", async () => {
-    renderOverview();
-    await screen.findByRole("tablist");
-    const financials = screen.getByRole("region", { name: "Money · July 2026" });
-    expect(financials.querySelector("[data-hero-chart]")).toBeNull();
-    fireEvent.click(within(financials).getByText("Monthly net history"));
-    await within(financials).findByText("Net · by accounting month, Estimated");
-    expect(financials).not.toHaveTextContent("One point per accounting month");
-    fireEvent.click(within(financials).getByRole("button", { name: "About Net · by accounting month, Estimated" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("One point per accounting month");
-    fireEvent.keyDown(window, { key: "Escape" });
-    const monthly = financials.querySelector("[data-hero-chart]")?.textContent;
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    expect(financials.querySelector("[data-hero-chart]")?.textContent).toBe(monthly);
-  });
-
-  it("shows the monthly net trend before its disclosure and keeps traffic dates separate", async () => {
-    const body = payload();
-    body.ledger.periods.push({ ...structuredClone(body.ledger.periods[1]!), period: "2026-05" });
-    stubJsonFetch(body);
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const net = kpi(container, "Net");
-    const spark = within(net).getByRole("img", { name: "Net by accounting month trend" });
-    expect(spark).toHaveAccessibleDescription(expect.stringContaining("reported monthly values, not averaged"));
-    expect(net).not.toHaveAttribute("data-series", "unavailable");
-    const trend = spark.innerHTML;
-    fireEvent.click(screen.getByRole("button", { name: "7d" }));
-    await screen.findByRole("region", { name: "Traffic · last 7 days" });
-    expect(spark.innerHTML).toBe(trend);
-  });
-
-  it.each([0, 2])("explains the missing net trend with %i accounting months", async (count) => {
-    const body = payload();
-    body.ledger.periods = body.ledger.periods.slice(0, count);
-    stubJsonFetch(body);
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-    const net = kpi(container, "Net");
-    expect(net).toHaveAttribute("data-series", "unavailable");
-    expect(net.querySelector("[data-spark]")).toBeNull();
-    expect(net).toHaveAttribute("data-series-reason", count === 0
-      ? "No financial totals recorded"
-      : "At least three accounting months are needed for a trend.");
-  });
-
-  it("states standalone net and its composition to the cent with a separate Estimated label", async () => {
-    const body = payload();
-    body.ledger.periods[0]!.forecast = {
-      figure: { currency: 'USD', revenue: 441.37, cost: 5.18, net: 436.19 },
-      revenueByFamily: [{ currency: 'USD', family: "ads", amount: 441.37 }],
-      costByFamily: [{ currency: 'USD', family: "inference", amount: 5.18 }],
-    };
-    stubJsonFetch(body);
-    renderOverview();
-    await screen.findByRole("tablist");
-    const financials = screen.getByRole("region", { name: "Money · July 2026" });
-    const net = kpi(financials, "Net");
-    expect(net).toHaveTextContent("$436.19 Estimated");
-    expect(within(net).getByText("Estimated")).toBeVisible();
-    expect(net).toHaveTextContent("ads $441.37 · costs $5.18");
-    expect(net).not.toHaveTextContent("forecast");
-  });
-});
-
-describe("Asset Overview — explanations are disclosed, essential context stays visible", () => {
-  it("keeps report freshness visible while hiding long explanatory paragraphs", async () => {
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-
-    const panel = container.querySelector('[role="tabpanel"]')!;
-    const loose = [...panel.querySelectorAll("p")].filter(
-      (paragraph) => !paragraph.closest("details:not([open])"),
-    );
-    expect(loose).toEqual([]);
-    expect(screen.getByRole("button", { name: "About product reports" })).toHaveTextContent(/Report .*ago/);
-    expect(screen.queryByText(/Report received/)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "About product reports" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Report received");
-  });
-
-  it("explains nothing the surface already draws", async () => {
-    const { container } = renderOverview();
-    await screen.findByRole("tablist");
-
-    expect(container.querySelector("[data-about]")).toBeNull();
-    for (const name of ["About traffic figures", "About this financial snapshot", "About open alert counts"]) {
-      expect(screen.queryByRole("button", { name })).toBeNull();
-    }
-    expect(kpi(container, "Avg. daily users")).toHaveTextContent("7-day average");
-    expect(container.querySelector("[data-hero-chart]")).toHaveTextContent("GA4");
-    const financials = screen.getByRole("region", { name: "Money · July 2026" });
-    expect(within(financials).getByText("Estimated")).toBeVisible();
   });
 });
 

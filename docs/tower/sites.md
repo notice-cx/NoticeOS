@@ -9,22 +9,21 @@ Sites answers one question: which site needs me.
 
 ## What you see
 
-**The Sites page** opens with its answer: **1 of 7 sites at risk**, naming the site, or the count of sites that are fine. **Add a site** sits in the header. **Filters & sort** holds a **Traffic period** range and a **Health** legend to filter by. The table has one row per site:
+**The Sites page** opens with its answer: **2 of 6 sites need you**, naming them, or the count of sites that are fine, beside the month's pace and yesterday's visitors against the same day a week before. **Add a site** sits in the header. Under the answer, one bar splits every site by its health word, worst first: **Off track** in red, **At risk** in amber, the calm words in grey. Then the sites compared, one row per site:
 
 | Column | What it holds |
 |---|---|
-| **Site** | name and domain |
-| **Health** | the one word: **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track** |
-| **Visitors** | today's live count, with a hover that explains it |
-| **Visitors · 28d** | the period's visitors |
-| **Net · October** | the month's money |
-| **Tasks** | open work |
+| **Site** | its name, and under it the one health word: **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track**, coloured only when it is a problem |
+| **People a day** | the last four weeks as a line, and the latest finished day's count |
+| **Yesterday** | yesterday's revenue and its change on the same day a week before |
+| **Share of month** | the site's part of the month's revenue so far |
+| **Sources** | one mark per data source, lit by its state, and how many are live of the ones the site uses |
 
-On a phone the table reflows into labelled cards.
+A site's tasks, search clicks and ledger are on its own tabs. The columns drop as the window narrows, the name last: on a phone each row is the site, its health word and yesterday's money.
 
 **A site's page** has a header with the site's name, its domain as a link, and its verdict: the same health word, with a hover that counts its open alerts. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link lands on the right one.
 
-**Overview** is the whole answer on the first screen: a row of figures for money, people, search and the site's one product figure, over one chart. Every shipped change is a labelled mark on that chart and every open outcome check is a shaded span, so cause and effect sit on one axis. Under the chart: **Bets** ranked by dollars, **Needs you**, **Search movers**, **What matters**, the site's totals row, and **Product use**. A provider's name appears only as a chart key beside its own line.
+**Overview** answers on the first screen. A row of figures for money, people, search and the site's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with the days before as a dashed level, the best and lowest day named, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, led by the source that failed most recently or missed the most days, and **Open alerts** for anything the chart does not already show. Under them: **Needs you**, **What matters**, **Bets** ranked by dollars, **Search movers**, **Product use** and the site's totals. A provider's name appears only as a chart key beside its own line.
 
 **The other tabs:**
 
@@ -38,16 +37,19 @@ On a phone the table reflows into labelled cards.
 ## What you can do
 
 - **Add a site** opens the same dialog Home uses.
-- **Filters & sort** narrows the table by **Traffic period** and **Health**.
-- A row opens the site's page; the domain link opens the site itself.
+- The health bar's legend is the **Health** filter: press **2 at risk** to show only those sites, press it again to show them all.
+- **Order** puts the sites in **Your order** (the saved order Home and the TV use), **Needs you** first, by **Money** this month, by **People** or **A–Z**. The stage list narrows to one lifecycle stage. On a phone both wait behind **Order & stage**.
+- A narrowed list says how many it shows and offers **Clear**. Every choice is in the address, so a link keeps it.
+- A site's name opens its page; the domain link on that page opens the site itself.
+- Press a figure on the Overview to draw it on the chart; arrow keys step through its days.
 - Hover, focus or tap a mark on the Overview chart to read the change or outcome check behind it.
 - On **Data sources**, **Connect** opens the connect panel and **Not using** records a reason for skipping a source.
 - On **Settings**, the six cards hold everything that applies to this one site.
 
 ## States and labels
 
-- A cell with no answer shows a dash whose hover names the reason.
-- With no sites the page reads **No sites yet**.
+- A site that reported nothing says so in its row: **no visitors reported**, **no revenue**, never a zero.
+- With no sites the page reads **No sites yet**; with one, it is that site's row.
 - A site with no numbers yet opens on **Data sources** instead of an empty Overview.
 - A **hollow point** is a day still being counted; it fills in once the day is complete.
 - A **dashed line** is a projection or last week's comparison, never a measurement.

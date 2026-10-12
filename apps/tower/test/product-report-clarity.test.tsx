@@ -28,13 +28,14 @@ describe("product report clarity", () => {
     expect(section).toHaveTextContent("21h ago");
     expect(section).toHaveTextContent("59in 24h");
     expect(section).toHaveTextContent("Prior 7 reports: 122 / day");
-    expect(section).toHaveTextContent("Daily counts");
+    // The line names what it plots and the days it covers, under it and in its name.
+    expect(section.querySelector("[data-product-dates]")).toHaveTextContent("Aug 29daily countsSep 5");
     expect(screen.queryByText(/comparison: 7 reports/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "About product reports" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("comparison: 7 reports · Aug 29–Sep 4, 2026");
     expect(screen.getByRole("tooltip")).toHaveTextContent("Report received");
     fireEvent.keyDown(window, { key: "Escape" });
-    const chart = within(section).getByRole("img", { name: /Signups trend/ });
+    const chart = within(section).getByRole("img", { name: /^Signups daily counts, Aug 29 to Sep 5/ });
     fireEvent.focus(chart);
     expect(within(section).getByRole("status")).toHaveTextContent("59");
     expect(within(section).getByRole("status")).not.toHaveTextContent("122");

@@ -186,7 +186,7 @@ async function checkAt(page, { width, height }) {
     ready = await page
       .evaluate(
         // The widgets, drawn by the canvas once the payload arrived.
-        `!!document.querySelector('[data-wall-canvas]') && document.querySelectorAll('[data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed]').length > 0`,
+        `!!document.querySelector('[data-wall-canvas]') && document.querySelectorAll('[data-wall-strip], [data-wall-loop], [data-wall-revenue], [data-wall-sites], [data-wall-timeline], [data-wall-work], [data-wall-needs], [data-wall-feed]').length > 0`,
       )
       .catch((error) => {
         readyError = error.message;
@@ -295,9 +295,9 @@ async function checkAt(page, { width, height }) {
     // Actual occupancy, not a prediction: optional totals and flexible rows
     // make the current row heights unsuitable as a future capacity estimate.
     const box = (b) => (b ? `${b.top}–${b.bottom} (${b.height} px)` : "not drawn");
-    console.log("\nD28 regions, tallest frame:");
-    for (const name of ["strip", "revenue", "needs", "sites", "feed"]) {
-      console.log(`  ${name.padEnd(8)}${box(report.regions[name])}`);
+    console.log("\nRegions, tallest frame:");
+    for (const name of ["strip", "loop", "revenue", "sites", "timeline", "work", "needs", "feed"]) {
+      console.log(`  ${name.padEnd(9)}${box(report.regions[name])}`);
     }
     const { density, rows, spare } = report.sites;
     if (density === "focus") {

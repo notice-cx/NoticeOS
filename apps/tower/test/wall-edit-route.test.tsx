@@ -276,6 +276,9 @@ function warnings(): (string | null)[] {
   return [...document.querySelectorAll("[data-wall-warning]")].map((el) => el.textContent);
 }
 
+/** The default Wall, in the order the preview draws it. */
+const DEFAULT_DRAWN = ["strip", "loop", "timeline", "sites", "revenue", "work"];
+
 /** A Wall with only the site rows on it: the library then offers the rest. */
 const SITES_ONLY: WallConfig = {
   layout: {
@@ -319,7 +322,7 @@ function layoutState(label: string): Element | null {
 describe("the page it opens on", () => {
   it("draws the default Wall when nothing has ever been saved", () => {
     renderEditor();
-    expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
     expect(layoutState("On the TV")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
     expect(warnings()).toEqual([]);
@@ -370,7 +373,7 @@ describe("a saved layout the Tower refused", () => {
 
   it("names the save as refused where \"On the TV\" would stand, with the reason on hover", () => {
     renderRefused();
-    expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
     const chip = refusedChip("wall:layout");
     expect(chip?.textContent).toBe("Saved layout refused");
     expect(chip?.getAttribute("title")).toBe(REASON);
@@ -401,8 +404,8 @@ describe("a saved layout the Tower refused", () => {
 
   it("an arranged Save is guarded the same way", () => {
     renderRefused();
-    removeFromChrome("feed", "Live feed");
-    saveWith("Without the feed");
+    removeFromChrome("work", "Work");
+    saveWith("Without the work");
     const op = state.saves[0]?.ops[0];
     expect(op && op.kind === "file-json-set" ? op.expect : null).toEqual(BROKEN);
   });
@@ -468,19 +471,19 @@ describe("a layout naming retired widgets", () => {
   ] as const) {
     it(`opens as the default with one warning, and Save is guarded by the save itself (${name})`, () => {
       renderEditor(wall);
-      expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+      expect(drawn()).toEqual(DEFAULT_DRAWN);
       expect(warnings()).toEqual([WALL_RETIRED_WARNING]);
       expect(document.querySelector('[data-save-state="refused"]')).toBeNull();
       expect(document.querySelector("[data-wall-versions-empty]")).not.toBeNull();
 
-      removeFromChrome("feed", "Live feed");
-      saveWith("Default without the feed");
+      removeFromChrome("work", "Work");
+      saveWith("Default without the work");
       const op = state.saves[0]?.ops[0];
       expect(op && op.kind === "file-json-set" ? op.expect : null).toEqual(PRE_D28);
       const next = savedConfig();
       expect(next).not.toHaveProperty("retired");
       expect(next.history).toEqual([
-        { savedAt: expect.any(String), reason: "Default without the feed", layout: DEFAULT_WALL_LAYOUT },
+        { savedAt: expect.any(String), reason: "Default without the work", layout: DEFAULT_WALL_LAYOUT },
       ]);
     });
   }
@@ -494,18 +497,20 @@ describe("adding and removing", () => {
     expect(document.querySelector('[data-wall-widget-panel="feed"]')).not.toBeNull();
   });
 
-  it("shows a placed one-of-a-kind widget as ON THE WALL instead of an Add", () => {
+  it("shows a placed one-of-a-kind widget as ON THE WALL instead of an Add, and offers the two the default leaves out", () => {
     renderEditor();
-    expect(screen.queryByRole("button", { name: "Add Needs you" })).toBeNull();
-    const row = document.querySelector('[data-wall-library-item="needs"]');
+    expect(screen.queryByRole("button", { name: "Add Work" })).toBeNull();
+    const row = document.querySelector('[data-wall-library-item="work"]');
     expect(row?.querySelector('[data-wall-library-refusal="On the TV"]')).not.toBeNull();
     expect(row?.textContent).not.toContain("can appear only once");
+    expect(screen.getByRole("button", { name: "Add Needs you" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Add Live feed" })).toBeTruthy();
   });
 
   it("removes from the widget's own chrome", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    expect(drawn()).not.toContain("feed");
+    removeFromChrome("work", "Work");
+    expect(drawn()).not.toContain("work");
   });
 
   it("shows one toolbar at a time, over the widget being pointed at", () => {
@@ -527,15 +532,15 @@ describe("adding and removing", () => {
 describe("arranging", () => {
   it("moves a widget by dragging it onto another", () => {
     renderEditor();
-    fireEvent.dragStart(widget("feed"), { dataTransfer: dragged("feed") });
-    fireEvent.drop(widget("revenue"), { dataTransfer: dragged("feed"), clientX: 0 });
-    expect(drawn()).toEqual(["strip", "feed", "revenue", "needs", "sites"]);
+    fireEvent.dragStart(widget("work"), { dataTransfer: dragged("work") });
+    fireEvent.drop(widget("revenue"), { dataTransfer: dragged("work"), clientX: 0 });
+    expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "work", "revenue"]);
   });
 
   it("moves a widget by dropping it on an empty row's line", () => {
     renderEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
-    const line = document.querySelector('[data-wall-row-line="row-5"]');
+    const line = document.querySelector('[data-wall-row-line="row-8"]');
     expect(line).not.toBeNull();
     fireEvent.drop(line as HTMLElement, { dataTransfer: dragged("strip") });
     expect(drawn().at(-1)).toBe("strip");
@@ -543,23 +548,24 @@ describe("arranging", () => {
 
   it("moves a widget by button, for a keyboard", () => {
     renderEditor();
-    fireEvent.click(widget("needs"));
-    fireEvent.click(screen.getByRole("button", { name: "Move left" }));
-    expect(drawn().slice(1, 3)).toEqual(["needs", "revenue"]);
+    fireEvent.click(widget("work"));
+    fireEvent.click(screen.getByRole("button", { name: "Move up a row" }));
+    expect(drawn().slice(-2)).toEqual(["work", "revenue"]);
   });
 
   it("disables a direction with nowhere to go", () => {
     renderEditor();
     fireEvent.click(widget("revenue"));
     expect(screen.getByRole("button", { name: "Move left" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Move right" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Move right" })).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Move down a row" })).toHaveProperty("disabled", false);
   });
 
   it("reorders rows and moves the remaining height", () => {
     renderEditor();
-    fireEvent.click(screen.getByRole("button", { name: "Move row 2 up" }));
-    saveWith("Strip at the bottom");
-    expect(savedLayout().rows.map((row) => row.id)).toEqual(["body", "strip"]);
+    fireEvent.click(screen.getByRole("button", { name: "Move row 3 up" }));
+    saveWith("The loop at the bottom");
+    expect(savedLayout().rows.map((row) => row.id)).toEqual(["strip", "body", "loop"]);
   });
 
   it("gives the remaining height to one row and takes it from the other", () => {
@@ -567,14 +573,14 @@ describe("arranging", () => {
     const rows = document.querySelectorAll('[data-wall-row-line]');
     fireEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: /Remaining height/u }));
     saveWith("The strip takes the screen");
-    expect(savedLayout().rows.map((row) => row.height)).toEqual(["fill", "auto"]);
+    expect(savedLayout().rows.map((row) => row.height)).toEqual(["fill", "auto", "auto"]);
   });
 
   it("only lets an empty row be removed", () => {
     renderEditor();
     expect(screen.getByRole("button", { name: "Remove row 1" })).toHaveProperty("disabled", true);
     fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
-    expect(screen.getByRole("button", { name: "Remove row 3" })).toHaveProperty("disabled", false);
+    expect(screen.getByRole("button", { name: "Remove row 4" })).toHaveProperty("disabled", false);
   });
 
   it("stacks a widget in a column, takes it back out, and saves a column", () => {
@@ -586,22 +592,22 @@ describe("arranging", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Take out of column/u }));
     expect(document.querySelector("[data-wall-column='column']")).toBeNull();
-    expect(drawn()).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
     expect(saveButton()).toHaveProperty("disabled", true);
 
     fireEvent.click(screen.getByRole("button", { name: /Stack in column/u }));
-    const line = document.querySelector("[data-wall-column-row-line='row-5']");
+    const line = document.querySelector("[data-wall-column-row-line='row-8']");
     expect(line).not.toBeNull();
-    fireEvent.drop(line as HTMLElement, { dataTransfer: dragged("feed") });
-    saveWith("Feed under the strip");
+    fireEvent.drop(line as HTMLElement, { dataTransfer: dragged("work") });
+    saveWith("Work beside the strip");
     const column = savedLayout().rows[0]?.widgets[0];
     expect(column).toMatchObject({
       id: "column",
       type: "column",
       width: 1,
-      rows: [{ height: "auto", widgets: [{ id: "strip" }, { id: "feed" }] }],
+      rows: [{ height: "auto", widgets: [{ id: "strip" }, { id: "work" }] }],
     });
-    expect(savedConfig().history[0]?.reason).toBe("Feed under the strip");
+    expect(savedConfig().history[0]?.reason).toBe("Work beside the strip");
   });
 });
 
@@ -612,11 +618,11 @@ describe("the selected widget's settings", () => {
     renderEditor();
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
     expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
-      "Top strip", "Revenue", "Needs you", "Sites", "Live feed",
+      "Top strip", "The loop", "Last 24 hours", "Sites", "Revenue", "Work",
     ]);
     expect(panel.querySelector("p")).toBeNull();
-    fireEvent.click(within(panel).getByRole("button", { name: "Needs you" }));
-    expect(document.querySelector('[data-wall-widget-panel="needs"]')).not.toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Last 24 hours" }));
+    expect(document.querySelector('[data-wall-widget-panel="timeline"]')).not.toBeNull();
   });
 
   it("resizes on the contract's step grid and says the share of the row", () => {
@@ -690,7 +696,7 @@ describe("what the operator is told", () => {
     renderEditor();
     fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
     expect(document.querySelector("[data-wall-refusal]")?.textContent).toBe(
-      "Row 3 needs at least one widget.",
+      "Row 4 needs at least one widget.",
     );
     expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
   });
@@ -719,8 +725,8 @@ describe("what the operator is told", () => {
 describe("save", () => {
   it("writes exactly one file op, at the pointer, guarded by what it read", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    saveWith("The feed moves to the kitchen screen");
+    removeFromChrome("work", "Work");
+    saveWith("The work moves to the desk");
 
     expect(state.saves).toHaveLength(1);
     const request = state.saves[0];
@@ -733,7 +739,10 @@ describe("save", () => {
       expect: null,
     });
     expect(request?.slug).toBe("wall-layout");
-    expect(savedLayout().rows[1]?.widgets.map((w) => w.id)).toEqual(["business"]);
+    const body = savedLayout().rows[2]?.widgets ?? [];
+    expect(body.map((w) => w.id)).toEqual(["business", "side"]);
+    const side = body[1];
+    expect(side?.type === "column" ? side.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["revenue"]]);
   });
 
   it("guards against the value it actually read when a layout is already saved", () => {
@@ -746,76 +755,77 @@ describe("save", () => {
 
   it("keeps the replaced layout as a version, with the operator's own words", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    saveWith("The feed moves to the kitchen screen");
+    removeFromChrome("work", "Work");
+    saveWith("The work moves to the desk");
     const next = savedConfig();
     expect(next.history).toHaveLength(1);
-    expect(next.history[0]?.reason).toBe("The feed moves to the kitchen screen");
+    expect(next.history[0]?.reason).toBe("The work moves to the desk");
     expect(next.history[0]?.layout).toEqual(DEFAULT_WALL_LAYOUT);
   });
 
   it("saves on one press, and names the version by what changed when there is no note", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    expect(screen.getByLabelText("Version note")).toHaveProperty("placeholder", "Removed Live feed");
+    removeFromChrome("work", "Work");
+    // Its column's row goes with it, so the rows changed too.
+    expect(screen.getByLabelText("Version note")).toHaveProperty("placeholder", "Removed Work · rearranged rows");
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(state.saves).toHaveLength(1);
-    expect(savedConfig().history[0]?.reason).toBe("Removed Live feed");
+    expect(savedConfig().history[0]?.reason).toBe("Removed Work · rearranged rows");
     expect(screen.queryByRole("button", { name: "Save the layout" })).toBeNull();
   });
 
   it("saves on Enter in the note field, with the operator's words", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
+    removeFromChrome("work", "Work");
     const field = screen.getByLabelText("Version note");
-    fireEvent.change(field, { target: { value: "Feed off the TV" } });
+    fireEvent.change(field, { target: { value: "Work off the TV" } });
     fireEvent.keyDown(field, { key: "Enter" });
-    expect(savedConfig().history[0]?.reason).toBe("Feed off the TV");
+    expect(savedConfig().history[0]?.reason).toBe("Work off the TV");
   });
 
   it("goes quiet once the write lands", async () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    saveWith("The feed moves to the kitchen screen");
+    removeFromChrome("work", "Work");
+    saveWith("The work moves to the desk");
     await waitFor(() =>
       expect(layoutState("On the TV")).not.toBeNull(),
     );
-    expect(drawn()).not.toContain("feed");
+    expect(drawn()).not.toContain("work");
   });
 
   // The payload still holds the old document for a beat after a Save, so a
   // second Save in that beat must build on the one that just landed.
   it("builds the next Save on the one that just landed, and guards on it, before the payload catches up", async () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    saveWith("Feed off the TV");
+    removeFromChrome("work", "Work");
+    saveWith("Work off the TV");
     await waitFor(() => expect(layoutState("On the TV")).not.toBeNull());
     expect(document.querySelector('[data-save-state="saved"] [data-status-for="wall:layout"]')).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Work" }));
     expect(document.querySelector('[data-save-state="unsaved"] [data-status-for="wall:layout"]')).not.toBeNull();
-    saveWith("Feed back");
+    saveWith("Work back");
     await waitFor(() => expect(state.saves).toHaveLength(2));
     const second = state.saves[1]?.ops[0];
     expect(second && second.kind === "file-json-set" ? second.expect : undefined).toEqual(savedConfig(0));
-    expect(savedConfig(1).history.map((version) => version.reason)).toEqual(["Feed back", "Feed off the TV"]);
+    expect(savedConfig(1).history.map((version) => version.reason)).toEqual(["Work back", "Work off the TV"]);
   });
 
   it("keeps the operator's arrangement when the lane refuses", async () => {
     state.accept = false;
     renderEditor();
-    removeFromChrome("feed", "Live feed");
-    saveWith("The feed moves to the kitchen screen");
+    removeFromChrome("work", "Work");
+    saveWith("The work moves to the desk");
     await waitFor(() => expect(state.saves).toHaveLength(1));
-    expect(drawn()).not.toContain("feed");
+    expect(drawn()).not.toContain("work");
     expect(screen.getByText("Unsaved changes")).toBeTruthy();
   });
 
   it("puts the saved layout back on Discard", () => {
     renderEditor();
-    removeFromChrome("feed", "Live feed");
+    removeFromChrome("work", "Work");
     fireEvent.click(screen.getByRole("button", { name: "Discard" }));
-    expect(drawn()).toContain("feed");
+    expect(drawn()).toContain("work");
     expect(state.saves).toHaveLength(0);
   });
 });
@@ -955,10 +965,10 @@ describe("a phone", () => {
     renderEditor();
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
     // A touch never fires a drag, so every action the chrome lost is in the panel.
-    fireEvent.click(widget("feed"));
-    expect(document.querySelector('[data-wall-widget-panel="feed"]')).not.toBeNull();
+    fireEvent.click(widget("work"));
+    expect(document.querySelector('[data-wall-widget-panel="work"]')).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Remove" }));
-    expect(drawn()).not.toContain("feed");
+    expect(drawn()).not.toContain("work");
   });
 
   it("states the fit here too, because what it measures is still the television", () => {
