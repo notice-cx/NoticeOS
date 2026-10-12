@@ -536,6 +536,27 @@ export class Walk {
     if (confirm) this.m.confirms += 1;
     await this.step(confirm ? "confirm" : "click", role, label, target, () => target.click());
   }
+  /**
+   * A drag from `target` to a point on `onto` (fractions of its box): one
+   * gesture, so it counts as one click. The pointer travels in steps, as a
+   * hand does, so the page's own drag and drop sees every move.
+   */
+  async drag(target, onto, label, { role = "choose", at = { x: 0.5, y: 0.5 } } = {}) {
+    this.m.clicks += 1;
+    await this.step("drag", role, label, target, async () => {
+      const from = await target.boundingBox();
+      const to = await onto.boundingBox();
+      if (!from || !to) throw new Error(`nothing to drag for ${label}`);
+      const start = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+      const end = { x: to.x + to.width * at.x, y: to.y + to.height * at.y };
+      await this.page.mouse.move(start.x, start.y);
+      await this.page.mouse.down();
+      for (let i = 1; i <= 10; i += 1) {
+        await this.page.mouse.move(start.x + ((end.x - start.x) * i) / 10, start.y + ((end.y - start.y) * i) / 10);
+      }
+      await this.page.mouse.up();
+    });
+  }
   async fill(target, value, label, { paste = false, confirm = false } = {}) {
     this.m.fields += 1;
     if (paste) this.m.pastes += 1; else this.m.keys += value.length;

@@ -593,9 +593,11 @@ FLOWS["disconnect"] = {
 };
 
 /** Arrange the Wall: the Edit beside the sidebar's TV dashboard entry
- * (PostHog's dashboard Edit), move one widget, save. */
+ * (PostHog's dashboard Edit); at a desk, drag one widget onto another's top
+ * edge to stack them, then move the strip down with its Move menu; on a
+ * phone, the Move menu alone; save. */
 FLOWS["arrange-wall"] = {
-  title: "Arrange the TV Wall (Edit beside the TV entry, move one widget, save)",
+  title: "Arrange the TV Wall (Edit beside the TV entry, drag to stack and the Move menu, save)",
   async setup(page) {
     await seedAsset(page);
     const layout = structuredClone(DEFAULT_WALL_LAYOUT);
@@ -616,7 +618,17 @@ FLOWS["arrange-wall"] = {
       await w.click(w.page.locator("[data-app-sidebar]").getByRole("link", { name: "Edit the TV layout", exact: true }), "sidebar Edit the TV layout", { role: "nav" });
     }
     await settle(w.page);
-    await w.click(w.page.getByRole("button", { name: "Move row 1 down", exact: true }), "Move row 1 down", { role: "commit" });
+    const tile = (id) => w.page.locator(`[data-wall-preview] [data-wall-edit-widget="${id}"]`);
+    if (!w.mobile) {
+      // The drag path: Work onto the top edge of Sites stacks it above them.
+      await w.drag(tile("work"), tile("sites"), "drag Work onto the top of Sites", { at: { x: 0.5, y: 0.06 } });
+      await tile("work").locator("xpath=ancestor::*[@data-wall-column='business']").waitFor({ timeout: 10_000 });
+    }
+    // The Move menu path, the one a keyboard or a phone takes: the strip,
+    // alone in its row, goes down with it.
+    await w.click(tile("strip"), "select Top strip", { role: "choose" });
+    await w.click(w.page.locator('[data-wall-widget-panel="strip"]').getByRole("button", { name: "Move Top strip", exact: true }), "Move Top strip", { role: "reveal" });
+    await w.click(w.page.getByRole("menuitem", { name: /^Move down/ }), "Move down", { role: "choose" });
     // One press: the version note is optional and the version is named by
     // what changed when the operator writes none.
     await w.click(w.page.getByRole("button", { name: "Save", exact: true }).first(), "Save", { role: "commit" });
