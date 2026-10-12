@@ -168,8 +168,9 @@ const BUSINESS_SURFACES = [
   'apps/tower/src/routes/asset-detail/SiteLead.tsx',
   'apps/tower/src/routes/asset-detail/AssetHeader.tsx',
   'apps/tower/src/lib/home-brief.ts',
+  'apps/tower/src/lib/home-money.ts',
+  'apps/tower/src/routes/home/MoneyHero.tsx',
   'apps/tower/src/lib/site-health.ts',
-  'apps/tower/src/components/HighlightCard.tsx',
   // The Sites list is the portfolio's business index.
   'apps/tower/src/routes/AssetsRoute.tsx',
   'apps/tower/src/routes/assets/AssetsTable.tsx',

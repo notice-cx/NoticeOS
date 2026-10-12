@@ -52,7 +52,7 @@ export const MATERIALITY = {
     source: "WallPayload.attention / AssetDetailPayload.flags.open",
     derivation: "Open rows retain severity and kind as independent visual channels.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="open-flags"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="open-flags"]' },
     asset: { placement: "primary-content", component: "AlertsTab", selector: 'section[aria-label="Open"]' },
     behavior: {
       empty: "The open queue names its empty state; it does not certify source health.",
@@ -64,7 +64,7 @@ export const MATERIALITY = {
     source: "WallPayload.system.ingest + assets[].pulseReceivedAt / AssetDetailPayload.freshness",
     derivation: "Age is evaluated against the effective cadence, never inferred from row presence.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="signal-freshness"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="signal-freshness"]' },
     asset: { placement: "first-viewport", component: "AssetHeader", selector: 'header [data-nightly-report-age], header [data-nightly-report="none"]' },
     behavior: {
       empty: "No expected reporters is named as an empty denominator.",
@@ -76,7 +76,7 @@ export const MATERIALITY = {
     source: "WallPayload.system.assetId + hasPulse (osReportMissing), its age in system.ingest / asset #0 freshness",
     derivation: "The OS earns healthy only from a current self-report.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="os-runner-health"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="os-runner-health"]' },
     asset: { placement: "first-viewport", component: "AssetHeader", selector: 'header [data-nightly-report-age], header [data-nightly-report="none"]' },
     behavior: {
       empty: "The Wall names a missing OS report; its asset header names report absence without claiming healthy.",
@@ -88,7 +88,7 @@ export const MATERIALITY = {
     source: "WallPayload.system.scheduledLanes / AssetDetailPayload.scheduledLanes",
     derivation: "The latest store-backed outcome and age determine scheduler posture.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="scheduled-lane-health"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="scheduled-lane-health"]' },
     asset: { placement: "primary-content", component: "SourcesTab / ScheduledLanesPanel", selector: 'section[aria-label="Scheduled automation"]' },
     behavior: {
       empty: "No recorded lane is Unknown, never all-clear.",
@@ -101,7 +101,7 @@ export const MATERIALITY = {
     derivation:
       "The day's metered DATA spend, summed over the OS's own record of the calls it made, is compared with the day's share of the data cap — the portfolio's only cap.",
     priority: "high",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="budget-guardrail"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="budget-guardrail"]' },
     asset: { placement: "not-applicable", reason: "Portfolio spend is OS state, not an asset fact." },
     behavior: {
       empty: "A day with no metered call is a measured $0.00, not an absent row.",
@@ -114,7 +114,7 @@ export const MATERIALITY = {
     derivation:
       "Urgent includes open human gates and blocker-aware P0/P1 human work. Missing task readings remain unknown in the asset preview.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="human-gates"]' },
+    wall: { placement: "fixed-horizon", component: "WallWork", selector: '[data-material-condition~="human-gates"]' },
     asset: { placement: "primary-content", component: "OverviewTab / NeedsYou", selector: 'section[aria-label="Needs you"]' },
     behavior: {
       empty: "Complete measured zero renders calm.",
@@ -128,7 +128,7 @@ export const MATERIALITY = {
     priority: "high",
     wall: {
       placement: "not-applicable",
-      reason: "A change is one asset's state; the Wall's live feed says when something shipped, and the asset page owns the change.",
+      reason: "A change is one asset's state; the Wall's timeline marks when something shipped, and the asset page owns the change.",
     },
     asset: { placement: "primary-content", component: "ActivityTab / Timeline", selector: '#timeline' },
     behavior: {
@@ -143,7 +143,7 @@ export const MATERIALITY = {
     priority: "high",
     wall: {
       placement: "not-applicable",
-      reason: "An open watch is true but does not move; the asset page owns it, and a watch that closes badly reaches Needs you as rollback-failure.",
+      reason: "An open watch is true but does not move; the asset page owns it, and a watch that closes badly reaches the Wall's timeline as rollback-failure.",
     },
     asset: { placement: "primary-content", component: "ActivityTab / WatchesStrip", selector: 'section[aria-label="Bets"]' },
     behavior: {
@@ -156,7 +156,7 @@ export const MATERIALITY = {
     source: "watch-window-closed open flag with ruleInputs.outcome = kill_confirmed",
     derivation: "A measured decline asks for a revert decision; it never claims rollback already happened.",
     priority: "critical",
-    wall: { placement: "fixed-horizon", component: "NeedsYou", selector: '[data-material-condition~="rollback-failure"]' },
+    wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="rollback-failure"]' },
     asset: { placement: "primary-content", component: "AlertsTab / AlertRow", selector: '[data-material-condition~="rollback-failure"]' },
     behavior: {
       empty: "No failed outcome adds no rollback state.",
@@ -189,14 +189,14 @@ export const WALL_PAYLOAD_INVENTORY = {
   // keeps fields no screen draws: `bookedDelta` (the last two closed months),
   // `residue`, `daysIn` and `trendGranularity` reach agents only.
   portfolio: { class: "material-current", placement: "primary-content", destination: "RevenueHero + Home and Sites net; MCP list_properties returns the whole band" },
-  system: { class: "material-current", placement: "fixed-horizon", destination: "NeedsYou system problems + Home System tile" },
+  system: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline System row and its calm line + Home System tile" },
   dashboard: { class: "configuration", placement: "primary-content", destination: "WallStrip countdown + the saved Wall layout" },
-  assets: { class: "material-current", placement: "primary-content", destination: "SiteRows" },
-  attention: { class: "material-current", placement: "fixed-horizon", destination: "NeedsYou" },
+  assets: { class: "material-current", placement: "primary-content", destination: "SiteRows + WallLoop + WallWork" },
+  attention: { class: "material-current", placement: "fixed-horizon", destination: "WallTimeline problem bars + SiteRows issue marks" },
   // History: a snoozed condition is a decision already made, so it belongs on
   // `/alerts`, never on the Wall.
   snoozed: { class: "history", placement: "primary-content", destination: "AlertsRoute Snoozed list" },
-  operator: { class: "material-current", placement: "fixed-horizon", destination: "NeedsYou urgent tasks" },
+  operator: { class: "material-current", placement: "fixed-horizon", destination: "WallWork Waiting on you + WallLoop Decide" },
   ledgerRecordedAt: { class: "supporting-evidence", placement: "derived-only", destination: "MCP list_properties (no screen)" },
 } satisfies Record<keyof WallPayload, PayloadConcern>;
 

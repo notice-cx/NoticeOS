@@ -1,29 +1,31 @@
 import { Activity, Cable, Check, Plus } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { sourceReadings } from "@shared/connection-status";
+import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRunStepKey } from "@shared/first-run";
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { AssetCard, SystemBand } from "@shared/wall";
+import type { AssetCard, WallPayload } from "@shared/wall";
+import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
 import { AddSiteButton } from "@/components/AddSite";
 import { DataSourceIcons } from "@/components/DataSourceIcons";
-import { HighlightCard } from "@/components/HighlightCard";
-import { FinishLine, readingAge } from "@/components/surface/FinishLine";
-import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
 import { SeverityDot } from "@/components/SeverityDot";
-import { StateChip } from "@/components/StateChip";
-import { ListPanel, ListRow } from "@/components/surface/ListPanel";
-import { SectionLabel } from "@/components/surface/SectionLabel";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { pillControlClass } from "@/components/ui/pill";
+import { BarStrip } from "@/components/viz/BarStrip";
+import { DecisionQueue, QueueRow, type QueueItem } from "@/components/viz/DecisionQueue";
+import { EventTimeline } from "@/components/viz/EventTimeline";
+import { HealthGrid } from "@/components/viz/HealthGrid";
+import { IncidentList } from "@/components/viz/IncidentList";
+import { PortfolioRows, type PortfolioRow } from "@/components/viz/PortfolioRows";
+import { StatTile } from "@/components/viz/StatTile";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { useConnections } from "@/hooks/useConnections";
 import { useNow } from "@/hooks/useNow";
@@ -31,25 +33,29 @@ import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useWork } from "@/hooks/useWork";
 import { useDemoReadonly } from "@/lib/browser-context";
-import { formatInt, formatTimestamp, formatUsd } from "@/lib/format";
-import { greeting, homeBrief, monthFigure, visitorsFigure, type HomeBrief } from "@/lib/home-brief";
+import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
+import { greeting, peopleYesterday } from "@/lib/home-brief";
+import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
 import { askVerb } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
-import { hasRevenueSource, monthRevenue, yesterdayTotal } from "@/lib/wall-revenue";
+import { healthGridRows, incidentsFromIssues, sourceColumns, timelineFromWall } from "@/lib/viz-adapters";
+import { wallIssues, type WallIssue } from "@/lib/wall-issues";
+import { hasRevenueSource } from "@/lib/wall-revenue";
+import { withSystemIssues } from "@/lib/wall-system-state";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
+import { MoneyHero } from "@/routes/home/MoneyHero";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { askFace } from "@/routes/tasks/task-face";
 
 /**
- * Home is the morning brief. It answers one question, what changed since I
- * last looked and what needs me, in this order: a greeting line with three
- * small figures; at most five highlight cards, the first the big thing;
- * Decide, at most three rows with their verbs on the row; the sites in seed
- * order with one health word each; and a finish line. The OS never describes
- * itself here: a broken thing arrives as a highlight card.
+ * Home answers how the business is doing, what is broken and what needs the
+ * operator, drawn from the data: the month's money as the lead with
+ * yesterday's revenue and visitors beside it; every site's data sources as
+ * one grid beside the ranked problems the grid does not draw; the decisions
+ * waiting beside the sites compared; the last day on a time axis. A fresh
+ * install sees the three steps to a first number instead.
  */
 export function HomeRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
@@ -59,25 +65,9 @@ export function HomeRoute() {
   // Setup is done at the first collected number; until then Home is the
   // guide, following the newest site.
   const guide = data ? firstRunSite(data.assets) : null;
-  const oneSite = data && !guide && data.assets.length === 1 ? data.assets[0]! : null;
-  const brief = data && !guide
-    ? homeBrief({
-        assets: data.assets,
-        attention: data.attention,
-        portfolio: data.portfolio,
-        system: data.system,
-        connections,
-        feed: feed.data ?? null,
-        nowMs: now,
-        sitePath: (id) => {
-          const card = data.assets.find((candidate) => candidate.id === id);
-          return card ? sitePath(card) : `/assets/${encodeURIComponent(id)}`;
-        },
-      })
-    : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
+    <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Home"
         documentTitle={null}
@@ -101,113 +91,215 @@ export function HomeRoute() {
           footer={<ClockProposal />}
         />
       ) : (
-        <>
-          <Brief brief={brief!} assets={data.assets} portfolio={data.portfolio} system={data.system} nowMs={now} generatedAt={data.generatedAt} />
-
-          <div className={cn("grid grid-cols-1 gap-3.5 [&>*]:min-w-0", !oneSite && "lg:grid-cols-2")}>
-            <LiveDecidePanel nowMs={now} />
-            {oneSite ? null : <SitesStrip assets={data.assets} brief={brief!} nowMs={now} />}
-          </div>
-
-          {/* One site is that site: its own numbers and chart, the Overview's
-              lead from the same read, under the brief. */}
-          {oneSite ? <OneSiteLead site={oneSite} nowMs={now} /> : null}
-        </>
+        <Board data={data} feed={feed.data ?? null} connections={connections} nowMs={now} />
       )}
     </div>
   );
 }
 
-// --- the brief --------------------------------------------------------------
+// --- the board ----------------------------------------------------------------
 
-/**
- * The greeting line and the cards. The three figures are the Wall's own
- * derivations (`monthRevenue`, `yesterdayTotal`) and the brief's visitors;
- * "since 6 PM yesterday · N things changed" is the feed's window, relative,
- * exact on hover.
- */
-function Brief({
-  brief,
-  assets,
-  portfolio,
-  system,
-  nowMs,
-  generatedAt,
-}: {
-  brief: HomeBrief;
-  assets: AssetCard[];
-  portfolio: Parameters<typeof monthRevenue>[0];
-  system: SystemBand;
-  nowMs: number;
-  generatedAt: string;
-}) {
-  const yesterday = yesterdayTotal(assets, nowMs);
-  const sinceAge = brief.since ? ageMs(nowMs, brief.since) : null;
-  // What the materiality suite reads: every open condition the brief stands
-  // for, so a problem the Wall's Needs you lists is listed here too.
-  const conditions = new Set<string>(["open-flags", "human-gates"]);
-  if (system) for (const condition of ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]) conditions.add(condition);
-  for (const card of brief.cards) for (const condition of card.conditions) conditions.add(condition);
+const usd = (value: number) => formatUsd(value);
+const cents = (value: number) => formatUsd(value, { cents: true });
+const DAY_MS = 86_400_000;
 
-  const figures: AnswerFigure[] = [];
-  if (yesterday && !yesterday.mixedBasis && yesterday.amount !== null) {
-    figures.push({ label: "Yesterday", value: formatUsd(yesterday.amount, { cents: true }), note: "est.", tone: "text-financial-revenue" });
-  }
-  const month = monthFigure(portfolio, assets);
-  if (month) figures.push(month);
-  const visitors = visitorsFigure(assets);
-  if (visitors) figures.push(visitors);
+function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
+  const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
+  const money = homeMoney(data.portfolio, data.assets);
+  const oneSite = data.assets.length === 1 ? data.assets[0]! : null;
+  const since = feed?.since ?? null;
+  const timeline = timelineFromWall(data.assets, issues, feed?.items ?? [], sitePath);
+  const changed = issues.filter((issue) => since !== null && issue.since !== null && issue.since >= since).length + timeline.events.length;
+  // What the materiality suite reads: every open condition Home stands for, so
+  // a problem the Wall lists is drawn here too.
+  const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
+  for (const issue of issues) for (const condition of issue.conditions) conditions.add(condition);
 
   return (
-    <section
-      aria-labelledby="home-brief"
-      data-surface-hero=""
-      data-home-brief={brief.cards.length}
-      data-material-condition={[...conditions].join(" ")}
-      className="flex flex-col gap-3.5"
-    >
-      <PageAnswer
-        id="home-brief"
-        answer={greeting(nowMs)}
-        detail={
-          <span data-brief-since>
-            {brief.since ? (
-              <>
-                since <time dateTime={brief.since} title={formatTimestamp(brief.since)}>{sinceAge === null ? "yesterday" : `${formatAge(sinceAge)} ago`}</time>
-                {" · "}
-              </>
-            ) : null}
-            {brief.changed === 0 ? "nothing changed" : `${formatInt(brief.changed)} ${brief.changed === 1 ? "thing" : "things"} changed`}
-          </span>
-        }
-        figures={figures}
-      />
+    // Laid out by its own width, not the window's: the desk's sidebar, a
+    // portrait monitor or a narrow window all leave Home less than the
+    // viewport, and the twelve columns need room to be twelve.
+    <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
+      <Answer money={money} issues={issues} since={since} changed={changed} nowMs={nowMs} />
 
-      <div className="grid gap-3.5 lg:grid-cols-3" data-brief-cards>
-        {brief.cards.map((card, index) => (
-          <HighlightCard
-            key={card.key}
-            kind={card.kind}
-            severity={card.severity}
-            site={card.site}
-            title={card.title}
-            detail={card.detail}
-            figure={card.figure}
-            spark={card.spark}
-            action={card.action}
-            big={index === 0}
-            marks={{ "data-brief-card": card.key, ...(card.assetId ? { "data-subject": `asset:${card.assetId}` } : {}) }}
+      <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
+        <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
+          {money ? <MoneyHero money={money} className="h-full" /> : <PeopleLead assets={data.assets} />}
+        </div>
+        <div className="grid gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1">
+          {money ? <YesterdayRevenue assets={data.assets} money={money} nowMs={nowMs} /> : null}
+          {money ? <VisitorsYesterday assets={data.assets} /> : null}
+        </div>
+
+        <section aria-label="Data sources" className="self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8" data-home-health="">
+          <HealthGrid
+            rows={healthGridRows(data.assets, data.system, connections, nowMs, sitePath).map((row) => {
+              const asset = data.assets.find((candidate) => candidate.id === row.id);
+              return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} displayName={asset.displayName} /> } : row;
+            })}
+            columns={sourceColumns(data.assets)}
+            nowMs={nowMs}
+            calm
+            action={<Link to="/integrations" className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Integrations →</Link>}
           />
-        ))}
-        <FinishLine
-          quiet={brief.cards.length === 0}
-          line={brief.cards.length === 0 ? `Nothing changed ${sinceWords(brief.since, nowMs)}.` : `That's everything ${sinceWords(brief.since, nowMs)}.`}
-          age={readingAge(generatedAt, nowMs)}
-          className={brief.cards.length === 0 ? "min-h-24 lg:col-span-3" : "min-h-24"}
-        />
+        </section>
+        <div className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0">
+          <IncidentList
+            items={incidentsFromIssues(issues, { besideGrid: true, to: (issue) => issueLink(issue, data.assets) })}
+            nowMs={nowMs}
+            marker={since}
+            action={{ label: "All alerts →", to: "/alerts" }}
+            empty="Nothing else is broken."
+          />
+          <LiveDecidePanel nowMs={nowMs} />
+        </div>
+
+        <div className="@3xl:col-span-2 @6xl:col-span-12">
+          {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={data.assets} issues={issues} money={money} nowMs={nowMs} />}
+        </div>
+
+        <section aria-label="The last 24 hours" className="rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+          <EventTimeline
+            lanes={timeline.lanes}
+            spans={timeline.spans}
+            events={timeline.events}
+            window={{ from: new Date(nowMs - DAY_MS).toISOString(), to: new Date(nowMs).toISOString() }}
+            nowMs={nowMs}
+            marker={since ? { at: since, label: `Since ${sinceClock(since, nowMs)}` } : undefined}
+            ariaLabel="What happened in the last 24 hours"
+          />
+        </section>
       </div>
-    </section>
+    </div>
   );
+}
+
+/** Where a problem's row opens: its site, the System, or the alerts. */
+function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
+  const asset = issue.assets.length === 1 ? assets.find((candidate) => candidate.id === issue.assets[0]) : undefined;
+  if (asset) return sitePath(asset);
+  return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";
+}
+
+/**
+ * The screen's answer in one line under a quiet greeting: where the month is
+ * heading, what is broken. The greeting and the window are an eyebrow; the
+ * numbers below are the large type.
+ */
+function Answer({ money, issues, since, changed, nowMs }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number }) {
+  const errors = issues.filter((issue) => issue.severity === "error").length;
+  const warnings = issues.length - errors;
+  const month = money ? formatPeriodMonthLong(money.period) : null;
+  const previous = money?.previousPeriod ? formatPeriodMonthLong(money.previousPeriod) : null;
+  const moneyWords = !money || month === null
+    ? null
+    : money.projected !== null
+      ? `${month} is heading for ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
+      : money.soFar !== null
+        ? `${month} so far ${usd(money.soFar)}${money.estimated ? " est." : "."}`
+        : null;
+  const problemWords = errors === 0 && warnings === 0
+    ? "Nothing is broken."
+    : `${errors > 0 ? `${formatInt(errors)} ${errors === 1 ? "thing is" : "things are"} broken` : ""}${errors > 0 && warnings > 0 ? ", " : ""}${warnings > 0 ? `${formatInt(warnings)} at risk` : ""}.`;
+  return (
+    <header className="flex flex-col gap-1" data-home-answer="">
+      <span className="text-sm text-muted-foreground" data-brief-since="">
+        {greeting(nowMs)}
+        {since ? (
+          <>
+            {" · since "}
+            <time dateTime={since} title={formatTimestamp(since)}>{sinceClock(since, nowMs)}</time>
+          </>
+        ) : null}
+        {" · "}
+        {changed === 0 ? "nothing changed" : `${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}
+      </span>
+      <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]">
+        {moneyWords ? <span>{moneyWords} </span> : null}
+        <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problemWords}</span>
+      </h2>
+    </header>
+  );
+}
+
+function YesterdayRevenue({ assets, money, nowMs }: { assets: readonly AssetCard[]; money: HomeMoney; nowMs: number }) {
+  const yesterday = yesterdayMoney(assets, nowMs, money.days);
+  const usual = yesterday && yesterday.days.length >= 3 ? yesterday.days.reduce((sum, day) => sum + (day.v ?? 0), 0) / yesterday.days.length : null;
+  return (
+    <StatTile
+      label="Revenue, yesterday"
+      value={yesterday?.amount ?? null}
+      absent="not reported yet"
+      format={cents}
+      note={money.estimated ? "est." : undefined}
+      role="money"
+      to="/financials"
+      comparison={yesterday?.weekBefore != null ? { percent: yesterday.changePercent, change: yesterday.amount - yesterday.weekBefore, against: "vs a week before" } : null}
+      history={yesterday && yesterday.days.length >= 3 ? (
+        <BarStrip data={yesterday.days} tone="text-financial-revenue" baseline={usual !== null ? { value: usual, label: `usual ${cents(usual)}` } : null} format={cents} ariaLabel="Revenue a day, this month" className="h-10" />
+      ) : null}
+    />
+  );
+}
+
+function VisitorsYesterday({ assets, display = false }: { assets: readonly AssetCard[]; display?: boolean }) {
+  const people = peopleYesterday(assets);
+  const usual = people && people.series.length >= 3 ? people.series.reduce((sum, day) => sum + day.v, 0) / people.series.length : null;
+  return (
+    <StatTile
+      label="Visitors, yesterday"
+      value={people?.total ?? null}
+      absent="nothing reported yet"
+      format={formatInt}
+      role="people"
+      size={display ? "display" : "figure"}
+      to="/assets"
+      comparison={people && people.previous !== null ? { percent: people.changePercent, change: people.total - people.previous, against: "vs a week before" } : null}
+      history={people && people.series.length >= 3 ? (
+        <BarStrip data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last two weeks" className={display ? "h-20" : "h-10"} />
+      ) : null}
+      context={people ? <>as of <b>{formatSeriesDate(people.date)}</b></> : null}
+    />
+  );
+}
+
+/** With no revenue source anywhere, people lead: no money figure nobody counted. */
+function PeopleLead({ assets }: { assets: readonly AssetCard[] }) {
+  return <VisitorsYesterday assets={assets} display />;
+}
+
+/** The sites compared: health, people a day, yesterday's money and its
+ * change, share of the month. Sources are left to the grid above. */
+function Sites({ assets, issues, money, nowMs }: { assets: readonly AssetCard[]; issues: readonly WallIssue[]; money: HomeMoney | null; nowMs: number }) {
+  const total = money?.bySite.reduce((sum, site) => sum + site.amount, 0) ?? 0;
+  const rows: PortfolioRow[] = assets.map((asset) => {
+    const health = siteHealth(asset, issues);
+    const days = siteDays(asset);
+    const yesterday = hasRevenueSource(asset) ? yesterdayMoney([asset], nowMs, days) : null;
+    const earned = money?.bySite.find((site) => site.id === asset.id)?.amount ?? null;
+    return {
+      id: asset.id,
+      name: asset.displayName,
+      icon: <PropertyFavicon domain={asset.id} displayName={asset.displayName} />,
+      to: sitePath(asset),
+      health: { word: health.word, tone: health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : "quiet" },
+      people: asset.activeUsers.series,
+      peopleProvisionalFrom: asset.activeUsers.provisionalFrom,
+      peopleLatest: settledPeople(asset),
+      revenue: yesterday?.amount ?? null,
+      revenueChange: yesterday?.changePercent ?? null,
+      share: earned !== null && total > 0 ? earned / total : null,
+      sources: [],
+    };
+  });
+  return <PortfolioRows rows={rows} formatMoney={cents} showSources={false} action={{ label: "All sites →", to: "/assets" }} className="h-full" />;
+}
+
+/** A site's visitors on its latest settled day, or null when nothing settled. */
+function settledPeople(asset: AssetCard): number | null {
+  const { series, provisionalFrom } = asset.activeUsers;
+  const settled = series.filter((point) => provisionalFrom === null || point.t < provisionalFrom);
+  return settled.at(-1)?.v ?? null;
 }
 
 /** "6 PM yesterday" — the window's start as a clock reading, on the reader's
@@ -224,15 +316,10 @@ function sinceClock(since: string, nowMs: number): string {
   return wasYesterday ? `${clock} yesterday` : `${clock} ${new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(at)}`;
 }
 
-/** "since 6 PM yesterday", the brief's window in words. */
-function sinceWords(since: string | null, nowMs: number): string {
-  return since ? `since ${sinceClock(since, nowMs)}` : "since yesterday";
-}
-
 // --- decide -----------------------------------------------------------------
 
 /** How many rows Decide shows before its own expander. */
-const DECIDE_ROWS = 3;
+const DECIDE_ROWS = 4;
 
 interface WaitingRow {
   item: WorkItem;
@@ -267,12 +354,27 @@ function LiveDecidePanel({ nowMs }: { nowMs: number }) {
   return <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />;
 }
 
+function queueItem(row: WaitingRow, nowMs: number): QueueItem {
+  const age = ageMs(nowMs, row.item.updatedAt);
+  return {
+    id: row.item.id,
+    title: row.item.title,
+    // The project, never the task's id, which is on the page the row opens;
+    // the glyph and the verb say what the row asks.
+    project: row.project,
+    kind: row.item.issueType === "gate" ? "approval" : "question",
+    ageDays: age === null ? null : age / DAY_MS,
+    to: `/tasks/${encodeURIComponent(row.item.id)}`,
+  };
+}
+
 /**
- * Decide: every project's operator inbox, flattened, with the verb on the
- * row. A gate offers Approve; an ask offers Answer and Dismiss; both go
- * through the Tasks board's own path, with its Undo toast. The three empty
- * states are three different facts: the read has not answered yet, nothing
- * has ever been read, or there is genuinely nothing to decide.
+ * Decide: every project's operator inbox, flattened, drawn as a queue — how
+ * many wait, how old the wait is, then the rows with their verbs. A gate
+ * offers Approve; an ask offers Answer and Dismiss; both go through the Tasks
+ * board's own path, with its Undo toast. The three empty states are three
+ * different facts: the read has not answered yet, nothing has ever been read,
+ * or there is genuinely nothing to decide.
  */
 export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undefined; failed: boolean; nowMs: number }) {
   const projects = work?.projects ?? [];
@@ -285,13 +387,7 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
   const total = measured.reduce((sum, project) => sum + project.counts.waiting!, 0);
   const hasSnapshot = work !== undefined && work.capturedAt !== null;
   const stale = hasSnapshot && isAmber(nowMs, work.capturedAt, WORK_POLL_CADENCE_HOURS);
-  const count = !hasSnapshot
-    ? undefined
-    : complete
-      ? `${formatInt(total)} waiting${stale ? " · outdated" : ""}`
-      : total > 0
-        ? `${formatInt(total)}+ waiting · partial read`
-        : "count unknown";
+  const note = !hasSnapshot ? undefined : complete ? (stale ? "outdated" : undefined) : total > 0 ? "partial read" : "count unknown";
   const empty =
     failed && !hasSnapshot
       ? "Could not read your tasks."
@@ -304,104 +400,43 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
             : total > 0
               ? "No request details read."
               : "Nothing to decide.";
+  const items = ordered.map((row) => queueItem(row, nowMs));
 
   return (
-    <ListPanel
+    <DecisionQueue
+      items={items}
+      total={hasSnapshot && total > 0 ? total : null}
+      totalNote={note}
       title="Decide"
-      count={count}
-      action={{ label: ordered.length > DECIDE_ROWS ? `${formatInt(ordered.length - DECIDE_ROWS)} more` : "All tasks", to: "/tasks" }}
+      action={{ label: "All tasks →", to: "/tasks" }}
       limit={DECIDE_ROWS}
       empty={empty}
+      className="flex-1"
     >
-      {ordered.map((row) => (
-        <DecideRow key={row.item.id} row={row} nowMs={nowMs} />
+      {ordered.map((row, index) => (
+        <DecideRow key={row.item.id} row={row} item={items[index]!} index={index} />
       ))}
-    </ListPanel>
+    </DecisionQueue>
   );
 }
 
-function DecideRow({ row, nowMs }: { row: WaitingRow; nowMs: number }) {
+function DecideRow({ row, item, index }: { row: WaitingRow; item: QueueItem; index: number }) {
   const location = useLocation();
   const readonly = useDemoReadonly();
-  const { item, project, asset } = row;
   const { buttons, box } = useAskActions({
-    ask: askVerb(item),
-    id: item.id,
-    title: item.title,
-    project: asset,
+    ask: askVerb(row.item),
+    id: row.item.id,
+    title: row.item.title,
+    project: row.asset,
     disabledReason: readonly ? "Read-only demo" : null,
     placement: "row",
   });
   return (
-    <ListRow
-      marks={{ "data-subject": `task:${item.id}` }}
-      to={`/tasks/${encodeURIComponent(item.id)}`}
-      returnTo={`${location.pathname}${location.search}`}
-      // The Tasks board's own ask face: warn at every priority and a gate's △.
-      // Priority is the order, never the colour.
-      {...askFace(item)}
-      title={item.title}
-      // The project and what the row asks, never the task's id, which is on
-      // the page the row opens.
-      caption={item.issueType === "gate" ? `${project} · needs your approval` : project}
-      value={formatAge(ageMs(nowMs, item.updatedAt))}
-      valueLabel="waiting"
-      rowActions={buttons}
-      below={box}
+    <QueueRow
+      item={{ ...item, returnTo: `${location.pathname}${location.search}`, actions: buttons, below: box }}
+      index={index}
     />
   );
-}
-
-// --- sites ------------------------------------------------------------------
-
-/**
- * The sites, in seed order, one health word each. Never sorted: the operator
- * learns where each site is and it stays there. The comparison table is on
- * Sites; this strip says the one word and the one figure a glance needs.
- */
-function SitesStrip({ assets, brief, nowMs }: { assets: AssetCard[]; brief: HomeBrief; nowMs: number }) {
-  return (
-    <section aria-label="Sites" className="flex flex-col rounded-[10px] border border-border bg-card" data-sites-strip>
-      <SectionLabel title="Sites" caption={siteCount(assets.length)} action={{ to: "/assets", label: "All sites →" }} className="px-4 pb-2 pt-3" />
-      <ul className="m-0 grid list-none grid-cols-1 gap-px bg-border/60 p-0 sm:grid-cols-2 [&>*]:min-w-0">
-        {assets.map((asset) => {
-          const health = siteHealth(asset, brief.issues);
-          const yesterday = hasRevenueSource(asset) ? yesterdayTotal([asset], nowMs) : null;
-          const people = settledPeople(asset);
-          return (
-            <li key={asset.id} className="m-0 bg-card" data-site-cell={asset.id} data-subject={`asset:${asset.id}`}>
-              <Link
-                to={sitePath(asset)}
-                className={cn(pillControlClass, "flex min-h-14 items-center gap-3 px-4 py-2.5 hover:bg-muted/40 motion-safe:transition-colors max-sm:min-h-11")}
-              >
-                <PropertyFavicon domain={asset.id} displayName={asset.displayName} />
-                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="text-[13px] font-medium text-foreground [overflow-wrap:anywhere]">{asset.displayName}</span>
-                  <span className="text-xs tabular-nums text-muted-foreground [overflow-wrap:anywhere]">
-                    {yesterday && yesterday.amount !== null && !yesterday.mixedBasis
-                      ? `${formatUsd(yesterday.amount, { cents: true })} yesterday${people !== null ? ` · ${formatInt(people)} people` : ""}`
-                      : people !== null
-                        ? `${formatInt(people)} people a day`
-                        : health.key === "setting-up"
-                          ? "no numbers yet"
-                          : "nothing reported yesterday"}
-                  </span>
-                </span>
-                <StateChip label={health.word} tone={health.tone} subject={`asset:${asset.id}`} className="shrink-0" />
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </section>
-  );
-}
-
-/** A site's visitors on its latest settled day, or null when nothing settled. */
-function settledPeople(asset: AssetCard): number | null {
-  const { series, provisionalFrom } = asset.activeUsers;
-  const settled = series.filter((point) => provisionalFrom === null || point.t < provisionalFrom);
-  return settled.at(-1)?.v ?? null;
 }
 
 // --- one site ---------------------------------------------------------------

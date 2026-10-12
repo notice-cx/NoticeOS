@@ -48,6 +48,9 @@ export interface HealthCell {
   state: HealthState;
   /** When the cell entered this state; null when nobody recorded it. */
   since?: string | null;
+  /** The state in the words every other screen uses for this source ("Up",
+   * "Key accepted"), when they are more exact than the grid's own word. */
+  label?: string;
   /** The store's own sentence about it: a failure's reason, a gap. */
   detail?: string | null;
   href?: string;
@@ -183,7 +186,7 @@ export function problemSentence(problem: HealthProblem): string {
 
 /** "Failing since 6h ago"; a failure or a lateness with no recorded start says so. */
 function stateSince(cell: HealthCell, nowMs: number): string {
-  const word = CONNECTION_LABELS[cell.state];
+  const word = cell.label ?? CONNECTION_LABELS[cell.state];
   const age = ageMs(nowMs, cell.since);
   if (age !== null) return `${word} since ${formatAge(age)} ago`;
   return cell.state === "failing" || cell.state === "overdue" ? `${word}, since unknown` : word;
@@ -393,7 +396,7 @@ function CellView({ row, column, cell, nowMs, at, tabbable, active, align, regis
     onPointerEnter: () => onEnter(at),
     onPointerLeave: () => onLeave(at),
     className:
-      "relative grid h-6 w-6 place-items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring @2xl:h-10 @2xl:w-full",
+      "relative grid h-6 w-5 place-items-center rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring @2xl:h-10 @2xl:w-full",
   };
   const body = (
     <>
@@ -619,7 +622,9 @@ export function HealthGrid({ rows, columns, nowMs, title = "Data sources", actio
   const lead = problems[0];
   const leadAt: Target = lead
     ? { r: resolved.findIndex((row) => row.id === lead.row.id), c: lead.row.columns?.findIndex((column) => column.id === lead.column.id) ?? 0 }
-    : { r: 0, c: 0 };
+    // With nothing failing, the first row that has a cell; a grid whose rows
+    // are all empty still keeps one tab stop.
+    : { r: Math.max(0, resolved.findIndex((row) => row.columns.length > 0)), c: 0 };
   const tabStop = valid(roving) ? roving : leadAt;
 
   const register = (key: string, element: HTMLElement | null) => {
@@ -690,7 +695,7 @@ export function HealthGrid({ rows, columns, nowMs, title = "Data sources", actio
           aria-labelledby={titleId}
           onKeyDown={onKeyDown}
           style={{ "--health-columns": width } as CSSProperties}
-          className="grid grid-cols-[minmax(0,--spacing(56))_repeat(var(--health-columns),--spacing(6))] gap-x-0.5 gap-y-1 @2xl:grid-cols-[minmax(--spacing(32),--spacing(52))_repeat(var(--health-columns),minmax(0,1fr))] @2xl:gap-x-1.5"
+          className="grid grid-cols-[minmax(0,--spacing(56))_repeat(var(--health-columns),--spacing(5))] gap-x-0.5 gap-y-1 @2xl:grid-cols-[minmax(--spacing(32),--spacing(52))_repeat(var(--health-columns),minmax(0,1fr))] @2xl:gap-x-1.5"
         >
           {active && activeBand ? (
             <span

@@ -1,6 +1,6 @@
-// The Wall draws a layout document. The default: the strip on top; below it a
-// column (revenue beside Needs you, then the site rows) beside the full-height
-// live feed. A layout naming retired widgets is read as the default, never
+// The Wall draws a layout document. The default: the strip, then the loop;
+// below them two columns, the last 24 hours over the site rows beside revenue
+// over the work. A layout naming retired widgets is read as the default, never
 // refused and never blank, by both `parseWallConfig` and the route's own read.
 
 import { render } from "./render";
@@ -215,11 +215,16 @@ function tracks(row: Element): string[] {
   });
 }
 
-/** Every default region the canvas drew, in document order. */
+const REGIONS = ["strip", "loop", "revenue", "sites", "timeline", "work", "needs", "feed"] as const;
+
+/** Every region the canvas drew, in document order. */
 function regions(root: Element): string[] {
-  return [...root.querySelectorAll("[data-wall-strip], [data-wall-revenue], [data-wall-needs], [data-wall-sites], [data-wall-feed]")]
-    .map((el) => ["strip", "revenue", "needs", "sites", "feed"].find((name) => el.hasAttribute(`data-wall-${name}`))!);
+  return [...root.querySelectorAll(REGIONS.map((name) => `[data-wall-${name}]`).join(", "))]
+    .map((el) => REGIONS.find((name) => el.hasAttribute(`data-wall-${name}`))!);
 }
+
+/** The default's regions, in reading order. */
+const DEFAULT_REGIONS = ["strip", "loop", "timeline", "sites", "revenue", "work"];
 
 /** Marks of the retired widgets. */
 const RETIRED_MARKS = [
@@ -230,36 +235,58 @@ const RETIRED_MARKS = [
   "[data-clock-date-row]",
   "[data-meetings-panel]",
   "[data-proximity]",
-  "[data-work-flow]",
   "[data-source]",
   "[data-widget-shell]",
 ].join(", ");
 
 describe("the Wall nobody rearranged is the default", () => {
-  it("draws the strip, then the column of revenue beside Needs you over the sites, beside the feed", () => {
+  it("draws the strip and the loop, then the last 24 hours over the sites beside revenue over the work", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     const canvasEl = view.container.querySelector("[data-wall-canvas]")!;
     expect([...canvasEl.children].map((row) => [row.getAttribute("data-wall-row"), row.getAttribute("data-wall-row-height")])).toEqual([
       ["strip", "auto"],
+      ["loop", "auto"],
       ["body", "fill"],
     ]);
     const body = view.container.querySelector("[data-wall-row='body']")!;
-    const column = body.querySelector(":scope > [data-wall-column='business']")!;
-    expect([...column.children].map((row) => row.getAttribute("data-wall-row"))).toEqual(["money", "sites"]);
-    expect(body.querySelector(":scope > [data-wall-slot='feed'] > [data-wall-feed]")).not.toBeNull();
-    expect(regions(view.container)).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    const rowsOf = (id: string) => [...body.querySelector(`:scope > [data-wall-column='${id}']`)!.children].map((row) => row.getAttribute("data-wall-row"));
+    expect(rowsOf("business")).toEqual(["timeline", "sites"]);
+    expect(rowsOf("side")).toEqual(["money", "work"]);
+    expect(regions(view.container)).toEqual(DEFAULT_REGIONS);
+    // Needs you and the feed stay in the library, off the default.
+    expect(view.container.querySelector("[data-wall-needs], [data-wall-feed]")).toBeNull();
+  });
+
+  it("draws the loop's five stages, the timeline's problems and the work, all read-only", () => {
+    const view = canvas(DEFAULT_WALL_LAYOUT);
+    expect([...view.container.querySelectorAll("[data-wall-loop] [data-flow-node]")].map((node) => node.getAttribute("data-flow-node"))).toEqual([
+      "sense", "attribute", "decide", "act", "learn",
+    ]);
+    // Two sites' work in progress, and the one person-task waiting.
+    expect(view.container.querySelector('[data-flow-node="act"]')?.textContent).toContain("2");
+    expect(view.container.querySelector('[data-flow-node="decide"]')).toHaveAttribute("data-state", "ok");
+    // The payload's error and warning as bars on their sites' rows, the feed's task as a mark.
+    const timeline = view.container.querySelector("[data-wall-timeline]")!;
+    expect(timeline).toHaveAttribute("data-wall-timeline", "problems");
+    expect(timeline.querySelector('[data-lane="meadow.example"] [data-span][data-severity="error"]')).not.toBeNull();
+    expect(timeline.querySelector('[data-lane="northwind.example"] [data-span][data-severity="warn"]')).not.toBeNull();
+    expect(timeline.querySelector('[data-event="task-1"]')).not.toBeNull();
+    expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(2);
+    // Nothing to press on the TV: no buttons, and the strip's Home is the one link.
+    expect(view.container.querySelectorAll("button")).toHaveLength(0);
+    expect(view.container.querySelectorAll("a")).toHaveLength(1);
   });
 
   // On a portrait tablet or a phone the rows dissolve and the Wall is one
-  // column read in the operator's order: the sites before Needs you and the
-  // feed, because their numbers are the state of the business.
-  it("stacks below the TV in one order whatever the layout: strip, revenue, sites, Needs you, feed", () => {
+  // column read in the operator's order: the sites before the problems and the
+  // work, because their numbers are the state of the business.
+  it("stacks below the TV in one order whatever the layout: strip, revenue, sites, problems, work, feed, loop", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     for (const row of view.container.querySelectorAll("[data-wall-row]")) expect(row).toHaveClass("contents", "tv:grid");
     expect(view.container.querySelector("[data-wall-column]")).toHaveClass("contents", "tv:flex");
     const slots = [...view.container.querySelectorAll<HTMLElement>("[data-wall-slot]")];
     const stacked = [...slots].sort((a, b) => Number(a.style.order) - Number(b.style.order));
-    expect(stacked.map((slot) => slot.getAttribute("data-wall-slot"))).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
+    expect(stacked.map((slot) => slot.getAttribute("data-wall-slot"))).toEqual(["strip", "revenue", "sites", "timeline", "work", "loop"]);
     for (const slot of slots) expect(slot).toHaveClass("tv:contents");
     view.unmount();
     const turned = canvas({
@@ -280,23 +307,24 @@ describe("the Wall nobody rearranged is the default", () => {
     expect(again.map((slot) => slot.getAttribute("data-wall-slot"))).toEqual(["strip", "revenue", "sites", "needs", "feed"]);
   });
 
-  it("gives the column its 3.1 to the feed's 1, the feed its floor, and revenue its 1.55 beside Needs you", () => {
+  it("gives the business column its 1.4 to the side's 1, with no floor on either", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
-    expect(tracks(view.container.querySelector("[data-wall-row='strip']")!)).toEqual(["0rem|1fr"]);
-    // The feed's 30 rem cap is a floor on the column beside it: past the cap
-    // the column takes the rest.
-    expect(tracks(view.container.querySelector("[data-wall-row='body']")!)).toEqual(["0rem+rest-30rem|3.1fr", "21rem|1fr"]);
-    expect(tracks(view.container.querySelector("[data-wall-row='money']")!)).toEqual(["0rem|1.55fr", "0rem|1fr"]);
-    expect(tracks(view.container.querySelector("[data-wall-row='sites']")!)).toEqual(["0rem|1fr"]);
+    const row = (id: string) => tracks(view.container.querySelector(`[data-wall-row='${id}']`)!);
+    expect(row("strip")).toEqual(["0rem|1fr"]);
+    expect(row("loop")).toEqual(["0rem|1fr"]);
+    expect(row("body")).toEqual(["0rem|1.4fr", "0rem|1fr"]);
+    for (const id of ["money", "sites", "timeline", "work"]) expect(row(id), id).toHaveLength(1);
   });
 
-  it("gives the body the height the strip leaves, and the site rows the height revenue leaves", () => {
+  it("gives the body the height the strip and loop leave, the site rows what the timeline leaves, the work what revenue leaves", () => {
     const view = canvas(DEFAULT_WALL_LAYOUT);
     // At the TV's width (`tv:`), where the rows are boxes.
-    expect(view.container.querySelector("[data-wall-row='body']")).toHaveClass("tv:min-h-0", "tv:flex-1");
-    expect(view.container.querySelector("[data-wall-row='sites']")).toHaveClass("tv:min-h-0", "tv:flex-1");
-    expect(view.container.querySelector("[data-wall-row='strip']")).not.toHaveClass("tv:flex-1");
-    expect(view.container.querySelector("[data-wall-row='money']")).not.toHaveClass("tv:flex-1");
+    for (const id of ["body", "sites", "work"]) {
+      expect(view.container.querySelector(`[data-wall-row='${id}']`), id).toHaveClass("tv:min-h-0", "tv:flex-1");
+    }
+    for (const id of ["strip", "loop", "money", "timeline"]) {
+      expect(view.container.querySelector(`[data-wall-row='${id}']`), id).not.toHaveClass("tv:flex-1");
+    }
   });
 
   it("spaces its regions on the frame tokens: 20px stacked, 28px side by side", () => {
@@ -320,7 +348,7 @@ describe("a layout naming retired widgets", () => {
     const config = parseWallConfig(PRE_D28_SAVE);
     expect(config.retired?.replaced).toBe(true);
     const view = canvas(config.layout);
-    expect(regions(view.container)).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(regions(view.container)).toEqual(DEFAULT_REGIONS);
     expect(view.container.querySelector(RETIRED_MARKS)).toBeNull();
     expect(view.container.querySelectorAll("[data-site-row]")).toHaveLength(2);
   });
@@ -339,7 +367,7 @@ describe("a layout naming retired widgets", () => {
         <WallRoute />
       </MemoryRouter>,
     );
-    expect(regions(view.container)).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(regions(view.container)).toEqual(DEFAULT_REGIONS);
     expect(view.container.querySelector(RETIRED_MARKS)).toBeNull();
     vi.doUnmock("@/hooks/useWall");
     vi.doUnmock("@/hooks/useConnections");
@@ -402,7 +430,7 @@ describe("a rearranged layout", () => {
   });
 });
 
-describe("the default's column", () => {
+describe("the default's columns", () => {
   it("hands the editing slot each widget with its column, and the wrapper is the grid cell", () => {
     const view = render(
       <WallCanvas
@@ -420,10 +448,11 @@ describe("the default's column", () => {
     const chrome = [...view.container.querySelectorAll("[data-selected]")].map((el) => el.getAttribute("data-selected"));
     expect(chrome).toEqual([
       "-:strip:0:0",
-      "business:money:0:0",
-      "business:money:0:1",
+      "-:loop:1:0",
+      "business:timeline:0:0",
       "business:sites:1:0",
-      "-:body:1:1",
+      "side:money:0:0",
+      "side:work:1:0",
     ]);
     // The wrapper is the grid cell: the only box between it and the row is
     // the widget's slot, which is no box at all at the TV's width.
@@ -470,20 +499,22 @@ describe("the top strip", () => {
     expect(held.container.querySelector("[data-strip-held]")?.textContent).toBe("Refreshed 3m ago · reconnecting");
   });
 
-  it("alerts an independent calendar failure, retains events, and clears on recovery", () => {
+  it("puts an independent calendar failure on the timeline, retains events, and clears on recovery", () => {
+    const calendarBar = (root: Element) => root.querySelector("[data-wall-timeline] [data-span^='calendar-read']");
     const view = render(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="retrying" />);
     expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
     expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("Retrying automatically");
-    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toBeNull();
+    expect(calendarBar(view.container)).toBeNull();
     view.rerender(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} calendarState="failed" />);
     expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
     expect(view.container.querySelector("[data-strip-calendar-status]")).toHaveTextContent("cached");
-    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Calendar");
-    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toHaveTextContent("Events not updating");
+    // On the System's row, an error since an unknown time, named for a screen reader.
+    expect(calendarBar(view.container)).toHaveAttribute("data-severity", "error");
+    expect(view.container.querySelector("[data-event-timeline-list]")).toHaveTextContent("Events not updating");
 
     view.rerender(<WallCanvas layout={DEFAULT_WALL_LAYOUT} data={PAYLOAD} nowMs={NOW} meetings={MEETINGS} />);
     expect(view.container.querySelector("[data-strip-calendar-status]")).toBeNull();
-    expect(view.container.querySelector("[data-wall-needs] [role='alert']")).toBeNull();
+    expect(calendarBar(view.container)).toBeNull();
     expect(view.container.querySelector("[data-strip-meeting-title]")).toHaveTextContent("Standup");
   });
 });
@@ -499,10 +530,11 @@ describe("every default widget draws its own empty state", () => {
       },
       null,
     );
-    expect(regions(view.container)).toEqual(["strip", "revenue", "needs", "sites", "feed"]);
+    expect(regions(view.container)).toEqual(DEFAULT_REGIONS);
     expect(view.container.querySelector("[data-strip-countdown]")).toBeNull();
     expect(view.container.querySelector("[data-strip-meeting]")).toBeNull();
     expect(view.container.querySelector("[data-wall-revenue]")).toHaveAttribute("data-wall-revenue", "none");
-    expect(view.container.querySelector("[data-wall-needs]")).toHaveAttribute("data-wall-needs", "calm");
+    expect(view.container.querySelector("[data-wall-timeline]")).toHaveAttribute("data-wall-timeline", "calm");
+    expect(view.container.querySelector("[data-timeline-status]")).toHaveTextContent("Nothing broken");
   });
 });

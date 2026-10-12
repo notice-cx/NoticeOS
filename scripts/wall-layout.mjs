@@ -50,8 +50,9 @@ export const WALL_WIDTH_STEP = 0.05;
 /** The TV the Wall is fitted to (`scripts/wall-fit-check.mjs`). */
 export const WALL_TV_WIDTH = 1920;
 export const WALL_TV_HEIGHT = 1080;
-/** The Wall's widgets, in reading order. */
-export const WALL_WIDGET_TYPES = ['strip', 'revenue', 'needs', 'sites', 'feed'];
+/** The Wall's widgets: the default's in its reading order, then the ones an
+ * operator may add. */
+export const WALL_WIDGET_TYPES = ['strip', 'loop', 'timeline', 'sites', 'revenue', 'work', 'needs', 'feed'];
 /** The widgets the Wall no longer has. A saved layout may still name them; see
  * the header. */
 export const RETIRED_WALL_WIDGET_TYPES = [
@@ -80,6 +81,21 @@ export const WALL_WIDGET_LIBRARY = {
         settings: [],
         configuredAt: '/countdown',
     },
+    // Sense, Attribute, Decide, Act, Learn across the TV, each with its live
+    // count, so the room sees where the business is in its own cycle.
+    loop: {
+        type: 'loop',
+        label: 'The loop',
+        shows: ['Sense to Learn', 'Live counts'],
+        defaultWidth: 1,
+        minWidthRem: 0,
+        maxWidthRem: null,
+        unique: true,
+        prefersFill: false,
+        stackOrder: 8,
+        hidesWhenEmpty: false,
+        settings: [],
+    },
     revenue: {
         type: 'revenue',
         label: 'Revenue',
@@ -93,6 +109,34 @@ export const WALL_WIDGET_LIBRARY = {
         hidesWhenEmpty: false,
         settings: [],
     },
+    // Every open problem as a bar from its onset to now, and what happened as
+    // marks, on one 24-hour axis: the Wall's account of what is broken.
+    timeline: {
+        type: 'timeline',
+        label: 'Last 24 hours',
+        shows: ['Problems as they ran', 'What happened when'],
+        defaultWidth: 1,
+        minWidthRem: 0,
+        maxWidthRem: null,
+        unique: true,
+        prefersFill: false,
+        stackOrder: 4,
+        hidesWhenEmpty: false,
+        settings: ['assets'],
+    },
+    work: {
+        type: 'work',
+        label: 'Work',
+        shows: ['Waiting on you', 'In progress', 'Done this week', 'Blocked'],
+        defaultWidth: 1,
+        minWidthRem: 0,
+        maxWidthRem: null,
+        unique: true,
+        prefersFill: true,
+        stackOrder: 6,
+        hidesWhenEmpty: false,
+        settings: ['assets'],
+    },
     needs: {
         type: 'needs',
         label: 'Needs you',
@@ -102,7 +146,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: false,
-        stackOrder: 4,
+        stackOrder: 5,
         hidesWhenEmpty: false,
         settings: ['assets'],
     },
@@ -120,10 +164,8 @@ export const WALL_WIDGET_LIBRARY = {
         settings: ['assets', 'pulseMetrics'],
     },
     // The live feed: what just happened, newest on top, from its own 30-second
-    // read. Never hides — an empty window says so. Its weight is the one it has
-    // beside the default's column, so taking it off and adding it back puts
-    // back the same Wall; its track is that share of the row between 21 rem and
-    // 30 rem.
+    // read. Never hides — an empty window says so. Its track is its share of
+    // the row between 21 rem and 30 rem.
     feed: {
         type: 'feed',
         label: 'Live feed',
@@ -133,7 +175,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: 30,
         unique: true,
         prefersFill: true,
-        stackOrder: 5,
+        stackOrder: 7,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -157,9 +199,12 @@ export function wallLayoutWidgets(layout) {
     return layout.rows.flatMap((row) => row.widgets.flatMap((slot) => (isWallColumn(slot) ? slot.rows.flatMap((inner) => inner.widgets) : [slot])));
 }
 /**
- * The default Wall: the strip on top; below it a column — revenue beside
- * Needs you, then the site rows taking the rest — beside the live feed, which
- * runs the body's full height.
+ * The default Wall: the strip, then the loop across the TV; below them two
+ * columns — the last 24 hours over the site rows, beside revenue over the
+ * work. Revenue's band sits beside the sites rather than over them because
+ * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
+ * way (`pnpm audit:wall-fit`). Needs you and the live feed stay in the library
+ * for a Wall that wants them.
  */
 export const DEFAULT_WALL_LAYOUT = {
     version: WALL_LAYOUT_VERSION,
@@ -170,21 +215,23 @@ export const DEFAULT_WALL_LAYOUT = {
             widgets: [{ id: 'strip', type: 'strip', width: 1 }],
         },
         {
+            id: 'loop',
+            height: 'auto',
+            widgets: [{ id: 'loop', type: 'loop', width: 1 }],
+        },
+        {
             id: 'body',
             height: 'fill',
             widgets: [
                 {
                     id: 'business',
                     type: 'column',
-                    width: 3.1,
+                    width: 1.4,
                     rows: [
                         {
-                            id: 'money',
+                            id: 'timeline',
                             height: 'auto',
-                            widgets: [
-                                { id: 'revenue', type: 'revenue', width: 1.55 },
-                                { id: 'needs', type: 'needs', width: 1 },
-                            ],
+                            widgets: [{ id: 'timeline', type: 'timeline', width: 1 }],
                         },
                         {
                             id: 'sites',
@@ -193,7 +240,23 @@ export const DEFAULT_WALL_LAYOUT = {
                         },
                     ],
                 },
-                { id: 'feed', type: 'feed', width: 1 },
+                {
+                    id: 'side',
+                    type: 'column',
+                    width: 1,
+                    rows: [
+                        {
+                            id: 'money',
+                            height: 'auto',
+                            widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }],
+                        },
+                        {
+                            id: 'work',
+                            height: 'fill',
+                            widgets: [{ id: 'work', type: 'work', width: 1 }],
+                        },
+                    ],
+                },
             ],
         },
     ],
@@ -455,7 +518,7 @@ export function wallLayoutWarnings(layout) {
     }
     if (!present.has('sites'))
         warnings.push('No sites on the TV');
-    if (!present.has('needs'))
+    if (!present.has('timeline') && !present.has('needs'))
         warnings.push('No alerts on the TV');
     return warnings;
 }

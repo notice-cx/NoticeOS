@@ -45,8 +45,17 @@ export interface PortfolioRowsProps {
   formatMoney: (value: number) => string;
   title?: string;
   action?: { label: string; to: string };
+  /** Off where a health grid on the same screen already draws each source. */
+  showSources?: boolean;
   className?: string;
 }
+
+/** The ruled columns, with and without the sources column; literal so the
+ * stylesheet generator sees every one. */
+const COLUMNS = {
+  sources: "grid-cols-[minmax(8rem,1fr)_6rem] @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem_5rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_6rem_5rem]",
+  plain: "grid-cols-[minmax(8rem,1fr)_6rem] @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_7rem]",
+} as const;
 
 const SOURCE_FILL: Record<PortfolioSource["state"], string> = {
   working: "bg-healthy",
@@ -68,7 +77,7 @@ export function sourcesLive(sources: readonly PortfolioSource[]): { live: number
   };
 }
 
-export function PortfolioRows({ rows, formatMoney, title = "Sites", action, className }: PortfolioRowsProps) {
+export function PortfolioRows({ rows, formatMoney, title = "Sites", action, showSources = true, className }: PortfolioRowsProps) {
   return (
     <section aria-label={title} data-portfolio-rows="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
       <header className="flex items-baseline justify-between gap-3 px-5 pb-2 pt-4">
@@ -83,22 +92,22 @@ export function PortfolioRows({ rows, formatMoney, title = "Sites", action, clas
         ) : null}
       </header>
       <div role="table" aria-label={title} className="flex flex-col">
-        <div role="row" className="grid grid-cols-[minmax(8rem,1fr)_6rem] gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem_5rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_6rem_5rem]">
+        <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS[showSources ? "sources" : "plain"])}>
           <span role="columnheader">Site</span>
           <span role="columnheader" className="hidden @lg:block">People a day</span>
           <span role="columnheader" className="text-end">Yesterday</span>
           <span role="columnheader" className="hidden @3xl:block">Share of month</span>
-          <span role="columnheader" className="hidden text-end @lg:block">Sources</span>
+          {showSources ? <span role="columnheader" className="hidden text-end @lg:block">Sources</span> : null}
         </div>
         {rows.map((row, index) => (
-          <SiteRow key={row.id} row={row} formatMoney={formatMoney} index={index} />
+          <SiteRow key={row.id} row={row} formatMoney={formatMoney} index={index} showSources={showSources} />
         ))}
       </div>
     </section>
   );
 }
 
-function SiteRow({ row, formatMoney, index }: { row: PortfolioRow; formatMoney: (value: number) => string; index: number }) {
+function SiteRow({ row, formatMoney, index, showSources }: { row: PortfolioRow; formatMoney: (value: number) => string; index: number; showSources: boolean }) {
   const { live, owed, failing } = sourcesLive(row.sources);
   const name = (
     <span className="flex min-w-0 items-center gap-2.5">
@@ -120,7 +129,7 @@ function SiteRow({ row, formatMoney, index }: { row: PortfolioRow; formatMoney: 
     <div
       role="row"
       data-portfolio-row={row.id}
-      className="viz-arrive grid grid-cols-[minmax(8rem,1fr)_6rem] items-center gap-x-4 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30 @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem_5rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_6rem_5rem]"
+      className={cn("viz-arrive grid items-center gap-x-4 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30", COLUMNS[showSources ? "sources" : "plain"])}
       style={{ ["--viz-i" as string]: index }}
     >
       <span role="cell" className="min-w-0">
@@ -177,7 +186,8 @@ function SiteRow({ row, formatMoney, index }: { row: PortfolioRow; formatMoney: 
           </>
         )}
       </span>
-      <span role="cell" className="hidden items-center justify-end gap-1.5 @lg:flex" aria-label={`${live} of ${owed} data sources live${failing ? `, ${failing} failing` : ""}`}>
+{showSources ? (
+            <span role="cell" className="hidden items-center justify-end gap-1.5 @lg:flex" aria-label={`${live} of ${owed} data sources live${failing ? `, ${failing} failing` : ""}`}>
         <span aria-hidden className="flex gap-0.5">
           {row.sources.map((source) => (
             <span key={source.label} title={`${source.label}: ${source.state.replace("-", " ")}`} className={cn("h-3 w-1.5 rounded-xs", SOURCE_FILL[source.state])} />
@@ -187,6 +197,7 @@ function SiteRow({ row, formatMoney, index }: { row: PortfolioRow; formatMoney: 
           {live}/{owed}
         </span>
       </span>
+      ) : null}
     </div>
   );
 }

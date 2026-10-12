@@ -1,5 +1,5 @@
 // One source, one status, on every screen: Integrations, the asset's Data
-// sources tab, its header and its Home row agree, and the Wall shows site
+// sources tab, its header and its Home grid cell agree, and the Wall shows site
 // health and specific Needs you concerns. The payloads are built by the
 // Worker's own functions over the suite's frozen register (`fixture-config/`).
 
@@ -17,6 +17,7 @@ import {
   type IntegrationHealthPayload,
   type IntegrationProviderId,
 } from "@noticeos/contract";
+import { CONNECTION_LABELS } from "@shared/connection-status";
 import { integrationStatus } from "@shared/integration-status";
 import type { IntegrationsConfig } from "@shared/integrations";
 import type { WallPayload } from "@shared/wall";
@@ -174,14 +175,18 @@ describe("one source, one status, on every screen", () => {
     const header = marks(document.querySelector("[data-page-header]")!);
     asset.unmount();
 
-    // Home: no source marks. A failing source is one of the brief's Stopped
-    // cards, and the site's one health word says Off track.
+    // Home: no source marks. Each source is a cell of the data-sources grid,
+    // a failing one is drawn there rather than repeated in the problems list,
+    // and the site's one health word says Off track.
     const home = renderAt("/", <HomeRoute />);
     await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull());
     const homeMarks = marks(home.container);
-    const brief = home.container.querySelector("[data-brief-cards]")!;
-    const homeCell = home.container.querySelector(`[data-status-for="asset:${ASSET}"]`);
-    const homeBriefText = brief.textContent ?? "";
+    const homeCells = Object.fromEntries(LANES.map((lane) => {
+      const cell = home.container.querySelector(`[data-health-cell="${ASSET}:${lane}"]`);
+      return [lane, { state: cell?.getAttribute("data-state") ?? null, says: cell?.querySelector("[aria-label]")?.getAttribute("aria-label") ?? null }];
+    }));
+    const homeProblems = [...home.container.querySelectorAll("[data-incident-list] [data-incident]")].map((row) => row.getAttribute("data-incident"));
+    const homeHealth = home.container.querySelector(`[data-portfolio-row="${ASSET}"]`)?.textContent ?? "";
     home.unmount();
 
     // The Wall: no source icons; a source Failing everywhere else is
@@ -192,7 +197,8 @@ describe("one source, one status, on every screen", () => {
     expect(siteHealth).toHaveAttribute("data-site-health", "error");
     expect(siteHealth).toHaveAttribute("role", "img");
     expect(siteHealth?.getAttribute("aria-label")).toMatch(/^Site health: (Search Console|Bing) failing; 1 more issue$/u);
-    const concerns = wall.container.querySelector("[data-wall-needs]")!;
+    // The specific concern is a bar on the timeline, named in its list.
+    const concerns = wall.container.querySelector("[data-wall-timeline] [data-event-timeline-list]")!;
     expect(concerns).toHaveTextContent("Search Console collection failing");
     expect(concerns).toHaveTextContent("Bing collection failing");
     expect(wall.container.querySelector("[data-system-state]")).toBeNull();
@@ -221,9 +227,12 @@ describe("one source, one status, on every screen", () => {
       expect({ lane, row: rows[lane] ?? header[lane] }).toEqual({ lane, row: header[lane] });
     }
     expect(homeMarks).toEqual({});
-    expect(homeBriefText).toContain("Search Console collection failing");
-    expect(homeBriefText).toContain("Bing collection failing");
-    if (homeCell) expect(homeCell).toHaveTextContent("Off track");
+    for (const lane of LANES) {
+      expect({ lane, home: homeCells[lane]!.state }).toEqual({ lane, home: header[lane] });
+      expect(homeCells[lane]!.says).toContain(` · ${CONNECTION_LABELS[header[lane] as keyof typeof CONNECTION_LABELS]}`);
+    }
+    expect(homeProblems.filter((key) => key?.startsWith("source-"))).toEqual([]);
+    expect(homeHealth).toContain("Off track");
     expect(wallIcons).toEqual({});
     // Google's site row joins its two sources, so it fails with Search
     // Console; an unconnected provider reads Not connected.

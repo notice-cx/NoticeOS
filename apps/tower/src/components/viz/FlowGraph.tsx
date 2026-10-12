@@ -67,6 +67,9 @@ export interface FlowGraphProps {
   minColumnWidth?: number;
   /** The surface the graph sits on, so an edge's break mark and label are cut from it. */
   surface?: "card" | "background";
+  /** For a band with little height (the TV's loop): each node is two lines,
+   * its name with the state's glyph, then the figure beside its caption. */
+  dense?: boolean;
   ariaLabel: string;
   className?: string;
 }
@@ -407,6 +410,7 @@ export function FlowGraph({
   direction = "auto",
   minColumnWidth = 184,
   surface = "card",
+  dense = false,
   ariaLabel,
   className,
 }: FlowGraphProps) {
@@ -477,7 +481,7 @@ export function FlowGraph({
           "relative flex",
           horizontal && "items-stretch",
           gutter,
-          horizontal && plan.arounds > 0 && "pb-12",
+          horizontal && plan.arounds > 0 && (dense ? "pb-8" : "pb-12"),
           !horizontal && plan.lanes > 0 && "pl-8",
           !horizontal && plan.arounds > 0 && "pr-8",
         )}
@@ -495,6 +499,7 @@ export function FlowGraph({
                 nowMs={nowMs}
                 column={column}
                 grow={rows}
+                dense={dense}
                 register={(el) => { if (el) nodeEls.current.set(node.id, el); }}
               />
             ))}
@@ -575,21 +580,23 @@ function StateGlyph({ state }: { state: FlowState }) {
   );
 }
 
-function NodeCard({ node, nowMs, column, grow, register }: { node: FlowNode; nowMs: number; column: number; grow: boolean; register: (el: HTMLElement | null) => void }) {
+function NodeCard({ node, nowMs, column, grow, dense, register }: { node: FlowNode; nowMs: number; column: number; grow: boolean; dense: boolean; register: (el: HTMLElement | null) => void }) {
   const spec = STATE[node.state];
   const age = node.state === "error" || node.state === "warn" ? ageMs(nowMs, node.since) : null;
   const ageText = age === null ? null : formatAge(age);
   const Icon = node.icon;
   const className = cn(
-    "viz-arrive relative flex w-full min-w-0 flex-col gap-1 rounded-lg border py-3 pr-3 pl-4 text-left",
+    "viz-arrive relative flex w-full min-w-0 flex-col gap-1 rounded-lg border pr-3 pl-4 text-left",
+    dense ? "py-2" : "py-3",
     spec.frame,
     grow && "grow",
     node.href && "outline-none transition-colors hover:border-foreground/40 focus-visible:ring-2 focus-visible:ring-ring",
   );
   const style = { "--viz-i": column } as CSSProperties;
+  const word = node.stateLabel ?? spec.word;
   const content = (
     <>
-      {spec.rule ? <span aria-hidden className={cn("absolute inset-y-3 left-1 w-1 rounded-full", spec.rule)} /> : null}
+      {spec.rule ? <span aria-hidden className={cn("absolute left-1 w-1 rounded-full", dense ? "inset-y-2" : "inset-y-3", spec.rule)} /> : null}
       <span className="flex min-w-0 items-center gap-2">
         {Icon ? (
           <span aria-hidden className={cn("grid size-6 shrink-0 place-items-center rounded-md", spec.tile)}>
@@ -598,14 +605,29 @@ function NodeCard({ node, nowMs, column, grow, register }: { node: FlowNode; now
         ) : null}
         <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", node.state === "absent" && "text-muted-foreground")} title={node.label}>{node.label}</span>
         {ageText ? <span aria-hidden data-flow-age className={AGE_BADGE[node.state]}>{ageText}</span> : null}
+        {dense ? (
+          <span className={cn("flex shrink-0 items-center", spec.ink)} data-flow-state-word title={word}>
+            <StateGlyph state={node.state} />
+            <span className="sr-only">{word}{ageText ? `, for ${ageText}` : ""}</span>
+          </span>
+        ) : null}
       </span>
-      {node.value ? <span className="mt-0.5 truncate text-figure-sm tabular-nums" title={node.value}>{node.value}</span> : null}
-      {node.caption ? <span className="text-xs text-muted-foreground">{node.caption}</span> : null}
-      <span className={cn("mt-auto flex min-w-0 items-center gap-1.5 pt-1 text-xs font-medium", spec.ink)} data-flow-state-word>
-        <StateGlyph state={node.state} />
-        <span className="truncate">{node.stateLabel ?? spec.word}</span>
-        {ageText ? <span className="sr-only">{`, for ${ageText}`}</span> : null}
-      </span>
+      {dense ? (
+        <span className="flex min-w-0 items-baseline gap-2">
+          {node.value ? <span className="shrink-0 text-figure-sm tabular-nums">{node.value}</span> : null}
+          {node.caption ? <span className="min-w-0 truncate text-xs text-muted-foreground" title={node.caption}>{node.caption}</span> : null}
+        </span>
+      ) : (
+        <>
+          {node.value ? <span className="mt-0.5 truncate text-figure-sm tabular-nums" title={node.value}>{node.value}</span> : null}
+          {node.caption ? <span className="text-xs text-muted-foreground">{node.caption}</span> : null}
+          <span className={cn("mt-auto flex min-w-0 items-center gap-1.5 pt-1 text-xs font-medium", spec.ink)} data-flow-state-word>
+            <StateGlyph state={node.state} />
+            <span className="truncate">{word}</span>
+            {ageText ? <span className="sr-only">{`, for ${ageText}`}</span> : null}
+          </span>
+        </>
+      )}
     </>
   );
   const data = { "data-flow-node": node.id, "data-state": node.state, "data-column": column };

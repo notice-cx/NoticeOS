@@ -73,9 +73,9 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
             expect(measurements).toMatchObject({ width: 390, height: 844, overflowX: 0, clipped: [], incorrectMarks: 0 });
           }
           if (state === 'populated' && name === 'home') {
-            // The brief's first card keeps its one action reachable by keyboard
-            // at double text, and scrolls it into view.
-            const action = main.locator('[data-highlight-action]').first();
+            // The data-sources grid keeps its one tab stop reachable by
+            // keyboard at double text, and scrolls it into view.
+            const action = main.locator('[data-health-grid] [data-health-target][tabindex="0"]');
             for (let n = 0; n < 80 && !await action.evaluate(el => el === document.activeElement); n += 1) {
               await page.keyboard.press('Tab');
             }

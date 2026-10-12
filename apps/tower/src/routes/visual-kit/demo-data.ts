@@ -5,6 +5,7 @@ import type { Incident } from "@/components/viz/IncidentList";
 import type { PortfolioRow } from "@/components/viz/PortfolioRows";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
+import type { HomeMoney } from "@/lib/home-money";
 
 export const DEMO_NOW = Date.parse("2026-10-11T21:30:00.000Z");
 export const DEMO_MARKER = "2026-10-11T01:00:00.000Z";
@@ -81,3 +82,21 @@ export const WORK: WorkFlowRow[] = [
   { id: "ripple", name: "Ripple Index", done: 1, inProgress: 0, ready: 6, blocked: 0, urgent: 1 },
   { id: "summit", name: "Summit", done: 5, inProgress: 2, ready: 13, blocked: 1, urgent: 4 },
 ];
+
+export const MONEY: HomeMoney = {
+  period: "2026-10",
+  soFar: 364,
+  estimated: true,
+  projected: 1020,
+  previousPeriod: "2026-09",
+  previousTotal: 1127,
+  changePercent: -9.5,
+  daysLeft: 20,
+  waiting: null,
+  days: REVENUE_30.slice(-10).map((point) => ({ t: point.t, v: point.v * 2.9 })),
+  usualDay: 35.1,
+  bySite: [
+    { id: "plume-studio.example", name: "Plume Studio", amount: 352 },
+    { id: "mosaic-finder.example", name: "Mosaic Finder", amount: 12 },
+  ],
+};

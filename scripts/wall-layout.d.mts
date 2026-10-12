@@ -14,8 +14,9 @@ export declare const WALL_WIDTH_STEP: number;
 /** The TV the Wall is fitted to (`scripts/wall-fit-check.mjs`). */
 export declare const WALL_TV_WIDTH: number;
 export declare const WALL_TV_HEIGHT: number;
-/** The Wall's widgets, in reading order. */
-export declare const WALL_WIDGET_TYPES: readonly ["strip", "revenue", "needs", "sites", "feed"];
+/** The Wall's widgets: the default's in its reading order, then the ones an
+ * operator may add. */
+export declare const WALL_WIDGET_TYPES: readonly ["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed"];
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 /** The widgets the Wall no longer has. A saved layout may still name them; see
  * the header. */
@@ -52,9 +53,10 @@ export interface WallWidgetSpec {
     prefersFill: boolean;
     /**
      * Its place in the one column the Wall becomes on a portrait tablet or a
-     * phone: the strip, revenue, the site rows, Needs you, the feed. The sites
-     * come before Needs you and the feed because their numbers are what
-     * changes. By type, so any saved layout reads the same.
+     * phone: the strip, revenue, the site rows, then what is broken (the last
+     * 24 hours, Needs you), the work, the feed and the loop last. The sites come
+     * before the problems because their numbers are what changes. By type, so
+     * any saved layout reads the same.
      */
     stackOrder: number;
     /** Renders nothing — and yields its track — when it has nothing to show: an
@@ -76,8 +78,9 @@ export interface WallWidget {
 }
 /**
  * A slot that stacks rows of widgets inside a row, so one widget can run the
- * full height beside several (the live feed beside the revenue band and the
- * site rows). It sits in its row's `widgets` like a widget and takes a width
+ * full height beside several, or two stacks stand side by side (the last 24
+ * hours over the site rows beside revenue over the work). It sits in its row's
+ * `widgets` like a widget and takes a width
  * like one. One level deep: a column holds rows of widgets and never another
  * column — the types say so and the validator refuses it.
  */
@@ -161,9 +164,12 @@ export declare function wallRowPlaces(layout: WallLayout): WallRowPlace[];
 /** Every widget on the Wall, columns' included, in reading order. */
 export declare function wallLayoutWidgets(layout: WallLayout): WallWidget[];
 /**
- * The default Wall: the strip on top; below it a column — revenue beside
- * Needs you, then the site rows taking the rest — beside the live feed, which
- * runs the body's full height.
+ * The default Wall: the strip, then the loop across the TV; below them two
+ * columns — the last 24 hours over the site rows, beside revenue over the
+ * work. Revenue's band sits beside the sites rather than over them because
+ * the TV's 1080 rows hold the loop, the band and seven sites' rows only that
+ * way (`pnpm audit:wall-fit`). Needs you and the live feed stay in the library
+ * for a Wall that wants them.
  */
 export declare const DEFAULT_WALL_LAYOUT: WallLayout;
 export declare const EMPTY_WALL_CONFIG: WallConfig;

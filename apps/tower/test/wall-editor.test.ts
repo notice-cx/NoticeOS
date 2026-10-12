@@ -35,8 +35,8 @@ import {
 /**
  * The editor's grammar, with no DOM. Every arrangement is a reducer step, so
  * every one is checked here; the rendered tests check that a control is wired
- * to the right action. The grammar is exercised on FLAT (the five widgets in
- * two plain rows) and the column on the default itself.
+ * to the right action. The grammar is exercised on FLAT (five widgets in two
+ * plain rows) and the columns on the default itself.
  */
 
 /** The widgets in two plain rows: the top line, then the rest. */
@@ -128,10 +128,17 @@ describe("adding a widget", () => {
     expect(wallWidgetAt(state.layout, "sites")?.row.id).toBe("rest");
   });
 
-  it("puts the feed taken off the default back beside the column, where it was", () => {
-    const without = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "feed" });
-    const state = run(without, { type: "add", widget: "feed" });
+  it("puts the loop taken off the default back in its own row, where it was", () => {
+    const without = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "loop" });
+    expect(wallEditorRefusal(without.layout)).toBe("Row 2 needs at least one widget.");
+    const state = run(without, { type: "add", widget: "loop" });
     expect(sameWallLayout(state.layout, DEFAULT_WALL_LAYOUT)).toBe(true);
+  });
+
+  it("adds the feed the default leaves out beside its two columns, in the row that takes the remaining height", () => {
+    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "add", widget: "feed" });
+    expect(ids(state.layout, 2)).toEqual(["business", "side", "feed"]);
+    expect(drawable(state.layout)).toBe(true);
   });
 
   it("grows a row only when no row has room", () => {
@@ -197,10 +204,17 @@ describe("the version's description when there is no note", () => {
 });
 
 describe("the library panel's rows", () => {
-  it("shows every widget of the default as placed, while the write lane still refuses a second", () => {
-    expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => o.disabledReason)).toEqual(
-      Array(5).fill("On the TV"),
-    );
+  it("shows every widget of the default as placed and offers the two it leaves out, while the write lane still refuses a second", () => {
+    expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => [o.spec.type, o.disabledReason])).toEqual([
+      ["strip", "On the TV"],
+      ["loop", "On the TV"],
+      ["timeline", "On the TV"],
+      ["sites", "On the TV"],
+      ["revenue", "On the TV"],
+      ["work", "On the TV"],
+      ["needs", null],
+      ["feed", null],
+    ]);
     // The write lane's own refusal is unchanged: a layout with two reaches it
     // only by hand, and gets the validator's sentence.
     const twice: WallLayout = {
@@ -221,17 +235,20 @@ describe("the library panel's rows", () => {
   });
 
   it("offers a widget again once it is taken off", () => {
-    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "feed" });
+    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
     const options = wallLibraryOptions(state.layout);
-    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["feed"]);
+    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed"]);
   });
 
   it("lists every type the contract has, in its order", () => {
     expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => o.spec.type)).toEqual([
       "strip",
-      "revenue",
-      "needs",
+      "loop",
+      "timeline",
       "sites",
+      "revenue",
+      "work",
+      "needs",
       "feed",
     ]);
   });
@@ -598,7 +615,14 @@ describe("stacking in a column", () => {
 
   it("takes the site rows out of the default's column, beside it, in one press", () => {
     const state = run(start(DEFAULT_WALL_LAYOUT), { type: "stack", widgetId: "sites" });
-    expect(ids(state.layout, 1)).toEqual(["business", "sites", "feed"]);
-    expect(stackedIds(state.layout, "body")).toEqual([["revenue", "needs"]]);
+    expect(ids(state.layout, 2)).toEqual(["business", "sites", "side"]);
+    expect(stackedIds(state.layout, "body")).toEqual([["timeline"]]);
+  });
+
+  it("removes a widget from the default's column and keeps the column, its row gone with it", () => {
+    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
+    const side = state.layout.rows[2]?.widgets.find((w) => w.id === "side");
+    expect(side && side.type === "column" ? side.rows.map((r) => r.widgets.map((w) => w.id)) : null).toEqual([["revenue"]]);
+    expect(wallEditorRefusal(state.layout)).toBeNull();
   });
 });

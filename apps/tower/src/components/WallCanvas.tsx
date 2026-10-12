@@ -25,7 +25,10 @@ import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { WallFeedWidget } from "@/components/wall/WallFeed";
+import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
+import { WallTimelineWidget } from "@/components/wall/WallTimeline";
+import { WallWork } from "@/components/wall/WallWork";
 import { useNow } from "@/hooks/useNow";
 import { cn } from "@/lib/utils";
 import { wallIssues } from "@/lib/wall-issues";
@@ -152,8 +155,30 @@ export function WallCanvas({
             heldSince={lastGood ? data.generatedAt : null}
           />
         );
+      case "loop":
+        return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
         return <RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={nowMs} />;
+      case "timeline": {
+        const assets = filterWallAssets(data.assets, widget.settings);
+        // Its marks are the feed's, read on its own like the feed column's.
+        return (
+          <WallTimelineWidget
+            assets={assets}
+            system={data.system}
+            issues={wallIssues({
+              assets,
+              attention: filterWallAttention(data.attention, widget.settings),
+              connections: connections ?? NO_READS,
+              calendarState,
+              nowMs,
+            })}
+            nowMs={nowMs}
+          />
+        );
+      }
+      case "work":
+        return <WallWork assets={filterWallAssets(data.assets, widget.settings)} operator={data.operator} nowMs={nowMs} />;
       case "needs":
         return (
           <NeedsYou

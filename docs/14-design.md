@@ -279,25 +279,27 @@ a number) beside it, replacing a strip of equal boxes. "2 open alerts, both
 warnings" over the alert list; "1 of 7 sites at risk", naming them, over the
 comparison table; "September net +$135 so far" over the money chart.
 
-**`HighlightCard`** is one thing that changed since the operator last looked:
-one kind (alert, money, people, shipped, win, milestone, bet), one short
-sentence, one shape (a line, a line over its normal band, or a display figure)
-and at most one verb. The card wears its kind's tint; the dot carries
-severity for an alert, the money or people identity otherwise.
-
 **`FinishLine`** ends a list the eye can finish: "That's every open alert" and
 how old the reading is. On an empty queue it is the whole list, so empty and
 finished read the same, and neither is a blank panel.
 
-**Home is the Morning Brief.** A greeting line with three small figures:
-yesterday's revenue, the month's pace and yesterday's visitors. Then at most
-five highlight cards, the first drawn larger as the big thing, ranked by
-severity, then dollars at stake, then kind; then the finish line that names
-the next sweep. Then *Decide*: at most three rows with their verbs on the row
-(Approve, Answer, Snooze). Then the sites in seed order, each with its one
-health word. The OS never describes itself on Home unless something is
-broken, and then the broken thing arrives as a highlight card. With one site,
-the brief is that site's.
+**Home answers how the business is doing, what is broken and what needs
+the operator**, in that order, each drawn. A quiet eyebrow carries the
+greeting, the window since the operator last looked and how many things
+changed in it; under it one sentence is the answer: where the month is
+heading and what is broken. The month's money is the hero (`MoneyHero`: the
+month so far as the largest figure on the screen, where it is heading against
+last month's total on a `PaceBar`, the month's days as a `BarStrip`, and which
+sites earned it), with yesterday's revenue and visitors as `StatTile`s beside
+it. With no revenue source anywhere, visitors lead and no money figure is
+drawn. Then every site's data sources as one calm `HealthGrid` with the
+System's own row, beside the ranked `IncidentList` of the problems the grid
+does not draw, so each problem appears once, and the `DecisionQueue` under it.
+Then the sites compared (`PortfolioRows`, in seed order; one site draws its own
+lead instead), and the last 24 hours as an `EventTimeline`. Home lays itself
+out by its own width: one column, two from about 768 px of content, twelve
+from about 1150 px, so a narrow window or a portrait monitor gets a layout
+made for it rather than a squeezed desktop one.
 
 **A site's Overview opens with a verdict**: the header carries one
 health word (`siteHealth` in `lib/site-health.ts`, the same derivation Home,
@@ -318,26 +320,33 @@ alert, Acknowledge and Tune in its expansion.
 
 ## The Wall
 
-The TV answers four questions in the order the eye takes them: *is anything
-on fire* (Needs you, and the issue mark beside a site's name); *are we on
-track this month* (the revenue figure, its pace, the month's line against last
-month's total); *which site needs me and how is each doing right now* (one row
-per site: live people, today against the same weekday last week, a 30-day
-trend, the month's money); *what just happened* (the live feed, newest on top,
-from stored events the Worker unions, never synthesized activity). Anything
-that answers none of these lives on the desk page that owns it.
+The TV answers five questions in the order the eye takes them: *where is the
+business in its own cycle* (the loop across the top: Sense, Attribute, Decide,
+Act, Learn, each with its live count and state); *is anything on fire* (the
+last 24 hours, one row per site and one for the System, every open problem a
+bar from its onset to now, and the issue mark beside a site's name); *are we
+on track this month* (the revenue figure, its pace, the month's line against
+last month's total); *which site needs me and how is each doing right now*
+(one row per site: live people, today against the same weekday last week, a
+30-day trend, the month's money); *is the work moving* (waiting on the
+operator, in progress, done this week and blocked, one row per project, done
+growing left of a centre line and the open queue right). Anything that
+answers none of these lives on the desk page that owns it; Needs you and the
+live feed stay in the library for a Wall that wants them.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of five widget types: the strip, revenue, Needs you, the site
-rows and the feed. `scripts/wall-layout.mts` owns the composition rules: how
-many rows and widgets a layout may hold, that widths are weights sharing a row
-rather than columns, each widget's floor and cap, which widgets are unique,
-which row takes the remaining height, and the one-column order a portrait
-tablet or a phone stacks into. The same validator runs at every door a layout
-can be written through, so the editor, the config pipeline and the renderer
-cannot disagree about what the Wall can draw. The operator arranges tiles at
-`/wall/edit` and never authors tile types; the editor previews through the
-very component the television uses.
+renders rows of eight widget types: the strip, the loop, revenue, the last 24
+hours, Needs you, the site rows, work and the feed. `scripts/wall-layout.mts`
+owns the composition rules: how many rows and widgets a layout may hold, that
+widths are weights sharing a row rather than columns, each widget's floor and
+cap, which widgets are unique, which row takes the remaining height, and the
+one-column order a portrait tablet or a phone stacks into. The same validator
+runs at every door a layout can be written through, so the editor, the config
+pipeline and the renderer cannot disagree about what the Wall can draw. The
+operator arranges tiles at `/wall/edit` and never authors tile types; the
+editor previews through the very component the television uses. The kit's
+desk components draw on the TV inside `.wall-root`, where their small type
+steps are scaled to the Wall's reading distance.
 
 One chart language, across every small chart on the TV and the desk's
 sparklines: a monotone line with round caps, an area whose wash eases to
@@ -436,7 +445,8 @@ may name providers, jobs, credentials and freshness. A surface speaks at its
 own altitude or lower, never higher: a business surface says "being watched ·
 verdict in 3 days", not "watch window"; "still counting", not "provisional";
 "people a day", not "GA4 users". A provider's name reaches a business surface
-only as a chart key beside its own line.
+only as a key beside its own mark: a chart key beside its line, or the header
+of its own column in a data-source grid.
 
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the lower altitudes' words
@@ -464,7 +474,7 @@ component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
 `EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue` and
 `IncidentList` in `components/viz/` are the kit, staged with invented figures
 at `/dev/visual-kit`. One `Card` with four kinds. `PageAnswer`,
-`HighlightCard`, `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for a
+`FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for a
 figure fused to its series; `HeroChart` for a dated chart with keys, event
 marks and keyboard inspection; `Sparkline` and `MinutePulse` for the compact
 shapes. `ListPanel` / `ListRow` for three rows that expand in place or drill

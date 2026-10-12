@@ -2,7 +2,7 @@
 // that draws them (Home, the Wall). Each function only re-reads what the
 // payload and the connection reads already say; a state nobody recorded stays
 // unknown and an onset nobody recorded stays null.
-import { sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
+import { connectionLabel, sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
 import { SCHEDULED_JOBS, jobRunName } from "@shared/scheduled-jobs";
 import { osReportMissing, type AssetCard, type ScheduledLane, type SystemBand } from "@shared/wall";
 import type { WallFeedItem } from "@shared/wall-feed";
@@ -26,8 +26,8 @@ const SOURCE_SHORT: Readonly<Record<string, string>> = {
 
 /** The OS's own row: what keeps the machine honest, beside the sites' sources. */
 export const SYSTEM_COLUMNS: readonly HealthColumn[] = [
-  { id: "os-report", label: "The OS's own nightly report", short: "Report" },
-  { id: "jobs", label: "Scheduled jobs", short: "Jobs" },
+  { id: "os-report", label: "The System's own nightly report", short: "Report" },
+  { id: "jobs", label: "Scheduled runs", short: "Runs" },
   { id: "backups", label: "Backups", short: "Backups" },
   { id: "spend", label: "Data spend against the daily cap", short: "Spend" },
 ];
@@ -62,6 +62,7 @@ export function siteHealthRow(asset: AssetCard, connections: ConnectionReads, no
     cells: sourceReadings(asset.id, asset.dataSources, connections, nowMs).map((reading): HealthCell => ({
       column: reading.id,
       state: healthStateOf(reading.kind),
+      label: reading.kind === "not-applicable" ? undefined : connectionLabel(reading.kind, "key", reading.id),
       since: readingSince(reading),
       detail: reading.detail ?? reading.site?.failure?.detail ?? null,
       href: href ? `${href}?tab=sources` : undefined,
@@ -85,7 +86,7 @@ export function systemHealthRow(system: SystemBand, href = "/health"): HealthRow
   const cells: HealthCell[] = [
     { column: "os-report", state: osReportMissing(system) ? "failing" : system.assetId === null ? "not-using" : "working", href },
     jobs.length === 0
-      ? { column: "jobs", state: "unknown", detail: "No scheduled job has run yet", href }
+      ? { column: "jobs", state: "unknown", detail: "Nothing scheduled has run yet", href }
       : failedJobs.length > 0
         ? { column: "jobs", state: "failing", since: latest(failedJobs), detail: failedJobs.map(laneLabel).join(", "), href }
         : { column: "jobs", state: "working", href },
@@ -175,6 +176,7 @@ export function timelineFromWall(
       to: null,
       severity: issue.severity,
       label: issue.line,
+      conditions: issue.conditions,
     })),
   );
   const events: TimelineEvent[] = feed.flatMap((item) => {

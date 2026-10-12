@@ -1,5 +1,5 @@
 import { CircleHelp, Triangle } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { Children, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { formatInt } from "@/lib/format";
@@ -20,6 +20,8 @@ export interface QueueItem {
   /** Days waiting, or null when the store has no timestamp for it. */
   ageDays: number | null;
   to?: string;
+  /** Where the opened page's back link returns to. */
+  returnTo?: string;
   /** The row's verbs (Approve, Answer, Dismiss), already wired. */
   actions?: ReactNode;
   /** Anything under the row: an answer box opened by a verb. */
@@ -51,6 +53,11 @@ export function ageBuckets(items: readonly Pick<QueueItem, "ageDays">[]): AgeBuc
   });
 }
 
+/** A wait in its own unit: hours under a day, whole days after. */
+export function ageLabel(days: number): string {
+  return days < 1 ? `${Math.max(1, Math.round(days * 24))}h` : `${formatInt(Math.floor(days))}d`;
+}
+
 /** Age drawn on a log scale to 90 days, so a 2-day wait and a 67-day wait are
  * both visible and plainly different. */
 export function ageLength(days: number): number {
@@ -61,6 +68,8 @@ export interface DecisionQueueProps {
   items: QueueItem[];
   /** The whole queue's size when only part of it was read into `items`. */
   total?: number | null;
+  /** What qualifies that count: "partial read", "outdated". */
+  totalNote?: string;
   /** Rows shown before "Show all". */
   limit?: number;
   title?: string;
@@ -68,19 +77,23 @@ export interface DecisionQueueProps {
   action?: { label: string; to: string };
   /** The queue could not be read, or is empty: one line in place of the rows. */
   empty?: string;
+  /** The rows, when each needs its own state (wired verbs): `QueueRow`s in
+   * `items` order. Without them the queue draws `items` itself. */
+  children?: ReactNode;
   className?: string;
 }
 
-export function DecisionQueue({ items, total = null, limit = 4, title = "Decide", action, empty = "Nothing to decide.", className }: DecisionQueueProps) {
+export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, empty = "Nothing to decide.", children, className }: DecisionQueueProps) {
   const [open, setOpen] = useState(false);
   const count = total ?? items.length;
   const buckets = ageBuckets(items);
   const known = buckets.reduce((sum, bucket) => sum + bucket.count, 0);
   const oldest = items.reduce<number | null>((max, item) => (item.ageDays === null ? max : Math.max(max ?? 0, item.ageDays)), null);
-  const shown = open ? items : items.slice(0, limit);
+  const rows = children === undefined ? items.map((item, index) => <QueueRow key={item.id} item={item} index={index} />) : Children.toArray(children);
+  const shown = open ? rows : rows.slice(0, limit);
 
   return (
-    <section aria-label={title} data-decision-queue="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
+    <section aria-label={title} data-decision-queue="" className={cn("@container flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
       <header className="flex flex-col gap-3 px-5 pb-3 pt-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>
@@ -94,7 +107,8 @@ export function DecisionQueue({ items, total = null, limit = 4, title = "Decide"
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
             <span className="text-figure tabular-nums text-foreground">{formatInt(count)}</span>
             <span className="text-sm text-muted-foreground">
-              waiting on you{oldest !== null ? <> · oldest <b className="font-semibold text-warn">{formatInt(oldest)}d</b></> : null}
+              waiting on you{oldest !== null ? <> · oldest <b className="font-semibold text-warn">{ageLabel(oldest)}</b></> : null}
+              {totalNote ? ` · ${totalNote}` : null}
             </span>
           </div>
         ) : null}
@@ -129,38 +143,38 @@ export function DecisionQueue({ items, total = null, limit = 4, title = "Decide"
         <p className="m-0 border-t border-border/60 px-5 py-4 text-sm text-muted-foreground">{empty}</p>
       ) : (
         <ul className="m-0 flex list-none flex-col border-t border-border/60 p-0">
-          {shown.map((item, index) => (
-            <QueueRow key={item.id} item={item} index={index} />
-          ))}
+          {shown}
         </ul>
       )}
-      {items.length > limit ? (
+      {rows.length > limit ? (
         <button
           type="button"
           onClick={() => setOpen((value) => !value)}
           className="border-t border-border/60 px-5 py-2.5 text-start text-xs font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
         >
-          {open ? "Show fewer" : `Show ${formatInt(items.length - limit)} more`}
+          {open ? "Show fewer" : `Show ${formatInt(rows.length - limit)} more`}
         </button>
       ) : null}
     </section>
   );
 }
 
-function QueueRow({ item, index }: { item: QueueItem; index: number }) {
+/** One waiting item: its kind, title, project and age as a length, and its
+ * verbs, quiet until the row is pointed at or focused. */
+export function QueueRow({ item, index }: { item: QueueItem; index: number }) {
   const Glyph = item.kind === "approval" ? Triangle : CircleHelp;
   const age = item.ageDays;
   const title = item.to ? (
-    <Link to={item.to} className="truncate font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={item.title}>
+    <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className="line-clamp-2 font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={item.title}>
       {item.title}
     </Link>
   ) : (
-    <span className="truncate font-medium text-foreground" title={item.title}>{item.title}</span>
+    <span className="line-clamp-2 font-medium text-foreground" title={item.title}>{item.title}</span>
   );
   return (
     <li
       data-queue-item={item.id}
-      className="viz-arrive group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30 focus-within:bg-muted/30"
+      className="viz-arrive group grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-2 border-b border-border/40 px-5 py-2.5 last:border-b-0 hover:bg-muted/30 focus-within:bg-muted/30 @lg:grid-cols-[auto_minmax(0,1fr)_auto]"
       style={{ ["--viz-i" as string]: index }}
     >
       <Glyph aria-label={item.kind === "approval" ? "Approval" : "Question"} className="size-4 shrink-0 text-warn" />
@@ -169,19 +183,22 @@ function QueueRow({ item, index }: { item: QueueItem; index: number }) {
         <span className="flex min-w-0 items-center gap-2 text-micro text-muted-foreground">
           <span className="truncate">{item.project}</span>
           {age !== null ? (
-            <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${age} days`}>
+            <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${ageLabel(age)}`}>
               <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-viz-track">
                 <span className={cn("block h-full rounded-full", age >= 30 ? "bg-warn" : "bg-muted-foreground/60")} style={{ width: `${ageLength(age) * 100}%` }} />
               </span>
-              <span className={cn("w-8 text-end", age >= 30 && "font-semibold text-warn")}>{formatInt(age)}d</span>
+              <span className={cn("w-8 text-end", age >= 30 && "font-semibold text-warn")}>{ageLabel(age)}</span>
             </span>
           ) : (
             <span className="ms-auto shrink-0">age unknown</span>
           )}
         </span>
       </span>
-      <span className="flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100">{item.actions}</span>
-      {item.below ? <div className="col-span-3">{item.below}</div> : null}
+      {item.actions ? (
+        // Beside the row when the panel has room, under its title when it does not.
+        <span className="col-start-2 flex shrink-0 items-center gap-1 opacity-60 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-sm:opacity-100 @lg:col-start-auto">{item.actions}</span>
+      ) : null}
+      {item.below ? <div className="col-span-full">{item.below}</div> : null}
     </li>
   );
 }

@@ -122,7 +122,6 @@ import { SavesPaused } from "@/components/SavesPaused";
 import { FunnelListEditor } from "@/components/FunnelListEditor";
 import { ConnectBlockers } from "@/components/ConnectBlockers";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
-import { HighlightCard } from "@/components/HighlightCard";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { FinishLine } from "@/components/surface/FinishLine";
 import {
@@ -187,6 +186,9 @@ import { wallIssues } from "@/lib/wall-issues";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import { yesterdayRevenue, type DailyRevenueSummary } from "@shared/daily-revenue";
 import { WallFeed } from "@/components/wall/WallFeed";
+import { WallLoop } from "@/components/wall/WallLoop";
+import { WallTimeline } from "@/components/wall/WallTimeline";
+import { WallWork } from "@/components/wall/WallWork";
 import type { WallFeedItem, WallFeedPayload } from "@shared/wall-feed";
 // Imported rather than re-typed so the gallery reviews the shipped copy.
 import { FirstRun } from "@/routes/HomeRoute";
@@ -2807,49 +2809,6 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="HighlightCard (the Morning Brief's card)">
-            <div className="grid w-full gap-3.5 lg:grid-cols-3">
-              <HighlightCard
-                kind="alert"
-                severity="error"
-                site="Example"
-                big
-                title="Signups fell to 22 a day, usually 39"
-                detail="since 2 days ago"
-                spark={{
-                  data: [41, 38, 40, 42, 37, 39, 44, 38, 40, 36, 39, 37, 24, 22].map((v, i) => ({ t: `2026-09-${String(i + 1).padStart(2, "0")}`, v })),
-                  tone: "primary",
-                  band: { low: 33, high: 45 },
-                  label: "Signups a day, with the normal band",
-                }}
-                action={{ label: "Look", to: "/assets/example.com" }}
-              />
-              <HighlightCard
-                kind="money"
-                title="October on pace for $1,310, up 16%"
-                detail="yesterday $55.25 est. · 24 days left"
-                spark={{
-                  data: [0, 55, 112, 160, 221, 280, 357, 412].map((v, i) => ({ t: `2026-10-0${i + 1}`, v })),
-                  tone: "revenue",
-                  area: true,
-                  format: (value) => `$${Math.round(value)}`,
-                  label: "October revenue so far, by day",
-                }}
-                action={{ label: "Money", to: "/financials" }}
-              />
-              <HighlightCard
-                kind="people"
-                title="Visitors up 12% on the same day last week"
-                detail="2,497 yesterday · 2,228 a week before"
-                spark={{ data: Array.from({ length: 14 }, (_, i) => ({ t: `2026-09-${String(i + 10)}`, v: 2100 + ((i * 97) % 300) })), tone: "traffic", area: true, label: "Visitors a day" }}
-                action={{ label: "Sites", to: "/assets" }}
-              />
-              <HighlightCard kind="shipped" site="Example" title="Title rewrites shipped on 14 pages" detail="9h ago" action={{ label: "Open", to: "/assets/example.com" }} />
-              <HighlightCard kind="win" site="Example" title="Recipe schema: +$9 a month, measured" detail="1d ago" />
-              <HighlightCard kind="milestone" site="Example" title="Passed 6,000 accounts" figure="6,267" detail="reached Tuesday" />
-              <HighlightCard kind="bet" site="Example" title="Navigation change: verdict in 3 days" detail="predicted +$40 a month · not yet significant" />
-            </div>
-          </Section>
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">
               <PageAnswer answer="1 of 7 sites at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
@@ -5522,6 +5481,51 @@ export function KitchenSinkRoute() {
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(0) }}
                 nowMs={NOW}
               />
+            </div>
+          </Section>
+
+          {/* The default Wall's three visual-kit widgets, on the TV's ground. */}
+          <Section title="WallLoop (the demo sites / nothing read yet)">
+            <div className="wall-root w-full rounded-lg bg-background p-4">
+              <WallLoop data={wallFixture} connections={DEMO_CONNECTIONS} nowMs={NOW} />
+            </div>
+            <div className="wall-root w-full rounded-lg bg-background p-4">
+              <WallLoop data={{ assets: [], attention: [], operator: null }} connections={DEMO_CONNECTIONS} nowMs={NOW} />
+            </div>
+          </Section>
+
+          <Section title="WallTimeline (problems over the feed's marks / calm / feed reconnecting)">
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallTimeline
+                assets={wallFixture.assets}
+                issues={wallIssues({ assets: wallFixture.assets, attention: attentionItems, connections: DEMO_CONNECTIONS, nowMs: NOW })}
+                system={wallFixture.system}
+                feed={FEED_DEMO_ITEMS}
+                since={feedDemo(FEED_DEMO_ITEMS).since}
+                nowMs={NOW}
+              />
+            </div>
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallTimeline assets={wallFixture.assets} issues={[]} feed={[]} since={feedDemo([]).since} nowMs={NOW} />
+            </div>
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallTimeline assets={wallFixture.assets} issues={[]} feed={FEED_DEMO_ITEMS.slice(0, 4)} since={feedDemo([]).since} failed nowMs={NOW} />
+            </div>
+          </Section>
+
+          <Section title="WallWork (counted / partial inbox / nothing read)">
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallWork assets={wallFixture.assets} operator={wallFixture.operator} nowMs={NOW} />
+            </div>
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallWork
+                assets={wallFixture.assets}
+                operator={{ waiting: 0, urgent: 0, measuredProjects: 3, urgentMeasuredProjects: 3, projectCount: 6, capturedAt: iso(0) }}
+                nowMs={NOW}
+              />
+            </div>
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallWork assets={[]} operator={null} nowMs={NOW} />
             </div>
           </Section>
 

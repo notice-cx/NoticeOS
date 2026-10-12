@@ -66,6 +66,9 @@ export interface TimelineSpan {
   severity: TimelineSeverity;
   label: string;
   href?: string;
+  /** The material conditions this bar stands for (`shared/materiality`), drawn
+   * as `data-material-condition` so the materiality suite can find it. */
+  conditions?: readonly string[];
 }
 
 export interface TimelineEvent {
@@ -91,6 +94,9 @@ export interface EventTimelineProps {
   compact?: boolean;
   /** The clock the axis is read on (the saved OS time zone); the runtime's own when absent. */
   timeZone?: string;
+  /** For a screen nobody touches (the TV): no links, nothing to press or
+   * hover, every href ignored. The hidden list still reads every item. */
+  readOnly?: boolean;
   ariaLabel: string;
   className?: string;
 }
@@ -609,7 +615,7 @@ function useOpenMark() {
 
 const FOCUS = "outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-function Trigger({ href, name, className, style, describedBy, expanded, controls, onPress, children }: {
+function Trigger({ href, name, className, style, describedBy, expanded, controls, onPress, still = false, children }: {
   href?: string;
   name: string;
   className: string;
@@ -618,8 +624,13 @@ function Trigger({ href, name, className, style, describedBy, expanded, controls
   expanded?: boolean;
   controls?: string;
   onPress: () => void;
+  /** Drawn, not pressed: the hidden list names it instead. */
+  still?: boolean;
   children: ReactNode;
 }) {
+  if (still) {
+    return <span aria-hidden className={className} style={style}>{children}</span>;
+  }
   if (href) {
     return (
       <Link to={href} aria-label={name} aria-describedby={describedBy} className={className} style={style}>
@@ -676,14 +687,18 @@ function barTone(p: PlacedSpan): { fill: string; ink: string; quiet: boolean } {
   };
 }
 
-function SpanMark({ p, index, below, open, panelId, bind, onPress }: {
+/** A mark's handlers, or none on a read-only timeline. */
+type MarkBind = Partial<ReturnType<ReturnType<typeof useOpenMark>["handlers"]>>;
+
+function SpanMark({ p, index, below, open, panelId, bind, onPress, still }: {
   p: PlacedSpan;
   index: number;
   below: boolean;
   open: boolean;
   panelId: string;
-  bind: ReturnType<ReturnType<typeof useOpenMark>["handlers"]>;
+  bind: MarkBind;
   onPress: () => void;
+  still: boolean;
 }) {
   const tone = barTone(p);
   const clipped = p.state === "long-standing" || p.state === "unknown-start";
@@ -691,9 +706,10 @@ function SpanMark({ p, index, below, open, panelId, bind, onPress }: {
   const rounding = clsx(clipped ? "rounded-l-sm" : "rounded-l-full", p.state === "closed" ? "rounded-r-full" : "rounded-r-sm");
   const before = p.labelAt === "before" || p.ageAt === "before";
   return (
-    <div data-span={p.span.id} data-state={p.state} data-severity={p.span.severity} data-mark-key={p.span.id} {...bind}
+    <div data-span={p.span.id} data-state={p.state} data-severity={p.span.severity} data-mark-key={p.span.id}
+      data-material-condition={p.span.conditions?.join(" ") || undefined} {...bind}
       className="absolute inset-y-0.5" style={{ left: pct(p.x1), width: pct(p.x2 - p.x1) }}>
-      <Trigger href={p.span.href} name={p.name} describedBy={open ? panelId : undefined} onPress={onPress}
+      <Trigger href={p.span.href} name={p.name} describedBy={open ? panelId : undefined} onPress={onPress} still={still}
         className={clsx("group/span absolute inset-y-0 right-0 flex w-full min-w-6 items-center", rounding, tone.quiet && "opacity-80", FOCUS)}>
         <span aria-hidden className={clsx("viz-grow-x absolute inset-0", rounding, tone.fill)}
           style={{ "--viz-i": index } as CSSProperties} />
@@ -769,14 +785,15 @@ function eventWord(event: TimelineEvent): string {
   return event.kind === "problem" && event.severity ? SEVERITY_WORD[event.severity] : KIND_WORD[event.kind];
 }
 
-function MarkGroup({ group, index, below, open, panelId, bind, onPress }: {
+function MarkGroup({ group, index, below, open, panelId, bind, onPress, still }: {
   group: TimelineMarkGroup;
   index: number;
   below: boolean;
   open: boolean;
   panelId: string;
-  bind: ReturnType<ReturnType<typeof useOpenMark>["handlers"]>;
+  bind: MarkBind;
   onPress: () => void;
+  still: boolean;
 }) {
   const single = group.events.length === 1 ? group.events[0]! : null;
   const worst = group.events.some((m) => m.event.kind === "problem" && m.event.severity === "error") ? "error"
@@ -786,7 +803,7 @@ function MarkGroup({ group, index, below, open, panelId, bind, onPress }: {
       data-event={single ? single.event.id : undefined} data-kind={single?.event.kind}
       data-event-cluster={single ? undefined : group.events.length} data-events={single ? undefined : group.key}
       className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ left: pct(group.x) }}>
-      <Trigger href={single?.event.href} name={group.name} onPress={onPress}
+      <Trigger href={single?.event.href} name={group.name} onPress={onPress} still={still}
         describedBy={single && open ? panelId : undefined}
         expanded={single ? undefined : open} controls={single || !open ? undefined : panelId}
         className={clsx("viz-arrive relative flex size-6 items-center justify-center rounded-full", FOCUS)}
@@ -849,17 +866,17 @@ function Furniture({ layout, bare = false }: { layout: EventTimelineLayout; bare
   );
 }
 
-function LaneName({ lane, state }: { lane: TimelineLane; state: TimelineLaneState }) {
+function LaneName({ lane, state, still }: { lane: TimelineLane; state: TimelineLaneState; still: boolean }) {
   const Shape = state === "quiet" ? null : SEVERITY_SHAPE[state];
   const text = (
     <span className={clsx("truncate text-sm", state === "quiet" ? "text-muted-foreground" : "font-medium text-foreground")}>{lane.label}</span>
   );
   return (
     <div data-lane-label title={lane.label}
-      className="flex h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-32 @min-[30rem]:shrink-0">
+      className="flex h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-[var(--timeline-name,8rem)] @min-[30rem]:shrink-0">
       {Shape ? <Shape aria-hidden className={clsx("size-3.5 shrink-0", state === "error" ? "text-error" : "text-warn")} strokeWidth={2.5} /> : null}
       {lane.icon ? <span aria-hidden className="flex shrink-0 text-muted-foreground">{lane.icon}</span> : null}
-      {lane.href ? (
+      {lane.href && !still ? (
         <Link to={lane.href} className={clsx("flex min-h-6 min-w-0 items-center rounded-sm hover:underline underline-offset-4", FOCUS)}>{text}</Link>
       ) : text}
     </div>
@@ -873,25 +890,38 @@ function LaneName({ lane, state }: { lane: TimelineLane; state: TimelineLaneStat
  * hears every item once, in the order the eye takes them.
  */
 export function EventTimeline(props: EventTimelineProps) {
-  const { lanes, spans, events, window: range, nowMs, marker, compact = false, timeZone, ariaLabel, className } = props;
+  const { lanes, spans, events, window: range, nowMs, marker, compact = false, timeZone, readOnly = false, ariaLabel, className } = props;
   const plot = useRef<HTMLDivElement>(null);
+  const nowLabel = useRef<HTMLSpanElement>(null);
   const width = useWidth(plot);
+  const [nowPx, setNowPx] = useState(0);
+  // After every draw: the label's width follows the type the screen sets.
+  useLayoutEffect(() => {
+    const measured = nowLabel.current?.offsetWidth ?? 0;
+    if (measured !== nowPx) setNowPx(measured);
+  });
   const layout = useMemo(
     () => layoutEventTimeline({ lanes, spans, events, window: range, nowMs, marker, compact, timeZone, ariaLabel }, width),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- a window or marker is read by value, not identity
     [lanes, spans, events, range.from, range.to, nowMs, marker?.at, compact, timeZone, width],
   );
   const { open, handlers, toggle } = useOpenMark();
+  const bind = (key: string): MarkBind => (readOnly ? {} : handlers(key));
   const uid = useId();
   const plotWidth = width > 0 ? width : FALLBACK_WIDTH;
-  const offset = compact ? "" : "@min-[30rem]:ml-35";
+  // The name column's width is a token a screen with larger type (the TV)
+  // widens; the plot starts past it and its gap.
+  const offset = compact ? "" : "@min-[30rem]:ml-[calc(var(--timeline-name,8rem)+0.75rem)]";
   const half = Math.ceil(layout.lanes.length / 2);
   let spanIndex = 0;
   let markIndex = 0;
   let panel = 0;
 
   // A tick label never runs into "Now": half its own width plus the word's.
-  const ticks = layout.scale.ticks.filter((tick) => tick.x > layout.nowX || (layout.nowX - tick.x) * plotWidth >= textPx(tick.label) / 2 + 40);
+  // Text widths are estimated at the desk's type; where "Now" measures wider
+  // (the TV's larger steps), every estimate grows by the same ratio.
+  const grow = nowPx > 0 ? Math.max(1, nowPx / (textPx("Now") + 6)) : 1;
+  const ticks = layout.scale.ticks.filter((tick) => tick.x > layout.nowX || (layout.nowX - tick.x) * plotWidth >= (textPx(tick.label) / 2) * grow + Math.max(40, nowPx + 8));
 
   return (
     <div role="group" aria-label={ariaLabel} data-event-timeline data-compact={compact || undefined} data-unit={layout.scale.unit}
@@ -933,7 +963,7 @@ export function EventTimeline(props: EventTimelineProps) {
           return (
             <div key={placed.lane.id} data-lane={placed.lane.id} data-state={placed.state}
               className={clsx("flex flex-col gap-1.5 py-2", !compact && "@min-[30rem]:flex-row @min-[30rem]:gap-3")}>
-              {compact ? null : <LaneName lane={placed.lane} state={placed.state} />}
+              {compact ? null : <LaneName lane={placed.lane} state={placed.state} still={readOnly} />}
               <div className="relative min-w-0 flex-1">
                 <Furniture layout={layout} />
                 {subRows.map((row, rowIndex) => (
@@ -943,7 +973,7 @@ export function EventTimeline(props: EventTimelineProps) {
                       const panelId = `${uid}-p${panel++}`;
                       return (
                         <SpanMark key={key} p={p} index={spanIndex++} below={below} open={open?.key === key}
-                          panelId={panelId} bind={handlers(key)} onPress={() => toggle(key)} />
+                          panelId={panelId} bind={bind(key)} onPress={() => toggle(key)} still={readOnly} />
                       );
                     })}
                   </div>
@@ -955,7 +985,7 @@ export function EventTimeline(props: EventTimelineProps) {
                       const panelId = `${uid}-p${panel++}`;
                       return (
                         <MarkGroup key={group.key} group={group} index={markIndex++} below={below} open={open?.key === group.key}
-                          panelId={panelId} bind={handlers(group.key)} onPress={() => toggle(group.key)} />
+                          panelId={panelId} bind={bind(group.key)} onPress={() => toggle(group.key)} still={readOnly} />
                       );
                     })}
                   </div>
@@ -979,7 +1009,7 @@ export function EventTimeline(props: EventTimelineProps) {
             </span>
           );
         })}
-        <span data-now-label className={clsx("absolute top-1 whitespace-nowrap text-xs font-semibold text-foreground",
+        <span ref={nowLabel} data-now-label className={clsx("absolute top-1 whitespace-nowrap text-xs font-semibold text-foreground",
           layout.nowX < 0.1 ? "pl-1.5" : "-translate-x-full pr-1.5")} style={{ left: pct(layout.nowX) }}>
           Now
         </span>

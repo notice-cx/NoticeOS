@@ -4,6 +4,7 @@
 import type { OperatorPosture } from "@shared/wall";
 import { isAmber } from "@shared/freshness";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
+import type { WorkWaiting } from "@/components/viz/WorkFlow";
 
 /**
  * What the operator's inbox posture IS, before anything renders it.
@@ -55,4 +56,21 @@ export function operatorLabel(operator: OperatorPosture, nowMs: number): string 
       : state.stale
         ? "Inbox stale"
         : "0 need you";
+}
+
+/**
+ * The inbox as a figure the Wall draws ("Waiting on you", the loop's Decide):
+ * null when no snapshot counted a project, a lower bound when some project
+ * went uncounted, and stale when the snapshot is old, so neither ever draws a
+ * zero it did not measure.
+ */
+export function operatorWaiting(operator: OperatorPosture | null | undefined, nowMs: number): WorkWaiting | null {
+  const state = operatorState(operator, nowMs);
+  if (!state || !operator || operator.capturedAt === null || operator.projectCount === 0) return null;
+  return {
+    count: operator.waiting,
+    urgent: operator.urgent,
+    partial: !state.complete || !state.urgentComplete,
+    stale: state.stale,
+  };
 }

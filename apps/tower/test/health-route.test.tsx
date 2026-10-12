@@ -409,12 +409,13 @@ describe("/health — the page leads with what to unblock next", () => {
    * one of these five figures has a series: the store keeps the current state
    * of every connection and no by-day record, so each declares how its total
    * divides (`data-composition`). */
-  it("declares its hero: the connections, with their counts", () => {
+  it("declares its hero: the system map, with the connections and their counts under it", () => {
     const { container } = renderRoute(blocked);
 
     const hero = container.querySelector("[data-surface-hero]")!;
-    expect(hero).not.toBeNull();
-    expect(hero.querySelector("[data-connections] [data-kpi-strip]")).not.toBeNull();
+    expect(hero).toHaveAttribute("data-system-map");
+    expect(hero.querySelector("[data-flow-graph]")).not.toBeNull();
+    expect(container.querySelector("[data-connections] [data-kpi-strip]")).not.toBeNull();
 
     openPanel("spend");
     const kpis = [...container.querySelectorAll("[data-kpi]")].filter((kpi) => !kpi.closest("[data-connections]"));

@@ -27,14 +27,26 @@ export interface WorkFlowRow {
   urgent: number | null;
 }
 
+/** Waiting on the operator across every project. */
+export interface WorkWaiting {
+  count: number;
+  urgent: number;
+  /** Not every project was counted: the figures are lower bounds ("3+"). */
+  partial?: boolean;
+  /** The task snapshot is old: a zero is not drawn as calm. */
+  stale?: boolean;
+}
+
 export interface WorkFlowProps {
   rows: readonly WorkFlowRow[];
   /** Waiting on the operator across every project, or null when not read. */
-  waiting?: { count: number; urgent: number } | null;
+  waiting?: WorkWaiting | null;
   title?: string;
   action?: ReactNode;
   /** For a fixed-height screen: one line of figures, no key, no second line per row. */
   compact?: boolean;
+  /** The heading's type where the screen has its own eyebrow (the TV's). */
+  headingClassName?: string;
   className?: string;
 }
 
@@ -48,33 +60,39 @@ export function workScale(rows: readonly WorkFlowRow[]): number {
   return Math.max(1, ...rows.map((row) => Math.max(row.done, workQueue(row))));
 }
 
-export function WorkFlow({ rows, waiting = null, title = "Work", action, compact = false, className }: WorkFlowProps) {
+export function WorkFlow({ rows, waiting = null, title = "Work", action, compact = false, headingClassName, className }: WorkFlowProps) {
   const scale = workScale(rows);
   const total = rows.reduce(
     (sum, row) => ({ done: sum.done + row.done, inProgress: sum.inProgress + row.inProgress, blocked: sum.blocked + row.blocked, open: sum.open + workQueue(row) }),
     { done: 0, inProgress: 0, blocked: 0, open: 0 },
   );
   const share = (count: number) => `${(count / scale) * 100}%`;
+  // No project's snapshot is no count at all, never three zeros.
+  const counted = rows.length > 0;
+  const unread = <span className="text-sm font-medium text-muted-foreground">not read</span>;
 
   return (
     <section aria-label={title} data-work-flow="" className={cn("@container flex min-w-0 flex-col gap-4", className)}>
       <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>
+        <h2 className={cn("m-0", headingClassName ?? eyebrowClass)}>{title}</h2>
         {action}
       </header>
       <div className={cn("grid gap-x-6 gap-y-3", compact ? "grid-cols-4" : "grid-cols-2 @xl:grid-cols-4")}>
-        <Figure icon={<Hand aria-hidden className="size-4" />} label="Waiting on you" ink={waiting && waiting.count > 0 ? "text-warn" : undefined}>
-          {waiting === null ? <span className="text-sm font-medium text-muted-foreground">not read</span> : formatInt(waiting.count)}
-          {waiting && waiting.urgent > 0 ? <span className="ms-2 text-sm font-semibold text-error">{formatInt(waiting.urgent)} urgent</span> : null}
+        <Figure icon={<Hand aria-hidden className="size-4" />} label="Waiting on you" ink={waiting && waiting.count > 0 ? "text-warn" : undefined} condition="human-gates">
+          <WaitingFigure waiting={waiting} />
         </Figure>
-        <Figure label="In progress">{formatInt(total.inProgress)}</Figure>
-        <Figure icon={<CircleCheck aria-hidden className="size-4" />} label="Done this week" ink="text-milestone">{formatInt(total.done)}</Figure>
+        <Figure label="In progress">{counted ? formatInt(total.inProgress) : unread}</Figure>
+        <Figure icon={<CircleCheck aria-hidden className="size-4" />} label="Done this week" ink="text-milestone">{counted ? formatInt(total.done) : unread}</Figure>
         <Figure icon={<Hourglass aria-hidden className="size-4" />} label="Blocked" ink={total.blocked > 0 ? "text-warn" : undefined}>
-          {formatInt(total.blocked)}
-          <span className="ms-2 text-sm font-medium text-muted-foreground">of {formatInt(total.open)} open</span>
+          {counted ? (
+            <>
+              {formatInt(total.blocked)}
+              <span className="ms-2 text-sm font-medium text-muted-foreground">of {formatInt(total.open)} open</span>
+            </>
+          ) : unread}
         </Figure>
       </div>
-      <div role="table" aria-label={`${title} by project`} className="flex flex-col">
+      {counted ? <div role="table" aria-label={`${title} by project`} className="flex flex-col">
         <div role="row" className="grid grid-cols-[minmax(6rem,9rem)_minmax(0,1fr)_minmax(0,1.6fr)] items-end gap-x-3 pb-1.5 text-micro font-medium text-muted-foreground">
           <span role="columnheader">Project</span>
           <span role="columnheader" className="text-end">Done this week</span>
@@ -120,8 +138,8 @@ export function WorkFlow({ rows, waiting = null, title = "Work", action, compact
             </div>
           );
         })}
-      </div>
-      <div className={cn("flex flex-wrap gap-x-4 gap-y-1 text-micro text-muted-foreground", compact && "hidden")} aria-hidden>
+      </div> : null}
+      <div className={cn("flex flex-wrap gap-x-4 gap-y-1 text-micro text-muted-foreground", (compact || !counted) && "hidden")} aria-hidden>
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3 rounded-xs bg-milestone/80" />done this week</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3 rounded-xs bg-foreground" />in progress</span>
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3 rounded-xs bg-muted-foreground/45" />ready to start</span>
@@ -131,9 +149,27 @@ export function WorkFlow({ rows, waiting = null, title = "Work", action, compact
   );
 }
 
-function Figure({ label, icon, ink, children }: { label: string; icon?: ReactNode; ink?: string; children: ReactNode }) {
+/** A count only where the snapshot earned it: an unread inbox says so, a
+ * partial one is a lower bound, and a zero from a partial or old snapshot is
+ * never drawn as calm. */
+function WaitingFigure({ waiting }: { waiting: WorkWaiting | null }) {
+  const quiet = "text-sm font-medium text-muted-foreground";
+  if (waiting === null) return <span className={quiet}>not read</span>;
+  const more = waiting.partial ? "+" : "";
+  if (waiting.count === 0 && (waiting.partial || waiting.stale)) {
+    return <span className={quiet}>{waiting.partial ? "unknown" : "stale"}</span>;
+  }
   return (
-    <div className="flex min-w-0 flex-col gap-0.5">
+    <>
+      {formatInt(waiting.count)}{more}
+      {waiting.urgent > 0 ? <span className="ms-2 text-sm font-semibold text-error">{formatInt(waiting.urgent)}{more} urgent</span> : null}
+    </>
+  );
+}
+
+function Figure({ label, icon, ink, condition, children }: { label: string; icon?: ReactNode; ink?: string; condition?: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5" data-material-condition={condition}>
       <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", ink ?? "text-muted-foreground")}>
         {icon}
         {label}

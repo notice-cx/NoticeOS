@@ -361,6 +361,8 @@
     --wall-strip-brand-size: 2.5rem;
     --wall-strip-countdown-size: 2.5rem;
     --wall-strip-countdown-line: 3.125rem;
+    /* The timeline's row names at the TV's larger body step. */
+    --timeline-name: 11rem;
   }
 
   /* Each with its floor on a scaled Wall (§ The TV layout, scaled). */
@@ -394,6 +396,19 @@
   .wall-root .text-2xl {
     font-size: 2rem;
     line-height: 2.5rem;
+  }
+
+  /* The visual kit's own steps (the loop, the timeline, the work chart), read
+     from across the room: its floor is the Wall's micro step, its row figure
+     a size between a list line and the Wall's stat. */
+  .wall-root .text-micro {
+    font-size: calc(var(--wall-micro-size) * var(--wall-boost-micro));
+    line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro));
+  }
+
+  .wall-root .text-figure-sm {
+    font-size: 1.75rem;
+    line-height: 2.125rem;
   }
 }
 

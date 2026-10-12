@@ -36,13 +36,6 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["finished", "quiet (empty from the start)", "without an age"],
   },
   {
-    name: "HighlightCard",
-    file: "components/HighlightCard.tsx",
-    purpose:
-      "One thing that changed since you last looked: one kind, one sentence, one shape (a line, a line over its normal band, or a display figure) and at most one action. The card's tint is its kind; severity rides the dot and the word.",
-    variants: ["alert (big)", "money", "people", "shipped", "win", "milestone (figure)", "bet"],
-  },
-  {
     name: "DemoViewerStatus",
     file: "components/DemoViewerStatus.tsx",
     purpose:
@@ -906,6 +899,27 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "The Wall's top three actionable problems, errors first then newest, with site, concise line and age (docs/14-design.md § Needs you). wallIssues merges alerts, failing sources, late reports and overdue reviews; withSystemIssues adds missing OS reports, failed or silent jobs and spending over daily pace using existing rules. Duplicate OS report problems merge. The full asset issue list drives each site's health bars; NeedsYou shows the top three and total count, with urgent human tasks counted by the heading. No carousel. IssueGlyph supplies severity shape as well as color. Sites that owe no nightly report never receive missing-report warnings. Reuses the established Wall issue derivation rather than a second alert system.",
     variants: ["top three with the rest counted", "urgent tasks beside the heading", "nothing broken but urgent tasks", "nothing needs you"],
+  },
+  {
+    name: "WallLoop / loopNodes",
+    file: "components/wall/WallLoop.tsx",
+    purpose:
+      "The Wall's loop: Sense, Attribute, Decide, Act and Learn as one dense FlowGraph band across the TV, each stage with the live count the payload has for it (sources live of owed, waiting on you, work in progress, outcomes ready). A stage nothing measures says so; a partial or stale inbox is never drawn as zero. Stacks on a narrow screen.",
+    variants: ["sources failing", "urgent waiting", "work in progress", "outcomes ready", "nothing read yet"],
+  },
+  {
+    name: "WallTimeline / WallTimelineWidget",
+    file: "components/wall/WallTimeline.tsx",
+    purpose:
+      "The Wall's account of what is broken: every open problem (wallIssues plus the System's own) as a bar from its onset to now and the feed's stored events as marks, one row per site and the System, on a read-only EventTimeline of the last 24 hours. It draws three lines (fitTimeline: errors, then warnings, then rows of marks) and counts the problems left out as +N more; its line says Nothing broken when the evaluated conditions are calm. The widget reads the feed itself.",
+    variants: ["calm", "errors and warnings", "problems left out, counted", "feed reconnecting"],
+  },
+  {
+    name: "WallWork",
+    file: "components/wall/WallWork.tsx",
+    purpose:
+      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, then one row per project. No links. With nothing read at all it is one quiet line, Tasks unknown.",
+    variants: ["counted", "partial inbox", "nothing read (one line)"],
   },
   {
     name: "AppShell / Sidebar",

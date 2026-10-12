@@ -206,7 +206,7 @@ export function SiteRows({ assets, pulseMetrics, issues, ga4Realtime, ga4Realtim
         aria-label="Sites"
         // Rows past the region's height scroll inside it under the headings
         // rather than the Wall falling back to one column.
-        className={cn("min-h-0 flex-1 tv:overflow-y-auto", TABLE, ROW_SIZE[size].table, compactTotals && "sites:grid-cols-[minmax(12.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)] sites-wide:grid-cols-[minmax(14.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)]")}
+        className={cn("min-h-0 flex-1 tv:overflow-y-auto", TABLE, ROW_SIZE[size].table, compactTotals && "sites:grid-cols-[minmax(12.5rem,1.6fr)_auto_minmax(13rem,0.6fr)_minmax(min-content,1fr)] sites-wide:grid-cols-[minmax(14.5rem,1.6fr)_auto_minmax(9rem,0.6fr)_minmax(min-content,1fr)]")}
         // Row count controls the region's responsive type scale.
         style={{ "--site-rows": assets.length } as CSSProperties}
       >

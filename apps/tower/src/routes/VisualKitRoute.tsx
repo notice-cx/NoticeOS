@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { SegmentBar } from "@/components/SegmentBar";
 import { Button } from "@/components/ui/button";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { DecisionQueue } from "@/components/viz/DecisionQueue";
@@ -17,7 +16,8 @@ import { StatTile } from "@/components/viz/StatTile";
 import { WorkFlow } from "@/components/viz/WorkFlow";
 import { formatInt, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DEMO_MARKER, DEMO_NOW, INCIDENTS, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, REVENUE_30, WORK } from "@/routes/visual-kit/demo-data";
+import { DEMO_MARKER, DEMO_NOW, INCIDENTS, MONEY, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, WORK } from "@/routes/visual-kit/demo-data";
+import { MoneyHero } from "@/routes/home/MoneyHero";
 
 /**
  * The visual kit, staged with invented figures: every new form at the size a
@@ -227,41 +227,7 @@ export function VisualKitGallery() {
 function MoneyHeroA({ average, peopleAverage }: { average: number; peopleAverage: number }) {
   return (
     <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <section className="relative flex flex-col gap-5 overflow-hidden rounded-xl bg-card p-6 shadow-raised ring-1 ring-border/70" data-money-hero="">
-        <span aria-hidden className="pointer-events-none absolute -end-24 -top-32 size-80 rounded-full bg-financial-revenue/10 blur-3xl" />
-        <div className="flex flex-wrap items-end justify-between gap-6">
-          <div className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Revenue, October so far</span>
-            <span className="flex items-baseline gap-2">
-              <span className="text-display tabular-nums text-foreground">$364</span>
-              <span className="text-sm font-medium text-muted-foreground">est.</span>
-            </span>
-            <span className="text-sm text-muted-foreground">
-              Heading for <b className="font-semibold text-foreground">$1,020</b> · <b className="font-semibold text-warn">9% under</b> September
-            </span>
-          </div>
-          <div className="w-full max-w-sm flex-1">
-            <BarStrip data={REVENUE_30} tone="text-financial-revenue" baseline={{ value: average, label: `usual ${usd(average)} a day` }} format={usd} ariaLabel="Revenue a day, last 30 days" className="h-20" />
-          </div>
-        </div>
-        <PaceBar value={364} label="Oct so far" previousAtSameDay={null} previousTotal={1127} previousLabel="Sep" projected={1020} tone="text-financial-revenue" format={usdWhole} showValue={false} />
-        <div className="flex flex-col gap-2 border-t border-border/60 pt-4">
-          <span className="text-xs font-medium text-muted-foreground">Where October came from</span>
-          <SegmentBar
-            ariaLabel="October revenue by site: Plume Studio $352, Mosaic Finder $12"
-            className="h-2"
-            segments={[
-              { name: "Plume Studio", value: 352, fill: "bg-financial-revenue" },
-              { name: "Mosaic Finder", value: 12, fill: "bg-financial-revenue/45" },
-            ]}
-          />
-          <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-muted-foreground">
-            <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-financial-revenue" />Plume Studio <b className="font-semibold text-foreground">$352</b> · 97%</span>
-            <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-financial-revenue/45" />Mosaic Finder <b className="font-semibold text-foreground">$12</b> · 3%</span>
-            <span>4 sites earn nothing yet</span>
-          </div>
-        </div>
-      </section>
+      <MoneyHero money={MONEY} />
       <div className="grid gap-4">
         <StatTile
           label="Revenue, yesterday"

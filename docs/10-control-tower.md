@@ -129,17 +129,18 @@ one page header.
   a confirmation story before it can ship. The palette is mounted by the shell,
   so `/wall` does not have it: the television has no keyboard and nowhere to go.
 
-## Home: the morning brief
+## Home: how the business is doing
 
-`/` is the Morning Brief (`apps/tower/src/routes/HomeRoute.tsx`): a greeting
-line with three small figures, at most five highlight cards since the operator
-last looked (the first the big thing), Decide at three rows with their verbs
-on the row, the sites in seed order with one health word each, and a finish
-line. The composition is [doc 14 § Home](14-design.md); the words are
-[doc 14 § Altitude](14-design.md). Every money figure quotes the same rule
-every other surface quotes (`portfolioHeadline`), so Home can never state a
-different net than the Sites page or the Wall; the task rows exist only with a
-task source connected.
+`/` (`apps/tower/src/routes/HomeRoute.tsx`) answers how the business is
+doing, what is broken and what needs the operator, drawn from the data: the
+month's money as the hero with yesterday's revenue and visitors beside it,
+every site's data sources as one grid beside the ranked problems the grid does
+not draw and the decisions waiting, the sites compared, and the last 24 hours
+on a time axis. The composition is [doc 14 § Surfaces](14-design.md); the
+words are [doc 14 § Altitude](14-design.md). Every money figure quotes the same
+rule every other surface quotes (`monthRevenue`, `portfolioHeadline`), so Home
+can never state a different month than the Sites page or the Wall; the
+decision rows exist only with a task source connected.
 
 - **With one site**, Home leads with that site's own numbers and chart
   (`OneSiteLead`, the Overview's lead) and draws no table of one.
@@ -229,8 +230,9 @@ disagree about what `alpha` is called or which file owns it.
 
 ## The Wall (TV mode)
 
-**What the Wall shows is [doc 14](14-design.md)**: a slim strip, the month's
-revenue beside Needs you, one row per site and a live feed. The sections below
+**What the Wall shows is [doc 14](14-design.md)**: a slim strip and the loop
+across the top, then the last 24 hours of problems over one row per site,
+beside the month's revenue over the work. The sections below
 keep the route, refresh, layout document and editor mechanics; doc 14 owns what
 is on the screen.
 
@@ -253,8 +255,9 @@ between stacked regions, 28 px between regions side by side) on tokens in
 
 **The television says Tasks, like every other screen**:
 `scripts/ui-lexicon.test.mjs` does not exempt the Wall, so the system's own
-nouns cannot come back on any surface ([doc 14](14-design.md)). The Wall
-draws no task strips at all; urgent tasks are Needs you's count.
+nouns cannot come back on any surface ([doc 14](14-design.md)). The Wall's
+tasks are the work chart: counts per project and what waits on the operator,
+never a task's own words and never a link.
 
 **The setup checklist ring stays a desk element**:
 its meaning lives in a hover a television has no pointer for, nobody sets up an
@@ -285,10 +288,11 @@ full height beside several ([doc 14](14-design.md) § Regions).
   read into the polled payload by `parseWallConfig`, exactly as the countdown is
   read, so a Wall on another device converges within 60 seconds. The document
   lives in the store; the shape is the same.
-- **The default** is `DEFAULT_WALL_LAYOUT`, the arrangement in
-  [doc 14](14-design.md) § Regions: the strip, then a
-  column — revenue beside Needs you, the site rows under them — beside the
-  full-height feed. **A fresh install's `/wall` is `null`, or absent** — both
+- **The default** is `DEFAULT_WALL_LAYOUT`: the strip, then the loop, then
+  two columns — the last 24 hours over the site rows, beside revenue over the
+  work. Revenue sits beside the sites rather than over them because that is
+  the only way the TV's 1080 rows hold the loop, the revenue band and seven
+  sites' rows whole (`pnpm audit:wall-fit`). **A fresh install's `/wall` is `null`, or absent** — both
   mean "nothing saved; draw the default" — so the default has exactly one
   representation and it is in the code rather than restated in the file. `/wall`
   is a declared document, so the write lane reads a stored `null` as absent and
@@ -296,7 +300,9 @@ full height beside several ([doc 14](14-design.md) § Regions).
   ([`config/tower.README.md`](../config/tower.README.md)).
   `apps/tower/test/wall-canvas.test.tsx` pins the default's
   rows, weights and regions.
-- **The library is five widgets** — strip, revenue, Needs you, sites, feed.
+- **The library is eight widgets** — strip, the loop, the last 24 hours,
+  sites, revenue, work, Needs you and the feed; the default places the first
+  six, and Needs you and the feed are there for a Wall that wants them.
   Seven older types (alerts, portfolio net, System, clock, meetings,
   countdown, the asset cards) are **retired types**: a saved layout that names
   one is still read — never
@@ -310,9 +316,10 @@ full height beside several ([doc 14](14-design.md) § Regions).
   one 1920×1080 screen (`pnpm audit:wall-fit`), and its rows were tuned in fractions.
 - **A widget with nothing to show renders nothing and yields its track**, the
   countdown/meetings rule applied to every widget the library
-  marks that way; a row whose every widget is hiding draws nothing at all. The
-  five each draw their own empty state (doc 14 § Regions), so none is marked
-  today; the rule stays for the next widget that needs it.
+  marks that way; a row whose every widget is hiding draws nothing at all.
+  Every widget draws its own empty state (a calm timeline says Nothing broken,
+  an unread work chart Tasks unknown), so none is marked today; the rule stays
+  for the next widget that needs it.
 - **The renderer is `WallCanvas`, and the editor's preview is the same
   component** — a preview drawn by a second renderer is a preview that can lie.
   Selection and drag chrome reach it through one render-prop slot; `/wall`
@@ -840,7 +847,7 @@ and a task's existence is never evidence about an asset.
 
 **Task screens belong to a connected task source.** A new installation has no task source, and then no screen
 shows a task surface: no Tasks in the sidebar or the palette, no Needs you tile
-or Waiting on you on Home, no task count in the Wall's Needs you, no Tasks tab,
+or Waiting on you on Home, no task count on the Wall (its work chart says Tasks unknown), no Tasks tab,
 Needs you or File task on a site, no Tasks column or Open tasks on Assets. Tasks
 reached by its address (or a site's Tasks tab, or a task page by link) is one
 door, **Connect a task source**, to the **Tasks** group on Integrations, where

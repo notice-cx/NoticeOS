@@ -74,13 +74,13 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
 
   return (
     <section aria-label={title} data-incident-list="" className={cn("flex min-w-0 flex-col rounded-xl bg-card ring-1 ring-border/70", className)}>
-      <header className="flex items-baseline justify-between gap-3 px-5 pb-3 pt-4">
-        <div className="flex min-w-0 items-baseline gap-3">
-          <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>
+      <header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-5 pb-3 pt-4">
+        <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
+          <h2 className={cn("m-0 whitespace-nowrap", eyebrowClass)}>{title}</h2>
           {items.length > 0 ? (
-            <span className="flex items-baseline gap-2 text-sm tabular-nums">
-              {errors > 0 ? <span className="font-semibold text-error">{formatInt(errors)} broken</span> : null}
-              {warnings > 0 ? <span className="font-semibold text-warn">{formatInt(warnings)} at risk</span> : null}
+            <span className="flex flex-wrap items-baseline gap-x-2 text-sm tabular-nums">
+              {errors > 0 ? <span className="whitespace-nowrap font-semibold text-error">{formatInt(errors)} broken</span> : null}
+              {warnings > 0 ? <span className="whitespace-nowrap font-semibold text-warn">{formatInt(warnings)} at risk</span> : null}
             </span>
           ) : null}
         </div>
@@ -103,12 +103,13 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
                   type="button"
                   aria-expanded={!folded}
                   onClick={() => setShowOld((value) => !value)}
-                  className="flex w-full items-center gap-2 px-5 py-2.5 text-start text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                  className="grid w-full grid-cols-[auto_minmax(0,1fr)] items-baseline gap-x-2 gap-y-0.5 px-5 py-2.5 text-start text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                 >
-                  <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 motion-safe:transition-transform", !folded && "rotate-90")} />
-                  <span className="font-medium">{GROUP_TITLE[group]}</span>
-                  <span className="tabular-nums">· {formatInt(rows.length)}</span>
-                  {folded ? <span className="truncate">· {rows.map((row) => `${row.title} on ${row.site}`).join(" · ")}</span> : null}
+                  <ChevronRight aria-hidden className={cn("size-3.5 shrink-0 self-center motion-safe:transition-transform", !folded && "rotate-90")} />
+                  <span className="whitespace-nowrap font-medium">
+                    {GROUP_TITLE[group]} <span className="tabular-nums">· {formatInt(rows.length)}</span>
+                  </span>
+                  {folded ? <span className="col-start-2 line-clamp-2">{rows.map((row) => `${row.title} on ${row.site}`).join(" · ")}</span> : null}
                 </button>
               ) : (
                 <h3 className="m-0 px-5 pb-1 pt-2.5 text-micro font-medium text-muted-foreground">{GROUP_TITLE[group]}</h3>
@@ -138,7 +139,7 @@ function IncidentRow({ incident, nowMs, quiet, fresh, index }: { incident: Incid
       <span aria-hidden className={cn("absolute inset-y-2 start-0 w-0.5 rounded-full bg-current", ink, quiet && "opacity-40")} />
       <Glyph aria-hidden className={cn("size-4 shrink-0", ink, quiet && "opacity-60")} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className={cn("truncate text-sm font-medium", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
+        <span className={cn("line-clamp-2 text-sm font-medium", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
           {incident.title}
         </span>
         <span className="truncate text-micro text-muted-foreground">{incident.site}</span>
