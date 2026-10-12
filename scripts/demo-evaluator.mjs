@@ -25,7 +25,8 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
       reports: path.join(root, 'workers/ingest/src/db.ts'),
       insights: path.join(root, 'workers/ingest/src/insight-snapshots.ts'),
       uptime: path.join(root, 'workers/ingest/src/hygiene.ts'),
-      ...(activity ? { activity: path.join(root, 'workers/ingest/src/demo-activity.ts'), evaluation: path.join(root, 'packages/contract/src/rules.ts') } : {}),
+      ...(activity ? { activity: path.join(root, 'workers/ingest/src/demo-activity.ts'), evaluation: path.join(root, 'packages/contract/src/rules.ts'),
+        notifier: path.join(root, 'workers/ingest/src/notifier.ts'), readbacks: path.join(root, 'workers/ingest/src/watch-readbacks.ts') } : {}),
     };
     const result = await build({
       absWorkingDir: root, entryPoints: entries, outdir: output,
@@ -62,6 +63,10 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     const uptime = await import(pathToFileURL(path.join(output, 'uptime.mjs')).href);
     const live = activity ? await import(pathToFileURL(path.join(output, 'activity.mjs')).href) : null;
     const evaluation = activity ? await import(pathToFileURL(path.join(output, 'evaluation.mjs')).href) : null;
+    const notifier = activity ? await import(pathToFileURL(path.join(output, 'notifier.mjs')).href) : null;
+    const readbacks = activity ? await import(pathToFileURL(path.join(output, 'readbacks.mjs')).href) : null;
+    if (activity && (typeof notifier.runNotifier !== 'function' || typeof readbacks.readPendingWatchReadbacks !== 'function'
+      || typeof readbacks.markWatchReadbacksPosted !== 'function')) throw new Error('The released demo workflow lanes are absent.');
     if (typeof watch.runWatchWindows !== 'function' || typeof snapshots.writeBeadsSnapshot !== 'function') throw new Error('The released demo Worker helpers are absent.');
     if (['seedConfigDocuments', 'applyConfigOps', 'getConfigDocuments'].some(name => typeof configuration[name] !== 'function')) throw new Error('The released demo config helpers are absent.');
     if (typeof jobs.writeJobRuns !== 'function') throw new Error('The released demo workflow writer is absent.');
@@ -71,7 +76,8 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     return { runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
       writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot, runUptimeChecks: uptime.runUptimeChecks,
-      ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, writeDemoOutcomeChecks: live.writeDemoOutcomeChecks, evaluatePulse: evaluation.evaluatePulse } : {}),
+      ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, writeDemoOutcomeChecks: live.writeDemoOutcomeChecks, evaluatePulse: evaluation.evaluatePulse,
+        runNotifier: notifier.runNotifier, readPendingWatchReadbacks: readbacks.readPendingWatchReadbacks, markWatchReadbacksPosted: readbacks.markWatchReadbacksPosted } : {}),
       provenance: { compiler: require('esbuild/package.json').version, inputs, artifacts } };
   } finally { rmSync(output, { recursive: true, force: true }); }
 }

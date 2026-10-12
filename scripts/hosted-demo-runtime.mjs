@@ -46,7 +46,8 @@ export async function openHostedDemo(options) {
         if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
             || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function'
             || typeof helpers.writeDemoOutcomeChecks !== 'function' || typeof helpers.runFreshnessCheck !== 'function'
-            || typeof helpers.runUptimeChecks !== 'function')
+            || typeof helpers.runUptimeChecks !== 'function' || typeof helpers.runNotifier !== 'function'
+            || typeof helpers.readPendingWatchReadbacks !== 'function' || typeof helpers.markWatchReadbacksPosted !== 'function')
             throw new Error('Released demo input writer absent.');
         const write = helpers.writeDemoActivity;
         const collect = helpers.writeDemoCollection;
@@ -57,7 +58,13 @@ export async function openHostedDemo(options) {
         // The release's own home-page check, its fetch answered by the fictional
         // sites' pages. They answer by the run's minute, so the retry asks at once.
         const uptime = (scoped, at, homePages) => helpers.runUptimeChecks(Object.freeze({ STORE: scoped }), { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 });
-        demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, writer: { write, collect, revenue, snapshot, outcomes, freshness, uptime }, tasks, now,
+        // The release's notifier with no channel connected: it finds what it would
+        // say and stops before any send, and its delivery could reach nothing.
+        const notify = (scoped, at) => helpers.runNotifier(Object.freeze({ STORE: scoped, NOTICEOS_WORKSPACE_PROFILE: 'demo' }), { nowMs: Date.parse(at), fetchImpl: async () => { throw new Error('The demo sends no notifications.'); } });
+        const readbacks = scoped => helpers.readPendingWatchReadbacks(Object.freeze({ STORE: scoped }));
+        const stampReadbacks = (scoped, ids, at) => helpers.markWatchReadbacksPosted(Object.freeze({ STORE: scoped }), [...ids], Date.parse(at));
+        demo = createHostedDemo({ workspaceId, serviceId, scenario, store, grant, tasks, now,
+            writer: { write, collect, revenue, snapshot, outcomes, freshness, uptime, notify, readbacks, stampReadbacks },
             projects: projects.map(row => ({ asset: row.asset, prefix: row.prefix, projectId: row.mapping.projectId })) });
         const opened = demo;
         // The ordinary hosted scheduler owns its own connections and timers; a
@@ -65,7 +72,8 @@ export async function openHostedDemo(options) {
         if (!now) {
             const scheduleStore = openWorkspaceStore(connectionString, { workspaceId });
             const scheduleGrant = openWorkspaceServiceGrant({ connectionString: grantConnectionString, principalId: serviceId, workspaceId });
-            schedule = await startHostedScheduler([{ workspaceId, serviceId, store: scheduleStore, grant: scheduleGrant, definitions: opened.schedule }]);
+            schedule = await startHostedScheduler([{ workspaceId, serviceId, store: scheduleStore, grant: scheduleGrant,
+                    definitions: opened.schedule, startup: opened.startup }]);
         }
         const scheduled = schedule;
         let closing;

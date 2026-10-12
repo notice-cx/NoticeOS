@@ -11,6 +11,10 @@ export interface HostedScheduleBinding {
     readonly store: WorkspaceStore;
     readonly grant: WorkspaceServiceGrant;
     readonly definitions: readonly HostedJobDefinition[];
+    /** Registered lanes run once as this binding starts, at that minute and
+     * through the same journal, when their saved schedule is enabled. Nothing
+     * else is caught up: a restart in the same minute finds that run. */
+    readonly startup?: readonly string[];
 }
 export declare class HostedScheduleRefused extends Error {
     name: string;

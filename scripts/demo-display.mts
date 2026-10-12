@@ -86,9 +86,11 @@ export function demoIntegrationAssets(scenario: DemoScenario) {
 }
 
 /** Saved run times for the demo's scheduled lanes: the task board refreshes
- * every five minutes rather than every minute, a smaller always-on load. */
+ * every five minutes rather than every minute, a smaller always-on load, and
+ * the outcome check runs each hour rather than once a night, so its history
+ * fills while a visitor is there. */
 export function demoSchedules() {
-  return { 'beads-snapshot': { enabled: true, cron: '*/5 * * * *' } };
+  return { 'beads-snapshot': { enabled: true, cron: '*/5 * * * *' }, 'watch-windows': { enabled: true, cron: '30 * * * *' } };
 }
 
 /** The normal versioned writer; existing documents or exports are never adopted. */

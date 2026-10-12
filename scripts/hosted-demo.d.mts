@@ -32,6 +32,19 @@ export interface DemoActivityWriter {
     outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
     freshness(store: WorkspaceStore, at: string): Promise<unknown>;
     uptime(store: WorkspaceStore, at: string, homePages: DemoHomeFetch): Promise<unknown>;
+    notify(store: WorkspaceStore, at: string): Promise<unknown>;
+    /** The release's queue of closed outcomes whose verdict has not reached its task. */
+    readbacks(store: WorkspaceStore): Promise<readonly DemoReadback[]>;
+    stampReadbacks(store: WorkspaceStore, windowIds: readonly string[], at: string): Promise<{
+        posted: readonly string[];
+    }>;
+}
+export interface DemoReadback {
+    readonly windowId: string;
+    readonly bead: string;
+    readonly asset: string;
+    readonly outcome: string;
+    readonly comment: string;
 }
 export interface HostedDemoOptions {
     readonly workspaceId: string;
@@ -69,5 +82,8 @@ export declare function createHostedDemo(options: HostedDemoOptions): {
     tick(): Promise<HostedDemoTick>;
     /** The demo's lanes for the ordinary hosted scheduler, which owns their timers. */
     readonly schedule: readonly HostedJobDefinition[];
+    /** The Workflows page's lanes, run once as the demo starts so a new
+     * generation shows each one's run before its first scheduled hour. */
+    readonly startup: readonly string[];
     close(): Promise<void>;
 };

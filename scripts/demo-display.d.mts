@@ -58,9 +58,15 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
  * or does not apply. The OS collects nothing. */
 export declare function demoIntegrationAssets(scenario: DemoScenario): any;
 /** Saved run times for the demo's scheduled lanes: the task board refreshes
- * every five minutes rather than every minute, a smaller always-on load. */
+ * every five minutes rather than every minute, a smaller always-on load, and
+ * the outcome check runs each hour rather than once a night, so its history
+ * fills while a visitor is there. */
 export declare function demoSchedules(): {
     'beads-snapshot': {
+        enabled: boolean;
+        cron: string;
+    };
+    'watch-windows': {
         enabled: boolean;
         cron: string;
     };
