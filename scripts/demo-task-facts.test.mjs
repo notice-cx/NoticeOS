@@ -8,7 +8,7 @@ test('one scenario names six real task projects and all cross-store story identi
   const scenario = generateDemoScenario(input);
   assert.equal(scenario.manifest.scenarioVersion, 7);
   assert.equal(scenario.manifest.taskProjects.length, 6);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 172);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 217);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 3);
   assert.equal(new Set(scenario.tasks.map(task => task.id)).size, scenario.tasks.length);
@@ -138,7 +138,7 @@ test('agents do the work by name: the builder closes with evidence and its model
     assert.match(issue.close_reason, / · [0-9a-f]{7}(?: · |$)/u, issue.id);
     assert.equal(issue.metadata.noticeos_closed_by, 'claude');
     assert.equal(issue.metadata.noticeos_closed_at, issue.closed_at);
-    assert.ok(['Opus 5.5', 'Sonnet 5.5'].includes(issue.metadata.noticeos_closed_model));
+    assert.ok(['Opus 5.5', 'Sonnet 5.5', 'Haiku 5.5'].includes(issue.metadata.noticeos_closed_model));
     assert.equal(issue.metadata.noticeos_claimed_model, issue.metadata.noticeos_closed_model);
     assert.ok(issue.comments.some(comment => comment.author === 'claude' && /[0-9a-f]{7}/u.test(comment.text)), issue.id);
   }
@@ -166,4 +166,33 @@ test('eight weeks of closed agent work, the builder pace rising into the referen
   }
   assert.ok(weekly.every(week => week.claude > 0 && week.codex > 0), JSON.stringify(weekly));
   assert.ok(weekly[0].claude > weekly[7].claude);
+});
+
+test('the week is a close contest: four agent models, a different leader for each award, closes every day', () => {
+  const scenario = generateDemoScenario(input);
+  const cutoff = Date.parse(input.cutoff), DAY = 86_400_000;
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const week = issues.filter(issue => issue.status === 'closed' && cutoff - Date.parse(issue.closed_at) <= 7 * DAY && issue.metadata.noticeos_closed_model);
+  const players = new Map();
+  for (const issue of week) {
+    const key = `${issue.metadata.noticeos_closed_by} · ${issue.metadata.noticeos_closed_model}`;
+    const player = players.get(key) ?? { closes: 0, points: 0, urgent: 0, hours: [] };
+    player.closes++; player.points += [5, 3, 2, 1, 1][issue.priority]; player.urgent += issue.priority <= 1 ? 1 : 0;
+    player.hours.push((Date.parse(issue.closed_at) - Date.parse(issue.started_at)) / 3_600_000);
+    players.set(key, player);
+  }
+  const best = (score) => [...players.entries()].sort((a, b) => score(b[1]) - score(a[1]))[0][0];
+  assert.deepEqual([...players.keys()].sort(), ['claude · Haiku 5.5', 'claude · Opus 5.5', 'claude · Sonnet 5.5', 'codex · GPT-5-Codex']);
+  // Opus leads the ranking on urgent work by a point or two; Sonnet closed more.
+  const ranked = [...players.values()].sort((a, b) => b.points - a.points);
+  assert.ok(ranked[0].points - ranked[1].points <= 3, 'the leader is within reach');
+  assert.equal(best(player => player.points), 'claude · Opus 5.5');
+  assert.equal(best(player => player.closes), 'claude · Sonnet 5.5');
+  assert.equal(best(player => player.urgent), 'claude · Opus 5.5');
+  assert.equal(best(player => -Math.min(...player.hours)), 'claude · Haiku 5.5');
+  // Every day of the week has closes, and the verifier is checking right now.
+  const days = Array.from({ length: 7 }, (_, day) => week.filter(issue => Math.floor((cutoff - Date.parse(issue.closed_at)) / DAY) === day).length);
+  assert.ok(days.every(count => count >= 3), JSON.stringify(days));
+  assert.ok(issues.some(issue => issue.status === 'in_progress' && issue.assignee === 'codex' && cutoff - Date.parse(issue.started_at) <= 2 * 3_600_000));
+  assert.ok(week.some(issue => issue.assignee === 'codex' && cutoff - Date.parse(issue.closed_at) <= DAY));
 });

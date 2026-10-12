@@ -140,9 +140,12 @@ traffic after a redesign the outcome check rejected, and a product weeks old;
 two of them have ad income. Last night's synthetic backup failed, open
 decisions range from hours to weeks old, and each project's board has work
 done this week, in progress and blocked. The work is credited to two named
-agents: `claude` builds, records the model it used, and closes each task with
-its commit and the page where the change appears, after `codex` checks it. The
-Agents page shows eight weeks of their earlier work. The release's own
+agents: `claude` builds, records the model it used (Opus 5.5 for urgent work,
+Haiku 5.5 for quick fixes, Sonnet 5.5 for the rest), and closes each task with
+its commit and the page where the change appears, after `codex` checks it;
+`codex` also checks each day's changes. The Agents page shows eight weeks of
+their earlier work, and the last 7 days rank the four agent models within a
+few points of each other. The release's own
 evaluators produce every alert and verdict from
 the synthetic history; none is seeded as a finished result.
 Visitor writes and provider actions are rejected. A passing health check does

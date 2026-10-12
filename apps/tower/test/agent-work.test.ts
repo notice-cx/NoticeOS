@@ -67,6 +67,14 @@ describe("readAgentWork", () => {
     ]);
   });
 
+  it("gives Most tasks closed to the most closes, not the most points", () => {
+    const urgentPair = [closed("ur-1", "claude", "Opus 5.5", 6, 5, { priority: 0 }), closed("ur-2", "claude", "Opus 5.5", 8, 7, { priority: 0 })];
+    const manyLow = [1, 2, 3].map((n) => closed(`lo-${n}`, "claude", "Haiku 5.5", 10 + n, 9 + n, { priority: 3 }));
+    const contest = readAgentWork(read([...urgentPair, ...manyLow]), NOW, true);
+    expect(contest.race.players[0]).toMatchObject({ model: "Opus 5.5", points: 10 });
+    expect(contest.trophies.find((trophy) => trophy.key === "most")).toMatchObject({ holder: "claude · Haiku 5.5", value: "3" });
+  });
+
   it("lists the week's claims and closes newest first", () => {
     expect(work.events.slice(0, 3).map((event) => [event.kind, event.task.id])).toEqual([
       ["closed", "ex-4"], ["claimed", "ex-8"], ["claimed", "ex-4"],

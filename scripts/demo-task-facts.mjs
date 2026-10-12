@@ -25,7 +25,7 @@ const WORK = {
         task('Restore the nightly report', ['The nightly report stopped arriving two nights ago.', 'Find why the report job stopped; resume nightly delivery.', 'Report job exits before sending; checking its schedule.', ''], { status: 'in_progress', opened: '30h', started: '5h', priority: 1 }),
         task('Fix the export button on mobile', ['Exports fail on narrow phone screens after the last release.', 'Export works on three phone widths; record each result.', 'Reproduced on the smallest width first.', 'Exports pass on all three phone widths.'], { status: 'closed', opened: -5, started: '30h', finished: '20h',
             note: 'The sticky footer hid the export button below 380 px.', check: 'export works at 360, 390 and 430 px', path: '/briefs', model: 'Opus 5.5' }),
-        task('Add a brief template for agencies', ['Agency customers keep rebuilding the same brief by hand.', 'Ship one agency template; link it from the library.', 'Drafted from the three most copied briefs.', 'Agency template published and linked.'], { status: 'closed', opened: -14, started: -3, finished: -1, path: '/templates/agency' }),
+        task('Add a brief template for agencies', ['Agency customers keep rebuilding the same brief by hand.', 'Ship one agency template; link it from the library.', 'Drafted from the three most copied briefs.', 'Agency template published and linked.'], { status: 'closed', opened: -14, started: -4, finished: -2, path: '/templates/agency' }),
         task('Write the onboarding email sequence', ['New trials receive no guidance after signing up.', 'Draft three onboarding emails; send once the order is chosen.', 'Drafts ready; sending waits on the order decision.', ''], { status: 'open', opened: -9 }),
         task('Which onboarding email goes out first?', ['Two first emails compete: a product tour or templates.', 'Choose the first email; the sequence ships after it.', 'Both drafts are attached; the tour converted better in tests.', ''], { status: 'open', opened: -2, owner: 'Mara', human: true }),
         task('Speed up large brief exports', ['Large briefs take twelve seconds to export.', 'Exports of the largest briefs finish under four seconds.', 'Profiling shows image resizing dominates export time.', ''], { status: 'open', opened: -9 }),
@@ -59,7 +59,7 @@ const WORK = {
         task('Approve the holiday recipe collection', ['Synthetic operator approval; it holds only the collection choice.', 'Mara approves or changes the collection before publishing dates.', 'Shortlist of twenty recipes attached for approval.', ''], { status: 'open', opened: -9, gate: 2, owner: 'Mara' }),
         task('Fix the recipe save button', ['Recipe saves failed for a day after a plugin update.', 'Saving works again on recipe pages; record the cause.', 'The plugin update broke the save request; rolling back.', 'Saves restored; the plugin version is pinned.'], { status: 'closed', opened: -2, started: -2, finished: -1, priority: 1,
             note: 'A plugin update broke saving; version now pinned.', check: 'saves work on ten recipes', path: '/recipes' }),
-        task('Publish ten Thanksgiving recipes', ['Thanksgiving searches start rising in mid-October.', 'Publish ten tested recipes before the search rise.', 'Ten recipes tested; photos ready for six.', 'Ten Thanksgiving recipes published with photos.'], { status: 'closed', opened: -14, started: '40h', finished: '20h' }),
+        task('Publish ten Thanksgiving recipes', ['Thanksgiving searches start rising in mid-October.', 'Publish ten tested recipes before the search rise.', 'Ten recipes tested; photos ready for six.', 'Ten Thanksgiving recipes published with photos.'], { status: 'closed', opened: -14, started: -6, finished: -4 }),
         task('Compress the recipe photos', ['Recipe photos are the heaviest part of every page.', 'Serve compressed photos on every recipe page.', 'Starting with the hundred most visited recipes.', 'Every recipe page serves compressed photos.'], { status: 'closed', opened: -14, started: -5, finished: -2 }),
         task('Add a printable shopping list', ['Readers copy ingredients by hand into shopping lists.', 'Each recipe offers a printable shopping list.', 'The list groups ingredients by store section.', 'Shopping lists print from every recipe.'], { status: 'closed', opened: -9, started: '30h', finished: '6h', check: 'prints from twelve recipes', path: '/print' }),
         task('Write the pumpkin recipe roundup', ['A pumpkin roundup ranked well last autumn.', 'Refresh the roundup with this year’s recipes.', 'Twelve recipes chosen; writing the introductions now.', ''], { status: 'in_progress', opened: -9, started: '26h' }),
@@ -90,7 +90,7 @@ const WORK = {
         task('Review the next coverage comparison', ['The next comparison must begin no earlier than launch.', 'Choose available days and retain provisional indicators.', 'A mature-site window would fabricate this site’s earlier history.', 'The comparison uses only post-launch days.'], { status: 'closed', opened: -16, started: -3, finished: -2, owner: 'codex' }),
         task('Explore saved validation rules', ['Saved validation rules remain a discovery proposal.', 'At the wake-up date, define evidence for bounded discovery.', 'Keep this parked until input and keyboard checks finish.', ''], { status: 'deferred', opened: -15, finished: -10, owner: 'Mara' }),
         task('Charge for saved validation rules?', ['Early users ask to keep their validation rules between visits.', 'Decide whether saved rules are free or part of a paid plan.', 'A third of returning users rerun the same checks.', ''], { status: 'open', opened: -20, owner: 'Mara', human: true }),
-        task('Add a drag-and-drop upload', ['Users paste CSV text because uploading is hidden.', 'Upload a file by dropping it onto the page.', 'The drop zone covers the whole input panel.', 'Dropping a file uploads and checks it.'], { status: 'closed', opened: -12, started: -3, finished: -1 }),
+        task('Add a drag-and-drop upload', ['Users paste CSV text because uploading is hidden.', 'Upload a file by dropping it onto the page.', 'The drop zone covers the whole input panel.', 'Dropping a file uploads and checks it.'], { status: 'closed', opened: -12, started: -5, finished: -3 }),
         task('Detect the delimiter automatically', ['Semicolon files fail the check without warning.', 'Detect comma, semicolon and tab delimiters automatically.', 'Testing with twenty real-world sample files.', 'All three delimiters detected on every sample.'], { status: 'closed', opened: -9, started: '28h', finished: '6h', check: 'twenty sample files pass' }),
         task('Write the launch post', ['Fresh Rows has no public launch announcement yet.', 'Publish a launch post with three worked examples.', 'Draft written; the examples need final screenshots.', ''], { status: 'in_progress', opened: -9, started: '22h', owner: 'Mara' }),
         task('Show row numbers in error messages', ['Error messages do not say which row failed.', 'Every error names its row and column.', 'Row numbers added; column names come next.', 'Errors name their row and column.'], { status: 'closed', opened: -12, started: -5, finished: -3 }),
@@ -131,6 +131,11 @@ const EARLIER = {
         ['Add a template picker to new briefs', 'New briefs offer six templates', '/editor'],
         ['Speed up large brief libraries', 'Libraries of 500 briefs open in a second', '/briefs'],
         ['Export brief details as CSV', 'CSV export opens in spreadsheets', '/briefs'],
+        ['Add dark mode to the brief editor', 'Editor follows the system dark mode', '/editor'],
+        ['Fix pasted tables in briefs', 'Pasted tables keep their columns', '/editor'],
+        ['Add a brief duplicate action', 'Briefs duplicate with their sections', '/briefs'],
+        ['Fix the team invite email link', 'Invite links open the team page', '/team'],
+        ['Show the last edit time on briefs', 'Every brief shows when it was edited', '/briefs'],
     ],
     pw: [
         ['Fix citation dates for undated sources', 'Undated sources cite their access date', '/sources'],
@@ -145,6 +150,11 @@ const EARLIER = {
         ['Fix the browser extension sign-in', 'Extension signs in on first try', '/extension'],
         ['Add notes to saved sources', 'Notes save beside each source', '/sources'],
         ['Export saved sources to Markdown', 'Markdown export keeps links and notes', '/sources'],
+        ['Fix duplicate tags after merging', 'Merged tags leave no duplicates', '/sources'],
+        ['Add a reading time to saved sources', 'Each source shows its reading time', '/sources'],
+        ['Fix the collection cover images', 'Collections show their cover images', '/collections'],
+        ['Add keyboard navigation to the reader', 'Arrow keys move between highlights', '/reader'],
+        ['Fix citation export for web pages', 'Web page citations export with their URLs', '/sources'],
     ],
     wp: [
         ['Add jump-to-recipe buttons', 'Every recipe page jumps to its card', '/recipes'],
@@ -161,6 +171,11 @@ const EARLIER = {
         ['Add related recipes under each post', 'Three related recipes under every post', '/recipes'],
         ['Fix the search page on phones', 'Search works at every phone width', '/search'],
         ['Add allergy notes to dessert recipes', 'Desserts list their common allergens', '/desserts'],
+        ['Add cook time filters to search', 'Search filters by cook time', '/search'],
+        ['Fix the recipe card on tablets', 'Recipe cards fit every tablet tested', '/recipes'],
+        ['Add a freezer-friendly label', 'Freezer-friendly recipes carry a label', '/recipes'],
+        ['Refresh the pumpkin recipes roundup', 'Roundup lists eighteen tested pumpkin recipes', '/pumpkin'],
+        ['Fix the newsletter signup on recipes', 'Signup form saves every address', '/recipes'],
     ],
     tn: [
         ['Add elevation charts to trail guides', 'Every guide shows its climb', '/trails'],
@@ -174,6 +189,11 @@ const EARLIER = {
         ['Refresh the waterfall hikes roundup', 'Roundup lists fifteen checked waterfalls', '/waterfalls'],
         ['Add trailhead directions links', 'Every trailhead opens its directions', '/trails'],
         ['Merge duplicate trail pages', 'Duplicates redirect to one page each', '/trails'],
+        ['Add sunrise times to summit guides', 'Summit guides list sunrise times', '/summits'],
+        ['Fix the trail difficulty filter', 'Difficulty filter matches each guide', '/search'],
+        ['Add water sources to desert trails', 'Desert guides mark their water sources', '/desert'],
+        ['Fix GPX files missing elevation', 'GPX downloads include elevation', '/trails'],
+        ['Refresh the fall foliage hikes list', 'List names twenty checked foliage hikes', '/foliage'],
     ],
     fr: [
         ['Add a sample file to the homepage', 'Sample file checks in one click', '/'],
@@ -192,11 +212,35 @@ const EARLIER = {
         ['Fix the time zone label in Settings', 'Settings names the zone in use', ''],
         ['Keep the TV clock in step', 'TV clock matches the server within a second', ''],
         ['Show evidence on closed tasks', 'Closed tasks show their evidence', ''],
+        ['Show the last read time on Tasks', 'Tasks shows when the board was last read', ''],
+        ['Fix the alert count on Home', 'Home counts match the alert list', ''],
+        ['Retry the revenue report once', 'A failed revenue read retries once', ''],
+        ['Add the backup size to System health', 'System health shows each backup size', ''],
     ],
 };
 /** Closed work a week, oldest of the seven earlier weeks first: the builder's
  * pace picking up as more of the backlog reaches it. */
-const EARLIER_PACE = [6, 7, 8, 9, 10, 12, 13];
+const EARLIER_PACE = [7, 8, 10, 12, 14, 17, 20];
+/** Earlier weeks this close to the reference week also carry quick
+ * low-priority fixes, the work the builder's smallest model takes. */
+const QUICK_WEEKS = 3;
+/** Quick fixes the builder closed through the reference week, each within
+ * hours of its claim: a project, a title, the evidence, where it shows, and
+ * hours before the cutoff, spread so every day of the week has agent closes. */
+const QUICK = [
+    ['lb', 'Fix the footer link to the changelog', 'Footer opens the changelog', '/', '150h'],
+    ['wp', 'Fix a broken link in the soup roundup', 'Every soup roundup link opens', '/soups', '140h'],
+    ['wp', 'Fix the jump link on tablet recipes', 'Jump link reaches the card on tablets', '/recipes', '128h'],
+    ['pw', 'Fix the save button tooltip', 'Tooltip names the save shortcut', '/sources', '125h'],
+    ['tn', 'Fix the map legend colours', 'Legend colours match the trail lines', '/trails', '100h'],
+    ['fr', 'Rename the sample file download', 'Sample file downloads as sample.csv', '/', '52h'],
+    ['lb', 'Fix the pricing page typo', 'Pricing page spelling corrected', '/pricing', '30h'],
+];
+/** The verifier's daily check of the day before's changes, newest last: days
+ * from the reference day, or hours before the cutoff. The last is still running. */
+const CHECKS = [
+    ['pw', -4], ['lb', -3], ['fr', -2], ['wp', -1], ['pw', '4h'], ['lb', '1h', true],
+];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const dayLabel = (iso) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}`;
 const sentence = (text) => text.replace(/[.!]$/u, '');
@@ -206,9 +250,13 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
     const digest = (asset, key) => createHash('sha256').update(`${seed}\0${asset.id}\0${key}`).digest('hex');
     const id = (asset, key) => `${asset.prefix}-${digest(asset, key).slice(0, 6)}`;
     const commitOf = (asset, key) => digest(asset, `${key}\0commit`).slice(0, 7);
-    /** The builder runs two models; which one took a task is the seed's choice. */
-    const modelOf = (asset, key, owner) => owner === DEMO_VERIFIER ? 'GPT-5-Codex'
-        : owner === DEMO_BUILDER ? (Number.parseInt(digest(asset, `${key}\0model`).slice(0, 2), 16) % 7 < 3 ? 'Sonnet 5.5' : 'Opus 5.5') : undefined;
+    /** The builder runs three models: urgent work goes to Opus, quick
+     * low-priority fixes to Haiku, and the rest to Sonnet or Opus by the task
+     * alone, not the seed, so every demo's week is the same close contest. */
+    const modelOf = (asset, key, owner, priority = 2) => owner === DEMO_VERIFIER ? 'GPT-5-Codex'
+        : owner !== DEMO_BUILDER ? undefined
+            : priority <= 1 ? 'Opus 5.5' : priority >= 3 ? 'Haiku 5.5'
+                : createHash('sha256').update(`${asset.prefix}\0${key}\0model`).digest()[0] % 4 < 3 ? 'Sonnet 5.5' : 'Opus 5.5';
     const linkOf = (asset, path = '') => asset.id.includes('.') ? `${asset.id}${path}` : null;
     const at = (when, hour) => typeof when === 'number'
         ? new Date(Date.parse(`${referenceDate}T00:00:00Z`) + when * DAY + hour * HOUR).toISOString()
@@ -253,7 +301,7 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
                 ...(plan.status === 'deferred' ? { deferUntil: at(14, 12) } : {}),
                 // An agent's close carries its evidence as pointers: the commit and where the change shows.
                 ...(plan.status === 'closed' ? { closeEvidence: built ? [sentence(plan.brief[3]), commit, ...(link ? [link] : [])].join(' · ') : plan.brief[3] } : {}),
-                ...(history.some(event => event.status === 'in_progress') && modelOf(asset, key, owner) ? { model: plan.model ?? modelOf(asset, key, owner) } : {}) };
+                ...(history.some(event => event.status === 'in_progress') && modelOf(asset, key, owner, plan.priority) ? { model: plan.model ?? modelOf(asset, key, owner, plan.priority) } : {}) };
             fact.comments.push({ author: plan.human || gateFor ? DEMO_BUILDER : OPERATOR, at: opened, text: plan.brief[2] });
             const closedAt = history.at(-1).at, claimedAt = history.find(event => event.status === 'in_progress')?.at;
             const before = (hours) => new Date(Math.max(Date.parse(claimedAt ?? opened) + HOUR / 2, Date.parse(closedAt) - hours * HOUR)).toISOString();
@@ -274,6 +322,42 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
             tasks.push(fact);
         }
     }
+    // The reference week beside the planned work: quick fixes closed within
+    // hours of their claim, and the verifier's daily check of the day before's
+    // changes, so every day of the week has closes and a check is running now.
+    QUICK.forEach(([prefix, title, done, path, when], index) => {
+        const asset = assets.find(entry => entry.prefix === prefix);
+        if (!asset)
+            return;
+        const key = `quick-${index}`;
+        const closed = at(when, 0), claimed = new Date(Date.parse(closed) - (1 + index % 3) * HOUR).toISOString();
+        const opened = new Date(Date.parse(claimed) - DAY).toISOString();
+        const commit = commitOf(asset, key), link = linkOf(asset, path);
+        tasks.push({ id: id(asset, key), asset: asset.id, prefix, title, description: `${title} on ${asset.name}.`,
+            acceptance: `${done}; checked on the live page.`, issueType: 'task', priority: 3, parent: epics.get(asset.id),
+            events: [{ at: opened, status: 'open', assignee: null }, { at: claimed, status: 'in_progress', assignee: DEMO_BUILDER },
+                { at: closed, status: 'closed', assignee: DEMO_BUILDER }],
+            closeEvidence: [done, commit, ...(link ? [link] : [])].join(' · '), model: modelOf(asset, key, DEMO_BUILDER, 3),
+            comments: [{ author: OPERATOR, at: opened, text: `Small fix: ${lowerFirst(done)}.` },
+                { author: DEMO_BUILDER, at: new Date(Date.parse(closed) - HOUR / 2).toISOString(), text: `Fixed in ${commit}; ready for verification.` }] });
+    });
+    CHECKS.forEach(([prefix, when, running], index) => {
+        const asset = assets.find(entry => entry.prefix === prefix);
+        if (!asset)
+            return;
+        const finished = at(when, 10), claimed = new Date(Date.parse(finished) - (running ? 0 : 2) * HOUR).toISOString();
+        const label = dayLabel(new Date(Date.parse(finished) - DAY).toISOString());
+        const opened = new Date(Date.parse(claimed) - 3 * HOUR).toISOString();
+        const key = `check-${index}`;
+        tasks.push({ id: id(asset, key), asset: asset.id, prefix, title: `Check the ${label} changes on ${asset.name}`,
+            description: `Check what shipped to ${asset.name} on ${label}.`, acceptance: `Each ${asset.name} change from ${label} passes its check.`,
+            issueType: 'task', priority: 2, parent: epics.get(asset.id),
+            events: [{ at: opened, status: 'open', assignee: DEMO_VERIFIER }, { at: claimed, status: 'in_progress', assignee: DEMO_VERIFIER },
+                ...(running ? [] : [{ at: finished, status: 'closed', assignee: DEMO_VERIFIER }])],
+            ...(running ? {} : { closeEvidence: [`${label} changes pass on ${asset.name}`, ...(linkOf(asset) ? [linkOf(asset)] : [])].join(' · ') }),
+            model: modelOf(asset, key, DEMO_VERIFIER),
+            comments: [{ author: DEMO_BUILDER, at: opened, text: `${asset.name} changes from ${label} are ready to check.` }] });
+    });
     // The seven weeks before the reference week: what each project finished,
     // so the velocity chart has a history. The verifier checks each project's
     // week, and Mara reviews the portfolio's.
@@ -295,15 +379,17 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
                 continue;
             const { item: [title, done, path], index } = queue.shift();
             const key = `earlier-${index}`, j = sequence++;
+            // Some urgent work every week; the last weeks also clear quick fixes.
+            const priority = j % 5 === 0 ? 1 : weeksAgo <= QUICK_WEEKS && j % 4 === 1 ? 3 : 2;
             const closed = new Date(Date.parse(`${referenceDate}T00:00:00Z`) + closeDay * DAY + (9 + (j * 5) % 9) * HOUR).toISOString();
-            const claimed = new Date(Date.parse(closed) - (6 + (j * 7) % 60) * HOUR).toISOString();
+            const claimed = new Date(Date.parse(closed) - (priority === 3 ? 1 + j % 3 : 6 + (j * 7) % 60) * HOUR).toISOString();
             const opened = new Date(Math.max(Date.parse(asset.createdAt) + HOUR, Date.parse(claimed) - (1 + j % 9) * DAY)).toISOString();
             const commit = commitOf(asset, key), link = linkOf(asset, path);
             tasks.push({ id: id(asset, key), asset: asset.id, prefix: asset.prefix, title, description: `${title} on ${asset.name}.`,
-                acceptance: `${done}; checked and linked.`, issueType: 'task', priority: j % 5 === 0 ? 1 : 2, parent: epics.get(asset.id),
+                acceptance: `${done}; checked and linked.`, issueType: 'task', priority, parent: epics.get(asset.id),
                 events: [{ at: opened, status: 'open', assignee: null }, { at: claimed, status: 'in_progress', assignee: DEMO_BUILDER },
                     { at: closed, status: 'closed', assignee: DEMO_BUILDER }],
-                closeEvidence: [done, commit, ...(link ? [link] : [])].join(' · '), model: modelOf(asset, key, DEMO_BUILDER),
+                closeEvidence: [done, commit, ...(link ? [link] : [])].join(' · '), model: modelOf(asset, key, DEMO_BUILDER, priority),
                 comments: [{ author: OPERATOR, at: opened, text: `${asset.prefix === 'no' ? 'Needed' : 'Readers expect'}: ${lowerFirst(done)}.` },
                     { author: DEMO_BUILDER, at: new Date(Date.parse(closed) - 2 * HOUR).toISOString(), text: `Shipped in ${commit}; ready for verification.` },
                     { author: DEMO_VERIFIER, at: new Date(Date.parse(closed) - HOUR).toISOString(), text: `Verified: ${lowerFirst(done)}.` }] });
@@ -312,10 +398,11 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }) {
         }
         const monday = new Date(Date.parse(`${referenceDate}T00:00:00Z`) + weekEnd * DAY);
         const label = dayLabel(monday.toISOString());
-        // The verifier's weekly check of the busiest projects' releases.
-        [...shipped.entries()].filter(([prefix]) => prefix !== 'no').sort((a, b) => b[1] - a[1]).slice(0, 3).forEach(([prefix, changes], rank) => {
+        // The verifier's weekly check of every project's release, busiest first.
+        [...shipped.entries()].filter(([prefix]) => prefix !== 'no').sort((a, b) => b[1] - a[1]).forEach(([prefix, changes], rank) => {
             const asset = byPrefix.get(prefix);
-            const closed = new Date(monday.getTime() + (10 + rank * 2) * HOUR).toISOString();
+            // Early on the Monday, before the new week's work starts.
+            const closed = new Date(monday.getTime() + (7 - rank) * HOUR).toISOString();
             const opened = new Date(monday.getTime() - 2 * DAY).toISOString();
             const claimed = new Date(Date.parse(closed) - 3 * HOUR).toISOString();
             tasks.push({ id: id(asset, `release-${weeksAgo}`), asset: asset.id, prefix, title: `Verify the ${label} release`,
