@@ -11,7 +11,7 @@ The Integrations page shows what you are connected with, and what else you can c
 
 ## What you see
 
-The page starts with a one-line summary: **Nothing connected yet · 8 integrations to choose from**, **5 of 8 integrations connected**, or, when something is wrong, **Bing Webmaster Tools needs you** with the reason beside it. A connection that is failing or overdue is sorted to the top of its group.
+The page starts with a one-line summary: **Nothing connected yet · 8 integrations to choose from**, **5 of 8 integrations connected**, or, when something is wrong, **Bing Webmaster Tools needs attention** with the reason beside it. A connection that is failing or overdue is sorted to the top of its group.
 
 Four groups follow, in the order a founder looks for them: **Traffic & search** (Google, Bing Webmaster Tools, DataForSEO, PostHog, Microsoft Clarity), **Revenue** (Mediavine), **Coordination** (calendar feeds, Discord) and **Other**.
 

@@ -11,15 +11,15 @@ The Tasks page shows how big the queue is, and which tasks in it cannot move for
 
 ## What you see
 
-The page starts with a one-line summary: **Nothing waits on you**, or **3 decisions wait on you** with **1 needs your approval** and how many tasks are open under it. Three figures follow: **Urgent**, **Blocked** and **Closed this week**.
+The page starts with a one-line summary: **No decisions for you**, or **3 decisions for you** with **1 needs your approval** and how many tasks are open under it. Three figures follow: **Urgent**, **Blocked** and **Closed this week**.
 
-**Waiting on you** is the queue: how many decisions are waiting, the oldest one's age, and one bar splitting them by age (under 7 days, 7–30, 30–60, over 60). Each decision is a row with its age drawn as a length and its buttons: **Approve** for a gate that blocks work until you approve it, **Answer** or **Dismiss** for a question. A row's caption names the project and, for a gate, **needs your approval**. Pressing the row opens its details in place. The queue ends with **That's everything waiting on you.**
+**Your decisions** is the queue: how many decisions are waiting, the oldest one's age, and one bar splitting them by age (under 7 days, 7–30, 30–60, over 60). Each decision is a row with its age drawn as a length and its buttons: **Approve** for a gate that blocks work until you approve it, **Answer** or **Dismiss** for a question. A row's caption names the project and, for a gate, **needs your approval**. Pressing the row opens its details in place. The queue ends with **That's everything waiting on you.**
 
 **In and out** draws the last 14 days: tasks closed a day and tasks filed a day, each with a dashed line at its daily average, and one line stating whether more tasks were closed or filed over the days both were counted. Today is drawn hatched while it is still being counted.
 
 **Work by project**, when the board shows more than one project, compares each project's week: done this week extending left, still open extending right, split into in progress, ready to start and blocked, with each project's high-priority count under its name.
 
-**Epic** draws one epic's tasks as a graph: each task in its state (**Done**, **In progress**, **Ready**, **Waiting**, **Blocked**, **Needs you**, **Parked**) and an arrow from each task to the task it blocks. An arrow from a blocked or parked task is drawn broken; an arrow from a decision of yours is labelled **needs you**. The epic with the most blocked or parked tasks that block other tasks is shown first.
+**Epic** draws one epic's tasks as a graph: each task in its state (**Done**, **In progress**, **Ready**, **Waiting**, **Blocked**, **Needs attention**, **Parked**) and an arrow from each task to the task it blocks. An arrow from a blocked or parked task is drawn broken; an arrow from a decision of yours is labelled **needs attention**. The epic with the most blocked or parked tasks that block other tasks is shown first.
 
 **Filters**: **Project** (**Every project** or one), **Status** (**Any status**, then **Open**, **In progress**, **Blocked**, **Parked**, **Closed this week**, each with its count), **Priority**, **Assignee** and a label. The filters narrow the list, not the charts above it.
 
@@ -40,7 +40,7 @@ The board works on a new installation because it ships with its own NoticeOS pro
 
 ## States and labels
 
-- A figure shown as **—** means the board could not read that project; it is never a zero. The summary line then shows **Couldn't read what waits on you**.
+- A figure shown as **—** means the board could not read that project; it is never a zero. The summary line then shows **Couldn't read your decisions**.
 - A count shown as **12+** is a lower bound: the snapshot holds only the first items of each list.
 - On a hosted view the board shows a **Read-only snapshot** banner: the rows are the last snapshot and the actions are off. **Filed a day** then shows **not in the saved snapshot**, and no epic graph is drawn, because the snapshot holds neither filing dates nor dependencies.
 - A hatched day in **In and out** was not counted. It is never a zero.

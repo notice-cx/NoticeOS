@@ -193,9 +193,6 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 **Verdict**
 : The result an outcome check closes with: improvement confirmed, decline confirmed, no clear change, or could not be measured.
 
-**Waiting on you**
-: The section at the top of the Tasks page: tasks and gates that need a decision from you and nobody else.
-
 **Wall**
 : The TV view: statuses and trends for every site on one screen, meant to be read from across a room. The sidebar labels it **TV dashboard**.
 
@@ -204,6 +201,9 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 
 **Workspace**
 : The boundary that contains a portfolio's sites, evidence, connections and work. You may belong to several without sharing data between them.
+
+**Your decisions**
+: The section at the top of the Tasks page: tasks and gates that need a decision from you and nobody else.
 
 ## Related
 

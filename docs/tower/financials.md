@@ -9,7 +9,7 @@ The Money page shows this month's net, and where the money comes from and goes. 
 
 ## What you see
 
-The page starts with the month as one equation: **Revenue − Cost = Net**, with the net as the largest figure. Under it, **Heading for** the month's projected revenue and the days left while the month is open, and how much of the month is **confirmed**: backed by a reconciled payment or receipt, the rest estimated. A **Month to date** chip marks an open month. **Accounting period** picks another month.
+The page starts with the month as one equation: **Revenue − Cost = Net**, with the net as the largest figure. Under it, **Projected** the month's projected revenue and the days left while the month is open, and how much of the month is **confirmed**: backed by a reconciled payment or receipt, the rest estimated. A **Month to date** chip marks an open month. **Accounting period** picks another month.
 
 Beside the equation:
 

@@ -310,8 +310,8 @@ full height beside several ([doc 14](14-design.md) § Regions).
   `apps/tower/test/wall-canvas.test.tsx` checks the default's
   rows, weights and regions.
 - **The library is eight widgets** — strip, the loop, the last 24 hours,
-  sites, revenue, work, Needs you and the feed; the default places the first
-  six, and Needs you and the feed are available for a layout that adds them.
+  sites, revenue, work, Needs attention and the feed; the default places the first
+  six, and Needs attention and the feed are available for a layout that adds them.
   Seven older types (alerts, portfolio net, System, clock, meetings,
   countdown, the asset cards) are **retired types**: a saved layout that names
   one is still read — never
@@ -702,7 +702,7 @@ Only the **latest** snapshot is rendered; falling back to an older row would
 hide exactly the failure the age chip exists to show.
 
 **Layout** (`apps/tower/src/routes/tasks/TasksBoard.tsx`): the filter row, a
-KPI strip, Waiting on you, then every other task in one table, each row
+KPI strip, Your decisions, then every other task in one table, each row
 expanding in place. A project the runner could not read is named in one banner
 with Retry; before any snapshot the page links to Connect.
 
@@ -720,7 +720,7 @@ once in a banner, and leaves its write controls disabled.
 
 **The operator can act on the board directly.**
 
-- **The inbox is at the top of the page, across every project.** Waiting on you sits at
+- **The inbox is at the top of the page, across every project.** Your decisions sits at
   the top, because those rows are the only ones on
   this board that NoticeOS cannot move forward without the operator. Ordering is gate, then
   priority, then longest untouched, in the warn color. A question's actions are
@@ -861,9 +861,9 @@ Tasks remain **coordination state, not signals** ([doc 01](01-architecture.md),
 and a task's existence is never evidence about an asset.
 
 **Task screens appear only with a connected task source.** A new installation has no task source, and then no screen
-shows a task surface: no Tasks in the sidebar or the palette, no Needs you tile
-or Waiting on you on Home, no task count on the Wall (its work chart shows Tasks unknown), no Tasks tab,
-Needs you or File task on a site, no Tasks column or Open tasks on Assets. Opening Tasks
+shows a task surface: no Tasks in the sidebar or the palette, no Needs attention tile
+or Your decisions on Home, no task count on the Wall (its work chart shows Tasks unknown), no Tasks tab,
+Needs attention or File task on a site, no Tasks column or Open tasks on Assets. Opening Tasks
 by its address (or a site's Tasks tab, or a task page by link) shows one
 link, **Connect a task source**, to the **Tasks** group on Integrations, where
 each source is a row with one status and one action like every provider.
@@ -883,7 +883,7 @@ and "reachable". An installation whose projects are saved but not yet read
 shows the row as Collecting and still no task screen.
 
 *The adapter boundary* is `apps/tower/worker/task-source.ts`: each source provides the same
-data — whether it is connected, the board (`GET /api/work`), the Needs you counts
+data — whether it is connected, the board (`GET /api/work`), the Needs attention counts
 (the Wall payload's `operator`, `null` without a source), a site's inbox — from
 one read per request, and `GET /api/task-source` returns which source every task
 screen shows. The actions a source allows are the `/api/tasks/*` contract
@@ -1256,7 +1256,7 @@ panel over the site's own page with the site first
 and language codes are one **Market** select, by name
 (`apps/tower/shared/site-markets.ts`), both codes written in one save. The
 Google picker's state beside its box is a short value — *Reading Google…*,
-*Google did not answer*, *Google gave no list*, *No GA4 properties* — never a
+*No response from Google*, *Google returned no list*, *No GA4 properties* — never a
 sentence instructing the operator to type.
 
 **The two Google fields have a picker.** The connected

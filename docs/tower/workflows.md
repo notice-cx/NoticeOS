@@ -11,7 +11,7 @@ The Workflows page shows whether anything NoticeOS runs on its own is failing, a
 
 ## What you see
 
-**The summary.** **1 of 5 workflows need you** counts the ones that failed or whose state cannot be confirmed; otherwise **No workflows need you**. The line under it counts every other state once, such as **3 succeeded · 1 paused**. The header shows which time zone every time on the page is in: **Times in** your browser's zone.
+**The summary.** **1 of 5 workflows need attention** counts the ones that failed or whose state cannot be confirmed; otherwise **No workflows need attention**. The line under it counts every other state once, such as **3 succeeded · 1 paused**. The header shows which time zone every time on the page is in: **Times in** your browser's zone.
 
 **Two tabs.** **Activity** (`/workflows`) shows the last 24 hours; **Schedule** (`/workflows/schedule`) shows the next 24.
 

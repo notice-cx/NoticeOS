@@ -35,7 +35,7 @@ Two tabs: **Overview** (`/health`) and **Background operations** (`/health/opera
 
 ### Background operations
 
-The jobs that keep NoticeOS running: collection, freshness checks, the NoticeOS report, task service checks and backups. It works like [Workflows](/tower/workflows): the summary (**No operations need you**), **Activity** and **Schedule** tabs, the same filters, and a page per job with its stages and recent runs.
+The jobs that keep NoticeOS running: collection, freshness checks, the NoticeOS report, task service checks and backups. It works like [Workflows](/tower/workflows): the summary (**No operations need attention**), **Activity** and **Schedule** tabs, the same filters, and a page per job with its stages and recent runs.
 
 ## What you can do
 

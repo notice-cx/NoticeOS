@@ -25,7 +25,7 @@ The Wall is drawn from a layout you arrange in the Tower. It has no navigation a
 
 **Work this week.** What is waiting for you, what is in progress, done this week and blocked, then one row per project: what got done extends left, what is still open extends right. It shows counts only, never a task's text.
 
-Two more tiles are available in the tile library: **Needs you** (the top three problems, each as one sentence with its site) and **Live feed** (what happened since last night, newest on top, from stored events only). Add them at `/wall/edit`.
+Two more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site) and **Live feed** (what happened since last night, newest on top, from stored events only). Add them at `/wall/edit`.
 
 On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order. On a television the background is true black, so unused pixels emit no light.
 
@@ -38,7 +38,7 @@ On a landscape laptop the television's layout is scaled by one factor, with smal
 ## States and labels
 
 - **Calendar** in the top strip means no meeting is due; **Reconnecting** means the last calendar read failed. **Reconnecting** beside **Last 24 hours** or in the live feed means the last read of what happened failed; the marks on screen are the last good ones.
-- **Nothing broken** on **Last 24 hours** means no problem is open. On Needs you, **Nothing needs you** means nothing is open and **Nothing broken** means the only open items are tasks.
+- **Nothing broken** on **Last 24 hours** means no problem is open. On Needs attention, **Nothing needs attention** means nothing is open and **Nothing broken** means the only open items are tasks.
 - **Tasks unknown** means no task count has been read yet. **3+** is a lower bound: not every project was counted. **stale** means the last task count is old, so a count of zero is shown as **stale** instead of 0.
 - **Today / latest day** replaces **Today vs Thursday** when the site reports by day.
 - **Refreshed 3 min ago · reconnecting** means a read failed; the Wall keeps the last good values and shows how old they are. It never clears the screen and never draws zero for a failed read.

@@ -11,7 +11,7 @@ The Sites page shows which sites need your attention.
 
 ## What you see
 
-**The Sites page** starts with a one-line summary: **2 of 6 sites need you**, with their names, or the count of sites that are fine, beside the month's pace and yesterday's visitors against the same day a week before. **Add a site** is in the header. Under the summary, one bar splits the sites by status, worst first: **Off track** in red, **At risk** in amber, the other statuses in grey. Then the sites compared, one row per site:
+**The Sites page** starts with a one-line summary: **2 of 6 sites need attention**, with their names, or the count of sites that are fine, beside the month's pace and yesterday's visitors against the same day a week before. **Add a site** is in the header. Under the summary, one bar splits the sites by status, worst first: **Off track** in red, **At risk** in amber, the other statuses in grey. Then the sites compared, one row per site:
 
 | Column | What it holds |
 |---|---|
@@ -25,7 +25,7 @@ A site's tasks, search clicks and ledger are on its own tabs. Columns are hidden
 
 **A site's page** has a header with the site's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
 
-**Overview** shows the most important figures on the first screen. A row of figures for money, people, search and the site's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with a dashed line at the level of the days before, the best and lowest day labelled, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, with the source that failed most recently or missed the most days first, and **Open alerts** for anything the chart does not already show. Under them: **Needs you**, **What matters**, **Bets** (the site's outcome checks, open ones first with the days left to their verdict), **Search movers**, **Product use** and the site's totals. A provider's name appears only as a chart key beside its own line.
+**Overview** shows the most important figures on the first screen. A row of figures for money, people, search and the site's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with a dashed line at the level of the days before, the best and lowest day labelled, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, with the source that failed most recently or missed the most days first, and **Open alerts** for anything the chart does not already show. Under them: **Needs attention**, **What matters**, **Bets** (the site's outcome checks, open ones first with the days left to their verdict), **Search movers**, **Product use** and the site's totals. A provider's name appears only as a chart key beside its own line.
 
 **The other tabs:**
 
@@ -42,7 +42,7 @@ A site's tasks, search clicks and ledger are on its own tabs. Columns are hidden
 
 - **Add a site** opens the same dialog Home uses.
 - The legend of the bar that splits the sites by status is the **Health** filter: press **2 at risk** to show only those sites, press it again to show them all.
-- **Order** puts the sites in **Your order** (the saved order Home and the TV use), **Needs you** first, by **Money** this month, by **People** or **A–Z**. The stage list narrows to one lifecycle stage. On a phone both are behind **Order & stage**.
+- **Order** puts the sites in **Your order** (the saved order Home and the TV use), **Needs attention** first, by **Money** this month, by **People** or **A–Z**. The stage list narrows to one lifecycle stage. On a phone both are behind **Order & stage**.
 - A filtered list shows how many sites it includes, with **Clear**. Every choice is in the address, so a link includes it.
 - A site's name opens its page; the domain link on that page opens the site itself.
 - Press a figure on the Overview to draw it on the chart; arrow keys step through its days.

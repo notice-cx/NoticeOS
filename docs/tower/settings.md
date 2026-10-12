@@ -27,7 +27,7 @@ The three thresholds every site is tested against, marked **All sites**: **Anoma
 
 The schedules of the collections no connection feeds, one row each, such as **Nightly reports** and **Live traffic and counters**. A collection fed by a connection is scheduled on its **Manage** panel on **Integrations**.
 
-Under the schedules are the search panels' history window (**Each pass asks for**, **Cost per pass**) and freshness bar. **Nightly report pulls** lists each site whose report the product fetches.
+Under the schedules are the search panels' history window (**Each pass requests**, **Cost per pass**) and freshness bar. **Nightly report pulls** lists each site whose report the product fetches.
 
 ### TV dashboard
 
@@ -75,7 +75,7 @@ Shown only when this installation manages members: where people are invited to t
 - Before any reports exist the alert-rules replay shows **No reports to replay yet**.
 - The freshness bar shows **Fits the window** or **Outside the window**.
 - **Nightly report pulls** shows each site as **Enabled** or **Paused**, or **None · sites send their own**.
-- **No countdown set.** means the top strip shows none; **Saved countdown refused** shows why a saved countdown cannot be drawn.
+- **No countdown set.** means the top strip shows none; **Saved countdown is invalid** shows why a saved countdown cannot be drawn.
 - Unclaimed sites are marked **No owner**.
 - **Found** shows **Unknown** when no project could be read, instead of marking every row as found. On a hosted view the Task projects section shows **Read-only here**.
 - **Updates** shows **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry returned no result. From a checkout, a newer version adds **Pull main in the checkout first.**
