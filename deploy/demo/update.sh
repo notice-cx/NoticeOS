@@ -19,6 +19,14 @@
 #     and the command fails naming both commits. Old generations stay stopped
 #     with their volumes; the purge command is printed, never run.
 #
+# Every build adds an image of about 2 GB. Before building, the script checks
+# that Docker has room for one; when it has not, it removes noticeos-demo
+# images no container uses and build cache no image needs, and stops before
+# building if that is still not enough. After a healthy deploy it removes the
+# same unused images, keeping the new release and the one it replaced. It
+# never removes a container or a volume, so a stopped generation keeps its
+# image and its data.
+#
 # After fetching the target source the script runs that commit's own copy of
 # itself, and on success installs it over the copy it was started from, so the
 # installed script never falls behind the release it deploys.
@@ -84,6 +92,42 @@ health() { # config port
   curl -fsS --header "Host: $h" "http://127.0.0.1:$2/__noticeos_health" && echo
 }
 
+# The artifact build inside the image refuses below 10 GiB free; the install
+# before it and the finished image take about 2 more.
+NEED_KB=$((12 * 1024 * 1024))
+free_kb() { # free KiB where Docker keeps images and build cache
+  root=$($DOCKER info --format '{{.DockerRootDir}}' 2>/dev/null || true)
+  if [ -z "$root" ] || [ ! -d "$root" ]; then root=/; fi
+  df -Pk "$root" 2>/dev/null | awk 'NR == 2 { print $4 }'
+}
+gib() { awk -v kb="$1" 'BEGIN { printf "%.1f", kb / 1048576 }'; }
+roomy() { # reads $free; unknown free space never blocks a deploy
+  free=$(free_kb)
+  if [ -z "$free" ]; then echo 'could not read the free disk space; continuing' >&2; return 0; fi
+  [ "$free" -ge "$NEED_KB" ]
+}
+reclaim() { # release... : these images stay, as does any image a container uses
+  used=$($DOCKER ps -a --format '{{.Image}}' 2>/dev/null || true)
+  for image in $($DOCKER image ls noticeos-demo --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true); do
+    case "$image" in *'<none>') continue ;; esac
+    keep=0
+    for release in "$@"; do
+      if [ -n "$release" ] && [ "$image" = "noticeos-demo:$release" ]; then keep=1; fi
+    done
+    if printf '%s\n' "$used" | grep -qxF "$image"; then keep=1; fi
+    if [ "$keep" = 0 ] && $DOCKER image rm "$image" >/dev/null 2>&1; then echo "removed unused image $image"; fi
+  done
+  $DOCKER builder prune -f >/dev/null 2>&1 || true
+}
+stopped_generations() { # the purge that frees a stopped generation's image and data
+  for dir in "$GENERATIONS"/*/; do
+    dir=${dir%/}; p=$(basename "$dir")
+    if [ "$p" != "$PROJECT" ] && [ -f "$dir/demo.env" ] && [ -f "$dir/compose.yaml" ]; then
+      echo "  $DOCKER compose --env-file $dir/demo.env -p $p -f $dir/compose.yaml down --volumes"
+    fi
+  done
+}
+
 CURRENT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_IMAGE | sed 's/^noticeos-demo://')
 CONFIG=$(env_value "$ENV_FILE" NOTICEOS_DEMO_CONFIG)
 PORT=$(env_value "$ENV_FILE" NOTICEOS_DEMO_HTTP_PORT)
@@ -134,6 +178,21 @@ else
   if [ -z "$ours_migrations" ] || [ "$ours_migrations" != "$(cat "$SOURCE_DIR/db/postgres/frozen-migrations.sha256")" ]; then FRESH=1; fi
 fi
 
+if ! roomy; then
+  echo "$(gib "$free") GiB free for Docker and a build needs $(gib "$NEED_KB"): removing demo images no container uses and unused build cache"
+  reclaim "$CURRENT" "$COMMIT"
+  if ! roomy; then
+    echo "still only $(gib "$free") GiB free for Docker; a build needs $(gib "$NEED_KB"). Nothing was built or changed." >&2
+    purges=$(stopped_generations)
+    if [ -n "$purges" ]; then
+      echo "Stopped generations keep their images and data. Purge one you no longer need, then rerun:" >&2
+      echo "$purges" >&2
+    fi
+    exit 1
+  fi
+  echo "$(gib "$free") GiB free now"
+fi
+
 echo "building noticeos-demo:$COMMIT"
 $DOCKER build --build-arg "NOTICEOS_SOURCE_COMMIT=$COMMIT" \
   -f "$SOURCE_DIR/deploy/demo/Dockerfile" -t "noticeos-demo:$COMMIT" "$SOURCE_DIR"
@@ -153,6 +212,8 @@ if [ "$FRESH" = 0 ]; then
   health "$CONFIG" "$PORT"
   install_self
   echo "demo now runs $COMMIT"
+  reclaim "$COMMIT" "$CURRENT"
+  echo "$(gib "$(free_kb)") GiB free for Docker"
   exit 0
 fi
 
@@ -216,3 +277,5 @@ if [ -n "$CURRENT" ]; then
   echo "previous generation $PROJECT is stopped with its volumes; to purge it once you are sure:"
   echo "  $DOCKER compose --env-file $OLD_ENV -p $PROJECT -f $OLD_COMPOSE down --volumes"
 fi
+reclaim "$COMMIT" "$CURRENT"
+echo "$(gib "$(free_kb)") GiB free for Docker"

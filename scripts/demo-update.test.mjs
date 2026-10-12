@@ -1,6 +1,7 @@
-// deploy/demo/update.sh against stubbed docker and curl: the compatible swap,
-// the fresh generation on an incompatible release, its rollback, and the
-// script replacing its own installed copy. No container or network is touched.
+// deploy/demo/update.sh against stubbed docker, curl and df: the compatible
+// swap, the fresh generation on an incompatible release, its rollback, the
+// script replacing its own installed copy, and the disk it keeps free. No
+// container, image or network is touched.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -11,6 +12,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const SCRIPT = path.join(ROOT, 'deploy/demo/update.sh');
 const OLD = 'a'.repeat(40), NEW = 'b'.repeat(40);
+const GIB = 1024 * 1024; // df -k counts KiB
 
 /** A disposable operator directory, a target source archive and the two stubs. */
 function fixture(t, { scenarioVersion = 4, migrations = 'digest-one', installedDiffers = false } = {}) {
@@ -35,14 +37,27 @@ function fixture(t, { scenarioVersion = 4, migrations = 'digest-one', installedD
   // The installed copy the operator runs: the real script, optionally one comment behind.
   const installed = path.join(operator, 'update.sh');
   fs.writeFileSync(installed, fs.readFileSync(SCRIPT, 'utf8') + (installedDiffers ? '# older installed copy\n' : ''), { mode: 0o755 });
-  const log = path.join(dir, 'docker.log');
+  const log = path.join(dir, 'docker.log'), dockerRoot = path.join(dir, 'docker-root');
+  fs.mkdirSync(dockerRoot);
+  // Images and the containers that use them come from the environment; an
+  // image a container uses refuses removal, as Docker's does.
   fs.writeFileSync(path.join(stubs, 'docker'), `#!/bin/sh
 echo "$*" >> "$STUB_DOCKER_LOG"
 case "$*" in
   "info") exit 0 ;;
+  "info --format {{.DockerRootDir}}") echo "$STUB_DOCKER_ROOT" ;;
+  "image ls noticeos-demo --format {{.Repository}}:{{.Tag}}") for i in $STUB_IMAGES; do grep -qxF "$i" "$STUB_DOCKER_LOG.removed" 2>/dev/null || echo "$i"; done ;;
+  "ps -a --format {{.Image}}") for i in $STUB_USED; do echo "$i"; done ;;
+  "image rm "*) for i in $STUB_USED; do [ "$3" = "$i" ] && exit 1; done; echo "$3" >> "$STUB_DOCKER_LOG.removed" ;;
   *"up -d --wait app"*) case "$*" in *"-p $STUB_FAIL_PROJECT "*) exit 1 ;; esac ;;
 esac
 exit 0
+`, { mode: 0o755 });
+  // Free space: STUB_DF_KB, or STUB_DF_KB_<n> for the n-th reading.
+  fs.writeFileSync(path.join(stubs, 'df'), `#!/bin/sh
+n=0; [ -f "$STUB_DF_COUNT" ] && n=$(cat "$STUB_DF_COUNT"); n=$((n + 1)); echo "$n" > "$STUB_DF_COUNT"
+eval "kb=\\\${STUB_DF_KB_$n:-\\$STUB_DF_KB}"
+printf 'Filesystem 1024-blocks Used Available Capacity Mounted on\\n/dev/sda1 39845888 31457280 %s 78%% /\\n' "$kb"
 `, { mode: 0o755 });
   // The running release (OLD) answers with the fixture's "ours" markers; the archive is the target.
   fs.writeFileSync(path.join(stubs, 'curl'), `#!/bin/sh
@@ -63,7 +78,8 @@ esac
     const result = spawnSync('sh', [installed, '--env', path.join(operator, 'demo.env'), '--source', source, ...args], {
       encoding: 'utf8', env: { PATH: `${stubs}:${process.env.PATH}`, HOME: dir, STUB_DOCKER_LOG: log, STUB_MAIN_SHA: NEW,
         STUB_ARCHIVE: path.join(dir, 'source.tar.gz'), STUB_OURS_VERSION: '4', STUB_OURS_MIGRATIONS: 'digest-one', STUB_FAIL_PROJECT: 'none',
-        STUB_HEALTH_COUNT: path.join(dir, 'health.count'), STUB_HEALTH_FAIL_FIRST: '0', ...env },
+        STUB_HEALTH_COUNT: path.join(dir, 'health.count'), STUB_HEALTH_FAIL_FIRST: '0',
+        STUB_DOCKER_ROOT: dockerRoot, STUB_DF_COUNT: path.join(dir, 'df.count'), STUB_DF_KB: String(50 * GIB), STUB_IMAGES: '', STUB_USED: '', ...env },
     });
     return { ...result, log: fs.existsSync(log) ? fs.readFileSync(log, 'utf8').trim().split('\n') : [] };
   };
@@ -71,14 +87,16 @@ esac
   return { dir, operator, source, installed, run, env: () => fs.readFileSync(envFile, 'utf8'),
     setEnv: text => fs.writeFileSync(envFile, text) };
 }
-const compose = result => result.log.filter(line => line !== 'info' && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
+/** Housekeeping reads and removals, which the deploy steps below leave out. */
+const housekeeping = line => line === 'info' || /^(info --format|image ls|ps -a|image rm|builder prune)/u.test(line);
+const compose = result => result.log.filter(line => !housekeeping(line) && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
 
 test('a compatible release swaps the app in place: build, image tag only, dolt before app, data kept', t => {
   const f = fixture(t);
   const result = f.run(['--commit', NEW]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /compatible release/u); assert.match(result.stdout, new RegExp(`demo now runs ${NEW}$`, 'mu'));
-  const steps = result.log.filter(line => line !== 'info');
+  const steps = result.log.filter(line => !housekeeping(line));
   assert.match(steps[0], new RegExp(`^build --build-arg NOTICEOS_SOURCE_COMMIT=${NEW} `, 'u'));
   assert.deepEqual(steps.slice(1).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, '')),
     ['compose -p demo-preview up -d --wait --force-recreate dolt', 'compose -p demo-preview up -d --wait --force-recreate app']);
@@ -95,7 +113,7 @@ test('an incompatible release brings up a fresh generation on the same port and 
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /incompatible release: preparing fresh generation demo-g2/u);
   assert.match(result.stdout, new RegExp(`demo now runs ${NEW} as generation demo-g2$`, 'mu'));
-  const steps = result.log.filter(line => line !== 'info' && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
+  const steps = compose(result);
   assert.deepEqual(steps, [
     'compose -p demo-g2 config --quiet',
     'compose -p demo-g2 run --rm --no-deps prepare',
@@ -119,7 +137,7 @@ test('a fresh generation that fails health is stopped and the previous generatio
   assert.equal(result.status, 1);
   assert.match(result.stderr, /fresh generation demo-g2 failed[\s\S]*bringing demo-preview back/u);
   assert.match(result.stderr, new RegExp(`deploy of ${NEW} failed; demo-preview at ${OLD} is back`, 'u'));
-  const steps = result.log.filter(line => line !== 'info' && !line.startsWith('build ')).map(line => line.replace(/--env-file \S+ /u, '').replace(/-f \S+ /u, ''));
+  const steps = compose(result);
   assert.deepEqual(steps.slice(-4), [
     'compose -p demo-g2 up -d --wait app',
     'compose -p demo-g2 stop app dolt postgres',
@@ -180,4 +198,49 @@ test("the operator's Statcounter line survives an in-place swap and a fresh gene
     assert.match(f.env(), new RegExp(`^${line}$`, 'mu'));
     assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${NEW}$`, 'mu'));
   }
+});
+
+const C = 'c'.repeat(40), D = 'd'.repeat(40), E = 'e'.repeat(40);
+const images = (...releases) => releases.map(release => `noticeos-demo:${release}`).join(' ');
+const removed = result => result.log.filter(line => line.startsWith('image rm ')).map(line => line.slice('image rm noticeos-demo:'.length));
+
+test('after a healthy deploy the images no container uses go, except the new release and the one it replaced', t => {
+  for (const options of [{}, { scenarioVersion: 5 }]) {
+    const f = fixture(t, options);
+    // C is unused; D is the image of a stopped generation's containers; E is unused too.
+    const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD, NEW, C, D, E), STUB_USED: `noticeos-demo:${D}` });
+    assert.equal(result.status, 0, result.stderr);
+    assert.deepEqual(removed(result), [C, E]);
+    assert.ok(result.log.includes('builder prune -f'), 'unused build cache goes too');
+    assert.match(result.stdout, /removed unused image noticeos-demo:c+$/mu);
+    assert.match(result.stdout, /^50\.0 GiB free for Docker$/mu);
+    assert.ok(!result.log.some(line => /\bvolume\b|\bdown\b|^(rm|container rm|system prune)/u.test(line)), 'no volume or container is removed');
+  }
+});
+
+test('short of space, the update frees unused images before it builds', t => {
+  const f = fixture(t);
+  const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD, C, D), STUB_USED: '', STUB_DF_KB_1: String(8 * GIB), STUB_DF_KB_2: String(16 * GIB) });
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /^8\.0 GiB free for Docker and a build needs 12\.0: removing demo images/mu);
+  assert.match(result.stdout, /^16\.0 GiB free now$/mu);
+  const build = result.log.findIndex(line => line.startsWith('build '));
+  const firstRemoval = result.log.findIndex(line => line.startsWith('image rm '));
+  assert.ok(firstRemoval >= 0 && firstRemoval < build, 'images are removed before the build');
+  assert.deepEqual(removed(result), [C, D], 'the running release stays, and nothing is removed twice');
+});
+
+test('still short after freeing, the update stops before building and names the purge of a stopped generation', t => {
+  const f = fixture(t);
+  const stopped = path.join(f.operator, 'generations/demo-g1');
+  fs.mkdirSync(stopped, { recursive: true });
+  fs.writeFileSync(path.join(stopped, 'demo.env'), 'NOTICEOS_DEMO_PROJECT=demo-g1\n');
+  fs.writeFileSync(path.join(stopped, 'compose.yaml'), 'services: {}\n');
+  const result = f.run(['--commit', NEW], { STUB_IMAGES: images(OLD), STUB_DF_KB: String(8 * GIB) });
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /still only 8\.0 GiB free for Docker; a build needs 12\.0\. Nothing was built or changed\./u);
+  assert.match(result.stderr, new RegExp(`-p demo-g1 -f ${stopped}/compose\\.yaml down --volumes`, 'u'));
+  assert.ok(!result.log.some(line => line.startsWith('build ') || line.startsWith('compose')), 'nothing was built or recreated');
+  assert.deepEqual(removed(result), [], 'the running release is never removed');
+  assert.match(f.env(), new RegExp(`^NOTICEOS_DEMO_IMAGE=noticeos-demo:${OLD}$`, 'mu'));
 });
