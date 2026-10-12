@@ -40,6 +40,7 @@ import {
 } from '@noticeos/contract';
 import { getConfigDocument } from './config-store.js';
 import { workspaceProfile } from '../../../scripts/product-env.mjs';
+import { DEMO_CONNECTED_PROVIDERS, demoConnection, isDemoWorkspace } from './demo-connections.js';
 import { CLOUDFLARE_D1_TARGETS, cloudflareAccountId, d1Selection, storedD1Selection, type D1Selection } from '@noticeos/contract/cloudflare-d1';
 
 /** Only the server's standalone profile may resolve legacy provider bindings. */
@@ -596,6 +597,15 @@ async function legacyRegister(env: IngestEnv): Promise<unknown> {
   return (await getConfigDocument(env, 'config/integrations.json')).body;
 }
 
+/** A demo connection's summary: connected, with no field, key or login, and
+ * no call ever made with it. */
+function demoSummary(provider: IntegrationProvider): CredentialSummary {
+  return {
+    provider: provider.id, source: 'demo', fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
+    keyVersion: null, createdAt: null, updatedAt: null, lastUsedAt: null, lastOkAt: null, lastError: null,
+  };
+}
+
 function summarize(
   provider: IntegrationProvider,
   row: CredentialRow | null,
@@ -656,12 +666,15 @@ export async function listCredentialSummaries(
   const byProvider = new Map(rows.map((row) => [row.provider, row]));
   const key = credentialKeyState(env);
   const register = await legacyRegister(env);
+  // The demo workspace stores no credential, so a missing key blocks nothing.
+  const demo = await isDemoWorkspace(env);
   return {
     keyPresent: key.present,
-    keyReason: key.reason,
-    blockers: key.blocker === null ? [] : [key.blocker],
+    keyReason: demo ? null : key.reason,
+    blockers: key.blocker === null || demo ? [] : [key.blocker],
     summaries: INTEGRATION_PROVIDERS.map((provider) =>
-      summarize(provider, byProvider.get(provider.id) ?? null, env, register),
+      demo && DEMO_CONNECTED_PROVIDERS.includes(provider.id) ? demoSummary(provider)
+        : summarize(provider, byProvider.get(provider.id) ?? null, env, register),
     ),
   };
 }
@@ -674,6 +687,7 @@ export async function credentialSummary(
 ): Promise<CredentialSummary | null> {
   const provider = integrationProvider(providerId);
   if (provider === null) return null;
+  if (await demoConnection(env, provider.id)) return demoSummary(provider);
   const row = await readRow(env.STORE, provider.id);
   if (row === null && policy === 'store-only') return null;
   return summarize(provider, row, env, policy === 'store-only' ? undefined : await legacyRegister(env));
@@ -1458,6 +1472,9 @@ export async function resolveCredential(
   const provider = integrationProvider(providerId);
   if (provider === null) {
     return { workspaceId, connectionId: null, provider: providerId, source: 'none', fields: {}, legacySlots: {} };
+  }
+  if (await demoConnection(env, provider.id)) {
+    return { workspaceId, connectionId: null, provider: provider.id, source: 'demo', fields: {}, legacySlots: {} };
   }
 
   const row = await readRow(env.STORE, provider.id);

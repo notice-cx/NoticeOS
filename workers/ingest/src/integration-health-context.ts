@@ -2,7 +2,10 @@ import type { IntegrationProviderId, IntegrationHealthScope } from '@noticeos/co
 import { assertCredentialOwner, credentialSummary, resolveCredential, usesLegacyCredentialBindings, type ResolvedCredential } from './credentials.js';
 import { healthFailure, healthId, tryRecordIntegrationObservation } from './integration-health-store.js';
 
-export interface HealthConnection { workspaceId: string; connectionId: string | null; provider: IntegrationProviderId; revision: string; configured: boolean; changedAt: string | null }
+export interface HealthConnection { workspaceId: string; connectionId: string | null; provider: IntegrationProviderId; revision: string; configured: boolean; changedAt: string | null;
+  /** A demo connection (`CredentialSource`): it never changes, so the runs
+   * the demo's simulator saves are its evidence. */
+  demo?: true }
 /** Capture before calling the provider. Stored credentials have a stable edit
  * revision (session renewal and key resealing do not change updatedAt). Legacy
  * values get a server-only fingerprint; no credential-derived ID is exposed by
@@ -30,11 +33,13 @@ export async function healthConnection(env: IngestEnv, provider: IntegrationProv
   }
   const parts = [credential.source === 'store'
     ? ['store', provider, credential.revision?.createdAt, credential.revision?.updatedAt]
-    : ['legacy', provider, Object.entries(credential.fields).filter(([key]) => key !== 'MEDIAVINE_SESSION').sort(([a], [b]) => a.localeCompare(b))], dependencies];
+    : credential.source === 'demo' ? ['demo', provider]
+      : ['legacy', provider, Object.entries(credential.fields).filter(([key]) => key !== 'MEDIAVINE_SESSION').sort(([a], [b]) => a.localeCompare(b))], dependencies];
   // Preserve existing standalone revisions so its stored monitoring history
   // remains usable. Hosted revisions include the actual connection identity.
   const revision = await healthId(usesLegacyCredentialBindings(env) ? parts : [workspaceId, credential.connectionId, parts]);
-  return { workspaceId, connectionId: credential.connectionId, provider, revision, configured: credential.source !== 'none', changedAt: credential.revision?.updatedAt ?? null };
+  return { workspaceId, connectionId: credential.connectionId, provider, revision, configured: credential.source !== 'none', changedAt: credential.revision?.updatedAt ?? null,
+    ...(credential.source === 'demo' ? { demo: true as const } : {}) };
 }
 export async function tryHealthConnection(env: IngestEnv, provider: IntegrationProviderId, resolved?: ResolvedCredential, googleAppSnapshot?: readonly string[]): Promise<HealthConnection | null> {
   try { return await healthConnection(env, provider, resolved, googleAppSnapshot); }

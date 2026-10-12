@@ -442,6 +442,14 @@ describe("what state a credential is in", () => {
     expect(document.querySelector("[data-test-connection]")).not.toBeDisabled();
   });
 
+  it("says a demo connection holds no login and fetches nothing", () => {
+    renderCard(status("bing-webmaster", [field({ name: "BING_WEBMASTER_API_KEY" })], { source: "demo" }));
+    const verdict = document.querySelector('[data-verdict="stored-verdict"]');
+    expect(verdict).toHaveAttribute("data-verdict-ok", "true");
+    expect(verdict).toHaveTextContent("Demo connection. No login is stored and nothing is fetched.");
+    expect(screen.queryByText("Not connected")).toBeNull();
+  });
+
   it("renders Not connected with Connect as its action, and offers no test", () => {
     renderCard(status("dataforseo", DATAFORSEO_FIELDS, {}));
     expect(screen.getByText("Not connected")).toBeInTheDocument();

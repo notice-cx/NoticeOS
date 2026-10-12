@@ -535,6 +535,13 @@ function Verdict({
       </VerdictLine>
     );
   }
+  if (credential.source === "demo") {
+    return (
+      <VerdictLine tone="ok" at={null} nowMs={nowMs} testId="stored-verdict">
+        Demo connection. No login is stored and nothing is fetched.
+      </VerdictLine>
+    );
+  }
   if (state === "failing" && credential.lastError) {
     return (
       <VerdictLine tone="bad" at={credential.lastUsedAt} nowMs={nowMs} testId="stored-verdict">

@@ -377,8 +377,12 @@ export interface IntegrationAuthPath {
   fields: readonly string[];
 }
 
-/** Where the value a client actually used came from. Recorded on the run. */
-export type CredentialSource = 'store' | 'env' | 'none';
+/** Where the value a client actually used came from. Recorded on the run.
+ * `demo` is a demo connection: a provider the synthetic demo workspace shows
+ * connected with no login. No secret or key exists and nothing is fetched;
+ * only the server's demo profile answers one, for its one demo workspace, and
+ * its evidence is the collection runs the demo's simulator records. */
+export type CredentialSource = 'store' | 'env' | 'demo' | 'none';
 
 /**
  * An older env binding that carries one asset's key (Clarity's
@@ -1104,9 +1108,10 @@ export function credentialBalance(
 
 export interface CredentialSummary {
   provider: IntegrationProviderId;
-  /** `store` (entered in the product), `env` (the legacy path, still working)
-   * or `none`. A store credential missing a required field still reads
-   * `store`, with the gap named in `missingFields`. */
+  /** `store` (entered in the product), `env` (the legacy path, still working),
+   * `demo` (a demo connection, see `CredentialSource`) or `none`. A store
+   * credential missing a required field still reads `store`, with the gap
+   * named in `missingFields`. */
   source: CredentialSource;
   /** Field names the store holds for this provider. Never values. */
   fields: string[];
