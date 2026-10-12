@@ -158,11 +158,21 @@ import { Tabs } from "@/components/Tabs";
 import { Timeline } from "@/components/Timeline";
 import { WallLibraryPanel } from "@/components/wall/WallLibraryPanel";
 import { WallPreview } from "@/components/wall/WallPreview";
-import { WallRowsPanel } from "@/components/wall/WallRowsPanel";
+import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
+import { WallToolbar, type WallEditorPanel } from "@/components/wall/WallToolbar";
 import { WallStrip } from "@/components/wall/WallStrip";
 import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
-import { wallEditorReducer, wallEditorState } from "@/lib/wall-editor";
+import {
+  wallCanRedo,
+  wallCanUndo,
+  wallChangeSummary,
+  wallEditorDirty,
+  wallEditorReducer,
+  wallEditorRefusal,
+  wallEditorState,
+  wallEditorWarnings,
+} from "@/lib/wall-editor";
 import {
   validateFutureDateTime,
   validateProbability,
@@ -5554,7 +5564,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="Wall layout editor">
+          <Section title="Wall layout editor (WallToolbar · WallPreview with WallDividers and WallMoveMenu · WallLibraryPanel · WallWidgetPanel · WallVersions)">
             <WallEditorDemo />
           </Section>
         </div>
@@ -5564,76 +5574,99 @@ export function KitchenSinkRoute() {
 }
 
 /**
- * The Wall's editor, live, with its own reducer so the library, inspector,
- * rows list and preview move together. It renders the components and not the
- * route, so there is no Save and no gallery visit can rearrange the operator's
- * television; the selected widget starts on the assets grid rather than the
- * countdown, whose panel is the live `CountdownEditor` and would write config
- * for real.
+ * The Wall's editor, live, with its own reducer so the toolbar, the stage,
+ * its dividers and Move menus, the Add drawer and the widget panel move
+ * together. It renders the components and not the route, so there is no
+ * Save and no gallery visit can rearrange the operator's television; the
+ * selected widget starts on the site rows rather than the strip, whose panel
+ * is the live `CountdownEditor` and would write config for real.
  */
 function WallEditorDemo() {
   const [state, dispatch] = useReducer(
     wallEditorReducer,
     DEFAULT_WALL_LAYOUT,
-    wallEditorState,
+    (layout: WallLayout) => ({ ...wallEditorState(layout), selectedId: "sites" }),
   );
-  const [selected, setSelected] = useState<string | null>("assets");
+  const [panel, setPanel] = useState<WallEditorPanel>("widget");
+  const [note, setNote] = useState("");
 
   return (
-    <div className="flex w-full flex-col gap-4">
-      <WallPreview
-        layout={state.layout}
-        data={WALL_DEMO_PAYLOAD}
-        meetings={null}
-        nowMs={NOW}
-        selectedId={selected}
-        onSelect={setSelected}
-        onRemove={(widgetId) => {
-          setSelected((id) => (id === widgetId ? null : id));
-          dispatch({ type: "remove", widgetId });
-        }}
-        onMove={(widgetId, toRowId, toIndex) =>
-          dispatch({ type: "move", widgetId, toRowId, toIndex })
-        }
+    <div className="flex w-full flex-col gap-3">
+      <WallToolbar
+        dirty={wallEditorDirty(state)}
+        replacing={null}
+        countdownRefused={null}
+        onCountdown={() => {}}
+        refusal={wallEditorRefusal(state.layout)}
+        warnings={wallEditorWarnings(state.layout)}
+        overflow={null}
+        note={note}
+        summary={wallChangeSummary(state.saved, state.layout)}
+        saving={false}
+        disabled={false}
+        canUndo={wallCanUndo(state)}
+        canRedo={wallCanRedo(state)}
+        onUndo={() => dispatch({ type: "undo" })}
+        onRedo={() => dispatch({ type: "redo" })}
+        panel={panel}
+        onPanel={setPanel}
+        versions={WALL_DEMO_HISTORY.length}
+        onNote={setNote}
+        onSubmit={() => {}}
+        onDiscard={() => dispatch({ type: "discard" })}
       />
-      <div className="grid w-full gap-4 lg:grid-cols-[14rem_minmax(0,1fr)_19rem]">
-        <WallLibraryPanel
+      <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,1fr)_19rem]">
+        <WallPreview
           layout={state.layout}
-          onAdd={(widget) => dispatch({ type: "add", widget })}
-        />
-        <WallRowsPanel
-          layout={state.layout}
-          onAddRow={() => dispatch({ type: "add-row" })}
-          onRemoveRow={(rowId) => dispatch({ type: "remove-row", rowId })}
-          onMoveRow={(rowId, direction) => dispatch({ type: "move-row", rowId, direction })}
-          onFillRow={(rowId) => dispatch({ type: "fill-row", rowId })}
-          onMove={(widgetId, toRowId, toIndex) =>
-            dispatch({ type: "move", widgetId, toRowId, toIndex })
-          }
+          data={WALL_DEMO_PAYLOAD}
+          meetings={null}
+          nowMs={NOW}
+          selectedId={state.selectedId}
+          onSelect={(widgetId) => dispatch({ type: "select", widgetId })}
+          onRemove={(widgetId) => dispatch({ type: "remove", widgetId })}
+          onDrop={(source, target) => dispatch({ type: "drop", source, target })}
+          onMove={(widgetId, move) => dispatch({ type: "move", widgetId, move })}
+          onWidths={(widths, gesture) => dispatch({ type: "widths", widths, gesture })}
+          onSizes={(sizes, gesture) => dispatch({ type: "sizes", sizes, gesture })}
         />
         <div className="flex flex-col gap-4">
-          <WallWidgetPanel
+          {panel === "add" ? (
+            <WallLibraryPanel
+              layout={state.layout}
+              onAdd={(widget) => dispatch({ type: "add", widget })}
+              onClose={() => setPanel("widget")}
+            />
+          ) : panel === "versions" ? (
+            <WallVersions
+              history={WALL_DEMO_HISTORY}
+              nowMs={NOW}
+              reverting={null}
+              onRevert={() => {}}
+              onClose={() => setPanel("widget")}
+            />
+          ) : (
+            <WallWidgetPanel
+              layout={state.layout}
+              selectedId={state.selectedId}
+              assets={[cardLive, cardWarn]}
+              nowMs={NOW}
+              onSelect={(widgetId) => dispatch({ type: "select", widgetId })}
+              onSettings={(widgetId, settings) => dispatch({ type: "settings", widgetId, settings })}
+              onWidths={(widths) => dispatch({ type: "widths", widths })}
+              onSizes={(sizes) => dispatch({ type: "sizes", sizes })}
+              onHeight={(rowId, height) => dispatch({ type: height, rowId })}
+              onMove={(widgetId, move) => dispatch({ type: "move", widgetId, move })}
+              onRemove={(widgetId) => dispatch({ type: "remove", widgetId })}
+            />
+          )}
+          {/* The Move menu on its own, as the widget panel and every widget's
+              toolbar draw it. */}
+          <WallMoveMenu
             layout={state.layout}
-            selectedId={selected}
-            assets={[cardLive, cardWarn]}
-            nowMs={NOW}
-            onSelect={setSelected}
-            onWidth={(widgetId, width) => dispatch({ type: "width", widgetId, width })}
-            onSettings={(widgetId, settings) =>
-              dispatch({ type: "settings", widgetId, settings })
-            }
-            onNudge={(widgetId, direction) => dispatch({ type: "nudge", widgetId, direction })}
-            onStack={(widgetId) => dispatch({ type: "stack", widgetId })}
-            onRemove={(widgetId) => {
-              setSelected((id) => (id === widgetId ? null : id));
-              dispatch({ type: "remove", widgetId });
-            }}
-          />
-          <WallVersions
-            history={WALL_DEMO_HISTORY}
-            nowMs={NOW}
-            reverting={null}
-            onRevert={() => {}}
+            widgetId="revenue"
+            variant="panel"
+            onMove={(move) => dispatch({ type: "move", widgetId: "revenue", move })}
+            onRemove={() => dispatch({ type: "remove", widgetId: "revenue" })}
           />
         </div>
       </div>

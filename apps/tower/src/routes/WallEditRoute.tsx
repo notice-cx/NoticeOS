@@ -1,4 +1,4 @@
-import { Check, TriangleAlert, Tv } from "lucide-react";
+import { Tv } from "lucide-react";
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Link, useBlocker } from "react-router-dom";
 import type { FileJsonSetOp, JsonValue } from "@shared/changeset";
@@ -7,24 +7,24 @@ import {
   EMPTY_WALL_CONFIG,
   WALL_LAYOUT_POINTER,
   WALL_RETIRED_WARNING,
+  nextWallWidgetId,
   parseWallConfig,
   wallLayoutWidgets,
   withRevertedWallLayout,
   withSavedWallLayout,
   type WallConfig,
+  type WallWidgetType,
 } from "@shared/wall-layout";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
-import { StateChip } from "@/components/StateChip";
 import { SavesPaused } from "@/components/SavesPaused";
-import { SiteOrder } from './wall-edit/SiteOrder';
+import { SiteOrder } from "./wall-edit/SiteOrder";
 import { WallLibraryPanel } from "@/components/wall/WallLibraryPanel";
 import { WallPreview } from "@/components/wall/WallPreview";
-import { WallRowsPanel } from "@/components/wall/WallRowsPanel";
+import { WallToolbar, type WallEditorPanel } from "@/components/wall/WallToolbar";
 import { WallVersions } from "@/components/wall/WallVersions";
 import { WallWidgetPanel } from "@/components/wall/WallWidgetPanel";
 import { Button } from "@/components/ui/button";
-import { fieldClass } from "@/components/ui/field";
 import { useCalendarUpcoming } from "@/hooks/useCalendarUpcoming";
 import { calendarReadState } from "@/lib/meetings";
 import { useConfigSave } from "@/hooks/useConfigSave";
@@ -33,15 +33,22 @@ import { useConnections } from "@/hooks/useConnections";
 import { useGa4Realtime } from "@/hooks/useGa4Realtime";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
-import { cn } from "@/lib/utils";
 import {
+  wallCanRedo,
+  wallCanUndo,
   wallChangeSummary,
+  wallDropPlan,
   wallEditorDirty,
   wallEditorReducer,
   wallEditorRefusal,
   wallEditorState,
   wallEditorWarnings,
+  wallMovePlan,
   wallOverflowNote,
+  wallWidgetWhere,
+  type WallDragSource,
+  type WallDropTarget,
+  type WallMove,
 } from "@/lib/wall-editor";
 
 /** The configuration document and the slug its save carries. */
@@ -81,9 +88,12 @@ function readWallConfig(dashboard: DashboardConfig): {
 }
 
 /**
- * `/wall/edit`: the Wall's editor. The preview is the renderer (`WallCanvas`
- * at 1920×1080, scaled). Save is one write: the layout plus its history is
- * one value at one pointer, through `useConfigSave`.
+ * `/wall/edit`: the Wall's editor. The television is the stage (`WallCanvas`
+ * at 1920×1080, scaled to the pane and the window): widgets are dragged and
+ * dropped on it, its dividers resized, and every change can be undone. The
+ * side shows the selected widget's settings, the Add drawer or the saved
+ * versions. Save is one write: the layout plus its history is one value at one
+ * pointer, through `useConfigSave`.
  */
 export function WallEditRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
@@ -106,6 +116,11 @@ export function WallEditRoute() {
   const [saving, setSaving] = useState(false);
   const [reverting, setReverting] = useState<number | null>(null);
   const [overflow, setOverflow] = useState<string | null>(null);
+  const [panel, setPanel] = useState<WallEditorPanel>("widget");
+  const [flashId, setFlashId] = useState<string | null>(null);
+  const [announcement, setAnnouncement] = useState("");
+  /** The widget a change just moved or brought, and whether focus follows it. */
+  const [landed, setLanded] = useState<{ widgetId: string; verb: string; focus: boolean } | null>(null);
 
   const dirty = wallEditorDirty(state);
   const refusal = wallEditorRefusal(state.layout);
@@ -140,9 +155,88 @@ export function WallEditRoute() {
     dispatch({ type: "reset", layout: config.layout });
   }, [config.layout, dirty, pending]);
 
+  // After a move: say where the widget went, ring it briefly, and give focus
+  // back to it when the change came from the keyboard or the Move menu.
+  useEffect(() => {
+    if (!landed) return;
+    const place = wallWidgetWhere(state.layout, landed.widgetId);
+    if (place) setAnnouncement(`${place.label} ${landed.verb} ${place.where}`);
+    setFlashId(landed.widgetId);
+    if (landed.focus) {
+      document.querySelector<HTMLElement>(`[data-wall-edit-widget="${landed.widgetId}"]`)?.focus({ preventScroll: true });
+    }
+    setLanded(null);
+    const clear = window.setTimeout(() => setFlashId(null), 900);
+    return () => window.clearTimeout(clear);
+  }, [landed, state.layout]);
+
+  const disabled = !writable || saving || reverting !== null;
+
+  const undo = useCallback(() => {
+    dispatch({ type: "undo" });
+    setAnnouncement("Undone");
+  }, []);
+  const redo = useCallback(() => {
+    dispatch({ type: "redo" });
+    setAnnouncement("Redone");
+  }, []);
+
+  // ⌘Z and ⇧⌘Z (Ctrl on other systems) anywhere on the page but in a field,
+  // where they keep undoing the typing.
+  useEffect(() => {
+    if (disabled) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      const key = event.key.toLowerCase();
+      if (key === "z" && !event.shiftKey) {
+        event.preventDefault();
+        undo();
+      } else if ((key === "z" && event.shiftKey) || key === "y") {
+        event.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [disabled, undo, redo]);
+
   const onMeasure = useCallback((height: number) => {
     setOverflow(wallOverflowNote(height));
   }, []);
+
+  const select = (widgetId: string | null) => {
+    dispatch({ type: "select", widgetId });
+    if (widgetId) setPanel("widget");
+  };
+
+  const drop = (source: WallDragSource, target: WallDropTarget) => {
+    const plan = wallDropPlan(state.layout, source, target);
+    if (!plan) return;
+    dispatch({ type: "drop", source, target });
+    setPanel("widget");
+    setLanded({ widgetId: plan.widgetId, verb: source.kind === "new" ? "added to" : "moved to", focus: false });
+  };
+
+  const move = (widgetId: string, how: WallMove) => {
+    if (!wallMovePlan(state.layout, widgetId, how)) return;
+    dispatch({ type: "move", widgetId, move: how });
+    setLanded({ widgetId, verb: "moved to", focus: true });
+  };
+
+  const add = (widget: WallWidgetType) => {
+    const id = nextWallWidgetId(state.layout, widget);
+    dispatch({ type: "add", widget });
+    setPanel("widget");
+    setLanded({ widgetId: id, verb: "added to", focus: false });
+  };
+
+  const remove = (widgetId: string) => {
+    const place = wallWidgetWhere(state.layout, widgetId);
+    dispatch({ type: "remove", widgetId });
+    if (place) setAnnouncement(`${place.label} removed`);
+  };
 
   const write = useCallback(
     async (next: WallConfig, label: string) => {
@@ -161,21 +255,21 @@ export function WallEditRoute() {
             : raw,
         value: next as unknown as JsonValue,
       };
-      const landed = await save({ ops: [op], label, slug: SLUG });
-      if (landed) setWritten({ over: config, config: next });
-      return landed;
+      const landedSave = await save({ ops: [op], label, slug: SLUG });
+      if (landedSave) setWritten({ over: config, config: next });
+      return landedSave;
     },
     [config, pending, raw, save],
   );
 
   async function submit() {
     if (!(dirty || replacing) || refusal) return;
-    // The note is optional; with none, the version is described by what changed.
+    // With no note, the version is described by what changed.
     const words = note.trim() || wallChangeSummary(state.saved, state.layout);
     setSaving(true);
     const next = withSavedWallLayout(saved, state.layout, words, new Date().toISOString());
-    const landed = await write(next, "TV layout").finally(() => setSaving(false));
-    if (!landed) return;
+    const ok = await write(next, "TV layout").finally(() => setSaving(false));
+    if (!ok) return;
     // The layout on screen IS the saved one now; saying so here means the Save
     // button goes quiet immediately rather than when the payload catches up.
     dispatch({ type: "saved", layout: state.layout });
@@ -185,17 +279,15 @@ export function WallEditRoute() {
   async function revert(index: number) {
     setReverting(index);
     const next = withRevertedWallLayout(saved, index, new Date().toISOString());
-    const landed = await write(next, "TV layout").finally(() => setReverting(null));
-    if (!landed) return;
+    const ok = await write(next, "TV layout").finally(() => setReverting(null));
+    if (!ok) return;
     dispatch({ type: "reset", layout: next.layout });
   }
 
-  const disabled = !writable || saving || reverting !== null;
-
   return (
-    <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-4 p-4 md:p-6">
+    <div className="mx-auto flex w-full max-w-[1760px] flex-col gap-3 p-4 md:p-6">
       <LeaveGuard when={dirty} />
-      {/* No description line: the save bar's state ("On the TV" / "Unsaved")
+      {/* No description line: the toolbar's state ("On the TV" / "Unsaved")
           is the fact. */}
       <PageHeader
         title="TV layout"
@@ -221,231 +313,106 @@ export function WallEditRoute() {
         <>
           <SavesPaused />
 
-          {/* Three panes on a wide screen, one column below it: the library,
-              the television, and whatever is selected. */}
-          <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[14rem_minmax(0,1fr)_19rem] xl:items-start">
-            <WallLibraryPanel
+          <WallToolbar
+            dirty={dirty}
+            replacing={replacing ? refused : null}
+            countdownRefused={countdownRefused?.reason ?? null}
+            onCountdown={() => {
+              // The countdown's form is the strip's settings panel.
+              const strip = wallLayoutWidgets(state.layout).find((w) => w.type === "strip");
+              if (strip) select(strip.id);
+            }}
+            refusal={refusal}
+            warnings={warnings}
+            overflow={overflow}
+            note={note}
+            summary={dirty ? wallChangeSummary(state.saved, state.layout) : null}
+            saving={saving}
+            disabled={disabled}
+            canUndo={wallCanUndo(state)}
+            canRedo={wallCanRedo(state)}
+            onUndo={undo}
+            onRedo={redo}
+            panel={panel}
+            onPanel={setPanel}
+            versions={saved.history.length}
+            onNote={setNote}
+            onSubmit={() => void submit()}
+            onDiscard={() => {
+              setNote("");
+              dispatch({ type: "discard" });
+            }}
+          />
+
+          {/* The television and the side, one column below a wide screen. */}
+          <div className="flex flex-col gap-4 xl:grid xl:grid-cols-[minmax(0,1fr)_20rem] xl:items-start" data-wall-editor>
+            <WallPreview
               layout={state.layout}
+              data={data}
+              meetings={upcoming.data}
+              calendarState={calendarReadState(upcoming)}
+              ga4Realtime={realtime.data}
+              ga4RealtimeError={realtime.isError}
+              connections={{ credentials, items }}
+              nowMs={now}
+              selectedId={state.selectedId}
+              onSelect={select}
+              onRemove={remove}
+              onDrop={drop}
+              onMove={move}
+              onWidths={(widths, gesture) => dispatch({ type: "widths", widths, gesture })}
+              onSizes={(sizes, gesture) => dispatch({ type: "sizes", sizes, gesture })}
+              flashId={flashId}
               disabled={disabled}
-              onAdd={(widget) => dispatch({ type: "add", widget })}
+              fitHeight
+              onMeasure={onMeasure}
             />
 
-            <div className="flex min-w-0 flex-col gap-4">
-              <WallPreview
-                layout={state.layout}
-                data={data}
-                meetings={upcoming.data}
-                calendarState={calendarReadState(upcoming)}
-                ga4Realtime={realtime.data}
-                ga4RealtimeError={realtime.isError}
-                connections={{ credentials, items }}
-                nowMs={now}
-                selectedId={state.selectedId}
-                onSelect={(widgetId) => dispatch({ type: "select", widgetId })}
-                onRemove={(widgetId) => dispatch({ type: "remove", widgetId })}
-                onMove={(widgetId, toRowId, toIndex) =>
-                  dispatch({ type: "move", widgetId, toRowId, toIndex })
-                }
-                onMeasure={onMeasure}
-              />
-
-              <SaveBar
-                dirty={dirty}
-                replacing={replacing ? refused : null}
-                countdownRefused={countdownRefused?.reason ?? null}
-                onCountdown={() => {
-                  // The countdown's form is the strip's settings panel.
-                  const strip = wallLayoutWidgets(state.layout).find((w) => w.type === "strip");
-                  if (strip) dispatch({ type: "select", widgetId: strip.id });
-                }}
-                refusal={refusal}
-                warnings={warnings}
-                overflow={overflow}
-                note={note}
-                summary={dirty ? wallChangeSummary(state.saved, state.layout) : null}
-                saving={saving}
-                disabled={disabled}
-                onNote={setNote}
-                onSubmit={() => void submit()}
-                onDiscard={() => {
-                  setNote("");
-                  dispatch({ type: "reset", layout: config.layout });
-                }}
-              />
-
-              <WallRowsPanel
-                layout={state.layout}
-                disabled={disabled}
-                onAddRow={() => dispatch({ type: "add-row" })}
-                onRemoveRow={(rowId) => dispatch({ type: "remove-row", rowId })}
-                onMoveRow={(rowId, direction) => dispatch({ type: "move-row", rowId, direction })}
-                onFillRow={(rowId) => dispatch({ type: "fill-row", rowId })}
-                onMove={(widgetId, toRowId, toIndex) =>
-                  dispatch({ type: "move", widgetId, toRowId, toIndex })
-                }
-              />
+            <div className="flex min-w-0 flex-col gap-4" data-wall-side>
+              {panel === "add" ? (
+                <WallLibraryPanel
+                  layout={state.layout}
+                  disabled={disabled}
+                  onAdd={add}
+                  onClose={() => setPanel("widget")}
+                />
+              ) : panel === "versions" ? (
+                <WallVersions
+                  history={saved.history}
+                  nowMs={now}
+                  reverting={reverting}
+                  disabled={disabled}
+                  onRevert={(index) => void revert(index)}
+                  onClose={() => setPanel("widget")}
+                />
+              ) : (
+                <WallWidgetPanel
+                  layout={state.layout}
+                  selectedId={state.selectedId}
+                  assets={data.assets}
+                  countdown={data.dashboard.countdown}
+                  countdownRefused={countdownRefused}
+                  nowMs={now}
+                  disabled={disabled}
+                  onSelect={select}
+                  onSettings={(widgetId, settings) => dispatch({ type: "settings", widgetId, settings })}
+                  onWidths={(widths) => dispatch({ type: "widths", widths })}
+                  onSizes={(sizes) => dispatch({ type: "sizes", sizes })}
+                  onHeight={(rowId, height) => dispatch({ type: height, rowId })}
+                  onMove={move}
+                  onRemove={remove}
+                />
+              )}
               <SiteOrder assets={data.assets} disabled={!writable} />
             </div>
-
-            <div className="flex min-w-0 flex-col gap-4">
-              <WallWidgetPanel
-                layout={state.layout}
-                selectedId={state.selectedId}
-                assets={data.assets}
-                countdown={data.dashboard.countdown}
-                countdownRefused={countdownRefused}
-                nowMs={now}
-                disabled={disabled}
-                onSelect={(widgetId) => dispatch({ type: "select", widgetId })}
-                onWidth={(widgetId, width) => dispatch({ type: "width", widgetId, width })}
-                onSettings={(widgetId, settings) =>
-                  dispatch({ type: "settings", widgetId, settings })
-                }
-                onNudge={(widgetId, direction) => dispatch({ type: "nudge", widgetId, direction })}
-                onStack={(widgetId) => dispatch({ type: "stack", widgetId })}
-                onRemove={(widgetId) => dispatch({ type: "remove", widgetId })}
-              />
-              <WallVersions
-                history={saved.history}
-                nowMs={now}
-                reverting={reverting}
-                disabled={disabled}
-                onRevert={(index) => void revert(index)}
-              />
-            </div>
           </div>
+          {/* Where a move put the widget, for a screen reader; the ring on
+              the TV says it to the eye. */}
+          <p role="status" aria-live="polite" className="sr-only" data-status-for="readout:wall-arrange">
+            {announcement}
+          </p>
         </>
       )}
-    </div>
-  );
-}
-
-/**
- * Save, and what to read before pressing it. A refusal darkens Save with the
- * reason; a warning leaves it live. While the saved layout is one the Tower
- * refused, Save is live without a change, because saving the default as drawn
- * (or a Revert) is how the store gets a layout back.
- */
-function SaveBar({
-  dirty,
-  replacing,
-  countdownRefused,
-  onCountdown,
-  refusal,
-  warnings,
-  overflow,
-  note,
-  summary,
-  saving,
-  disabled,
-  onNote,
-  onSubmit,
-  onDiscard,
-}: {
-  dirty: boolean;
-  /** Why the saved layout was refused, while nothing has replaced it. */
-  replacing: string | null;
-  /** Why the saved countdown was refused. */
-  countdownRefused: string | null;
-  onCountdown: () => void;
-  refusal: string | null;
-  warnings: string[];
-  overflow: string | null;
-  note: string;
-  /** What the version will be called if no note is written. */
-  summary: string | null;
-  saving: boolean;
-  disabled: boolean;
-  onNote: (value: string) => void;
-  onSubmit: () => void;
-  onDiscard: () => void;
-}) {
-  const notes = [...warnings, ...(overflow ? [overflow] : [])];
-  const canSave = !disabled && (dirty || replacing !== null) && refusal === null && !saving;
-  const state = dirty ? "unsaved" : replacing !== null ? "refused" : "saved";
-  return (
-    <div className="flex flex-col gap-2 border border-border bg-card p-3" data-wall-save-bar>
-      <div className="flex flex-wrap items-center gap-2">
-        {/* The save's state in markup, as InlineSaveState draws a field's: the
-            flow gate reads a Save as landed only when this says `saved` for
-            wall:layout. */}
-        <span className="shrink-0" data-save-state={state}>
-          {state === "unsaved" ? (
-            <StateChip label="Unsaved changes" tone="caution" subject="wall:layout" />
-          ) : state === "refused" ? (
-            <StateChip
-              label="Saved layout refused"
-              tone="critical"
-              glyph={<TriangleAlert className="size-3" aria-hidden />}
-              title={replacing ?? undefined}
-              subject="wall:layout"
-            />
-          ) : (
-            <StateChip
-              label="On the TV"
-              tone="affirmative"
-              glyph={<Check className="size-3" aria-hidden />}
-              subject="wall:layout"
-            />
-          )}
-        </span>
-        {countdownRefused !== null ? (
-          <button
-            type="button"
-            className="shrink-0 rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            onClick={onCountdown}
-            data-wall-countdown-refused
-          >
-            <StateChip
-              label="Saved countdown refused"
-              tone="critical"
-              glyph={<TriangleAlert className="size-3" aria-hidden />}
-              title={countdownRefused}
-              subject="wall:countdown"
-            />
-          </button>
-        ) : null}
-        {dirty ? (
-          <input
-            type="text"
-            aria-label="Version note"
-            value={note}
-            maxLength={200}
-            disabled={disabled || saving}
-            placeholder={summary ?? "Version note"}
-            onChange={(event) => onNote(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter") return;
-              event.preventDefault();
-              if (canSave) onSubmit();
-            }}
-            className={cn(fieldClass, "min-w-0 flex-1 basis-48")}
-          />
-        ) : null}
-        <Button type="button" disabled={!canSave} onClick={onSubmit}>
-          {saving ? "Saving…" : "Save"}
-        </Button>
-        <Button type="button" variant="ghost" disabled={disabled || !dirty || saving} onClick={onDiscard}>
-          Discard
-        </Button>
-      </div>
-
-      {refusal ? (
-        <p className="text-xs leading-snug text-error" data-wall-refusal>
-          {refusal}
-        </p>
-      ) : null}
-      {/* Each warning is a state the TV will be in, drawn as a caution chip;
-          its fix is a control already on the page. */}
-      {notes.length > 0 ? (
-        <div className="flex flex-wrap gap-1.5">
-          {notes.map((note) => (
-            <span key={note} data-wall-warning>
-              <StateChip label={note} tone="caution" subject="wall:layout" />
-            </span>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

@@ -20,6 +20,7 @@
     "db:seed-demo": "node ../../scripts/db-seed.mjs"
   },
   "dependencies": {
+    "@atlaskit/pragmatic-drag-and-drop": "4.0.0",
     "@noticeos/contract": "workspace:*",
     "@noticeos/postgres": "workspace:*",
     "@radix-ui/react-popover": "^1.1.23",

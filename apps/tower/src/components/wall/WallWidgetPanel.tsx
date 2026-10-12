@@ -1,20 +1,29 @@
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Columns2, Minus, Plus, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import type { CountdownConfig, DashboardRefusal } from "@shared/dashboard";
 import type { AssetCard } from "@shared/wall";
 import {
-  WALL_WIDTH_MAX,
-  WALL_WIDTH_MIN,
-  WALL_WIDTH_STEP,
   WALL_WIDGET_LIBRARY,
   wallLayoutWidgets,
+  type WallColumn,
+  type WallColumnRow,
   type WallLayout,
   type WallWidgetSettings,
 } from "@shared/wall-layout";
 import { CountdownEditor } from "@/components/DashboardWidgets";
 import { OwnerChip } from "@/components/OwnerChip";
 import { StateChip } from "@/components/StateChip";
+import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
 import { Button } from "@/components/ui/button";
-import { canNudge, canStack, roundWallWidth, wallWidgetAt, wallWidthShare, type WallNudge } from "@/lib/wall-editor";
+import {
+  WALL_SHARE_PRESETS,
+  wallWidgetWhere,
+  wallShareLabel,
+  wallShareWidth,
+  wallSlotOf,
+  wallStackShareSizes,
+  wallWidgetAt,
+  type WallMove,
+} from "@/lib/wall-editor";
 import { cn } from "@/lib/utils";
 import { availablePulseCounters, selectedPulseMetrics, type WallPulseMetrics } from "@/lib/wall-counters";
 import { formatInt } from "@/lib/format";
@@ -32,28 +41,47 @@ export interface WallWidgetPanelProps {
   nowMs: number;
   /** Pick a widget to edit, as a click on it in the preview does. */
   onSelect: (widgetId: string) => void;
-  onWidth: (widgetId: string, width: number) => void;
   onSettings: (widgetId: string, settings: WallWidgetSettings | undefined) => void;
-  onNudge: (widgetId: string, direction: WallNudge) => void;
-  /** Stack the widget in a column, or take it out of one. */
-  onStack: (widgetId: string) => void;
+  /** A width preset: new widths by slot id. */
+  onWidths: (widths: Record<string, number>) => void;
+  /** A stacked height preset: new height weights by column-row id. */
+  onSizes: (sizes: Record<string, number | null>) => void;
+  /** Its row takes the height left over, or fits its content. */
+  onHeight: (rowId: string, height: "fill" | "fit") => void;
+  onMove: (widgetId: string, move: WallMove) => void;
   onRemove: (widgetId: string) => void;
   disabled?: boolean;
   className?: string;
 }
 
-const NUDGES: { direction: WallNudge; label: string; icon: typeof ArrowLeft }[] = [
-  { direction: "left", label: "Move left", icon: ArrowLeft },
-  { direction: "right", label: "Move right", icon: ArrowRight },
-  { direction: "up", label: "Move up a row", icon: ArrowUp },
-  { direction: "down", label: "Move down a row", icon: ArrowDown },
-];
+/** The presets offered for a stacked widget's height. */
+const HEIGHT_PRESETS = WALL_SHARE_PRESETS.filter((p) => [1 / 3, 1 / 2, 2 / 3].includes(p.share));
+
+const SHARE_WORDS: Record<string, string> = {
+  "¼": "A quarter",
+  "⅓": "A third",
+  "½": "Half",
+  "⅔": "Two thirds",
+  "¾": "Three quarters",
+};
+
+/** A column row's share of its column's height, when every row has a weight. */
+function heightShare(column: WallColumn, row: WallColumnRow): number | null {
+  const weights = column.rows.map((r) => r.size ?? (r.height === "fill" ? 1 : null));
+  if (weights.some((w) => w === null)) return null;
+  const total = weights.reduce<number>((sum, w) => sum + (w ?? 0), 0);
+  const own = row.size ?? (row.height === "fill" ? 1 : 0);
+  return total > 0 ? own / total : null;
+}
 
 /**
- * The selected widget's settings. The countdown widget renders
- * `CountdownEditor`, the same form Settings shows, because the countdown lives
- * at `/countdown`. A setting appears only when the renderer applies it
- * (`spec.settings`). The move buttons are the keyboard's half of the drag.
+ * The selected widget's settings. Its size comes first: one press gives it a
+ * quarter, a third, a half, two thirds or three quarters of its row (a
+ * stacked widget's column takes the share), and its height fits its content,
+ * fills the rest, or takes a share of its column. Move opens the same menu
+ * its toolbar on the TV does, for a phone or a keyboard. Then the settings its
+ * renderer applies (`spec.settings`), and for the strip the countdown's own
+ * form (`CountdownEditor`), because the countdown lives at `/countdown`.
  */
 export function WallWidgetPanel({
   layout,
@@ -63,17 +91,19 @@ export function WallWidgetPanel({
   countdownRefused = null,
   nowMs,
   onSelect,
-  onWidth,
   onSettings,
-  onNudge,
-  onStack,
+  onWidths,
+  onSizes,
+  onHeight,
+  onMove,
   onRemove,
   disabled = false,
   className,
 }: WallWidgetPanelProps) {
   const at = selectedId ? wallWidgetAt(layout, selectedId) : null;
+  const holder = selectedId ? wallSlotOf(layout, selectedId) : null;
 
-  if (!at) {
+  if (!at || !holder) {
     // Nothing selected offers the placed widgets as the choice, one press
     // each, the same selection a click in the preview makes.
     return (
@@ -101,10 +131,15 @@ export function WallWidgetPanel({
     );
   }
 
-  const { widget, row, rowIndex, index, column, parent } = at;
+  const { widget, column } = at;
   const spec = WALL_WIDGET_LIBRARY[widget.type];
-  const share = Math.round(wallWidthShare(row, widget.id));
   const filtered = widget.settings?.assets ?? null;
+  const { slot, row: topRow } = holder;
+  const slotWeight = topRow.widgets.reduce((sum, s) => sum + s.width, 0);
+  const share = slotWeight > 0 ? slot.width / slotWeight : 1;
+  const alone = topRow.widgets.length === 1;
+  const inner = column ? (at.row as WallColumnRow) : null;
+  const stackShare = column && inner ? heightShare(column, inner) : null;
 
   return (
     <div
@@ -118,10 +153,8 @@ export function WallWidgetPanel({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-foreground">{spec.label}</p>
-            <p className="text-xs text-muted-foreground">
-              {column && parent
-                ? `Row ${layout.rows.indexOf(parent) + 1} column, row ${rowIndex + 1}, position ${index + 1} of ${row.widgets.length}`
-                : `Row ${rowIndex + 1}, position ${index + 1} of ${row.widgets.length}`}
+            <p className="text-xs text-muted-foreground" data-wall-widget-position>
+              {wallWidgetWhere(layout, widget.id)?.where}
             </p>
           </div>
           <Button
@@ -137,86 +170,122 @@ export function WallWidgetPanel({
           </Button>
         </div>
 
-        {/* The share is what the operator reads; the slider moves the
-            weight behind it. */}
-        <div className="flex flex-col gap-1.5">
+        <WallMoveMenu
+          layout={layout}
+          widgetId={widget.id}
+          variant="panel"
+          disabled={disabled}
+          onMove={(move) => onMove(widget.id, move)}
+          onRemove={() => onRemove(widget.id)}
+        />
+
+        {/* Sizes as shares of what holds it: the row for its width, its
+            column (or the TV) for its height. */}
+        <div className="flex flex-col gap-1.5 border-t border-border pt-3" data-wall-size>
           <div className="flex items-baseline justify-between gap-2">
-            <label className="text-xs text-muted-foreground" htmlFor={`wall-width-${widget.id}`}>
-              Width
-            </label>
+            <span className="text-xs text-muted-foreground">{column ? "Column width" : "Width"}</span>
             <span className="text-xs tabular-nums text-foreground" data-wall-width-share>
-              {share}% of the row
+              {alone ? "The whole row" : `${wallShareLabel(share)} of the row`}
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="shrink-0"
-              aria-label="Narrower"
-              disabled={disabled || widget.width <= WALL_WIDTH_MIN}
-              onClick={() => onWidth(widget.id, roundWallWidth(widget.width - WALL_WIDTH_STEP))}
-            >
-              <Minus className="size-4" />
-            </Button>
-            <input
-              id={`wall-width-${widget.id}`}
-              type="range"
-              className="min-w-0 flex-1 accent-foreground max-sm:min-h-11"
-              min={WALL_WIDTH_MIN}
-              max={WALL_WIDTH_MAX}
-              step={WALL_WIDTH_STEP}
-              value={widget.width}
-              disabled={disabled}
-              onChange={(event) => onWidth(widget.id, Number(event.target.value))}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              size="icon"
-              className="shrink-0"
-              aria-label="Wider"
-              disabled={disabled || widget.width >= WALL_WIDTH_MAX}
-              onClick={() => onWidth(widget.id, roundWallWidth(widget.width + WALL_WIDTH_STEP))}
-            >
-              <Plus className="size-4" />
-            </Button>
-          </div>
-        </div>
+          {alone ? null : (
+            <div className="flex flex-wrap gap-1" role="group" aria-label={column ? "Column width" : "Width"}>
+              {WALL_SHARE_PRESETS.map((preset) => {
+                const width = wallShareWidth(topRow.widgets, slot.id, preset.share);
+                return (
+                  <Button
+                    key={preset.label}
+                    type="button"
+                    variant={Math.abs(share - preset.share) < 0.012 ? "default" : "outline"}
+                    size="sm"
+                    className="min-w-10 tabular-nums"
+                    aria-label={`${SHARE_WORDS[preset.label]} of the row`}
+                    aria-pressed={Math.abs(share - preset.share) < 0.012}
+                    disabled={disabled || width === null}
+                    onClick={() => width !== null && onWidths({ [slot.id]: width })}
+                    data-wall-width-preset={preset.label}
+                  >
+                    {preset.label}
+                  </Button>
+                );
+              })}
+            </div>
+          )}
 
-        {/* The same moves as the drag, for a keyboard. */}
-        <div className="flex flex-col gap-1.5">
-          <span className="text-xs text-muted-foreground">Move</span>
-          <div className="flex flex-wrap gap-1.5">
-            {NUDGES.map(({ direction, label, icon: Icon }) => (
-              <Button
-                key={direction}
-                type="button"
-                variant="outline"
-                size="sm"
-                aria-label={label}
-                disabled={disabled || !canNudge(layout, widget.id, direction)}
-                onClick={() => onNudge(widget.id, direction)}
-              >
-                <Icon className="size-4" />
-              </Button>
-            ))}
-            {/* A column stacks widgets beside a full-height one. One press
-                puts this widget in its row's column,
-                or takes it back out; a drop on a column row does the rest. */}
-            <Button
-              type="button"
-              variant={column ? "default" : "outline"}
-              size="sm"
-              aria-pressed={column !== null}
-              disabled={disabled || !canStack(layout, widget.id)}
-              onClick={() => onStack(widget.id)}
-              data-wall-stack
-            >
-              <Columns2 className="size-4" />
-              {column ? "Take out of column" : "Stack in column"}
-            </Button>
+          <div className="mt-1 flex items-baseline justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Height</span>
+          </div>
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Height">
+            {column && inner ? (
+              <>
+                <Button
+                  type="button"
+                  variant={inner.size === undefined && inner.height === "auto" ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={inner.size === undefined && inner.height === "auto"}
+                  disabled={disabled}
+                  onClick={() => onHeight(inner.id, "fit")}
+                  data-wall-height="fit"
+                >
+                  Fit content
+                </Button>
+                {HEIGHT_PRESETS.map((preset) => {
+                  const on = stackShare !== null && Math.abs(stackShare - preset.share) < 0.02;
+                  return (
+                    <Button
+                      key={preset.label}
+                      type="button"
+                      variant={on ? "default" : "outline"}
+                      size="sm"
+                      className="min-w-10 tabular-nums"
+                      aria-label={`${SHARE_WORDS[preset.label]} of the column`}
+                      aria-pressed={on}
+                      disabled={disabled}
+                      onClick={() => onSizes(wallStackShareSizes(column, inner.id, preset.share))}
+                      data-wall-height={preset.label}
+                    >
+                      {preset.label}
+                    </Button>
+                  );
+                })}
+                <Button
+                  type="button"
+                  variant={inner.size === undefined && inner.height === "fill" ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={inner.size === undefined && inner.height === "fill"}
+                  disabled={disabled}
+                  onClick={() => onHeight(inner.id, "fill")}
+                  data-wall-height="fill"
+                >
+                  Fill the rest
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant={topRow.height === "auto" ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={topRow.height === "auto"}
+                  disabled={disabled}
+                  onClick={() => onHeight(topRow.id, "fit")}
+                  data-wall-height="fit"
+                >
+                  Fit content
+                </Button>
+                <Button
+                  type="button"
+                  variant={topRow.height === "fill" ? "default" : "outline"}
+                  size="sm"
+                  aria-pressed={topRow.height === "fill"}
+                  disabled={disabled}
+                  onClick={() => onHeight(topRow.id, "fill")}
+                  data-wall-height="fill"
+                >
+                  Fill the rest
+                </Button>
+              </>
+            )}
           </div>
         </div>
 
@@ -320,7 +389,7 @@ function AssetFilter({
                   disabled={disabled}
                   onChange={() => toggle(asset.id)}
                 />
-                <span className="min-w-0 truncate">{asset.displayName}</span>
+                <span className="min-w-0 break-words">{asset.displayName}</span>
               </label>
               {showPulseMetrics && (selected === null || selected.includes(asset.id)) ? (
                 <fieldset className="mb-3 ml-6 flex min-w-0 flex-col gap-1" data-wall-pulse-picker={asset.id}>
