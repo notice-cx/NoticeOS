@@ -150,11 +150,11 @@ const ALLOWED_PHRASES = [
 ];
 
 /**
- * The altitude rule (doc 14 § Altitude). "4 / 6 fresh · 12 jobs" on the first
- * screen is the OS talking about itself, so every word has an altitude
- * (business, operational, technical) and a surface shows its own altitude or
- * lower, never higher. These are the BUSINESS surfaces, and the lower
- * altitudes' words that may not reach them.
+ * The level rule (doc 14 § Lexicon). "4 / 6 fresh · 12 jobs" on the first
+ * screen describes the OS itself, so every word has a level (business,
+ * operational, technical) and a surface uses words from its own level or a
+ * less technical one, never a more technical one. These are the BUSINESS
+ * surfaces, and the operational and technical words that may not reach them.
  *
  * A provider's name may appear on a business surface only as a chart key
  * beside its own line (Bing's blue is always beside the word "Bing"), which
@@ -304,7 +304,7 @@ test('every business surface is in the scan, and exists', () => {
   }
 });
 
-test('no business surface says a lower altitude\'s word', () => {
+test('no business surface shows a more technical level\'s word', () => {
   const offenders = [];
   for (const name of BUSINESS_SURFACES) {
     const text = withoutComments(readFileSync(path.join(REPO_ROOT, name), 'utf8'));
@@ -327,7 +327,7 @@ test('no business surface says a lower altitude\'s word', () => {
   assert.deepEqual(
     offenders,
     [],
-    'these business surfaces say a word from a lower altitude (doc 14 § Altitude):\n  ' +
+    'these business surfaces show a word from a more technical level (doc 14 § Lexicon):\n  ' +
       `${offenders.join('\n  ')}\n` +
       'Say it in business words, move the fact to the surface that owns it, or ' +
       'record the exception as a doc 14 row and an exact phrase in ALLOWED_ON_BUSINESS.',
