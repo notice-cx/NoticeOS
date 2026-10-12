@@ -1,6 +1,8 @@
 import { render } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { FlagRecord } from "@shared/asset-detail";
+import type { FlagRecord, WatchWindowItem } from "@shared/asset-detail";
+import { activityEvents } from "@/routes/asset-detail/activity-timeline";
+import { siteSourceGraph } from "@/routes/asset-detail/source-graph";
 import { ChangeRows, changeScale } from "@/components/viz/ChangeRows";
 import { FunnelBars } from "@/components/viz/FunnelBars";
 import { siteAlertTimeline } from "@/routes/asset-detail/AlertsTab";
@@ -157,6 +159,73 @@ describe("Money's month", () => {
     const equation = siteEquation(data.ledger, ledgerMonth(data.ledger)!, "2026-07")!;
     expect(equation).toMatchObject({ period: "2026-07", open: true, revenue: 0, cost: 69, net: -69, costRecorded: true });
     expect(siteLastMonth(data.ledger, equation)).toEqual({ period: "2026-06", revenue: 1890 });
+  });
+});
+
+describe("Activity's last ninety days", () => {
+  const ago = (days: number) => new Date(NOW - days * DAY).toISOString();
+  const watch = (over: Partial<WatchWindowItem>): WatchWindowItem => ({
+    id: "w1", metricIntegration: "ga4", metric: "sessions", scope: null, refKind: "manual", ref: "redesign",
+    registeredAt: ago(40), nextCheckDate: null, readings: 2, checks: 2, status: "closed", outcome: "kill_confirmed",
+    outcomeNote: null, closedAt: ago(8), note: "Trail page redesign", ...over,
+  });
+
+  it("marks each change on its row and a bet where it began and where its verdict came in", () => {
+    const events = activityEvents(
+      [
+        { id: 1, at: ago(36), kind: "deploy", ref: null, note: "Trail page redesign. Shipped behind no flag." },
+        { id: 2, at: ago(5), kind: "incident", ref: null, note: "Host outage" },
+        { id: 3, at: ago(120), kind: "config", ref: null, note: "Too old to draw" },
+      ],
+      { open: [watch({ id: "w2", status: "open", outcome: null, closedAt: null, registeredAt: ago(3), note: null })], closed: [watch({})] },
+      NOW,
+    );
+    expect(events.map((event) => [event.id, event.lane, event.kind, event.severity ?? null])).toEqual([
+      ["change:1", "changes", "shipped", null],
+      ["change:2", "changes", "problem", "error"],
+      ["watch:w2:start", "bets", "note", null],
+      ["watch:w1:start", "bets", "note", null],
+      ["watch:w1:verdict", "bets", "problem", "warn"],
+    ]);
+    expect(events[0]!.label).toBe("Trail page redesign");
+    expect(events.at(-1)!.label).toBe("Trail page redesign · decline confirmed");
+  });
+});
+
+describe("Data sources' graph", () => {
+  const columns = [
+    { id: "ga4", label: "Google Analytics", short: "GA4" },
+    { id: "bing-webmaster", label: "Bing Webmaster Tools", short: "Bing" },
+    { id: "uptime", label: "Uptime monitoring", short: "Uptime" },
+    { id: "clarity", label: "Microsoft Clarity", short: "Clarity" },
+    { id: "nightly-report", label: "Nightly report", short: "Report" },
+  ];
+
+  it("draws each connected source into the site, lights the failing one and names the rest", () => {
+    const graph = siteSourceGraph(
+      {
+        id: "meadow.example",
+        name: "Meadow Board",
+        cells: [
+          { column: "ga4", state: "not-connected" },
+          { column: "bing-webmaster", state: "working", detail: "35 daily rows" },
+          { column: "uptime", state: "failing", detail: "HTTP 503", since: "2026-07-05T13:20:00.000Z" },
+          { column: "clarity", state: "not-using" },
+          { column: "nightly-report", state: "overdue", detail: "Due daily" },
+        ],
+      },
+      columns,
+      { id: "meadow.example", name: "Meadow Board" },
+    );
+    expect(graph.nodes.map((node) => [node.id, node.state, node.caption ?? null])).toEqual([
+      ["bing-webmaster", "ok", null],
+      ["uptime", "error", "HTTP 503"],
+      ["nightly-report", "warn", "Due daily"],
+      ["meadow.example", "error", null],
+    ]);
+    expect(graph.nodes.find((node) => node.id === "nightly-report")!.label).toBe("Nightly report");
+    expect(graph.edges.every((edge) => edge.to === "meadow.example")).toBe(true);
+    expect(graph.notConnected).toEqual(["GA4"]);
   });
 });
 

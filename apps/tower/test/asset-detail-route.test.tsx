@@ -2699,8 +2699,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("picks a PostHog site's project by name and number, and adds a funnel by picking one of the project's saved funnels", async () => {
     const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { findByText, container } = renderRoute("meadow.example", "", "sources");
-    await findByText("PostHog");
+    const { container } = renderRoute("meadow.example", "", "sources");
+    await screen.findAllByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
     fireEvent.click(block.closest("details")!.querySelector("summary")!);
@@ -2726,8 +2726,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("removes a PostHog funnel with its own press, saved at once", async () => {
     const puts = stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, ACCOUNT);
-    const { findByText, container } = renderRoute("meadow.example", "", "sources");
-    await findByText("PostHog");
+    const { container } = renderRoute("meadow.example", "", "sources");
+    await screen.findAllByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
     fireEvent.click(block.closest("details")!.querySelector("summary")!);
@@ -2739,8 +2739,8 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
 
   it("types the PostHog project and funnels only when the account cannot be read", async () => {
     stubEditing(posthogLane(), NOT_CONNECTED, {}, null, null, false, null);
-    const { findByText, container } = renderRoute("meadow.example", "", "sources");
-    await findByText("PostHog");
+    const { container } = renderRoute("meadow.example", "", "sources");
+    await screen.findAllByText("PostHog");
     openLane("PostHog");
     const block = container.querySelector('[data-lane-mapping="posthog"]') as HTMLElement;
     fireEvent.click(block.closest("details")!.querySelector("summary")!);
@@ -3937,9 +3937,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meadow.example", "", "activity");
+    const { container } = renderRoute("meadow.example", "", "activity");
 
-    await findByText("Bets");
+    await screen.findByRole("heading", { name: "Bets" });
     expect(container.textContent).toContain("Google clicks");
     expect(container.textContent).toContain("Jul 4, 2026");
     expect(container.textContent).toContain("next check");
@@ -3993,9 +3993,9 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meadow.example", "", "activity");
+    const { container } = renderRoute("meadow.example", "", "activity");
 
-    await findByText("Bets");
+    await screen.findByRole("heading", { name: "Bets" });
     expect(container.querySelector("[data-watch-scope-subject]")?.textContent).toBe(
       "“high protein meal plan”",
     );
@@ -4043,8 +4043,8 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { container, findByText } = renderRoute("meadow.example", "", "activity");
-    await findByText("Bets");
+    const { container } = renderRoute("meadow.example", "", "activity");
+    await screen.findByRole("heading", { name: "Bets" });
 
     openRow("Google clicks");
     const row = container.querySelector('[data-watch-id="watch-for-mp-1w2"]');
