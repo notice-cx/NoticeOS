@@ -13,7 +13,7 @@
 // count is stored absent, never defaulted to 0.
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
-import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
+import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
 export type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
 import { rollUpBeadsDay, type BeadsDailyProject } from './beads-daily.js';
@@ -172,6 +172,14 @@ interface StoredHandoff {
   closedAt: string | null;
 }
 
+/** Who did the work, normalized: `model` is always a key, null when none was named. */
+type StoredWorker = Omit<BeadsWorkerInput, 'model'> & { model: string | null };
+type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence'> & { model: string | null; evidence: string | null };
+export const BEADS_MAX_WORKERS = 20;
+export const BEADS_MAX_WORK = 12;
+export const BEADS_MODEL_MAX = 128;
+export const BEADS_EVIDENCE_MAX = 300;
+
 interface StoredProject {
   asset: string;
   prefix: string;
@@ -186,6 +194,8 @@ interface StoredProject {
   waitingUrgent?: number;
   panelReview?: StoredPanelReview | null;
   handoffs?: StoredHandoff[];
+  workers?: StoredWorker[];
+  recentWork?: StoredWorkEvent[];
   ready: StoredIssue[];
   inProgress: StoredIssue[];
   recentlyClosed: StoredIssue[];
@@ -532,6 +542,44 @@ function parseHandoffList(
 }
 
 /** An OPTIONAL issue list — absent stays absent, present must be valid. */
+function parseWorkers(issues: Issues, value: unknown, path: string): StoredWorker[] | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  const rows = asObjectArray(issues, value, path, BEADS_MAX_WORKERS);
+  if (!rows) return null;
+  const out: StoredWorker[] = [];
+  for (const [index, raw] of rows.entries()) {
+    const at = `${path}.${index}`;
+    const id = requiredString(issues, raw.id, `${at}.id`, BEADS_ASSIGNEE_MAX);
+    const model = optionalString(issues, raw.model, `${at}.model`, BEADS_MODEL_MAX);
+    const closedRecent = nonNegativeInteger(issues, raw.closedRecent, `${at}.closedRecent`);
+    const inProgress = nonNegativeInteger(issues, raw.inProgress, `${at}.inProgress`);
+    if (id === null || closedRecent === null || inProgress === null) return null;
+    out.push({ id, model, closedRecent, inProgress });
+  }
+  return out;
+}
+
+function parseRecentWork(issues: Issues, value: unknown, path: string): StoredWorkEvent[] | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  const rows = asObjectArray(issues, value, path, BEADS_MAX_WORK);
+  if (!rows) return null;
+  const out: StoredWorkEvent[] = [];
+  for (const [index, raw] of rows.entries()) {
+    const at = `${path}.${index}`;
+    const kind = raw.kind === 'claimed' || raw.kind === 'closed' ? raw.kind : null;
+    if (kind === null) issues.add(`${at}.kind`, 'custom', `${at}.kind must be claimed or closed`);
+    const taskId = requiredString(issues, raw.taskId, `${at}.taskId`, BEADS_ID_MAX);
+    const title = requiredString(issues, raw.title, `${at}.title`, BEADS_TITLE_MAX);
+    const by = requiredString(issues, raw.by, `${at}.by`, BEADS_ASSIGNEE_MAX);
+    const model = optionalString(issues, raw.model, `${at}.model`, BEADS_MODEL_MAX);
+    const instant = optionalInstant(issues, raw.at, `${at}.at`);
+    const evidence = optionalString(issues, raw.evidence, `${at}.evidence`, BEADS_EVIDENCE_MAX);
+    if (kind === null || taskId === null || title === null || by === null || instant === null) return null;
+    out.push({ kind, taskId, title, by, model, at: instant, evidence });
+  }
+  return out;
+}
+
 function parseOptionalIssueList(
   issues: Issues,
   value: unknown,
@@ -573,6 +621,8 @@ function parseProject(
     asset ?? path,
     dropped,
   );
+  const workers = parseWorkers(issues, raw.workers, `${path}.workers`);
+  const recentWork = parseRecentWork(issues, raw.recentWork, `${path}.recentWork`);
   const ready = parseIssueList(issues, raw.ready, `${path}.ready`);
   const inProgress = parseIssueList(issues, raw.inProgress, `${path}.inProgress`);
   const recentlyClosed = parseIssueList(issues, raw.recentlyClosed, `${path}.recentlyClosed`);
@@ -588,6 +638,8 @@ function parseProject(
     waitingList === null ||
     waitingUrgent === null ||
     handoffs === null ||
+    workers === null ||
+    recentWork === null ||
     !ready ||
     !inProgress ||
     !recentlyClosed
@@ -616,6 +668,8 @@ function parseProject(
       (recentlyCreated?.length ?? 0) > 0 ||
       (waitingList?.length ?? 0) > 0 ||
       (handoffs?.length ?? 0) > 0 ||
+      (workers?.length ?? 0) > 0 ||
+      (recentWork?.length ?? 0) > 0 ||
       (epics?.length ?? 0) > 0)
   ) {
     issues.add(`${path}.ok`, 'custom', `${path} reported an error but still carried issues`);
@@ -645,6 +699,8 @@ function parseProject(
     // Absent leaves no key; `[]` is stored as `[]`, because "asked, nobody has
     // filed anything" is the only measurement that lets a card say untouched.
     ...(handoffs === undefined ? {} : { handoffs }),
+    ...(workers === undefined ? {} : { workers }),
+    ...(recentWork === undefined ? {} : { recentWork }),
   };
 }
 

@@ -99,6 +99,29 @@ export interface BeadsProjectInput {
      * untouched off the second.
      */
     handoffs?: BeadsHandoffInput[] | null;
+    /** Each worker and the model it named: closes in the closed window and
+     * work it holds. Absent when nobody holds or closed work. */
+    workers?: BeadsWorkerInput[] | null;
+    /** The newest claims and closes, newest first. Absent under the same rule. */
+    recentWork?: BeadsWorkEventInput[] | null;
+}
+/** One worker and model. A close belongs to the closer NoticeOS recorded, else
+ * to whoever held the task. */
+export interface BeadsWorkerInput {
+    id: string;
+    model?: string | null;
+    closedRecent: number;
+    inProgress: number;
+}
+/** One claim or close, with a close's evidence as the closer gave it. */
+export interface BeadsWorkEventInput {
+    kind: 'claimed' | 'closed';
+    taskId: string;
+    title: string;
+    by: string;
+    model?: string | null;
+    at: string;
+    evidence?: string | null;
 }
 /**
  * Where this property stands on triaging its last SERP panel. The runner's

@@ -94,3 +94,32 @@ test('a snapshot is filed at the given door, and a down runtime is one line, not
   assert.deepEqual(posted[0].body.projects.map((entry) => entry.asset), ['shop.example']);
   assert.match(lines[1], /beads snapshot resumed/u);
 });
+
+test('the snapshot names who did the work: each worker and model, and the newest claims and closes', async () => {
+  const { beadsWork } = await import('./task-snapshot-summary.mjs');
+  const active = [
+    { id: 'ex-1', title: 'Fix the export', status: 'in_progress', issue_type: 'task', assignee: 'claude', started_at: '2026-10-15T09:00:00Z',
+      metadata: { noticeos_claimed_model: 'Opus 5.5' } },
+    { id: 'ex-2', title: 'Unclaimed', status: 'open', issue_type: 'task' },
+    { id: 'ex-e', title: 'Epic', status: 'in_progress', issue_type: 'epic', assignee: 'claude' },
+  ];
+  const closed = [
+    { id: 'ex-3', title: 'Ship the list', status: 'closed', issue_type: 'task', assignee: 'claude', started_at: '2026-10-14T08:00:00Z',
+      closed_at: '2026-10-14T18:00:00Z', close_reason: 'Lists print · 3f2a91c',
+      metadata: { noticeos_closed_by: 'codex', noticeos_closed_at: '2026-10-14T18:00:00.000Z', noticeos_closed_model: 'GPT-5-Codex' } },
+    // A record for an earlier close does not name this one's closer.
+    { id: 'ex-4', title: 'Reopened', status: 'closed', issue_type: 'task', assignee: 'Mara', closed_at: '2026-10-15T10:00:00Z',
+      close_reason: 'x'.repeat(400), metadata: { noticeos_closed_by: 'claude', noticeos_closed_at: '2026-10-01T10:00:00Z' } },
+  ];
+  const { workers, recentWork } = beadsWork(active, closed);
+  assert.deepEqual(workers, [
+    { id: 'codex', model: 'GPT-5-Codex', closedRecent: 1, inProgress: 0 },
+    { id: 'Mara', model: null, closedRecent: 1, inProgress: 0 },
+    { id: 'claude', model: 'Opus 5.5', closedRecent: 0, inProgress: 1 },
+  ]);
+  assert.deepEqual(recentWork.map(event => [event.kind, event.taskId, event.by, event.model]), [
+    ['closed', 'ex-4', 'Mara', null], ['claimed', 'ex-1', 'claude', 'Opus 5.5'], ['closed', 'ex-3', 'codex', 'GPT-5-Codex'], ['claimed', 'ex-3', 'claude', null],
+  ]);
+  assert.equal(recentWork[0].evidence.length, 300);
+  assert.equal(recentWork[2].evidence, 'Lists print · 3f2a91c');
+});

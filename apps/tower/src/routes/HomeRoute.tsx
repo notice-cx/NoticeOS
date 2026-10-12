@@ -34,6 +34,7 @@ import { useWallFeed } from "@/hooks/useWallFeed";
 import { useWork } from "@/hooks/useWork";
 import { useDemoReadonly } from "@/lib/browser-context";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
+import { AGENTS_ROUTE } from "@/components/nav-items";
 import { greeting, peopleYesterday } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
@@ -354,7 +355,39 @@ export function byWaitingUrgency(a: WaitingRow, b: WaitingRow): number {
 
 function LiveDecidePanel({ nowMs }: { nowMs: number }) {
   const work = useWork();
-  return <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />;
+  return (
+    <>
+      <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />
+      <AgentsLine work={work.data} />
+    </>
+  );
+}
+
+/**
+ * What the agents did in the last 7 days, in one line under Decide: their
+ * closes, the busiest by name, and the way to the Agents page. An agent is a
+ * worker that named a model; nothing is drawn until one has.
+ */
+export function AgentsLine({ work }: { work: WorkPayload | undefined }) {
+  const totals = new Map<string, { name: string; closed: number; agent: boolean }>();
+  for (const project of work?.projects ?? []) {
+    for (const worker of project.ok ? project.workers ?? [] : []) {
+      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, agent: false };
+      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, agent: entry.agent || worker.model !== null });
+    }
+  }
+  const agents = [...totals.values()].filter((entry) => entry.agent).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));
+  if (agents.length === 0) return null;
+  const closed = agents.reduce((sum, entry) => sum + entry.closed, 0);
+  return (
+    <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 px-1 text-sm" data-home-agents="">
+      <span className="font-semibold text-foreground">Agents closed {formatInt(closed)} {closed === 1 ? "task" : "tasks"} in 7 days</span>
+      {agents.slice(0, 3).map((entry) => (
+        <span key={entry.name} className="text-muted-foreground">· {entry.name} <span className="tabular-nums">{formatInt(entry.closed)}</span></span>
+      ))}
+      <Link to={AGENTS_ROUTE} className="font-medium text-foreground underline-offset-4 hover:underline">Agents →</Link>
+    </p>
+  );
 }
 
 function queueItem(row: WaitingRow, nowMs: number): QueueItem {

@@ -254,6 +254,60 @@ function beadsIssue(row) {
  */
 export { gateReason as beadsGateReason };
 
+/** Who did the work, as the Tower's Home line and the Wall read it without a
+ * live task read: each worker and model's closes in the closed window and the
+ * work it holds, and the newest claims and closes with their evidence. */
+export const BEADS_WORKER_LIMIT = 20;
+export const BEADS_WORK_LIMIT = 12;
+/** A close reason is evidence, kept whole up to here and cut beyond. */
+export const BEADS_EVIDENCE_MAX = 300;
+
+/** Who a closed row's close belongs to: the closer NoticeOS recorded for this
+ * close, else whoever held it. */
+function beadsCloser(row) {
+  const by = beadsText(row?.metadata?.[TASK_METADATA.closedBy.name]);
+  const at = Date.parse(beadsText(row?.metadata?.[TASK_METADATA.closedAt.name]));
+  const closed = Date.parse(beadsText(row?.closed_at));
+  return by && Number.isFinite(at) && Math.abs(at - closed) <= 1000 ? by : beadsText(row?.assignee);
+}
+function beadsModel(row, closed) {
+  return (closed ? beadsText(row?.metadata?.[TASK_METADATA.closedModel.name]) : '')
+    || beadsText(row?.metadata?.[TASK_METADATA.claimedModel.name]) || null;
+}
+
+/** Each worker and model's closed and held work, and the newest claims and
+ * closes. Rows here are the raw reads, which still carry the metadata the
+ * board's rows drop. */
+export function beadsWork(activeRows, closedRows) {
+  const work = (rows) => (Array.isArray(rows) ? rows : [])
+    .filter((row) => beadsText(row?.id) !== '' && beadsText(row?.issue_type, 'task') !== BEADS_CONTAINER_TYPE && row?.issue_type !== 'gate');
+  const held = work(activeRows).filter((row) => row?.status === 'in_progress' && beadsText(row?.assignee) !== '');
+  const closed = work(closedRows).filter((row) => beadsInstant(row?.closed_at) !== null && beadsCloser(row) !== '');
+  const tally = new Map();
+  const entry = (id, model) => {
+    const key = `${id}\0${model ?? ''}`;
+    if (!tally.has(key)) tally.set(key, { id, model, closedRecent: 0, inProgress: 0 });
+    return tally.get(key);
+  };
+  for (const row of closed) entry(beadsCloser(row), beadsModel(row, true)).closedRecent += 1;
+  for (const row of held) entry(beadsText(row.assignee), beadsModel(row, false)).inProgress += 1;
+  const workers = [...tally.values()]
+    .sort((a, b) => b.closedRecent - a.closedRecent || b.inProgress - a.inProgress || a.id.localeCompare(b.id))
+    .slice(0, BEADS_WORKER_LIMIT);
+  const evidence = (row) => {
+    const reason = beadsText(row?.close_reason);
+    return reason === '' ? null : reason.length > BEADS_EVIDENCE_MAX ? `${reason.slice(0, BEADS_EVIDENCE_MAX - 1)}…` : reason;
+  };
+  const events = [
+    ...closed.map((row) => ({ kind: 'closed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsCloser(row),
+      model: beadsModel(row, true), at: beadsInstant(row.closed_at), evidence: evidence(row) })),
+    ...[...held, ...closed].filter((row) => beadsInstant(row?.started_at) !== null && beadsText(row?.assignee) !== '')
+      .map((row) => ({ kind: 'claimed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsText(row.assignee),
+        model: beadsModel(row, false), at: beadsInstant(row.started_at), evidence: null })),
+  ].sort((a, b) => b.at.localeCompare(a.at) || (a.kind === 'closed' ? -1 : 1)).slice(0, BEADS_WORK_LIMIT);
+  return { workers, recentWork: events };
+}
+
 function beadsIssues(parsed) {
   if (!Array.isArray(parsed)) return [];
   return parsed.filter((row) => beadsText(row?.id) !== '').map(beadsIssue);
@@ -375,6 +429,7 @@ export function summarizeBeadsProject(project, results) {
   }
 
   const work = (issues) => issues.filter((issue) => issue.issueType !== BEADS_CONTAINER_TYPE);
+  const agentWork = beadsWork(parsed.active, parsed.closed);
   const active = work(beadsIssues(parsed.active));
   const ready = work(beadsIssues(parsed.ready));
   const blocked = work(beadsIssues(parsed.blocked));
@@ -522,5 +577,9 @@ export function summarizeBeadsProject(project, results) {
     ...(sawWaiting ? { waiting: waiting.slice(0, BEADS_WAITING_LIMIT) } : {}),
     ...(sawPanelReview ? { panelReview: panelReviewEntry(parsed.panelReview) } : {}),
     ...(sawHandoffs ? { handoffs: handoffEntries(parsed.handoffs, project.asset) } : {}),
+    // Absent when nobody holds or closed work in the window, so a board
+    // without either reads as it always did.
+    ...(agentWork.workers.length ? { workers: agentWork.workers } : {}),
+    ...(agentWork.recentWork.length ? { recentWork: agentWork.recentWork } : {}),
   };
 }
