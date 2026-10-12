@@ -1,5 +1,6 @@
 import type { LiveTask, LiveTasksPayload, TasksCapabilities, TaskProject, TaskActor } from "@shared/tasks";
 import { PRIORITY_BANDS, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
+import { waitsOnPerson } from "@noticeos/contract/task-gate";
 
 export const IN_PROGRESS = "in_progress";
 export const PARKED = "deferred";
@@ -84,19 +85,15 @@ export function isGate(task: Pick<WorkItem, "issueType"> & { awaitType?: string 
  * What the operator's inbox asks of a task, or null when it is not waiting on
  * the operator: a human gate is approved (`bd gate resolve`), and a ready task
  * labelled `human` is answered or dismissed (`bd human respond` / `dismiss`).
- * The one rule the board's Waiting on you and a task's own page both read. A
- * timer or GitHub gate resolves itself and asks nothing.
+ * The board's Waiting on you, a task's own page and the agents' task tools all
+ * read the one rule, `waitsOnPerson`. A timer or GitHub gate asks nothing.
  */
 export type InboxAsk = "approve" | "answer";
 
 export function inboxAsk(
   task: Pick<LiveTask, "issueType" | "status" | "labels" | "ready"> & { awaitType?: string | null },
 ): InboxAsk | null {
-  if (task.status === PARKED || task.status === "closed") return null;
-  const waits = isGate(task)
-    ? (task.awaitType ?? "human") === "human"
-    : task.labels.includes("human") && task.ready;
-  return waits ? askVerb(task) : null;
+  return waitsOnPerson(task) ? askVerb(task) : null;
 }
 
 /** The verb for a row ALREADY in the inbox — the photograph's `waiting` list

@@ -12,3 +12,17 @@ export declare function gateReason(description: unknown): string | null;
 /** The title a human gate is shown by: the ask it holds, or its own title when
  * it holds none. */
 export declare function gateTitle(title: string, description: unknown): string;
+/**
+ * Whether a task is in the operator's Waiting on you: an open human gate, which
+ * a person approves, or a ready task labelled `human`, which a person answers
+ * or dismisses. A parked or closed task waits on nobody, and a timer or GitHub
+ * gate resolves itself. A photographed gate carries no await type; every gate
+ * the photograph keeps is a human one.
+ */
+export declare function waitsOnPerson(task: {
+    readonly issueType: string;
+    readonly awaitType?: string | null;
+    readonly status: string;
+    readonly labels: readonly string[];
+    readonly ready: boolean;
+}): boolean;
