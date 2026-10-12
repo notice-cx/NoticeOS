@@ -2808,6 +2808,9 @@ export function KitchenSinkRoute() {
               <VisualKitGallery />
             </div>
           </Section>
+          <Section title="Visual kit for a site's tabs: ChangeRows, FunnelBars">
+            <p className="text-xs text-muted-foreground">Staged in the gallery above, under Changes and funnels.</p>
+          </Section>
 
           <Section title="PageAnswer and FinishLine (a screen's answer and a list's end)">
             <div className="flex w-full flex-col gap-4">

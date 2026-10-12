@@ -172,7 +172,7 @@ export function partialDays(measure: Pick<Measure, "days">): string[] {
 
 const hasPoints = (trend: SignalTrend) => trend.series.length > 0;
 
-interface TrafficInput {
+export interface TrafficInput {
   key: "people" | "search";
   name: string;
   unit: string;
@@ -185,7 +185,7 @@ interface TrafficInput {
  * the page has for a metric over a window. The usual level is the window
  * before it, a day at a time, so the chart's dashed line is the same
  * comparison the figure's change is made against. */
-function trafficMeasure({ key, name, unit, kind, sources, days }: TrafficInput): Measure {
+export function trafficMeasure({ key, name, unit, kind, sources, days }: TrafficInput): Measure {
   const window = metricWindow(sources.map((one) => one.trend), days, kind);
   const end = window.merged.series.at(-1)!.t;
   const { days: drawn, gaps } = measureDays(

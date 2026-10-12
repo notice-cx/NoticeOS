@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { BarStrip } from "@/components/viz/BarStrip";
+import { ChangeRows } from "@/components/viz/ChangeRows";
 import { DecisionQueue } from "@/components/viz/DecisionQueue";
+import { FunnelBars } from "@/components/viz/FunnelBars";
 import { EventTimeline } from "@/components/viz/EventTimeline";
 import { eventTimelineCompact, eventTimelineDay, eventTimelineWeek } from "@/components/viz/EventTimeline.fixtures";
 import { FitLabel } from "@/components/viz/FitLabel";
@@ -227,7 +229,60 @@ export function VisualKitGallery() {
           <PortfolioRows rows={PORTFOLIO} formatMoney={usd} />
         </Specimen>
       </Group>
+
+      <ChangesAndFunnels peopleAverage={peopleAverage} />
     </div>
+  );
+}
+
+/** Several measures against their own earlier windows, and counts that
+ * narrow step by step: a site's Growth, Search and Money tabs. */
+function ChangesAndFunnels({ peopleAverage }: { peopleAverage: number }) {
+  const strip = (scale: number) => (
+    <BarStrip
+      data={PEOPLE_14.map((point) => ({ t: point.t, v: Math.round(point.v * scale) }))}
+      tone="text-traffic"
+      baseline={{ value: peopleAverage * scale * 1.1, label: `prior ${formatInt(peopleAverage * scale * 1.1)}` }}
+      format={formatInt}
+      ariaLabel="A day, last 14 days"
+      className="h-12"
+    />
+  );
+  return (
+    <Group title="Changes and funnels">
+      <Specimen id="change-rows" title="ChangeRows — each measure against its earlier window, moves as bars from one zero line" className="w-[40rem]">
+        <ChangeRows
+          title="Visitors"
+          caption="last 14 days"
+          against="vs prior 14 days"
+          rows={[
+            { key: "people", label: "Active users", figure: "3,891", unit: "a day", improvement: 12.4, change: <span className="text-trend-positive">↑ 12%</span>, history: strip(1) },
+            { key: "sessions", label: "Sessions", figure: "61,204", unit: "visits", improvement: -8.1, change: <span className="text-trend-negative">↓ 8.1%</span>, history: strip(16) },
+            { key: "events", label: "Events", figure: null, absent: "too few days yet", improvement: null },
+          ]}
+        />
+      </Specimen>
+      <Specimen id="change-rows-narrow" title="ChangeRows in a narrow column" className="w-[22rem]">
+        <ChangeRows
+          title="In search"
+          against="vs prior 14 days"
+          rows={[{ key: "clicks", label: "Clicks", figure: "2,410", unit: "from search", improvement: -31, change: <span className="text-trend-negative">↓ 31%</span>, history: strip(0.6) }]}
+        />
+      </Specimen>
+      <Specimen id="funnel-bars" title="FunnelBars — a count narrowing step by step on one ruler, a step nobody measured hatched" className="w-[32rem]">
+        <FunnelBars
+          ariaLabel="Tracked search terms by rank"
+          shares
+          steps={[
+            { key: "tracked", label: "Tracked", value: 12, fill: "bg-foreground/30" },
+            { key: "ranking", label: "Ranking", value: 9, note: "inside top 20", fill: "bg-traffic/45" },
+            { key: "top10", label: "Top 10", value: 5, fill: "bg-traffic/70" },
+            { key: "top3", label: "Top 3", value: 2, fill: "bg-traffic" },
+            { key: "aio", label: "Cites us", value: null, note: "not checked" },
+          ]}
+        />
+      </Specimen>
+    </Group>
   );
 }
 
