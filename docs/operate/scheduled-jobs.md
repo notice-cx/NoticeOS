@@ -62,7 +62,7 @@ Some things are never caught up, by design: database migrations, restores, setti
 
 A collection fed by a provider connection is changed with that connection: open **Integrations**, select the connection, and use its **Manage** panel. A collection no connection feeds is changed under **Settings** > **Data collection**.
 
-The **Workflows** page (`/workflows`) lists the operator automations with their history; their schedules are edited the same way. Saved schedules survive restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
+The [Workflows](/tower/workflows) page (`/workflows`) lists the operator automations with their history; their schedules are edited the same way. Saved schedules survive restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
 
 ::: tip Pausing is a real stop
 A paused job does not run on its schedule, is not caught up after downtime, and refuses **Start collecting** from a connection panel until you resume it.

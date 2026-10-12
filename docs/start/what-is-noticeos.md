@@ -32,7 +32,7 @@ NoticeOS never turns missing data into a zero.
 
 When a collector fails, a provider is late, or a day is not yet final, the number stays **unknown** and the screen says so. A chart stops at the last reported hour instead of drawing a flat line at zero. A revenue estimate is labelled an estimate until it is reconciled.
 
-For you this means two things. A zero on a card is a real zero that a source reported. And a gap on a card is a question to ask, not a loss to mourn. Open **System health** to see which collection fell behind and why.
+For you this means two things. A zero on a card is a real zero that a source reported. And a gap on a card is a question to ask, not a loss to mourn. Open [System health](/tower/health) to see which collection fell behind and why.
 
 ## Who it is for
 

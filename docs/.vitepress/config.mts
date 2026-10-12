@@ -114,10 +114,12 @@ export default defineConfig({
         items: [
           { text: 'What the Tower is', link: '/tower/' },
           { text: 'Home', link: '/tower/home' },
+          { text: 'Workflows', link: '/tower/workflows' },
           { text: 'Sites', link: '/tower/sites' },
           { text: 'Alerts', link: '/tower/alerts' },
           { text: 'Tasks', link: '/tower/tasks' },
           { text: 'Money', link: '/tower/financials' },
+          { text: 'System health', link: '/tower/health' },
           { text: 'Integrations', link: '/tower/integrations' },
           { text: 'Settings', link: '/tower/settings' },
           { text: 'The Wall', link: '/tower/wall' },

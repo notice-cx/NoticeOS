@@ -25,12 +25,12 @@ The sidebar lists the pages in the order you are likely to need them.
 | Page | What it answers |
 |---|---|
 | [Home](/tower/home) | How the business is doing, what is broken and what needs you. The Tower opens here. |
-| **Workflows** | What NoticeOS runs on its own, on what schedule, and how each run went. |
+| [Workflows](/tower/workflows) | What NoticeOS runs on its own, on what schedule, and how each run went. |
 | [Sites](/tower/sites) | Which site needs you. Each site also has its own page. |
 | [Alerts](/tower/alerts) | What needs attention right now, and how badly. |
 | [Tasks](/tower/tasks) | How big the work queue is, and what in it waits on you. |
 | [Money](/tower/financials) | Whether the month is earning, and where the money comes from and goes. |
-| **System health** | Whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend. |
+| [System health](/tower/health) | Whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend. |
 | [Integrations](/tower/integrations) | Which provider accounts are connected, and how to connect another. |
 | [Settings](/tower/settings) | What applies to the whole installation. |
 
