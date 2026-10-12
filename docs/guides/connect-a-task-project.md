@@ -5,13 +5,13 @@ description: "Give a site's code repository its own task list on the shared boar
 
 # Connect a task project
 
-This page connects a site's code repository to the shared **Tasks** board, so people and agents working in that checkout read and update the tasks you see. Use it for a new project, or for an existing project whose checkout has moved.
+This page shows how to connect a site's code repository to the shared **Tasks** board, so people and agents working in that checkout read and update the tasks you see. Use it for a new project, or for an existing project whose checkout has moved.
 
-A **task project** is one site's list of tasks. Every project lives in the installation's one **task database**, which runs in the `dolt` container of the stack, and every task id starts with its project's short prefix, such as `ex-a1b2`. The site's **checkout** is the copy of its code repository on your machine, where you and your agents work. Connecting the two means anyone working in that checkout sees and changes the same tasks as the **Tasks** page. The task model comes from [Beads](https://github.com/gastownhall/beads), and `bd` is its command-line tool.
+A **task project** is one site's list of tasks. Every project is stored in the installation's one **task database**, which runs in the `dolt` container of the stack, and every task id starts with its project's short prefix, such as `ex-a1b2`. The site's **checkout** is the copy of its code repository on your machine, where you and your agents work. Connecting the two means anyone working in that checkout sees and changes the same tasks that the **Tasks** page shows. The task model comes from [Beads](https://github.com/gastownhall/beads), and `bd` is its command-line tool.
 
 ## Before you begin
 
-NoticeOS keeps one shared task database for the whole installation. Every project you connect gets its own list inside it, identified by a short prefix. Status, owners, blockers and approvals live in one place.
+NoticeOS keeps one shared task database for the whole installation. Every project you connect gets its own list inside it, identified by a short prefix. Status, owners, blockers and approvals are stored in one place.
 
 A new installation already includes a NoticeOS task project, so **Tasks** works before you add a website. See [Tasks](/tower/tasks) for the board itself.
 
@@ -20,23 +20,23 @@ You need:
 - The site added in NoticeOS. See [Add your first site](/guides/add-your-first-site). Its site id, its task prefix and its task database are three different names; the examples below use `example.com`, `ex` and `ex_tasks`.
 - A clean checkout of the project's code repository, on the machine that holds the task database, with no `.beads/` folder yet.
 - The task tool `bd`, the native version named in [Install from source](/start/install-from-source). An agent's Docker `bd` wrapper cannot initialize a project.
-- The task database answering: **Settings** > **Task projects** reads **Available**.
+- The task database running: **Settings** > **Task projects** shows **Available**.
 
-On a hosted installation the section carries a **Read-only here** chip and the list cannot be edited, because the commands have to run on the machine that holds the task database.
+On a hosted installation the section shows a **Read-only here** chip and the list cannot be edited, because the commands have to run on the machine that holds the task database.
 
 ## Add the project in Settings
 
 1. Open **Settings** and select **Task projects**.
-2. Read the **Task database** line. It should say **Available** with a project count. **Unavailable** or **Stale** means the task database is not answering; fix that first.
+2. Read the **Task database** line. It should show **Available** with a project count. **Unavailable** or **Stale** means the task database is not responding; fix that first.
 3. In the **Projects** table, select **Add** and fill in three cells:
    - **Site**: the site from the list. Only sites with no project yet are offered.
    - **Prefix**: two to eight lowercase letters, such as `ex`. Every task id in the project starts with it. It must be unused.
    - **Database**: a name starting with a lowercase letter, using lowercase letters, digits or underscores, such as `ex_tasks`. It must be unused.
 4. Save the row. It is saved at once, with **Undo**, and a checklist opens under the table, headed **example.com is mapped** with the number of steps left.
 
-Saving the row only records the mapping. The database does not exist yet, the code repository does not know about it, and no agent has access. The checklist is how the product says so.
+Saving the row only records the mapping. The database does not exist yet, the code repository is not connected to it, and no agent has access. The checklist lists the steps that remain.
 
-## Run the steps the product hands you
+## Run the checklist steps
 
 Each step has a title and a block to copy, labelled with where it goes.
 
@@ -48,13 +48,13 @@ Each step has a title and a block to copy, labelled with where it goes.
 
 ### What initializing does
 
-On a source installation the command runs the installation's own helper, `scripts/dolt-project.mjs`. It creates only the new database and connects the checkout to it. It keeps the repository's hooks and agent instructions, turns off automatic imports and Git operations, and refuses an existing database, a dirty checkout or an existing `.beads/` folder.
+On a source installation the command runs the installation's own helper, `scripts/dolt-project.mjs`. It creates only the new database and connects the checkout to it. It keeps the repository's hooks and agent instructions, turns off automatic imports and Git operations, and stops without changing anything if the database already exists, the checkout has uncommitted or untracked files, or a `.beads/` folder exists.
 
 If it fails or you are unsure whether it finished, keep its files and the database as they are and recover deliberately. Do not retry with `bd init`. On an installation you did not just create, agree the exact new database with its owner before you run it.
 
 ### What the project instructions step does
 
-**Prepare project instructions** writes a marked NoticeOS section into the project's `AGENTS.md`, and into `CLAUDE.md` when that file already exists. The section carries the [task rules](../../config/beads.README.md#the-spoke-stanza) an agent working in that repository follows, and links back to your NoticeOS checkout. It keeps the project's existing instructions, excludes `.beads/` and `.beads.gate.lock` from Git, and creates the private lock file. It refuses to replace conflicting task instructions, and it refuses when task connection files are already tracked; resolve either by hand.
+**Prepare project instructions** writes a marked NoticeOS section into the project's `AGENTS.md`, and into `CLAUDE.md` when that file already exists. The section contains the [task rules](../../config/beads.README.md#the-spoke-stanza) an agent working in that repository follows, and links back to your NoticeOS checkout. It keeps the project's existing instructions, excludes `.beads/` and `.beads.gate.lock` from Git, and creates the private lock file. It stops without changing anything if the files already hold conflicting task instructions, or if task connection files are already tracked in Git; resolve either by hand.
 
 It contacts no provider and no database. To see the proposed changes first, run it from the NoticeOS checkout with `--check`:
 
@@ -64,7 +64,7 @@ pnpm project:prepare -- --repo /absolute/project-checkout --check
 
 Review the diff, then add the project's own goal, architecture, verification commands, protected operations and dated state, following [the site context mapping](../09-onboarding-a-site.md#agentsmd-mapping-before-a-builder-touches-the-site). Commit the instructions under the project's own Git policy. Never commit `.beads/` or any credential.
 
-If the NoticeOS checkout moves later, the link in the marked section goes stale. Preparation refuses a changed section, so fix the link by hand.
+If the NoticeOS checkout moves later, the link in the marked section points to the old location. The preparation command stops when the marked section has been changed, so fix the link by hand.
 
 ### Where the checkout link goes
 
@@ -79,7 +79,7 @@ On a source installation the file is `<installation-folder>/installation/task-ho
 }
 ```
 
-On the prepared container, `repo` is the container path, such as `/spokes/example`: the installation's task-repository folder (`NOTICEOS_SPOKES_DIR` in `installation.env`) is mounted at `/spokes`, so the checkout lives inside it. To mount another folder, change that line and run `pnpm os:apply`; that is a host-administrator step. The [host-link contract](../../config/task-host.README.md) and the [container guide](../../deploy/compose/README.md) hold the details.
+On the prepared container, `repo` is the container path, such as `/spokes/example`: the installation's task-repository folder (`NOTICEOS_SPOKES_DIR` in `installation.env`) is mounted at `/spokes`, so the checkout must be inside that folder. To mount another folder, change that line and run `pnpm os:apply`; that is a host-administrator step. The [host-link contract](../../config/task-host.README.md) and the [container guide](../../deploy/compose/README.md) have the details.
 
 This link is what lets the product read the checkout's tasks, run local task actions in it and keep them backed up.
 
@@ -106,12 +106,12 @@ Connecting a project gives people and agents a shared list. It grants no agent a
 
 Do not run **Initialize a new task database** and do not run `bd init`. Find the project's original service, database, prefix and project identity, and save the row with those exact names. Restore only the connection settings into a new private `.beads/` folder and its `config.yaml`; never import an old JSONL export or copy a local task database into it. The steps are in [Moving a maintainer checkout](../../config/beads.README.md#moving-a-maintainer-checkout).
 
-Moving a project between two different task hubs is a migration, not setup. Keep the old hub in charge until that migration has its own evidence and approval.
+Moving a project from one task database server to another is a migration, which this page does not cover. Keep the project on the old server until that migration has its own evidence and approval.
 
 ## Verify
 
 - From the project checkout, `bd ready` and `bd list` run without error. A new project correctly returns no tasks; an existing one returns its known tasks with their original prefix.
-- On **Tasks**, the **Project** filter lists the site, and its rows carry the prefix.
+- On **Tasks**, the **Project** filter lists the site, and its rows show the prefix.
 - On **Settings** > **Task projects**, the **Found** column stays blank for the row.
 - In the project repository, the instructions are committed and `.beads/` is untracked.
 
@@ -119,11 +119,11 @@ To check an installation you did not just create, ask its owner first, and never
 
 ## If it didn't work
 
-- The **Task database** line reads **Unavailable** or **Stale**: the task database is not answering. Start it, then come back.
+- The **Task database** line shows **Unavailable** or **Stale**: the task database is not responding. Start it, then come back.
 - The **Found** column shows a warning dot, with **example.com is not being backed up** under the table: no database by that name exists. Select **Edit name** to fix the cell, or copy the **Keep** command to create it.
-- **Initialize a new task database** refuses: the database already exists, the checkout is dirty or it already has `.beads/`. Commit or stash, or follow [A project that already has tasks](#a-project-that-already-has-tasks).
-- **Tasks** says **1 project could not be read** and names the site: point at the name to read the reason, then check the `task-host.json` entry and, on the container, its mount.
-- `bd` refuses in the checkout: check the credential file, or the Docker adapter's `spokes` list.
+- The **Initialize a new task database** command stops with an error: the database already exists, the checkout has uncommitted or untracked files, or it already has `.beads/`. Commit or stash, or follow [A project that already has tasks](#a-project-that-already-has-tasks).
+- **Tasks** shows **1 project could not be read** and the site's name: point at the name to see the reason, then check the `task-host.json` entry and, on the container, its mount.
+- `bd` fails in the checkout: check the credential file, or the Docker adapter's `spokes` list.
 
 Never start a second task database server, use `br`, or run `bd dolt push` or `bd dolt pull` as a repair. Follow the installation's [task database recovery](../../db/dolt/host/README.md#backup-and-recovery). More symptoms are in [Troubleshooting](/operate/troubleshooting).
 

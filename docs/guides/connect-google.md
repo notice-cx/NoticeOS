@@ -5,23 +5,23 @@ description: "Sign in with Google once to collect Search Console and GA4 data fo
 
 # Connect Google
 
-This page gets Google Search Console and Google Analytics 4 collecting for your sites through one sign-in.
+This page shows how to start collecting Google Search Console and Google Analytics 4 data for your sites with one sign-in.
 
 ## Before you begin
 
 - A Google account that can read the site's GA4 property and Search Console site.
 - On a self-hosted installation, access to the Google Cloud console to register your own sign-in app once.
 
-The sign-in asks for two read-only permissions and your email address. The panel shows them as **Analytics · read only** and **Search Console · read only**. Nothing can be written, verified or deleted at Google with them. A sign-in that comes back without either permission is refused, not stored.
+The sign-in requests two read-only permissions and your email address. The panel shows them as **Analytics · read only** and **Search Console · read only**. Nothing can be written, verified or deleted at Google with them. If a sign-in returns with either permission missing, NoticeOS rejects it and stores nothing.
 
 ### Which panel you will see
 
 Open **Integrations** and select **Connect** on the Google row. What the panel shows depends on your installation:
 
-- **Hosted**: the installation already has a Google sign-in app, so the panel is one button, **Continue with Google**.
-- **Self-hosted**: you register your own sign-in app once in the Google Cloud console. The panel walks you through it.
+- **Hosted**: the installation already has a Google sign-in app, so the panel has one button, **Continue with Google**.
+- **Self-hosted**: you register your own sign-in app once in the Google Cloud console. The panel shows the steps.
 
-The older way in, a service account with a JSON key granted on every property, still works for installations already using it. The panel links to it as **Service account instead**.
+The older method, a service account with a JSON key granted on every property, still works for installations already using it. The panel links to it as **Service account instead**.
 
 ### What is collected
 
@@ -47,7 +47,7 @@ The panel shows two numbered steps with links into the Google Cloud console, the
 
 ## If you opened the Tower from another computer
 
-Google accepts a plain `http://` return address only on the computer running NoticeOS itself (`127.0.0.1` or `localhost`). If you opened the Tower by its network address, the panel offers **Open on 127.0.0.1** instead of **Continue with Google**.
+Google accepts a plain `http://` return address only on the computer running NoticeOS itself (`127.0.0.1` or `localhost`). If you opened the Tower by its network address, the panel shows **Open on 127.0.0.1** instead of **Continue with Google**.
 
 1. On the computer running NoticeOS, select **Open on 127.0.0.1**, or open the Tower at `http://127.0.0.1` with its usual port.
 2. Make sure the redirect address the panel shows there is in the web client's redirect list.
@@ -60,25 +60,25 @@ An installation served over `https://` needs none of this: register that address
 A new consent screen in the Google Cloud console starts in Testing. While it stays there, Google ends the sign-in seven days after it is granted, and the row shows **Expires in 7d** from the start.
 
 1. In the Google Cloud console, open the OAuth consent screen and select **Publish app**.
-2. On the Google row, select **it does not expire**. Google publishes no way for NoticeOS to see whether you published, so the row keeps the chip until you record the answer. That answer is remembered through later sign-ins.
+2. On the Google row, select **it does not expire**. Google provides no way for NoticeOS to check whether you published, so the row shows the chip until you record that you did. NoticeOS keeps that setting through later sign-ins.
 
 ## Change which property a site uses
 
-Which GA4 property and Search Console site belong to each of your sites is your answer, not Google's. The panel proposes the match by domain.
+You decide which GA4 property and Search Console site belong to each of your sites; Google does not. The panel pre-selects a match by domain.
 
 1. On the site's **Data sources** tab, open the Google row.
-2. Under **Mapping**, set the **Site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each pick saves on its own with **Undo** beside it.
+2. Under **Mapping**, set the **Site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each choice is saved on its own with **Undo** beside it.
 
 ## Verify
 
-- Each site's row moves from **Collecting** to **Working** as its first result lands.
+- Each site's row moves from **Collecting** to **Working** when its first result arrives.
 - The Google row on **Integrations** shows the email address it is signed in as.
 
 ## If it didn't work
 
-- You unticked a box on Google's consent screen: the sign-in is refused and you are asked to sign in again.
-- The panel says **Redirect address not in the client**: the client's redirect list does not include this Tower's address. Add it in the console and drop the file again. A desktop or service-account file is refused.
-- The row names a revoked or expired grant, or shows the wrong email: select **Manage**, then **Disconnect**, and sign in again. Disconnecting also revokes the grant at Google.
+- You unticked a box on Google's consent screen: the sign-in is rejected and you are asked to sign in again.
+- The panel shows **Redirect address not in the client**: the client's redirect list does not include this Tower's address. Add it in the console and drop the file again. A desktop or service-account file is rejected.
+- The row shows a revoked or expired grant, or the wrong email: select **Manage**, then **Disconnect**, and sign in again. Disconnecting also revokes the grant at Google.
 
 More symptoms are in [Troubleshooting](/operate/troubleshooting). What Google costs, its quotas and how a sign-in fails are in [doc 11, Integrations & economics](../11-integrations.md#connecting-google).
 
