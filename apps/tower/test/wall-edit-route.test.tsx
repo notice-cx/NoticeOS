@@ -19,7 +19,10 @@ import {
 /**
  * `/wall/edit`, the Wall's composer. The grammar is tested without a DOM in
  * `wall-editor.test.ts`; here, that this page is wired to it, plus what only
- * the page can keep. Sonner is mocked because the toast is not the subject.
+ * the page can keep. A drag is the browser's own, which jsdom cannot perform,
+ * so arranging is driven here through the Move menu, which reaches every
+ * place a drag can; the TV layout journey drags and resizes in Chromium.
+ * Sonner is mocked because the toast is not the subject.
  */
 const toasts = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
 vi.mock("sonner", () => ({ toast: toasts }));
@@ -221,18 +224,6 @@ function widget(id: string): HTMLElement {
   return el as HTMLElement;
 }
 
-/** jsdom has no DataTransfer, so the drag carries a stub that answers the two
- * questions the handlers ask it. */
-function dragged(widgetId: string) {
-  return {
-    types: ["application/x-noticeos-wall-widget"],
-    getData: () => widgetId,
-    setData: () => {},
-    dropEffect: "move",
-    effectAllowed: "move",
-  };
-}
-
 /**
  * Take a widget out through its own chrome. The toolbar is drawn only over
  * the widget being pointed at, so reaching its Remove means hovering the
@@ -241,6 +232,32 @@ function dragged(widgetId: string) {
 function removeFromChrome(widgetId: string, label: string) {
   fireEvent.mouseEnter(widget(widgetId));
   fireEvent.click(screen.getByRole("button", { name: `Remove ${label}` }));
+}
+
+/** A button on the editor's toolbar, by its name. */
+function toolbarButton(name: string): HTMLElement {
+  return within(document.querySelector("[data-wall-toolbar]") as HTMLElement).getByRole("button", { name: new RegExp(`^${name}`, "u") });
+}
+
+/** Open the Add drawer or the versions from the toolbar. */
+function openDrawer(name: "Add a widget" | "Versions") {
+  fireEvent.click(toolbarButton(name));
+}
+
+/** Open a widget's Move menu from its toolbar on the TV. */
+function openMoveMenu(label: string) {
+  fireEvent.click(within(document.querySelector("[data-wall-preview]") as HTMLElement).getByRole("button", { name: `Move ${label}` }));
+}
+
+/** Pick one item of a widget's Move menu. */
+function chooseMove(label: string, item: RegExp) {
+  openMoveMenu(label);
+  fireEvent.click(screen.getByRole("menuitem", { name: item }));
+}
+
+/** What the page last said about a move, for a screen reader. */
+function announced(): string | null {
+  return document.querySelector('[data-status-for="readout:wall-arrange"]')?.textContent ?? null;
 }
 
 /** The layout's Save — the save bar's, not the countdown form's the strip's
@@ -379,6 +396,7 @@ describe("a saved layout the Tower refused", () => {
     expect(chip?.getAttribute("title")).toBe(REASON);
     expect(layoutState("On the TV")).toBeNull();
     expect(document.querySelector("[data-wall-unreadable]")).toBeNull();
+    openDrawer("Versions");
     expect(document.querySelectorAll("[data-wall-version]")).toHaveLength(1);
   });
 
@@ -396,6 +414,7 @@ describe("a saved layout the Tower refused", () => {
 
   it("reverts to a version that still reads, guarded by the value as stored", () => {
     renderRefused();
+    openDrawer("Versions");
     fireEvent.click(screen.getByRole("button", { name: "Revert" }));
     const op = state.saves[0]?.ops[0];
     expect(op && op.kind === "file-json-set" ? op.expect : null).toEqual(BROKEN);
@@ -474,6 +493,7 @@ describe("a layout naming retired widgets", () => {
       expect(drawn()).toEqual(DEFAULT_DRAWN);
       expect(warnings()).toEqual([WALL_RETIRED_WARNING]);
       expect(document.querySelector('[data-save-state="refused"]')).toBeNull();
+      openDrawer("Versions");
       expect(document.querySelector("[data-wall-versions-empty]")).not.toBeNull();
 
       removeFromChrome("work", "Work");
@@ -490,131 +510,165 @@ describe("a layout naming retired widgets", () => {
 });
 
 describe("adding and removing", () => {
-  it("adds the widget the library's button names", () => {
+  it("adds the widget the Add drawer's button names, and shows its settings", () => {
     renderEditor(SITES_ONLY);
+    openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
     expect(drawn()).toContain("feed");
     expect(document.querySelector('[data-wall-widget-panel="feed"]')).not.toBeNull();
+    expect(document.querySelector("[data-wall-library]")).toBeNull();
   });
 
-  it("shows a placed one-of-a-kind widget as ON THE WALL instead of an Add, and offers the two the default leaves out", () => {
+  it("shows a placed one-of-a-kind widget as ON THE TV instead of an Add, and offers the two the default leaves out", () => {
     renderEditor();
+    openDrawer("Add a widget");
     expect(screen.queryByRole("button", { name: "Add Work" })).toBeNull();
     const row = document.querySelector('[data-wall-library-item="work"]');
     expect(row?.querySelector('[data-wall-library-refusal="On the TV"]')).not.toBeNull();
-    expect(row?.textContent).not.toContain("can appear only once");
     expect(screen.getByRole("button", { name: "Add Needs you" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Add Live feed" })).toBeTruthy();
+    // An offered widget can be dragged onto the TV as well as added.
+    expect(document.querySelector('[data-wall-library-item="feed"]')?.getAttribute("draggable")).toBe("true");
+    expect(document.querySelector('[data-wall-library-item="work"]')?.getAttribute("draggable")).toBeNull();
   });
 
   it("removes from the widget's own chrome", () => {
     renderEditor();
     removeFromChrome("work", "Work");
     expect(drawn()).not.toContain("work");
+    expect(announced()).toBe("Work removed");
   });
 
   it("shows one toolbar at a time, over the widget being pointed at", () => {
     renderEditor();
-    // Five toolbars at full size cover the television the preview exists to
+    // Six toolbars at full size cover the television the preview exists to
     // show, so the ring is the affordance until a widget is the subject.
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
     fireEvent.mouseEnter(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Remove Top strip" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Move Top strip" })).toBeTruthy();
     fireEvent.mouseLeave(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
     fireEvent.click(widget("strip"));
     fireEvent.mouseLeave(widget("strip"));
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(1);
   });
+
+  it("takes a row away with the last widget in it", () => {
+    renderEditor();
+    removeFromChrome("loop", "The loop");
+    saveWith("No loop");
+    expect(savedLayout().rows.map((row) => row.id)).toEqual(["strip", "body"]);
+  });
 });
 
 describe("arranging", () => {
-  it("moves a widget by dragging it onto another", () => {
+  it("makes every widget a drag source and says how a drag lands", () => {
     renderEditor();
-    fireEvent.dragStart(widget("work"), { dataTransfer: dragged("work") });
-    fireEvent.drop(widget("revenue"), { dataTransfer: dragged("work"), clientX: 0 });
-    expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "work", "revenue"]);
+    for (const id of DEFAULT_DRAWN) expect(widget(id).getAttribute("draggable"), id).toBe("true");
+    expect(document.querySelector("[data-wall-preview-hint]")?.textContent).toContain("top or bottom stacks them");
   });
 
-  it("moves a widget by dropping it on an empty row's line", () => {
-    renderEditor();
-    fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
-    const line = document.querySelector('[data-wall-row-line="row-8"]');
-    expect(line).not.toBeNull();
-    fireEvent.drop(line as HTMLElement, { dataTransfer: dragged("strip") });
-    expect(drawn().at(-1)).toBe("strip");
-  });
-
-  it("moves a widget by button, for a keyboard", () => {
+  it("moves a widget with its Move menu, says where it went and gives focus back to it", () => {
     renderEditor();
     fireEvent.click(widget("work"));
-    fireEvent.click(screen.getByRole("button", { name: "Move up a row" }));
-    expect(drawn().slice(-2)).toEqual(["work", "revenue"]);
+    chooseMove("Work", /^Move up/u);
+    expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "work", "revenue"]);
+    expect(announced()).toBe("Work moved to row 3 of 3, column 2 of 2, 1 of 2 in its column");
+    expect(document.activeElement).toBe(widget("work"));
+  });
+
+  it("moves a widget with Alt and an arrow, from the widget itself", () => {
+    renderEditor();
+    fireEvent.keyDown(widget("strip"), { key: "ArrowDown", altKey: true });
+    saveWith("The loop on top");
+    expect(savedLayout().rows.map((row) => row.id)).toEqual(["loop", "strip", "body"]);
   });
 
   it("disables a direction with nowhere to go", () => {
     renderEditor();
-    fireEvent.click(widget("revenue"));
-    expect(screen.getByRole("button", { name: "Move left" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Move right" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Move down a row" })).toHaveProperty("disabled", false);
-  });
-
-  it("reorders rows and moves the remaining height", () => {
-    renderEditor();
-    fireEvent.click(screen.getByRole("button", { name: "Move row 3 up" }));
-    saveWith("The loop at the bottom");
-    expect(savedLayout().rows.map((row) => row.id)).toEqual(["strip", "body", "loop"]);
-  });
-
-  it("gives the remaining height to one row and takes it from the other", () => {
-    renderEditor();
-    const rows = document.querySelectorAll('[data-wall-row-line]');
-    fireEvent.click(within(rows[0] as HTMLElement).getByRole("button", { name: /Remaining height/u }));
-    saveWith("The strip takes the screen");
-    expect(savedLayout().rows.map((row) => row.height)).toEqual(["fill", "auto", "auto"]);
-  });
-
-  it("only lets an empty row be removed", () => {
-    renderEditor();
-    expect(screen.getByRole("button", { name: "Remove row 1" })).toHaveProperty("disabled", true);
-    fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
-    expect(screen.getByRole("button", { name: "Remove row 4" })).toHaveProperty("disabled", false);
-  });
-
-  it("stacks a widget in a column, takes it back out, and saves a column", () => {
-    renderEditor();
     fireEvent.click(widget("strip"));
-    fireEvent.click(screen.getByRole("button", { name: /Stack in column/u }));
+    openMoveMenu("Top strip");
+    const item = (name: RegExp) => screen.getByRole("menuitem", { name });
+    expect(item(/^Move up/u)).toHaveProperty("disabled", true);
+    expect(item(/^Move left/u)).toHaveProperty("disabled", true);
+    expect(item(/^Move right/u)).toHaveProperty("disabled", true);
+    expect(item(/^Into its own column/u)).toHaveProperty("disabled", true);
+    expect(item(/^Move down/u)).toHaveProperty("disabled", false);
+  });
+
+  it("stacks a widget under another and saves the column it makes", () => {
+    renderEditor();
+    fireEvent.click(widget("work"));
+    openMoveMenu("Work");
+    fireEvent.click(screen.getByRole("menuitem", { name: /Stack under/u }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Under Top strip" }));
     expect(document.querySelector("[data-wall-column='column']")).not.toBeNull();
-    expect(screen.getByText(/Row 1 column, row 1, position 1 of 1/u)).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /Take out of column/u }));
-    expect(document.querySelector("[data-wall-column='column']")).toBeNull();
-    expect(drawn()).toEqual(DEFAULT_DRAWN);
-    expect(saveButton()).toHaveProperty("disabled", true);
-
-    fireEvent.click(screen.getByRole("button", { name: /Stack in column/u }));
-    const line = document.querySelector("[data-wall-column-row-line='row-8']");
-    expect(line).not.toBeNull();
-    fireEvent.drop(line as HTMLElement, { dataTransfer: dragged("work") });
-    saveWith("Work beside the strip");
-    const column = savedLayout().rows[0]?.widgets[0];
-    expect(column).toMatchObject({
+    saveWith("Work under the strip");
+    expect(savedLayout().rows[0]?.widgets[0]).toMatchObject({
       id: "column",
       type: "column",
       width: 1,
-      rows: [{ height: "auto", widgets: [{ id: "strip" }, { id: "work" }] }],
+      rows: [{ widgets: [{ id: "strip" }] }, { widgets: [{ id: "work" }] }],
     });
-    expect(savedConfig().history[0]?.reason).toBe("Work beside the strip");
+    // The side column is left with revenue alone, so it is revenue again.
+    expect(savedLayout().rows[2]?.widgets.map((w) => w.id)).toEqual(["business", "revenue"]);
+    expect(savedConfig().history[0]?.reason).toBe("Work under the strip");
+  });
+
+  it("splits a stacked widget into a column of its own", () => {
+    renderEditor();
+    fireEvent.click(widget("work"));
+    chooseMove("Work", /^Into its own column/u);
+    saveWith("Work on its own");
+    expect(savedLayout().rows[2]?.widgets.map((w) => [w.id, w.width])).toEqual([["business", 1.4], ["revenue", 0.5], ["work", 0.5]]);
+  });
+});
+
+describe("undo and redo", () => {
+  it("takes back each change with the toolbar's Undo, and brings it back with Redo", () => {
+    renderEditor();
+    const undo = toolbarButton("Undo");
+    const redo = toolbarButton("Redo");
+    expect(undo).toHaveProperty("disabled", true);
+    removeFromChrome("work", "Work");
+    fireEvent.click(widget("strip"));
+    chooseMove("Top strip", /^Move down/u);
+    expect(drawn()).toEqual(["loop", "strip", "timeline", "sites", "revenue"]);
+    fireEvent.click(undo);
+    expect(drawn()).toEqual(["strip", "loop", "timeline", "sites", "revenue"]);
+    fireEvent.click(undo);
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
+    expect(undo).toHaveProperty("disabled", true);
+    expect(saveButton()).toHaveProperty("disabled", true);
+    fireEvent.click(redo);
+    expect(drawn()).not.toContain("work");
+  });
+
+  it("answers ⌘Z and ⇧⌘Z (Ctrl elsewhere), but not inside the version note", () => {
+    renderEditor();
+    removeFromChrome("work", "Work");
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
+    fireEvent.keyDown(window, { key: "Z", ctrlKey: true, shiftKey: true });
+    expect(drawn()).not.toContain("work");
+    fireEvent.keyDown(screen.getByLabelText("Version note"), { key: "z", metaKey: true });
+    expect(drawn()).not.toContain("work");
+  });
+
+  it("can take a Discard back", () => {
+    renderEditor();
+    removeFromChrome("work", "Work");
+    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    expect(drawn()).toEqual(DEFAULT_DRAWN);
+    fireEvent.click(toolbarButton("Undo"));
+    expect(drawn()).not.toContain("work");
   });
 });
 
 describe("the selected widget's settings", () => {
   it("offers the widgets on the Wall to pick when nothing is selected, and says nothing else", () => {
-    // The panel's empty state is the widgets themselves, one press each, in
-    // the Wall's reading order; there is no hint line.
     renderEditor();
     const panel = document.querySelector('[data-wall-widget-panel="none"]') as HTMLElement;
     expect(within(panel).getAllByRole("button").map((button) => button.textContent)).toEqual([
@@ -625,13 +679,47 @@ describe("the selected widget's settings", () => {
     expect(document.querySelector('[data-wall-widget-panel="timeline"]')).not.toBeNull();
   });
 
-  it("resizes on the contract's step grid and says the share of the row", () => {
+  it("gives its column a preset share of the row in one press", () => {
     renderEditor();
     fireEvent.click(widget("revenue"));
-    fireEvent.click(screen.getByRole("button", { name: "Wider" }));
-    saveWith("A little more room for the money");
-    expect(wallLayoutWidgets(savedLayout()).find((w) => w.id === "revenue")?.width).toBe(1.6);
-    expect(document.querySelector("[data-wall-width-share]")?.textContent).toContain("%");
+    expect(document.querySelector("[data-wall-width-share]")?.textContent).toBe("42% of the row");
+    fireEvent.click(screen.getByRole("button", { name: "Half of the row" }));
+    expect(document.querySelector("[data-wall-width-share]")?.textContent).toBe("½ of the row");
+    saveWith("Half for the money");
+    const side = savedLayout().rows[2]?.widgets[1];
+    expect(side?.width).toBe(1.4);
+  });
+
+  it("gives a stacked widget a share of its column's height, and fits it to its content again", async () => {
+    renderEditor();
+    fireEvent.click(widget("timeline"));
+    fireEvent.click(screen.getByRole("button", { name: "A third of the column" }));
+    expect(screen.getByRole("button", { name: "A third of the column" })).toHaveAttribute("aria-pressed", "true");
+    saveWith("A third for the last 24 hours");
+    const business = savedLayout().rows[2]?.widgets[0];
+    expect(business?.type === "column" ? business.rows.map((r) => r.size) : null).toEqual([1, 2]);
+    await waitFor(() => expect(layoutState("On the TV")).not.toBeNull());
+    fireEvent.click(within(document.querySelector("[data-wall-size]") as HTMLElement).getByRole("button", { name: "Fit content" }));
+    saveWith("Back to its content");
+    // The site rows keep their weight: they share what the timeline leaves.
+    const again = savedLayout(1).rows[2]?.widgets[0];
+    expect(again?.type === "column" ? again.rows.map((r) => [r.height, r.size]) : null).toEqual([["auto", undefined], ["fill", 2]]);
+  });
+
+  it("gives the remaining height to a widget's row and takes it from the other", () => {
+    renderEditor();
+    fireEvent.click(widget("strip"));
+    fireEvent.click(within(document.querySelector("[data-wall-size]") as HTMLElement).getByRole("button", { name: "Fill the rest" }));
+    saveWith("The strip takes the screen");
+    expect(savedLayout().rows.map((row) => row.height)).toEqual(["fill", "auto", "auto"]);
+  });
+
+  it("moves the selected widget from its panel too, for a phone or a keyboard", () => {
+    renderEditor();
+    fireEvent.click(widget("revenue"));
+    fireEvent.click(within(document.querySelector('[data-wall-widget-panel="revenue"]') as HTMLElement).getByRole("button", { name: "Move Revenue" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /^Move left/u }));
+    expect(drawn()).toEqual(["strip", "loop", "revenue", "timeline", "sites", "work"]);
   });
 
   it("filters the sites a per-site widget shows", () => {
@@ -694,20 +782,19 @@ describe("the selected widget's settings", () => {
 describe("what the operator is told", () => {
   it("prints the refusal and darkens Save", () => {
     renderEditor();
-    fireEvent.click(screen.getByRole("button", { name: "Add a row" }));
-    expect(document.querySelector("[data-wall-refusal]")?.textContent).toBe(
-      "Row 4 needs at least one widget.",
-    );
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
+    for (const [id, label] of [["strip", "Top strip"], ["loop", "The loop"], ["timeline", "Last 24 hours"], ["sites", "Sites"], ["revenue", "Revenue"], ["work", "Work"]] as const) {
+      removeFromChrome(id, label);
+    }
+    expect(document.querySelector("[data-wall-refusal]")?.textContent).toBe("A layout needs at least one row.");
+    expect(saveButton()).toHaveProperty("disabled", true);
   });
 
   it("prints a warning beside a Save that still works", () => {
     renderEditor();
-    // Taking the site rows out of the column takes their row with them.
     removeFromChrome("sites", "Sites");
     expect(document.querySelector("[data-wall-refusal]")).toBeNull();
     expect(warnings()).toContain("No sites on the TV");
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", false);
+    expect(saveButton()).toHaveProperty("disabled", false);
   });
 
   it("states how far past the TV the layout runs, from the box's own height", () => {
@@ -739,14 +826,16 @@ describe("save", () => {
       expect: null,
     });
     expect(request?.slug).toBe("wall-layout");
-    const body = savedLayout().rows[2]?.widgets ?? [];
-    expect(body.map((w) => w.id)).toEqual(["business", "side"]);
-    const side = body[1];
-    expect(side?.type === "column" ? side.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["revenue"]]);
+    // The side column, left with revenue alone, is revenue again at its width.
+    expect(savedLayout().rows[2]?.widgets).toEqual([
+      DEFAULT_WALL_LAYOUT.rows[2]?.widgets[0],
+      { id: "revenue", type: "revenue", width: 1 },
+    ]);
   });
 
   it("guards against the value it actually read when a layout is already saved", () => {
     renderEditor(SITES_ONLY);
+    openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
     saveWith("The feed too");
     const op = state.saves[0]?.ops[0];
@@ -766,12 +855,10 @@ describe("save", () => {
   it("saves on one press, and names the version by what changed when there is no note", () => {
     renderEditor();
     removeFromChrome("work", "Work");
-    // Its column's row goes with it, so the rows changed too.
-    expect(screen.getByLabelText("Version note")).toHaveProperty("placeholder", "Removed Work · rearranged rows");
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByLabelText("Version note")).toHaveProperty("placeholder", "Removed Work");
+    fireEvent.click(saveButton());
     expect(state.saves).toHaveLength(1);
-    expect(savedConfig().history[0]?.reason).toBe("Removed Work · rearranged rows");
-    expect(screen.queryByRole("button", { name: "Save the layout" })).toBeNull();
+    expect(savedConfig().history[0]?.reason).toBe("Removed Work");
   });
 
   it("saves on Enter in the note field, with the operator's words", () => {
@@ -787,9 +874,7 @@ describe("save", () => {
     renderEditor();
     removeFromChrome("work", "Work");
     saveWith("The work moves to the desk");
-    await waitFor(() =>
-      expect(layoutState("On the TV")).not.toBeNull(),
-    );
+    await waitFor(() => expect(layoutState("On the TV")).not.toBeNull());
     expect(drawn()).not.toContain("work");
   });
 
@@ -802,6 +887,7 @@ describe("save", () => {
     await waitFor(() => expect(layoutState("On the TV")).not.toBeNull());
     expect(document.querySelector('[data-save-state="saved"] [data-status-for="wall:layout"]')).not.toBeNull();
 
+    openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Add Work" }));
     expect(document.querySelector('[data-save-state="unsaved"] [data-status-for="wall:layout"]')).not.toBeNull();
     saveWith("Work back");
@@ -839,8 +925,10 @@ describe("versions", () => {
     ],
   };
 
-  it("lists what the Wall used to show, and how long ago", () => {
+  it("lists what the Wall used to show, and how long ago, behind the toolbar's Versions", () => {
     renderEditor(saved);
+    expect(document.querySelector("[data-wall-version-count]")?.textContent).toBe("1");
+    openDrawer("Versions");
     const version = document.querySelector('[data-wall-version="0"]');
     expect(version?.textContent).toContain("Sites only");
     expect(version?.textContent).toContain("1d ago");
@@ -849,6 +937,7 @@ describe("versions", () => {
 
   it("reverts as a SAVE — a new version, and the reverted entry still there", () => {
     renderEditor(saved);
+    openDrawer("Versions");
     fireEvent.click(screen.getByRole("button", { name: "Revert" }));
     expect(state.saves).toHaveLength(1);
     const next = savedConfig();
@@ -860,12 +949,14 @@ describe("versions", () => {
 
   it("asks for no reason: the entry already has one", () => {
     renderEditor(saved);
+    openDrawer("Versions");
     fireEvent.click(screen.getByRole("button", { name: "Revert" }));
     expect(screen.queryByLabelText("Version note")).toBeNull();
   });
 
   it("says plainly when there is nothing to go back to", () => {
     renderEditor();
+    openDrawer("Versions");
     expect(document.querySelector("[data-wall-versions-empty]")?.textContent).toBe(
       "No saved versions yet",
     );
@@ -882,9 +973,11 @@ describe("configuration saves paused", () => {
     expect(within(paused).getByRole("status")).toHaveTextContent("Saves paused · Config store unreachable");
     expect(document.querySelector("[data-wall-read-only]")).toBeNull();
     expect(drawn()).toEqual(["sites"]);
-    expect(screen.getByRole("button", { name: "Add Live feed" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", true);
-    expect(screen.getByRole("button", { name: "Add a row" })).toHaveProperty("disabled", true);
+    expect(toolbarButton("Add a widget")).toHaveProperty("disabled", true);
+    expect(saveButton()).toHaveProperty("disabled", true);
+    // Nothing on the TV can be dragged or resized while saves are paused.
+    expect(widget("sites").getAttribute("draggable")).toBeNull();
+    expect(document.querySelector("[data-wall-dividers]")).toBeNull();
   });
 
   it("uses the shared settings fallback when no refusal reason is supplied", () => {
@@ -899,7 +992,7 @@ describe("configuration saves paused", () => {
   it("shows no paused status while configuration saves are available", () => {
     renderEditor(SITES_ONLY);
     expect(document.querySelector("[data-saves-paused]")).toBeNull();
-    expect(screen.getByRole("button", { name: "Add a row" })).toHaveProperty("disabled", false);
+    expect(toolbarButton("Add a widget")).toHaveProperty("disabled", false);
   });
 });
 
@@ -961,13 +1054,14 @@ describe("a phone", () => {
     ).toBe("0.186");
   });
 
-  it("drops the widget chrome that would be wider than its widget", () => {
+  it("drops the widget chrome that would be wider than its widget, and keeps every action in the panel", () => {
     renderEditor();
     expect(document.querySelectorAll("[data-wall-edit-chrome]")).toHaveLength(0);
     // A touch never fires a drag, so every action the chrome lost is in the panel.
     fireEvent.click(widget("work"));
-    expect(document.querySelector('[data-wall-widget-panel="work"]')).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Remove" }));
+    const panel = document.querySelector('[data-wall-widget-panel="work"]') as HTMLElement;
+    expect(within(panel).getByRole("button", { name: "Move Work" })).toBeTruthy();
+    fireEvent.click(within(panel).getByRole("button", { name: "Remove" }));
     expect(drawn()).not.toContain("work");
   });
 
@@ -983,13 +1077,14 @@ describe("a phone", () => {
     measured.mockRestore();
   });
 
-  it("stacks the three panes and keeps Save on the page", () => {
+  it("stacks the television over its side and keeps Save on the page", () => {
     renderEditor(SITES_ONLY);
-    const panes = document.querySelector("[data-wall-library]")?.parentElement;
+    const panes = document.querySelector("[data-wall-editor]");
     expect(panes?.className).toContain("flex-col");
     expect(panes?.className).toContain("xl:grid");
+    openDrawer("Add a widget");
     fireEvent.click(screen.getByRole("button", { name: "Add Live feed" }));
-    expect(screen.getByRole("button", { name: "Save" })).toHaveProperty("disabled", false);
+    expect(saveButton()).toHaveProperty("disabled", false);
   });
 });
 
@@ -1009,7 +1104,8 @@ describe("the television itself", () => {
       "[data-wall-edit-widget]",
       "[data-wall-edit-chrome]",
       "[data-wall-library]",
-      "[data-wall-rows]",
+      "[data-wall-toolbar]",
+    "[data-wall-dividers]",
       "[data-wall-save-bar]",
       "[data-wall-versions]",
       "[data-wall-preview]",

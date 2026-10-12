@@ -1,4 +1,4 @@
-import { Undo2 } from "lucide-react";
+import { Undo2, X } from "lucide-react";
 import { wallLayoutWidgets, type WallLayoutVersion } from "@shared/wall-layout";
 import { ageMs, formatAge } from "@shared/freshness";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,8 @@ export interface WallVersionsProps {
   onRevert: (index: number) => void;
   /** The revert in flight, so one row says so instead of every row. */
   reverting: number | null;
+  /** Close the drawer; absent where the list is always shown. */
+  onClose?: () => void;
   disabled?: boolean;
   className?: string;
 }
@@ -31,14 +33,22 @@ export function WallVersions({
   nowMs,
   onRevert,
   reverting,
+  onClose,
   disabled = false,
   className,
 }: WallVersionsProps) {
   return (
-    <div className={cn("flex flex-col gap-2", className)} data-wall-versions>
-      <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-        Versions
-      </h2>
+    <div className={cn("flex flex-col gap-2", className)} data-wall-versions id="wall-versions-drawer">
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          Versions
+        </h2>
+        {onClose ? (
+          <Button type="button" variant="ghost" size="icon" aria-label="Close Versions" onClick={onClose}>
+            <X className="size-4" />
+          </Button>
+        ) : null}
+      </div>
       {history.length === 0 ? (
         <p className="border border-border bg-card p-3 text-xs leading-snug text-muted-foreground" data-wall-versions-empty>
           No saved versions yet

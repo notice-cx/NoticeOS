@@ -98,6 +98,13 @@ export interface WallColumnRow {
     id: string;
     /** `fill` takes the height the column's other rows leave. */
     height: 'auto' | 'fill';
+    /**
+     * A height weight, on the width's scale. Every row of the column that has
+     * one, and its `fill` row (weight 1 when it has none), share the height its
+     * other rows leave in proportion; absent on every row, the column draws by
+     * `height` alone, as a layout saved without sizes always has.
+     */
+    size?: number;
     widgets: WallWidget[];
 }
 /** What a row holds, left to right: widgets, and at most depth-1 columns. */

@@ -339,10 +339,13 @@ full height beside several ([doc 14](14-design.md) § Regions).
   lifted out of its document cannot be judged on its own.
 - **It is composed at `/wall/edit`**: a **desk** page inside
   the shell, reached from `/settings` → TV dashboard and from the command
-  palette, and never from the television. It previews `WallCanvas` at 1920×1080
-  scaled to the pane, saves through the ordinary settings write path with
-  an optional one-line version note, and keeps the versions it replaced with a Revert
-  per entry. The preview is a **query container**, so the
+  palette, and never from the television. It draws `WallCanvas` at 1920×1080
+  scaled to the pane and the window, and the operator arranges on that
+  picture: widgets dragged by the edge they land on (stack, beside, new row),
+  dividers dragged to resize, a Move menu on every widget for a keyboard or a
+  tap, Undo and Redo over every change. It saves through the ordinary settings
+  write path with a one-line version note, and keeps the versions it replaced
+  with a Revert per entry. The preview is a **query container**, so the
   type ramp and every widget's breakpoints read the 1920 box rather than the
   desk's window and the arrangement on screen is the television's at any width;
   `pnpm audit:wall-fit` remains the check that measures the real screen, which is the

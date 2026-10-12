@@ -1119,6 +1119,14 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   const refusal = page.locator('[data-sonner-toast][data-type="error"]');
   const saved = page.locator('[data-sonner-toast][data-type="success"]', { hasText: "Saved — TV layout" });
   await expect(layoutState("saved")).toHaveText("On the TV");
+  // A widget alone in its row goes down with its row: the keyboard's and the
+  // phone's way, through the widget panel's Move menu.
+  const moveDown = async (id: string, label: string) => {
+    await page.locator(`[data-wall-edit-widget="${id}"]`).click();
+    await page.locator(`[data-wall-widget-panel="${id}"]`).getByRole("button", { name: `Move ${label}`, exact: true }).click();
+    await page.getByRole("menuitem", { name: /^Move down/ }).click();
+  };
+  const versions = page.locator("[data-wall-version-count]");
 
   await page.locator('[data-wall-edit-widget="sites"]').click();
   const panel = page.locator('[data-wall-widget-panel="sites"]');
@@ -1137,7 +1145,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(preview.locator('[data-site-row="lantern.example"]')).toHaveCount(0);
 
   // Create: the first Save of a layout nobody has saved.
-  await page.getByRole("button", { name: "Move row 1 down", exact: true }).click();
+  await moveDown("strip", "Top strip");
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await bar.getByRole("button", { name: "Save", exact: true }).click();
   await expect(saved).toBeVisible();
@@ -1148,9 +1156,10 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   expect(settings(created)).toEqual(chosen);
   expect(created.layout.rows.map((row: { id: string }) => row.id)).toEqual(["loop", "strip", "body"]);
   expect(created.history).toHaveLength(1);
-  await expect(page.locator("[data-wall-version]")).toHaveCount(1);
+  await expect(versions).toHaveText("1");
 
   // Update: the next Save, guarded by the layout the first one wrote.
+  await page.locator('[data-wall-edit-widget="sites"]').click();
   await menu.getByRole("checkbox", { name: /Items rated/ }).uncheck();
   // Hiding and restoring an asset retains its pulse choices.
   await panel.getByRole("checkbox", { name: "Mosaic Finder", exact: true }).uncheck();
@@ -1158,7 +1167,7 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(menu.getByRole("checkbox", { name: /Items rated/ })).not.toBeChecked();
   await expect(menu.getByRole("checkbox", { name: /Restaurants/ })).not.toBeChecked();
   await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
-  await page.getByRole("button", { name: "Move row 1 down", exact: true }).click();
+  await moveDown("loop", "The loop");
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await bar.getByRole("button", { name: "Save", exact: true }).click();
   await expect.poll(async () => (await wall())!.history.length, { message: "the second Save reaches the store" }).toBe(2);
@@ -1169,17 +1178,19 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   expect(updated.layout.rows.map((row: { id: string }) => row.id)).toEqual(["strip", "loop", "body"]);
   expect(updated.history.map((version: { layout: { rows: { id: string }[] } }) => version.layout.rows.map((row) => row.id)))
     .toEqual([["loop", "strip", "body"], ["strip", "loop", "body"]]);
-  await expect(page.locator("[data-wall-version]")).toHaveCount(2);
+  await expect(versions).toHaveText("2");
   await page.screenshot({ path: testInfo.outputPath("wall-layout-updated.png") });
 
   // And a reload reads both back from the store.
   await page.reload();
   await expect(layoutState("saved")).toHaveText("On the TV");
-  await expect(page.locator("[data-wall-version]")).toHaveCount(2);
+  await expect(versions).toHaveText("2");
   await expect(preview.locator('[data-site-total="plansSaved"] dd')).toHaveText("41,280");
   await expect(preview.locator('[data-site-totals="mosaic.example"]')).toHaveCount(0);
 
   // The newest history entry is the previous saved layout, including choices.
+  await bar.getByRole("button", { name: /^Versions/ }).click();
+  await expect(page.locator("[data-wall-version]")).toHaveCount(2);
   await page.locator('[data-wall-version]').first().getByRole("button", { name: "Revert", exact: true }).click();
   await expect.poll(async () => settings((await wall())!), { message: "Revert restores saved pulse choices and filter" }).toEqual(chosen);
   await expect(layoutState("saved")).toHaveText("On the TV");
@@ -1201,6 +1212,105 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await expect(plume.getByRole("checkbox", { name: /plansSaved.*No reading/ })).toHaveCount(0);
   await expect(layoutState("unsaved")).toHaveText("Unsaved changes");
   await page.screenshot({ path: testInfo.outputPath("wall-layout-missing-total-editable.png") });
+});
+
+// The TV layout arranged by hand, on the TV's own picture: a widget dragged
+// onto another's top edge stacks with it, onto a left edge splits into a
+// column of its own, the dividers between columns and between stacked widgets
+// resize them, every step undoes and redoes, and the Move menu reaches what
+// the drag does. The Save writes what the picture shows.
+test("the TV layout is arranged by dragging, resizing and the Move menu, each step undone and redone, then saved", desktopOnly("the drag needs a pointer and the TV's picture at a desk size; the phone moves widgets through the same Move menu, covered by the arrange-wall walk"), async ({ page, request }, testInfo) => {
+  await createAsset(page);
+  await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
+  await page.route("**/api/wall", async (route) => {
+    const response = await route.fetch();
+    const actual = await response.json();
+    const fixture = structuredClone(wallFixturePayload("six"));
+    await route.fulfill({ response, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+  });
+  await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
+  const wall = async (): Promise<WallConfig | undefined> => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
+
+  await page.goto("/wall/edit");
+  const preview = page.locator("[data-wall-preview]");
+  const bar = page.locator("[data-wall-toolbar]");
+  const tile = (id: string) => preview.locator(`[data-wall-edit-widget="${id}"]`);
+  const inColumn = (column: string, id: string) => preview.locator(`[data-wall-column="${column}"] [data-wall-edit-widget="${id}"]`);
+  const announced = page.locator('[data-status-for="readout:wall-arrange"]');
+  await expect(preview.locator("[data-site-name]").first()).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  /** Press, travel and release in steps, as a hand does: the browser's own drag. */
+  const drag = async (from: { x: number; y: number }, to: { x: number; y: number }, during?: () => Promise<void>) => {
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i += 1) {
+      await page.mouse.move(from.x + ((to.x - from.x) * i) / 10, from.y + ((to.y - from.y) * i) / 10);
+    }
+    await during?.();
+    await page.mouse.up();
+  };
+  const at = async (locator: Locator, fx: number, fy: number) => {
+    const box = (await locator.boundingBox())!;
+    return { x: box.x + box.width * fx, y: box.y + box.height * fy };
+  };
+
+  // Stack: Work onto the top edge of Sites joins the left column, above it.
+  await drag(await at(tile("work"), 0.5, 0.6), await at(tile("sites"), 0.5, 0.06), async () => {
+    await expect(preview.locator('[data-wall-drop-line="top"]')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("wall-drag-stack-line.png") });
+  });
+  await expect(inColumn("business", "work")).toBeVisible();
+  await expect(announced).toHaveText("Work moved to row 3 of 3, column 1 of 2, 2 of 3 in its column");
+  await expect(bar.locator('[data-save-state="unsaved"]')).toBeVisible();
+
+  // Split: Last 24 hours onto the left edge of Sites becomes a column of its own.
+  await drag(await at(tile("timeline"), 0.5, 0.5), await at(tile("sites"), 0.03, 0.5), async () => {
+    await expect(preview.locator('[data-wall-drop-line="left"]')).toBeVisible();
+  });
+  await expect(preview.locator('[data-wall-column] [data-wall-edit-widget="timeline"]')).toHaveCount(0);
+  await expect(tile("timeline")).toBeVisible();
+
+  // Resize: the divider after Last 24 hours, dragged right; it says the shares as it moves.
+  const columns = preview.locator('[data-wall-divider^="x:timeline:"]');
+  const handle = await at(columns, 0.5, 0.5);
+  await drag(handle, { x: handle.x + 40, y: handle.y }, async () => {
+    await expect(preview.locator("[data-wall-divider-readout]")).toBeVisible();
+  });
+  // And the divider between the two widgets stacked in the left column.
+  const stacked = preview.locator('[data-wall-divider^="y:"]').first();
+  const ystart = await at(stacked, 0.5, 0.5);
+  await drag(ystart, { x: ystart.x, y: ystart.y + 30 });
+  await page.screenshot({ path: testInfo.outputPath("wall-arranged-by-hand.png") });
+
+  // Every step undoes, and redoes: the stacked resize first.
+  const sizedRows = () => preview.locator("[data-wall-row-size]").count();
+  expect(await sizedRows()).toBeGreaterThan(0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(sizedRows).toBe(0);
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  await expect.poll(sizedRows).toBeGreaterThan(0);
+
+  // The Move menu reaches what a drag does: Revenue into a new row below.
+  await tile("revenue").click();
+  await tile("revenue").getByRole("button", { name: "Move Revenue", exact: true }).click();
+  await page.getByRole("menuitem", { name: /^Into a new row below/ }).click();
+  await expect(announced).toHaveText("Revenue moved to row 4 of 4, column 1 of 1");
+  await expect(tile("revenue")).toBeFocused();
+  await bar.getByRole("button", { name: "Undo" }).click();
+  await expect(preview.locator("[data-wall-canvas] > [data-wall-row]")).toHaveCount(3);
+
+  await bar.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(bar.locator('[data-save-state="saved"] [data-status-for="wall:layout"]')).toHaveText("On the TV");
+  await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
+  const saved = (await wall())!;
+  const body = saved.layout.rows[2]!;
+  expect(body.widgets.map((slot) => slot.id)).toEqual(["timeline", "business", "revenue"]);
+  const business = body.widgets[1]!;
+  expect(business.type === "column" ? business.rows.map((row) => row.widgets.map((w) => w.id)) : null).toEqual([["work"], ["sites"]]);
+  expect(business.type === "column" ? business.rows.every((row) => typeof row.size === "number") : false).toBe(true);
+  expect(body.widgets[0]!.width).toBeGreaterThan(0.7);
+  await page.screenshot({ path: testInfo.outputPath("wall-arranged-saved.png") });
 });
 
 // The TV layout editor's preview is the TV, and the TV is dark: every token
@@ -1264,6 +1374,7 @@ test("a saved TV layout the Tower cannot read is named as refused, and a Save or
   await expect(layoutState("refused")).toHaveText("Saved layout refused");
   await expect(layoutState("refused")).toHaveAttribute("title", /at least one row/);
   await expect(page.locator("[data-wall-unreadable]")).toHaveCount(0);
+  await bar.getByRole("button", { name: /^Versions/ }).click();
   await expect(page.locator("[data-wall-version]")).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath("wall-layout-refused.png") });
 
@@ -2545,6 +2656,11 @@ const DESK_ONLY_MODULE =
 const RETIRED_WALL_MODULE =
   /\/src\/components\/(AlertRow|TimeFaces|DashboardWidgets|DataSourceIcons)\.tsx$/;
 
+// The layout editor's stage, drawers and grammar, and the drag-and-drop
+// library under them: the TV draws a layout and never arranges one.
+const WALL_EDITOR_MODULE =
+  /pragmatic-drag-and-drop|\/src\/lib\/wall-editor\.ts$|\/src\/components\/wall\/(WallPreview|WallDividers|WallMoveMenu|WallToolbar|WallLibraryPanel|WallWidgetPanel|WallVersions)\.tsx$/;
+
 test("the TV downloads no desk editing or task code, and none of the widgets the Wall retired", async ({ page }) => {
   const modules = await openAndListModules(page, "/wall", async (p) => {
     await expect(p.locator("[data-wall-strip]")).toBeVisible();
@@ -2556,6 +2672,7 @@ test("the TV downloads no desk editing or task code, and none of the widgets the
   ).toHaveLength(8);
   expect(modules.filter((path) => DESK_ONLY_MODULE.test(path))).toEqual([]);
   expect(modules.filter((path) => RETIRED_WALL_MODULE.test(path))).toEqual([]);
+  expect(modules.filter((path) => WALL_EDITOR_MODULE.test(path))).toEqual([]);
 });
 
 // ── the asset page's tabs and the command palette ───────────────────────────

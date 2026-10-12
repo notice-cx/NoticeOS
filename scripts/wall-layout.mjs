@@ -355,6 +355,14 @@ function checkRow(rawRow, at, ids, column) {
     if (rawRow.height !== 'auto' && rawRow.height !== 'fill') {
         return { ok: false, reason: `${at} must say whether its height is "auto" or "fill".` };
     }
+    // A top-level row's height is `auto` or `fill` only: the renderer applies a
+    // size inside a column and nowhere else.
+    if (rawRow.size !== undefined) {
+        if (column === null)
+            return { ok: false, reason: `${at} can take a size only inside a column.` };
+        if (!isWallWidth(rawRow.size))
+            return { ok: false, reason: `${at} needs a size between ${WALL_WIDTH_MIN} and ${WALL_WIDTH_MAX} in steps of ${WALL_WIDTH_STEP}.` };
+    }
     if (!Array.isArray(rawRow.widgets) || rawRow.widgets.length === 0) {
         return { ok: false, reason: `${at} needs at least one widget.` };
     }
@@ -378,7 +386,8 @@ function checkRow(rawRow, at, ids, column) {
             widgets.push(checked.widget);
         }
     }
-    return { ok: true, row: { id: rawRow.id, height: rawRow.height, widgets } };
+    const size = typeof rawRow.size === 'number' ? { size: stepWidth(rawRow.size) } : {};
+    return { ok: true, row: { id: rawRow.id, height: rawRow.height, ...size, widgets } };
 }
 /** A column: a width like a widget's, and rows of widgets checked like any row. */
 function checkColumn(rawColumn, where, ids) {
@@ -511,7 +520,9 @@ export function wallLayoutWarnings(layout) {
             // Inside a column it stretches only when its own row AND the row
             // holding the column both take the remaining height.
             const place = wallRowPlaces(layout).find(({ row }) => row.widgets.some((w) => !isWallColumn(w) && w.type === type));
-            if (place && (place.row.height !== 'fill' || (place.parent !== null && place.parent.height !== 'fill'))) {
+            // A sized row inside a column shares its column's height like a fill row.
+            const stretches = place !== undefined && (place.row.height === 'fill' || ('size' in place.row && place.row.size !== undefined));
+            if (place && (!stretches || (place.parent !== null && place.parent.height !== 'fill'))) {
                 warnings.push(`${spec.label} squeezed into a fixed-height row`);
             }
         }

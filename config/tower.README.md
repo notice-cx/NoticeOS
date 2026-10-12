@@ -59,11 +59,14 @@ so the editor's first Save lands on either spelling and creates the key when
 there is none. Everywhere else the lane still never creates structure.
 
 A row's `widgets` may hold a **column** — `{ "id", "type": "column",
-"width", "rows": [ { "id", "height", "widgets" } ] }` — which stacks rows of
-widgets inside one track, so a widget beside it can run the full height
-([doc 14](../docs/14-design.md) § Regions). One level deep: a column holds
-widgets, never another column; it needs at least one row, and at most one of
-its rows takes its remaining height.
+"width", "rows": [ { "id", "height", "size"?, "widgets" } ] }` — which stacks
+rows of widgets inside one track, so a widget beside it can run the full height
+([doc 14 § The Wall](../docs/14-design.md#the-wall)). One level deep: a column
+holds widgets, never another column; it needs at least one row, and at most one
+of its rows takes its remaining height. A column's row may carry a `size`, a
+weight on the width's scale (0.25–12 in steps of 0.05): the rows with one, and
+the `fill` row at a weight of 1, share the height the others leave. A layout
+with no sizes draws exactly as it always has; a top-level row takes none.
 
 A saved value is `{ "layout": …, "history": [ { "savedAt", "reason", "layout" } ] }`.
 Every Save asks for a one-line reason and keeps the layout it replaced; Revert

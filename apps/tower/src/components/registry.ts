@@ -85,8 +85,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallCanvas",
     file: "components/WallCanvas.tsx",
     purpose:
-      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. It owns no widget of its own; the five widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
-    variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column"],
+      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the eight widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
+    variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column", "column rows sized by weight"],
   },
   {
     name: "WallFeed / WallFeedWidget",
@@ -785,30 +785,47 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallPreview",
     file: "components/wall/WallPreview.tsx",
     purpose:
-      "The television at TV geometry with the editor's chrome on it (/wall/edit): a literal 1920x1080 box scaled to the pane, holding WallCanvas itself through its `editing` slot, so there is no second layout engine. The chrome counter-scales, appears only over the pointed-at widget and drops below a quarter scale; arranging is native drag-and-drop; it measures the canvas's content height so the route can say how far past the TV a layout runs.",
+      "The television as the stage the Wall is arranged on (/wall/edit): a literal 1920x1080 box scaled to the pane and the window, holding WallCanvas itself through its `editing` slot, so there is no second layout engine. Every widget is a drag source and a drop target (pragmatic drag and drop): the edge the pointer is nearest decides the landing, top or bottom stacks with it, left or right sets it beside, and during a drag a band between rows starts a new row; a line and its words show the landing only where the drop is allowed. The pointed-at or selected widget draws a counter-scaled toolbar (grip, name, Move menu, Remove), a moved widget rings briefly, and a widget drawn below its legible size shows a too-small state. It measures the canvas's content height so the route can say how far past the TV a layout runs.",
     variants: [
       "default layout",
       "a rearranged layout",
-      "selected widget",
+      "selected widget (its toolbar)",
       "widget hovered (its toolbar)",
-      "drag hovering a target",
+      "dragging, a landing line with its words",
+      "dragging, a band between rows",
+      "a widget that just landed (ring)",
+      "too narrow / too short",
       "chrome dropped (phone)",
       "fit note stated",
-      "fit note absent (the layout fits)",
-      "read-only",
+      "read-only (no drag, no dividers)",
     ],
     demo:
-      "The gallery's live editor reaches most states by use; the chrome-dropped face follows the pane width and the read-only face needs a deployment without the write lane, both pinned in test/wall-edit-route.test.tsx.",
+      "The gallery's live editor reaches most states by use; the chrome-dropped face follows the pane width and the read-only face needs a deployment without the write lane, both pinned in test/wall-edit-route.test.tsx; the drag faces are walked in the TV layout journey.",
+  },
+  {
+    name: "WallDividers",
+    file: "components/wall/WallDividers.tsx",
+    purpose:
+      "The handles between neighbours on the Wall editor's stage: between columns in a row and between a column's stacked rows. Dragging one moves the boundary live, snaps to a quarter, a third, a half, two thirds or three quarters, stops at either neighbour's legible minimum and shows both shares while it moves; the whole drag is one Undo. Each is a focusable separator (arrows step, Page Up/Down jump to a preset).",
+    variants: ["between columns", "between stacked rows", "hovered or focused (line shown)", "dragging (both shares, snapped preset)", "at a neighbour's minimum"],
+    demo: "Drawn inside the WallPreview of the gallery's live editor; the drags are walked in the TV layout journey.",
+  },
+  {
+    name: "WallMoveMenu",
+    file: "components/wall/WallMoveMenu.tsx",
+    purpose:
+      "Every place a drag can put a widget, as a menu for a keyboard, a tap or anyone who would rather pick than drag (WCAG 2.5.7): Move up, down, left, right (with their Alt+arrow keys), Stack under a named widget, Into its own column, Into a new row above or below, Remove. An item that would not move it is disabled. On the widget's toolbar it is an icon; in the widget panel a labelled button.",
+    variants: ["on the widget's toolbar", "in the widget panel", "a direction with nowhere to go (disabled)", "Stack under (the other widgets)"],
   },
   {
     name: "WallLibraryPanel",
     file: "components/wall/WallLibraryPanel.tsx",
     purpose:
-      "The fixed widget library: every type the contract knows, always listed, with a refused Add dark on its row and the validator's own sentence as the reason.",
+      "The Wall editor's Add drawer: every widget type the TV can draw with what it shows, always listed. An offered one is dragged onto the TV or added with one press to the spot that suits it; a refused one shows why in the button's place (On the TV, TV full).",
     variants: [
       "every type offered",
-      "a unique type already placed (refused with the reason)",
-      "no room left anywhere",
+      "a unique type already placed (On the TV)",
+      "no room left anywhere (TV full)",
       "read-only",
     ],
   },
@@ -816,34 +833,28 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWidgetPanel",
     file: "components/wall/WallWidgetPanel.tsx",
     purpose:
-      "The selected widget's settings: its width as the contract's weight and as its share of the row, Move left/right/up/down as the keyboard's half of the drag, the settings its renderer applies (the asset filter), and for the countdown the embedded CountdownEditor itself under this panel's heading.",
+      "The selected widget's settings in the Wall editor: where it is, Remove, its Move menu, its size (a preset share of its row for its width, or its column's; Fit content, a share of its column or Fill the rest for its height), the settings its renderer applies (the site filter and the site rows' totals), and for the strip the embedded CountdownEditor, the countdown's own form, under this panel's heading.",
     variants: [
       "nothing selected (the widgets on the Wall, one press each)",
-      "width and share of the row",
-      "a dead move direction (disabled)",
+      "a plain widget (width presets, fit or fill)",
+      "a stacked widget (column width, height share)",
+      "alone in its row (the whole row)",
       "asset filter (every asset)",
       "asset filter (a subset)",
       "a widget with no settings",
-      "the countdown's own form",
+      "the strip's countdown form",
       "no countdown configured",
       "read-only",
     ],
     demo:
-      "The gallery never selects the countdown: its panel is the live CountdownEditor and would write config/tower.json.",
+      "The gallery never selects the strip: its panel is the live CountdownEditor and would write config/tower.json.",
   },
   {
-    name: "WallRowsPanel",
-    file: "components/wall/WallRowsPanel.tsx",
+    name: "WallToolbar",
+    file: "components/wall/WallToolbar.tsx",
     purpose:
-      "The Wall's rows as rows: the order, which row takes the remaining height, adding one, removing an empty one, and a drop target for a row the preview draws nothing for. It lists no widgets.",
-    variants: [
-      "three rows",
-      "the fill row marked",
-      "an empty row (drop target, removable)",
-      "a full row (remove disabled)",
-      "at the six-row ceiling",
-      "read-only",
-    ],
+      "The Wall editor's one bar above the television: Add a widget, Undo and Redo (⌘Z, ⇧⌘Z), Versions with their count, then the layout's state (On the TV, Unsaved changes, Saved layout refused), the version note, Save and Discard, with the refusal and the warnings under it.",
+    variants: ["saved", "unsaved with a note", "nothing to undo", "a refusal (Save dark)", "warnings", "saved layout refused", "saved countdown refused", "read-only"],
   },
   {
     name: "WallStrip",

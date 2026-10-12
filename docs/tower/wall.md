@@ -31,7 +31,7 @@ On a landscape laptop the television's layout is scaled by one number, with smal
 
 - Open the Wall from the **TV dashboard** entry at the bottom of the sidebar, or at `/wall`.
 - Select the NoticeOS mark in the corner to return to the desk.
-- Arrange the tiles, rows and site order from the desk at `/wall/edit`. See [Arrange the Wall](/guides/arrange-the-wall).
+- Drag the widgets into place, stack and resize them, and set the site order from the desk at `/wall/edit`. See [Arrange the Wall](/guides/arrange-the-wall).
 
 ## States and labels
 

@@ -71,7 +71,7 @@ describe("the desk's field chrome has one owner", () => {
       "routes/AssetsRoute.tsx",
       "routes/FinancialsRoute.tsx",
       "routes/TaskRoute.tsx",
-      "routes/WallEditRoute.tsx",
+      "components/wall/WallToolbar.tsx",
       "routes/tasks/TasksBoard.tsx",
     ];
 

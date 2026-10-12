@@ -409,10 +409,30 @@ cap, which widgets are unique, which row takes the remaining height, and the
 one-column order a portrait tablet or a phone stacks into. The same validator
 runs at every door a layout can be written through, so the editor, the config
 pipeline and the renderer cannot disagree about what the Wall can draw. The
-operator arranges tiles at `/wall/edit` and never authors tile types; the
-editor previews through the very component the television uses. The kit's
-desk components draw on the TV inside `.wall-root`, where their small type
-steps are scaled to the Wall's reading distance.
+kit's desk components draw on the TV inside `.wall-root`, where their small
+type steps are scaled to the Wall's reading distance.
+
+The operator arranges widgets at `/wall/edit` and never authors widget types.
+The editor is the television's own picture, drawn by the very component the
+TV uses at 1920×1080 and scaled to fit the window, so what is arranged is what
+the room will see. Its grammar is a row of stacks: a row holds columns side by
+side, a column stacks widgets. A drag lands by the edge the pointer is nearest,
+as a share of the widget so a long thin strip still has sides: top or bottom
+stacks the two in one column, left or right makes a column beside it taking
+half its width, a band between rows starts a new row. A line and its words
+("Above Sites") show the landing before the drop, and only where the drop is
+allowed, so the line is the promise and a refusal never has to be read. Every
+place a drag reaches is also an item in the widget's Move menu, with Alt and
+the arrows as its keys and an announcement of where the widget went, because a
+pointer is not the only hand (WCAG 2.5.7). The handles between columns and
+between stacked widgets resize live, snap to quarters, thirds and halves, and
+stop at a neighbour's legible minimum; a widget drawn below it says "Too narrow"
+rather than showing a broken chart. A column left holding one widget becomes
+that widget again and an emptied row goes, so the layout never carries a
+container nobody can see. Every change is one Undo; a drag of a handle is one.
+The side holds only the selected widget's settings, the Add drawer or the
+versions: no panel of controls restates the arrangement the picture already
+shows.
 
 One chart language, across every small chart on the TV and the desk's
 sparklines: a monotone line with round caps, an area whose wash eases to
@@ -480,7 +500,9 @@ from where it starts to what it leaves behind:
   before it is kept.
 - **Disconnect an integration** — Integrations → the connection: one
   confirmation naming what stops.
-- **Arrange the TV Wall** — Edit beside the TV entry: move one widget, save.
+- **Arrange the TV Wall** — Edit beside the TV entry: at a desk, drag a widget
+  onto another's top edge to stack them; the strip down through its Move menu
+  (the phone's whole path); save.
 - **Screen survey** — every main screen, populated: a walk that measures each
   page's statuses and lists rather than a flow.
 
