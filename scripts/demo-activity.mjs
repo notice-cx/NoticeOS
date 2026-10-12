@@ -3,6 +3,7 @@
 // ordinary writers, never precomputed alerts, deliveries or business outcomes.
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
+import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
 import { demoAdPayment, demoAdRevenueMinor, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -308,7 +309,9 @@ export function createDemoActivity(input) {
                     : 'Record the synthetic review result; do not claim a live deployment or business improvement.',
                 closeReason: ship
                     ? 'Synthetic change recorded with a 28-day comparison. No live deployment or measured business improvement.'
-                    : 'Synthetic review completed. No live deployment or measured business improvement.' });
+                    : 'Synthetic review completed. No live deployment or measured business improvement.',
+                agent: ship ? DEMO_BUILDER : DEMO_VERIFIER,
+                model: !ship ? 'GPT-5-Codex' : draw(seed, `${taskKey}/model`) < 3 / 7 ? 'Sonnet 5.5' : 'Opus 5.5' });
             if (ship && phase === 4) {
                 changes.push({ asset: asset.id, at: `${date}T15:00:00.000Z`, kind: 'deploy', ref: taskKey,
                     note: `Synthetic change: ${copy[0].replace(/^Ship /u, '')}. No live deployment.`,

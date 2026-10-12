@@ -156,5 +156,16 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
       filed.created.map(row => [row.id, true]));
     assert.deepEqual((await ok('list_tasks', { parent: filed.created[0].id })).tasks.map(task => task.id), [filed.created[1].id]);
     assert.deepEqual((await ok('list_tasks', { query: 'batch CHILD' })).tasks.map(task => task.id), [filed.created[1].id]);
+
+    // An agent names its model on its claim and on its close; the server
+    // records who closed the task, at the close's own time.
+    const named = await ok('create_task', { title: 'Named work', acceptance: 'It closes by name', idempotency_key: 'compose-named-0001' });
+    const claimed = (await ok('claim_task', { task: named.id, model: 'Example Model 1', idempotency_key: 'compose-named-0002' })).task;
+    assert.deepEqual([claimed.assignee, claimed.metadata?.noticeos_claimed_model], [ALICE, 'Example Model 1']);
+    const done = (await ok('close_task', { task: named.id, reason: 'It reads back · abc1234', model: 'Example Model 1',
+      idempotency_key: 'compose-named-0003' })).task;
+    assert.deepEqual([done.status, done.metadata?.noticeos_closed_by, done.metadata?.noticeos_closed_model, done.metadata?.noticeos_claimed_model],
+      ['closed', ALICE, 'Example Model 1', 'Example Model 1']);
+    assert.ok(Math.abs(Date.parse(done.metadata.noticeos_closed_at) - Date.parse(done.closedAt)) <= 1000, JSON.stringify(done));
   });
 });

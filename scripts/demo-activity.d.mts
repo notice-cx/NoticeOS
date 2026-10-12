@@ -50,6 +50,10 @@ export interface DemoTaskIntention {
     description: string;
     acceptance: string;
     closeReason: string;
+    /** Who claims and closes it: the builder ships, the verifier reviews. */
+    agent: string;
+    /** The model the agent names on its close. */
+    model: string;
 }
 /** A synthetic change recorded when a site's ship task closes, with the
  * 28-day comparison the ordinary watch-window writer registers for it. The

@@ -47,6 +47,23 @@ function canonical(value) {
     }
     return JSON.stringify(value);
 }
+/** Who closed a task, written onto it after its close: the task client keeps
+ * no closer. The close stands whether or not this lands; a task without it
+ * shows its close and no closer. `closeOutput` is the close's own answer. */
+export async function recordCloser(run, taskId, closeOutput, closedBy, model) {
+    try {
+        const closedAt = (found) => {
+            const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry : {})
+                .find(entry => entry.id === taskId);
+            return row?.status === 'closed' && typeof row.closed_at === 'string' ? row.closed_at : null;
+        };
+        const at = closedAt(closeOutput) ?? closedAt(await run({ kind: 'show', taskId }));
+        if (at === null)
+            return;
+        await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }) }));
+    }
+    catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
+}
 export function createHostedTaskOperations(options) {
     const { directory, executor, workspaceActors, receipts } = options;
     const admission = options.admission;
@@ -132,27 +149,11 @@ export function createHostedTaskOperations(options) {
         }
         return undefined;
     }
-    /** Who closed it, written onto the task after its close: the task client
-     * keeps no closer. The close stands whether or not this lands; a task
-     * without it shows its close and no closer. */
     async function attribute(proof, workspaceId, request, value, principalId) {
         const operation = request.operation;
         if (operation.kind !== 'close')
             return;
-        try {
-            const run = (step) => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step });
-            const closedAt = (found) => {
-                const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry : {})
-                    .find(entry => entry.id === operation.taskId);
-                return row?.status === 'closed' && typeof row.closed_at === 'string' ? row.closed_at : null;
-            };
-            const at = closedAt(value) ?? closedAt(await run({ kind: 'show', taskId: operation.taskId }));
-            if (at === null)
-                return;
-            await run(Object.freeze({ kind: 'attribute', taskId: operation.taskId, closedBy: principalId, closedAt: at,
-                ...(operation.model === undefined ? {} : { model: operation.model }) }));
-        }
-        catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
+        await recordCloser(step => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step }), operation.taskId, value, principalId, operation.model);
     }
     return Object.freeze({
         projects(proof, workspaceId) {

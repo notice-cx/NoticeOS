@@ -104,7 +104,9 @@ under the release's job identities: a quarter-hour refresh writes today's provis
 synthetic traffic and search counts, the ad-supported sites' daily estimates
 arrive each morning, an hourly freshness check raises and clears the alert for
 a site whose nightly report has stopped arriving, and the task board refreshes every
-five minutes. The same hourly job runs the release's home-page check against
+five minutes. Each site's weekly task is claimed and closed as `codex` for a
+review and as `claude` for a change, with the model and the closer recorded, so
+the Agents page and the Wall keep crediting the named agents after the cutoff. The same hourly job runs the release's home-page check against
 each fictional site's synthetic page, so no site is fetched. Each day one site
 in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
 alert, and the next hour's check marks it up and closes the alert. System health

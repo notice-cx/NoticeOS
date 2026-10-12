@@ -175,6 +175,8 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
     assert.deepEqual(own.map(task => task.phase), sites.indexOf(site) >= 3 ? ['create', 'start'] : ['create', 'start', 'complete']);
     assert.equal(new Set(own.map(task => task.key)).size, 1);
     assert.match(own[0].description, /simulated review of fictional data/u);
+    // The verifier reviews, naming its model on every step of the cycle.
+    assert.ok(own.every(task => task.agent === 'codex' && task.model === 'GPT-5-Codex'));
   }
   assert.match(first.find(task => task.phase === 'complete').closeReason, /No live deployment or measured business improvement/u);
   // Review weeks register nothing; the following week every site ships and its close records one change with its comparison.
@@ -187,6 +189,9 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
     const close = day.tasks.find(task => task.asset === change.asset && task.phase === 'complete');
     assert.equal(change.ref, close.key);
     assert.match(close.title, /^Ship /u);
+    // The builder ships, under one of the models it names.
+    assert.equal(close.agent, 'claude'); assert.ok(['Opus 5.5', 'Sonnet 5.5'].includes(close.model));
+    assert.ok(shipWeek.flatMap(entry => entry.tasks).filter(task => task.key === close.key).every(task => task.model === close.model));
     assert.match(close.closeReason, /28-day comparison.*No live deployment/u);
     assert.equal(change.kind, 'deploy');
     assert.equal(change.at, `${day.date}T15:00:00.000Z`);
