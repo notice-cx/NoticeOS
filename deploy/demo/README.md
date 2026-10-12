@@ -107,17 +107,6 @@ alert, and the next hour's check marks it up and closes the alert. Their executi
 daily outcome check over the demo's own watch windows is the Workflows page's
 history. The banner's generation time is the demo service's latest write.
 
-Integrations shows Google (Analytics and Search Console), Bing and the ad
-network connected through demo connections. A demo connection stores no login,
-needs no credential key and fetches nothing. Only the server's demo profile
-answers one, for the one demo workspace its configuration names; any other
-profile or workspace reads the same providers as not connected. Its syncs are
-the collection runs the simulator records: the quarter-hour Google refresh,
-Bing's daily report and the ad network's morning report. A run that fails
-shows that source failing until the next one succeeds; one site's Analytics
-report is missing for a day every 29 days. The demo keeps no report archive,
-so none is monitored.
-
 The demo's pages ask search engines to index them. Their links preview with
 the TV dashboard, at absolute URLs the server fills from the configured public
 origin. An installation's own pages ask not to be indexed.
@@ -144,6 +133,17 @@ blocked. The release's own evaluators produce every alert and verdict from
 the synthetic history; none is written as a result.
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
+
+Integrations shows Google (Analytics and Search Console), Bing and the ad
+network connected through demo connections. A demo connection stores no login,
+needs no credential key and fetches nothing. Only the server's demo profile
+answers one, for the one demo workspace its configuration names; any other
+profile or workspace reads the same providers as not connected. Its syncs are
+the collection runs the simulator records: the quarter-hour Google refresh,
+Bing's daily report and the ad network's morning report. A run that fails
+shows that source failing until the next one succeeds; one site's Analytics
+report is missing for a day every 29 days. The demo keeps no report archive,
+so none is monitored.
 
 ## Stop, restart and update
 
