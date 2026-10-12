@@ -139,7 +139,11 @@ recipe site whose traffic is rising with its season, an outdoor guide losing
 traffic after a redesign the outcome check rejected, and a product weeks old;
 two of them have ad income. Last night's synthetic backup failed, open
 decisions range from hours to weeks old, and each project's board has work
-done this week, in progress and blocked. The release's own evaluators produce every alert and verdict from
+done this week, in progress and blocked. The work is credited to two named
+agents: `claude` builds, records the model it used, and closes each task with
+its commit and the page where the change appears, after `codex` checks it. The
+Agents page shows eight weeks of their earlier work. The release's own
+evaluators produce every alert and verdict from
 the synthetic history; none is seeded as a finished result.
 Visitor writes and provider actions are rejected. A passing health check does
 not show that any remote domain has been deployed or that an expired grant can
