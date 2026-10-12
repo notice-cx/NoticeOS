@@ -135,8 +135,16 @@ describe('integration account metadata', () => {
     delete data.credential.metadata.balance;
     expect(decodeIntegrationProviders(value)).toBe(value);
   });
+  it('accepts a demo connection, which holds no field, key or login', () => {
+    const value = accounts();
+    const google = value.providers.find(item => item.provider.id === 'google')!;
+    Object.assign(google.credential, { source: 'demo', fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,
+      keyVersion: null, createdAt: null, updatedAt: null, lastUsedAt: null, lastOkAt: null, lastError: null });
+    expect(decodeIntegrationProviders(value)).toBe(value);
+  });
   it.each([
     ['provider mismatch', (value: IntegrationCredentialsPayload) => { value.providers[0]!.credential.provider = 'google'; }],
+    ['credential source', (value: IntegrationCredentialsPayload) => { Object.assign(value.providers[0]!.credential, { source: 'borrowed' }); }],
     ['duplicate providers', (value: IntegrationCredentialsPayload) => { value.providers.push(value.providers[0]!); }],
     ['provider declaration', (value: IntegrationCredentialsPayload) => { Object.assign(value.providers[0]!.provider.test, { cost: 'unexpected' }); }],
     ['expiry enum', (value: IntegrationCredentialsPayload) => { Object.assign(value.providers[0]!.credential, { auth: 'admin' }); }],
