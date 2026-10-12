@@ -342,7 +342,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Site data sources',
     describe: 'one data source on one site',
     owner: 'config/integrations.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     // `since` means "when this posture was recorded", so it moves with
     // `status` whatever surface the write comes from; a note-only edit moves
     // nothing.
@@ -637,7 +637,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Sites declaring value events',
     describe: "one site's value-event declaration, holding its list",
     owner: 'config/value-events.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     assetRegister: true,
   },
   'value-events': {
@@ -650,7 +650,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Value events',
     describe: 'one GA4 event this site calls a value event',
     owner: 'config/value-events.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     fields: [
       {
         name: 'event',
@@ -673,7 +673,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Product use stages',
     describe: 'saved event counts shown in Product use',
     owner: 'config/value-events.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     fields: [
       { name: 'eventName', label: 'GA4 event', type: 'string', required: true,
         maxLength: PRODUCT_USE_EVENT_MAX_LENGTH, pattern: PRODUCT_USE_EVENT_PATTERN, describe: 'the saved event name' },
@@ -697,7 +697,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Sites with registered dimensions',
     describe: "one site's registered-dimension declaration, holding its list",
     owner: 'config/ga4-custom-dimensions.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     assetRegister: true,
   },
   'ga4-event-params': {
@@ -709,7 +709,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     label: 'Registered event parameters',
     describe: 'a parameter registered as a GA4 custom dimension',
     owner: 'config/ga4-custom-dimensions.README.md',
-    surface: "the site's Sources tab",
+    surface: "the site's Data sources tab",
     fields: [
       {
         name: 'param',

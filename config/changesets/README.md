@@ -94,7 +94,7 @@ version of this one.
 The **one** exception, and it is a single key wide. A register field the declaration marks optional is **absent** until
 something writes it — every mapping field in `config/integrations.json` is, so
 the GA4 property id, the Search Console or Bing site and the DataForSEO scope
-are each written for the first time on some asset's Sources tab.
+are each written for the first time on some asset's Data sources tab.
 
 `expect` is a JSON value and JSON cannot spell absence: `""` is a value somebody
 wrote down, an absent key is a different fact, and comparing the first against
@@ -260,16 +260,16 @@ Delete must name.
 | register | file · container | shape · key | rows are | edited on |
 |---|---|---|---|---|
 | `asset-integrations` ✦ | `integrations.json` · `/assets` | object · asset id | opaque | the add-asset wizard |
-| `asset-lane` | `integrations.json` · `/assets/<asset>` | object · **lane id** | `status`, `note`, `ref`, `since`, and the mapping fields `propertyId`, `siteUrl`, `locationCode`, `languageCode` | the asset's Sources tab |
+| `asset-lane` | `integrations.json` · `/assets/<asset>` | object · **lane id** | `status`, `note`, `ref`, `since`, and the mapping fields `propertyId`, `siteUrl`, `locationCode`, `languageCode` | the asset's Data sources tab |
 | `asset-counters` ✦ | `counters.json` · `/assets` | object · asset id | opaque | the add-asset wizard |
 | `asset-pull` ✦ | `pull.json` · the document | array · `asset` | opaque | the add-asset wizard |
 | `domain-costs` | `domain-costs.json` · `/domains` | array · `domain` | `domain`, `asset`, `kind`, `paidUsd`, `paidOn` | `/financials` |
 | `recurring-costs` | `recurring-costs.json` · `/costs` | array · `id` | `id`, `label`, `asset`, `family`, `amountUsdPerMonth`, `from`, `to`, `note` | `/financials` |
-| `value-events-assets` ✦ | `value-events.json` · `/assets` | object · asset id | opaque (holds the list) | the asset's Sources tab |
-| `value-events` | `value-events.json` · `/assets/<asset>/valueEvents` | array · a bare string | `event` | the asset's Sources tab |
-| `product-use-stages` | `value-events.json` · `/assets/<asset>/productUseStages` | array · event name | `eventName`, `label`, `group`, `compareTo`, `comparisonLabel` | the asset's Sources tab |
-| `ga4-event-params-assets` ✦ | `ga4-custom-dimensions.json` · `/assets` | object · asset id | opaque (holds the list) | the asset's Sources tab |
-| `ga4-event-params` | `ga4-custom-dimensions.json` · `/assets/<asset>/eventParams` | array · a bare string | `param` | the asset's Sources tab |
+| `value-events-assets` ✦ | `value-events.json` · `/assets` | object · asset id | opaque (holds the list) | the asset's Data sources tab |
+| `value-events` | `value-events.json` · `/assets/<asset>/valueEvents` | array · a bare string | `event` | the asset's Data sources tab |
+| `product-use-stages` | `value-events.json` · `/assets/<asset>/productUseStages` | array · event name | `eventName`, `label`, `group`, `compareTo`, `comparisonLabel` | the asset's Data sources tab |
+| `ga4-event-params-assets` ✦ | `ga4-custom-dimensions.json` · `/assets` | object · asset id | opaque (holds the list) | the asset's Data sources tab |
+| `ga4-event-params` | `ga4-custom-dimensions.json` · `/assets/<asset>/eventParams` | array · a bare string | `param` | the asset's Data sources tab |
 | `serp-panel-assets` ✦ | `serp-panel.json` · `/assets` | object · asset id | opaque (holds the panel) | the asset's Growth tab |
 | `serp-panel-queries` | `serp-panel.json` · `/assets/<asset>/queries` | array · `query` | `query`, `label` (a bare string when unlabelled) | the asset's Growth tab |
 | `signal-panels` ✦ | `signal-panels.json` · `/assets` | object · asset id | `enabled`, `reason`, `task`, `since` | the asset's Growth tab |
