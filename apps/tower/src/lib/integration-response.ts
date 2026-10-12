@@ -27,7 +27,7 @@ const metadata = (value: unknown) => fields(value, {
 
 function credential(value: unknown, provider: string): boolean {
   return fields(value, {
-    provider: id => id === provider, source: oneOf(['store', 'env', 'none']), fields: strings, assetsHeld: strings, missingFields: strings,
+    provider: id => id === provider, source: oneOf(['store', 'env', 'demo', 'none']), fields: strings, assetsHeld: strings, missingFields: strings,
     auth: nullable(oneOf(['oauth', 'service-account', 'account-key', 'site-keys'])), metadata: nullable(metadata),
     keyVersion: nullable(version => integer(version) && version > 0), createdAt: nullable(instant), updatedAt: nullable(instant),
     lastUsedAt: nullable(instant), lastOkAt: nullable(instant), lastError: nullable(string),

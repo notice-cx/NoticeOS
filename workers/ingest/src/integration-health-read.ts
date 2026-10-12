@@ -18,7 +18,7 @@ import { clarityCandidates, resolveClarityTokens, CLARITY_REPORT } from './clari
 import { POSTHOG_KEY_SLOT, posthogCandidates, resolvePosthogKeys } from './posthog-dumps.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT } from './posthog-account.js';
 import { POSTHOG_FAMILIES, mediavineSyncOn } from '@noticeos/contract';
-import { cellDeclined, posthogSettings, type LaneRegister } from './lane-mapping.js';
+import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister } from './lane-mapping.js';
 
 type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
 interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string; provider_truncated?: number }
@@ -161,12 +161,14 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const scope = await healthScope(spec.connection, spec.capability, spec.asset, spec.target, spec.family);
     const key = integrationScopeKey(scope);
     const stored = observed.get(key);
-    const legacyUnverified = spec.observations !== undefined && spec.observations.length > 0 && !stored;
+    const legacyUnverified = !spec.connection.demo && spec.observations !== undefined && spec.observations.length > 0 && !stored;
     // A source result cannot prove this connection recovered, but an unmatched
     // newer attempt does invalidate an older green monitoring result.
     const unrecordedAttempt = stored?.outcome !== 'failure' && spec.observations?.some(item =>
       item.attemptId !== stored?.attempt_id && Date.parse(item.startedAt) >= Date.parse(stored?.started_at ?? ''));
-    const observations = stored ? [observationFromRow(stored)] : [];
+    // A demo connection never changes and records nothing but its runs, so
+    // the runs the demo's simulator saves are its evidence.
+    const observations = stored ? [observationFromRow(stored)] : spec.connection.demo ? spec.observations ?? [] : [];
     const latestAt = observations.reduce<string | null>((latest, item) => !latest || item.startedAt > latest ? item.startedAt : latest, null);
     // A display's old success is idle, never an unattended freshness promise.
     // A failure stays visible however old it becomes.
@@ -311,12 +313,19 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       if (provider === 'google') {
         for (const family of ['Analytics', 'Search Console']) await add({ connection, capability: 'google-discovery', family, detail: family });
         const google = await resolveGoogleCredential(env);
-        const targets = googleTargets(google, google.source, googleCredentialResolver(env), register);
+        const targets = connection.demo ? [] : googleTargets(google, google.source, googleCredentialResolver(env), register);
         for (const target of targets) {
           const paused = cellDeclined(register.assets[target.asset]?.[target.integration]);
           if (target.integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-hourly']) await add({ connection, capability, asset: target.asset, target: target.propertyRef, paused });
           await daily(connection, `${target.integration}-daily`, target.asset, target.propertyRef, target.integration, INTEGRATION_CADENCE_HOURS.signals, paused);
           await archive(connection, `${target.integration}-archive`, target.asset, target.propertyRef, target.integration, await integrationArchivePlan(env.STORE, target, nowMs, custom), paused);
+        }
+        // A demo connection reads the properties the register maps, as a
+        // sign-in does, and records their daily counts; it keeps no archive.
+        if (connection.demo) for (const integration of ['ga4', 'gsc'] as const) for (const { asset, ref } of registerMappedAssets(integration, register)) {
+          const paused = cellDeclined(register.assets[asset]?.[integration]);
+          if (integration === 'ga4') for (const capability of ['ga4-realtime', 'ga4-hourly']) await add({ connection, capability, asset, target: ref, paused });
+          await daily(connection, `${integration}-daily`, asset, ref, integration, INTEGRATION_CADENCE_HOURS.signals, paused);
         }
       } else if (provider === 'bing-webmaster') {
         for (const target of await loadBingPortfolioCandidates(env.STORE)) {
@@ -331,7 +340,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           const paused = cellDeclined(register.assets[target.asset]?.['bing-webmaster']);
           for (const ref of refs) {
             await daily(connection, 'bing-daily', target.asset, ref, 'bing-webmaster', INTEGRATION_CADENCE_HOURS.bingSignals, paused);
-            await archive(connection, 'bing-archive', target.asset, ref, 'bing-webmaster', BING_ARCHIVE_FAMILIES, paused);
+            if (!connection.demo) await archive(connection, 'bing-archive', target.asset, ref, 'bing-webmaster', BING_ARCHIVE_FAMILIES, paused);
           }
         }
       } else if (provider === 'dataforseo') {

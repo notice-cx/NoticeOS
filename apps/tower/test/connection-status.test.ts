@@ -186,4 +186,13 @@ describe("one data source on one asset", () => {
     expect(sourceStatus(undefined, items, "meadow.example", "ga4").kind).toBe("unknown");
     expect(sourceStatus(credential(), null, "meadow.example", "ga4").kind).toBe("unknown");
   });
+
+  it("reads a demo connection as its runs say, like any connection", () => {
+    // The demo workspace's connection: no field, no key, never used.
+    const demo = credential({ source: "demo", fields: [], keyVersion: null, createdAt: null, updatedAt: null, lastUsedAt: null, lastOkAt: null });
+    expect(sourceStatus(demo, items, "meadow.example", "ga4").kind).toBe("working");
+    expect(sourceStatus(demo, items, "meadow.example", "gsc").kind).toBe("failing");
+    expect(connectionStatus("google", demo, items).kind).toBe("failing");
+    expect(connectionStatus("google", demo, site("meadow.example")).kind).toBe("working");
+  });
 });

@@ -8,6 +8,7 @@
 
 import {
   type CredentialMetadata,
+  type CredentialSource,
   type GoogleOAuthCompletion,
   type GoogleOAuthStart,
   type GoogleDiscoveredProperty,
@@ -58,8 +59,8 @@ const REQUIRED_SCOPES = [GOOGLE_SCOPES.ga4, GOOGLE_SCOPES.gsc] as const;
  * once and passed down. */
 export interface ResolvedGoogleCredential {
   credential: Awaited<ReturnType<typeof resolveCredential>>;
-  /** Where the credential came from — `store`, `env`, or `none`. */
-  source: 'store' | 'env' | 'none';
+  /** Where the credential came from (`CredentialSource`). */
+  source: CredentialSource;
   /** The account → properties map, when one is configured. */
   accounts: string | undefined;
   /** The sign-in, when the operator made one AND the OAuth app is set. */
