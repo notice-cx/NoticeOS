@@ -288,7 +288,9 @@ test('an agent registers, its person approves it once, and its token reaches eac
     assert.equal(claimed.result.isError, undefined, JSON.stringify(claimed));
     const refusedWrite = await (await rpc(authorized, 'claim_task', { workspace: viewed, project, task: 'tt-1', idempotency_key: 'agent-claim-0002' })).json();
     assert.match(refusedWrite.result.content[0].text, /^refused:/u);
-    assert.deepEqual(fake.calls.map(entry => [entry.workspace, entry.operation.kind]), [[operated, 'update']]);
+    // The claim, then its read-back, all in the named workspace; the viewer's refused write reaches no command.
+    assert.deepEqual(fake.calls.map(entry => [entry.workspace, entry.operation.kind]),
+      [[operated, 'update'], [operated, 'ready'], [operated, 'show'], [operated, 'comments']]);
     await rpc(authorized, 'list_properties', { workspace: viewed });
     assert.deepEqual([forwarded[0].headers.get('authorization'), forwarded[0].headers.get('x-noticeos-workspace-id')], [`Bearer ${operator}`, viewed]);
   } catch (error) { primaryError = error; throw error; } finally {

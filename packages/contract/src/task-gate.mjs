@@ -28,3 +28,16 @@ export function gateReason(description) {
 export function gateTitle(title, description) {
     return gateReason(description) ?? title;
 }
+/**
+ * Whether a task is in the operator's Waiting on you: an open human gate, which
+ * a person approves, or a ready task labelled `human`, which a person answers
+ * or dismisses. A parked or closed task waits on nobody, and a timer or GitHub
+ * gate resolves itself. A photographed gate carries no await type; every gate
+ * the photograph keeps is a human one.
+ */
+export function waitsOnPerson(task) {
+    if (task.status === "deferred" || task.status === "closed")
+        return false;
+    const gate = task.issueType === "gate" || (task.awaitType ?? null) !== null;
+    return gate ? (task.awaitType ?? "human") === "human" : task.labels.includes("human") && task.ready;
+}

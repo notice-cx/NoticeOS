@@ -10,11 +10,18 @@ export declare const HOSTED_TASK_LIMITS: Readonly<{
     labels: 32;
     label: 128;
     metadataValue: 2048;
+    links: 32;
 }>;
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
-export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore';
+export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore' | 'decision';
 /** blocks keeps the task out of ready work until the other closes; the others only record a link. */
 export type HostedTaskDependencyType = 'blocks' | 'related' | 'discovered-from';
+/** A new task's link to an existing one, in the task client's `--deps` words:
+ * blocked-by waits on it, blocks holds it back, the others only record a link. */
+export interface HostedTaskLink {
+    readonly type: 'blocked-by' | 'blocks' | 'related' | 'discovered-from';
+    readonly taskId: string;
+}
 export type HostedTaskOperation = {
     readonly kind: 'list';
     readonly limit: number;
@@ -57,6 +64,7 @@ export type HostedTaskOperation = {
     readonly parent?: string;
     readonly acceptance?: string;
     readonly metadata?: Readonly<Record<string, string>>;
+    readonly links?: readonly HostedTaskLink[];
     /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
     readonly operationId?: string;
 } | {
@@ -98,7 +106,7 @@ export type HostedTaskOperation = {
     readonly reason: string;
 } | {
     readonly kind: 'lint';
-    readonly taskId: string;
+    readonly taskIds: readonly string[];
 } | {
     readonly kind: 'respond';
     readonly taskId: string;

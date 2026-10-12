@@ -11,7 +11,7 @@
 import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 export const HOSTED_TASK_LIMITS = Object.freeze({
     projects: 4096, identifier: 128, title: 512, body: 8192,
-    comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048,
+    comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
 });
 function invalid() { throw new Error('Invalid hosted task plan input.'); }
 /** Data properties only: malformed JavaScript callers cannot smuggle getters. */
@@ -77,23 +77,45 @@ function choice(value, values) {
     return value;
 }
 const STATUSES = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
-const TYPES = ['task', 'bug', 'feature', 'epic', 'chore'];
+const TYPES = ['task', 'bug', 'feature', 'epic', 'chore', 'decision'];
 const DEPENDENCY_TYPES = ['blocks', 'related', 'discovered-from'];
-function labelList(value, empty = false) {
-    if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels || !empty && value.length === 0
-        || Reflect.ownKeys(value).length !== value.length + 1)
+const LINK_TYPES = ['blocked-by', 'blocks', 'related', 'discovered-from'];
+/** Data-property entries of a bounded array, in order. */
+function entries(value, min, max) {
+    if (!Array.isArray(value) || value.length < min || value.length > max || Reflect.ownKeys(value).length !== value.length + 1)
         invalid();
-    const labels = [];
+    const out = [];
     for (let index = 0; index < value.length; index++) {
         const field = Object.getOwnPropertyDescriptor(value, String(index));
         if (!field || !('value' in field))
             invalid();
-        const label = text(field.value, HOSTED_TASK_LIMITS.label);
+        out.push(field.value);
+    }
+    return out;
+}
+function labelList(value, empty = false) {
+    const labels = [];
+    for (const entry of entries(value, empty ? 0 : 1, HOSTED_TASK_LIMITS.labels)) {
+        const label = text(entry, HOSTED_TASK_LIMITS.label);
         if (/[\r\n\t,]/u.test(label) || label.trim() !== label || labels.includes(label))
             invalid();
         labels.push(label);
     }
     return Object.freeze(labels);
+}
+/** `--deps` entries. The task client keeps one link per pair, so a target is
+ * named once, and never the parent, which already holds its link. */
+function linkList(value, parent) {
+    const targets = new Set(parent === undefined ? [] : [parent]);
+    return Object.freeze(entries(value, 1, HOSTED_TASK_LIMITS.links).map(item => {
+        const link = record(item);
+        keys(link, ['type', 'taskId']);
+        const type = choice(link.type, LINK_TYPES), target = task(link.taskId);
+        if (targets.has(target))
+            invalid();
+        targets.add(target);
+        return `${type}:${target}`;
+    }));
 }
 function deferDate(value) {
     if (value === '')
@@ -138,10 +160,14 @@ function command(input) {
             keys(op, ['kind', 'taskId']);
             argv.push('comments', '--', task(op.taskId));
             break;
-        case 'lint':
-            keys(op, ['kind', 'taskId']);
-            argv.push('lint', '--', task(op.taskId));
+        case 'lint': {
+            keys(op, ['kind', 'taskIds']);
+            const ids = entries(op.taskIds, 1, HOSTED_TASK_LIMITS.rows).map(task);
+            if (new Set(ids).size !== ids.length)
+                invalid();
+            argv.push('lint', '--', ...ids);
             break;
+        }
         case 'ready':
             keys(op, ['kind']);
             argv.push('ready', '--limit=0');
@@ -189,7 +215,7 @@ function command(input) {
             break;
         }
         case 'create':
-            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'operationId']);
+            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'operationId']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -206,6 +232,9 @@ function command(input) {
             // human among them, and only a person may take that one off.
             if (Object.hasOwn(op, 'parent'))
                 argv.push(`--parent=${task(op.parent)}`, '--no-inherit-labels');
+            // In the create itself, so a task and its links land together or not at all.
+            if (Object.hasOwn(op, 'links'))
+                argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
             if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {

@@ -17,10 +17,9 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp, type McpMessage, type McpServer, type McpTool } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
-import { TASK_MCP_TOOLS } from './hosted-task-mcp.mjs';
+import { TASK_MCP_TOOLS, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import type { HostedTaskOperations } from './hosted-task-operations.mjs';
-import { HumanDecisionRefused } from './hosted-task-command.mjs';
 
 export const MCP_PATH = AGENT_RESOURCE_PATH;
 /** Marks this endpoint's own forwarded call to the Worker's read-model tools,
@@ -98,7 +97,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
   const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : [])]);
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
     { status: 400, headers: { 'cache-control': 'no-store' } });
-  const refused = () => new McpToolError('refused: this workspace, project or task is not available to you, or the change was not accepted');
+  const refused = () => taskRefusal(null);
 
   /** One read-model call, as the Worker's own MCP endpoint answers it. */
   async function readModel(original: Request, name: string, workspaceId: string, args: Record<string, unknown>): Promise<unknown> {
@@ -157,16 +156,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
       try {
         return task ? await task.run({ proof, workspaceId: workspace, operations }, rest) : await readModel(original, name, workspace, rest);
-      } catch (error) {
-        if (error instanceof McpToolError) throw error;
-        if (error instanceof HumanDecisionRefused) {
-          throw new McpToolError(`refused: ${error.taskId} is a person's decision, a gate or a task labelled human. Only a person `
-            + 'closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
-        }
-        // Admission, project selection and command refusals share one answer:
-        // which of them refused is not the caller's to learn.
-        throw refused();
-      }
+      } catch (error) { throw taskRefusal(error); }
     } };
     const authorize = scopes === null ? undefined : (message: McpMessage) => {
       if (message.method !== 'tools/call') return null;

@@ -212,15 +212,21 @@ export function createHostedTaskOperations(options) {
                 return Object.freeze({ gate, created: true });
             });
         },
-        lint(proof, workspaceId, projectId, taskId) {
+        lint(proof, workspaceId, projectId, taskIds) {
             return read(proof, workspaceId, projectId, async (_project, run) => {
-                const report = record(await run({ kind: 'lint', taskId }));
+                const report = record(await run({ kind: 'lint', taskIds }));
                 // A task with nothing missing is absent from the results, which are then null.
-                const found = report.results === null ? [] : rows(report.results).map(record).filter(row => row.id === taskId);
-                const missing = found.length ? found[0].missing : [];
-                if (found.length > 1 || !Array.isArray(missing) || missing.some(item => typeof item !== 'string'))
-                    invalid();
-                return Object.freeze([...missing]);
+                const missing = new Map(taskIds.map(id => [id, Object.freeze([])]));
+                const seen = new Set();
+                for (const row of report.results === null ? [] : rows(report.results).map(record)) {
+                    if (typeof row.id !== 'string' || !missing.has(row.id))
+                        continue;
+                    if (seen.has(row.id) || !Array.isArray(row.missing) || row.missing.some(item => typeof item !== 'string'))
+                        invalid();
+                    seen.add(row.id);
+                    missing.set(row.id, Object.freeze([...row.missing]));
+                }
+                return missing;
             });
         },
         async write(proof, workspaceId, request, idempotencyKey) {

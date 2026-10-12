@@ -91,7 +91,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
-    'create_task', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
+    'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
@@ -209,7 +209,8 @@ test('dependencies and human approval decide what is ready; lint advises on ever
 
   const ask = { workspace: A, project: P, task: 'tt-2', reason: 'Approve the schema change' };
   const opened = (await call(f, 'request_human_approval', ask)).structuredContent;
-  assert.deepEqual(opened, { task: 'tt-2', approval: { id: 'tt-3', status: 'open', reason: 'Approve the schema change' }, created: true });
+  assert.deepEqual(opened, { task: 'tt-2', approval: { id: 'tt-3', status: 'open', reason: 'Approve the schema change' }, held: true,
+    note: 'tt-2 is out of ready work until a person approves tt-3 on Tasks in the Tower.', created: true }, 'the reply says the task is held');
   assert.deepEqual((await call(f, 'request_human_approval', ask)).structuredContent, { ...opened, created: false }, 'a retry never asks twice');
   assert.deepEqual(await ready(), ['tt-1']);
   assert.equal((await call(f, 'request_human_approval', { ...ask, reason: 'Approve the rollout' })).structuredContent.approval.id, 'tt-4');
@@ -232,8 +233,8 @@ test('a project\'s tasks come a page of summaries at a time, most urgent first, 
   const list = async extra => (await call(f, 'list_tasks', { workspace: A, project: P, ...extra })).structuredContent;
   const first = await list({ limit: 2 });
   assert.deepEqual([first.total, first.tasks.map(task => task.title), first.nextOffset], [3, ['Now', 'Soon'], 2]);
-  assert.deepEqual(Object.keys(first.tasks[0]).sort(), ['assignee', 'awaitingHuman', 'closedAt', 'createdAt', 'deferUntil', 'id', 'labels',
-    'parent', 'priority', 'ready', 'status', 'title', 'type', 'updatedAt'], 'no body, acceptance, metadata or dependency detail');
+  assert.deepEqual(Object.keys(first.tasks[0]).sort(), ['awaitingHuman', 'createdAt', 'id', 'priority', 'ready', 'status', 'title', 'type',
+    'updatedAt'], 'no body, acceptance, metadata or dependency detail, and no field without a value');
   const rest = await list({ limit: 2, offset: first.nextOffset });
   assert.deepEqual([rest.total, rest.tasks.map(task => task.title), rest.nextOffset], [3, ['Later'], null]);
   assert.equal((await list({})).tasks.length, 3, 'the default page holds 50');
@@ -264,6 +265,144 @@ test('a project with hundreds of ready tasks reads in small pages that hold each
   assert.equal(new Set(seen.map(task => task.id)).size, 300, 'every task once');
   assert.ok(seen.every((task, i) => i === 0 || seen[i - 1].priority < task.priority
     || seen[i - 1].priority === task.priority && seen[i - 1].createdAt < task.createdAt), 'most urgent first, then oldest');
+});
+
+const DAY = 86_400_000;
+const filer = f => async (title, extra = {}) => (await call(f, 'create_task', { workspace: A, project: P, title,
+  idempotency_key: `create-${title.toLowerCase().replace(/[^a-z0-9]+/gu, '-')}-0001`, ...extra })).structuredContent;
+
+test('list_tasks searches live by words, parent, labels, type and date, and leaves out empty fields', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Launch plan', { type: 'epic' });
+  f.advance(DAY);
+  await create('Pick the hosting', { type: 'decision', parent: 'tt-1', labels: ['human', 'infra'], description: 'Compare the two providers' });
+  await create('Write the launch post', { parent: 'tt-1', labels: ['copy'] });
+  f.advance(DAY);
+  await call(f, 'update_task', { workspace: A, project: P, task: 'tt-3', priority: 1, idempotency_key: 'agent-update-0101' });
+  const list = async extra => (await call(f, 'list_tasks', { workspace: A, project: P, ...extra })).structuredContent;
+  const ids = async extra => (await list(extra)).tasks.map(task => task.id).sort();
+  assert.deepEqual(await ids({ query: 'LAUNCH' }), ['tt-1', 'tt-3']);
+  assert.deepEqual(await ids({ query: 'two providers' }), ['tt-2'], 'a description matches');
+  assert.deepEqual(await ids({ query: 'infra' }), ['tt-2'], 'a label matches');
+  assert.deepEqual(await ids({ query: 'launch hosting' }), [], 'every word must appear');
+  assert.deepEqual(await ids({ parent: 'tt-1' }), ['tt-2', 'tt-3']);
+  assert.deepEqual(await ids({ labels: ['human', 'infra'] }), ['tt-2']);
+  assert.deepEqual(await ids({ labels: ['human', 'copy'] }), [], 'every label must be carried');
+  assert.deepEqual(await ids({ type: ['decision', 'epic'] }), ['tt-1', 'tt-2']);
+  assert.deepEqual(await ids({ created_after: '2026-10-08' }), ['tt-2', 'tt-3']);
+  assert.deepEqual(await ids({ created_before: '2026-10-08T00:00:00Z' }), ['tt-1']);
+  assert.deepEqual(await ids({ updated_after: '2026-10-09' }), ['tt-3']);
+  assert.deepEqual(await ids({ updated_before: '2026-10-09', parent: 'tt-1' }), ['tt-2'], 'filters combine');
+  assert.equal((await list({ query: 'launch', limit: 1 })).total, 2, 'total counts what the filters keep');
+  const rows = Object.fromEntries((await list({})).tasks.map(task => [task.id, task]));
+  assert.deepEqual([rows['tt-2'].parent, rows['tt-2'].labels, rows['tt-2'].type], ['tt-1', ['human', 'infra'], 'decision']);
+  assert.equal(['parent', 'labels', 'assignee', 'deferUntil', 'closedAt'].some(field => field in rows['tt-1']), false, 'no empty field');
+  for (const bad of [{ created_after: 'yesterday' }, { updated_before: '2026-13-40' }, { labels: 'human' }, { parent: 'no id' },
+    { type: [3] }, { query: 7 }]) {
+    assert.match((await call(f, 'list_tasks', { workspace: A, project: P, ...bad })).content[0].text, /^invalid arguments/u, JSON.stringify(bad));
+  }
+});
+
+test('a changed, claimed or closed task comes back whole, with its parent and links', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Epic', { type: 'epic' });
+  await create('Other');
+  await create('Child', { parent: 'tt-1', related: ['tt-2'] });
+  const links = [{ id: 'tt-1', type: 'parent-child', title: 'Epic', status: 'open' }, { id: 'tt-2', type: 'related', title: 'Other', status: 'open' }];
+  const changed = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-3', priority: 0, idempotency_key: 'agent-update-0201' })).structuredContent;
+  assert.deepEqual([changed.task.parent, changed.task.dependencies, changed.task.priority, changed.replayed], ['tt-1', links, 0, false]);
+  const replayed = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-3', priority: 0, idempotency_key: 'agent-update-0201' })).structuredContent;
+  assert.deepEqual([replayed.task.parent, replayed.replayed], ['tt-1', true]);
+  const claimed = (await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-3', idempotency_key: 'agent-claim-0201' })).structuredContent;
+  assert.deepEqual([claimed.task.parent, claimed.task.dependencies, claimed.task.assignee], ['tt-1', links, PERSON]);
+  const closed = (await call(f, 'close_task', { workspace: A, project: P, task: 'tt-3', reason: 'Done in abc123', idempotency_key: 'agent-close-0201' })).structuredContent;
+  assert.deepEqual([closed.task.parent, closed.task.status, closed.task.ready], ['tt-1', 'closed', false]);
+});
+
+test('create_task files a decision with its links and an approval in one call, and a retry files neither twice', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Ship it', { acceptance: 'Live' });
+  await create('Design', { acceptance: 'Drawn' });
+  const args = { workspace: A, project: P, title: 'Pick the store', type: 'decision', labels: ['human'], depends_on: ['tt-2'], blocks: ['tt-1'],
+    related: [], approval: 'Approve the spend', idempotency_key: 'agent-create-0301' };
+  const made = (await call(f, 'create_task', args)).structuredContent;
+  assert.deepEqual(made, { id: 'tt-3', project: 'example', replayed: false, approval: { id: 'tt-4', status: 'open', reason: 'Approve the spend' },
+    held: true, note: 'tt-3 is out of ready work until a person approves tt-4 on Tasks in the Tower.', lint: { missing: ['## Decision'] } });
+  const read = async id => (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent.task;
+  assert.deepEqual((await read('tt-3')).dependencies.map(link => [link.id, link.type]), [['tt-2', 'blocks'], ['tt-4', 'blocks']]);
+  assert.deepEqual((await read('tt-1')).dependencies.map(link => [link.id, link.type]), [['tt-3', 'blocks']]);
+  const ready = (await call(f, 'list_tasks', { workspace: A, project: P, ready: true })).structuredContent.tasks.map(task => task.id);
+  assert.deepEqual(ready, ['tt-2']);
+  assert.deepEqual((await call(f, 'create_task', args)).structuredContent, { ...made, replayed: true });
+  assert.deepEqual(f.effects.filter(([kind]) => kind === 'create' || kind === 'gate').map(([, id]) => id), ['tt-1', 'tt-2', 'tt-3', 'tt-4']);
+
+  const error = async extra => (await call(f, 'create_task', { workspace: A, project: P, title: 'Linked', idempotency_key: 'agent-create-0302', ...extra })).content[0].text;
+  assert.match(await error({ type: 'gate' }), /^invalid arguments: type \(a gate holds another task.*request_human_approval/u);
+  assert.match(await error({ parent: 'tt-1', related: ['tt-1'] }), /^invalid arguments: the parent is linked already/u);
+  assert.match(await error({ related: ['tt-1'], blocks: ['tt-1'] }), /^invalid arguments: a linked task is named twice/u);
+  assert.match(await error({ depends_on: ['#0'] }), /^invalid arguments: depends_on/u, 'a place reference is only for create_tasks');
+  assert.match(await error({ depends_on: ['tt-99'], idempotency_key: 'agent-create-0303' }), /^refused:/u);
+  assert.equal(f.tasks.size, 4, 'a link to a missing task files nothing');
+});
+
+test('create_tasks files many in one call, links them by place, and a retry files none twice', async () => {
+  const f = fixture();
+  const batch = (tasks, idempotency_key) => call(f, 'create_tasks', { workspace: A, project: P, tasks, idempotency_key });
+  const plan = [
+    { title: 'Launch', type: 'epic' },
+    { title: 'Pick the host', type: 'decision', parent: '#0', labels: ['human'] },
+    { title: 'Deploy', parent: '#0', depends_on: ['#1'], acceptance: 'It serves' },
+    { title: 'Announce', parent: '#0', depends_on: ['#2'], approval: 'Approve the post', acceptance: 'Posted' },
+  ];
+  const first = (await batch(plan, 'agent-batch-0001')).structuredContent;
+  assert.deepEqual(first.created.map(row => [row.index, row.id, row.replayed]), [[0, 'tt-1', false], [1, 'tt-2', false], [2, 'tt-3', false], [3, 'tt-4', false]]);
+  assert.deepEqual([first.project, first.created[1].lint, first.created[2].lint], ['example', { missing: ['## Decision'] }, { missing: [] }]);
+  assert.deepEqual([first.created[3].approval, first.created[3].held], [{ id: 'tt-5', status: 'open', reason: 'Approve the post' }, true]);
+  assert.match(first.note, /out of ready work until a person approves/u);
+  assert.equal('failed' in first, false);
+  const deploy = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-3' })).structuredContent.task;
+  assert.deepEqual([deploy.parent, deploy.dependencies.map(link => [link.id, link.type])], ['tt-1', [['tt-1', 'parent-child'], ['tt-2', 'blocks']]]);
+  const again = (await batch(plan, 'agent-batch-0001')).structuredContent;
+  assert.deepEqual(again.created.map(row => [row.id, row.replayed]), [['tt-1', true], ['tt-2', true], ['tt-3', true], ['tt-4', true]]);
+  assert.equal(f.effects.filter(([kind]) => kind === 'create' || kind === 'gate').length, 5, 'nothing filed twice');
+  assert.match((await batch([...plan.slice(0, 3), { title: 'Changed' }], 'agent-batch-0001')).structuredContent.failed.error, /^conflict:/u,
+    'a changed entry under the same key is refused, not filed');
+
+  // A refused task stops the call there and says what was filed.
+  const stopped = (await batch([{ title: 'Fine' }, { title: 'Broken', depends_on: ['tt-99'] }, { title: 'Never', depends_on: ['#1'] }],
+    'agent-batch-0002')).structuredContent;
+  assert.deepEqual([stopped.created.map(row => row.id), stopped.failed.index, stopped.notAttempted], [['tt-6'], 1, 1]);
+  assert.match(stopped.failed.error, /^refused:/u);
+  assert.match(stopped.retry, /same idempotency_key/u);
+
+  // Every entry is read before any is filed.
+  const before = f.effects.length;
+  const invalid = async (tasks, pattern) => assert.match((await batch(tasks, 'agent-batch-0003')).content[0].text, pattern);
+  await invalid([{ title: 'A' }, { title: '' }], /^invalid arguments: tasks\[1\]: title/u);
+  await invalid([{ title: 'A', parent: '#0' }], /^invalid arguments: tasks\[0\]: parent \(#n names an earlier task/u);
+  await invalid([{ title: 'A' }, { title: 'B', depends_on: ['#5'] }], /^invalid arguments: tasks\[1\]: depends_on/u);
+  await invalid([{ title: 'A', owner: 'me' }], /^invalid arguments: tasks\[0\]: unknown owner/u);
+  await invalid([], /^invalid arguments: tasks/u);
+  await invalid(Array.from({ length: 26 }, (_, n) => ({ title: `T${n}` })), /^invalid arguments: tasks \(1–25\)/u);
+  assert.equal(f.effects.length, before, 'a malformed call files nothing');
+});
+
+test('awaitingHuman reads as Waiting on you does: an open human gate, or a ready task labelled human', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Answer the question', { labels: ['human'] });
+  await create('Prerequisite');
+  await create('Later question', { labels: ['human'], depends_on: ['tt-2'] });
+  await call(f, 'request_human_approval', { workspace: A, project: P, task: 'tt-2', reason: 'Approve the plan' });
+  const rows = Object.fromEntries((await call(f, 'list_tasks', { workspace: A, project: P })).structuredContent.tasks.map(task => [task.id, task]));
+  assert.deepEqual(Object.fromEntries(Object.entries(rows).map(([id, task]) => [id, task.awaitingHuman])),
+    { 'tt-1': true, 'tt-2': false, 'tt-3': false, 'tt-4': true }, 'a blocked task labelled human waits on its blocker first');
+  assert.equal((await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent.task.awaitingHuman, true);
+  const marked = (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-2', add_labels: ['human'], idempotency_key: 'agent-update-0501' })).structuredContent;
+  assert.deepEqual([marked.task.labels, marked.task.ready, marked.task.awaitingHuman], [['human'], false, false], 'held by its gate, so not yet');
 });
 
 test('refusals are readable tool errors and never reveal which check refused', async () => {

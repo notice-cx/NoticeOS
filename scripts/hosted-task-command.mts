@@ -11,13 +11,19 @@ import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
 export const HOSTED_TASK_LIMITS = Object.freeze({
   projects: 4096, identifier: 128, title: 512, body: 8192,
-  comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048,
+  comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
 });
 
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
-export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore';
+export type HostedTaskType = 'task' | 'bug' | 'feature' | 'epic' | 'chore' | 'decision';
 /** blocks keeps the task out of ready work until the other closes; the others only record a link. */
 export type HostedTaskDependencyType = 'blocks' | 'related' | 'discovered-from';
+/** A new task's link to an existing one, in the task client's `--deps` words:
+ * blocked-by waits on it, blocks holds it back, the others only record a link. */
+export interface HostedTaskLink {
+  readonly type: 'blocked-by' | 'blocks' | 'related' | 'discovered-from';
+  readonly taskId: string;
+}
 export type HostedTaskOperation =
   | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
   | { readonly kind: 'show'; readonly taskId: string }
@@ -33,6 +39,7 @@ export type HostedTaskOperation =
   | { readonly kind: 'create'; readonly title: string; readonly description?: string;
       readonly type?: HostedTaskType; readonly priority?: number; readonly labels?: readonly string[];
       readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>>;
+      readonly links?: readonly HostedTaskLink[];
       /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
       readonly operationId?: string }
   | { readonly kind: 'update'; readonly taskId: string; readonly status?: HostedTaskStatus;
@@ -45,7 +52,7 @@ export type HostedTaskOperation =
   | { readonly kind: 'undepend'; readonly taskId: string; readonly dependsOn: string }
   /** Opens a human gate the task waits on. Only a person's resolve-gate clears it. */
   | { readonly kind: 'gate'; readonly taskId: string; readonly reason: string }
-  | { readonly kind: 'lint'; readonly taskId: string }
+  | { readonly kind: 'lint'; readonly taskIds: readonly string[] }
   | { readonly kind: 'respond'; readonly taskId: string; readonly response: string }
   | { readonly kind: 'dismiss'; readonly taskId: string; readonly reason?: string }
   | { readonly kind: 'resolve-gate'; readonly taskId: string; readonly reason?: string };
@@ -122,20 +129,40 @@ function choice(value: unknown, values: readonly string[]): string {
   return value;
 }
 const STATUSES: readonly string[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
-const TYPES: readonly string[] = ['task', 'bug', 'feature', 'epic', 'chore'];
+const TYPES: readonly string[] = ['task', 'bug', 'feature', 'epic', 'chore', 'decision'];
 const DEPENDENCY_TYPES: readonly string[] = ['blocks', 'related', 'discovered-from'];
-function labelList(value: unknown, empty = false): readonly string[] {
-  if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels || !empty && value.length === 0
-    || Reflect.ownKeys(value).length !== value.length + 1) invalid();
-  const labels: string[] = [];
+const LINK_TYPES: readonly string[] = ['blocked-by', 'blocks', 'related', 'discovered-from'];
+/** Data-property entries of a bounded array, in order. */
+function entries(value: unknown, min: number, max: number): unknown[] {
+  if (!Array.isArray(value) || value.length < min || value.length > max || Reflect.ownKeys(value).length !== value.length + 1) invalid();
+  const out: unknown[] = [];
   for (let index = 0; index < value.length; index++) {
     const field = Object.getOwnPropertyDescriptor(value, String(index));
     if (!field || !('value' in field)) invalid();
-    const label = text(field.value, HOSTED_TASK_LIMITS.label);
+    out.push(field.value);
+  }
+  return out;
+}
+function labelList(value: unknown, empty = false): readonly string[] {
+  const labels: string[] = [];
+  for (const entry of entries(value, empty ? 0 : 1, HOSTED_TASK_LIMITS.labels)) {
+    const label = text(entry, HOSTED_TASK_LIMITS.label);
     if (/[\r\n\t,]/u.test(label) || label.trim() !== label || labels.includes(label)) invalid();
     labels.push(label);
   }
   return Object.freeze(labels);
+}
+/** `--deps` entries. The task client keeps one link per pair, so a target is
+ * named once, and never the parent, which already holds its link. */
+function linkList(value: unknown, parent: string | undefined): readonly string[] {
+  const targets = new Set<string>(parent === undefined ? [] : [parent]);
+  return Object.freeze(entries(value, 1, HOSTED_TASK_LIMITS.links).map(item => {
+    const link = record(item); keys(link, ['type', 'taskId']);
+    const type = choice(link.type, LINK_TYPES), target = task(link.taskId);
+    if (targets.has(target)) invalid();
+    targets.add(target);
+    return `${type}:${target}`;
+  }));
 }
 function deferDate(value: unknown): string {
   if (value === '') return value;
@@ -176,10 +203,13 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       keys(op, ['kind', 'taskId']);
       argv.push('comments', '--', task(op.taskId));
       break;
-    case 'lint':
-      keys(op, ['kind', 'taskId']);
-      argv.push('lint', '--', task(op.taskId));
+    case 'lint': {
+      keys(op, ['kind', 'taskIds']);
+      const ids = entries(op.taskIds, 1, HOSTED_TASK_LIMITS.rows).map(task);
+      if (new Set(ids).size !== ids.length) invalid();
+      argv.push('lint', '--', ...ids);
       break;
+    }
     case 'ready':
       keys(op, ['kind']); argv.push('ready', '--limit=0');
       break;
@@ -217,7 +247,7 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     }
     case 'create':
-      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'operationId']);
+      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'operationId']);
       argv.push('create');
       if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
@@ -228,6 +258,8 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       // A child carries only the labels it names. Beads would copy its parent's,
       // human among them, and only a person may take that one off.
       if (Object.hasOwn(op, 'parent')) argv.push(`--parent=${task(op.parent)}`, '--no-inherit-labels');
+      // In the create itself, so a task and its links land together or not at all.
+      if (Object.hasOwn(op, 'links')) argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
         const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),

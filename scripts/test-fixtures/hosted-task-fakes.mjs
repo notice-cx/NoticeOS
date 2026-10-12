@@ -55,10 +55,21 @@ export function fakeTaskExecutor({ principal, clock }) {
     let value;
     switch (operation.kind) {
       case 'create': {
-        const id = `tt-${tasks.size + 1}`;
+        // As the task client does: a missing parent or link target refuses the whole create.
+        for (const target of [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]) {
+          if (target !== undefined && !tasks.has(target)) throw new Error(`no issue found matching ${target}`);
+        }
+        const id = `tt-${tasks.size + 1}`, at = new Date(clock()).toISOString();
         tasks.set(id, { id, title: operation.title, status: 'open', priority: operation.priority ?? 2,
-          ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}),
+          ...(operation.type ? { issue_type: operation.type } : {}), ...(operation.description ? { description: operation.description } : {}),
+          ...(operation.labels?.length ? { labels: [...operation.labels] } : {}), ...(operation.parent ? { parent: operation.parent } : {}),
+          ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}), created_at: at, updated_at: at,
           metadata: operation.operationId ? { noticeos_operation_id: operation.operationId } : {} });
+        if (operation.parent) edges.push({ from: id, to: operation.parent, type: 'parent-child' });
+        for (const link of operation.links ?? []) {
+          if (link.type === 'blocks') edges.push({ from: link.taskId, to: id, type: 'blocks' });
+          else edges.push({ from: id, to: link.taskId, type: link.type === 'blocked-by' ? 'blocks' : link.type });
+        }
         effects.push(['create', id]); value = row(tasks.get(id)); break;
       }
       case 'comment': {
@@ -72,7 +83,12 @@ export function fakeTaskExecutor({ principal, clock }) {
         if (operation.claim) Object.assign(task, { status: 'in_progress', assignee: principal() });
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
-        tasks.set(task.id, task); effects.push([operation.kind, operation.taskId]); value = [row(task)]; break;
+        if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];
+        if (operation.removeLabels) task.labels = (task.labels ?? []).filter(label => !operation.removeLabels.includes(label));
+        task.updated_at = new Date(clock()).toISOString();
+        tasks.set(task.id, task); effects.push([operation.kind, operation.taskId]);
+        // The task client's reply to a change carries neither parent nor links.
+        const { parent: _parent, ...changed } = row(task); value = [changed]; break;
       }
       case 'active-board': value = [...tasks.values()].filter(task => task.status !== 'closed').map(row); break;
       case 'closed-board': value = []; break;
@@ -100,10 +116,14 @@ export function fakeTaskExecutor({ principal, clock }) {
         value = row(tasks.get(id)); break;
       }
       case 'lint': {
-        const task = tasks.get(operation.taskId);
-        const missing = task && task.issue_type === undefined && !task.acceptance_criteria ? ['## Acceptance Criteria'] : [];
-        value = missing.length ? { total: 1, issues: 1, results: [{ id: task.id, title: task.title, type: 'task', missing, warnings: 1 }] }
-          : { total: 0, issues: 0, results: null }; break;
+        // The sections bd lint expects of a task and of a decision.
+        const results = operation.taskIds.map(id => tasks.get(id)).filter(Boolean).map(task => {
+          const type = task.issue_type ?? 'task';
+          const missing = type === 'task' && !task.acceptance_criteria ? ['## Acceptance Criteria']
+            : type === 'decision' && !task.description?.includes('## Decision') ? ['## Decision'] : [];
+          return { id: task.id, title: task.title, type, missing, warnings: missing.length };
+        }).filter(result => result.missing.length);
+        value = { total: operation.taskIds.length, issues: results.length, results: results.length ? results : null }; break;
       }
       case 'comments': value = comments.filter(comment => comment.issue_id === operation.taskId); break;
       case 'history': value = [{ CommitHash: 'abc123', Committer: 'beads', CommitDate: '2026-10-07T12:00:00.000Z',

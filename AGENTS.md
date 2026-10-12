@@ -178,6 +178,15 @@ are outcome failures, caught by post-ship outcome watch, never by CI alone.
   proven inactive and owned. No blanket home, temp or browser cleanup.
 - Use the testing browser (the installed Playwright Chromium), never a user's
   Chrome or its profile.
+- Postgres will not start as root (`initdb: cannot be run as root`); as root
+  every database test fails or skips as "no Postgres in this run", which is
+  evidence of nothing. Where the shell is root, run the suites as `nobody`
+  (`runuser -u nobody -- env HOME=<own> TMPDIR=<own> …`) from a source copy
+  `nobody` owns, since vitest and the Tower write caches into the checkout,
+  with a Node 24 it can read and without variables naming root-only files
+  (such as `NODE_EXTRA_CA_CERTS`). Call the runners through `node`: `pnpm` as
+  another user first fetches its pinned version, and the few tests that start
+  a real Tower need that version where `nobody` can run it.
 
 ## Local OS health and recovery
 
