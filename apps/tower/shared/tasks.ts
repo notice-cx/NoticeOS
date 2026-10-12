@@ -176,9 +176,9 @@ export function taskWritesAvailable(capabilities: TasksCapabilities): boolean {
   return capabilities.live && capabilities.writable !== false;
 }
 
-/** Where task projects are added and repaired — the Settings section id, so a
+/** Where task projects are added and repaired — the Settings tab, so a
  * surface with no task project links to the fix rather than describing it. */
-export const TASK_PROJECTS_PATH = `/settings#${"task-hub"}`;
+export const TASK_PROJECTS_PATH = "/settings/task-projects";
 
 /** The one line a read-only task surface shows beside its Read-only chip —
  * what to do, since the chip already says what happened. */

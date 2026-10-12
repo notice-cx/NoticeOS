@@ -160,7 +160,7 @@ export function taskMapDescription({ asset, declared, repo, held, checkedAt }) {
       : `WHAT: The saved task mapping says ${asset}'s database is "${declared}", and the hub does not have that database.`,
     `AS OF ${checkedAt} the hub holds: ${names.join(', ') || '(none)'}.`,
     `WHY IT MATTERS: task actions require the saved asset, prefix and database to match a local checkout link. A mismatched project is unavailable. Physical backups use the separate host inventory.`,
-    `FIX: Set Database for ${asset} on /settings#task-hub to the intended existing database, or provision that database from the project checkout. Then make its asset, prefix and database agree in installation/task-host.json and the checkout's .beads/config.yaml.`,
+    `FIX: Set Database for ${asset} on /settings/task-projects to the intended existing database, or provision that database from the project checkout. Then make its asset, prefix and database agree in installation/task-host.json and the checkout's .beads/config.yaml.`,
     `Local checkout: ${repo || 'not linked on this host'}.`,
     `CLOSING: nobody has to. The OS runner (scripts/os-up.mjs, the task-map lane) ` +
       `re-reads \`SHOW DATABASES\` hourly and the first pass that sees the two agree closes ` +

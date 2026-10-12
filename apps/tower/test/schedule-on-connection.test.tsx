@@ -121,7 +121,7 @@ describe("where each collection's schedule is changed", () => {
 
   it("links a collection to the panel of a connected source, to Settings, or nowhere when nothing is connected", () => {
     const job = (id: string) => SCHEDULED_JOBS.find((entry) => entry.id === id)!;
-    expect(scheduleHref(job("pull"), () => false)).toBe("/settings#data-collection");
+    expect(scheduleHref(job("pull"), () => false)).toBe("/settings/data-collection");
     expect(scheduleHref(job("signal-dumps"), (provider) => provider === "bing-webmaster")).toBe("/integrations?connect=bing-webmaster");
     expect(scheduleHref(job("signal-dumps"), () => true)).toBe("/integrations?connect=google");
     expect(scheduleHref(job("signal-dumps"), () => false)).toBeNull();

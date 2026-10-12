@@ -5151,7 +5151,7 @@ export function KitchenSinkRoute() {
                   { asset: "demo.example", prefix: "dem", database: "dem", repo: "../demo" },
                   { asset: "other.example", prefix: "oth", database: "typo", repo: "../other" },
                 ]}
-                // The state /settings#task-hub renders: a project whose
+                // The state /settings/task-projects renders: a project whose
                 // database does not exist is marked. An agreeing row is blank
                 // rather than ticked, because the board carries a bounded head
                 // of each list and absence only means "nothing says otherwise".

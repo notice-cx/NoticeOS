@@ -352,7 +352,7 @@ describe("RuleTunePanel", () => {
     }
     expect(screen.getByRole("link", { name: /Every alert rule/ })).toHaveAttribute(
       "href",
-      "/settings#alert-rules",
+      "/settings/alert-rules",
     );
   });
 

@@ -33,7 +33,7 @@ describe("the core task hub status", () => {
   it("leads missing core projects to their existing settings surface", () => {
     render(<MemoryRouter><TaskHubUnavailable /></MemoryRouter>);
     expect(screen.getByText("No task projects available")).toBeVisible();
-    expect(screen.getByRole("link", { name: "Manage task projects →" })).toHaveAttribute("href", "/settings#task-hub");
+    expect(screen.getByRole("link", { name: "Manage task projects →" })).toHaveAttribute("href", "/settings/task-projects");
     expect(screen.queryByText("No tasks yet")).toBeNull();
   });
 });

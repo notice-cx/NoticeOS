@@ -43,7 +43,7 @@ export function settingsCollections(): ScheduledJob[] {
  */
 export function scheduleHref(job: ScheduledJob, connected: (provider: string) => boolean): string | null {
   const connections = job.connections ?? [];
-  if (connections.length === 0) return '/settings#data-collection';
+  if (connections.length === 0) return '/settings/data-collection';
   const provider = connections.find(connected);
   return provider === undefined ? null : `/integrations?connect=${encodeURIComponent(provider)}`;
 }

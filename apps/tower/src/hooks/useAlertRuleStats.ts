@@ -12,7 +12,7 @@ import type { AlertRuleStatsPayload } from "@shared/alert-rules";
  * `useConfigSave` already invalidates what a save changes; a tune recorded from
  * the panel invalidates this key the same way.
  *
- * One query key for both surfaces. `/settings#alert-rules` and every open Tune
+ * One query key for both surfaces. `/settings/alert-rules` and every open Tune
  * panel read the same cached payload, so the figure cannot differ between the
  * page that edits the rule and the alert the rule fired on.
  */

@@ -95,6 +95,9 @@ export interface CollectionEditorProps {
   loading?: boolean;
   /** Overrides the register's own label as the section heading. */
   title?: ReactNode;
+  /** `false` leaves the heading, the line under it and the saves-paused lock
+   * to the host: a panel that already names the table (Settings). */
+  headed?: boolean;
   /** Overrides the register's own one-line `describe`. */
   describe?: ReactNode;
   /** What an empty list means here: nothing declared yet, or nothing to declare. */
@@ -153,6 +156,7 @@ export function CollectionEditor({
   rows: source,
   loading = false,
   title,
+  headed = true,
   describe,
   emptyHint,
   columns,
@@ -322,7 +326,7 @@ export function CollectionEditor({
       className={cn("flex flex-col gap-2", className)}
       data-collection-editor={registerKey}
     >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
+      {headed ? <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="flex min-w-0 flex-col gap-0.5">
           <h3 className="flex items-center gap-1.5 text-sm font-medium text-foreground">
             {title ?? register.label}
@@ -338,7 +342,7 @@ export function CollectionEditor({
             {describe ?? register.describe}
           </span>
         </div>
-      </div>
+      </div> : null}
 
       {fixedReasons.length > 0 && !locked ? (
         <p

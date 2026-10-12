@@ -82,7 +82,7 @@ describe("each screen is its own file", () => {
     ["/financials", () => import("@/routes/FinancialsRoute")],
     ["/health", () => import("@/routes/HealthRoute")],
     ["/integrations", () => import("@/routes/IntegrationsRoute")],
-    ["/settings", () => import("@/routes/SettingsRoute")],
+    ["/settings/:tab?", () => import("@/routes/SettingsRoute")],
     ["/wall/edit", () => import("@/routes/WallEditRoute")],
     ["/workflows/:id?", () => import("@/routes/WorkflowsRoute")],
   ];

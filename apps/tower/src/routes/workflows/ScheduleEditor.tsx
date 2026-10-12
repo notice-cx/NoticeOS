@@ -301,8 +301,10 @@ function scheduleKey(value: ScheduleOverrides | null): string {
  * guarded by what it held, so the list keeps its own writes until the page's
  * read catches up; otherwise a second pick before the refresh would be refused
  * as "changed elsewhere". The kept value drops once the read shows a foreign write.
+ * `headed={false}` drops the list's own title row for a host whose panel
+ * already names it and carries the local zone and the lock (Settings).
  */
-export function ScheduleRows({ jobs, overrides, writable }: { jobs: readonly ScheduledJob[]; overrides: ScheduleOverrides | null; writable: boolean }) {
+export function ScheduleRows({ jobs, overrides, writable, headed = true }: { jobs: readonly ScheduledJob[]; overrides: ScheduleOverrides | null; writable: boolean; headed?: boolean }) {
   const [local, setLocal] = useState<{ value: ScheduleOverrides | null; trail: string[] } | null>(null);
   const read = scheduleKey(overrides);
   const effective = local !== null && local.trail.includes(read) ? local.value : overrides;
@@ -315,7 +317,7 @@ export function ScheduleRows({ jobs, overrides, writable }: { jobs: readonly Sch
   }
   return (
     <div className="@container flex flex-col" data-collection-schedules={jobs.length}>
-      <div className="flex flex-wrap items-baseline justify-between gap-2 pb-1">
+      {headed ? <div className="flex flex-wrap items-baseline justify-between gap-2 pb-1">
         <span className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground">
           Collection schedule
           {writable ? null : (
@@ -328,7 +330,7 @@ export function ScheduleRows({ jobs, overrides, writable }: { jobs: readonly Sch
           )}
         </span>
         <span className="text-xs text-muted-foreground tabular-nums">Local time · {localTimezoneLabel(Date.now(), zone)}</span>
-      </div>
+      </div> : null}
       {jobs.map((job) => <ScheduleEditor key={job.id} variant="row" job={job} overrides={effective} writable={writable} onWritten={written} />)}
     </div>
   );

@@ -51,7 +51,9 @@ export const deskRoutes: RouteObject[] = [
   // `/integrations` connects, tests and disconnects a provider's credential;
   // `/health` is the observed matrix.
   { path: "/integrations", ...lazyPage(() => import("@/routes/IntegrationsRoute")) },
-  { path: "/settings", ...lazyPage(() => import("@/routes/SettingsRoute")) },
+  // Settings is tabbed on the same contract: `/settings` is General and
+  // `/settings/<tab>` the rest (`settings/SettingsTabs.tsx` names them).
+  { path: "/settings/:tab?", ...lazyPage(() => import("@/routes/SettingsRoute")) },
   // The television's layout is edited on the desk, never on the television:
   // `/wall/edit` is a shell page, and `/wall` below stays outside the shell
   // with no edit affordance anywhere on it.
