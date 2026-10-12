@@ -5,7 +5,7 @@ import { defineConfig } from 'vitepress';
 import llmstxt, { copyOrDownloadAsMarkdownButtons } from 'vitepress-plugin-llms';
 
 // The documentation site: the guides, screens and operations pages for the
-// person at the desk, and the numbered design library beside them. It is served
+// person who runs NoticeOS, and the numbered design library beside them. It is served
 // at the root of its own domain; `DOCS_BASE` and `DOCS_SITE` serve a copy elsewhere.
 
 const repo = 'https://github.com/notice-cx/NoticeOS';
@@ -68,7 +68,7 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [llmstxt({ domain: site.replace(/\/$/u, ''), title: 'NoticeOS', description: 'Install, use and operate NoticeOS, the self-hosted operating desk for your websites and software products.' })],
+    plugins: [llmstxt({ domain: site.replace(/\/$/u, ''), title: 'NoticeOS', description: 'Install, use and operate NoticeOS, the self-hosted app that shows traffic, revenue, costs, alerts and work for your websites and software products in one place.' })],
   },
   themeConfig: {
     logo: { light: '/notice-mark.svg', dark: '/notice-mark-light.svg', alt: 'The Notice mark' },
@@ -139,7 +139,7 @@ export default defineConfig({
       {
         text: 'Concepts',
         items: [
-          { text: 'How NoticeOS thinks', link: '/concepts/how-noticeos-thinks' },
+          { text: 'How NoticeOS works', link: '/concepts/how-noticeos-thinks' },
           { text: 'Alerts', link: '/concepts/alerts' },
           { text: 'Attribution and measurement', link: '/concepts/attribution-and-measurement' },
           { text: 'Tasks and agents', link: '/concepts/tasks-and-agents' },

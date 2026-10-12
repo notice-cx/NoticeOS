@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The hosted documentation site: how to install, use and operate NoticeOS, written for the person at the desk.",
+  "description": "The hosted documentation site: how to install, use and operate NoticeOS, written for the person who runs NoticeOS.",
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
