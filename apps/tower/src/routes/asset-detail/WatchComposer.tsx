@@ -241,7 +241,7 @@ export function WatchComposer({
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           What changed
           <select
-            className="h-8 max-w-[18rem] rounded-md border border-border bg-card px-2 text-sm text-foreground"
+            className="h-8 max-w-[18rem] rounded-md border border-border bg-card px-2 pe-9 text-sm text-foreground"
             value={change ? String(change.id) : "manual"}
             onChange={(event) => pickChange(event.target.value)}
           >
@@ -269,7 +269,7 @@ export function WatchComposer({
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Which number
           <select
-            className="h-8 rounded-md border border-border bg-card px-2 text-sm text-foreground"
+            className="h-8 rounded-md border border-border bg-card px-2 pe-9 text-sm text-foreground"
             value={`${series.integration}:${series.metric}`}
             onChange={(event) =>
               pickSeries(
@@ -313,7 +313,7 @@ export function WatchComposer({
         <label className="flex flex-col gap-1 text-xs text-muted-foreground">
           Verdict in
           <select
-            className="h-8 rounded-md border border-border bg-card px-2 text-sm tabular-nums text-foreground"
+            className="h-8 rounded-md border border-border bg-card px-2 pe-9 text-sm tabular-nums text-foreground"
             value={verdictDays}
             onChange={(event) => setVerdictDays(Number(event.target.value))}
           >

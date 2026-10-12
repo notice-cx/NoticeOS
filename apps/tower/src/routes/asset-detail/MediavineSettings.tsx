@@ -93,7 +93,7 @@ export function MediavineSettings({ asset }: { asset: string }) {
       </details>
       <div className="flex flex-wrap items-end gap-2">
         <label className="flex min-w-0 flex-col gap-1">Forecast holiday calendar
-          <select className="min-h-11 rounded-md border border-input bg-background px-3 text-foreground" value={holidayCalendar} disabled={busy || !writable} onChange={event => setHolidayCalendar(event.target.value as RevenueHolidayCalendar)}>
+          <select className="min-h-11 rounded-md border border-input bg-background px-3 pe-9 text-foreground" value={holidayCalendar} disabled={busy || !writable} onChange={event => setHolidayCalendar(event.target.value as RevenueHolidayCalendar)}>
             <option value="none">Weekday patterns only</option><option value="US">United States</option><option value="CA">Canada</option><option value="US,CA">United States and Canada</option>
           </select>
         </label>
