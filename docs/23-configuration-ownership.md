@@ -234,8 +234,11 @@ adapters must honor cancellation and await cleanup. The
 cron dispatch, and the Tower reads persisted attempts and scheduler status for
 Workflows. The [scheduler qualification](../scripts/hosted-scheduler.test.mjs)
 exercises the timer, journal and tenant read path. Publication refreshes within
-15 seconds; a status older than 45 seconds is stale. A checked-in Worker cron
-does not instantiate this native scheduler or enable a remote deployment.
+15 seconds; a status older than 45 seconds is stale. A deployment may name
+registered lanes to run once as it starts, at that minute and through the same
+journal, when their saved schedule is enabled; nothing else is caught up. A
+checked-in Worker cron does not instantiate this native scheduler or enable a
+remote deployment.
 
 ## Ownership and storage
 

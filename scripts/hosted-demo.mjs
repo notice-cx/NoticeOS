@@ -10,9 +10,11 @@ import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { DEMO_ACTIVITY_DEFINITION, demoActivityPrefix } from './demo-activity-definition.mjs';
+import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 const LANE = DEMO_ACTIVITY_DEFINITION.key;
 /** Version of the demo's implementations of the release's scheduled jobs. */
 const SCHEDULE_VERSION = 'demo-v1';
+const READBACKS_PER_PASS = 4;
 const DAY = 86400000;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedDemoRefused extends Error {
@@ -60,7 +62,8 @@ export function createHostedDemo(options) {
         || typeof tasks?.execute !== 'function' || typeof writer?.write !== 'function'
         || typeof writer?.collect !== 'function' || typeof writer?.revenue !== 'function'
         || typeof writer?.snapshot !== 'function' || typeof writer?.outcomes !== 'function' || typeof writer?.freshness !== 'function'
-        || typeof writer?.uptime !== 'function')
+        || typeof writer?.uptime !== 'function' || typeof writer?.notify !== 'function'
+        || typeof writer?.readbacks !== 'function' || typeof writer?.stampReadbacks !== 'function')
         refuse();
     const scenario = generateDemoScenario(options.scenario.manifest);
     const hash = demoScenarioHash(scenario);
@@ -168,8 +171,9 @@ export function createHostedDemo(options) {
     // execution in the journal Workflows and System health read: the
     // quarter-hour Google refresh writes today's provisional counts, the hourly
     // freshness check raises and clears late-report alerts and reads each
-    // fictional home page (one has its brief daily outage), the outcome check
-    // reads the demo's windows, the board refresh reads the real task service.
+    // fictional home page (one has its brief daily outage), the notifier finds
+    // no channel to tell, the outcome check reads the demo's windows and its
+    // verdicts reach their tasks, the board refresh reads the real task service.
     // Input is the scheduler's minute, never a payload.
     const minuteOf = (input) => {
         const at = input && typeof input === 'object' && !Array.isArray(input) && Object.keys(input).length === 1
@@ -184,6 +188,36 @@ export function createHostedDemo(options) {
         const written = await inTransaction(tx, signal, scoped => writer.snapshot(scoped, snapshot));
         return { ...written, projects: snapshot.projects.map(({ asset, ok, counts }) => ({ asset, ok, counts })) };
     };
+    /** Each closed outcome's verdict onto the task that owns its reading, the
+     * comment the local lane posts. The task's own comments say what landed, so
+     * a repeated pass stamps a verdict it finds rather than posting it twice. */
+    const postReadbacks = (at, signal, tx) => inTransaction(tx, signal, async (scoped) => {
+        // Two task-service calls each fit the step's thirty seconds; a longer
+        // queue drains over the following hours.
+        const pending = (await writer.readbacks(scoped)).slice(0, READBACKS_PER_PASS);
+        if (pending.length === 0)
+            return { found: 0, attempted: 0 };
+        const outcomes = [];
+        const failed = [];
+        for (const entry of pending) {
+            const projectId = projects.get(entry.asset);
+            if (!projectId) {
+                failed.push({ asset: entry.asset, id: entry.windowId });
+                continue;
+            }
+            const proof = new Request('https://noticeos.internal/demo-readback', { method: 'POST', signal });
+            const execute = (operation) => tasks.execute(proof, workspaceId, { projectId, operation }, { signal, deadline: Date.now() + 29000 });
+            const landed = rows(await execute({ kind: 'comments', taskId: entry.bead })).some(row => row.author === serviceId
+                && typeof row.text === 'string' && row.text.endsWith(`Window ${entry.windowId}.`));
+            if (!landed)
+                await execute({ kind: 'comment', taskId: entry.bead, text: entry.comment });
+            outcomes.push({ asset: entry.asset, id: entry.windowId, outcome: entry.outcome, status: 'success' });
+        }
+        const stamped = await writer.stampReadbacks(scoped, outcomes.map(outcome => outcome.id), at);
+        if (stamped.posted.length !== outcomes.length)
+            refuse();
+        return { found: pending.length, sent: outcomes.length, outcomes, failed };
+    });
     const adSites = Object.freeze(scenario.manifest.adSites.map(site => Object.freeze({ ...site,
         since: scenario.assets.find(asset => asset.id === site.asset).createdAt.slice(0, 10) })));
     const schedule = Object.freeze([
@@ -198,8 +232,12 @@ export function createHostedDemo(options) {
                         const at = minuteOf(input);
                         return writer.uptime(scoped, at, activity.homeFetch(at));
                     }) }] },
+        { key: 'notifications', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'notify', kind: 'database', action: 'workflows.run',
+                    run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.notify(scoped, minuteOf(input))) }] },
         { key: 'watch-windows', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'outcomes', kind: 'database', action: 'workflows.run',
                     run: async ({ input, signal }, tx) => inTransaction(tx, signal, scoped => writer.outcomes(scoped, minuteOf(input))) }] },
+        { key: 'watch-readbacks', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'tasks.write',
+                    run: async ({ input, signal }, tx) => postReadbacks(minuteOf(input), signal, tx) }] },
         { key: 'beads-snapshot', version: SCHEDULE_VERSION, parseInput: minuteOf, steps: [{ key: 'execute', kind: 'database', action: 'workflows.run',
                     run: async ({ signal }, tx) => refreshBoard(signal, tx) }] },
     ]);
@@ -241,8 +279,10 @@ export function createHostedDemo(options) {
         }
         return Object.freeze({ synthetic: true, through, days: Object.freeze(days) });
     }
+    const startup = Object.freeze(schedule.map(lane => lane.key)
+        .filter(key => SCHEDULED_JOBS.find(job => job.id === key)?.surface === 'workflow'));
     return Object.freeze({
-        schedule,
+        schedule, startup,
         tick() {
             const work = tick();
             pending.add(work);

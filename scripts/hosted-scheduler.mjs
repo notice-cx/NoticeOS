@@ -5,7 +5,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createScheduledJobRunner } from './scheduled-job-runner.mjs';
 import { SCHEDULED_JOBS, schedulesRefusal } from './scheduled-jobs.mjs';
 const TENANT_JOBS = new Set(['mediavine', 'freshness', 'notifications', 'pull', 'hygiene', 'watch-windows',
-    'clarity', 'signal-dumps', 'posthog', 'dataforseo', 'counters', 'beads-snapshot', 'panel-review']);
+    'clarity', 'signal-dumps', 'posthog', 'dataforseo', 'counters', 'beads-snapshot', 'panel-review', 'watch-readbacks']);
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedScheduleRefused extends Error {
     name = 'HostedScheduleRefused';
@@ -31,8 +31,12 @@ export async function startHostedScheduler(bindings, adapters = {}) {
                 refuse();
             return { ...definition, steps: definition.steps.map(step => ({ ...step })) };
         });
+        const startup = binding.startup === undefined ? [] : binding.startup;
+        if (!Array.isArray(startup) || new Set(startup).size !== startup.length
+            || startup.some(key => !definitions.some(definition => definition.key === key)))
+            refuse();
         return { workspaceId: binding.workspaceId, serviceId: binding.serviceId,
-            store: binding.store, grant: binding.grant, definitions };
+            store: binding.store, grant: binding.grant, definitions, startup: Object.freeze([...startup]) };
     });
     const now = adapters.now ?? Date.now;
     const every = adapters.refreshEveryMs ?? 15_000;
@@ -112,6 +116,28 @@ export async function startHostedScheduler(bindings, adapters = {}) {
                 if (wrote !== 1)
                     refuse();
             });
+            const fire = async (job) => {
+                if (stopped)
+                    return;
+                const scheduledAt = new Date(Math.floor(now() / 60_000) * 60_000).toISOString();
+                // Input is generated here, never copied from an HTTP/job payload.
+                const work = admitted(async () => {
+                    const owned = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_scheduler_status
+            WHERE workspace_id=$1::uuid AND session_id=$2::uuid AND running
+              AND observed_at>=clock_timestamp()-interval '45 seconds'`, [workspaceId, sessionId]));
+                    if (owned.length !== 1)
+                        refuse();
+                    await runner.run(job.id, scheduledAt, { scheduledAt });
+                });
+                dispatches.add(work);
+                try {
+                    await work;
+                }
+                catch { /* The journal/status carries bounded evidence, never provider errors. */ }
+                finally {
+                    dispatches.delete(work);
+                }
+            };
             const schedule = createScheduledJobRunner({ jobs,
                 now: () => new Date(now()), ...(adapters.createTimer ? { createTimer: adapters.createTimer } : {}),
                 read: async () => admitted(async () => {
@@ -125,30 +151,8 @@ export async function startHostedScheduler(bindings, adapters = {}) {
                         refuse();
                     overrides = selected;
                     return overrides;
-                }), publish,
-                run: async (job) => {
-                    if (stopped)
-                        return;
-                    const scheduledAt = new Date(Math.floor(now() / 60_000) * 60_000).toISOString();
-                    // Input is generated here, never copied from an HTTP/job payload.
-                    const work = admitted(async () => {
-                        const owned = await store.read(tx => tx.query(`SELECT 1 FROM noticeos.hosted_scheduler_status
-              WHERE workspace_id=$1::uuid AND session_id=$2::uuid AND running
-                AND observed_at>=clock_timestamp()-interval '45 seconds'`, [workspaceId, sessionId]));
-                        if (owned.length !== 1)
-                            refuse();
-                        await runner.run(job.id, scheduledAt, { scheduledAt });
-                    });
-                    dispatches.add(work);
-                    try {
-                        await work;
-                    }
-                    catch { /* The journal/status carries bounded evidence, never provider errors. */ }
-                    finally {
-                        dispatches.delete(work);
-                    }
-                }, });
-            entries.push({ binding, sessionId, runner, schedule });
+                }), publish, run: fire, });
+            entries.push({ binding, sessionId, runner, schedule, fire });
             // Claim publication before any timer is armed. A competing scheduler
             // cannot take an active workspace even with a different registry.
             await publish(schedule.snapshot());
@@ -156,6 +160,14 @@ export async function startHostedScheduler(bindings, adapters = {}) {
         await refresh();
         refreshTimer = setInterval(() => { void refresh().catch(() => undefined); }, every);
         refreshTimer.unref();
+        // After the first settings read, so a paused lane stays paused; lanes run
+        // one at a time in the order the deployment lists them.
+        for (const entry of entries) {
+            for (const key of entry.binding.startup ?? []) {
+                if (entry.schedule.current(key)?.enabled)
+                    await entry.fire(SCHEDULED_JOBS.find(job => job.id === key));
+            }
+        }
         return Object.freeze({ refresh, close });
     }
     catch {

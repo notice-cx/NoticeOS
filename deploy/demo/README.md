@@ -103,9 +103,14 @@ a site whose nightly report has gone quiet, and the task board refreshes every
 five minutes. The same hourly lane runs the release's home-page check against
 each fictional site's synthetic page, so no site is fetched. Each day one site
 in turn answers HTTP 503 for 25 minutes: the check marks it down and raises its
-alert, and the next hour's check marks it up and closes the alert. Their executions are System health's background operations. A
-daily outcome check over the demo's own watch windows is the Workflows page's
-history. The banner's generation time is the demo service's latest write.
+alert, and the next hour's check marks it up and closes the alert. Their
+executions are System health's background operations. The Workflows page
+shows three of the release's workflows, each run once as the demo starts and
+then every hour: the outcome check reads the demo's own watch windows; outcome
+task updates post each closed comparison's verdict on the task that owns its
+reading; and the notifier finds what it would say and is skipped, because the
+demo connects no notification channel. The banner's generation time is the
+demo service's latest write.
 
 The demo's pages ask search engines to index them. Their links preview with
 the TV dashboard, at absolute URLs the server fills from the configured public
