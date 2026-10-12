@@ -313,11 +313,19 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }: {
     const epic = id(asset, 'epic');
     epics.set(asset.id, epic);
     tasks.push({ id: epic, asset: asset.id, prefix: asset.prefix, title: `${asset.name} operating work`, description: 'Synthetic work container; unfinished children keep this epic open.', acceptance: 'Required children need accepted evidence before this epic closes.', issueType: 'epic', priority: 2, events: [{ at: at(Math.min(...plans.map(plan => typeof plan.opened === 'number' ? plan.opened : 0)) - 1, 9), status: 'open', assignee: OPERATOR }], comments: [] });
+    // Times of day vary by task so a day's work does not all land at once; a
+    // task waiting on another is filed after it, so no import sees the edge
+    // before its target.
+    const openedAt = plans.map((plan, index) => Date.parse(at(plan.opened, 8 + (index * 3) % 7)));
+    for (let pass = 0; pass < plans.length; pass++) {
+      plans.forEach((plan, index) => {
+        if (plan.dependsOn !== undefined) openedAt[index] = Math.max(openedAt[index]!, openedAt[plan.dependsOn]! + HOUR);
+      });
+    }
     for (const [index, plan] of plans.entries()) {
       const owner: Owner = plan.owner ?? DEMO_BUILDER;
       const key = `task-${index}`;
-      // Times of day vary by task so a day's work does not all land at once.
-      const opened = at(plan.opened, 8 + (index * 3) % 7);
+      const opened = new Date(openedAt[index]!).toISOString();
       // Open work waits unclaimed unless someone already owns it.
       const history: DemoTaskEvent[] = [{ at: opened, status: 'open', assignee: plan.status === 'open' ? plan.owner ?? null : null }];
       const later = (when: When | undefined, hour: number) => {
@@ -461,6 +469,15 @@ export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }: {
     }
   });
 
+  // Each project's container is filed before any of its work, so no dated
+  // import holds a child whose parent does not exist yet.
+  for (const asset of assets) {
+    const epic = tasks.find(task => task.id === epics.get(asset.id))!;
+    const first = Math.min(...tasks.filter(task => task.parent === epic.id).map(task => Date.parse(task.events[0]!.at)));
+    if (Number.isFinite(first) && first - HOUR < Date.parse(epic.events[0]!.at)) {
+      epic.events[0]!.at = new Date(Math.max(Date.parse(asset.createdAt), first - HOUR)).toISOString();
+    }
+  }
   if (tasks.some(task => task.events.some(event => event.at > cutoff || event.at < assets.find(asset => asset.id === task.asset)!.createdAt) || task.comments.some(comment => comment.at > cutoff))) throw new Error('Task history falls outside its declared asset lifetime or cutoff.');
   const story = (prefix: string, index: number) => id(assets.find(asset => asset.prefix === prefix)!, `task-${index}`);
   return { projects, tasks, storyIds: { repair: story('lb', 0), readback: story('lb', 3), problem: story('pw', 0), ship: story('wp', 0), shipReadback: story('wp', 3), slide: story('tn', 0), slideReadback: story('tn', 1) } };

@@ -196,3 +196,19 @@ test('the week is a close contest: four agent models, a different leader for eac
   assert.ok(issues.some(issue => issue.status === 'in_progress' && issue.assignee === 'codex' && cutoff - Date.parse(issue.started_at) <= 2 * 3_600_000));
   assert.ok(week.some(issue => issue.assignee === 'codex' && cutoff - Date.parse(issue.closed_at) <= DAY));
 });
+
+test('a task is filed only after what it depends on, so no dated import loses an edge', () => {
+  // The seed imports each day's state; bd skips an edge whose target is not
+  // there yet, and the seed refuses a lost edge (scripts/demo-tasks.mjs).
+  for (const cutoff of ['2026-10-12T20:20:00.000Z', '2026-10-13T02:30:00.000Z', input.cutoff]) {
+    for (const seed of ['synthetic-work-v2', 'public-preview']) {
+      const scenario = generateDemoScenario({ ...input, seed, cutoff });
+      const byId = new Map(scenario.tasks.map(task => [task.id, task]));
+      for (const task of scenario.tasks) {
+        for (const target of [task.parent, task.dependsOn].filter(Boolean)) {
+          assert.ok(byId.get(target).events[0].at <= task.events[0].at, `${cutoff} ${seed}: ${task.id} is filed before ${target}`);
+        }
+      }
+    }
+  }
+});
