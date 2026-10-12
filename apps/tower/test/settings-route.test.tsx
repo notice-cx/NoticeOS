@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "./render";
-import { MemoryRouter, useLocation } from "react-router-dom";
+import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertRuleStatsPayload } from "@shared/alert-rules";
 import type { IntegrationsMatrix } from "@shared/integrations";
@@ -75,6 +75,7 @@ vi.mock("@/hooks/useAlertRuleStats", () => ({
 }));
 
 import { SettingsRoute } from "@/routes/SettingsRoute";
+import { SETTINGS_TABS, settingsPath, type SettingsTab } from "@/routes/settings/SettingsTabs";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
@@ -268,11 +269,30 @@ function LocationState() {
   return <output data-testid="settings-location">{pathname}{hash}</output>;
 }
 
-function pickSection(id: string) {
-  const nav = screen.getByRole("navigation", { name: "Settings sections" });
-  const link = within(nav).getAllByRole("link").find((link) => link.getAttribute("href") === `/settings#${id}`);
-  expect(link).toBeDefined();
-  fireEvent.click(link!);
+/** The tab bar, and the href of every tab on it. */
+function tabList() {
+  return screen.getByRole("tablist", { name: "Settings sections" });
+}
+function tabHrefs() {
+  return within(tabList()).getAllByRole("tab").map((tab) => tab.getAttribute("href"));
+}
+function selectedTabHref() {
+  return within(tabList()).getAllByRole("tab").find((tab) => tab.getAttribute("aria-selected") === "true")?.getAttribute("href");
+}
+
+function pickSection(id: SettingsTab) {
+  const tab = within(tabList()).getAllByRole("tab").find((tab) => tab.getAttribute("href") === settingsPath(id));
+  expect(tab, id).toBeDefined();
+  fireEvent.click(tab!);
+}
+
+/** A tab opens at its own URL; anything else (`clock`, `budget`, a section's
+ * old name) is a hash on `/settings`, as a link from before the tabs reads. */
+function addressOf(section: string): string {
+  if (section.startsWith("/")) return section;
+  return (SETTINGS_TABS as readonly string[]).includes(section)
+    ? settingsPath(section as SettingsTab)
+    : `/settings${section ? `#${section}` : ""}`;
 }
 
 function renderPage(section = initialSection) {
@@ -280,8 +300,11 @@ function renderPage(section = initialSection) {
     <QueryClientProvider
       client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
     >
-      <MemoryRouter initialEntries={[`/settings#${section}`]}>
-        <SettingsRoute />
+      <MemoryRouter initialEntries={[addressOf(section)]}>
+        <Routes>
+          <Route path="/settings/:tab?" element={<SettingsRoute />} />
+          <Route path="*" element={null} />
+        </Routes>
         <LocationState />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -315,13 +338,15 @@ describe("/settings", () => {
       ["alert-rules", "alert rules"],
       ["data-collection", "data collection"],
       ["tv-dashboard", "tv dashboard"],
-      ["entities", "ownership"],
-      ["task-hub", "task projects"],
-    ]) {
-      pickSection(section!);
+      ["ownership", "ownership"],
+      ["task-projects", "task projects"],
+    ] as const) {
+      pickSection(section);
       expect(screen.queryByRole("button", { name: `About ${title}` })).toBeNull();
-      const header = container.querySelector(`#${section} > *`) as HTMLElement;
-      expect(header.querySelector("p")).toBeNull();
+      // Every panel opens with its eyebrow and no paragraph of help under it.
+      for (const panel of container.querySelectorAll(`#${section} [role="region"]`)) {
+        expect(panel.firstElementChild?.querySelector("p")).toBeNull();
+      }
     }
     pickSection("general");
     expect(screen.getByText("USD per month · all sites")).toBeVisible();
@@ -376,41 +401,106 @@ describe("/settings", () => {
     expect(within(live.container.querySelector("#installation") as HTMLElement).getByText("Live source")).toBeVisible();
   });
 
-  it("opens one focused section at a time and preserves its hash link", () => {
+  it("is sectioned by the desk's tabs, one tab and one URL per section, with no second navigator", () => {
     stubFetch();
     const { container } = renderPage();
 
-    for (const [id, title] of [
-      ["general", "General"],
-      ["alert-rules", "Alert rules"],
-      ["data-collection", "Data collection"],
-      ["tv-dashboard", "TV dashboard"],
-      ["entities", "Ownership"],
-      ["task-hub", "Task projects"],
-    ] as const) {
-      pickSection(id);
-      const section = container.querySelector(`#${id}`);
-      expect(section, `section #${id} is missing`).not.toBeNull();
-      expect(within(section as HTMLElement).getAllByText(title).length).toBeGreaterThan(0);
-      expect(container.querySelectorAll("#general, #tv-dashboard, #alert-rules, #data-collection, #entities, #task-hub")).toHaveLength(1);
-      expect(screen.getByTestId("settings-location")).toHaveTextContent(`/settings#${id}`);
-      expect(screen.getByRole("navigation", { name: "Settings sections" }).querySelector('[aria-current="page"]')).toHaveAttribute("href", `/settings#${id}`);
-    }
-
-    const nav = screen.getByRole("navigation", { name: "Settings sections" });
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((a) => a.getAttribute("href")),
-    ).toEqual([
-      "/settings#general",
-      "/settings#alert-rules",
-      "/settings#data-collection",
-      "/settings#tv-dashboard",
-      "/settings#entities",
-      "/settings#task-hub",
-      "/settings#installation",
+    // The page's only navigation is the tab bar: no in-page list of links
+    // beside the content duplicating the app's own sidebar.
+    expect(screen.queryByRole("navigation", { name: "Settings sections" })).toBeNull();
+    expect(tabHrefs()).toEqual([
+      "/settings",
+      "/settings/alert-rules",
+      "/settings/data-collection",
+      "/settings/tv-dashboard",
+      "/settings/ownership",
+      "/settings/task-projects",
+      "/settings/installation",
     ]);
+    expect(within(tabList()).getAllByRole("tab").map((tab) => tab.textContent)).toEqual([
+      "General",
+      "Alert rules",
+      "Data collection",
+      "TV dashboard",
+      "Ownership",
+      "Task projects",
+      "Installation",
+    ]);
+
+    for (const id of ["general", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
+      pickSection(id);
+      expect(container.querySelector(`#${id}`), `tab #${id} is missing`).not.toBeNull();
+      expect(container.querySelectorAll("[data-settings-tab]")).toHaveLength(1);
+      expect(screen.getByTestId("settings-location")).toHaveTextContent(new RegExp(`^${settingsPath(id)}$`));
+      expect(selectedTabHref()).toBe(settingsPath(id));
+      // The panel names the tab that shows it.
+      const panel = screen.getByRole("tabpanel");
+      expect(panel).toHaveAttribute("aria-labelledby", `settings-tab-${id}`);
+      expect(document.getElementById(`settings-tab-${id}`)).toHaveAttribute("aria-selected", "true");
+    }
+  });
+
+  it("moves between tabs from the keyboard: arrows move focus, Enter opens", () => {
+    stubFetch();
+    const { container } = renderPage();
+    const tabs = within(tabList()).getAllByRole("tab");
+    expect(tabs.map((tab) => tab.getAttribute("tabindex"))).toEqual(["0", "-1", "-1", "-1", "-1", "-1", "-1"]);
+    tabs[0]!.focus();
+    fireEvent.keyDown(tabs[0]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(tabs[1]);
+    fireEvent.keyDown(tabs[1]!, { key: "End" });
+    expect(document.activeElement).toBe(tabs[tabs.length - 1]);
+    fireEvent.keyDown(tabs[tabs.length - 1]!, { key: "ArrowRight" });
+    expect(document.activeElement).toBe(tabs[0]);
+    fireEvent.keyDown(tabs[0]!, { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(tabs[tabs.length - 1]);
+    fireEvent.keyDown(tabs[tabs.length - 1]!, { key: " " });
+    expect(screen.getByTestId("settings-location")).toHaveTextContent(/^\/settings\/installation$/);
+    expect(container.querySelector("#installation")).not.toBeNull();
+  });
+
+  // Links filed before the tabs (a task's FIX line, a bookmark, an older
+  // build's link) keep landing on the section they named.
+  it.each([
+    ["general", "/settings"],
+    ["alert-rules", "/settings/alert-rules"],
+    ["data-collection", "/settings/data-collection"],
+    ["scheduled-jobs", "/settings/data-collection"],
+    ["tv-dashboard", "/settings/tv-dashboard"],
+    ["entities", "/settings/ownership"],
+    ["task-hub", "/settings/task-projects"],
+    ["installation", "/settings/installation"],
+    ["clock", "/settings#clock"],
+    ["budget", "/settings#budget"],
+  ])("sends the old address /settings#%s to %s", (hash, landed) => {
+    stubFetch();
+    render(
+      <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+        <MemoryRouter initialEntries={[`/settings#${hash}`]}>
+          <Routes>
+            <Route path="/settings/:tab?" element={<SettingsRoute />} />
+          </Routes>
+          <LocationState />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByTestId("settings-location").textContent).toBe(landed);
+    expect(selectedTabHref()).toBe(landed.split("#")[0]);
+  });
+
+  it("sends a row's hash to the tab that draws it, and a mistyped or hidden tab to General", () => {
+    stubFetch();
+    const row = renderPage("/settings/alert-rules#budget");
+    expect(screen.getByTestId("settings-location").textContent).toBe("/settings#budget");
+    row.unmount();
+    const mistyped = renderPage("/settings/retired-tab?x=1");
+    expect(screen.getByTestId("settings-location").textContent).toBe("/settings");
+    expect(mistyped.container.querySelector("#general")).not.toBeNull();
+    mistyped.unmount();
+    // Members is a hosted workspace owner's tab; this installation is not one.
+    renderPage("/settings/members");
+    expect(screen.getByTestId("settings-location").textContent).toBe("/settings");
+    expect(tabHrefs()).not.toContain("/settings/members");
   });
 
   // General holds the clock and the budget, and the #budget anchor
@@ -426,27 +516,26 @@ describe("/settings", () => {
       expect(within(general).getByRole("combobox", { name: /^Time zone/u })).toBeTruthy();
       expect(within(general).getByRole("spinbutton", { name: /Monthly data cap/u })).toBeTruthy();
       expect(within(general).getByRole("spinbutton", { name: /Value of your time/u })).toBeTruthy();
-      expect(screen.getByRole("navigation", { name: "Settings sections" }).querySelector('[aria-current="page"]')).toHaveAttribute("href", "/settings#general");
+      expect(selectedTabHref()).toBe("/settings");
       view.unmount();
     }
   });
 
   it("always lists core Task projects, including an unconfigured hub", () => {
     stubFetch();
-    const links = () => within(screen.getByRole("navigation", { name: "Settings sections" })).getAllByRole("link").map((a) => a.getAttribute("href"));
     try {
       taskSourceMock.connected = null;
       state.settings = payload({ taskHub: { owner: "config/beads.json", spokes: [], hub: null } });
       const fresh = renderPage("general");
-      expect(links()).toEqual(["/settings#general", "/settings#alert-rules", "/settings#data-collection", "/settings#tv-dashboard", "/settings#entities", "/settings#task-hub", "/settings#installation"]);
+      expect(tabHrefs()).toEqual(["/settings", "/settings/alert-rules", "/settings/data-collection", "/settings/tv-dashboard", "/settings/ownership", "/settings/task-projects", "/settings/installation"]);
       fresh.unmount();
-      const connecting = renderPage("task-hub");
-      expect(connecting.container.querySelector("#task-hub")).not.toBeNull();
-      expect(links()).toContain("/settings#task-hub");
+      const connecting = renderPage("task-projects");
+      expect(connecting.container.querySelector("#task-projects")).not.toBeNull();
+      expect(tabHrefs()).toContain("/settings/task-projects");
       connecting.unmount();
       state.settings = payload();
       renderPage("general");
-      expect(links()).toContain("/settings#task-hub");
+      expect(tabHrefs()).toContain("/settings/task-projects");
     } finally {
       resetTaskSourceMock();
     }
@@ -475,10 +564,10 @@ describe("/settings", () => {
     }
   });
 
-  it("opens a bookmarked section directly and falls back safely for an unknown hash", () => {
+  it("opens a bookmarked tab directly and falls back safely for an unknown hash", () => {
     stubFetch();
-    const first = renderPage("task-hub");
-    expect(first.container.querySelector("#task-hub")).not.toBeNull();
+    const first = renderPage("task-projects");
+    expect(first.container.querySelector("#task-projects")).not.toBeNull();
     expect(first.container.querySelector("#general")).toBeNull();
     first.unmount();
     const unknown = renderPage("retired-section");
@@ -606,12 +695,7 @@ describe("/settings", () => {
     expect(screen.getByRole("link", { name: "Edit layout" }).getAttribute("href")).toBe(
       "/wall/edit",
     );
-    const nav = screen.getByRole("navigation", { name: "Settings sections" });
-    expect(
-      within(nav)
-        .getAllByRole("link")
-        .map((a) => a.getAttribute("href")),
-    ).toContain("/settings#tv-dashboard");
+    expect(selectedTabHref()).toBe("/settings/tv-dashboard");
 
     expect(screen.queryByText("Launch day")).toBeNull();
     expect(screen.queryByLabelText("Countdown emoji")).toBeNull();
@@ -743,7 +827,7 @@ describe("/settings", () => {
     expect(screen.getByRole("spinbutton", { name: /Panel history window/ })).toHaveValue(35);
     expect(within(document.querySelector('[data-pull-asset="meadow.example"]') as HTMLElement).getByText("Enabled")).toBeTruthy();
     expect(within(document.querySelector('[data-pull-asset="northwind.example"]') as HTMLElement).getByText("Paused")).toBeTruthy();
-    pickSection("task-hub");
+    pickSection("task-projects");
     const project = document.querySelector('[data-collection-row="meadow.example"]') as HTMLElement;
     expect(within(project).getByLabelText("Task prefix")).toHaveValue("md");
     expect(within(project).queryByLabelText("Repo")).toBeNull();
@@ -818,7 +902,7 @@ describe("/settings", () => {
     expect(
       (screen.getByRole("spinbutton", { name: /Monthly data cap/ }) as HTMLInputElement).disabled,
     ).toBe(true);
-    for (const section of ["general", "alert-rules", "data-collection", "tv-dashboard", "entities", "task-hub"]) {
+    for (const section of ["general", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
       pickSection(section);
       expect(pausedStatements(), `#${section} says it once`).toBe(1);
     }
@@ -846,7 +930,7 @@ describe("/settings", () => {
     renderPage("data-collection");
 
     expect(document.querySelector("[data-pull-none]")).toHaveTextContent("None · sites send their own");
-    pickSection("task-hub");
+    pickSection("task-projects");
     expect(screen.getByText("No task projects configured.")).toBeTruthy();
     expect(within(taskHub()).getByText("Read-only here")).toBeTruthy();
     expect(within(taskHub()).queryByRole("button", { name: "Add" })).toBeNull();
@@ -859,7 +943,7 @@ describe("/settings", () => {
 // left over are named with the exact text to paste.
 
 function taskHub(): HTMLElement {
-  return document.querySelector("#task-hub") as HTMLElement;
+  return document.querySelector("#task-projects") as HTMLElement;
 }
 
 function projectRow(asset: string): HTMLElement {
@@ -944,7 +1028,7 @@ function fillProject(fields: { asset: string; prefix: string }) {
 }
 
 describe("/settings — the task-hub project map", () => {
-  beforeEach(() => { initialSection = "task-hub"; });
+  beforeEach(() => { initialSection = "task-projects"; });
   it("adds a project as one insert, and the Undo takes it out again", async () => {
     state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example", "meadow.example"));
     const calls = stubFetch();
@@ -1310,7 +1394,7 @@ function stubReplay(): { asset: string; ruleId: string; config: unknown }[] {
   return asked;
 }
 
-describe("/settings#alert-rules — the replay the fields are edited against", () => {
+describe("/settings/alert-rules — the replay the fields are edited against", () => {
   beforeEach(() => { initialSection = "alert-rules"; });
   it("draws the strip in the section, against the asset with the most open alerts", async () => {
     state.wall = wall([
@@ -1734,8 +1818,8 @@ describe("/settings — the data-source catalog is not a setting", () => {
     stubFetch();
     const { container } = renderPage();
     expect(container.querySelector("#data-sources")).toBeNull();
-    expect(screen.getByRole("navigation", { name: "Settings sections" }).querySelector('a[href="/settings#data-sources"]')).toBeNull();
-    for (const section of ["general", "alert-rules", "data-collection", "tv-dashboard", "entities", "task-hub"]) {
+    expect(tabHrefs().some((href) => href?.includes("data-sources"))).toBe(false);
+    for (const section of ["general", "alert-rules", "data-collection", "tv-dashboard", "ownership", "task-projects"] as const) {
       pickSection(section);
       expect(container.querySelector("[data-collection-row='ga4']"), `#${section}`).toBeNull();
       expect(screen.queryByText("Source catalog")).toBeNull();
@@ -1775,7 +1859,7 @@ const RULE_ROW = {
   tunes: 0,
 };
 
-describe("/settings#alert-rules — how often each rule was answered by tuning", () => {
+describe("/settings/alert-rules — how often each rule was answered by tuning", () => {
   beforeEach(() => { initialSection = "alert-rules"; });
   it("shows the rule, the share as a bar, and the counts the share is read from", () => {
     state.ruleStats = ruleStats([RULE_ROW]);
@@ -1979,11 +2063,11 @@ describe("/settings#alert-rules — how often each rule was answered by tuning",
 // be claimed twice).
 
 function entities(): HTMLElement {
-  return document.querySelector("#entities") as HTMLElement;
+  return document.querySelector("#ownership") as HTMLElement;
 }
 
 describe("/settings — who owns what", () => {
-  beforeEach(() => { initialSection = "entities"; });
+  beforeEach(() => { initialSection = "ownership"; });
   it("edits the entity and never its asset list", () => {
     stubFetch();
     renderPage();

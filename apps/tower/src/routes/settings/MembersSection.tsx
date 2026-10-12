@@ -2,9 +2,9 @@ import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { fieldClass } from '@/components/ui/field';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ReadFailed } from '@/components/ReadFailed';
 import { useBrowserContext } from '@/lib/browser-context';
+import { SettingsPanel } from '@/routes/settings/SettingsPanel';
 import { MembershipRefused, type MemberCommand, type MemberRole, type MembershipPage, type WorkspaceMember, type WorkspaceInvitation } from '@/lib/membership-client';
 
 const ROLES: MemberRole[] = ['owner', 'operator', 'viewer'];
@@ -66,12 +66,8 @@ function OwnerMembers() {
     finally { issuing.current = false; update(() => setBusy(false)); }
   }
   const oneOwner = read.data?.members.nextCursor === null && read.data.members.items.filter(member => member.role === 'owner').length === 1;
-  return <Card id="members">
-    <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
-      <CardTitle className="text-base normal-case tracking-normal">Members</CardTitle>
-      <Button variant="ghost" disabled={busy} onClick={() => void refreshSession?.()}>Refresh access</Button>
-    </CardHeader>
-    <CardContent className="space-y-6">
+  return <>
+    <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void refreshSession?.()}>Refresh access</Button>}>
       <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void execute({ kind: 'invite', email, role }); }}>
         <div className="min-w-0 flex-[2] basis-52 space-y-1.5">
           <label htmlFor="invite-email" className="block text-sm font-medium">Email *</label>
@@ -84,30 +80,28 @@ function OwnerMembers() {
         </div>
         <Button type="submit" disabled={busy || !read.data}>Invite</Button>
       </form>
-      {notice ? <div role="status" data-status-for="members" className={`text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
-      {!read.data ? read.isError ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void read.refetch()} />
-        : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
-        <section aria-label="Workspace members" className="space-y-2">
-          <h3 className="text-sm font-medium">People</h3>
-          <ul className="divide-y divide-border">{read.data.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}
-            busy={busy} lastOwner={oneOwner && member.role === 'owner'} execute={execute} />)}</ul>
-          {read.data.members.nextCursor ? <Button variant="outline" disabled={busy} onClick={() => void more('members')}>More people</Button> : null}
-        </section>
-        <section aria-label="Pending invitations" className="space-y-2">
-          <h3 className="text-sm font-medium">Pending invitations</h3>
-          {!read.data.invitations.items.length ? <div className="text-sm text-muted-foreground">No pending invitations</div> : <ul className="divide-y divide-border">
-            {read.data.invitations.items.map(invitation => <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3">
+      {notice ? <div role="status" data-status-for="members" className={`mt-3 text-sm ${notice.error ? 'text-error' : 'text-muted-foreground'}`}>{notice.text}</div> : null}
+    </SettingsPanel>
+    {!read.data ? read.isError ? <ReadFailed title="Couldn't load members" subject="read:members" error={read.error} retrying={read.isFetching} onRetry={() => void read.refetch()} />
+      : <div role="status" data-status-for="members" className="text-sm text-muted-foreground">Loading members…</div> : <>
+      <SettingsPanel title="People">
+        <ul className="divide-y divide-border">{read.data.members.items.map(member => <MemberRow key={`${member.id}:${member.role}`} member={member}
+          busy={busy} lastOwner={oneOwner && member.role === 'owner'} execute={execute} />)}</ul>
+        {read.data.members.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('members')}>More people</Button> : null}
+      </SettingsPanel>
+      <SettingsPanel title="Pending invitations">
+        {!read.data.invitations.items.length ? <div className="text-sm text-muted-foreground">No pending invitations</div> : <ul className="divide-y divide-border">
+          {read.data.invitations.items.map(invitation => <li key={invitation.id} className="flex flex-wrap items-center gap-3 py-3 first:pt-1 last:pb-0">
               <div className="min-w-0 flex-1 basis-40"><div className="break-all text-sm font-medium">{invitation.email}</div>
                 <div className="text-xs text-muted-foreground">{invitation.role} · Expires {new Date(invitation.expiresAt).toLocaleDateString()}</div></div>
               <Button variant="outline" disabled={busy} onClick={() => void execute({ kind: 'resend', invitationId: invitation.id })}>Resend</Button>
               <Button variant="ghost" disabled={busy} onClick={() => void execute({ kind: 'cancel', invitationId: invitation.id })}>Revoke</Button>
-            </li>)}
-          </ul>}
-          {read.data.invitations.nextCursor ? <Button variant="outline" disabled={busy} onClick={() => void more('invitations')}>More invitations</Button> : null}
-        </section>
-      </>}
-    </CardContent>
-  </Card>;
+          </li>)}
+        </ul>}
+        {read.data.invitations.nextCursor ? <Button variant="outline" className="mt-3 self-start" disabled={busy} onClick={() => void more('invitations')}>More invitations</Button> : null}
+      </SettingsPanel>
+    </>}
+  </>;
 }
 function RoleSelect({ value, onChange, id, label, disabled, lastOwner }: { value: MemberRole; onChange: (role: MemberRole) => void; id?: string; label?: string; disabled: boolean; lastOwner?: boolean }) {
   return <select id={id} aria-label={label} value={value} disabled={disabled} className={`${fieldClass} max-sm:min-h-11 capitalize`}
@@ -118,7 +112,7 @@ function RoleSelect({ value, onChange, id, label, disabled, lastOwner }: { value
 function MemberRow({ member, busy, lastOwner, execute }: { member: WorkspaceMember; busy: boolean; lastOwner: boolean; execute: (command: MemberCommand) => Promise<void> }) {
   const [role, setRole] = useState(member.role);
   const [removing, setRemoving] = useState(false);
-  return <li className="flex flex-wrap items-center gap-3 py-3">
+  return <li className="flex flex-wrap items-center gap-3 py-3 first:pt-1 last:pb-0">
     <div className="min-w-0 flex-1 basis-40"><div className="break-words text-sm font-medium">{member.name || member.email}</div>
       {member.name ? <div className="break-all text-xs text-muted-foreground">{member.email}</div> : null}
       {lastOwner ? <div className="text-xs text-muted-foreground">Last owner</div> : null}</div>

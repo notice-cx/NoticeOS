@@ -758,6 +758,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "outcome under every cell — Saved · Undo / Not saved",
       "commit=auto: no Save, saved on pick or on leaving the cell; commit=save (default, money): the cell's own Save",
       "paused saves: a lock by the title, the reason said once by the page (statesReadOnly=false)",
+      "headed=false: the host panel names the table and carries the lock (Settings)",
     ],
     demo:
       "The phone fold is the viewport, not a prop; pinned in test/components.test.tsx.",

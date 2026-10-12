@@ -198,7 +198,7 @@ describe('workflow operating surface', () => {
     expect(within(details).getByRole('heading', { level: 3 })).toHaveTextContent('Load collection settings');
     // A collection's schedule has one editor, in Settings → Data collection:
     // this page keeps the runner's view and links there.
-    expect(screen.getByRole('link', { name: 'Edit in Settings' })).toHaveAttribute('href', '/settings#data-collection');
+    expect(screen.getByRole('link', { name: 'Edit in Settings' })).toHaveAttribute('href', '/settings/data-collection');
     expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
     expect(screen.queryByRole('form', { name: 'Live traffic and counters schedule' })).toBeNull();
   });

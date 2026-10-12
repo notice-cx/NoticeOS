@@ -5520,7 +5520,7 @@ describe("AssetDetailRoute — Tasks tab", () => {
     await findByText("No task project for this site");
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
     const door = [...container.querySelectorAll("a")].find((a) => a.textContent?.startsWith("Add a task project"))!;
-    expect(door.getAttribute("href")).toBe("/settings#task-hub");
+    expect(door.getAttribute("href")).toBe("/settings/task-projects");
     expect(container.textContent).not.toContain("config/beads.json");
     expect(container.querySelector("[data-tasks-filters]")).toBeNull();
     const tab = [...container.querySelectorAll('[role="tab"]')].find((t) =>

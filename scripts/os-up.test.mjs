@@ -4744,7 +4744,7 @@ test('a drift bead is identified by its project, metadata first and title second
   assert.equal(taskMapBeadAsset({ title: taskMapTitle('meadow.example') }), 'meadow.example');
   assert.equal(taskMapBeadAsset({ title: 'Something else entirely' }), null);
 
-  // AND THE TOWER READS THE SAME TITLE. /settings#task-hub marks the row whose
+  // AND THE TOWER READS THE SAME TITLE. /settings/task-projects marks the row whose
   // database the hub does not hold, and it learns which one from the bead this
   // lane files; its matcher (`driftingAssetOf` in apps/tower/shared/task-map.ts)
   // keys on this prefix, so it is pinned HERE, on the writing side.
@@ -4794,7 +4794,7 @@ test('the lane files one bead per drifting project, into this repo', async () =>
   const description = created[0][created[0].indexOf('--description') + 1];
   assert.match(description, /provision that database from the project checkout/);
   assert.match(description, /installation\/task-host\.json/);
-  assert.match(description, /\/settings#task-hub/);
+  assert.match(description, /\/settings\/task-projects/);
   assert.match(description, /the hub holds: md, ro/);
   // ERROR, not WARN: the backup for this project is aimed at nothing.
   assert.ok(lines.some((line) => line.startsWith('ERROR task map: meadow.example')));

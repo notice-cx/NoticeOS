@@ -150,6 +150,15 @@ that reads at a glance, and the kit has it:
 | a queue | its size, its age spread, then the rows with age as a length | `DecisionQueue` |
 | open problems | one ranked panel: new since the last look first, the long-standing folded | `IncidentList` |
 
+**Tabs are the one way a desk page is sectioned.** When a page holds more than
+one question, `Tabs` divides it: the same bar on a site's page, Alerts, System
+health, Workflows and Settings. The tab is the URL (the first tab the bare
+address, each other one a segment after it), arrows and Home/End move between
+tabs, and on a phone the strip scrolls inside itself. A page never draws a
+navigator of its own beside the app's sidebar, and an address from before a
+page had tabs keeps landing on the tab that holds its section. Inside a tab,
+the groups are panels, each opening with its eyebrow.
+
 A region is redesigned by the question it answers, not component by component:
 five alert cards may become one grid and one ranked list, six site cards one
 comparison panel. When no form in the kit fits a new kind of data, build the
@@ -348,6 +357,13 @@ the cost goes, largest first, and the sites ranked by revenue with their net by
 month. **System health** leads with the System as a `FlowGraph` and, under it,
 every scheduled job's last seven days as one row of cells, the newest failure
 named at the top.
+
+**Settings is a form, and reads like one**: General, Alert rules, Data
+collection, TV dashboard, Ownership and Task projects as tabs (Installation
+and Members where they apply), each a single column of a readable width so a
+field and the visual beside it stay one glance apart on a wide screen. Every
+group is a panel with its eyebrow and hairline rows, the shape a site's
+Settings tab draws its groups in, so the two settings pages read alike.
 
 **Index pages** follow the same bar: Sites, Alerts, Tasks, Money,
 Integrations and Workflows each open with a `PageAnswer`; Alerts and Tasks end

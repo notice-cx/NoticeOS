@@ -39,7 +39,7 @@ const CONFIG_FIELD: Record<string, keyof RuleConfig> = {
 };
 
 /** The settings rows a replay is a picture of. Exported because
- * `/settings#alert-rules` previews the same edit. */
+ * `/settings/alert-rules` previews the same edit. */
 export function backtestableKnobs(knobs: readonly KnobFact[]): KnobFact[] {
   return knobs.filter((knob) => knob.key in CONFIG_FIELD);
 }
@@ -167,7 +167,7 @@ function TuneRulePanelLive({
   const { updateFlag } = useTowerApi();
   const queryClient = useQueryClient();
   const { data: settings } = useSettings();
-  // The same read and cache key `/settings#alert-rules` draws from.
+  // The same read and cache key `/settings/alert-rules` draws from.
   const { data: stats } = useAlertRuleStats();
   const knobs = useMemo(
     () => backtestableKnobs(settings?.alertRules.knobs ?? []),
@@ -362,7 +362,7 @@ export function RuleTunePanel({
       </div>
 
       <Link
-        to="/settings#alert-rules"
+        to="/settings/alert-rules"
         className="text-xs text-muted-foreground underline-offset-2 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring"
       >
         Every alert rule, on Settings
@@ -373,7 +373,7 @@ export function RuleTunePanel({
 
 /** A preview that could not be produced says so; it never renders a strip of
  * zeros, which would read as "this would never fire". Exported for
- * `/settings#alert-rules`. */
+ * `/settings/alert-rules`. */
 export function RulePreview({ preview }: { preview: RuleTunePreview }) {
   if (preview.state === "ready") {
     return <BacktestStrip backtest={preview.backtest} />;

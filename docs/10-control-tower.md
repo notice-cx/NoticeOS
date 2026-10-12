@@ -161,23 +161,25 @@ decision rows exist only with a task source connected.
 `/settings` is **one place to
 change anything that applies to the whole portfolio.**
 
-Six sections,
-General first, each with an anchor id that selects it — only the selected
-section renders — and a left section list on `lg` that reads
-as the page's outline. **General** holds the time zone, the monthly data cap
-and the value of your time, and `#clock` and `#budget` land on it. **Task projects** is listed
-once a task source is connected or a project is saved. The rows below
-describe each part:
+It is sectioned by the same tabs a site's page uses, General first, and the
+tab is the URL: `/settings` is General and `/settings/<tab>` each of the rest.
+There is no second navigator inside the page. **Installation** shows on a
+standalone installation and **Members** to a hosted workspace's owner. Each
+tab is one column of panels — an eyebrow, then rows divided by hairlines —
+and an address from before the tabs (`/settings#task-hub`, `#entities`,
+`#alert-rules` and the rest) lands on the tab that holds its section.
+`#clock` and `#budget` are General's two panels. The rows below describe
+each tab:
 
-| Section | Holds | What the eye reads first |
+| Tab | Holds | What the eye reads first |
 |---|---|---|
-| **General → Time zone** (`#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | what time it is in that zone right now, because two neighbouring zone names look equally plausible until you see the clock they produce |
-| **TV dashboard** (`#tv-dashboard`) | the door to the layout editor (`/wall/edit`), and the countdown the wall display shows — emoji, label, target | the **Edit layout** button, then the countdown widget itself. With none configured the block offers **Set a countdown** — the countdown is optional — and the SECTION always renders, because every install has a TV layout whether or not it counts down to anything |
-| **General → Budget** (`#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. **Every cap here has a meter**: the OS makes no model calls of its own, so there is no inference cap to state |
-| **Alert rules** (`#alert-rules`) | anomaly sensitivity, minimum daily volume to test, low-volume window | sensitivity against the conventional 0.05 ceiling; the window as its share of a week |
-| **Data collection** (`#data-collection`) | the schedules of the collections no connection feeds (nightly reports, live counters, local research — a connection-fed collection's schedule is on that connection's Manage panel on Integrations), the declared cadence knobs — the panel history window and the panel freshness bar — and every pull endpoint | the window in weeks and its cost per pass; the freshness bar as a meter **inside** the window, which is the one thing that number cannot say alone. An enabled/paused chip per pull lane |
-| **Ownership** (`#entities`) | the legal entities that own sites (`config/entities.json`) — slug, name, form, jurisdiction | *Sites by owner*: each entity's sites as favicons, and the sites nobody owns under a **No owner** chip, each linking to its Identity card |
-| **Task projects** (`#task-hub`) | the project map — site, task prefix, database — **editable**, plus the read-only connection; a deployed build shows the map as a read-only list | the site's favicon beside its row; after an Add, the steps the file cannot do |
+| **General → Clock** (`/settings#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | what time it is in that zone right now, because two neighbouring zone names look equally plausible until you see the clock they produce |
+| **General → Budget** (`/settings#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. **Every cap here has a meter**: the OS makes no model calls of its own, so there is no inference cap to state |
+| **Alert rules** (`/settings/alert-rules`) | a replay of the rules against a site's last 30 days, how often each rule was answered by tuning, then the thresholds: anomaly sensitivity, minimum daily volume to test, low-volume window | sensitivity against the conventional 0.05 ceiling; the window as its share of a week |
+| **Data collection** (`/settings/data-collection`) | the schedules of the collections no connection feeds (nightly reports, live counters, local research — a connection-fed collection's schedule is on that connection's Manage panel on Integrations), the declared cadence knobs — the panel history window and the panel freshness bar — and every pull endpoint | the window in weeks and its cost per pass; the freshness bar as a meter **inside** the window, which is the one thing that number cannot say alone. An enabled/paused chip per pull lane |
+| **TV dashboard** (`/settings/tv-dashboard`) | the door to the layout editor (`/wall/edit`), and the countdown the wall display shows — emoji, label, target | the **Edit layout** button, then the countdown widget itself. With none configured the panel offers **Set a countdown** — the countdown is optional — and the tab always renders, because every install has a TV layout whether or not it counts down to anything |
+| **Ownership** (`/settings/ownership`) | the legal entities that own sites (`config/entities.json`) — slug, name, form, jurisdiction | *Sites by owner*: each entity's sites as favicons, and the sites nobody owns under a **No owner** chip, each linking to its Identity card |
+| **Task projects** (`/settings/task-projects`) | the read-only connection, then the project map — site, task prefix, database — **editable**; a deployed build shows the map as a read-only list | the site's favicon beside its row; after an Add, the steps the file cannot do |
 
 **Saves go through the write lane, and what is editable is what the lane
 licenses — never a taste decision.** The timezone, the countdown, the caps and
@@ -396,7 +398,7 @@ pulse replay cannot honestly serve — `ingest-freshness`, `asset-declared`, the
 watch-window verdicts — get **no trigger at all**, because a preview for them
 could only be invented.
 
-The settings in that panel are the same portfolio-wide ones `/settings#alert-rules`
+The settings in that panel are the same portfolio-wide ones `/settings/alert-rules`
 owns, written through the same write lane, and **the panel says so first**, with
 one *Applies to every site* chip above the fields. That is deliberate rather than
 a reversal of the per-asset editor removed below: the editor still lives where

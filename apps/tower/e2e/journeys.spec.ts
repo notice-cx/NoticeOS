@@ -2717,7 +2717,7 @@ test("core Tasks creates, opens and completes work before any user site", async 
   await page.goto("/tasks");
   await expect(page.getByRole("heading", { name: "Tasks", level: 1 })).toBeVisible();
   await expect(page.getByText("No task projects available", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings#task-hub");
+  await expect(page.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings/task-projects");
   await expect(page.getByRole("button", { name: "New task", exact: true })).toBeVisible();
 
   expect((await request.post("/__journey/core-tasks")).ok()).toBe(true);
@@ -2753,8 +2753,11 @@ test("core Tasks creates, opens and completes work before any user site", async 
   expect(state.taskCommands.some((argv: string[]) => argv[2] === "close" && argv[3] === "no-f1")).toBe(true);
   expect((await (await request.get("/api/wall")).json()).assets).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("core-tasks-before-sites.png"), fullPage: true });
+  // A link filed before Settings had tabs still lands on its tab.
   await page.goto("/settings#task-hub");
-  await expect(page.locator("#task-hub")).toBeVisible();
+  await expect(page).toHaveURL(/\/settings\/task-projects$/u);
+  await expect(page.getByRole("tab", { name: "Task projects", selected: true })).toBeVisible();
+  await expect(page.locator("#task-projects")).toBeVisible();
   await expect(page.getByText("Waiting for first read", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Connect Beads", exact: true })).toHaveCount(0);
   await page.goto("/integrations");

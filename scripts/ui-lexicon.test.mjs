@@ -114,7 +114,7 @@ const ALLOWED_PHRASES = [
   //    broken link, not a copy change.
   'scheduled-lane-health',
   'lane-', // the wizard's per-source field ids, and `reason: "no-lane-yet"`
-  '"task-hub"', // the Settings section id — `/settings#task-hub` must keep resolving
+  '"task-hub"', // the Settings section's old hash — `/settings#task-hub` must keep landing on Task projects
   '"task-hub-spokes"', // the register id declared in scripts/config-registers.mjs
   '"asset-lane"', // ditto — the per-asset data-source register the write lane validates against
   'POST /api/pulse', // the endpoint an asset posts its nightly report to

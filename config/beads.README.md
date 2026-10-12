@@ -73,7 +73,7 @@ exactly; a mismatched link leaves that project unavailable while others run.
 
 ## Where the map is edited
 
-**Settings → Task projects** (`/settings#task-hub`) adds, edits and removes a
+**Settings → Task projects** (`/settings/task-projects`) adds, edits and removes a
 project with the same guarded write, Undo toast and refusals as every other
 register on that page; a duplicate prefix or database is refused before the
 request is made, and the asset column offers the assets no project has

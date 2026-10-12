@@ -1,25 +1,17 @@
 import {
   Ban,
-  Boxes,
   CalendarPlus,
   Check,
   CircleDashed,
   Globe,
-  HardDrive,
-  Landmark,
   LayoutDashboard,
-  ListChecks,
   Lock,
   Pencil,
-  SlidersHorizontal,
-  Timer,
   TriangleAlert,
-  Tv,
-  Users,
   X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { BACKTESTABLE_RULE_IDS } from "@noticeos/contract/rule-backtest";
 import { ruleLabel } from "@shared/alert-rules";
 import type { EditableFile, JsonValue, SettingOp } from "@shared/changeset";
@@ -35,7 +27,7 @@ import type {
   TaskHubConnection,
   TaskHubSpoke,
 } from "@shared/settings";
-import { localTimezone, settingsCollections } from "@shared/scheduled-jobs";
+import { localTimezone, localTimezoneLabel, settingsCollections } from "@shared/scheduled-jobs";
 import { driftingTaskDatabases, taskServerFailure } from "@shared/task-map";
 import { installationCommand, updateState, type InstallationFacts } from "@shared/installation";
 import type { AssetCard } from "@shared/wall";
@@ -59,10 +51,10 @@ import {
   useRulePreview,
 } from "@/components/RuleTune";
 import { StateChip } from "@/components/StateChip";
+import { TabPanel } from "@/components/Tabs";
 import { CommandBlock, NO_HUB_CONNECTION, TaskProjectSteps, TaskSourceSection, taskProjectInitCommand } from "@/components/TaskSourceSection";
 import { TuneRate } from "@/components/TuneRate";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { pillClass, pillControlClass, pillPickerStateClass } from "@/components/ui/pill";
 import { useAlertRuleStats } from "@/hooks/useAlertRuleStats";
 import { useInstallation } from "@/hooks/useInstallation";
@@ -76,6 +68,16 @@ import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
 import { cn } from "@/lib/utils";
 import { useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
+import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
+import {
+  SETTINGS_TABS,
+  SETTINGS_TAB_IDS,
+  SETTINGS_TAB_PANEL_ID,
+  SettingsTabs,
+  settingsHashDestination,
+  settingsPath,
+  settingsTabFromParam,
+} from "@/routes/settings/SettingsTabs";
 import {
   formatCalendarDate,
   formatPeriodMonth,
@@ -91,27 +93,68 @@ import {
 } from "@/lib/knob-validators";
 
 /**
- * /settings: every portfolio-wide setting on one page, a few focused forms
- * with General first. Which sections are editable is what the configuration
- * store's guarded write allows, not a design choice. Every quantity carries
- * its visual and nothing on the page needs a paragraph.
+ * /settings: every portfolio-wide setting, one tab per group, with General
+ * first. The tab is the URL (`/settings/<tab>`, General the bare
+ * `/settings`), drawn by the same tab bar a site's page uses. Which settings
+ * are editable is what the configuration store's guarded write allows, not a
+ * design choice. Every quantity carries its visual and nothing on the page
+ * needs a paragraph.
  */
 export function SettingsRoute() {
   const { runtime, workspaceRole } = useBrowserContext();
   const managesMembers = runtime.owner.mode === 'hosted' && workspaceRole === 'owner';
   // Only a standalone installation has a folder, ports and versions of its own to show.
   const showsInstallation = runtime.owner.mode === 'standalone';
+  const shown = SETTINGS_TABS.filter(
+    (key) => (key !== 'members' || managesMembers) && (key !== 'installation' || showsInstallation),
+  );
+  const { tab: tabParam } = useParams();
+  const { hash, search } = useLocation();
+  const tab = settingsTabFromParam(tabParam, shown);
   const { data, isError, error, isFetching, refetch } = useSettings();
   // The countdown counts down in minutes; a slower clock would leave a stale
   // figure sitting under the editor that changes it.
   const now = useNow(1_000);
-  const { hash } = useLocation();
-  const requestedSection = sectionOf(hash);
-  const section = (requestedSection === 'members' && !managesMembers) || (requestedSection === 'installation' && !showsInstallation) ? 'general' : requestedSection;
-  // Aliases: schedules are rows of Data collection, and the data-source
-  // catalog ships with the product rather than being a setting.
-  if (hash === '#scheduled-jobs') return <Navigate to="/settings#data-collection" replace />;
-  if (hash === '#data-sources') return <Navigate to="/integrations" replace />;
+
+  // An old section hash lands on its tab; a tab this installation does not
+  // show, or a mistyped one, is General.
+  const moved = settingsHashDestination(hash, tab);
+  if (moved !== null) return <Navigate to={moved} replace />;
+  if (tabParam !== undefined && tabParam !== tab) {
+    return <Navigate to={`${settingsPath(tab)}${search}${hash}`} replace />;
+  }
+
+  // Members and Installation read their own data; every other tab is drawn
+  // from the settings read, and a failed first read is the desk's one failure
+  // state, never a sentence of this page's own.
+  const body =
+    tab === 'members' ? (
+      <MembersSection />
+    ) : tab === 'installation' ? (
+      <InstallationSection />
+    ) : !data ? (
+      isError ? (
+        <ReadFailed title="Couldn't load settings" subject="read:settings" error={error} retrying={isFetching} onRetry={() => void refetch()} />
+      ) : (
+        <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
+      )
+    ) : tab === 'general' ? (
+      <GeneralSection settings={data} nowMs={now} anchor={hash.slice(1)} />
+    ) : tab === 'alert-rules' ? (
+      <AlertRulesSection settings={data} />
+    ) : tab === 'data-collection' ? (
+      <CollectionSection settings={data} />
+    ) : tab === 'tv-dashboard' ? (
+      <TvDashboardSection
+        countdown={data.dashboard.countdown}
+        refused={data.dashboard.refused?.countdown ?? null}
+        nowMs={now}
+      />
+    ) : tab === 'ownership' ? (
+      <EntitiesSection settings={data} />
+    ) : (
+      <TaskHubSection settings={data} />
+    );
 
   return (
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
@@ -119,153 +162,39 @@ export function SettingsRoute() {
       {/* When saves are paused the page says so once: every editor below shows
           only its lock (`statesReadOnly={false}`). */}
       <SavesPaused />
-
-      {section === 'members' && managesMembers ? <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-        <SettingsSectionNav section={section} managesMembers={managesMembers} showsInstallation={showsInstallation} /><MembersSection />
-      </div> : !data ? (
-        // A failed first read is the desk's one failure state, never a sentence
-        // of this page's own.
-        isError ? (
-          <ReadFailed title="Couldn't load settings" subject="read:settings" error={error} retrying={isFetching} onRetry={() => void refetch()} />
-        ) : (
-          <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
-        )
-      ) : (
-        <div className="lg:grid lg:grid-cols-[12rem_minmax(0,1fr)] lg:items-start lg:gap-6">
-          <SettingsSectionNav section={section} managesMembers={managesMembers} showsInstallation={showsInstallation} />
-          <div className="flex min-w-0 flex-col gap-4">
-            {section === "general" && <GeneralSection settings={data} nowMs={now} anchor={hash.slice(1)} />}
-            {section === "tv-dashboard" && (
-              <TvDashboardSection
-                countdown={data.dashboard.countdown}
-                refused={data.dashboard.refused?.countdown ?? null}
-                nowMs={now}
-              />
-            )}
-            {section === "alert-rules" && <AlertRulesSection settings={data} />}
-            {section === "data-collection" && <CollectionSection settings={data} />}
-            {section === "entities" && <EntitiesSection settings={data} />}
-            {section === "task-hub" && <TaskHubSection settings={data} />}
-            {section === "installation" && showsInstallation && <InstallationSection />}
-          </div>
+      <SettingsTabs shown={shown} />
+      {/* A form reads down one column of a readable width, so a field and the
+          value beside it stay one glance apart on a wide screen. */}
+      <TabPanel id={SETTINGS_TAB_PANEL_ID} idBase={SETTINGS_TAB_IDS} activeKey={tab} className="w-full max-w-4xl">
+        <div id={tab} className="flex min-w-0 flex-col gap-4" data-settings-tab={tab}>
+          {body}
         </div>
-      )}
+      </TabPanel>
     </div>
-  );
-}
-
-// --- the page's outline ----------------------------------------------------
-/** Section id → the word in the navigator. The order IS the DOM order, so the
- * list reads as the page's outline rather than as a menu of somewhere else. */
-const SECTIONS = [
-  { id: "general", label: "General", icon: SlidersHorizontal },
-  { id: "alert-rules", label: "Alert rules", icon: ListChecks },
-  { id: "data-collection", label: "Data collection", icon: Timer },
-  { id: "tv-dashboard", label: "TV dashboard", icon: Tv },
-  { id: "entities", label: "Ownership", icon: Landmark },
-  { id: "task-hub", label: "Task projects", icon: Boxes },
-  { id: "installation", label: "Installation", icon: HardDrive },
-  { id: "members", label: "Members", icon: Users },
-] as const;
-
-const SECTION_IDS: ReadonlySet<string> = new Set(SECTIONS.map((s) => s.id));
-
-/** Addresses that are rows of a section rather than sections of their own:
- * the clock and the budget are General's rows, and a link to either lands
- * there. */
-const SECTION_ALIASES: Readonly<Record<string, string>> = { clock: "general", budget: "general" };
-
-/** Which section a hash opens: its own, the one it is a row of, else General. */
-function sectionOf(hash: string): string {
-  const id = hash.slice(1);
-  return SECTION_IDS.has(id) ? id : (SECTION_ALIASES[id] ?? "general");
-}
-
-/** The outline names what the page renders: a navigator entry pointing at an
- * anchor that is not there is worse than one fewer line. */
-function SettingsSectionNav({
-  section,
-  managesMembers,
-  showsInstallation,
-}: {
-  section: string;
-  managesMembers: boolean;
-  showsInstallation: boolean;
-  /** Task projects is listed only once it concerns this installation. */
-}) {
-  return (
-    <nav
-      aria-label="Settings sections"
-      className="mb-4 flex gap-1 overflow-x-auto pb-1 lg:sticky lg:top-4 lg:mb-0 lg:flex-col"
-    >
-      {SECTIONS.filter(item => (item.id !== 'members' || managesMembers) && (item.id !== 'installation' || showsInstallation)).map(({ id, label, icon: Icon }) => (
-        <Link
-          key={id}
-          to={`#${id}`}
-          aria-current={section === id ? "page" : undefined}
-          className={cn("inline-flex min-h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-md px-3 py-2 text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring", section === id ? "bg-muted font-medium text-foreground" : "text-muted-foreground")}
-        >
-          <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
-          {label}
-        </Link>
-      ))}
-    </nav>
-  );
-}
-
-/**
- * One section: an anchor the navigator and an external link can both reach, a
- * title, and, only where the scope is not obvious from the fields, one chip or
- * link beside it. No description line and no help tooltip.
- */
-function Section({
-  id,
-  title,
-  aside,
-  children,
-}: {
-  id: string;
-  title: string;
-  aside?: ReactNode;
-  children: ReactNode;
-}) {
-  // The navigator beside the card already names the one section shown, so the
-  // title is the card's accessible name only.
-  return (
-    <Card id={id} className="scroll-mt-4" aria-labelledby={`${id}-title`} role="region">
-      <h2 id={`${id}-title`} className="sr-only">{title}</h2>
-      {aside ? (
-        <CardHeader className="flex-row flex-wrap items-center justify-end gap-3 pb-0">
-          <div className="flex shrink-0 items-center gap-2">{aside}</div>
-        </CardHeader>
-      ) : null}
-      <CardContent className={aside ? undefined : "pt-4"}>
-        {children}
-      </CardContent>
-    </Card>
   );
 }
 
 /** A field and the visual that makes its value legible, side by side. The field
  * keeps its own layout; the visual is a fixed column beside it so three fields
- * in a section line their meters up rather than each finding its own width. */
+ * in a panel line their meters up rather than each finding its own width. */
 function FieldWithVisual({
-  id,
   children,
   visual,
 }: {
-  /** An anchor a link can land on (`#clock`, `#budget`). */
-  id?: string;
   children: ReactNode;
   visual?: ReactNode;
 }) {
   return (
-    <div id={id} className="flex scroll-mt-4 flex-col gap-2 border-b border-border py-3 last:border-0 sm:flex-row sm:items-start sm:gap-6">
+    <div className={cn("flex flex-col gap-2 border-b border-border py-3 last:border-0 sm:flex-row sm:items-start sm:gap-6", PANEL_ROW)}>
       <div className="min-w-0 flex-1">{children}</div>
       {visual ? <div className="shrink-0 sm:w-56">{visual}</div> : null}
     </div>
   );
 }
+
+/** A hairline row inside a panel: no extra gap under the panel's header or
+ * above its bottom edge. */
+const PANEL_ROW = "first:pt-1 last:pb-0";
 
 /** The op a file-owned knob writes: the file, the exact pointer, and the value
  * the field was rendered from as the concurrency guard. */
@@ -280,9 +209,9 @@ function fileOp(file: EditableFile, pointer: string, expect: JsonValue) {
 }
 
 // --- 1. General -----------------------------------------------------------
-/** What a new installation sets, on the page Settings opens on: the clock the
+/** What a new installation sets, on the tab Settings opens on: the clock the
  * OS reads in, and what it may spend. `#clock` and `#budget` land on their
- * rows. */
+ * panels. */
 function GeneralSection({
   settings,
   nowMs,
@@ -299,10 +228,14 @@ function GeneralSection({
     document.getElementById(anchor)?.scrollIntoView?.({ block: "start" });
   }, [anchor]);
   return (
-    <Section id="general" title="General">
-      <ClockField settings={settings} nowMs={nowMs} />
-      <BudgetFields settings={settings} />
-    </Section>
+    <>
+      <SettingsPanel id="clock" title="Clock">
+        <ClockField settings={settings} nowMs={nowMs} />
+      </SettingsPanel>
+      <SettingsPanel id="budget" title="Budget">
+        <BudgetFields settings={settings} />
+      </SettingsPanel>
+    </>
   );
 }
 
@@ -324,7 +257,7 @@ function ClockField({
   const { clock } = settings;
   const [previewZone, setPreviewZone] = useState<string | null>(null);
   return (
-    <FieldWithVisual id="clock" visual={<ZonePreview timeZone={previewZone ?? clock.timeZone} nowMs={nowMs} />}>
+    <FieldWithVisual visual={<ZonePreview timeZone={previewZone ?? clock.timeZone} nowMs={nowMs} />}>
       <KnobEditor
         statesReadOnly={false}
         className="border-0 py-0"
@@ -410,11 +343,11 @@ function ZonePreview({ timeZone, nowMs }: { timeZone: string; nowMs: number }) {
   );
 }
 
-// --- 4. TV dashboard -------------------------------------------------------
+// --- TV dashboard -----------------------------------------------------------
 /**
  * The television, from the desk. The layout is arranged on its own page
  * (`/wall/edit`) because rearranging a television needs the television on
- * screen; the countdown is three fields and belongs here. The section renders
+ * screen; the countdown is three fields and belongs here. The tab renders
  * whether or not a countdown is configured, because every install has a TV
  * layout.
  */
@@ -429,17 +362,19 @@ function TvDashboardSection({
   nowMs: number;
 }) {
   return (
-    <Section id="tv-dashboard" title="TV dashboard">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
-          <span className="text-sm font-medium text-foreground">TV layout</span>
-          <Button asChild variant="outline" size="sm" className="shrink-0">
+    <>
+      <SettingsPanel
+        title="Layout"
+        aside={
+          <Button asChild variant="outline" size="sm">
             <Link to="/wall/edit">
               <LayoutDashboard className="size-4" />
               Edit layout
             </Link>
           </Button>
-        </div>
+        }
+      />
+      <SettingsPanel title="Countdown">
         {countdown ? (
           <CountdownWidget config={countdown} nowMs={nowMs} interactive statesReadOnly={false} />
         ) : refused ? (
@@ -460,8 +395,8 @@ function TvDashboardSection({
         ) : (
           <NoCountdown nowMs={nowMs} />
         )}
-      </div>
-    </Section>
+      </SettingsPanel>
+    </>
   );
 }
 
@@ -507,7 +442,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
   const { budget } = settings;
 
   return (
-    <div id="budget" className="scroll-mt-4">
+    <>
       {budget.knobs.map((knob) => (
         <FieldWithVisual key={knob.key} visual={budgetVisual(knob, spend)}>
           {/* Label, unit and effect in one line, the control, and the state
@@ -528,7 +463,7 @@ function BudgetFields({ settings }: { settings: SettingsPayload }) {
           />
         </FieldWithVisual>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -618,54 +553,59 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
   const [drafts, setDrafts] = useState<Record<string, JsonValue | null>>({});
 
   return (
-    <Section
-      id="alert-rules"
-      title="Alert rules"
-      // The one fact the fields cannot show: they judge every asset.
-      aside={<StateChip tone="neutral" label="All sites" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
-    >
+    <>
       {/* The evidence leads the fields it is about, exactly as it does in the
           panel these same three settings open from an alert row. */}
-      {assets.length === 0 ? (
-        <p
-          className="flex items-center gap-1.5 border-b border-border pb-3 text-xs text-muted-foreground"
-          data-alert-rule-preview-empty
-        >
-          <CircleDashed className="size-3.5 shrink-0" aria-hidden />
-          No reports to replay yet
-        </p>
-      ) : (
-        <AlertRulePreview
-          assets={assets}
-          knobs={backtestableKnobs(alertRules.knobs)}
-          drafts={drafts}
-        />
-      )}
+      <SettingsPanel title="Replay">
+        {assets.length === 0 ? (
+          <p
+            className="flex items-center gap-1.5 text-xs text-muted-foreground"
+            data-alert-rule-preview-empty
+          >
+            <CircleDashed className="size-3.5 shrink-0" aria-hidden />
+            No reports to replay yet
+          </p>
+        ) : (
+          <AlertRulePreview
+            assets={assets}
+            knobs={backtestableKnobs(alertRules.knobs)}
+            drafts={drafts}
+          />
+        )}
+      </SettingsPanel>
 
       <AlertRuleRecord />
 
-      {alertRules.knobs.map((knob) => (
-        <FieldWithVisual key={knob.key} visual={alertRuleVisual(knob)}>
-          <KnobEditor
-            statesReadOnly={false}
-            className="border-0 py-0"
-            label={knob.label}
-            help={knob.explain}
-            current={knob.raw}
-            format={(v) => String(v)}
-            makeOp={fileOp("config/constants.json", knob.pointer, knob.raw)}
-            control={{
-              type: "number",
-              validate: FLAG_DEFAULT_VALIDATOR[knob.key] ?? validateUsd,
-              step: knob.key === "alpha" ? "0.001" : "1",
-            }}
-            onDraft={(value) =>
-              setDrafts((current) => ({ ...current, [knob.key]: value }))
-            }
-          />
-        </FieldWithVisual>
-      ))}
-    </Section>
+      {alertRules.knobs.length === 0 ? null : (
+        <SettingsPanel
+          title="Thresholds"
+          // The one fact the fields cannot show: they judge every site.
+          aside={<StateChip tone="neutral" label="All sites" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
+        >
+          {alertRules.knobs.map((knob) => (
+            <FieldWithVisual key={knob.key} visual={alertRuleVisual(knob)}>
+              <KnobEditor
+                statesReadOnly={false}
+                className="border-0 py-0"
+                label={knob.label}
+                help={knob.explain}
+                current={knob.raw}
+                format={(v) => String(v)}
+                makeOp={fileOp("config/constants.json", knob.pointer, knob.raw)}
+                control={{
+                  type: "number",
+                  validate: FLAG_DEFAULT_VALIDATOR[knob.key] ?? validateUsd,
+                  step: knob.key === "alpha" ? "0.001" : "1",
+                }}
+                onDraft={(value) =>
+                  setDrafts((current) => ({ ...current, [knob.key]: value }))
+                }
+              />
+            </FieldWithVisual>
+          ))}
+        </SettingsPanel>
+      )}
+    </>
   );
 }
 
@@ -684,27 +624,17 @@ function AlertRuleRecord() {
   // read is in flight beats a "no firings yet" the store never confirmed.
   if (!data) {
     return isError ? (
-      <p
-        className="flex items-center gap-1.5 border-b border-border py-3 text-xs text-muted-foreground"
-        data-alert-rule-record="unavailable"
-      >
-        <CircleDashed className="size-3.5 shrink-0" aria-hidden />
-        Tuning history unavailable
-      </p>
+      <SettingsPanel title="Answered by tuning" data-alert-rule-record="unavailable">
+        <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <CircleDashed className="size-3.5 shrink-0" aria-hidden />
+          Tuning history unavailable
+        </p>
+      </SettingsPanel>
     ) : null;
   }
 
   return (
-    <div className="flex flex-col gap-2 border-b border-border py-3" data-alert-rule-record>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
-          Answered by tuning
-        </span>
-        <span className="text-[11px] tabular-nums text-muted-foreground">
-          last {data.windowDays} days
-        </span>
-      </div>
-
+    <SettingsPanel title="Answered by tuning" caption={`last ${data.windowDays} days`} data-alert-rule-record>
       {data.rules.length === 0 ? (
         <p
           className="flex items-center gap-1.5 text-xs leading-snug text-muted-foreground"
@@ -732,7 +662,7 @@ function AlertRuleRecord() {
           ))}
         </ul>
       )}
-    </div>
+    </SettingsPanel>
   );
 }
 
@@ -777,42 +707,37 @@ function AlertRulePreview({
   });
 
   return (
-    <div className="flex flex-col gap-2 border-b border-border py-3" data-alert-rule-preview>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
-          Replay against
-        </span>
-        <div className="flex flex-wrap items-center gap-1" data-replay-assets>
-          {assets.map((candidate) => (
-            <button
-              key={candidate.id}
-              type="button"
-              aria-pressed={candidate.id === asset.id}
-              onClick={() => setPicked(candidate.id)}
-              data-replay-asset={candidate.id}
-              /* The box, the thumb floor and the pressed state are `ui/pill.ts`.
-                 This row pays its 18px rather than claiming them back with a
-                 negative margin: these pills draw a border and a fill and are
-                 the whole control, so claiming would put this row's target
-                 inside the preset row's below it. */
-              className={cn(
-                pillClass,
-                pillControlClass,
-                pillPickerStateClass(candidate.id === asset.id),
-              )}
-            >
-              <PropertyFavicon
-                domain={candidate.id}
-                displayName={candidate.displayName}
-                className="size-4"
-              />
-              {candidate.displayName}
-            </button>
-          ))}
-        </div>
+    <div className="flex flex-col gap-2" data-alert-rule-preview>
+      <div role="group" aria-label="Replay against" className="flex flex-wrap items-center gap-1" data-replay-assets>
+        {assets.map((candidate) => (
+          <button
+            key={candidate.id}
+            type="button"
+            aria-pressed={candidate.id === asset.id}
+            onClick={() => setPicked(candidate.id)}
+            data-replay-asset={candidate.id}
+            /* The box, the thumb floor and the pressed state are `ui/pill.ts`.
+               This row pays its 18px rather than claiming them back with a
+               negative margin: these pills draw a border and a fill and are
+               the whole control, so claiming would put this row's target
+               inside the preset row's below it. */
+            className={cn(
+              pillClass,
+              pillControlClass,
+              pillPickerStateClass(candidate.id === asset.id),
+            )}
+          >
+            <PropertyFavicon
+              domain={candidate.id}
+              displayName={candidate.displayName}
+              className="size-4"
+            />
+            {candidate.displayName}
+          </button>
+        ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1" data-replay-rules>
+      <div role="group" aria-label="Rule" className="flex flex-wrap items-center gap-1" data-replay-rules>
         {REPLAYABLE_RULES.map((rule) => (
           <button
             key={rule.id}
@@ -835,7 +760,7 @@ function AlertRulePreview({
       {/* The values the strip above is a picture OF. Without it the reader has
           to trust that the fields below are what was replayed — and after one
           edit and no Save, they would be trusting the wrong ones. That the
-          settings judge every asset is the section's "All assets" chip now. */}
+          settings judge every site is the Thresholds panel's "All sites" chip. */}
       <p className="text-[11px] leading-snug text-muted-foreground" data-replay-caption>
         {asset.displayName} · last 30 days ·{" "}
         <span className="tabular-nums">
@@ -941,83 +866,96 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
   const byKey = new Map(collection.knobs.map((knob) => [knob.key, knob] as const));
   const historyWindow = byKey.get("panel-refresh-window");
   const { knobs } = collection;
+  const [zone] = useState(localTimezone);
 
   return (
-    <Section id="data-collection" title="Data collection">
+    <>
       {/* When a collection no connection feeds runs, edited here: one row per
           collection and one pick, saved beside the row with its Undo. A
           collection a connection feeds is changed on that connection's Manage
           panel on Integrations instead (`connectionCollections`). System
           health keeps the runner's own view and links to wherever the job's
           one editor is (`scheduleHref`). */}
-      <div className={cn("pb-3", knobs.length > 0 && "border-b border-border")}>
-        <ScheduleRows
-          jobs={settingsCollections()}
-          overrides={collection.schedules}
-          writable={writable}
-        />
-      </div>
-      {knobs.map((knob) => {
-        const declared = configKnob(knob.key);
-        return (
-          <FieldWithVisual
-            key={knob.key}
-            visual={collectionVisual(knob, numberOf(historyWindow?.value))}
-          >
-            {/* What changing it COSTS is the visual beside it — the price per
-                pass, the fit inside the window — not the declaration's
-                consequence paragraph, which said the same in 40 words. */}
-            <KnobEditor
-              statesReadOnly={false}
-              className="border-0 py-0"
-              label={declared.label}
-              help={declared.field.describe}
-              explain={declared.unit}
-              current={knob.value}
-              format={(v) => String(v)}
-              slug={knob.key}
-              makeOp={(value) => knobSetOp(declared, knob.value, value)}
-              control={knobControl(declared.field)}
-            />
-          </FieldWithVisual>
-        );
-      })}
+      <SettingsPanel
+        title="Schedule"
+        caption={`Local time · ${localTimezoneLabel(Date.now(), zone)}`}
+        aside={writable ? undefined : <PanelLock data-schedules-locked />}
+      >
+        {/* The rows sit on the panel's own rhythm: no extra gap under the
+            header or above the panel's edge. */}
+        <div className="[&_[data-schedule-row]:first-child]:pt-1 [&_[data-schedule-row]:last-child]:pb-0">
+          <ScheduleRows
+            jobs={settingsCollections()}
+            overrides={collection.schedules}
+            writable={writable}
+            headed={false}
+          />
+        </div>
+      </SettingsPanel>
+      {knobs.length > 0 ? (
+        <SettingsPanel title="Tracked search terms">
+          {knobs.map((knob) => {
+            const declared = configKnob(knob.key);
+            return (
+              <FieldWithVisual
+                key={knob.key}
+                visual={collectionVisual(knob, numberOf(historyWindow?.value))}
+              >
+                {/* What changing it COSTS is the visual beside it — the price per
+                    pass, the fit inside the window — not the declaration's
+                    consequence paragraph, which said the same in 40 words. */}
+                <KnobEditor
+                  statesReadOnly={false}
+                  className="border-0 py-0"
+                  label={declared.label}
+                  help={declared.field.describe}
+                  explain={declared.unit}
+                  current={knob.value}
+                  format={(v) => String(v)}
+                  slug={knob.key}
+                  makeOp={(value) => knobSetOp(declared, knob.value, value)}
+                  control={knobControl(declared.field)}
+                />
+              </FieldWithVisual>
+            );
+          })}
+        </SettingsPanel>
+      ) : null}
 
-      <div className="mt-4 border-t border-border pt-3">
-        <span className="text-sm font-medium text-foreground">Nightly report pulls</span>
-      </div>
-      {collection.pullAssets.length === 0 ? (
-        // A state, not a sentence: nothing is fetched, so every asset sends its own.
-        <p className="py-2" data-pull-none>
-          <StateChip tone="na" label="None · sites send their own" subject="collection:portfolio" />
-        </p>
-      ) : (
-        collection.pullAssets.map((entry) => (
-          <div
-            key={entry.asset}
-            className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2.5 last:border-0"
-            data-pull-asset={entry.asset}
-          >
-            <div className="flex min-w-0 items-center gap-2">
-              <PropertyFavicon domain={entry.asset} displayName={entry.asset} />
-              <div className="flex min-w-0 flex-col">
-                <span className="text-sm font-medium text-foreground">{entry.asset}</span>
-                <span className="truncate font-mono text-[11px] text-muted-foreground">{entry.url}</span>
+      <SettingsPanel title="Nightly report pulls">
+        {collection.pullAssets.length === 0 ? (
+          // A state, not a sentence: nothing is fetched, so every asset sends its own.
+          <p data-pull-none>
+            <StateChip tone="na" label="None · sites send their own" subject="collection:portfolio" />
+          </p>
+        ) : (
+          collection.pullAssets.map((entry) => (
+            <div
+              key={entry.asset}
+              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-border py-2.5 first:pt-0 last:border-0 last:pb-0"
+              data-pull-asset={entry.asset}
+            >
+              <div className="flex min-w-0 items-center gap-2">
+                <PropertyFavicon domain={entry.asset} displayName={entry.asset} />
+                <div className="flex min-w-0 flex-col">
+                  <span className="text-sm font-medium text-foreground">{entry.asset}</span>
+                  <span className="break-all font-mono text-[11px] text-muted-foreground">{entry.url}</span>
+                </div>
               </div>
+              <StateChip
+                // Deliberately not the connected green: that token means a
+                // collector run succeeded, and this is a switch in a file. A lane
+                // can be enabled and failing, and this chip must never be read as
+                // health.
+                label={entry.enabled ? "Enabled" : "Paused"}
+                tone={entry.enabled ? "affirmative" : "na"}
+                subject={`collection:${entry.asset}`}
+              />
             </div>
-            <StateChip
-              // Deliberately not the connected green: that token means a
-              // collector run succeeded, and this is a switch in a file. A lane
-              // can be enabled and failing, and this chip must never be read as
-              // health.
-              label={entry.enabled ? "Enabled" : "Paused"}
-              tone={entry.enabled ? "affirmative" : "na"}
-              subject={`collection:${entry.asset}`}
-            />
-          </div>
-        ))
-      )}
-    </Section>
+          ))
+        )}
+      </SettingsPanel>
+    </>
   );
 }
 
@@ -1127,26 +1065,27 @@ function collectionVisual(knob: KnobValueSetting, windowDays: number | null) {
 function EntitiesSection({ settings }: { settings: SettingsPayload }) {
   const { entities } = settings;
   const { data: matrix } = useIntegrations();
+  const { writable } = useConfigWritable();
   const known = (matrix?.assets ?? []).map((asset) => asset.id);
   const unowned = known.filter((id) => entityOfAsset(entities.rows, id) === null);
 
   return (
-    // No OwnerChip here: the table below carries the file it writes.
-    <Section id="entities" title="Ownership">
-      <CollectionEditor
-        statesReadOnly={false}
-        register="entities"
-        rows={entities.rows as unknown as JsonValue[]}
-        // The asset list is read below and changed on the asset's own page.
-        columns={["slug", "name", "form", "jurisdiction"]}
-        title="Legal entities"
-        describe="one legal entity that owns sites"
-        slug="declare-an-entity"
-        emptyHint="Sites have no owner"
-        commit="auto"
-      />
+    <>
+      <SettingsPanel title="Legal entities" aside={writable ? undefined : <PanelLock data-collection-locked />}>
+        <CollectionEditor
+          statesReadOnly={false}
+          register="entities"
+          rows={entities.rows as unknown as JsonValue[]}
+          // The asset list is read below and changed on the asset's own page.
+          columns={["slug", "name", "form", "jurisdiction"]}
+          headed={false}
+          slug="declare-an-entity"
+          emptyHint="Sites have no owner"
+          commit="auto"
+        />
+      </SettingsPanel>
       <EntityOwnership rows={entities.rows} unowned={unowned} />
-    </Section>
+    </>
   );
 }
 
@@ -1166,32 +1105,33 @@ function EntityOwnership({
 }) {
   if (rows.length === 0 && unowned.length === 0) return null;
   return (
-    <div className="mt-4 flex flex-col gap-2 border-t border-border pt-3" data-entity-ownership={rows.length}>
-      <span className="text-sm font-medium text-foreground">Sites by owner</span>
-      {rows.map((row) => {
-        const owned = entityAssets(row);
-        return (
-          <div key={row.slug} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
-            <span className="font-medium text-foreground">{row.name}</span>
-            {owned.length === 0 ? (
-              <span className="text-muted-foreground">owns no site yet</span>
-            ) : (
-              <AssetLinks ids={owned} />
-            )}
+    <SettingsPanel title="Sites by owner" data-entity-ownership={rows.length}>
+      <div className="flex flex-col gap-2">
+        {rows.map((row) => {
+          const owned = entityAssets(row);
+          return (
+            <div key={row.slug} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+              <span className="font-medium text-foreground">{row.name}</span>
+              {owned.length === 0 ? (
+                <span className="text-muted-foreground">owns no site yet</span>
+              ) : (
+                <AssetLinks ids={owned} />
+              )}
+            </div>
+          );
+        })}
+        {/* Unowned is the one line that needs the operator, so it wears the
+            caution chip; every asset in it is the link to where it is assigned.
+            Removing an entity moves its assets here at once — the map shows the
+            consequence instead of a footnote warning about it. */}
+        {unowned.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-entity-unowned={unowned.length}>
+            <StateChip tone="caution" label="No owner" subject="entity:unowned" />
+            <AssetLinks ids={unowned} />
           </div>
-        );
-      })}
-      {/* Unowned is the one line that needs the operator, so it wears the
-          caution chip; every asset in it is the link to where it is assigned.
-          Removing an entity moves its assets here at once — the map shows the
-          consequence instead of a footnote warning about it. */}
-      {unowned.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" data-entity-unowned={unowned.length}>
-          <StateChip tone="caution" label="No owner" subject="entity:unowned" />
-          <AssetLinks ids={unowned} />
-        </div>
-      ) : null}
-    </div>
+        ) : null}
+      </div>
+    </SettingsPanel>
   );
 }
 
@@ -1256,60 +1196,68 @@ function InstallationSection() {
   const { data: wall } = useWall();
   const nowMs = useNow(60_000);
   if (!facts) {
-    return (
-      <Section id="installation" title="Installation">
-        {isError ? (
-          <ReadFailed title="Couldn't read the installation" subject="read:installation" error={error} retrying={isFetching} onRetry={() => void refetch()} />
-        ) : (
-          <p className="py-6 text-center text-sm text-muted-foreground">Loading…</p>
-        )}
-      </Section>
+    return isError ? (
+      <ReadFailed title="Couldn't read the installation" subject="read:installation" error={error} retrying={isFetching} onRetry={() => void refetch()} />
+    ) : (
+      <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
     );
   }
   const backup = wall?.system.scheduledLanes.find((lane) => lane.job === "backup") ?? null;
   const update = updateState(facts);
   return (
-    <Section id="installation" title="Installation">
-      <KnobRow
-        label="Folder"
-        value={<span className={LONG_VALUE}>{facts.folder ? <OwnerChip path={facts.folder} /> : <CopyCommand command={installationCommand(facts, "apply")} mark={{ "data-installation-command": "apply" }} />}</span>}
-        explain={facts.folder ? "Holds installation.env and everything this installation keeps." : "Apply the current settings to show the folder and ports here."}
-      />
-      {facts.tower ? (
-        <KnobRow label="Tower" value={<span className="font-mono text-sm tabular-nums">{facts.tower.address}:{facts.tower.port}</span>} explain={towerReach(facts.tower.address)} />
-      ) : null}
-      {facts.postgresPort !== null || facts.taskPort !== null ? (
+    <>
+      <SettingsPanel title="Where it runs">
         <KnobRow
-          label="Databases"
-          value={<span className="text-sm tabular-nums">{[facts.postgresPort !== null ? `Postgres ${facts.postgresPort}` : null, facts.taskPort !== null ? `Tasks ${facts.taskPort}` : null].filter(Boolean).join(" · ")}</span>}
-          explain="Open to tools on this machine."
+          className={PANEL_ROW}
+          label="Folder"
+          value={<span className={LONG_VALUE}>{facts.folder ? <OwnerChip path={facts.folder} /> : <CopyCommand command={installationCommand(facts, "apply")} mark={{ "data-installation-command": "apply" }} />}</span>}
+          explain={facts.folder ? "Holds installation.env and everything this installation keeps." : "Apply the current settings to show the folder and ports here."}
         />
-      ) : null}
-      <KnobRow
-        label="Version"
-        value={facts.commit ? <code className="font-mono text-xs">{facts.commit.slice(0, 12)}</code> : <span className="text-sm text-muted-foreground">Unknown</span>}
-        explain={facts.live ? "Live source from a checkout; git updates it." : undefined}
-      />
-      <KnobRow
-        label="Updates"
-        value={<UpdateValue facts={facts} />}
-        explain={update === "available" && !facts.launcher ? "Pull main in the checkout first." : update === "unknown" ? "The image registry did not say." : undefined}
-      />
-      <KnobRow
-        label="Last backup"
-        value={
-          <span className="flex items-center gap-2">
-            {backup?.outcome === "failed" ? <StateChip tone="critical" label="Failed" subject="installation:backup" /> : null}
-            <AgeBadge iso={backup?.startedAt ?? null} cadenceHours={24} nowMs={nowMs} />
-          </span>
-        }
-      />
-      <KnobRow
-        label="Commands"
-        value={<span className={LONG_VALUE}><CopyCommand command={installationCommand(facts, "status")} mark={{ "data-installation-command": "status" }} /></span>}
-        explain="Status, logs, apply and update run in a terminal on this machine."
-      />
-    </Section>
+        {facts.tower ? (
+          <KnobRow className={PANEL_ROW} label="Tower" value={<span className="font-mono text-sm tabular-nums">{facts.tower.address}:{facts.tower.port}</span>} explain={towerReach(facts.tower.address)} />
+        ) : null}
+        {facts.postgresPort !== null || facts.taskPort !== null ? (
+          <KnobRow
+            className={PANEL_ROW}
+            label="Databases"
+            value={<span className="text-sm tabular-nums">{[facts.postgresPort !== null ? `Postgres ${facts.postgresPort}` : null, facts.taskPort !== null ? `Tasks ${facts.taskPort}` : null].filter(Boolean).join(" · ")}</span>}
+            explain="Open to tools on this machine."
+          />
+        ) : null}
+      </SettingsPanel>
+      <SettingsPanel title="Version">
+        <KnobRow
+          className={PANEL_ROW}
+          label="Version"
+          value={facts.commit ? <code className="font-mono text-xs">{facts.commit.slice(0, 12)}</code> : <span className="text-sm text-muted-foreground">Unknown</span>}
+          explain={facts.live ? "Live source from a checkout; git updates it." : undefined}
+        />
+        <KnobRow
+          className={PANEL_ROW}
+          label="Updates"
+          value={<UpdateValue facts={facts} />}
+          explain={update === "available" && !facts.launcher ? "Pull main in the checkout first." : update === "unknown" ? "The image registry did not say." : undefined}
+        />
+      </SettingsPanel>
+      <SettingsPanel title="Upkeep">
+        <KnobRow
+          className={PANEL_ROW}
+          label="Last backup"
+          value={
+            <span className="flex items-center gap-2">
+              {backup?.outcome === "failed" ? <StateChip tone="critical" label="Failed" subject="installation:backup" /> : null}
+              <AgeBadge iso={backup?.startedAt ?? null} cadenceHours={24} nowMs={nowMs} />
+            </span>
+          }
+        />
+        <KnobRow
+          className={PANEL_ROW}
+          label="Commands"
+          value={<span className={LONG_VALUE}><CopyCommand command={installationCommand(facts, "status")} mark={{ "data-installation-command": "status" }} /></span>}
+          explain="Status, logs, apply and update run in a terminal on this machine."
+        />
+      </SettingsPanel>
+    </>
   );
 }
 
@@ -1317,6 +1265,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const { taskHub } = settings;
   const { data: matrix } = useIntegrations();
   const { data: work } = useWork();
+  const { writable } = useConfigWritable();
   const [added, setAdded] = useState<TaskHubSpoke | null>(null);
 
   // Every asset the OS knows, minus the ones already mapped. An empty list is
@@ -1336,56 +1285,60 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const found = drifting !== null ? FOUND_COLUMN(drifting) : serverDown !== null ? FOUND_UNKNOWN : null;
 
   return (
-    <Section
-      id="task-hub"
-      title="Task projects"
-      // A deployed view cannot reach the machine the projects live on: the
-      // section says so as a chip, and the rows are a plain list rather than an
-      // editor that would refuse every save.
-      aside={
-        taskHub.hub === null ? (
-          <StateChip tone="na" label="Read-only here" glyph={<Lock className="size-3" />} subject="tasks:projects" />
-        ) : undefined
-      }
-    >
-      <TaskSourceSection />
-      {taskHub.hub === null ? (
-        <div data-task-projects-read-only>
-          {taskHub.spokes.length === 0 ? <p className="text-sm text-muted-foreground">No task projects configured.</p> : taskHub.spokes.map((spoke) => (
-            <KnobRow key={spoke.asset} label={spoke.asset} value={spoke.prefix} explain={`Task database: ${spoke.database}`} />
-          ))}
+    <>
+      <SettingsPanel title="Connection">
+        {/* At the panel's row size, as every other row on the page. */}
+        <div className="text-sm">
+          <TaskSourceSection />
         </div>
-      ) : (
-      <CollectionEditor
-        statesReadOnly={false}
-        register="task-hub-spokes"
-        columns={["asset", "prefix", "database"]}
-        addFields={["asset", "prefix", "database"]}
-        rows={taskHub.spokes as unknown as JsonValue[]}
+        <HubConnection hub={taskHub.hub} failure={serverDown} />
+      </SettingsPanel>
+      <SettingsPanel
         title="Projects"
-        // The register's own line runs to a sentence about maps; a row is this.
-        describe="one site's task prefix and database"
-        emptyHint="Tasks board empty"
-        slug="map-a-project"
-        fieldOptions={known.length === 0 ? undefined : { asset: unclaimed }}
-        rowGlyph={(row) => <PropertyFavicon domain={row.key} displayName={row.key} />}
-        derived={found === null ? undefined : [found]}
-        onAdded={(row) => setAdded(spokeOf(row))}
-        commit="auto"
-      />
-      )}
-      {taskHub.hub !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} hub={taskHub.hub} /> : null}
-      {taskHub.hub !== null && added ? (
-        <div className="mt-4">
-          <TaskProjectSteps
-            spoke={added}
-            hub={taskHub.hub}
-            onDismiss={() => setAdded(null)}
+        // A deployed view cannot reach the machine the projects live on: the
+        // panel says so as a chip, and the rows are a plain list rather than an
+        // editor that would refuse every save.
+        aside={
+          taskHub.hub === null ? (
+            <StateChip tone="na" label="Read-only here" glyph={<Lock className="size-3" />} subject="tasks:projects" />
+          ) : writable ? undefined : <PanelLock data-collection-locked />
+        }
+      >
+        {taskHub.hub === null ? (
+          <div data-task-projects-read-only>
+            {taskHub.spokes.length === 0 ? <p className="text-sm text-muted-foreground">No task projects configured.</p> : taskHub.spokes.map((spoke) => (
+              <KnobRow key={spoke.asset} className={PANEL_ROW} label={spoke.asset} value={spoke.prefix} explain={`Task database: ${spoke.database}`} />
+            ))}
+          </div>
+        ) : (
+          <CollectionEditor
+            statesReadOnly={false}
+            register="task-hub-spokes"
+            columns={["asset", "prefix", "database"]}
+            addFields={["asset", "prefix", "database"]}
+            rows={taskHub.spokes as unknown as JsonValue[]}
+            headed={false}
+            emptyHint="Tasks board empty"
+            slug="map-a-project"
+            fieldOptions={known.length === 0 ? undefined : { asset: unclaimed }}
+            rowGlyph={(row) => <PropertyFavicon domain={row.key} displayName={row.key} />}
+            derived={found === null ? undefined : [found]}
+            onAdded={(row) => setAdded(spokeOf(row))}
+            commit="auto"
           />
-        </div>
-      ) : null}
-      <HubConnection hub={taskHub.hub} failure={serverDown} />
-    </Section>
+        )}
+        {taskHub.hub !== null && marked.length > 0 ? <DatabaseNotFound spokes={marked} hub={taskHub.hub} /> : null}
+        {taskHub.hub !== null && added ? (
+          <div className="mt-4">
+            <TaskProjectSteps
+              spoke={added}
+              hub={taskHub.hub}
+              onDismiss={() => setAdded(null)}
+            />
+          </div>
+        ) : null}
+      </SettingsPanel>
+    </>
   );
 }
 
@@ -1529,7 +1482,7 @@ function HubConnection({ hub, failure }: { hub: TaskHubConnection | null; failur
   if (hub === null) return null;
   return (
     <div
-      className="mt-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-border pt-3"
+      className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5 border-t border-border pt-3"
       data-task-hub-connection
       data-task-server={failure === null ? undefined : "not-answering"}
     >

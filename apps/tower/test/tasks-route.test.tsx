@@ -1407,7 +1407,7 @@ describe("/tasks — core hub availability", () => {
     const { container } = renderBoard({ data: payload({ capturedAt: null, projects: [] }) });
     expect(screen.getByRole("heading", { name: "Tasks", level: 1 })).toBeInTheDocument();
     expect(screen.getByText("No task projects available")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings#task-hub");
+    expect(screen.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings/task-projects");
     expect(container.querySelector("[data-new-task]")).not.toBeNull();
     expect(screen.queryByText("No tasks yet")).toBeNull();
   });
@@ -1416,7 +1416,7 @@ describe("/tasks — core hub availability", () => {
     taskSourceMock.connected = null;
     const { container } = renderScoped("example.com");
     expect(screen.getByText("No task project for this site")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings#task-hub");
+    expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings/task-projects");
     expect(container.querySelector("[data-new-task]")).not.toBeNull();
   });
 
@@ -1436,7 +1436,7 @@ describe("/tasks — designed empty states", () => {
       const { container, unmount } = renderBoard({ data: payload({ capturedAt, projects: [] }) });
       expect(screen.queryByText("No tasks yet")).toBeNull();
       expect(screen.getByText("No task projects available")).toBeInTheDocument();
-      expect(screen.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings#task-hub");
+      expect(screen.getByRole("link", { name: /Manage task projects/ })).toHaveAttribute("href", "/settings/task-projects");
       expect(container.querySelector("[data-tasks-filters]")).toBeNull();
       expect(container.querySelector("[data-new-task]")).not.toBeNull();
       unmount();
@@ -1599,7 +1599,7 @@ describe("the asset page's Tasks tab", () => {
 
     expect(screen.getByText("No task project for this site")).toBeInTheDocument();
     expect(container.querySelector("[data-tasks-unwired]")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings#task-hub");
+    expect(screen.getByRole("link", { name: /Add a task project/ })).toHaveAttribute("href", "/settings/task-projects");
     expect(container.querySelector("[data-tasks-filters]")).toBeNull();
     expect(container.querySelector("table")).toBeNull();
   });
