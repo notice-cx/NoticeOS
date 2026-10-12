@@ -1,31 +1,31 @@
 ---
 title: "Home"
-description: "How the business is doing, what is broken and what needs you, drawn from your sites' data."
+description: "How the business is doing, what is broken and what needs your attention, drawn from your sites' data."
 ---
 
 # Home
 
-**Home** is the page the Tower opens on: one page that sums up every site, so you can tell in a minute whether anything needs you. New to the Tower? Start with [The Tower](/tower/).
+**Home** is the page the Tower opens on: one page that sums up every site, so you can tell in a minute whether anything needs your attention. New to the Tower? Start with [The Tower](/tower/).
 
-Home answers three questions, in this order: how is the business doing, what is broken, and what needs you.
+Home shows three things, in this order: how the business is doing, what is broken, and what needs your attention.
 
 ## What you see
 
-**The answer.** A quiet line carries the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence answers the page, such as **October is heading for $1,020, 9% under September. 2 things are broken.**
+**The summary.** A small grey line shows the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence sums up the page, such as **October is heading for $1,020, 9% under September. 2 things are broken.**
 
-**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate. Beside it, the month's days as bars with the usual day dashed across them. Under it, a bar shows the month so far, where it is heading and last month's total, and **Where October came from** splits the month by site. Two figures sit beside it: **Revenue, yesterday** and **Visitors, yesterday**, each with its change against the same day a week before and its recent days as bars. With no revenue source on any site, visitors lead and no money figure is drawn.
+**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate. Beside it, the month's days as bars, with a dashed line across them at the usual day. Under it, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by site. Two figures are beside it: **Revenue, yesterday** and **Visitors, yesterday**, each with its change against the same day a week before and its recent days as bars. With no revenue source on any site, visitors come first and no money figure is drawn.
 
-**Data sources.** One grid of every site and every data source, with a **System** row for the reports, scheduled runs, backups and data spend that keep NoticeOS running. A working source is a quiet tick; a failing one is red with how long it has been failing, and one failing for over a week stays red but quieter, so new breakage stands out. Hatching means not connected. The newest problem is named at the top of the grid.
+**Data sources.** One grid of every site and every data source, with a **System** row for the reports, scheduled runs, backups and data spend that keep NoticeOS running. A working source is a faint green tick; a failing one is solid red with how long it has been failing, and one failing for over a week has only a red outline, so new breakage stands out. Hatching means not connected. The newest problem is named at the top of the grid.
 
-**Problems.** The open problems the grid does not already show, ranked: what started since you last looked first, then what is still open, and anything open for over a week folded into one line. An alert that has a usual range shows the reading against it.
+**Problems.** The open problems the grid does not already show, ranked: what started since you last looked first, then what is still open, and anything open for over a week collapsed into one line. An alert that has a usual range shows the reading against it.
 
-**Decide.** How many decisions are waiting on you, how old the oldest is, and how the waiting splits by age. Then the first four, each with its age drawn as a length and its verb: **Approve** for an approval, **Answer** or **Dismiss** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board.
+**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Dismiss** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board.
 
-**Sites.** One row per site, in your order: its health word, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
+**Sites.** One row per site, in your order: its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
 
-**The last 24 hours.** One row per site and one for the System, on a time axis that ends at **Now**. Open problems run as bars from when they started; anything older than the day starts at the left edge and reads as old. Shipped changes, wins and recoveries are marks on their site's row. The shaded part is the time since 6 PM yesterday.
+**The last 24 hours.** One row per site and one for the System, on a time axis that ends at **Now**. Open problems are bars from when they started; a problem older than the day starts at the left edge with its age written on it. Shipped changes, wins and recoveries are marks on their site's row. The shaded part is the time since 6 PM yesterday.
 
-**Before any site exists**, Home shows three steps: **Add your first site**, **Connect a source** and **See your first number**. Each step becomes its button when it is the current one, and reads as done afterwards. Home also offers your device's time zone as **Use \<zone>** in one press.
+**Before any site exists**, Home shows three steps: **Add your first site**, **Connect a source** and **See your first number**. The current step is shown as a button, and each finished step is marked done. Home also shows **Use \<zone>**, which saves your device's time zone in one press.
 
 ## What you can do
 
@@ -39,11 +39,11 @@ Home answers three questions, in this order: how is the business doing, what is 
 
 ## States and labels
 
-- The health words are **Setting up**, **On track**, **Monitor only**, **At risk** and **Off track**. Only **At risk** and **Off track** carry a colour.
+- A site's status is one of **Setting up**, **On track**, **Monitor only**, **At risk** and **Off track**. Only **At risk** and **Off track** are coloured.
 - **est.** marks revenue as an estimate until it is reconciled.
-- A missing figure is named, never drawn as zero: **not reported yet**, **no revenue**, **no visitors reported**.
-- **Nothing is broken.** means no open problem anywhere, not that nothing is watched.
-- Home lays itself out by its own width: one column on a phone or a narrow window, two on a portrait monitor, the full layout on a wide screen.
+- A missing figure is shown as a label, never drawn as zero: **not reported yet**, **no revenue**, **no visitors reported**.
+- **Nothing is broken.** means there is no open problem anywhere. Monitoring is still running.
+- Home's layout depends on its width: one column on a phone or a narrow window, two on a portrait monitor, the full layout on a wide screen.
 
 ## Related guides
 
