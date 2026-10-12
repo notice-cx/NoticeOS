@@ -184,7 +184,7 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
       await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
     await evaluateDemoWatch(seedStore, scenario, helpers.runWatchWindows);
-    const constants = JSON.parse(readFileSync(path.join(REPO_ROOT, 'config/constants.json'), 'utf8'));
+    const constants = JSON.parse(readFileSync(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config/constants.json'), 'utf8'));
     await admin.query("INSERT INTO noticeos.config_documents(workspace_id,document_key,body,version,updated_at,updated_by) VALUES($1,'constants',$2,1,now(),'fixture')",
       [workspace, { ...constants, schedules: demoSchedules() }]);
     // The task service as the hosted executor answers it: each task's comments.
