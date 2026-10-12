@@ -88,11 +88,18 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   const discovered = (await (await f.mcp(modern('server/discover'))).json()).result;
   assert.deepEqual([discovered.resultType, discovered.supportedVersions], ['complete', [MODERN]]);
   assert.match(discovered.instructions, /list_workspaces/u);
+  // Every agent is told to name its model on each claim and close, so its work is ranked.
+  assert.match(discovered.instructions, /On every claim_task and close_task, pass model/u);
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
+  for (const name of ['claim_task', 'close_task']) {
+    const tool = tools.find(entry => entry.name === name);
+    assert.match(tool.description, /naming your model/u, name);
+    assert.match(tool.inputSchema.properties.model.description, /Pass it on every claim and close/u, name);
+  }
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
     assert.equal(tool.inputSchema.required.includes('workspace'), tool.name !== 'list_workspaces', `${tool.name} names its workspace`);

@@ -221,7 +221,7 @@ const PROJECT = { type: 'string', description: 'The projectId from list_projects
 const TASK = { type: 'string', description: 'The task id, such as abc-1x2.' };
 /** Optional on claim and close: the Tower credits the work to this model as well as to the agent. */
 const MODEL = { type: 'string', maxLength: HOSTED_TASK_LIMITS.identifier,
-  description: 'The name of the model doing this work, as you would say it. Shown beside your name on the task.' };
+  description: 'The name of the model you run as, as you would say it. Pass it on every claim and close: the task shows it beside your name, and the Agents page ranks your work by it.' };
 const IDEMPOTENCY = { type: 'string', pattern: IDEMPOTENCY_KEY.source,
   description: 'A key you choose for this call. Retrying with the same key and arguments never repeats the change.' };
 function schema(properties: Record<string, unknown>, required: readonly string[] = []): Record<string, unknown> {
@@ -437,7 +437,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         retry: 'Retry with the same idempotency_key and tasks to finish after a passing failure; tasks already filed are not repeated. '
           + 'To change a refused task, send it and the rest with a new key, naming filed tasks by id.' } : {}) };
     } },
-  { name: 'claim_task', description: 'Assign an open task to yourself and start it. Fails if someone else holds it.',
+  { name: 'claim_task', description: 'Assign an open task to yourself and start it, naming your model. Fails if someone else holds it.',
     inputSchema: schema({ project: PROJECT, task: TASK, model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
@@ -518,7 +518,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         textArg(args, 'reason', GATE_REASON_MAX)!);
       return { task: taskId, ...approvalOf(taskId, gate), created };
     } },
-  { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL.',
+  { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL, and naming your model.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
       model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'reason', 'idempotency_key']),
     annotations: WRITE,
