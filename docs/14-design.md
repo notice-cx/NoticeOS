@@ -441,13 +441,13 @@ now (one row per site: live people, today against the same weekday last week,
 a 30-day trend, the month's money); and whether work is moving (waiting on the
 operator, in progress, done this week and blocked, one row per project, done
 work as a bar extending left of a centre line and the open queue extending
-right). Anything else belongs on the Tower page for its subject; the Needs attention
-and live feed widgets stay in the widget library for an operator who wants
-them on the Wall.
+right). Anything else belongs on the Tower page for its subject; the Needs
+attention, live feed and agents widgets stay in the widget library for an
+operator who wants them on the Wall.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of eight widget types: the strip, the loop, revenue, the last 24
-hours, Needs attention, the site rows, work and the feed. `scripts/wall-layout.mts`
+renders rows of nine widget types: the strip, the loop, revenue, the last 24
+hours, Needs attention, the site rows, work, the feed and the agents' ranking. `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining

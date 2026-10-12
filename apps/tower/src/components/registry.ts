@@ -85,7 +85,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallCanvas",
     file: "components/WallCanvas.tsx",
     purpose:
-      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the eight widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
+      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the nine widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
     variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column", "column rows sized by weight"],
   },
   {
@@ -904,6 +904,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "A site's live users on the Wall: GA4 users in the last 30 minutes in neutral ink, counting to each new reading, over a MinutePulse with the bright five-minute end's own count. Stale and failed readings drop to muted ink with their age; no reading is a dash, never a zero. One cell for every row tier and the one-site Today tile.",
     variants: ["fresh", "stale with its age", "failed, last pulse kept", "pulse refused (figures only)", "no GA4", "compact row", "roomier row", "phone row", "one-site tile"],
+  },
+  {
+    name: "WallAgents",
+    file: "components/wall/WallAgents.tsx",
+    purpose:
+      "The TV's Agents widget: each agent and the model it named, ranked by tasks closed in the last 7 days, with its place, a bar on one shared scale and the count, the leader in the win ink, and what the agents hold now.",
+    variants: ["ranked standings", "no agent yet"],
   },
   {
     name: "NeedsYou / IssueGlyph",

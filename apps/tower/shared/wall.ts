@@ -836,6 +836,24 @@ export function unreadOperatorPosture(): OperatorPosture {
   return { waiting: 0, urgent: 0, measuredProjects: 0, urgentMeasuredProjects: 0, projectCount: 0, capturedAt: null };
 }
 
+/** One agent and the model it named, over the snapshot's closed window. */
+export interface WallAgentStanding {
+  id: string;
+  model: string | null;
+  closed: number;
+  inProgress: number;
+}
+
+/** The Agents widget's standings: each agent and model, most closes first,
+ * and what the agents hold now. An agent is a worker that named a model. */
+export interface WallAgents {
+  standings: WallAgentStanding[];
+  closed: number;
+  inProgress: number;
+  /** When the task snapshot behind it was taken. */
+  capturedAt: string | null;
+}
+
 /** What one Wall refresh computes (`buildWallPayload`): the TV and the desk
  * pages read it, and the MCP `list_properties` tool hands part of it to
  * agents. Every key names the screen that draws it in
@@ -857,6 +875,9 @@ export interface WallPayload {
   /** Actionable human-labelled tasks plus open human approvals, across the
    * core hub. A legacy null is an unread inbox. */
   operator: OperatorPosture | null;
+  /** Who did the work, for the Agents widget. Absent from an older Worker;
+   * null when no snapshot names an agent. */
+  agents?: WallAgents | null;
   /** Latest ledger recorded_at: how old the ledger is. The MCP `list_properties`
    * tool hands it to agents beside the portfolio (worker/mcp-route.ts). */
   ledgerRecordedAt: string | null;

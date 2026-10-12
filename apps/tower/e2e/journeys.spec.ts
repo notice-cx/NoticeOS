@@ -2668,8 +2668,8 @@ test("the TV downloads no desk editing or task code, and none of the widgets the
   // A guard that sees nothing passes forever: the Wall's own read-only widgets
   // must be in the list it checks.
   expect(
-    modules.filter((path) => /\/src\/components\/wall\/(WallStrip|WallLoop|WallTimeline|SiteRows|RevenueHero|WallWork|NeedsYou|WallFeed)\.tsx$/.test(path)),
-  ).toHaveLength(8);
+    modules.filter((path) => /\/src\/components\/wall\/(WallStrip|WallLoop|WallTimeline|SiteRows|RevenueHero|WallWork|NeedsYou|WallFeed|WallAgents)\.tsx$/.test(path)),
+  ).toHaveLength(9);
   expect(modules.filter((path) => DESK_ONLY_MODULE.test(path))).toEqual([]);
   expect(modules.filter((path) => RETIRED_WALL_MODULE.test(path))).toEqual([]);
   expect(modules.filter((path) => WALL_EDITOR_MODULE.test(path))).toEqual([]);

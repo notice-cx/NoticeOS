@@ -52,7 +52,7 @@ export const WALL_TV_WIDTH = 1920;
 export const WALL_TV_HEIGHT = 1080;
 /** The Wall's widgets: the default's in its reading order, then the ones an
  * operator may add. */
-export const WALL_WIDGET_TYPES = ['strip', 'loop', 'timeline', 'sites', 'revenue', 'work', 'needs', 'feed'];
+export const WALL_WIDGET_TYPES = ['strip', 'loop', 'timeline', 'sites', 'revenue', 'work', 'needs', 'feed', 'agents'];
 /** The widgets the Wall no longer has. A saved layout may still name them; see
  * the header. */
 export const RETIRED_WALL_WIDGET_TYPES = [
@@ -92,7 +92,7 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: null,
         unique: true,
         prefersFill: false,
-        stackOrder: 8,
+        stackOrder: 9,
         hidesWhenEmpty: false,
         settings: [],
     },
@@ -175,6 +175,21 @@ export const WALL_WIDGET_LIBRARY = {
         maxWidthRem: 30,
         unique: true,
         prefersFill: true,
+        stackOrder: 8,
+        hidesWhenEmpty: false,
+        settings: [],
+    },
+    // Who closed the most in the last 7 days, per agent and the model it
+    // named, from the task snapshot. Never hides: no agent yet says so.
+    agents: {
+        type: 'agents',
+        label: 'Agents',
+        shows: ['Closed in 7 days', 'Agents and models', 'In hand'],
+        defaultWidth: 1,
+        minWidthRem: 18,
+        maxWidthRem: 30,
+        unique: true,
+        prefersFill: false,
         stackOrder: 7,
         hidesWhenEmpty: false,
         settings: [],

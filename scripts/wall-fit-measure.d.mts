@@ -54,7 +54,7 @@ export interface WallFitMeasurement {
     ink: WallFitLeak[];
     clipped: WallFitLeak[];
     /** The regions, where the Wall draws them; null for one the layout does not place. */
-    regions: Record<"strip" | "loop" | "revenue" | "sites" | "timeline" | "work" | "needs" | "feed", WallFitBox | null>;
+    regions: Record<"strip" | "loop" | "revenue" | "sites" | "timeline" | "work" | "needs" | "feed" | "agents", WallFitBox | null>;
     /** The site region: its tier, each row's height, and the height left under
      * the last row (null in the one-site tier, which draws tiles, not rows). */
     sites: {

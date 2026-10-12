@@ -189,6 +189,7 @@ import { PanelReviewLine } from "@/components/PanelReviewLine";
 import { SerpPanelBoard } from "@/components/SerpPanelBoard";
 import { AlertList, AlertRow, AttentionAllClear } from "@/components/AlertRow";
 import { WallCanvas } from "@/components/WallCanvas";
+import { WallAgents } from "@/components/wall/WallAgents";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
@@ -5494,6 +5495,19 @@ export function KitchenSinkRoute() {
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(0) }}
                 nowMs={NOW}
               />
+            </div>
+          </Section>
+
+          <Section title="WallAgents (agents and models ranked by closes / no agent yet)">
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallAgents agents={{ closed: 31, inProgress: 7, capturedAt: iso(0), standings: [
+                { id: "claude", model: "Sonnet 5.5", closed: 11, inProgress: 2 },
+                { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 3 },
+                { id: "codex", model: "GPT-5-Codex", closed: 5, inProgress: 2 },
+              ] }} />
+            </div>
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallAgents agents={null} />
             </div>
           </Section>
 

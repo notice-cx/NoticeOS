@@ -26,6 +26,7 @@ import {
   FEED_SIGNAL_FAILURES_SQL,
   FEED_SIGNAL_LATEST_SQL,
   FEED_TASKS_SQL,
+  FEED_WORK_SQL,
   buildWallFeed,
   handleWallFeedRequest,
 } from "../worker/wall-feed";
@@ -98,17 +99,20 @@ async function snapshot(
   capturedAt: string,
   closed: Record<string, [string, string, string][]>,
   created: Record<string, [string, string, string][]> = {},
+  work: Record<string, { kind: "claimed" | "closed"; taskId: string; title: string; by: string; model?: string; evidence?: string; at: string }[]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
   // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
-  // lists the feed reads, each item its id, title and time.
-  const projects = [...new Set([...Object.keys(closed), ...Object.keys(created)])].map((a) => ({
+  // lists the feed reads, each item its id, title and time. The newest one
+  // also names who claimed and closed work (`recentWork`).
+  const projects = [...new Set([...Object.keys(closed), ...Object.keys(created), ...Object.keys(work)])].map((a) => ({
     asset: a, ok: true,
     counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: closed[a]?.length ?? 0 },
     recentlyClosed: (closed[a] ?? []).map(([id, title, closedAt]) => ({ id, title, closedAt })),
     ...(created[a]
       ? { recentlyCreated: created[a].map(([id, title, createdAt]) => ({ id, title, createdAt })) }
       : {}),
+    ...(work[a] ? { recentWork: work[a] } : {}),
   }));
   await store.write((tx) =>
     tx.execute(
@@ -125,7 +129,7 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
 /**
  * The fixture, newest first as the feed must state it (UTC; PDT is −7h):
  *
- *   19:24 task done      Recipes   (seen in two photographs)
+ *   19:24 task done      Recipes   (seen in two photographs; claude closed it)
  *   19:11 new task       Medley     (filed; in two photographs)
  *   18:59 collected      Google · 3 sites, none failed (18:44 run superseded)
  *   18:40 source failed  Codes (health event + its failed run: one line)
@@ -135,6 +139,7 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  *   18:00 collected      Bing · Medley (the run that brought it back)
  *   18:00 source back    Medley
  *   17:30 alert          Recipes
+ *   17:05 task claimed   Recipes   (by claude)
  *   16:15 revenue        2 sites reported $55.25 for Sep 21
  *   16:14 collected      Mediavine · 2 sites, none failed
  *   16:00 resolved       Medley
@@ -253,6 +258,14 @@ async function seedPostgres(pg: TestStore): Promise<void> {
     "codes.example.com": [["ac-1", "Lookup page shows the local time", at("18:38")]],
   }, {
     "medley.example.com": [["mn-7", "Catalog import skips closed stores", at("19:11")], ["mn-1", "Filed long ago", at("00:10")]],
+  }, {
+    // Who did it: md-1's close names its closer; a claim is its own line; a
+    // claim before the window is not.
+    "recipes.example.com": [
+      { kind: "closed", taskId: "md-1", title: "Recipe cards load faster", by: "claude", model: "Opus 5.5", evidence: "Cards load in 0.8s · 3f2a91c", at: at("19:24") },
+      { kind: "claimed", taskId: "md-1", title: "Recipe cards load faster", by: "claude", model: "Opus 5.5", at: at("17:05") },
+      { kind: "claimed", taskId: "md-0", title: "Claimed long ago", by: "claude", at: at("00:20") },
+    ],
   });
   await health(pg, "ev-ac", "google", "ga4-daily", "codes.example.com", at("18:40"), "failed", "signal_runs", "g-ac-fail");
   await health(pg, "ev-nom", "bing-webmaster", "bing-daily", "medley.example.com", at("18:00"), "recovered", "signal_runs", "b-nom");
@@ -362,6 +375,7 @@ needsPostgres("buildWallFeed", () => {
       "18:00 collected Medley · Bing · 1 site, none failed",
       "18:00 source-back Medley · Bing daily reports working again",
       "17:30 alert Recipes · Plans saved well below normal",
+      "17:05 task-claimed Recipes · Recipe cards load faster",
       "16:15 revenue - · 2 sites reported $55.25 for Sep 21",
       "16:14 collected - · Mediavine · 2 sites, none failed",
       "16:00 resolved Medley · Catalog imports stalled",
@@ -399,6 +413,22 @@ needsPostgres("buildWallFeed", () => {
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ kind: "task-filed", asset: null, site: null, text: "Stray task" });
+  });
+
+  it("names who claimed and closed a task, with the model and the close's evidence", async () => {
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    expect(items.find((item) => item.id === "task:md-1")).toMatchObject({
+      kind: "task-done", who: "claude", model: "Opus 5.5", evidence: "Cards load in 0.8s · 3f2a91c",
+    });
+    expect(items.filter((item) => item.kind === "task-claimed").map((item) => [item.who, item.model, item.text])).toEqual([
+      ["claude", "Opus 5.5", "Recipe cards load faster"],
+    ]);
+    // A task the board never listed as done still gets its named close.
+    await snapshot(pg.call, at("19:28"), {}, {}, {
+      "codes.example.com": [{ kind: "closed", taskId: "ac-2", title: "Codes export runs nightly", by: "codex", at: at("19:27") }],
+    });
+    const next = await buildWallFeed(pg.call, DEPS);
+    expect(next.items[0]).toMatchObject({ id: "task:ac-2", kind: "task-done", site: "Codes", who: "codex", model: null });
   });
 
   it("keeps adjacent created and completed tasks individually named, once per event", async () => {
@@ -598,7 +628,7 @@ describe("the feed's reads are bounded", () => {
     } finally {
       await pg.close();
     }
-    expect(stored).toHaveLength(18);
+    expect(stored).toHaveLength(19);
     // Per asset, at most one row per integration or two analyses: bounded by
     // the registry, not the history.
     const registryBound = new Set([FEED_SIGNAL_LATEST_SQL, FEED_INSIGHTS_SQL]);
@@ -607,7 +637,7 @@ describe("the feed's reads are bounded", () => {
     }
     for (const sql of [FEED_CONFIG_SQL, FEED_HEALTH_SQL, FEED_SIGNAL_FAILURES_SQL, FEED_SIGNAL_LATEST_SQL, FEED_MEDIAVINE_RUNS_SQL, FEED_REVENUE_SQL,
       FEED_LEDGER_SQL, FEED_HYGIENE_SQL, FEED_FLAGS_FIRED_SQL, FEED_FLAGS_RESOLVED_SQL, FEED_PULSES_SQL, FEED_JOBS_SQL, FEED_TASKS_SQL,
-      FEED_ANNOTATIONS_SQL, FEED_DUMPS_SQL, FEED_RESEARCH_SQL, FEED_INSIGHTS_SQL]) {
+      FEED_ANNOTATIONS_SQL, FEED_DUMPS_SQL, FEED_RESEARCH_SQL, FEED_INSIGHTS_SQL, FEED_WORK_SQL]) {
       expect(stored).toContain(sql);
     }
   });
@@ -682,16 +712,22 @@ describe("the feed's reads are bounded", () => {
     }
   });
 
-  it.skipIf(unavailable !== null)("reads the photograph in force at each quarter hour through the capture-time index on Postgres", async () => {
+  it.skipIf(unavailable !== null)("reads the photograph in force at each quarter hour, and the newest one's workers, through the capture-time index on Postgres", async () => {
     const pg = await createTestStore();
     try {
-      const plan = await pg.store.inWorkspace(pg.workspaceId, async (tx) => {
+      const [plan, work] = await pg.store.inWorkspace(pg.workspaceId, async (tx) => {
         await tx.query("SELECT set_config('enable_seqscan', 'off', true)");
-        return tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${FEED_TASKS_SQL}`, [SINCE, NOW.toISOString(), SINCE, 500]);
+        return [
+          await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${FEED_TASKS_SQL}`, [SINCE, NOW.toISOString(), SINCE, 500]),
+          await tx.query<{ "QUERY PLAN": string }>(`EXPLAIN ${FEED_WORK_SQL}`, [SINCE, 500]),
+        ];
       }, { readOnly: true });
       const text = plan.map((row) => row["QUERY PLAN"]).join("\n");
       expect(text).toMatch(/Index (Only )?Scan using task_snapshots_captured on task_snapshots s/);
       expect(text).not.toMatch(/Seq Scan on task_snapshots/);
+      const newest = work.map((row) => row["QUERY PLAN"]).join("\n");
+      expect(newest).toMatch(/Index (Only )?Scan using task_snapshots_captured/);
+      expect(newest).not.toMatch(/Seq Scan on task_snapshots/);
     } finally {
       await pg.close();
     }
