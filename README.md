@@ -77,7 +77,7 @@ before changing its code or database.
 ## Get your first useful view
 
 1. On **Home**, choose **Add your first site**.
-2. Open the site's **Data sources** page and connect a source.
+2. Open the site's **Data sources** tab and connect a source.
 3. Open **Overview** to see its first readings. Use **Tasks** for work and **Wall** for the TV view.
 
 Add provider credentials in the product, where they are encrypted in the store.
@@ -93,9 +93,11 @@ New installations include a NoticeOS task project, so Tasks works before you
 add a website. [Connect a task project](docs/guides/connect-a-task-project.md) walks through
 a project's shared tasks, repository access and agent instructions.
 
-Use the **Tasks** page today. A supported task API, installable Claude Code/Codex
-skills and hooks, and connections to tools such as Jira or Linear are planned;
-they are not available yet.
+People work on the **Tasks** page. A coding agent such as Claude Code reaches
+the same tasks, and the site reports, through the MCP server the Tower serves
+at `/api/mcp`; [Connect an agent](docs/guides/connect-an-agent.md) sets it up
+in one command. Installable agent skills and hooks, and connections to tools
+such as Jira or Linear, are planned; they are not available yet.
 
 ## Deployment status
 

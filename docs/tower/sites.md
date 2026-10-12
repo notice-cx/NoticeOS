@@ -27,12 +27,14 @@ A site's tasks, search clicks and ledger are on its own tabs. The columns drop a
 
 **The other tabs:**
 
-- **Growth** and **Search**: the traffic and search series in detail, with product-use stages on Growth.
-- **Money**: this site's ledger, as on the Money page.
-- **Alerts** and **Tasks**: the site's slice of those boards.
-- **Activity**: the timeline of changes, outcome checks and runs.
-- **Data sources**: each source's status for this site, with **Connect**, **Not using** and the mapping fields.
-- **Settings**: **Identity**, **Manual lifecycle stage**, **Automation**, **Data collection**, **Alert rules in force** and **Tracked search terms**.
+- **Growth**: what moved against the days before, one row per series, above the **Audience** and search charts; then the tracked search terms and product use.
+- **Money**: the month as one sum, revenue minus cost equals net. Beside it, the month's ad revenue days against a usual day and the month so far against last month, both marked as estimates. Then daily revenue over the chosen range and the site's ledger, as on the Money page.
+- **Search**: **Queries that moved**, each drawn where it sits on the results page now against before; the tracked terms, each with its rank over time; then **Search context**: links, AI mentions, competitors and opportunities.
+- **Alerts**: the last 30 days as a timeline, one row per condition, then **Open** with each reading against its normal range, **Snoozed**, **No longer current** and **History**.
+- **Tasks**: the site's slice of the Tasks board.
+- **Activity**: the last 90 days of changes and bets on one timeline, a bet marked where it was registered and again where its verdict came in. Under it, the **Timeline** of recorded changes and the bets still being watched.
+- **Data sources**: how the site's data arrives, drawn as one picture with a failing source lit where it sits; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones.
+- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**.
 
 ## What you can do
 
@@ -43,8 +45,9 @@ A site's tasks, search clicks and ledger are on its own tabs. The columns drop a
 - A site's name opens its page; the domain link on that page opens the site itself.
 - Press a figure on the Overview to draw it on the chart; arrow keys step through its days.
 - Hover, focus or tap a mark on the Overview chart to read the change or outcome check behind it.
+- On **Activity**, **Log a change** opens one form with two choices: **Something happened** records a change, and **Watch an outcome** registers an outcome check against one.
 - On **Data sources**, **Connect** opens the connect panel and **Not using** records a reason for skipping a source.
-- On **Settings**, the six cards hold everything that applies to this one site.
+- On **Settings**, the cards hold everything that applies to this one site.
 
 ## States and labels
 

@@ -204,7 +204,7 @@ pnpm os:apply        # edits to installation.env, after you type `apply`
 pnpm os:backup       # one backup now, inside the app container
 pnpm os:run-job -- "0 6 * * *"   # fire the jobs scheduled on one cron expression now
 pnpm os:capacity     # the store's size and growth per table; -- --json
-pnpm os:mcp          # the MCP server for an agent on this machine, over stdio; -- --actor <name>
+pnpm os:mcp          # at a terminal, the line that connects an agent to the Tower's /api/mcp; run by an agent, the same server over stdio; -- --actor <name>
 pnpm os:bd -- ready  # the task tool, inside the app; -- --project <prefix> picks a project
 ```
 

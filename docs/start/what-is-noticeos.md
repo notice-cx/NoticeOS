@@ -47,11 +47,12 @@ It is **not** a public hosted service. A standalone installation has no user log
 - A **public demo package** with synthetic sites and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 - A **Tasks** page shared by people and agents, usable before you add your first site.
+- An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads site reports. See [Connect an agent](/guides/connect-an-agent).
 
 ## What is not available yet
 
 - NoticeOS does not offer **customer account hosting** or invitation-based onboarding in this preview release.
-- NoticeOS does not have a supported **task API**, installable agent skills and hooks, or connections to tools such as Jira or Linear yet. Use the Tasks page.
+- NoticeOS does not have installable agent skills and hooks, or connections to tools such as Jira or Linear, yet. Agents use the MCP server; people use the Tasks page.
 - NoticeOS does not run **automated execution on your sites**. Agents that act on your sites are started and stopped by you, outside NoticeOS. See [Budgets and the kill switch](/operate/budgets-and-the-kill-switch).
 
 ## Where to go next

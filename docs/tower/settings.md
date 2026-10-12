@@ -9,7 +9,7 @@ Settings answers one question: what does the whole installation run on, and wher
 
 ## What you see
 
-A section list sits on the left and the page opens on **General**. Sites have their own Settings tab; this page is what applies to all of them.
+Tabs across the top, the same as on a site's page, open on **General**. Each tab has its own address (`/settings/alert-rules`, `/settings/task-projects`), so a link lands on it; an older link such as `/settings#task-hub` still finds its tab. Sites have their own Settings tab; this page is what applies to all of them.
 
 ### General
 
