@@ -13,14 +13,15 @@ disagree, the code is the fact and this file is amended.
 
 NoticeOS is a closed loop around a ledger — Sense → Attribute → Decide → Act →
 Learn — for improving the return on a portfolio of websites and software
-products, with as little operator oversight as each change class has earned.
-It observes each asset (reports, search and traffic signals, revenue and cost),
-attributes outcomes honestly (holdouts and cohorts where possible, "unmeasured"
-where not, never an invented lift), decides what to build next with a
-dollar-denominated scoring policy, acts through build → independent verify →
-ship under a graduated autonomy ladder, and grades its own predictions against
-outcomes. This repo is the OS and its Control Tower; it is asset #0 and emits
-the same report it demands of every asset.
+products, and reduces operator oversight for each class of change only as far
+as that class's record of outcomes allows. It observes each asset (reports,
+search and traffic signals, revenue and cost), attributes outcomes without
+overstating them (holdouts and cohorts where possible, "unmeasured" where not,
+never an invented lift), ranks what to build next with a dollar-denominated
+scoring policy, acts through build → independent verify → ship under a
+graduated autonomy ladder, and compares its own predictions with outcomes.
+This repo is the OS and its Control Tower; it is asset #0 and sends the same
+report it requires from every asset.
 
 ## Monorepo layout
 
@@ -30,7 +31,7 @@ the same report it demands of every asset.
 | `packages/contract/` | the shared report envelope, the config document schemas and the volume-aware alert rules (zod) |
 | `packages/mediavine/` | the Mediavine publisher-portal client the revenue collector uses |
 | `workers/ingest/` | the ingest Worker: the report endpoint, the collectors, the scheduled lanes, the store's write routes |
-| `apps/tower/` | the Control Tower (Vite + React + TS + Tailwind v4 + shadcn): the desk pages, the TV Wall and its Worker |
+| `apps/tower/` | the Control Tower (Vite + React + TS + Tailwind v4 + shadcn): the operator pages, the TV Wall and its Worker |
 | `docs/` | the documentation site (VitePress): the guides, screens and operations pages for the operator, and the numbered design library beside them |
 | `config/` | the product's defaults: every config document a fresh clone seeds, generic (no sites, no task projects, UTC), each with a README beside it. Runtime settings live in the store after seeding. |
 | `installation/` | this installation's own files, found through `scripts/installation.mts` (`NOTICEOS_INSTALLATION_DIR`, default `./installation`): exported config documents, the applied-changeset archive, host-only settings. The public release leaves it out. |
@@ -55,15 +56,27 @@ present.
   Secrets never appear in a log line, a response body or a test fixture.
 - **Tests: vitest in the workspaces, `node --test` for `scripts/*.test.mjs`.**
   An independent verifier owns completion checks; a builder's own transcript is
-  not evidence. A scenario is a test or it is nothing: it is never argued in a
-  comment.
+  not evidence. A scenario counts only when it is a test; describing it in a
+  comment does not count.
 - **Comments say what the code cannot.** A non-obvious why, an invariant, a
   trap, or the one place a fact lives, in a line or two. No decision numbers,
   task ids, dates of past changes, attributions, histories of what the code
   used to do, or alternatives considered. Decisions become code, features and
   tests; there is no decision register.
-- **SQL is snake_case.** Migrations are numbered and append-only; the store is
-  history, never truncated.
+- **Write documentation literally.** In `docs/`, every README and this file,
+  state what a thing shows or does: a page, chart, command, job or rule shows,
+  lists, records, checks, runs or stops. It does not answer, say, tell, ask,
+  know, think, want, see or refuse, and nothing "tells a story"; only people
+  and agents speak, decide or know. Use no metaphors, images, slogans or
+  riddles: name the colour or size instead of "quiet" or "calm", the Tower's
+  pages instead of "the desk", the rule instead of an aphorism, and the plain
+  word instead of internal vocabulary (lane, bead, pulse, knob) outside an
+  identifier in backticks. Rewrite any sentence a reader has to decode as the
+  direct statement. Quote the labels the product shows exactly; changing one
+  is a product-copy change. The brand line "Your startup. In clear view." is
+  the one exception.
+- **SQL is snake_case.** Migrations are numbered and append-only; the store
+  keeps every row of history and is never truncated.
 - **Design is one doc, written as taste** ([doc 14](docs/14-design.md)): the
   stack as it is in the repo, the token families and what each colour means,
   the principles, the surfaces as built, the Wall, the operator flows and the
@@ -78,7 +91,7 @@ present.
   `pnpm audit:flows` walks every declared flow in a browser and reports what it
   costs. The jargon ban is enforced: `scripts/ui-lexicon.test.mjs` and
   `scripts/ui-noun.test.mjs` fail on a system word on a screen.
-- **Every change leaves NoticeOS readier for a stranger's installation.**
+- **Every change works for any installation, not only this one.**
   Product code names no installation's own sites, accounts, paths or time
   zone; those come from the store, with generic defaults (fixtures use
   `example.com`). The neutral-code gate (`pnpm check:neutral`) stops a site id,
@@ -95,7 +108,8 @@ present.
   from `scripts/config-registers.mts`. `pnpm generate` rewrites both, with the
   compiled `.mts` pairs, and `pnpm generate -- --check` fails when one is
   stale. The Postgres README's revision matrix comes from
-  `db/postgres/model.json`. A test fails when a generated block is stale. Prose beside a block says why, never what.
+  `db/postgres/model.json`. A test fails when a generated block is stale. Prose beside a block explains why
+  the block exists and does not repeat what it contains.
 - **Flags carry severity and kind as separate fields** (doc 02):
   `info|warn|error` × `anomaly|opportunity|milestone`; milestone kind is always
   info severity. Volume-aware rules only: flag when
@@ -103,20 +117,22 @@ present.
   (defaults in `config/constants.json`).
 - **Completion is evidence, not prose.** Every claim carries a machine-checkable
   pointer: a commit hash, a gate command, an artifact path, a URL. Anything
-  deferred is a task in the hub with an owner and a trigger; the system may
-  decide not to do something, never not to mention it.
-- **A measurement window freezes the surfaces it measures.** A ship that opens
-  one records the surfaces, the change, the dates and the readback task in the
-  task hub, and nobody refactors those surfaces until the reading is in
-  (doc 03). The hub is the register; there is no register file.
+  deferred is a task in the hub with an owner and a trigger. Deciding not to
+  do something is allowed; leaving that decision unrecorded is not.
+- **Surfaces under an open measurement window stay unchanged.** A ship that
+  opens one records the surfaces, the change, the dates and the readback task
+  in the task hub, and nobody refactors those surfaces until the reading is in
+  (doc 03). The task hub is where these are recorded; there is no separate
+  file.
 
 ## Hard invariants
 
-Never auto-touched. Operator-only, forever, never promotable on the autonomy
-ladder: auth, billing, security headers, DB migrations (except the fresh-install
-setup below), consent surfaces, analytics and tracking pipelines, holdout
-assignments, guardrail thresholds. The last three are the measurement channel:
-an agent that can edit the ruler eventually will.
+Never changed automatically. Operator-only, forever, never promotable on the
+autonomy ladder: auth, billing, security headers, DB migrations (except the
+fresh-install setup below), consent surfaces, analytics and tracking pipelines,
+holdout assignments, guardrail thresholds. The last three decide how outcomes
+are measured: an agent allowed to change how its own results are measured
+would eventually change them.
 
 Also standing: publishing-velocity caps and per-surface churn caps (doc 04);
 PRs only through the one fine-grained GitHub App, never a PAT; assets never
@@ -158,11 +174,12 @@ everything and publishes the site. Once CI passes on a `main` commit, the
 The full gates run in CI; they are not a mandatory local pre-merge run. Locally,
 test the changed logic and the affected critical paths with the smallest
 relevant typecheck, build or browser check; carry passing evidence forward when
-its inputs are unchanged; record the actual command time. The root suite is
-load-bearing: recursive pnpm commands visit workspaces, not `scripts/*.test.mjs`,
-where the runner, migration, collector, backup and task-hub contracts live.
-CI-green is not safe: CI checks that it builds; the failures that threaten ROI
-are outcome failures, caught by post-ship outcome watch, never by CI alone.
+its inputs are unchanged; record the actual command time. Do not skip the root
+suite: recursive pnpm commands visit workspaces, not `scripts/*.test.mjs`,
+where the runner, migration, collector, backup and task-hub contracts are
+tested. Passing CI does not make a change safe: CI checks that the code builds
+and its tests pass, while the failures that cost money are bad outcomes after
+shipping, which only the post-ship outcome checks catch.
 
 ## Temporary test storage
 
@@ -241,8 +258,8 @@ migration is operator-only: `pnpm os:status` → a backup you can restore
 `os:restart`, the task verbs `os:mcp` and `os:bd` and, after a verified merge,
 `os:update`; never `os:migrate`.
 
-`pnpm os:setup` on a machine that already runs an installation refuses on its
-selector; an agent runs it only with a throwaway `--dir`, `--project` and
+`pnpm os:setup` on a machine that already runs an installation stops when it
+finds that installation's selector; an agent runs it only with a throwaway `--dir`, `--project` and
 `--config`, and removes what it made. `pnpm db:try-tower` is not an
 installation: the Tower on a throwaway development database, for screens with
 invented data.
@@ -285,7 +302,8 @@ would fork a private store) and never `bv` (retired). A spoke's
 `import.auto: false`; if `bd` ever prints "no Dolt remote configured … repair:
 `bd dolt push`", fix the config and never run the printed repair. `bd` reaches
 the task server through Docker, so a sandboxed shell runs it with the sandbox
-off. The Tower's Tasks page is the live cross-project view; the hub is the truth.
+off. The Tower's Tasks page is the live cross-project view; the hub is the
+source of truth.
 
 ## Git policy
 
