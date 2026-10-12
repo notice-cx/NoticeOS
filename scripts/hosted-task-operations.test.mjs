@@ -121,3 +121,36 @@ test('keys and operation identities are the server’s, never a caller’s', asy
   assert.deepEqual(await plain.operations.write(proof(), A, create), { status: 'done', value: { id: 'tt-1', project: 'example' }, replayed: false });
   assert.equal(plain.store.rows.size, 0);
 });
+
+test('a close records who closed it and with which model; the close stands if that record fails', async () => {
+  const f = fixture();
+  await f.operations.write(proof(), A, create, KEY);
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'update', taskId: 'tt-1', claim: true, model: 'Opus 5.5' } });
+  assert.equal(f.tasks.get('tt-1').metadata.noticeos_claimed_model, 'Opus 5.5');
+  const closed = await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-1', reason: 'Done · abc1234', model: 'Opus 5.5' } }, 'agent-close-0001');
+  assert.equal(closed.status, 'done');
+  const { metadata, closed_at } = f.tasks.get('tt-1');
+  assert.deepEqual([metadata.noticeos_closed_by, metadata.noticeos_closed_model, metadata.noticeos_closed_at], [PERSON, 'Opus 5.5', closed_at]);
+  // A replayed close repeats nothing, the record included.
+  assert.equal((await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-1', reason: 'Done · abc1234', model: 'Opus 5.5' } }, 'agent-close-0001')).replayed, true);
+  assert.deepEqual(f.attributions, [['tt-1', PERSON]]);
+
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'Second' } });
+  f.fail('attribute');
+  const unrecorded = await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-2', reason: 'Done' } });
+  assert.equal(unrecorded.status, 'done');
+  assert.equal(f.tasks.get('tt-2').status, 'closed');
+  assert.equal(f.tasks.get('tt-2').metadata.noticeos_closed_by, undefined);
+});
+
+test('a closed-only read may ask for the Agents page history; the board keeps its week', async () => {
+  const f = fixture();
+  const history = await f.operations.board(proof(), A, P, ['closed'], 56);
+  assert.equal(history.closedSince, '2026-08-12');
+  assert.equal(history.epics, null);
+  const read = f.calls.filter(call => call.operation.kind !== 'closed-board').map(call => call.operation.kind);
+  assert.deepEqual(read, [], 'a closed-only read skips the ready list and the epics');
+  assert.equal((await f.operations.board(proof(), A, P, ['open', 'closed'])).closedSince, '2026-09-30');
+  await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 57));
+  await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 0));
+});

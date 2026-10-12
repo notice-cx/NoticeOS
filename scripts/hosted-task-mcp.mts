@@ -60,6 +60,11 @@ function textArg(args: Args, name: string, max: number, required = true, empty =
     || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) refuse(`invalid arguments: ${name}`);
   return value;
 }
+function modelArg(args: Args): string | undefined {
+  const value = textArg(args, 'model', HOSTED_TASK_LIMITS.identifier, false);
+  if (value !== undefined && (/[\r\n\t]/u.test(value) || value.trim() !== value)) refuse('invalid arguments: model (one line, no surrounding spaces)');
+  return value;
+}
 function project(args: Args): string {
   const value = args.project;
   if (typeof value !== 'string' || !UUID.test(value)) refuse('invalid arguments: project (a projectId from list_projects)');
@@ -214,6 +219,9 @@ export interface TaskTool {
 }
 const PROJECT = { type: 'string', description: 'The projectId from list_projects.' };
 const TASK = { type: 'string', description: 'The task id, such as abc-1x2.' };
+/** Optional on claim and close: the Tower credits the work to this model as well as to the agent. */
+const MODEL = { type: 'string', maxLength: HOSTED_TASK_LIMITS.identifier,
+  description: 'The name of the model doing this work, as you would say it. Shown beside your name on the task.' };
 const IDEMPOTENCY = { type: 'string', pattern: IDEMPOTENCY_KEY.source,
   description: 'A key you choose for this call. Retrying with the same key and arguments never repeats the change.' };
 function schema(properties: Record<string, unknown>, required: readonly string[] = []): Record<string, unknown> {
@@ -430,12 +438,12 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
           + 'To change a refused task, send it and the rest with a new key, naming filed tasks by id.' } : {}) };
     } },
   { name: 'claim_task', description: 'Assign an open task to yourself and start it. Fails if someone else holds it.',
-    inputSchema: schema({ project: PROJECT, task: TASK, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
+    inputSchema: schema({ project: PROJECT, task: TASK, model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', 'task', 'idempotency_key']);
-      const projectId = project(args), taskId = task(args);
-      const { replayed } = await write(context, projectId, { kind: 'update', taskId, claim: true }, key(args), () => ({}));
+      only(args, ['project', 'task', 'model', 'idempotency_key']);
+      const projectId = project(args), taskId = task(args), model = modelArg(args);
+      const { replayed } = await write(context, projectId, { kind: 'update', taskId, claim: true, ...(model ? { model } : {}) }, key(args), () => ({}));
       return { task: await current(context, projectId, taskId), replayed };
     } },
   { name: 'update_task', description: 'Change a task\'s fields. Use close_task to close one and claim_task to take one. The result\'s lint names sections it still lacks.',
@@ -512,13 +520,13 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
     } },
   { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
-      idempotency_key: IDEMPOTENCY }, ['project', 'task', 'reason', 'idempotency_key']),
+      model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'reason', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', 'task', 'reason', 'idempotency_key']);
-      const projectId = project(args), taskId = task(args);
-      const { replayed } = await write(context, projectId, { kind: 'close', taskId, reason: textArg(args, 'reason', HOSTED_TASK_LIMITS.reason)! },
-        key(args), () => ({}));
+      only(args, ['project', 'task', 'reason', 'model', 'idempotency_key']);
+      const projectId = project(args), taskId = task(args), model = modelArg(args);
+      const { replayed } = await write(context, projectId, { kind: 'close', taskId, reason: textArg(args, 'reason', HOSTED_TASK_LIMITS.reason)!,
+        ...(model ? { model } : {}) }, key(args), () => ({}));
       return { task: await current(context, projectId, taskId), replayed };
     } },
 ]);

@@ -430,3 +430,15 @@ test('the demo takes no credential, lists its one workspace and only reads', asy
   assert.equal((await demo.mcp(post({ jsonrpc: '2.0', id: 1, method: 'ping' }))).status, 400, 'a demo token is never accepted');
   assert.deepEqual(demo.effects, []);
 });
+
+test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {
+  const f = fixture();
+  await call(f, 'create_task', { workspace: A, project: P, title: 'Fix the export button', idempotency_key: 'agent-create-0101' });
+  const claimed = (await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', model: 'Opus 5.5', idempotency_key: 'agent-claim-0101' })).structuredContent;
+  assert.equal(claimed.task.metadata.noticeos_claimed_model, 'Opus 5.5');
+  const closed = (await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Exports pass · 3f2a91c', model: 'Opus 5.5',
+    idempotency_key: 'agent-close-0101' })).structuredContent;
+  assert.deepEqual([closed.task.metadata.noticeos_closed_by, closed.task.metadata.noticeos_closed_model], [PERSON, 'Opus 5.5']);
+  assert.match((await call(f, 'close_task', { workspace: A, project: P, task: 'tt-1', reason: 'Done', model: 'two\nlines',
+    idempotency_key: 'agent-close-0102' })).content[0].text, /^invalid arguments: model/u);
+});

@@ -565,6 +565,40 @@ describe("the writes", () => {
     ]);
   });
 
+  it("records who closed a task after the close, and the close stands without it", async () => {
+    await reset();
+    const closedAt = "2026-10-15T16:00:00Z";
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, close: JSON.stringify([{ ...LIST_ROW, status: "closed", closed_at: closedAt }]) });
+    await ask("POST", "/api/tasks/ro-aaa/close", { reason: "abc1234: done" });
+    const [close, record] = await spawned();
+    expect(close?.slice(2, 4)).toEqual(["close", "ro-aaa"]);
+    expect(record?.slice(2, 5)).toEqual(["update", "ro-aaa", "--metadata"]);
+    expect(JSON.parse(record?.[5] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt });
+    expect(record?.[record.indexOf("--actor") + 1]).toBe("test-operator");
+
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, close: JSON.stringify([{ ...LIST_ROW, status: "closed", closed_at: closedAt }]) });
+    process.env.FAKE_BD_FAIL = "update";
+    try {
+      expect((await ask("POST", "/api/tasks/ro-aaa/close", { reason: "abc1234: done" })).status).toBe(200);
+    } finally {
+      delete process.env.FAKE_BD_FAIL;
+    }
+  });
+
+  it("reads eight weeks of closed work only when a closed-only read asks", async () => {
+    await reset();
+    const reply = await ask("GET", "/api/tasks?project=root-os&status=closed&closedDays=56");
+    expect(reply.status).toBe(200);
+    const calls = await spawned();
+    expect(calls.map((argv) => argv[2])).toEqual(["list"]);
+    const since = calls[0]?.[calls[0].indexOf("--closed-after") + 1];
+    expect(since).toBe(reply.body.closedSince);
+    for (const query of ["closedDays=56", "status=open,closed&closedDays=56", "status=closed&closedDays=57", "status=closed&closedDays=0"]) {
+      expect((await ask("GET", `/api/tasks?project=root-os&${query}`)).status, query).toBe(422);
+    }
+  });
+
   it("names the operator on EVERY write, and on no read", async () => {
     await reset();
     await ask("POST", "/api/tasks", { project: "root-os", title: "t" });

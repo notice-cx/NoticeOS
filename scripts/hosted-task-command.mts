@@ -7,11 +7,13 @@
  * Command execution is not qualified here, including history's internal
  * checkout with --readonly. The executor proof must exercise the exact plans.
  */
-import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
 export const HOSTED_TASK_LIMITS = Object.freeze({
   projects: 4096, identifier: 128, title: 512, body: 8192,
   comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
+  /** The longest closed read: the Agents page's eight weeks and the day it starts in. */
+  closedDays: 57,
 });
 
 export type HostedTaskStatus = 'open' | 'in_progress' | 'blocked' | 'deferred' | 'closed';
@@ -45,9 +47,14 @@ export type HostedTaskOperation =
   | { readonly kind: 'update'; readonly taskId: string; readonly status?: HostedTaskStatus;
       readonly priority?: number; readonly title?: string; readonly description?: string; readonly claim?: true;
       readonly assignee?: string; readonly parent?: string; readonly defer?: string; readonly acceptance?: string;
-      readonly addLabels?: readonly string[]; readonly removeLabels?: readonly string[] }
+      readonly addLabels?: readonly string[]; readonly removeLabels?: readonly string[];
+      /** With a claim only: the model the claimer names, kept on the task. */
+      readonly model?: string }
   | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
-  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string }
+  /** `model` is the closer's, recorded by the attribution that follows the close. */
+  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string; readonly model?: string }
+  /** Server-only: who closed a task, written after its close. Request parsers never construct it. */
+  | { readonly kind: 'attribute'; readonly taskId: string; readonly closedBy: string; readonly closedAt: string; readonly model?: string }
   | { readonly kind: 'depend'; readonly taskId: string; readonly dependsOn: string; readonly type: HostedTaskDependencyType }
   | { readonly kind: 'undepend'; readonly taskId: string; readonly dependsOn: string }
   /** Opens a human gate the task waits on. Only a person's resolve-gate clears it. */
@@ -164,6 +171,12 @@ function linkList(value: unknown, parent: string | undefined): readonly string[]
     return `${type}:${target}`;
   }));
 }
+/** A model as its agent names it: one line, at most an identifier long. */
+function model(value: unknown): string {
+  const name = text(value, HOSTED_TASK_LIMITS.identifier);
+  if (/[\r\n\t]/u.test(name) || name.trim() !== name) invalid();
+  return name;
+}
 function deferDate(value: unknown): string {
   if (value === '') return value;
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value)
@@ -171,9 +184,9 @@ function deferDate(value: unknown): string {
   return value;
 }
 function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
-  // The operation identity is the server's, never a caller's metadata.
+  // What only the server writes is never a caller's metadata.
   const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
-    .filter(name => name !== TASK_METADATA.operation.name));
+    .filter(name => !SERVER_TASK_METADATA.includes(name)));
   const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, entry] of Object.entries(row)) result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
   return Object.freeze(result);
@@ -182,7 +195,7 @@ function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
 function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
   const op = record(input);
   const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
-    'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
+    'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
   const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
   const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
   switch (kind) {
@@ -242,7 +255,7 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
         || typeof op.until !== 'string' || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/u.test(op.until)) invalid();
       const since = Date.parse(op.since), until = Date.parse(op.until);
       if (!Number.isFinite(since) || !Number.isFinite(until) || new Date(since).toISOString().slice(0, 10) !== op.since
-        || new Date(until).toISOString() !== op.until || until < since || until - since > 8 * 86400000) invalid();
+        || new Date(until).toISOString() !== op.until || until < since || until - since > HOSTED_TASK_LIMITS.closedDays * 86400000) invalid();
       argv.push('list', '--status=closed', `--closed-after=${op.since}`, `--closed-before=${op.until}`, '--limit=0', '--include-gates');
       break;
     }
@@ -270,8 +283,8 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     case 'update': {
       const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'];
-      keys(op, ['kind', 'taskId'], fields);
-      if (!fields.some(key => Object.hasOwn(op, key))) invalid();
+      keys(op, ['kind', 'taskId'], [...fields, 'model']);
+      if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true) invalid();
       argv.push('update');
       if (Object.hasOwn(op, 'status')) argv.push(`--status=${choice(op.status, STATUSES)}`);
       if (Object.hasOwn(op, 'priority')) argv.push(`--priority=${integer(op.priority, 0, 4)}`);
@@ -284,6 +297,8 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'addLabels')) argv.push(`--add-label=${labelList(op.addLabels).join(',')}`);
       if (Object.hasOwn(op, 'removeLabels')) argv.push(`--remove-label=${labelList(op.removeLabels).join(',')}`);
+      // In the claim itself, so the claim and its model land together.
+      if (Object.hasOwn(op, 'model')) argv.push(`--metadata=${JSON.stringify({ [TASK_METADATA.claimedModel.name]: model(op.model) })}`);
       argv.push('--', task(op.taskId));
       break;
     }
@@ -292,9 +307,20 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
       break;
     case 'close':
-      keys(op, ['kind', 'taskId', 'reason']);
+      keys(op, ['kind', 'taskId', 'reason'], ['model']);
+      if (Object.hasOwn(op, 'model')) model(op.model);
       argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
       break;
+    case 'attribute': {
+      // The task client's close carries no metadata, so the closer follows it.
+      keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model']);
+      if (typeof op.closedAt !== 'string' || !Number.isFinite(Date.parse(op.closedAt)) || op.closedAt.length > 64) invalid();
+      const metadata = { [TASK_METADATA.closedBy.name]: text(op.closedBy, HOSTED_TASK_LIMITS.identifier),
+        [TASK_METADATA.closedAt.name]: op.closedAt,
+        ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.closedModel.name]: model(op.model) } : {}) };
+      argv.push('update', `--metadata=${JSON.stringify(metadata)}`, '--', task(op.taskId));
+      break;
+    }
     case 'depend':
     case 'undepend': {
       keys(op, ['kind', 'taskId', 'dependsOn', ...(kind === 'depend' ? ['type'] : [])]);
