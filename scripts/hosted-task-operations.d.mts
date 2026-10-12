@@ -56,8 +56,8 @@ export interface HostedTaskOperations {
         readonly gate: Record<string, unknown>;
         readonly created: boolean;
     }>;
-    /** The sections the task's type expects that it still lacks, as Beads' lint names them. */
-    lint(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<readonly string[]>;
+    /** The sections each task's type expects that it still lacks, as Beads' lint names them, by task id. */
+    lint(proof: Request, workspaceId: string, projectId: string, taskIds: readonly string[]): Promise<ReadonlyMap<string, readonly string[]>>;
 }
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export declare class HostedTaskReceiptsUnavailable extends Error {

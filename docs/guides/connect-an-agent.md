@@ -45,11 +45,11 @@ claude mcp add --scope user noticeos -- ~/noticeos/noticeos mcp --actor claude  
 | Tools | What they do |
 | --- | --- |
 | `list_workspaces`, `list_projects` | Name the installation's one workspace and its linked task projects |
-| `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` answers summaries, most urgent first, 50 at a time (`limit`, and `offset` from the answer's `nextOffset`); `ready: true` keeps only work nothing blocks. `get_task` reads one in full |
-| `create_task`, `update_task` | File and change tasks. Each answer lists what the task still lacks, such as acceptance criteria; nothing is refused for it |
+| `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` answers summaries, most urgent first, 50 at a time (`limit`, and `offset` from the answer's `nextOffset`). It searches live: `query` for words, `parent`, `labels`, `type`, `status`, `ready: true` for work nothing blocks, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
+| `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. Each answer lists what a task still lacks, such as acceptance criteria; nothing is refused for it |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence |
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes |
-| `request_human_approval` | Ask you to approve a task before it goes on. The task waits under **Waiting on you** until you do; asking again with the same reason returns the same request |
+| `request_human_approval` | Ask you to approve a task before it goes on. The approval waits under **Waiting on you** and holds the task out of the ready list until you approve it; the answer says so. Asking again with the same reason returns the same request |
 | `list_properties`, `property_report`, `research_lookup` | Read site reports and stored research |
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first answer, and the change happens once.

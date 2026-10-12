@@ -195,8 +195,8 @@ test('a dependency on a gate or a human decision is never removed by an ordinary
   }
   const shows = (await f.commands()).filter(row => row.args.includes('show')).map(row => row.args.at(-1));
   assert.deepEqual(shows, ['tt-a', 'tt-a', 'tt-a', 'tt-gate', 'tt-a', 'tt-b'], 'both ends are read before a removal, and only then');
-  assert.deepEqual((await f.executor.execute(request(), A, task({ kind: 'lint', taskId: 'tt-a' }))).args,
-    ['--sandbox', '--json', '--actor=' + PERSON, '--readonly', 'lint', '--', 'tt-a']);
+  assert.deepEqual((await f.executor.execute(request(), A, task({ kind: 'lint', taskIds: ['tt-a', 'tt-b'] }))).args,
+    ['--sandbox', '--json', '--actor=' + PERSON, '--readonly', 'lint', '--', 'tt-a', 'tt-b']);
 }));
 
 test('wrong target, already decided and failed decision refuse without close/comment fallbacks', () => fixture(async f => {

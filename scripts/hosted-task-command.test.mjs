@@ -48,7 +48,11 @@ const cases = [
   [{ kind: 'respond', taskId: 'tt-a', response: '--file=literal answer' }, false, ['human', 'respond', '--response=--file=literal answer', '--', 'tt-a']],
   [{ kind: 'dismiss', taskId: 'tt-a', reason: '--database=literal reason' }, false, ['human', 'dismiss', '--reason=--database=literal reason', '--', 'tt-a']],
   [{ kind: 'resolve-gate', taskId: 'tt-a' }, false, ['gate', 'resolve', '--', 'tt-a']],
-  [{ kind: 'lint', taskId: 'tt-a' }, true, ['lint', '--', 'tt-a']],
+  [{ kind: 'lint', taskIds: ['tt-a', 'tt-b.1'] }, true, ['lint', '--', 'tt-a', 'tt-b.1']],
+  [{ kind: 'create', title: 'Pick the store', type: 'decision', parent: 'tt-e', links: [{ type: 'blocked-by', taskId: 'tt-a' },
+    { type: 'blocks', taskId: 'tt-b' }, { type: 'related', taskId: 'tt-c' }, { type: 'discovered-from', taskId: 'tt-d' }] }, false,
+  ['create', '--type=decision', '--parent=tt-e', '--no-inherit-labels', '--deps=blocked-by:tt-a,blocks:tt-b,related:tt-c,discovered-from:tt-d',
+    '--title=Pick the store', '--']],
   [{ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' }, false, ['dep', 'add', '--type=blocks', '--', 'tt-a', 'tt-b']],
   [{ kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b' }, false, ['dep', 'remove', '--', 'tt-a', 'tt-b']],
   [{ kind: 'gate', taskId: 'tt-a', reason: '--file=literal ask' }, false,
@@ -76,12 +80,22 @@ test('decision classification validates payloads and never treats generic closur
 test('an agent opens a gate with write access; dependency edges are bounded and never onto the task itself', () => {
   assert.equal(hostedTaskAction({ kind: 'gate', taskId: 'tt-a', reason: 'Approve' }), 'tasks.write');
   assert.equal(hostedTaskAction({ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'discovered-from' }), 'tasks.write');
-  assert.equal(hostedTaskAction({ kind: 'lint', taskId: 'tt-a' }), 'tasks.read');
+  assert.equal(hostedTaskAction({ kind: 'lint', taskIds: ['tt-a'] }), 'tasks.read');
   for (const operation of [{ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-a', type: 'blocks' },
     { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b' }, { kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'parent-child' },
     { kind: 'undepend', taskId: 'tt-a', dependsOn: '--all' }, { kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' },
     { kind: 'gate', taskId: 'tt-a', reason: '' }, { kind: 'gate', taskId: 'tt-a', reason: 'Approve', type: 'timer' },
-    { kind: 'lint', taskId: 'tt-a', fix: true }]) denied(() => hostedTaskAction(operation));
+    { kind: 'lint', taskIds: ['tt-a'], fix: true }, { kind: 'lint', taskIds: [] }, { kind: 'lint', taskIds: ['tt-a', 'tt-a'] },
+    { kind: 'lint', taskIds: ['--all'] }, { kind: 'lint', taskId: 'tt-a' }]) denied(() => hostedTaskAction(operation));
+});
+
+test('a new task\'s links are named once each, never its parent, and only in the task client\'s link words', () => {
+  const create = links => ({ kind: 'create', title: 'Linked', parent: 'tt-p', links });
+  assert.equal(hostedTaskAction(create([{ type: 'related', taskId: 'tt-a' }])), 'tasks.write');
+  for (const links of [[], [{ type: 'related', taskId: 'tt-a' }, { type: 'blocks', taskId: 'tt-a' }], [{ type: 'related', taskId: 'tt-p' }],
+    [{ type: 'parent-child', taskId: 'tt-a' }], [{ type: 'related', taskId: '--all' }], [{ type: 'related', taskId: 'tt-a', note: 'x' }],
+    Array.from({ length: HOSTED_TASK_LIMITS.links + 1 }, (_, n) => ({ type: 'related', taskId: `tt-${n}` }))]) denied(() => hostedTaskAction(create(links)));
+  denied(() => hostedTaskAction({ kind: 'create', title: 'A gate', type: 'gate' }));
 });
 
 test('closing, unmarking or unhooking a human decision names the tasks an executor must check first', () => {

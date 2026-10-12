@@ -139,5 +139,22 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     const decision = await ok('create_task', { title: 'Decide the rollout', labels: ['human', 'area-rollout'], idempotency_key: 'compose-decision-0001' });
     const child = await ok('create_task', { title: 'Build the rollout', parent: decision.id, labels: ['frontend'], idempotency_key: 'compose-child-0001' });
     assert.deepEqual((await ok('get_task', { task: child.id })).task.labels, ['frontend']);
+
+    // A decision files with its links and its approval in one call, and a
+    // change answers with the task whole, parent and links included.
+    const picked = await ok('create_task', { title: 'Pick the store', type: 'decision', parent: decision.id, depends_on: [lead.id],
+      related: [follow.id], approval: 'Approve the spend', idempotency_key: 'compose-pick-0001' });
+    assert.deepEqual([picked.held, picked.approval.status, picked.lint.missing.includes('## Decision')], [true, 'open', true]);
+    const changed = (await ok('update_task', { task: picked.id, priority: 1, idempotency_key: 'compose-pick-0002' })).task;
+    assert.deepEqual([changed.type, changed.parent, changed.dependencies.map(edge => `${edge.id} ${edge.type}`).sort()], ['decision', decision.id,
+      [`${decision.id} parent-child`, `${follow.id} related`, `${lead.id} blocks`, `${picked.approval.id} blocks`].sort()]);
+
+    // create_tasks: a place names a task the same call filed, and a retry files none twice.
+    const plan = [{ title: 'Batch epic', type: 'epic' }, { title: 'Batch child', parent: '#0', depends_on: [lead.id] }];
+    const filed = await ok('create_tasks', { tasks: plan, idempotency_key: 'compose-batch-0001' });
+    assert.deepEqual((await ok('create_tasks', { tasks: plan, idempotency_key: 'compose-batch-0001' })).created.map(row => [row.id, row.replayed]),
+      filed.created.map(row => [row.id, true]));
+    assert.deepEqual((await ok('list_tasks', { parent: filed.created[0].id })).tasks.map(task => task.id), [filed.created[1].id]);
+    assert.deepEqual((await ok('list_tasks', { query: 'batch CHILD' })).tasks.map(task => task.id), [filed.created[1].id]);
   });
 });

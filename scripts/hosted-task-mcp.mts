@@ -12,10 +12,11 @@
  * A created or changed task comes back with what lint finds missing, as
  * advice: nothing is refused for it.
  */
+import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, type HostedTaskDependencyType, type HostedTaskOperation, type HostedTaskStatus,
-  type HostedTaskType } from './hosted-task-command.mjs';
-import { GATE_REASON_MAX, gateReason } from '../packages/contract/src/task-gate.mjs';
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, type HostedTaskDependencyType, type HostedTaskLink, type HostedTaskOperation,
+  type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
+import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
@@ -23,11 +24,28 @@ import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
-const TYPES: readonly HostedTaskType[] = ['task', 'bug', 'feature', 'epic', 'chore'];
+const TYPES: readonly HostedTaskType[] = ['task', 'bug', 'feature', 'epic', 'chore', 'decision'];
 const DEPENDENCY_TYPES: readonly HostedTaskDependencyType[] = ['blocks', 'related', 'discovered-from'];
-
+/** The link arguments a new task takes, each with the task client's word for it. */
+const LINKS = Object.freeze([['depends_on', 'blocked-by'], ['blocks', 'blocks'], ['related', 'related'],
+  ['discovered_from', 'discovered-from']] as const);
+/** How many tasks one create_tasks call files: few enough to finish well inside a client's patience. */
+const BATCH = 25;
 
 function refuse(message: string): never { throw new McpToolError(message); }
+const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';
+/** A task tool's failure as the caller may read it. Admission, project
+ * selection and command refusals share one answer: which of them refused is
+ * not the caller's to learn. A person's decision is named, since the task's
+ * own read already showed it. */
+export function taskRefusal(error: unknown): McpToolError {
+  if (error instanceof McpToolError) return error;
+  if (error instanceof HumanDecisionRefused) {
+    return new McpToolError(`refused: ${error.taskId} is a person's decision, a gate or a task labelled human. Only a person `
+      + 'closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
+  }
+  return new McpToolError(REFUSED);
+}
 
 // ─── Arguments ────────────────────────────────────────────────────────────────
 type Args = Record<string, unknown>;
@@ -81,26 +99,100 @@ function choice<T extends string>(args: Args, name: string, values: readonly T[]
 function defined<T extends object>(row: T): T {
   return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== undefined)) as T;
 }
+function taskType(args: Args): HostedTaskType | undefined {
+  if (args.type === 'gate') {
+    refuse('invalid arguments: type (a gate holds another task until a person approves it: pass approval with that task, or call request_human_approval)');
+  }
+  return choice(args, 'type', TYPES);
+}
+function strings(args: Args, name: string): readonly string[] | undefined {
+  const value = args[name];
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.rows || value.some(entry => typeof entry !== 'string' || !entry || entry.length > 512)) {
+    refuse(`invalid arguments: ${name}`);
+  }
+  return value as string[];
+}
+/** YYYY-MM-DD or an ISO time, as epoch milliseconds. */
+function instantArg(args: Args, name: string): number | undefined {
+  const value = args[name];
+  if (value === undefined) return undefined;
+  const at = typeof value === 'string' && /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?$/u.test(value)
+    ? Date.parse(value) : NaN;
+  if (!Number.isFinite(at)) refuse(`invalid arguments: ${name} (YYYY-MM-DD or an ISO time)`);
+  return at;
+}
+
+/** A new task's fields, from create_task or one entry of create_tasks. `target`
+ * reads each task id it names: a parent or a linked task. */
+const CREATE_FIELDS = Object.freeze(['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance',
+  ...LINKS.map(([name]) => name), 'approval']);
+type Creation = { readonly operation: Extract<HostedTaskOperation, { kind: 'create' }>; readonly approval: string | undefined };
+function creation(args: Args, target: (name: string, value: unknown) => string): Creation {
+  const parent = args.parent === undefined ? undefined : target('parent', args.parent);
+  const links: HostedTaskLink[] = [];
+  for (const [name, type] of LINKS) {
+    const value = args[name];
+    if (value === undefined) continue;
+    if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.links) refuse(`invalid arguments: ${name}`);
+    for (const id of value) links.push({ type, taskId: target(name, id) });
+  }
+  const targets = links.map(link => link.taskId);
+  if (targets.length > HOSTED_TASK_LIMITS.links) refuse(`invalid arguments: at most ${HOSTED_TASK_LIMITS.links} linked tasks`);
+  if (new Set(targets).size !== targets.length) refuse('invalid arguments: a linked task is named twice; a task links to another once');
+  if (parent !== undefined && targets.includes(parent)) refuse('invalid arguments: the parent is linked already; leave it out of the other links');
+  return { operation: defined({ kind: 'create' as const, title: textArg(args, 'title', HOSTED_TASK_LIMITS.title)!,
+    description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true), type: taskType(args),
+    priority: priority(args), labels: labels(args, 'labels'), parent,
+    acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true), links: links.length ? links : undefined }),
+  approval: textArg(args, 'approval', GATE_REASON_MAX, false) };
+}
 
 // ─── Results in task language ─────────────────────────────────────────────────
 type LiveTask = ReturnType<typeof toLiveTask>;
-function presentTask(task: LiveTask, withReady: boolean): Record<string, unknown> {
+/** A task in full. `live` when it was read with the project's ready work, which
+ * readiness and the person's inbox need; a past version from history is not. */
+function presentTask(task: LiveTask, live: boolean): Record<string, unknown> {
   return {
     id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
-    assignee: task.assignee, labels: task.labels, parent: task.parent, ...(withReady ? { ready: task.ready } : {}),
+    assignee: task.assignee, labels: task.labels, parent: task.parent,
+    ...(live ? { ready: task.ready, awaitingHuman: waitsOnPerson(task) } : {}),
     description: task.description, acceptance: task.acceptance, deferUntil: task.deferUntil,
     dependencies: task.dependencies, commentCount: task.comments, metadata: task.metadata,
     createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt,
-    closedAt: task.closedAt, closeReason: task.closeReason, awaitingHuman: task.awaitType === 'human',
+    closedAt: task.closedAt, closeReason: task.closeReason,
   };
 }
-/** A task as a list shows it: enough to choose one, which get_task then reads in full. */
+/** A task as a list shows it: enough to choose one, which get_task then reads
+ * in full. A field with no value is left out, so a long page stays readable. */
 function summaryOf(task: LiveTask): Record<string, unknown> {
-  return {
+  const row: Record<string, unknown> = {
     id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
-    assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: task.awaitType === 'human',
+    assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: waitsOnPerson(task),
     deferUntil: task.deferUntil, createdAt: task.createdAt, updatedAt: task.updatedAt, closedAt: task.closedAt,
   };
+  return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null && !(Array.isArray(value) && !value.length)));
+}
+/** The list_tasks filters a task passes. Every word of a query must appear in
+ * its id, title, description, acceptance or labels. */
+interface ListFilter {
+  readonly words: readonly string[];
+  readonly parent?: string; readonly labels?: readonly string[]; readonly types?: readonly string[];
+  readonly createdAfter?: number; readonly createdBefore?: number; readonly updatedAfter?: number; readonly updatedBefore?: number;
+}
+function within(at: string | null, after: number | undefined, before: number | undefined): boolean {
+  if (after === undefined && before === undefined) return true;
+  const time = at === null ? NaN : Date.parse(at);
+  return Number.isFinite(time) && (after === undefined || time >= after) && (before === undefined || time < before);
+}
+function passes(task: LiveTask, filter: ListFilter): boolean {
+  if (filter.parent !== undefined && task.parent !== filter.parent) return false;
+  if (filter.labels?.some(label => !task.labels.includes(label))) return false;
+  if (filter.types !== undefined && !filter.types.includes(task.issueType)) return false;
+  if (!within(task.createdAt, filter.createdAfter, filter.createdBefore) || !within(task.updatedAt, filter.updatedAfter, filter.updatedBefore)) return false;
+  if (!filter.words.length) return true;
+  const text = [task.id, task.title, task.description, task.acceptance, ...task.labels].join('\n').toLowerCase();
+  return filter.words.every(word => text.includes(word));
 }
 /** Most urgent first, then oldest, so pages read in a stable order. */
 function byUrgency(a: LiveTask, b: LiveTask): number {
@@ -127,6 +219,21 @@ const IDEMPOTENCY = { type: 'string', pattern: IDEMPOTENCY_KEY.source,
 function schema(properties: Record<string, unknown>, required: readonly string[] = []): Record<string, unknown> {
   return { type: 'object', properties, required, additionalProperties: false };
 }
+const TASK_IDS = (description: string) => ({ type: 'array', items: { type: 'string' }, maxItems: HOSTED_TASK_LIMITS.links, description });
+/** A new task's fields, for create_task and each entry of create_tasks. */
+const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
+  description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
+  type: { type: 'string', enum: TYPES, description: 'decision records a choice; label it human when a person must make it.' },
+  priority: { type: 'integer', minimum: 0, maximum: 4, description: '0 is most urgent.' },
+  labels: { type: 'array', items: { type: 'string' }, maxItems: HOSTED_TASK_LIMITS.labels },
+  parent: { type: 'string', description: 'A parent task id.' },
+  acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body, description: 'What proves it done.' },
+  depends_on: TASK_IDS('Tasks this one waits on: it is not ready until they close.'),
+  blocks: TASK_IDS('Tasks that wait on this one.'),
+  related: TASK_IDS('Tasks it relates to, without waiting on them.'),
+  discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
+  approval: { type: 'string', maxLength: GATE_REASON_MAX,
+    description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' } });
 const READ = Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false });
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 
@@ -150,11 +257,33 @@ async function change(context: ToolContext, projectId: string, operation: Hosted
   const outcome = await context.operations.write(context.proof, context.workspaceId, { projectId, operation });
   if (outcome.status !== 'done') refuse('unavailable: the change could not be confirmed; retry it');
 }
-/** What lint finds missing from a task just written, or null when it could
+/** What lint finds missing from each task just written, or null when it could
  * not be read. The write has already happened either way. */
-async function linted(context: ToolContext, projectId: string, taskId: unknown): Promise<{ readonly missing: readonly string[] } | null> {
-  if (typeof taskId !== 'string') return null;
-  try { return { missing: await context.operations.lint(context.proof, context.workspaceId, projectId, taskId) }; } catch { return null; }
+async function linted(context: ToolContext, projectId: string, taskIds: readonly string[]): Promise<ReadonlyMap<string, readonly string[]> | null> {
+  if (!taskIds.length) return new Map();
+  try { return await context.operations.lint(context.proof, context.workspaceId, projectId, taskIds); } catch { return null; }
+}
+function lintOf(found: ReadonlyMap<string, readonly string[]> | null, taskId: string): { readonly missing: readonly string[] } | null {
+  return found === null ? null : { missing: found.get(taskId) ?? [] };
+}
+/** A task as it is after a write, read back whole: the task client's own reply
+ * to a change leaves out its parent and links. Null when it could not be read;
+ * the write has already happened either way. */
+async function current(context: ToolContext, projectId: string, taskId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const detail = await context.operations.task(context.proof, context.workspaceId, projectId, taskId);
+    return presentTask(detail.task as LiveTask, true);
+  } catch { return null; }
+}
+/** An approval request as every reply shows it, saying plainly what it does to the task. */
+function approvalOf(taskId: string, gate: Record<string, unknown>): Record<string, unknown> {
+  return { approval: { id: gate.id, status: gate.status, reason: gateReason(gate.description) }, held: true,
+    note: `${taskId} is out of ready work until a person approves ${String(gate.id)} on Tasks in the Tower.` };
+}
+/** One create_tasks entry's own idempotency key: the call's key and the entry's
+ * place, so a retried call replays each entry it already made. */
+function entryKey(key: string, index: number): string {
+  return `batch.${createHash('sha256').update(`noticeos-task-batch-v1:${key}`).digest('hex').slice(0, 40)}.${index}`;
 }
 
 export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
@@ -166,15 +295,25 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         projectId: entry.projectId, key: entry.logicalKey, name: entry.displayName, prefix: entry.prefix })) };
     } },
   { name: 'list_tasks', description: 'List a project\'s tasks, most urgent first: every open one and those closed in the last 7 days. '
-      + 'Each is a summary; get_task reads one in full. Answers a page at a time: pass nextOffset as offset for the next.',
+      + 'Each is a summary, leaving out fields with no value; get_task reads one in full. Filters narrow it live, so search here '
+      + 'rather than keeping a copy. Answers a page at a time: pass nextOffset as offset for the next.',
     inputSchema: schema({ project: PROJECT,
+      query: { type: 'string', maxLength: 512, description: 'Only tasks whose id, title, description, acceptance or labels hold every word of this, ignoring case.' },
       status: { type: 'array', items: { type: 'string', enum: STATUSES }, description: 'Only these statuses.' },
       ready: { type: 'boolean', description: 'Only tasks with nothing blocking them.' },
+      parent: { type: 'string', description: 'Only the direct children of this task.' },
+      labels: { type: 'array', items: { type: 'string' }, description: 'Only tasks carrying every one of these labels.' },
+      type: { type: 'array', items: { type: 'string' }, description: 'Only these types, such as decision or gate.' },
+      created_after: { type: 'string', description: 'Only tasks created at or after this: YYYY-MM-DD or an ISO time.' },
+      created_before: { type: 'string', description: 'Only tasks created before this.' },
+      updated_after: { type: 'string', description: 'Only tasks changed at or after this.' },
+      updated_before: { type: 'string', description: 'Only tasks last changed before this.' },
       limit: { type: 'integer', minimum: 1, maximum: HOSTED_TASK_LIMITS.rows, description: `At most this many (default ${PAGE}).` },
       offset: { type: 'integer', minimum: 0, description: 'Skip this many, from the previous answer\'s nextOffset.' } }, ['project']),
     annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
-      only(args, ['project', 'status', 'ready', 'limit', 'offset']);
+      only(args, ['project', 'query', 'status', 'ready', 'parent', 'labels', 'type', 'created_after', 'created_before',
+        'updated_after', 'updated_before', 'limit', 'offset']);
       const projectId = project(args);
       const statuses = args.status === undefined ? STATUSES : args.status;
       if (!Array.isArray(statuses) || statuses.length < 1 || new Set(statuses).size !== statuses.length
@@ -185,8 +324,13 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         refuse(`invalid arguments: limit (1–${HOSTED_TASK_LIMITS.rows})`);
       }
       if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) refuse('invalid arguments: offset (0 or more)');
+      const query = textArg(args, 'query', 512, false, true);
+      const filter: ListFilter = defined({ words: query?.toLowerCase().split(/\s+/u).filter(Boolean) ?? [],
+        parent: args.parent === undefined ? undefined : task(args, 'parent'), labels: strings(args, 'labels'), types: strings(args, 'type'),
+        createdAfter: instantArg(args, 'created_after'), createdBefore: instantArg(args, 'created_before'),
+        updatedAfter: instantArg(args, 'updated_after'), updatedBefore: instantArg(args, 'updated_before') });
       const board = await operations.board(proof, workspaceId, projectId, statuses as HostedTaskStatus[]);
-      const tasks = (board.tasks as LiveTask[]).filter(row => args.ready !== true || row.ready).sort(byUrgency);
+      const tasks = (board.tasks as LiveTask[]).filter(row => (args.ready !== true || row.ready) && passes(row, filter)).sort(byUrgency);
       const page = tasks.slice(offset, offset + limit);
       return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
         tasks: page.map(summaryOf), nextOffset: offset + page.length < tasks.length ? offset + page.length : null };
@@ -215,32 +359,84 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
           at: typeof row.CommitDate === 'string' ? row.CommitDate : null, task: taskOf(row.Issue) };
       }) };
     } },
-  { name: 'create_task', description: 'Create a task in a project. The result\'s lint names sections it still lacks; add them with update_task.',
-    inputSchema: schema({ project: PROJECT, title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
-      description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body }, type: { type: 'string', enum: TYPES },
-      priority: { type: 'integer', minimum: 0, maximum: 4, description: '0 is most urgent.' },
-      labels: { type: 'array', items: { type: 'string' }, maxItems: HOSTED_TASK_LIMITS.labels },
-      parent: { type: 'string', description: 'A parent task id.' },
-      acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body, description: 'What proves it done.' },
-      idempotency_key: IDEMPOTENCY }, ['project', 'title', 'idempotency_key']),
+  { name: 'create_task', description: 'Create a task in a project, with its links. The result\'s lint names sections it still lacks; '
+      + 'add them with update_task. create_tasks files many in one call.',
+    inputSchema: schema({ project: PROJECT, ...NEW_TASK, idempotency_key: IDEMPOTENCY }, ['project', 'title', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', 'title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'idempotency_key']);
-      const operation = defined({ kind: 'create' as const, title: textArg(args, 'title', HOSTED_TASK_LIMITS.title)!,
-        description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true), type: choice(args, 'type', TYPES),
-        priority: priority(args), labels: labels(args, 'labels'),
-        parent: args.parent === undefined ? undefined : task(args, 'parent'),
-        acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true) });
+      only(args, ['project', ...CREATE_FIELDS, 'idempotency_key']);
+      const { operation, approval } = creation(args, (name, value) => task({ [name]: value }, name));
       const projectId = project(args);
       const result = await write(context, projectId, operation, key(args), value => value);
-      return { ...result, lint: await linted(context, projectId, result.id) };
+      const id = result.id as string;
+      const asked = approval === undefined ? {}
+        : approvalOf(id, (await context.operations.approval(context.proof, context.workspaceId, projectId, id, approval)).gate);
+      return { ...result, ...asked, lint: lintOf(await linted(context, projectId, [id]), id) };
+    } },
+  { name: 'create_tasks', description: `Create up to ${BATCH} tasks in one call, in order. A parent or link may name an earlier `
+      + 'task of the same call as #0 for the first, #1 for the second. Stops at the first task refused and says which; '
+      + 'retrying with the same idempotency_key and tasks never files one twice.',
+    inputSchema: schema({ project: PROJECT,
+      tasks: { type: 'array', minItems: 1, maxItems: BATCH, items: schema(NEW_TASK, ['title']) },
+      idempotency_key: IDEMPOTENCY }, ['project', 'tasks', 'idempotency_key']),
+    annotations: WRITE,
+    async run(context, args) {
+      only(args, ['project', 'tasks', 'idempotency_key']);
+      const projectId = project(args), batchKey = key(args), entries = args.tasks;
+      if (!Array.isArray(entries) || entries.length < 1 || entries.length > BATCH) refuse(`invalid arguments: tasks (1–${BATCH})`);
+      // Every entry is read before any is filed, so a malformed one files nothing.
+      const planned = entries.map((entry, index) => {
+        try {
+          if (!entry || typeof entry !== 'object' || Array.isArray(entry)) refuse('invalid arguments: a task');
+          const row = entry as Args;
+          only(row, CREATE_FIELDS);
+          return creation(row, (name, value) => {
+            const earlier = typeof value === 'string' ? /^#(\d{1,2})$/u.exec(value) : null;
+            if (!earlier) return task({ [name]: value }, name);
+            if (Number(earlier[1]) >= index) refuse(`invalid arguments: ${name} (#n names an earlier task of this call)`);
+            return value as string;
+          });
+        } catch (error) {
+          throw error instanceof McpToolError ? new McpToolError(error.message.replace(/^invalid arguments: /u, `invalid arguments: tasks[${index}]: `)) : error;
+        }
+      });
+      const made: { index: number; id: string; replayed: boolean; approval?: Record<string, unknown> }[] = [];
+      let projectKey: unknown = null;
+      const earlier = (id: string) => id.startsWith('#') ? made[Number(id.slice(1))]!.id : id;
+      let failed: Record<string, unknown> | null = null;
+      for (const [index, { operation, approval }] of planned.entries()) {
+        const resolved = defined({ ...operation, parent: operation.parent === undefined ? undefined : earlier(operation.parent),
+          links: operation.links?.map(link => ({ type: link.type, taskId: earlier(link.taskId) })) });
+        let id: string | undefined;
+        try {
+          const result = await write(context, projectId, resolved, entryKey(batchKey, index), value => value);
+          id = result.id as string; projectKey = result.project;
+          const asked = approval === undefined ? undefined
+            : (await context.operations.approval(context.proof, context.workspaceId, projectId, id, approval)).gate;
+          made.push({ index, id, replayed: result.replayed as boolean, ...(asked ? { approval: asked } : {}) });
+        } catch (error) {
+          failed = { index, ...(id === undefined ? {} : { id }), error: taskRefusal(error).message };
+          break;
+        }
+      }
+      const found = await linted(context, projectId, made.map(entry => entry.id));
+      return { project: projectKey,
+      created: made.map(({ index, id, replayed, approval }) => ({ index, id, replayed,
+        ...(approval ? { approval: { id: approval.id, status: approval.status, reason: gateReason(approval.description) }, held: true } : {}),
+        lint: lintOf(found, id) })),
+      ...(made.some(entry => entry.approval) ? { note: 'A task with an approval is out of ready work until a person approves it on Tasks in the Tower.' } : {}),
+      ...(failed ? { failed, notAttempted: planned.length - made.length - 1,
+        retry: 'Retry with the same idempotency_key and tasks to finish after a passing failure; tasks already filed are not repeated. '
+          + 'To change a refused task, send it and the rest with a new key, naming filed tasks by id.' } : {}) };
     } },
   { name: 'claim_task', description: 'Assign an open task to yourself and start it. Fails if someone else holds it.',
     inputSchema: schema({ project: PROJECT, task: TASK, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
       only(args, ['project', 'task', 'idempotency_key']);
-      return write(context, project(args), { kind: 'update', taskId: task(args), claim: true }, key(args), value => ({ task: taskOf(value) }));
+      const projectId = project(args), taskId = task(args);
+      const { replayed } = await write(context, projectId, { kind: 'update', taskId, claim: true }, key(args), () => ({}));
+      return { task: await current(context, projectId, taskId), replayed };
     } },
   { name: 'update_task', description: 'Change a task\'s fields. Use close_task to close one and claim_task to take one. The result\'s lint names sections it still lacks.',
     inputSchema: schema({ project: PROJECT, task: TASK, status: { type: 'string', enum: STATUSES.filter(status => status !== 'closed') },
@@ -265,8 +461,9 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         addLabels: labels(args, 'add_labels'), removeLabels: labels(args, 'remove_labels') });
       if (Object.keys(operation).length === 2) refuse('invalid arguments: name at least one field to change');
       const projectId = project(args);
-      const result = await write(context, projectId, operation, key(args), value => ({ task: taskOf(value) }));
-      return { ...result, lint: await linted(context, projectId, operation.taskId) };
+      const { replayed } = await write(context, projectId, operation, key(args), () => ({}));
+      return { task: await current(context, projectId, operation.taskId), replayed,
+        lint: lintOf(await linted(context, projectId, [operation.taskId]), operation.taskId) };
     } },
   { name: 'comment_on_task', description: 'Add a comment to a task.',
     inputSchema: schema({ project: PROJECT, task: TASK, text: { type: 'string', maxLength: HOSTED_TASK_LIMITS.comment },
@@ -300,7 +497,9 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       await change(context, project(args), operation);
       return { task: operation.taskId, dependsOn: operation.dependsOn, removed: true };
     } },
-  { name: 'request_human_approval', description: 'Ask a person to approve before a task proceeds: the task is not ready until someone approves it in the Tower. Asking again with the same reason returns the open request.',
+  { name: 'request_human_approval', description: 'Ask a person to approve before a task proceeds. This opens a gate, a separate item '
+      + 'that holds the task out of ready work until someone approves it on Tasks in the Tower. To ask without holding the task, comment '
+      + 'on it instead. Asking again with the same reason returns the open request.',
     inputSchema: schema({ project: PROJECT, task: TASK,
       reason: { type: 'string', maxLength: GATE_REASON_MAX, description: 'What the person is asked to approve.' } }, ['project', 'task', 'reason']),
     annotations: WRITE,
@@ -309,7 +508,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       const taskId = task(args);
       const { gate, created } = await operations.approval(proof, workspaceId, project(args), taskId,
         textArg(args, 'reason', GATE_REASON_MAX)!);
-      return { task: taskId, approval: { id: gate.id, status: gate.status, reason: gateReason(gate.description) }, created };
+      return { task: taskId, ...approvalOf(taskId, gate), created };
     } },
   { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
@@ -317,7 +516,9 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
     annotations: WRITE,
     async run(context, args) {
       only(args, ['project', 'task', 'reason', 'idempotency_key']);
-      return write(context, project(args), { kind: 'close', taskId: task(args), reason: textArg(args, 'reason', HOSTED_TASK_LIMITS.reason)! },
-        key(args), value => ({ task: taskOf(value) }));
+      const projectId = project(args), taskId = task(args);
+      const { replayed } = await write(context, projectId, { kind: 'close', taskId, reason: textArg(args, 'reason', HOSTED_TASK_LIMITS.reason)! },
+        key(args), () => ({}));
+      return { task: await current(context, projectId, taskId), replayed };
     } },
 ]);

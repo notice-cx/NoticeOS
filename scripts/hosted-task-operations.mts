@@ -56,8 +56,8 @@ export interface HostedTaskOperations {
    * asking the same thing, so a retried request never asks a person twice. */
   approval(proof: Request, workspaceId: string, projectId: string, taskId: string, reason: string):
     Promise<{ readonly gate: Record<string, unknown>; readonly created: boolean }>;
-  /** The sections the task's type expects that it still lacks, as Beads' lint names them. */
-  lint(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<readonly string[]>;
+  /** The sections each task's type expects that it still lacks, as Beads' lint names them, by task id. */
+  lint(proof: Request, workspaceId: string, projectId: string, taskIds: readonly string[]): Promise<ReadonlyMap<string, readonly string[]>>;
 }
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export class HostedTaskReceiptsUnavailable extends Error {
@@ -239,14 +239,18 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         return Object.freeze({ gate, created: true });
       });
     },
-    lint(proof, workspaceId, projectId, taskId) {
+    lint(proof, workspaceId, projectId, taskIds) {
       return read(proof, workspaceId, projectId, async (_project, run) => {
-        const report = record(await run({ kind: 'lint', taskId }));
+        const report = record(await run({ kind: 'lint', taskIds }));
         // A task with nothing missing is absent from the results, which are then null.
-        const found = report.results === null ? [] : rows(report.results).map(record).filter(row => row.id === taskId);
-        const missing = found.length ? found[0]!.missing : [];
-        if (found.length > 1 || !Array.isArray(missing) || missing.some(item => typeof item !== 'string')) invalid();
-        return Object.freeze([...missing] as string[]);
+        const missing = new Map<string, readonly string[]>(taskIds.map(id => [id, Object.freeze([])]));
+        const seen = new Set<string>();
+        for (const row of report.results === null ? [] : rows(report.results).map(record)) {
+          if (typeof row.id !== 'string' || !missing.has(row.id)) continue;
+          if (seen.has(row.id) || !Array.isArray(row.missing) || row.missing.some(item => typeof item !== 'string')) invalid();
+          seen.add(row.id); missing.set(row.id, Object.freeze([...row.missing] as string[]));
+        }
+        return missing;
       });
     },
     async write(proof, workspaceId, request, idempotencyKey) {
