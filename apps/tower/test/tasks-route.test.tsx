@@ -283,6 +283,13 @@ function fig(container: HTMLElement, mark: "urgent" | "blocked" | "closed"): HTM
   return found;
 }
 
+/** The queue's size, as its header draws it beside "waiting on you". */
+function waitingCount(container: HTMLElement): string | null {
+  const header = container.querySelector("[data-waiting-list] [data-decision-queue] header");
+  expect(header?.textContent).toContain("waiting on you");
+  return header?.querySelector(".text-figure")?.textContent ?? null;
+}
+
 /** The page's one sentence. */
 function answerLine(container: HTMLElement): string {
   return container.querySelector("[data-tasks-answer] h2")?.textContent ?? "";
@@ -816,7 +823,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     ];
     state.boards = { "meadow.example": board([gateTask, ...otherTasks]) };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
-    expect(inbox.getByText("2 asks")).toBeTruthy();
+    expect(waitingCount(container)).toBe("2");
     expect(inbox.queryByText("Wait for tomorrow")).toBeNull();
     expect(container.querySelector('[data-task-row="md-timer"]')).toBeNull();
     const gate = within(container.querySelector('[data-inbox-row="md-gate"]') as HTMLElement);
@@ -829,7 +836,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
     ]) };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "all" },
     });
-    expect(inbox.getByText("1 ask")).toBeTruthy();
+    expect(waitingCount(container)).toBe("1");
     expect(inbox.queryByRole("button", { name: /Approve the spend/ })).toBeNull();
     expect(inbox.getByRole("button", { name: /Decide the Korea trip/ })).toBeTruthy();
   });
@@ -963,7 +970,7 @@ describe("/tasks — Waiting on you leads, and it can be answered", () => {
 
     fireEvent.click(ask.getByRole("button", { name: "Dismiss" }));
     expect(container.querySelector('[data-inbox-row="md-9k1"]')).toBeNull();
-    expect(within(container.querySelector("[data-waiting-list]") as HTMLElement).getByText("1 ask")).toBeTruthy();
+    expect(waitingCount(container)).toBe("1");
 
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => undo.action.onClick());
@@ -1100,6 +1107,95 @@ describe("/tasks — claim, close and defer in place", () => {
     fireEvent.click(target);
     expect(screen.getByTestId("task-destination")).toHaveTextContent("/tasks/md-1w2");
     expect(screen.getByTestId("task-destination")).toHaveAttribute("data-return-to", entry);
+  });
+});
+
+describe("/tasks — the shape of the work, drawn", () => {
+  const northwind = project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [item({ id: "nw-1", title: "Northwind's queue" })], inProgress: [] });
+  const blocks = (...ids: string[]) => ids.map((id) => ({ id, type: "blocks", title: null, status: null }));
+  const epicTasks = [
+    liveTask({ id: "md-e", issueType: "epic", title: "Recipe overhaul" }),
+    liveTask({ id: "md-e.1", title: "Draft the schema", parent: "md-e", status: "closed", closedAt: "2026-07-30T10:00:00.000Z" }),
+    liveTask({ id: "md-e.2", title: "Load-test the schema", parent: "md-e", status: "blocked", dependencies: blocks("md-e.1") }),
+    liveTask({ id: "md-e.3", title: "Ship the schema", parent: "md-e", dependencies: blocks("md-e.2") }),
+    liveTask({ id: "md-f", issueType: "epic", title: "Faster pages" }),
+    liveTask({ id: "md-f.1", title: "Compress the images", parent: "md-f", ready: true }),
+    liveTask({ id: "md-f.2", title: "Lazy-load the gallery", parent: "md-f", dependencies: blocks("md-f.1") }),
+  ];
+  const epics = [
+    { id: "md-e", title: "Recipe overhaul", status: "open", priority: 1, total: 3, closed: 1, eligibleForClose: false },
+    { id: "md-f", title: "Faster pages", status: "open", priority: 2, total: 2, closed: 0, eligibleForClose: false },
+  ];
+
+  it("states the open work the three figures are read against", () => {
+    const { container } = renderBoard();
+    expect(container.querySelector("[data-page-answer-detail]")).toHaveTextContent("4 open tasks");
+  });
+
+  it("compares each project's week when there are two, and a project's name narrows the list", () => {
+    const { container } = renderBoard({ data: payload({ projects: [project(), northwind] }) });
+    const work = container.querySelector<HTMLElement>("[data-tasks-work]")!;
+    expect([...work.querySelectorAll("[data-work-row]")].map((node) => node.getAttribute("data-work-row"))).toEqual(["meadow.example", "northwind.example"]);
+    // Its figures are the answer's, which say when a count is partial.
+    expect(work.closest("[data-surface-hero]")).not.toBeNull();
+    fireEvent.click(within(work).getByRole("link", { name: "Northwind" }));
+    expect(screen.getByTestId("search").textContent).toBe("?project=northwind.example");
+    expect(container.querySelector('tr[data-task-row="nw-1"]')).not.toBeNull();
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).toBeNull();
+  });
+
+  it("draws no project chart for one project, whose figures the answer already states", () => {
+    const { container } = renderBoard();
+    expect(container.querySelector("[data-tasks-work]")).toBeNull();
+  });
+
+  it("counts the days in and out from the live read, and says the snapshot cannot count filings", () => {
+    const live = renderBoard({ live: true, boards: { "meadow.example": { ...board([
+      liveTask({ id: "md-a", status: "closed", closedAt: "2026-07-31T09:00:00.000Z", createdAt: "2026-07-30T09:00:00.000Z" }),
+      liveTask({ id: "md-b", createdAt: "2026-07-31T10:00:00.000Z" }),
+      liveTask({ id: "md-c", createdAt: "2026-07-31T11:00:00.000Z" }),
+    ]), closedSince: "2026-07-25" } } });
+    const panel = live.container.querySelector<HTMLElement>("[data-tasks-in-out]")!;
+    expect(panel).not.toBeNull();
+    expect(panel).toHaveTextContent("Filed 2 more than closed, last 7 days");
+    expect(panel.querySelector('[data-tasks-strip="closed"] [data-bar="2026-07-31"]')).toHaveAttribute("data-state", "now");
+    // Before the live window nobody counted a filing: unmeasured, not zero.
+    expect(panel.querySelector('[data-tasks-strip="filed"] [data-bar="2026-07-24"]')).toHaveAttribute("data-state", "unreported");
+    // Each strip says the period it covers, under it and to a screen reader.
+    for (const strip of ["closed", "filed"]) {
+      const drawn = panel.querySelector<HTMLElement>(`[data-tasks-strip="${strip}"] [data-bar-strip]`)!;
+      expect(drawn).toHaveTextContent(/Jul 19.*Aug 1/);
+      expect(drawn.querySelector('[role="img"]')!.getAttribute("aria-label")).toContain("Jul 19 to Aug 1");
+    }
+    live.unmount();
+
+    const history = { ...emptyWorkHistory(), closed: [{ t: "2026-07-30", v: 2 }, { t: "2026-07-31", v: 1 }] };
+    const { container } = renderBoard({ data: payload({ projects: [project({ history })] }) });
+    expect(container.querySelector('[data-tasks-strip="closed"]')).toHaveTextContent("3 in 2 days");
+    expect(container.querySelector('[data-tasks-strip="filed"]')).toHaveTextContent("not in the saved snapshot");
+  });
+
+  it("draws an epic's tasks and what holds them from the live read, and picks another epic from the URL", () => {
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board(epicTasks, epics) } });
+    const graph = container.querySelector<HTMLElement>("[data-tasks-epic]")!;
+    // The most stuck epic leads: a blocked task holds the next one.
+    expect(graph).toHaveAttribute("data-tasks-epic", "md-e");
+    expect(graph).toHaveTextContent("1 stuck");
+    expect(graph.querySelector('[data-flow-edge="md-e.2->md-e.3"]')).toHaveAttribute("data-state", "broken");
+    expect(graph.querySelector('[data-flow-node="md-e.2"]')).toHaveAttribute("data-state", "warn");
+    expect(graph.querySelector('[data-flow-node="md-e.3"]')).toHaveAttribute("href", "/tasks/md-e.3");
+
+    fireEvent.change(within(graph).getByLabelText("Epic"), { target: { value: "md-f" } });
+    expect(screen.getByTestId("search").textContent).toBe("?epic=md-f");
+    expect(container.querySelector("[data-tasks-epic]")).toHaveAttribute("data-tasks-epic", "md-f");
+  });
+
+  it("draws no epic from the saved snapshot, which carries no dependencies", () => {
+    const { container } = renderBoard({ data: payload({ projects: [project({
+      epics: [{ id: "md-e", title: "Recipe overhaul", status: "open", priority: 1, total: 3, closed: 1, counts: { open: 2, inProgress: 0, blocked: 0, deferred: 0 }, priorities: [0, 1, 1, 0, 0] }],
+      ready: [item({ id: "md-e.3", parent: "md-e" })],
+    })] }) });
+    expect(container.querySelector("[data-tasks-epic]")).toBeNull();
   });
 });
 

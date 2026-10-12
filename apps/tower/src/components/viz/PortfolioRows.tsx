@@ -4,15 +4,15 @@ import type { SeriesPoint } from "@shared/wall";
 import { DeltaChip, performanceTone } from "@/components/DeltaChip";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
-import { formatInt, formatPercent } from "@/lib/format";
+import { formatInt, formatPercent, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 // The sites side by side, one full-width row each, every row ruled to the same
 // columns so the eye runs down a column to compare: the site, its people over
 // the last weeks as a line, yesterday's money with its change, its share of the
 // month, and how many of its data sources are live. The health word is quiet
-// unless it is a problem. A row is wide on purpose: a name never wraps, and a
-// squeezed column drops before a name does.
+// unless it is a problem. A squeezed column drops before a name is touched, and
+// a name too long for what is left wraps between its words, never cut.
 
 export interface PortfolioSource {
   /** Source label for the tooltip: "Bing". */
@@ -31,6 +31,8 @@ export interface PortfolioRow {
   peopleProvisionalFrom?: string | null;
   /** The latest settled day's people, or null. */
   peopleLatest: number | null;
+  /** Signed percent of that day against the same weekday a week before; null when not comparable. */
+  peopleChange?: number | null;
   /** Yesterday's revenue, or null when the site earns nothing or has not reported. */
   revenue: number | null;
   /** Signed percent against the same weekday last week; null when not comparable. */
@@ -53,19 +55,39 @@ export interface PortfolioRowsProps {
 /** The ruled columns, with and without the sources column; literal so the
  * stylesheet generator sees every one. */
 const COLUMNS = {
-  sources: "grid-cols-[minmax(8rem,1fr)_6rem] @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem_5rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_6rem_5rem]",
-  plain: "grid-cols-[minmax(8rem,1fr)_6rem] @lg:grid-cols-[minmax(9rem,1.3fr)_minmax(7rem,1fr)_6rem] @3xl:grid-cols-[minmax(10rem,1.4fr)_minmax(8rem,1.2fr)_7rem_7rem]",
+  sources: "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1.2fr)_7rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_minmax(11rem,1.4fr)_7rem_6rem_5rem]",
+  plain: "grid-cols-[minmax(0,1fr)_auto] @lg:grid-cols-[minmax(8rem,1fr)_minmax(10rem,1.2fr)_7rem] @3xl:grid-cols-[minmax(9rem,1.2fr)_minmax(11rem,1.4fr)_7rem_7rem]",
 } as const;
 
+// Working is the quiet default; only a source that needs the operator takes a
+// colour, so one red mark in a column of grey is found without reading.
 const SOURCE_FILL: Record<PortfolioSource["state"], string> = {
-  working: "bg-healthy",
-  collecting: "bg-healthy/50",
+  working: "bg-muted-foreground/60",
+  collecting: "bg-muted-foreground/35",
   overdue: "bg-warn",
   failing: "bg-error",
-  "not-connected": "bg-muted-foreground/30",
-  "not-using": "bg-transparent ring-1 ring-inset ring-muted-foreground/30",
+  "not-connected": "bg-transparent ring-1 ring-inset ring-muted-foreground/35",
+  "not-using": "bg-transparent ring-1 ring-inset ring-muted-foreground/20",
   unknown: "bg-transparent ring-1 ring-inset ring-dashed ring-muted-foreground/50",
 };
+
+const SOURCE_WORD: Record<PortfolioSource["state"], string> = {
+  working: "working",
+  collecting: "collecting",
+  overdue: "late",
+  failing: "failing",
+  "not-connected": "not connected",
+  "not-using": "not used",
+  unknown: "not read",
+};
+
+/** "5 of 7 data sources live; Bing failing, GA4 late": what the pips say, in words. */
+export function sourcesSentence(sources: readonly PortfolioSource[]): string {
+  const { live, owed } = sourcesLive(sources);
+  const trouble = sources.filter((source) => source.state === "failing" || source.state === "overdue");
+  const named = trouble.map((source) => `${source.label} ${SOURCE_WORD[source.state]}`).join(", ");
+  return `${live} of ${owed} data sources live${named ? `; ${named}` : ""}`;
+}
 
 /** Live of the sources a site owes (anything it does not use is left out). */
 export function sourcesLive(sources: readonly PortfolioSource[]): { live: number; owed: number; failing: number } {
@@ -94,10 +116,13 @@ export function PortfolioRows({ rows, formatMoney, title = "Sites", action, show
       <div role="table" aria-label={title} className="flex flex-col">
         <div role="row" className={cn("grid gap-x-4 border-b border-border/60 px-5 pb-1.5 text-micro font-medium text-muted-foreground", COLUMNS[showSources ? "sources" : "plain"])}>
           <span role="columnheader">Site</span>
-          <span role="columnheader" className="hidden @lg:block">People a day</span>
-          <span role="columnheader" className="text-end">Yesterday</span>
-          <span role="columnheader" className="hidden @3xl:block">Share of month</span>
-          {showSources ? <span role="columnheader" className="hidden text-end @lg:block">Sources</span> : null}
+          <span role="columnheader" className="hidden justify-between gap-2 whitespace-nowrap @lg:flex">
+            <span>People a day</span>
+            <span className="w-14 text-end">Yesterday</span>
+          </span>
+          <span role="columnheader" className="text-end @lg:whitespace-nowrap">Revenue yesterday</span>
+          <span role="columnheader" className="hidden whitespace-nowrap @3xl:block">Share of month</span>
+          {showSources ? <span role="columnheader" className="hidden whitespace-nowrap text-end @3xl:block">Sources</span> : null}
         </div>
         {rows.map((row, index) => (
           <SiteRow key={row.id} row={row} formatMoney={formatMoney} index={index} showSources={showSources} />
@@ -109,21 +134,68 @@ export function PortfolioRows({ rows, formatMoney, title = "Sites", action, show
 
 function SiteRow({ row, formatMoney, index, showSources }: { row: PortfolioRow; formatMoney: (value: number) => string; index: number; showSources: boolean }) {
   const { live, owed, failing } = sourcesLive(row.sources);
+  const sentence = sourcesSentence(row.sources);
   const name = (
     <span className="flex min-w-0 items-center gap-2.5">
       {row.icon ? <span className="shrink-0">{row.icon}</span> : null}
       <span className="flex min-w-0 flex-col">
-        <span className="truncate text-sm font-medium text-foreground" title={row.name}>{row.name}</span>
-        <span
-          className={cn(
-            "truncate text-micro",
-            row.health.tone === "error" ? "font-semibold text-error" : row.health.tone === "warn" ? "font-semibold text-warn" : "text-muted-foreground",
-          )}
-        >
-          {row.health.word}
+        <span className="text-sm font-medium text-foreground" title={row.name}>{row.name}</span>
+        <span className="flex min-w-0 items-baseline gap-1.5 whitespace-nowrap text-micro">
+          <span
+            className={cn(
+              row.health.tone === "error" ? "font-semibold text-error" : row.health.tone === "warn" ? "font-semibold text-warn" : "text-muted-foreground",
+            )}
+          >
+            {row.health.word}
+          </span>
+          {/* Without room for the sources column, its count rides with the
+              health word so a failing source still shows on a narrow screen. */}
+          {showSources && owed > 0 ? (
+            <span aria-hidden className={cn("tabular-nums @3xl:hidden", failing ? "font-semibold text-error" : "text-muted-foreground")}>
+              · {live}/{owed} sources
+            </span>
+          ) : null}
         </span>
       </span>
     </span>
+  );
+  const first = row.people[0]?.t;
+  const last = row.people.at(-1)?.t;
+  // Every line carries its own dates: a new site's line is shorter than its
+  // neighbours', and a line nobody can place in time answers nothing.
+  const people = row.people.length >= 3 && first && last ? (
+    <>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <Sparkline
+          data={row.people}
+          tone="traffic"
+          area
+          average={false}
+          provisionalFrom={row.peopleProvisionalFrom ?? null}
+          ariaLabel={`${row.name}: people a day, ${formatSeriesDate(first)} to ${formatSeriesDate(last)}`}
+          size="wide"
+          className="min-w-0"
+        />
+        <span aria-hidden className="flex justify-between gap-2 whitespace-nowrap text-micro tabular-nums text-muted-foreground" data-portfolio-dates="">
+          <time dateTime={first}>{formatSeriesDate(first)}</time>
+          <time dateTime={last}>{formatSeriesDate(last)}</time>
+        </span>
+      </span>
+      <span className="flex w-14 shrink-0 flex-col items-end tabular-nums">
+        <span className="text-xs text-foreground">{row.peopleLatest === null ? "" : formatInt(row.peopleLatest)}</span>
+        {row.peopleChange != null ? (
+          <DeltaChip
+            value={row.peopleChange}
+            render={(n) => `${formatPercent(n)}%`}
+            tone={performanceTone(row.peopleChange)}
+            meaning={`${formatPercent(Math.abs(row.peopleChange))}% ${row.peopleChange >= 0 ? "up" : "down"} on the same day last week`}
+            className="text-micro"
+          />
+        ) : null}
+      </span>
+    </>
+  ) : (
+    <span className="text-xs text-muted-foreground">no visitors reported</span>
   );
   return (
     <div
@@ -136,25 +208,13 @@ function SiteRow({ row, formatMoney, index, showSources }: { row: PortfolioRow; 
         {row.to ? (
           <Link to={row.to} className="block min-w-0 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">{name}</Link>
         ) : name}
+        {/* Too narrow for its own column, the people line rides under the name
+            rather than leaving the row with no time in it at all. */}
+        <span aria-hidden className="mt-1.5 flex min-w-0 items-center gap-2 @lg:hidden">{people}</span>
+        {showSources ? <span className="sr-only">{sentence}</span> : null}
       </span>
       <span role="cell" className="hidden min-w-0 items-center gap-2 @lg:flex">
-        {row.people.length >= 3 ? (
-          <>
-            <Sparkline
-              data={row.people}
-              tone="traffic"
-              area
-              average={false}
-              provisionalFrom={row.peopleProvisionalFrom ?? null}
-              ariaLabel={`${row.name}: people a day`}
-              size="wide"
-              className="min-w-0 flex-1"
-            />
-            <span className="w-12 shrink-0 text-end text-xs tabular-nums text-foreground">{row.peopleLatest === null ? "" : formatInt(row.peopleLatest)}</span>
-          </>
-        ) : (
-          <span className="text-xs text-muted-foreground">no visitors reported</span>
-        )}
+        {people}
       </span>
       <span role="cell" className="flex flex-col items-end tabular-nums">
         {row.revenue === null ? (
@@ -187,10 +247,10 @@ function SiteRow({ row, formatMoney, index, showSources }: { row: PortfolioRow; 
         )}
       </span>
 {showSources ? (
-            <span role="cell" className="hidden items-center justify-end gap-1.5 @lg:flex" aria-label={`${live} of ${owed} data sources live${failing ? `, ${failing} failing` : ""}`}>
+            <span role="cell" className="hidden items-center justify-end gap-1.5 @3xl:flex" title={sentence}>
         <span aria-hidden className="flex gap-0.5">
           {row.sources.map((source) => (
-            <span key={source.label} title={`${source.label}: ${source.state.replace("-", " ")}`} className={cn("h-3 w-1.5 rounded-xs", SOURCE_FILL[source.state])} />
+            <span key={source.label} title={`${source.label}: ${SOURCE_WORD[source.state]}`} className={cn("h-3 w-1.5 rounded-xs", SOURCE_FILL[source.state])} />
           ))}
         </span>
         <span aria-hidden className={cn("w-8 text-end text-micro tabular-nums", failing ? "font-semibold text-error" : "text-muted-foreground")}>

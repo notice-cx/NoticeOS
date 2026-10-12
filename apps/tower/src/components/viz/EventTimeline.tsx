@@ -375,14 +375,16 @@ function spanPriority(a: PlacedSpan, b: PlacedSpan): number {
 }
 
 /** Where a bar's label and age go: inside when they fit, else to the bar's
- * left when there is room (a fresh stub at the NOW line), else only on hover. */
+ * left when there is room (a fresh stub at the NOW line), else only on hover
+ * or press. A label is printed whole or not at all: a name cut to "Nightly r…"
+ * says less than the list beside the timeline that names it in full. */
 function place(p: PlacedSpan, width: number): void {
   const bar = (p.x2 - p.x1) * width;
   const label = textPx(p.span.label) + 24;
   const age = p.age ? textPx(p.age) + 12 : 0;
   if (p.state === "long-standing" || p.state === "unknown-start") {
     p.ageAt = bar >= age + 24 ? "inside" : "hidden";
-    p.labelAt = bar >= age + 72 ? "inside" : "hidden";
+    p.labelAt = bar >= label + age ? "inside" : "hidden";
     return;
   }
   const room = p.x1 * width - ROW_GAP_PX;
@@ -391,7 +393,7 @@ function place(p: PlacedSpan, width: number): void {
     p.ageAt = age ? "inside" : "hidden";
   } else if (age && bar >= age + 8) {
     p.ageAt = "inside";
-    p.labelAt = room >= label ? "before" : bar >= age + 80 ? "inside" : "hidden";
+    p.labelAt = room >= label ? "before" : "hidden";
   } else if (room >= label + age) {
     p.labelAt = "before";
     p.ageAt = age ? "before" : "hidden";
@@ -724,11 +726,17 @@ function SpanMark({ p, index, below, open, panelId, bind, onPress, still }: {
             <>
               {p.state === "long-standing" ? <ChevronsLeft className="size-3.5 shrink-0" strokeWidth={2.5} /> : null}
               <span className="shrink-0 whitespace-nowrap tabular-nums" data-span-age>{p.age}</span>
-              {p.labelAt === "inside" ? <span className="shrink-0 opacity-60">·</span> : null}
             </>
           ) : p.labelAt === "inside" ? <Shape className="size-3.5 shrink-0" strokeWidth={2.5} /> : null}
-          {p.labelAt === "inside" ? <span className="min-w-0 truncate">{p.span.label}</span> : null}
-          <span className="flex-1" />
+          {/* One line tall and wrapping: a label wider than the bar drops to the
+              hidden second line whole, rather than being cut to "Nightly r…".
+              The zero-width first item is what lets a lone label wrap. */}
+          {p.labelAt === "inside" ? (
+            <span className="flex h-[1lh] min-w-0 flex-1 flex-wrap overflow-hidden" data-span-label>
+              <span aria-hidden className="w-0 shrink-0" />
+              <span className="whitespace-nowrap">{clipped && p.ageAt === "inside" ? <span className="opacity-60">· </span> : null}{p.span.label}</span>
+            </span>
+          ) : <span className="flex-1" />}
           {!clipped && p.ageAt === "inside" ? <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold" data-span-age>{p.age}</span> : null}
           {p.state === "closed" && (p.x2 - p.x1) > 0 ? <CircleCheck className="size-3.5 shrink-0 text-healthy" strokeWidth={2.5} /> : null}
         </span>
@@ -869,11 +877,11 @@ function Furniture({ layout, bare = false }: { layout: EventTimelineLayout; bare
 function LaneName({ lane, state, still }: { lane: TimelineLane; state: TimelineLaneState; still: boolean }) {
   const Shape = state === "quiet" ? null : SEVERITY_SHAPE[state];
   const text = (
-    <span className={clsx("truncate text-sm", state === "quiet" ? "text-muted-foreground" : "font-medium text-foreground")}>{lane.label}</span>
+    <span className={clsx("text-sm", state === "quiet" ? "text-muted-foreground" : "font-medium text-foreground")}>{lane.label}</span>
   );
   return (
     <div data-lane-label title={lane.label}
-      className="flex h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-[var(--timeline-name,8rem)] @min-[30rem]:shrink-0">
+      className="flex min-h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-[var(--timeline-name,8rem)] @min-[30rem]:shrink-0">
       {Shape ? <Shape aria-hidden className={clsx("size-3.5 shrink-0", state === "error" ? "text-error" : "text-warn")} strokeWidth={2.5} /> : null}
       {lane.icon ? <span aria-hidden className="flex shrink-0 text-muted-foreground">{lane.icon}</span> : null}
       {lane.href && !still ? (

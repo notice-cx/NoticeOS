@@ -595,8 +595,8 @@ export function HeroChart({
           {footnote || hasProvisional ? (
             <li className="flex items-center">
               <InfoTooltip label={`About ${typeof title === "string" ? title : ariaLabel ?? "this chart"}`}
-                trigger={hasProvisional ? <><ProvisionalKey />Provisional</> : undefined}>
-                {hasProvisional ? <span>Marked periods are provisional: those reported values are not yet final.</span> : null}
+                trigger={hasProvisional ? <><ProvisionalKey />Still counting</> : undefined}>
+                {hasProvisional ? <span>Marked periods are still being counted: those values are not final yet.</span> : null}
                 {footnote}
               </InfoTooltip>
             </li>
@@ -849,7 +849,7 @@ export function HeroChart({
                   </span>{averageCoverage(lane.averageReports[active]!)}</span> : null}
                   <span>{lane.smooth ? "Reported: " : ""}<span className="font-semibold text-foreground">
                     {lane.raw[active] === null ? "Not reported" : formatValue(lane.raw[active]!)}
-                  </span>{lane.raw[active] !== null && lane.provisionalAt >= 0 && active >= lane.provisionalAt ? " · Provisional" : ""}</span>
+                  </span>{lane.raw[active] !== null && lane.provisionalAt >= 0 && active >= lane.provisionalAt ? " · still counting" : ""}</span>
                 </span>
               ))}
               {notesByDate[domain[active]!] ? <span className="max-w-64 whitespace-normal">{notesByDate[domain[active]!]}</span> : null}
@@ -922,7 +922,7 @@ export function HeroChart({
                     {shown.map((lane) => (
                       <TableCell key={lane.name} className="text-right tabular-nums">
                         {lane.raw[index] === null ? "Not reported" : formatValue(lane.raw[index]!)}
-                        {lane.raw[index] !== null && lane.provisionalAt >= 0 && index >= lane.provisionalAt ? " · Provisional" : null}
+                        {lane.raw[index] !== null && lane.provisionalAt >= 0 && index >= lane.provisionalAt ? " · still counting" : null}
                         {lane.smooth && lane.average[index] !== null ? <span className="block text-xs text-muted-foreground">
                           {averageLabel}: {formatValue(lane.average[index]!)}{averageCoverage(lane.averageReports[index]!)}
                         </span> : null}

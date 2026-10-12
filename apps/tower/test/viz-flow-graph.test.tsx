@@ -188,10 +188,11 @@ describe("FlowGraph", () => {
     expect(node("store").tagName).toBe("DIV");
   });
 
-  it("never breaks a name: a long label truncates and keeps its full text", () => {
+  it("never cuts a name: a long label wraps between whole words and keeps its full text", () => {
     draw(FLOW_DEPENDENCIES);
     const label = within(node("access")).getByText("Grant analytics access");
-    expect(label).toHaveClass("truncate");
+    expect(label).not.toHaveClass("line-clamp-2");
+    expect(label).not.toHaveClass("truncate");
     expect(label).toHaveAttribute("title", "Grant analytics access");
   });
 

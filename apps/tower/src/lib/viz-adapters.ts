@@ -42,7 +42,7 @@ function readingSince(reading: SourceReading): string | null {
 }
 
 /** The sources as columns, in the payload's own slot order. */
-export function sourceColumns(assets: readonly AssetCard[]): HealthColumn[] {
+export function sourceColumns(assets: readonly Pick<AssetCard, "dataSources">[]): HealthColumn[] {
   const seen = new Map<string, HealthColumn>();
   for (const asset of assets) {
     for (const source of asset.dataSources) {
@@ -53,7 +53,7 @@ export function sourceColumns(assets: readonly AssetCard[]): HealthColumn[] {
 }
 
 /** A site's sources as grid cells. */
-export function siteHealthRow(asset: AssetCard, connections: ConnectionReads, nowMs: number, href?: string): HealthRow {
+export function siteHealthRow(asset: Pick<AssetCard, "id" | "displayName" | "dataSources">, connections: ConnectionReads, nowMs: number, href?: string): HealthRow {
   return {
     id: asset.id,
     name: asset.displayName,

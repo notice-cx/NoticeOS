@@ -41,6 +41,8 @@ import { siteHealth } from "@/lib/site-health";
 import { askVerb } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 import { healthGridRows, incidentsFromIssues, sourceColumns, timelineFromWall } from "@/lib/viz-adapters";
+import { weekOnWeek } from "@/lib/sites-index";
+import { completeDays } from "@/lib/wall-sites";
 import { wallIssues, type WallIssue } from "@/lib/wall-issues";
 import { hasRevenueSource } from "@/lib/wall-revenue";
 import { withSystemIssues } from "@/lib/wall-system-state";
@@ -67,7 +69,7 @@ export function HomeRoute() {
   const guide = data ? firstRunSite(data.assets) : null;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1480px] flex-col gap-5 p-4 md:p-6">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Home"
         documentTitle={null}
@@ -286,6 +288,7 @@ function Sites({ assets, issues, money, nowMs }: { assets: readonly AssetCard[];
       people: asset.activeUsers.series,
       peopleProvisionalFrom: asset.activeUsers.provisionalFrom,
       peopleLatest: settledPeople(asset),
+      peopleChange: weekOnWeek(completeDays(asset.activeUsers)),
       revenue: yesterday?.amount ?? null,
       revenueChange: yesterday?.changePercent ?? null,
       share: earned !== null && total > 0 ? earned / total : null,

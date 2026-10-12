@@ -76,19 +76,22 @@ export function PaceBar({
         ) : null}
       </div>
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground" aria-hidden>
-        <span className="whitespace-nowrap">
-          {showValue ? <>{label} <span className="font-medium text-foreground">{format(value)}</span></> : null}
+        <span>
+          {showValue ? <span className="whitespace-nowrap">{label} <span className="font-medium text-foreground">{format(value)}</span></span> : null}
           {previousAtSameDay !== null ? (
             <>
               {showValue ? " · " : null}
-              <span className="me-1 inline-block h-2.5 w-0.5 rounded-full bg-foreground align-middle" />
-              {previousLabel} by today {format(previousAtSameDay)}
+              <span className="whitespace-nowrap">
+                <span className="me-1 inline-block h-2.5 w-0.5 rounded-full bg-foreground align-middle" />
+                {previousLabel} by today {format(previousAtSameDay)}
+              </span>
             </>
           ) : null}
         </span>
-        <span className="whitespace-nowrap">
-          {projected !== null ? <>heading for <span className="font-medium text-foreground">{format(projected)}</span> · </> : null}
-          {previousTotal !== null ? `${previousLabel} total ${format(previousTotal)}` : `${previousLabel} total not known`}
+        {/* Each fact keeps its words together; the line may break between them. */}
+        <span>
+          {projected !== null ? <><span className="whitespace-nowrap">heading for <span className="font-medium text-foreground">{format(projected)}</span></span> · </> : null}
+          <span className="whitespace-nowrap">{previousTotal !== null ? `${previousLabel} total ${format(previousTotal)}` : `${previousLabel} total not known`}</span>
         </span>
       </div>
     </div>

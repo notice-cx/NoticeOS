@@ -1,8 +1,8 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
 import type { AssetDetailFor } from "@shared/asset-detail-views";
-import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useState, type ReactNode } from "react";
+import { Link, useLocation } from "react-router-dom";
 
 import type {
   AssetDetailPayload,
@@ -13,15 +13,18 @@ import type {
   SearchQueryTrends,
   SiteCounters,
 } from "@shared/asset-detail";
+import { translateAlert } from "@shared/alert-language";
 import { assetSetupChecklist } from "@shared/asset-setup";
 import { sourceReadings } from "@shared/connection-status";
+import { revenueCalendarDate } from "@shared/daily-revenue";
 import { ageMs, formatAge, isAmber, pulseAmber } from "@shared/freshness";
 import { productReportSummary } from "@shared/product-reports";
+import type { RangeDays, SurfaceSpan } from "@shared/surface";
 import { watchScopeText, watchSeriesForSources, watchSeriesLabel, watchVerdictFigures, type WatchSeed } from "@shared/watch-windows";
 import { WATCH_SERIES } from "@noticeos/contract/create-watch-window";
 import { WORK_POLL_CADENCE_HOURS } from "@shared/work";
 import { AgeBadge } from "@/components/AgeBadge";
-import { betsFact, daysUntil } from "@/routes/asset-detail/shared";
+import { betsFact, daysUntil, timelineAnnotations, watchSpans } from "@/routes/asset-detail/shared";
 import { ExecutiveFindingsList } from "@/components/ExecutiveFindingsList";
 import { AnalysisEvidence, RecommendationReview, useRecommendationAssessor, useRecommendationValidity } from "@/components/AnalysisEvidence";
 import { findingBasis } from "@shared/recommendation-validity";
@@ -31,8 +34,6 @@ import {
   findingTaskHandoff,
   savedEvidenceLabel,
 } from "@/components/ExecutiveInsightRow";
-import { HeroChart } from "@/components/surface/HeroChart";
-import { Kpi } from "@/components/surface/KpiStrip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import {
   ListPanel,
@@ -42,12 +43,15 @@ import {
   SmallMultiple,
   SmallMultipleStrip,
 } from "@/components/surface/SmallMultiple";
+import { Sparkline } from "@/components/surface/Sparkline";
 import { StatusBanner } from "@/components/surface/StatusBanner";
+import { BarStrip } from "@/components/viz/BarStrip";
+import { IncidentList, type Incident } from "@/components/viz/IncidentList";
+import { StatTile, type StatRole } from "@/components/viz/StatTile";
 import { watchOutcome } from "@/components/watch-outcome";
 import { cn } from "@/lib/utils";
 import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useConnections } from "@/hooks/useConnections";
 import { useDecisionWriters } from "@/hooks/useDecisionWriters";
 import {
@@ -55,22 +59,38 @@ import {
   formatCalendarRange,
   formatInt,
   formatPeriodMonth,
-  formatPeriodMonthYear,
+  formatPeriodMonthLong,
   formatSignedMoney,
   formatSeriesDate,
 } from "@/lib/format";
 import { findingEvidenceUrl, taskHandoffPrefill } from "@/lib/task-handoff";
+import { siteHealthRow, sourceColumns } from "@/lib/viz-adapters";
 import { useAssetTabPath } from "@/routes/asset-detail/AssetTabs";
 import { alertPosture, ledgerMonth } from "@/routes/asset-detail/overview-metrics";
-import { SiteLead } from "@/routes/asset-detail/SiteLead";
+import {
+  chartedMeasure,
+  drawnBySourceRow,
+  landmarks,
+  overviewMeasures,
+  partialDays,
+  rankedFlags,
+  sourceHistory,
+  type Measure,
+  type MeasureKey,
+} from "@/routes/asset-detail/overview-measures";
+import { OverviewChart } from "@/routes/asset-detail/OverviewChart";
+import { SiteLead, siteLead } from "@/routes/asset-detail/SiteLead";
+import { SourceHistory } from "@/routes/asset-detail/SourceHistory";
 import { useRange } from "@/routes/asset-detail/useRange";
 import { askFace } from "@/routes/tasks/task-face";
 
 /**
  * The Overview tab, the index tab, so `/assets/:id` is this. It answers one
- * question in three parts: how is this asset doing, what needs me, and what
- * matters. Traffic follows the selected day range; financials and alerts have
- * separate accounting-month and latest-recorded scopes.
+ * question in three parts: how is this site doing (its numbers over one
+ * chart), what needs the operator (what broke, data that stopped arriving,
+ * the queue), and what matters (findings, bets, search movers). The numbers
+ * follow the selected day range; the product figure is the latest report and
+ * the data sources are the last thirty days.
  */
 export function OverviewTab({
   data,
@@ -84,7 +104,7 @@ export function OverviewTab({
   const { days } = useRange();
   const assetTabPath = useAssetTabPath();
   const [allFindings, setAllFindings] = useState(false);
-  const [monthlyHistory, setMonthlyHistory] = useState(false);
+  const [picked, setPicked] = useState<MeasureKey | null>(null);
   const { credentials, items } = useConnections();
   // Tasks is core; missing readings stay unknown rather than hiding the inbox.
 
@@ -103,8 +123,40 @@ export function OverviewTab({
   const moneyPeriod = data.ledger.periods[0]?.period ?? null;
   const alerts = alertPosture(data.flags);
 
+  // The site's sources read exactly as Home's grid reads them, so the state
+  // at the end of each row here is the state of its cell there.
+  const card = { id: data.asset.id, displayName: data.asset.displayName, dataSources: data.integrations.sources };
+  const sourceRow = siteHealthRow(card, { credentials, items }, nowMs);
+  const reportCell = sourceRow.cells.find((cell) => cell.column === "nightly-report");
+  const reportLate = reportCell?.state === "failing" || reportCell?.state === "overdue";
+  const history = sourceHistory(data, sourceRow, sourceColumns([card]), revenueCalendarDate(new Date(nowMs), data.osTimeZone));
+
+  const measures = overviewMeasures(data, days, nowMs, reportLate);
+  const charted = chartedMeasure(measures, picked, nowMs);
+  // A site with no daily traffic, revenue or product analytics but a rolling
+  // session report or a weekly ranking keeps that report beside its numbers.
+  const report = siteLead(data, days, nowMs);
+
+  // Each open problem appears once: the product alert on its figure and its
+  // chart, a nightly report that stopped arriving on its source's row.
+  const product = measures.find((measure) => measure.key === "product");
+  const drawn = new Set<number>([
+    ...(product?.alert ? [product.alert.flagId] : []),
+    ...(history.rows.some((row) => row.id === "nightly-report") ? data.flags.open.filter(drawnBySourceRow).map((flag) => flag.id) : []),
+  ]);
+  const incidents: Incident[] = rankedFlags(data.flags.open)
+    .filter((flag) => !drawn.has(flag.id))
+    .map((flag) => ({
+      key: `flag-${flag.id}`,
+      severity: flag.severity === "error" ? "error" : "warn",
+      title: translateAlert(flag).headline,
+      site: data.asset.displayName,
+      since: flag.firstFiredAt,
+      to: assetTabPath(data.asset.id, "alerts"),
+    }));
+
   return (
-    <div className="flex flex-col gap-3.5">
+    <div className="@container flex flex-col gap-5" data-site-overview="">
       {/* `#setup` lands here (`HASH_TAB`): the checklist is on Sources, so the
           banner saying where it is is what a deep link scrolls to. */}
       {setup ? (
@@ -132,67 +184,40 @@ export function OverviewTab({
           already makes. Never a sentence. */}
       <VerdictLine money={money} moneyPeriod={moneyPeriod} alerts={alerts} watches={data.watches} nowMs={nowMs} />
 
-      <SiteLead data={data} days={days} nowMs={nowMs} />
+      {measures.length > 0 || (report.kind !== "clarity" && report.kind !== "rankings") ? (
+        <Numbers
+          data={data}
+          measures={measures}
+          charted={charted}
+          days={days}
+          nowMs={nowMs}
+          onPick={setPicked}
+        />
+      ) : null}
+      {report.kind === "clarity" || report.kind === "rankings" ? <SiteLead data={data} days={days} nowMs={nowMs} /> : null}
 
-      <div className="grid items-start gap-3.5 lg:grid-cols-2" data-independent-snapshots>
-        <section aria-labelledby="overview-financials" data-financial-snapshot className="overflow-hidden rounded-[10px] border border-border bg-card">
-          <SectionLabel
-            id="overview-financials"
-            title={moneyPeriod ? `Money · ${formatPeriodMonthYear(moneyPeriod)}` : "Money · no accounting month"}
-            action={{ label: "View financials", to: `/assets/${encodeURIComponent(data.asset.id)}/financials` }}
-            className="px-4 pt-3"
-          />
-          {/* The month is in the title and the Booked / Estimated chip is on
-              the figure, so the snapshot's scope is read, not explained. */}
-          <Kpi
-            label="Net"
-            value={money ? formatSignedMoney(money.net, money.currency, { cents: true }) : "—"}
-            note={money ? <> <Badge variant="secondary" className="ms-1 align-middle">{money.booking === "forecast" ? "Estimated" : "Booked"}</Badge></> : undefined}
-            improvement="none"
-            caption={money?.composition ?? "No financial totals recorded"}
-            spark={money && money.series.length >= 3 ? money.series : undefined}
-            sparkLabel="Net by accounting month"
-            sparkAverage={false}
-            sparkTone="muted"
-            format={(value) => formatSignedMoney(value, money?.currency ?? null, { cents: true })}
-            seriesUnavailable={money ? "At least three accounting months are needed for a trend." : "No financial totals recorded"}
-          />
-          {money ? <details
-            open={monthlyHistory}
-            onToggle={(event) => setMonthlyHistory(event.currentTarget.open)}
-            className="border-t border-border/60 px-4 py-2"
-          >
-            <summary className="min-h-11 cursor-pointer py-3 text-xs font-medium">Monthly net history</summary>
-            {monthlyHistory ? <HeroChart
-              title={`Net · by accounting month, ${money.booking === "forecast" ? "Estimated" : "Booked"}`}
-              variant="monthly"
-              range={money.series.length}
-              format={(value) => formatSignedMoney(value, money?.currency ?? null)}
-              formatValue={(value) => formatSignedMoney(value, money?.currency ?? null, { cents: true })}
-              series={[{ name: "Net", points: money.series, tone: "primary" }]}
-              footnote="One point per accounting month. Independent of the traffic date range."
-            /> : null}
-          </details> : null}
-        </section>
-        {/* The split is the answer: one row names the errors and warnings
-            open now, with when one last fired, and opens the Alerts tab. It
-            draws no trend: saved records cannot say which conditions were
-            open on a past day, so there is no honest line to draw. */}
-        <div data-alert-current>
-          <ListPanel title="Open alerts">
-            <ListRow
-              title={alertSplit(alerts)}
-              tone={alerts.error > 0 ? "error" : alerts.warn > 0 ? "warn" : "info"}
-              glyph={alerts.open === 0 ? "✓" : undefined}
-              value={alerts.latestFiredAt === null ? "never" : formatAge(ageMs(nowMs, alerts.latestFiredAt))}
-              valueLabel="last fired"
-              to={assetTabPath(data.asset.id, "alerts")}
+      <div className="grid gap-5 @6xl:grid-cols-12 [&>*]:min-w-0">
+        <SourceHistory
+          rows={history.rows}
+          notConnected={history.notConnected}
+          domain={history.domain}
+          nowMs={nowMs}
+          className={incidents.length > 0 ? "@6xl:col-span-8" : "@6xl:col-span-12"}
+          action={<Link to={assetTabPath(data.asset.id, "sources")} className={quietLink}>Data sources →</Link>}
+        />
+        {incidents.length > 0 ? (
+          <div data-alert-current className="@6xl:col-span-4">
+            <IncidentList
+              items={incidents}
+              nowMs={nowMs}
+              title="Open alerts"
+              action={{ label: "All alerts →", to: assetTabPath(data.asset.id, "alerts") }}
             />
-          </ListPanel>
-        </div>
+          </div>
+        ) : null}
       </div>
 
-      <div className="grid gap-3.5 lg:grid-cols-2">
+      <div className="grid gap-5 @4xl:grid-cols-2 [&>*]:min-w-0">
         <NeedsYou assetId={data.asset.id} operator={data.operator} nowMs={nowMs} />
         {/* `#insights` is the findings' saved anchor; it names the panel. */}
         <div id="insights" className="min-w-0 scroll-mt-4">
@@ -205,12 +230,14 @@ export function OverviewTab({
         </div>
       </div>
 
-      <div className="grid gap-3.5 lg:grid-cols-2">
+      <div className="grid gap-5 @3xl:grid-cols-2 [&>*]:min-w-0">
         <Bets watches={data.watches} assetId={data.asset.id} nowMs={nowMs} />
         <SearchMovers trends={data.executive?.searchQueries ?? null} assetId={data.asset.id} />
       </div>
 
-      <ProductUse assetId={data.asset.id} metrics={data.metrics}
+      {/* The product figure the hero row leads with is not stated twice. */}
+      <ProductUse assetId={data.asset.id}
+        metrics={data.metrics.filter((metric) => metric.name !== product?.metric)}
         reportDate={data.wiring.lastPulseDate} receivedAt={data.wiring.lastPulseReceivedAt} nowMs={nowMs} />
 
       <SiteTotals counters={data.counters} nowMs={nowMs} />
@@ -247,6 +274,172 @@ export function OverviewTab({
   );
 }
 
+const quietLink = "whitespace-nowrap rounded-sm text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring";
+
+// --- the site's numbers ------------------------------------------------------
+
+const COLUMNS: Record<number, string> = {
+  1: "@md:grid-cols-1",
+  2: "@md:grid-cols-2",
+  3: "@md:grid-cols-2 @3xl:grid-cols-3",
+  4: "@md:grid-cols-2 @3xl:grid-cols-4",
+};
+
+const ROLE: Record<MeasureKey, StatRole> = { money: "money", people: "people", search: "people", product: "context" };
+const INK: Record<MeasureKey, string> = { money: "text-financial-revenue", people: "text-traffic", search: "text-traffic", product: "text-foreground" };
+const ALERT_INK = { error: "text-error", warn: "text-warn" } as const;
+
+/**
+ * The hero row: money, people, search and the site's product figure, each a
+ * figure with its window, its change against the window before, its recent
+ * days and one line of context; pressing one draws it on the chart below,
+ * which opens on what a fresh alert is about.
+ */
+function Numbers({ data, measures, charted, days, nowMs, onPick }: {
+  data: AssetDetailFor<"overview">;
+  measures: readonly Measure[];
+  charted: Measure | null;
+  days: RangeDays;
+  nowMs: number;
+  onPick: (key: MeasureKey) => void;
+}) {
+  const assetTabPath = useAssetTabPath();
+  const id = data.asset.id;
+  const link: Record<MeasureKey, { label: string; to: string }> = {
+    money: { label: "Money →", to: assetTabPath(id, "financials") },
+    people: { label: "Growth →", to: assetTabPath(id, "growth") },
+    search: { label: "Search →", to: assetTabPath(id, "search") },
+    product: { label: "Growth →", to: assetTabPath(id, "growth") },
+  };
+  if (measures.length === 0) {
+    return (
+      <section aria-label="The site's numbers" data-overview-numbers="empty" className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70">
+        <span className="text-sm text-muted-foreground">No numbers reported yet</span>
+        <Link to={assetTabPath(id, "sources")} className={quietLink}>Data sources →</Link>
+      </section>
+    );
+  }
+  const watches = chartWatches(data, charted?.key ?? null, nowMs);
+  return (
+    <section aria-label={`The site's numbers · last ${days} days`} data-overview-numbers="" className="flex flex-col gap-3">
+      <div className={cn("grid gap-3", COLUMNS[measures.length])}>
+        {measures.map((measure) => {
+          const role: StatRole = measure.alert ? (measure.alert.severity === "error" ? "problem" : "warning") : ROLE[measure.key];
+          const ink = measure.alert ? ALERT_INK[measure.alert.severity] : INK[measure.key];
+          const stat = (
+            <StatTile
+              label={`${measure.name}, ${measure.window}`}
+              value={measure.value}
+              format={measure.format}
+              absent={measure.absent}
+              note={measure.estimated ? "est." : undefined}
+              comparison={measure.comparison}
+              history={measure.history.length >= 3 ? (
+                <BarStrip
+                  data={measure.history}
+                  tone={ink}
+                  provisionalFrom={measure.provisionalFrom}
+                  partial={partialDays(measure)}
+                  baseline={measure.usual ? { value: measure.usual.value, label: shortUsual(measure) } : null}
+                  format={measure.format}
+                  ariaLabel={`${measure.name}, ${measure.history.length >= 28 ? "last 28 days" : "recent days"}`}
+                  className="h-14"
+                />
+              ) : undefined}
+              context={<MeasureContext measure={measure} data={data} days={days} />}
+              role={role}
+              to={measure.days.length === 0 ? link[measure.key].to : undefined}
+              className={cn("h-full", charted?.key === measure.key && "ring-2 ring-primary/70")}
+            />
+          );
+          return measure.days.length === 0 ? (
+            <div key={measure.key} data-measure={measure.key} className="min-w-0">{stat}</div>
+          ) : (
+            <button
+              key={measure.key}
+              type="button"
+              data-measure={measure.key}
+              aria-pressed={charted?.key === measure.key}
+              onClick={() => onPick(measure.key)}
+              className="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {stat}
+            </button>
+          );
+        })}
+      </div>
+
+      {charted ? (
+        <div className="rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70" data-surface-hero="">
+          <OverviewChart
+            measure={charted}
+            tone={INK[charted.key]}
+            changes={timelineAnnotations(data.annotations.items)}
+            watches={watches}
+            alertTo={assetTabPath(id, "alerts")}
+            action={<Link to={link[charted.key].to} className={quietLink}>{link[charted.key].label}</Link>}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/** The usual level in the few words a stat's strip has room for. */
+function shortUsual(measure: Measure): string {
+  if (!measure.usual) return "";
+  const value = measure.key === "money" ? measure.axis(measure.usual.value) : formatInt(Math.round(measure.usual.value));
+  return measure.alert ? `normally ~${value}` : measure.usual.label.startsWith("average") ? `avg ${value}` : `prior ${value}`;
+}
+
+/** One line under a figure, its key values in bold: what the month made for
+ * money, the latest and best day for people and search, the alert or the
+ * reports before for the product figure. */
+function MeasureContext({ measure, data, days }: { measure: Measure; data: AssetDetailFor<"overview">; days: RangeDays }): ReactNode {
+  if (measure.key === "money") {
+    const month = ledgerMonth(data.ledger);
+    const net = month && month.period ? <>{formatPeriodMonthLong(month.period)} net <b>{formatSignedMoney(month.net, month.currency)}</b>{month.booking === "forecast" ? " est." : ""}</> : null;
+    if (measure.days.length === 0) return month?.composition || null;
+    return (
+      <>
+        {net}
+        {net && measure.reported ? " · " : null}
+        {measure.reported ? <><b>{measure.reported.days}</b> of {days} days reported</> : null}
+      </>
+    );
+  }
+  if (measure.key === "product") {
+    const asOf = measure.asOf ? <>Latest report <b>{formatSeriesDate(measure.asOf)}</b></> : null;
+    if (measure.alert) {
+      return <>{asOf}{asOf ? " · " : null}Alert since <b>{formatSeriesDate(measure.alert.onset)}</b>{!asOf && measure.usual ? <> · normally <b>~{formatInt(Math.round(measure.usual.value))}</b> a day</> : null}</>;
+    }
+    if (asOf) return asOf;
+    return measure.usual ? <>{measure.usual.label.split(" · ")[0]} <b>{formatInt(Math.round(measure.usual.value))}</b> a day</> : "No earlier reports to compare";
+  }
+  const { best, newest } = landmarks(measure);
+  if (!newest) return measure.reported ? <><b>{measure.reported.days}</b> of {days} days reported</> : null;
+  return (
+    <>
+      {formatSeriesDate(newest.t)} <b>{measure.format(newest.v!)}</b>
+      {best && best !== newest ? <> · best <b>{measure.format(best.v!)}</b></> : null}
+    </>
+  );
+}
+
+/** The windows being watched on the charted measure, named by what changed. */
+function chartWatches(data: AssetDetailFor<"overview">, key: MeasureKey | null, nowMs: number): SurfaceSpan[] {
+  const measured = (integration: string) =>
+    integration === "ga4" ? "people" : integration === "gsc" || integration === "bing-webmaster" ? "search" : null;
+  const open = data.watches.open.filter((watch) => measured(watch.metricIntegration) === key);
+  return watchSpans(open, nowMs).map((span, index) => {
+    const watch = open[index]!;
+    return {
+      ...span,
+      label: `Watching ${watch.note ?? watchSeriesLabel(watch.metricIntegration, watch.metric)}${watch.nextCheckDate ? ` · verdict ${formatSeriesDate(watch.nextCheckDate)}` : ""}`,
+    };
+  });
+}
+
 /** The open alerts as the split the operator acts on — "1 error · 2 warnings" —
  * or "None open". Anything open that is neither is counted as info, so the
  * parts always add up to the open total. */
@@ -281,7 +474,7 @@ function VerdictLine({
     : "no money recorded";
   const alertsFact = alerts.open === 0 ? "no open alerts" : `${alertSplit(alerts)} open`;
   return (
-    <div className="flex flex-wrap items-center gap-x-2 text-[14px] text-foreground" data-verdict-line>
+    <div className="flex flex-wrap items-center gap-x-2 text-sm text-foreground" data-verdict-line>
       <span className="tabular-nums">{moneyFact}</span>
       <span aria-hidden className="text-muted-foreground">·</span>
       <span className={alerts.error > 0 ? "text-error" : alerts.warn > 0 ? "text-warn" : undefined}>{alertsFact}</span>
@@ -349,7 +542,7 @@ function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; a
   const falling = [...movers].filter((mover) => mover.positionImprovement < 0).sort((a, b) => a.positionImprovement - b.positionImprovement).slice(0, 3);
   const position = (value: number) => (Number.isInteger(value) ? String(value) : value.toFixed(1));
   return (
-    <section aria-label="Search movers" className="flex flex-col rounded-[10px] border border-border bg-card" data-search-movers>
+    <section aria-label="Search movers" className="@container flex flex-col rounded-[10px] border border-border bg-card" data-search-movers>
       <SectionLabel
         title="Search movers"
         caption={lane ? `${formatCalendarDate(lane.currentStart)} – ${formatCalendarDate(lane.currentEnd)}` : undefined}
@@ -359,7 +552,7 @@ function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; a
       {rising.length === 0 && falling.length === 0 ? (
         <div className="px-4 pb-4 text-xs text-muted-foreground">{lane ? "Nothing moved this week" : "No search comparison yet"}</div>
       ) : (
-        <div className="grid gap-x-6 gap-y-1 px-4 pb-3 sm:grid-cols-2">
+        <div className="grid gap-x-6 gap-y-1 px-4 pb-3 @lg:grid-cols-2">
           {[{ word: "Rising", rows: rising, tone: "text-trend-positive", arrow: "▲" }, { word: "Falling", rows: falling, tone: "text-trend-negative", arrow: "▼" }].map((column) => (
             <ul key={column.word} className="m-0 list-none p-0" data-movers={column.word.toLowerCase()}>
               <li className="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{column.word}</li>
@@ -749,9 +942,6 @@ export function ProductUse({
     month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZoneName: "short",
   }).format(new Date(receivedAt!));
   const cells = metrics.slice(0, 5).map((metric) => ({ metric, summary: productReportSummary(metric, reportDate) }));
-  const common = cells[0]!.summary;
-  const sharedHistory = common.first !== null && common.last !== null && cells.every(({ summary }) =>
-    summary.first === common.first && summary.last === common.last && summary.missingDays === common.missingDays);
   return (
     <section aria-labelledby="product-report">
       <SectionLabel
@@ -764,7 +954,7 @@ export function ProductUse({
         <InfoTooltip label="About product reports" className={stale ? "text-warn" : undefined}
           trigger={receivedLabel === null ? "Report time unknown" : `Report ${formatAge(age)} ago${stale ? " · Outdated" : ""}`}>
           {/* Exact times and dates only. What each figure is is printed on the
-              cell ("in 24h", "Prior 7 reports: … / day", "Daily counts",
+              cell ("in 24h", "Prior 7 reports: … / day", "daily counts",
               "1 missing day"). */}
           <span className="block">{receivedLabel === null ? "Report time unknown" : `Report received ${receivedLabel} · ${formatAge(age)} ago.`}</span>
           {cells.map(({ metric, summary }) => summary.previousMean === null ? null : <span key={metric.name} className="block">{metricLabel(metric.name)} comparison: {summary.previousCount} reports · {formatCalendarRange(summary.previousFirst!, summary.previousLast!)}.</span>)}
@@ -772,10 +962,11 @@ export function ProductUse({
       </SectionLabel>
       <SmallMultipleStrip columns={Math.min(metrics.length, 5)}>
         {cells.map(({ metric, summary }) => {
+          const label = metricLabel(metric.name);
           return (
           <SmallMultiple
             key={metric.name}
-            label={metricLabel(metric.name)}
+            label={label}
             value={metric.last24h === null ? "—" : formatInt(metric.last24h)}
             valueCaption="in 24h"
             secondaryBelow
@@ -786,21 +977,29 @@ export function ProductUse({
                     <span className="block">Prior {summary.previousCount} {summary.previousCount === 1 ? "report" : "reports"}: <span className="whitespace-nowrap font-medium text-foreground">{formatInt(summary.previousMean)} / day</span></span>
                   </>
             }
-            spark={summary.series}
-            sparkAverage={false}
-            sparkCaption={sharedHistory ? undefined : summary.first && summary.last ? <>
-              <span className="block">Daily counts</span>
-              <span className="flex justify-between gap-2"><span>{formatSeriesDate(summary.first)}</span><span>{formatSeriesDate(summary.last)}</span></span>
+            // Every line carries the days it covers, under it and in its name.
+            sparkCaption={summary.first && summary.last ? <>
+              <Sparkline
+                data={summary.series}
+                size="wide"
+                tone="neutral"
+                area
+                average={false}
+                readout
+                ariaLabel={`${label} daily counts, ${formatSeriesDate(summary.first)} to ${formatSeriesDate(summary.last)}`}
+                className="mt-1"
+              />
+              <span aria-hidden className="mt-0.5 flex justify-between gap-2 whitespace-nowrap text-micro" data-product-dates="">
+                <time dateTime={summary.first}>{formatSeriesDate(summary.first)}</time>
+                <span className="truncate">daily counts</span>
+                <time dateTime={summary.last}>{formatSeriesDate(summary.last)}</time>
+              </span>
               {summary.missingDays > 0 ? <span className="block">{summary.missingDays} missing {summary.missingDays === 1 ? "day" : "days"}</span> : null}
             </> : "No report history"}
           />
           );
         })}
       </SmallMultipleStrip>
-      {sharedHistory ? <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs tabular-nums text-muted-foreground" data-product-history>
-        <span>Daily counts · {formatCalendarRange(common.first!, common.last!)}</span>
-        {common.missingDays > 0 ? <span>{common.missingDays} missing {common.missingDays === 1 ? "day" : "days"}</span> : null}
-      </div> : null}
     </section>
   );
 }

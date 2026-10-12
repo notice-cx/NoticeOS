@@ -437,9 +437,9 @@ describe("HeroChart", () => {
         annotations={[{ date: "2026-09-01", label: "GA4 reporting timezone changed" }]}
       />,
     );
-    expect(screen.getByText("Provisional")).toBeVisible();
+    expect(screen.getByText("Still counting")).toBeVisible();
     fireEvent.focus(screen.getByRole("button", { name: "About this chart" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are provisional");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are still being counted");
     const marker = screen.getByRole("button", { name: "Event on Sep 1, 2026: GA4 reporting timezone changed" });
     expect(screen.queryByText("GA4 reporting timezone changed")).toBeNull();
     fireEvent.focus(marker);
@@ -645,7 +645,7 @@ describe("HeroChart", () => {
   it("keys every drawn mark at the weight it is drawn, in one row", () => {
     const { container } = render(<HeroChart series={twoProviders} range={28} provisionalFrom={LAST_DAY} />);
     const key = screen.getByRole("list", { name: "Chart key" });
-    expect(key).toHaveTextContent(/^Google\s*Bing\s*7-day average\s*Daily\s*Provisional$/);
+    expect(key).toHaveTextContent(/^Google\s*Bing\s*7-day average\s*Daily\s*Still counting$/);
     const leadWidth = container.querySelector('[data-hero-line="Google"]')!.getAttribute("stroke-width");
     expect(leadWidth).toBe("2.5");
     expect(screen.getByRole("button", { name: "Google" }).querySelector("line")).toHaveAttribute("stroke-width", leadWidth);
@@ -655,7 +655,7 @@ describe("HeroChart", () => {
     expect(rawKey.getAttribute("stroke-opacity")).toBe(raw.getAttribute("stroke-opacity"));
     expect(screen.getByRole("button", { name: "Google" }).className).not.toMatch(/text-primary|bg-accent-soft/);
     const provisional = within(key).getByRole("button", { name: "About this chart" });
-    expect(provisional).toHaveTextContent("Provisional");
+    expect(provisional).toHaveTextContent("Still counting");
     expect(provisional.querySelector("circle")).not.toBeNull();
   });
 
@@ -720,7 +720,7 @@ describe("HeroChart", () => {
     await waitFor(() => expect(screen.getByRole("table")).toBeVisible());
     const table = screen.getByRole("table");
     expect(within(table).getByText("Not reported")).toBeVisible();
-    expect(within(table).getByRole("cell", { name: "12 · Provisional" })).toBeVisible();
+    expect(within(table).getByRole("cell", { name: "12 · still counting" })).toBeVisible();
     expect(within(table).getByText("Reporting timezone changed")).toBeVisible();
     expect(within(table).getByRole("rowheader", { name: "Sep 3, 2026" })).toBeVisible();
     fireEvent.keyDown(table, { key: "Escape" });

@@ -27,6 +27,12 @@ export interface BarStripProps {
   /** The usual level, drawn as a dashed rule with its label at the right. */
   baseline?: { value: number; label: string } | null;
   format?: (value: number) => string;
+  /** A ceiling shared with strips drawn beside this one, so two strips compare
+   * bar for bar; the strip still grows past it if one of its own bars does. */
+  max?: number;
+  /** Days some of the series' sources did not report: drawn outlined, so a
+   * short bar reads as an incomplete count rather than a bad day. */
+  partial?: readonly string[];
   /** What the strip shows, in the operator's words: "Revenue a day, last 14 days". */
   ariaLabel: string;
   className?: string;
@@ -39,6 +45,8 @@ export function BarStrip({
   provisionalFrom = null,
   baseline = null,
   format = formatInt,
+  max = 0,
+  partial = [],
   ariaLabel,
   className,
 }: BarStripProps) {
@@ -46,19 +54,21 @@ export function BarStrip({
   const settled = data.filter((point) => point.v !== null && (provisionalFrom === null || point.t < provisionalFrom));
   const now = highlight ?? settled.at(-1)?.t ?? null;
   const values = data.map((point) => point.v ?? 0);
-  const top = Math.max(...values, baseline?.value ?? 0, 1);
+  const top = Math.max(...values, baseline?.value ?? 0, max, 1);
   const shown = hover === null ? null : data[hover] ?? null;
   const nowPoint = data.find((point) => point.t === now) ?? null;
+  const partialDays = new Set(partial);
 
   return (
     <div
-      className={cn("relative flex h-12 flex-col", className)}
+      className={cn("@container/strip relative flex h-12 flex-col", className)}
       data-bar-strip=""
       onPointerLeave={() => setHover(null)}
     >
-      <div role="img" aria-label={stripSummary(ariaLabel, data, nowPoint, baseline, format)} className={cn("relative flex min-h-0 flex-1 items-end", data.length > 20 ? "gap-0.5" : "gap-1")}>
+      <div role="img" aria-label={stripSummary(ariaLabel, data, nowPoint, baseline, format, partialDays.size)} className={cn("relative flex min-h-0 flex-1 items-end", data.length > 20 ? "gap-0.5" : "gap-1")}>
         {data.map((point, index) => {
           const provisional = provisionalFrom !== null && point.t >= provisionalFrom;
+          const incomplete = !provisional && point.v !== null && partialDays.has(point.t);
           const isNow = point.t === now;
           const height = point.v === null ? 100 : Math.max(0, (point.v / top) * 100);
           return (
@@ -66,7 +76,7 @@ export function BarStrip({
               key={point.t}
               aria-hidden
               data-bar={point.t}
-              data-state={point.v === null ? "unreported" : provisional ? "provisional" : isNow ? "now" : "settled"}
+              data-state={point.v === null ? "unreported" : provisional ? "provisional" : incomplete ? "partial" : isNow ? "now" : "settled"}
               onPointerEnter={() => setHover(index)}
               className={cn(
                 "relative flex h-full min-w-0 flex-1 items-end",
@@ -82,6 +92,7 @@ export function BarStrip({
                     isNow ? tone : "text-spark",
                     provisional ? "chart-bar-provisional bg-current/20" : point.v === 0 ? undefined : isNow ? "bg-current viz-glow" : "bg-current/30",
                     hover === index && !isNow && "bg-current/60",
+                    incomplete && "outline-1 -outline-offset-1 outline-dashed outline-warn/80",
                   )}
                   style={point.v === 0 ? ({ "--viz-i": index } as CSSProperties) : ({ height: `${height}%`, "--viz-i": index } as CSSProperties)}
                 />
@@ -102,12 +113,14 @@ export function BarStrip({
         {shown ? (
           <span className="truncate text-foreground">
             {formatSeriesDate(shown.t)} · {shown.v === null ? "not reported" : format(shown.v)}
-            {provisionalFrom !== null && shown.t >= provisionalFrom ? " · still counting" : ""}
+            {provisionalFrom !== null && shown.t >= provisionalFrom ? " · still counting" : partialDays.has(shown.t) ? " · not every source reported" : ""}
           </span>
         ) : (
           <>
             <span className="whitespace-nowrap">{data[0] ? formatSeriesDate(data[0].t) : ""}</span>
-            {baseline ? <span className="truncate">{baseline.label}</span> : null}
+            {/* Shown only where the strip has room for it beside both dates; the
+                dashed rule and the strip's name still carry it. */}
+            {baseline ? <span className="hidden whitespace-nowrap @[15rem]/strip:inline">{baseline.label}</span> : null}
             <span className="whitespace-nowrap">{data.at(-1) ? formatSeriesDate(data.at(-1)!.t) : ""}</span>
           </>
         )}
@@ -124,6 +137,7 @@ export function stripSummary(
   now: BarStripPoint | null,
   baseline: { value: number; label: string } | null,
   format: (value: number) => string,
+  partialCount = 0,
 ): string {
   if (data.length === 0) return `${label}: nothing reported yet`;
   const parts = [`${label}, ${formatSeriesDate(data[0]!.t)} to ${formatSeriesDate(data.at(-1)!.t)}`];
@@ -131,5 +145,6 @@ export function stripSummary(
   if (baseline) parts.push(`usual ${format(baseline.value)}`);
   const missing = data.filter((point) => point.v === null).length;
   if (missing > 0) parts.push(`${missing} ${missing === 1 ? "day" : "days"} not reported`);
+  if (partialCount > 0) parts.push(`${partialCount} ${partialCount === 1 ? "day" : "days"} missing a source`);
   return parts.join("; ");
 }

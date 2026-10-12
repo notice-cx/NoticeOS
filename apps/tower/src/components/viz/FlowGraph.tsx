@@ -603,7 +603,9 @@ function NodeCard({ node, nowMs, column, grow, dense, register }: { node: FlowNo
             <Icon className="size-3.5" />
           </span>
         ) : null}
-        <span className={cn("min-w-0 flex-1 truncate text-sm font-medium", node.state === "absent" && "text-muted-foreground")} title={node.label}>{node.label}</span>
+        {/* A name wraps between its words on the desk rather than losing its
+            end; the TV's dense graph keeps one line to hold its height. */}
+        <span className={cn("min-w-0 flex-1 text-sm font-medium", dense ? "truncate" : "leading-snug", node.state === "absent" && "text-muted-foreground")} title={node.label}>{node.label}</span>
         {ageText ? <span aria-hidden data-flow-age className={AGE_BADGE[node.state]}>{ageText}</span> : null}
         {dense ? (
           <span className={cn("flex shrink-0 items-center", spec.ink)} data-flow-state-word title={word}>

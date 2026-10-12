@@ -22,7 +22,6 @@ import { TaskComposer } from "@/components/TaskComposer";
 import { FilterBar } from "@/components/surface/FilterBar";
 import { FinishLine } from "@/components/surface/FinishLine";
 import { PageAnswer } from "@/components/surface/PageAnswer";
-import { ListPanel, ListRow } from "@/components/surface/ListPanel";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +35,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { workQueue } from "@/components/viz/WorkFlow";
 import { useNow } from "@/hooks/useNow";
 import {
   useClaimTask,
@@ -45,12 +45,16 @@ import {
 } from "@/hooks/useTasks";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useTaskBoard } from "@/hooks/useTaskBoard";
-import { PARKED, TASK_STATUSES, askVerb, isGate, type BoardTask, type BoardProject } from "@/lib/task-board-read";
+import { PARKED, TASK_STATUSES, isGate, type BoardTask, type BoardProject } from "@/lib/task-board-read";
+import { boardInOut, boardWorkRows, epicGraphs, inOutDrawn } from "@/lib/task-board-viz";
+import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { taskFieldAvailable, taskOperationAvailable } from '@shared/tasks';
-import { useAskActions } from "./ask-actions";
-import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face";
+import { AskQueue } from "./ask-queue";
+import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
+import { OpenTaskLink } from "./open-task-link";
+import { PriorityMark, RestingMark, TaskStatusMark } from "./task-face";
 
 /**
  * The task board: `/tasks` across every project, an asset's Tasks tab with
@@ -61,11 +65,6 @@ import { PriorityMark, RestingMark, TaskStatusMark, askFace } from "./task-face"
 
 /** Rows per press: about 1,050px, which keeps the page inside its budget. */
 const PAGE_ROWS = 25;
-/** The inbox opens at five rows and discloses the rest through `ListPanel`'s
- * own expander. The page does not slice first: a panel that silently keeps
- * five of nine is lying about the size of the queue. */
-const INBOX_ROWS = 5;
-
 
 /** Location state that opens the board's composer without changing the URL. */
 const COMPOSE_STATE = "newTask";
@@ -200,6 +199,27 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     labelFilter !== "" ||
     assigneeFilter !== "all";
 
+  // The pictures are of the whole board, as the answer's counts are: the
+  // filters below narrow the list, not the shape of the work.
+  const { projectSelection } = useTasksLive();
+  const inOut = boardInOut(projects, spokes, now);
+  const workRows = boardWorkRows(projects, scoped ? undefined : (project) => {
+    const next = new URLSearchParams(params);
+    next.set("project", project.asset);
+    next.delete("new");
+    return `${location.pathname}?${next}`;
+  });
+  const graphs = epicGraphs({
+    projects,
+    snapshots: data?.projects ?? [],
+    nowMs: now,
+    href: (task) => taskPath(task.id, projectSelection ? task.project : undefined),
+  });
+  const inOutPanel = inOutDrawn(inOut) ? <InOutPanel inOut={inOut} /> : null;
+  // One project's row would repeat the answer's figures as a bar.
+  const workPanel = workRows.length > 1 ? <WorkByProject rows={workRows} /> : null;
+  const openWork = workRows.reduce((sum, row) => sum + workQueue(row), 0);
+
   /** A count that is missing a project is a lower bound, `12+`. `—` is a count
    * the read cannot bound at all: nothing measured it, or no project was read. */
   const anyRead = missingProjects < projects.length;
@@ -212,7 +232,11 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const answer = (
     <PageAnswer
       answer={nothingWaits ? "Nothing waits on you" : waitingCount === "—" ? "Couldn't read what waits on you" : `${waitingCount} ${totals.waiting === 1 && countsComplete ? "decision waits" : "decisions wait"} on you`}
-      detail={gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : undefined}
+      detail={[
+        gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : null,
+        // The yardstick the three figures are read against.
+        workRows.length > 0 ? `${formatInt(openWork)}${countsComplete ? "" : "+"} open ${openWork === 1 ? "task" : "tasks"}` : null,
+      ].filter(Boolean).join(" · ") || undefined}
       figures={[
         { label: "Urgent", value: String(bounded(counts.urgent, totals.urgent)), mark: "tasks-urgent" },
         { label: "Blocked", value: String(bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked" },
@@ -222,37 +246,13 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     />
   );
 
-  const panel = nothingWaits && inbox.length === 0 ? null : (
-    <div data-waiting-list className="contents">
-    <ListPanel
-      title="Waiting on you"
-      count={
-        totals.waiting === 0
-          ? undefined
-          : `${totals.waiting}${countsComplete ? "" : "+"} ${totals.waiting === 1 ? "ask" : "asks"}`
-      }
-      limit={INBOX_ROWS}
-      empty={countsComplete ? "Nothing is waiting on you." : "Waiting work is unknown for unread projects."}
-      // No ring: every row in here already leads with a toned glyph, and the
-      // panel is a place, not what is urgent.
-    >
-      {/* No row opens on arrival: `ListRow` reads `defaultExpanded` once, at
-          mount, and this panel mounts on the snapshot and is then reordered by
-          the live read, so the row that ends up first would be whichever one
-          happened to mount first. */}
-      {inbox.map(({ project, task }) => (
-        <InboxRow
-          key={task.id}
-          project={project}
-          task={task}
-          actionable={project.actionable}
-          nowMs={now}
-          showProject={!scoped}
-        />
-      ))}
-    </ListPanel>
-    {/* A list the eye can finish. */}
-    {inbox.length > 0 && countsComplete ? <FinishLine line="That's everything waiting on you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} /> : null}
+  const queue = nothingWaits && inbox.length === 0 ? null : (
+    <div data-waiting-list className="flex min-w-0 flex-col gap-3">
+      <AskQueue asks={inbox} total={totals.waiting} complete={countsComplete} nowMs={now} showProject={!scoped} />
+      {/* A list the eye can finish. */}
+      {inbox.length > 0 && countsComplete ? (
+        <FinishLine line="That's everything waiting on you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} className="min-h-0 py-2.5" />
+      ) : null}
     </div>
   );
 
@@ -305,10 +305,21 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           {/* The first screen: how big is the queue, and what in it cannot
               move without you. The board marks it, scoped or not, because only
               the board knows where its answer ends. */}
-          <div data-surface-hero className="flex flex-col gap-3.5">
+          <div data-surface-hero className="@container flex flex-col gap-5">
             {answer}
-            {panel}
+            {/* Laid out by its own width, not the window's: a site's Tasks tab
+                and a portrait monitor both leave the board less than the
+                viewport. The queue leads with the days in and out beside it
+                where there is room; each project's week runs the full width,
+                where its bars have room to differ. */}
+            <div className="grid gap-5 @5xl:grid-cols-12 [&>*]:min-w-0">
+              {queue ? <div className={inOutPanel ? "@5xl:col-span-7" : "@5xl:col-span-12"}>{queue}</div> : null}
+              {inOutPanel ? <div className={queue || workPanel ? "@5xl:col-span-5" : "@5xl:col-span-12"}>{inOutPanel}</div> : null}
+              {workPanel ? <div className={queue || !inOutPanel ? "@5xl:col-span-12" : "@5xl:col-span-7"}>{workPanel}</div> : null}
+            </div>
           </div>
+
+          <EpicPanel graphs={graphs} selected={params.get("epic")} onSelect={(id) => setParam("epic", id)} nowMs={now} />
 
           <Filters
             live={live}
@@ -572,68 +583,6 @@ function Filters({
   );
 }
 
-// --- Waiting on you: the operator's own asks, five at a time ----------------
-
-/**
- * One ask, answered on its row (`useAskActions`): a claimable `human`-labelled
- * task, or an open gate holding other work. Warn, never error, at every
- * priority: the operator being the blocker is not a failure.
- */
-function InboxRow({
-  project,
-  task,
-  actionable,
-  nowMs,
-  showProject,
-}: {
-  project: BoardProject;
-  task: BoardTask;
-  actionable: boolean;
-  nowMs: number;
-  showProject: boolean;
-}) {
-  // The verbs and the answer box are the task page's too.
-  const capabilities = useTasksLive();
-  const supported = taskOperationAvailable(capabilities, isGate(task) ? 'resolve' : 'respond');
-  const { buttons, box } = useAskActions({ ask: askVerb(task), id: task.id, title: task.title, project: task.project, placement: "row",
-    disabledReason: supported ? null : 'Unavailable in this workspace.' });
-  const evidence = [task.description, task.acceptance].some((value) => (value ?? "").trim() !== "");
-
-  return (
-    <ListRow
-      {...askFace(task)}
-      title={task.title}
-      caption={
-        <>
-          {/* The project and what the row asks, never the task's id, which is
-              on the task's own page. */}
-          {[showProject ? project.name : null, isGate(task) ? "needs your approval" : null].filter(Boolean).join(" · ") || null}
-        </>
-      }
-      value={formatAge(ageMs(nowMs, task.updatedAt)) || "—"}
-      valueLabel="waiting"
-      marks={{ "data-inbox-row": task.id, "data-subject": `task:${task.id}` }}
-      rowActions={actionable ? buttons : undefined}
-      below={actionable ? box : null}
-    >
-      {evidence ? (
-        <span className="grid gap-1" data-inbox-evidence>
-          {task.description?.trim() ? <span className="whitespace-pre-line text-foreground">{task.description.trim()}</span> : null}
-          {task.acceptance?.trim() ? (
-            <span className="whitespace-pre-line">
-              <span className="font-medium text-foreground">Done when </span>
-              {task.acceptance.trim()}
-            </span>
-          ) : null}
-        </span>
-      ) : null}
-      <span className="flex flex-wrap gap-2">
-        <OpenTaskLink id={task.id} project={task.project} />
-      </span>
-    </ListRow>
-  );
-}
-
 // --- The board: one table, 25 rows at a time --------------------------------
 
 /** Every task, one line each, with the grouping on the row that expands: the
@@ -696,11 +645,11 @@ function Board({
                     a table: the column takes every pixel the fixed ones leave,
                     and its content measures against zero rather than against
                     its own text, so a 120-character title cannot push the Age
-                    and State columns off the right edge. From `sm` UP only —
-                    below it the row has stacked into a card and every cell is a
-                    full-width line, where a zero max-width collapses the title
-                    to nothing at all. */}
-                <TableHead className="sm:w-full sm:max-w-0">Task</TableHead>
+                    and State columns off the right edge. Only while the table's
+                    own box has columns, the same container query `Table` stacks
+                    on: once the row is a card every cell is a full-width line,
+                    where a zero max-width collapses the title to nothing. */}
+                <TableHead className="@min-[40rem]:w-full @min-[40rem]:max-w-0">Task</TableHead>
                 <TableHead className="whitespace-nowrap">Id</TableHead>
                 {showProject ? (
                   <TableHead className="whitespace-nowrap">Project</TableHead>
@@ -772,7 +721,7 @@ function BoardRow({
   return (
     <>
       <TableRow foldedWhenStacked={!open} data-task-row={task.id}>
-        <TableCell className="py-1 ps-1 sm:w-full sm:max-w-0">
+        <TableCell className="py-1 ps-1 @min-[40rem]:w-full @min-[40rem]:max-w-0">
           <button
             type="button"
             aria-expanded={open}
@@ -781,13 +730,13 @@ function BoardRow({
               // `items-start` so a wrapped title keeps its mark on the first
               // line; centred on a phone, where the row has claimed its 44px
               // thumb target and top-aligned text leaves a hole under it.
-              "flex w-full items-start gap-2.5 rounded-md p-1 text-left max-sm:items-center",
+              "flex w-full items-start gap-2.5 rounded-md p-1 text-left @max-[40rem]:items-center",
               pillControlClass,
               "hover:bg-muted/40 motion-safe:transition-colors",
             )}
           >
             <RowMark task={task} />
-            <span className={cn("min-w-0 text-[13px] text-foreground", !open && "truncate")}>
+            <span className="min-w-0 text-[13px] text-foreground">
               {task.title}
             </span>
           </button>
@@ -1017,27 +966,6 @@ function EmptyAction({ to, children }: { to: string; children: ReactNode }) {
       )}
     >
       {children} →
-    </Link>
-  );
-}
-
-/** Every row opens at its own task page; a row you cannot open is a dead end.
- * Drawn as a button-sized target rather than a word in a sentence, because it
- * sits in a row of verbs and a thumb has to be able to hit it. */
-function OpenTaskLink({ id, project }: { id: string; project: string }) {
-  const { pathname, search } = useLocation();
-  const { projectSelection } = useTasksLive();
-  return (
-    <Link
-      to={taskPath(id, projectSelection ? project : undefined)}
-      state={{ returnTo: `${pathname}${search}` }}
-      className={cn(
-        "inline-flex h-8 items-center rounded-md px-3 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground",
-        pillControlClass,
-      )}
-      data-task-open={id}
-    >
-      Open task
     </Link>
   );
 }

@@ -27,6 +27,9 @@ export interface NormalBandProps {
   format?: (value: number) => string;
   /** Inside a row that already names the reading: the label is for screen readers only. */
   compact?: boolean;
+  /** The reading just arrived: an off-normal marker breathes. Off by default,
+   * so a board of readings has one moving thing at most, not one per row. */
+  live?: boolean;
   className?: string;
 }
 
@@ -46,6 +49,7 @@ export function NormalBand({
   severity = "warn",
   format = formatInt,
   compact = false,
+  live = false,
   className,
 }: NormalBandProps) {
   const verdict = normalVerdict(value, low, high);
@@ -62,7 +66,7 @@ export function NormalBand({
   return (
     <div className={cn("flex flex-col gap-1", className)} data-normal-band="" data-verdict={verdict} data-state={problem ? severity : "normal"}>
       <div className="flex items-baseline justify-between gap-2">
-        {compact ? <span className="sr-only">{label}</span> : <span className="truncate text-xs text-muted-foreground">{label}</span>}
+        {compact ? <span className="sr-only">{label}</span> : <span className="text-xs text-muted-foreground">{label}</span>}
         <span className={cn("inline-flex items-center gap-1 whitespace-nowrap text-xs font-medium", ink)}>
           <Icon aria-hidden className="size-3.5" />
           {VERDICT_WORD[verdict]}
@@ -83,7 +87,7 @@ export function NormalBand({
         <span
           aria-hidden
           data-normal-marker=""
-          className={cn("absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-current", ink, problem && "viz-breathe")}
+          className={cn("absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-card bg-current", ink, problem && live && "viz-breathe")}
           style={{ insetInlineStart: at(value) }}
         />
       </div>
@@ -92,8 +96,8 @@ export function NormalBand({
           <span className={cn("text-xs font-semibold", ink)}>{format(value)}</span>
           {suffix}
         </span>
-        <span className="truncate">
-          usual {format(low)}–{format(high)}
+        <span className="text-end">
+          usual <span className="whitespace-nowrap">{format(low)}–{format(high)}</span>
         </span>
       </div>
     </div>

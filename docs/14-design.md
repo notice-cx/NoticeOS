@@ -115,7 +115,9 @@ answers yes to each of these:
 2. Is the most consequential thing the largest and the first the eye lands on?
 3. Does every figure carry its yardstick (a change against a named baseline, a
    target, or its usual range) and its recent history?
-4. Is time drawn: a series, a strip, a timeline with now on it?
+4. Is time drawn: a series, a strip, a timeline with now on it? And does every
+   line say when: a small line or strip without a full axis carries its first
+   and last date under it, so no squiggle is left unplaced in time?
 5. Are same-kind things grouped into one composite rather than one card each?
 6. Is every problem drawn on the thing it is about?
 7. Does every name, figure and sentence fit its box at every width?
@@ -303,13 +305,47 @@ made for it rather than a squeezed desktop one.
 
 **A site's Overview opens with a verdict**: the header carries one
 health word (`siteHealth` in `lib/site-health.ts`, the same derivation Home,
-the Sites table and the TV's site rows read) and one line of three facts
+the Sites page and the TV's site rows read) and one line of three facts
 joined by dots. Below it the hero row is money, people, search and the site's
-one product figure, over one chart that carries every shipped change as a
-labelled mark and every open watch window as a shaded span, so cause and
-effect sit on one axis. Then bets ranked by dollars, Needs you, the search
-movers, and product cells that say "normal" out loud. Provider names appear
-only as a chart key beside their own line.
+one product figure as `StatTile`s, each with its window, its change against
+the days before, its recent days as a dated `BarStrip` and one context line.
+The figure pressed is drawn on the chart: bars with the days before as a
+dashed level, the best and lowest day named on the bars, every shipped change
+a labelled mark, and shaded spans for an open alert (drawn with its onset and
+the rule's normal range), an outcome check or days not reported, so cause and
+effect sit on one axis. Then each data source's last 30 days as one row of
+day squares, led by the source that broke most recently, and the open alerts
+the chart does not already show. Bets, Needs you, the search movers and the
+product cells follow. Provider names appear only as a chart key beside their
+own line.
+
+**Sites answers which one needs me.** The answer names the sites that do, beside
+where the month is heading and yesterday's visitors; one bar splits every site
+by its health word, and its legend is the filter. The comparison is the hero:
+`PortfolioRows` with the sources column, one row per site with its people a day
+over four weeks (dated), yesterday's figure against a week before, yesterday's
+revenue, its share of the month and its data sources as pips where only a
+failing or late source takes a colour.
+
+**Alerts answers what is broken and since when**: the answer, the last seven
+days as an `EventTimeline` (open problems as bars to now, settled ones as closed
+bars), then one board grouped by site, worst first, each reading drawn on a
+`NormalBand` against the range its own rule computed, and anything open for over
+a week folded under one line.
+
+**Tasks shows the queue's shape**: what waits on the operator as a
+`DecisionQueue` with its age spread, closed and filed a day over two weeks as
+two dated `BarStrip`s on one scale, each project's week as the Wall's
+`WorkFlow` chart, and the most stuck epic as a `FlowGraph` whose blocked edges
+are drawn broken. The full task table follows.
+
+**Money is one equation**: revenue − cost = net for the month, net the largest,
+beside the month's days as a `BarStrip` (a day some source missed is outlined),
+the month against last month on a `PaceBar` and the split by site. Then where
+the cost goes, largest first, and the sites ranked by revenue with their net by
+month. **System health** leads with the System as a `FlowGraph` and, under it,
+every scheduled job's last seven days as one row of cells, the newest failure
+named at the top.
 
 **Index pages** follow the same bar: Sites, Alerts, Tasks, Money,
 Integrations and Workflows each open with a `PageAnswer`; Alerts and Tasks end

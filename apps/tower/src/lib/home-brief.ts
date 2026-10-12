@@ -65,7 +65,7 @@ export function greeting(nowMs: number): string {
 
 /** The month's money as one figure, the same derivation Home's hero and the
  * Wall use: the pace while there is one, else the month so far, else nothing.
- * "October pace $1,310 ↑ 16%". */
+ * "October heading for $1,310 ↑ 16%". */
 export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard[]): AnswerFigure | null {
   const money = monthRevenue(portfolio, assets);
   if (!money) return null;
@@ -73,7 +73,7 @@ export function monthFigure(portfolio: PortfolioBand, assets: readonly AssetCard
   if (money.pace) {
     const change = money.pace.changePercent;
     return {
-      label: `${month} pace`,
+      label: `${month} heading for`,
       value: formatUsd(money.pace.projected),
       note: change === null ? undefined : `${change >= 0 ? "↑" : "↓"} ${formatPercent(Math.abs(change))}%`,
       mark: "month-figure",

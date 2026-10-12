@@ -426,6 +426,17 @@ describe("/health — the page leads with what to unblock next", () => {
     }
   });
 
+  /** The week of scheduled runs sits under the map it explains; a read with
+   * nothing in it says so rather than drawing an empty week. */
+  it("draws the week of scheduled runs under the map, and names a history it could not read", () => {
+    const { container } = renderRoute(blocked);
+    const map = container.querySelector("[data-system-map]")!;
+    const runs = container.querySelector("[data-job-runs]")!;
+    expect(map.compareDocumentPosition(runs) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(runs).toHaveTextContent("Scheduled jobs · last 7 days");
+    expect(runs.querySelector("[data-job-runs-empty]")).toHaveTextContent("Run history could not be read");
+  });
+
   /** The catalog's full name earns every word in the audit matrix; in a
    * five-across strip it truncates mid-word, so the strip uses the short
    * names with the full one on hover. */

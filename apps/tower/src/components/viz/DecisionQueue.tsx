@@ -165,11 +165,11 @@ export function QueueRow({ item, index }: { item: QueueItem; index: number }) {
   const Glyph = item.kind === "approval" ? Triangle : CircleHelp;
   const age = item.ageDays;
   const title = item.to ? (
-    <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className="line-clamp-2 font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={item.title}>
+    <Link to={item.to} state={item.returnTo ? { returnTo: item.returnTo } : undefined} className="font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={item.title}>
       {item.title}
     </Link>
   ) : (
-    <span className="line-clamp-2 font-medium text-foreground" title={item.title}>{item.title}</span>
+    <span className="font-medium text-foreground" title={item.title}>{item.title}</span>
   );
   return (
     <li
@@ -181,7 +181,7 @@ export function QueueRow({ item, index }: { item: QueueItem; index: number }) {
       <span className="flex min-w-0 flex-col gap-1">
         <span className="flex min-w-0 text-sm">{title}</span>
         <span className="flex min-w-0 items-center gap-2 text-micro text-muted-foreground">
-          <span className="truncate">{item.project}</span>
+          <span>{item.project}</span>
           {age !== null ? (
             <span className="ms-auto flex shrink-0 items-center gap-1.5 tabular-nums" aria-label={`waiting ${ageLabel(age)}`}>
               <span aria-hidden className="h-1 w-16 overflow-hidden rounded-full bg-viz-track">

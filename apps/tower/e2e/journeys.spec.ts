@@ -122,11 +122,9 @@ test("state reasons open from keyboard and tap", async ({ page }, testInfo) => {
       counts: { open: 0, highPriority: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: 0, deferred: 0, waiting: 0 },
       priorities: null, epics: null, deferred: [], waiting: [], ready: [], inProgress: [], recentlyClosed: [], history: emptyWorkHistory() }],
   } }));
-  // Home names no OS state, so it has no System reason; the Sites list and
-  // Tasks keep theirs. A phone folds a site's task count behind its row's ›,
-  // so the Sites reason is a desk check.
+  // Home and the Sites list name no OS state, so they have no System reason;
+  // Tasks keeps its own.
   for (const [route, name, evidence] of [
-    ...(testInfo.project.name === "mobile" ? [] : [["/assets", "No task data", "No task data"]]),
     ["/tasks", "Why New task is unavailable", "Make changes from the local NoticeOS."],
   ]) {
     await page.goto(route!);
@@ -246,16 +244,16 @@ test("KPI trends remain inside their cells on desk, tablet and phone", async ({ 
   for (const viewport of viewports) {
     await page.setViewportSize(viewport);
     // Home and Money open with an answer sentence, not a KPI strip; the site
-    // Overview's hero cells are the KPIs left with trends.
+    // Overview's figures are the ones that carry their recent days.
     for (const route of [`/assets/${JOURNEY_ASSET}`]) {
       await page.goto(route);
-      const sparks = page.locator("[data-kpi] [data-spark]");
+      const sparks = page.locator("[data-overview-numbers] [data-stat] [data-bar-strip]");
       await expect(sparks.first()).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
       for (const spark of await sparks.all()) {
         const bounds = await spark.evaluate(element => {
           const line = element.getBoundingClientRect();
-          const cell = element.closest("[data-kpi]")!.getBoundingClientRect();
+          const cell = element.closest("[data-stat]")!.getBoundingClientRect();
           return { left: line.left - cell.left, right: cell.right - line.right,
             top: line.top - cell.top, bottom: cell.bottom - line.bottom };
         });
@@ -321,7 +319,7 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   await expect.poll(() => ids('[data-site-order]', 'data-site-order')).toEqual(reordered);
   await testInfo.attach('site ordering', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
   // Home's site rows and the Sites list follow the saved order.
-  for (const [route, attribute] of [['/', 'data-portfolio-row'], ['/assets', 'data-asset-row']] as const) {
+  for (const [route, attribute] of [['/', 'data-portfolio-row'], ['/assets', 'data-portfolio-row']] as const) {
     await page.goto(route); await page.reload();
     await expect.poll(() => ids(`main [${attribute}]`, attribute)).toEqual(reordered);
   }
@@ -2332,7 +2330,7 @@ test("Home guides a new site to its first number, then becomes the dashboard", a
   await expect(page.locator("[data-first-run]")).toHaveCount(0);
   await expect(page.locator("[data-home-brief]")).toBeVisible();
   await page.goto(`/assets/${JOURNEY_ASSET}`);
-  await expect(page.locator("[data-hero-chart]").filter({ hasText: "Search clicks · daily" })).toBeVisible();
+  await expect(page.locator('[data-overview-chart="search"]').filter({ hasText: "Search clicks" })).toBeVisible();
   await assertNoPageOverflow(page);
 });
 
@@ -2359,9 +2357,9 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   const main = page.locator("main");
   const screens: [string, Locator][] = [
     ["/", page.locator("[data-portfolio-census]")],
-    ["/assets", main.locator('[data-asset-row="journey.example"]').first()],
+    ["/assets", main.locator('[data-portfolio-row="journey.example"]').first()],
     ["/health", main.getByRole("region", { name: "System status" })],
-    ["/financials", main.getByRole("region", { name: "Daily revenue" })],
+    ["/financials", main.locator("[data-money-answer]")],
     ["/alerts", main.locator("[data-alert-filters]")],
     ["/tasks", main.locator("[data-tasks-filters]")],
   ];
@@ -2384,13 +2382,13 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
   await expect(main.locator("table")).toHaveCount(0);
   // Sites is that site's row: nothing to filter, sort or add up.
   await page.goto("/assets");
-  await expect(main.locator('[data-asset-row="journey.example"]').first()).toBeVisible();
+  await expect(main.locator('[data-portfolio-row="journey.example"]').first()).toBeVisible();
   await expect(main.locator("[data-assets-filters], [data-kpi-strip], [data-assets-summary]")).toHaveCount(0);
   await expect(main.getByRole("group", { name: "Traffic period" })).toHaveCount(0);
   // Financials states the one site's money without a by-site table repeating
   // it: nothing is shared, so there is nothing to allocate.
   await page.goto("/financials");
-  await expect(main.getByRole("region", { name: "Daily revenue" })).toBeVisible();
+  await expect(main.locator("[data-money-answer]")).toBeVisible();
   await expect(main.getByRole("heading", { name: "By site" })).toHaveCount(0);
   // The site's Search tab opens on its Bing numbers and the one step to
   // tracking terms, never a blank page.
@@ -2408,15 +2406,15 @@ test("a one-site install reads as one site: no portfolio words, and no filter wi
 });
 
 // A site whose first source is ad revenue or PostHog opens its Overview on
-// that number, the first KPI drawn under the header, never on a row of
-// traffic dashes.
+// that number, the first figure drawn under the header and the one its chart
+// opens on, never on a row of traffic dashes.
 test("a revenue-first and a PostHog-first site each open on their own number", async ({ page, request, baseURL }) => {
   const origin = new URL(baseURL!).origin;
   const main = page.locator("main");
-  const firstKpi = main.locator('[role="tabpanel"] [data-kpi]').first();
+  const firstStat = main.locator('[role="tabpanel"] [data-overview-numbers] [data-stat]').first();
   for (const [seed, lead, number] of [
-    ["/__journey/revenue-history?traffic=none", "Daily revenue", "Reported earnings"],
-    ["/__journey/posthog", "Traffic · last 28 days", "People a day"],
+    ["/__journey/revenue-history?traffic=none", "money", "Ad revenue, 28 days"],
+    ["/__journey/posthog", "people", "People a day, 28 days"],
   ] as const) {
     expect((await request.post("/__journey/reset")).ok()).toBe(true);
     expect((await request.post("/api/assets", { headers: { origin },
@@ -2425,10 +2423,10 @@ test("a revenue-first and a PostHog-first site each open on their own number", a
       pointer: `/assets/${JOURNEY_ASSET}`, value: { "ad-network": { status: "needs-setup", since: "2026-09-06" } } }] } })).ok()).toBe(true);
     expect((await request.post(seed)).ok()).toBe(true);
     await page.goto(`/assets/${JOURNEY_ASSET}`);
-    await expect(main.getByRole("region", { name: lead })).toBeVisible();
-    await expect(firstKpi).toHaveAttribute("data-kpi", number);
-    await expect(firstKpi).not.toContainText("—");
-    await expect(main.getByText("Avg. daily users")).toHaveCount(0);
+    await expect(main.locator(`[data-overview-chart="${lead}"]`)).toBeVisible();
+    await expect(firstStat).toHaveAttribute("data-stat", number);
+    await expect(firstStat.locator("[data-stat-figure]")).toBeVisible();
+    await expect(main.locator('[data-overview-numbers] [data-measure="people"] [data-stat-absent], [data-overview-numbers] [data-measure="search"]')).toHaveCount(0);
     await assertNoPageOverflow(page);
   }
 });

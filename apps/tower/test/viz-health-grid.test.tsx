@@ -240,7 +240,7 @@ describe("HealthGrid", () => {
     expect(grid.querySelector("[data-health-tooltip]")).toBeNull();
   });
 
-  it("keeps full names available where they may be cut short", () => {
+  it("wraps a long name between its words rather than cutting it", () => {
     render(
       <MemoryRouter>
         <HealthGrid rows={HEALTH_ROWS} columns={HEALTH_COLUMNS} nowMs={HEALTH_NOW_MS} />
@@ -248,7 +248,8 @@ describe("HealthGrid", () => {
     );
     const link = screen.getByRole("link", { name: "Lantern Works" });
     expect(link.getAttribute("title")).toBe("Lantern Works");
-    expect(link.className).toContain("truncate");
+    expect(link.className).not.toContain("truncate");
+    expect(link.className).not.toContain("line-clamp");
   });
 
   it("names an empty grid instead of drawing nothing", () => {

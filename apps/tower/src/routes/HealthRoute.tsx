@@ -4,7 +4,10 @@ import { systemFlow } from "@/lib/system-flow";
 import { Link } from "react-router-dom";
 import { TabPanel } from "@/components/Tabs";
 import { HealthNavigation } from "./health/HealthNavigation";
+import { JobRunGrid } from "./health/JobRunGrid";
 import { ServiceOverview } from "./health/ServiceOverview";
+import { useWorkflows } from "@/hooks/useWorkflows";
+import { jobRunWeek } from "@/lib/health-job-runs";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
 import { utcRunReference } from "@shared/scheduled-jobs";
 import { Button } from "@/components/ui/button";
@@ -115,6 +118,14 @@ function SystemMap({ credentials, items, nowMs }: { credentials: Parameters<type
   );
 }
 
+/** The week of scheduled runs under the map: the read Background operations
+ * also draws, as one row per System job and one cell per day. */
+function JobRuns({ nowMs }: { nowMs: number }) {
+  const { data, isError, isPending } = useWorkflows();
+  const week = data && data.historyAvailable ? jobRunWeek(data, nowMs) : null;
+  return <JobRunGrid week={week} nowMs={nowMs} state={week ? "ready" : isPending && !isError ? "loading" : "unavailable"} />;
+}
+
 export function HealthRoute() {
   const { data, isPending, isError, refetch } = useIntegrations();
   const { providers, monitoring, credentials, items } = useConnections();
@@ -134,6 +145,7 @@ export function HealthRoute() {
       <TabPanel idBase="health-view" id="health-view-panel" activeKey="overview" className="space-y-6">
       <ServiceOverview dataCurrent={current} degraded={wiring?.failing ?? 0} unverified={wiring?.unchecked ?? 0} setup={wiring?.setup ?? 0} integrations={monitoring.status} />
       <SystemMap credentials={credentials} items={items} nowMs={now} />
+      <JobRuns nowMs={now} />
       <IntegrationHealthPanel data={monitoring.data} isError={monitoring.isError} nowMs={now} providers={providers.data?.providers} />
       {data && !current ? (
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-warn/30 bg-warn/5 px-4 py-2 text-sm" data-snapshot-stale data-status-for="snapshot:health">

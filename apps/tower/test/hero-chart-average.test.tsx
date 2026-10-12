@@ -58,14 +58,14 @@ describe("HeroChart completed-report averages", () => {
     const rows = await openData(10);
     expect(within(rows[7]!).getAllByRole("cell")[0]).toHaveTextContent("7-day avg: 5");
     for (const [index, row] of rows.slice(-2).entries()) {
-      expect(within(row).getAllByRole("cell")[0]).toHaveTextContent(new RegExp(`^${index + 9} · Provisional$`));
+      expect(within(row).getAllByRole("cell")[0]).toHaveTextContent(new RegExp(`^${index + 9} · still counting$`));
     }
     fireEvent.focus(screen.getByRole("group", { name: "Explore Google values" }));
-    expect(screen.getByRole("status")).toHaveTextContent("7-day avg: Not availableReported: 10 · Provisional");
+    expect(screen.getByRole("status")).toHaveTextContent("7-day avg: Not availableReported: 10 · still counting");
     // The readout above already shows the provisional day kept out of the
     // average; the tooltip says only what the marks mean.
     fireEvent.focus(screen.getByRole("button", { name: "About this chart" }));
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are provisional");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Marked periods are still being counted");
     expect(screen.getByRole("tooltip")).not.toHaveTextContent("Bold line");
     expect(screen.getByRole("tooltip")).not.toHaveTextContent("The last period");
   });
@@ -79,15 +79,15 @@ describe("HeroChart completed-report averages", () => {
     expect(Math.max(...coordinates(line("Bing")))).toBe(1000);
     const rows = await openData(10);
     const last = within(rows.at(-1)!).getAllByRole("cell");
-    expect(last[0]).toHaveTextContent(/^10 · Provisional$/);
+    expect(last[0]).toHaveTextContent(/^10 · still counting$/);
     expect(last[1]).toHaveTextContent("107-day avg: 7");
-    expect(last[1]).not.toHaveTextContent("Provisional");
-    expect(last[2]).not.toHaveTextContent("Provisional");
+    expect(last[1]).not.toHaveTextContent("still counting");
+    expect(last[2]).not.toHaveTextContent("still counting");
     fireEvent.focus(screen.getByRole("group", { name: "Explore Google and Bing values" }));
     const status = screen.getByRole("status");
-    expect(status).toHaveTextContent("Google7-day avg: Not availableReported: 10 · Provisional");
+    expect(status).toHaveTextContent("Google7-day avg: Not availableReported: 10 · still counting");
     expect(status).toHaveTextContent("Bing7-day avg: 7Reported: 10");
-    expect(status.textContent!.match(/Provisional/g)).toHaveLength(1);
+    expect(status.textContent!.match(/still counting/g)).toHaveLength(1);
   });
 
   it("recalculates an inherited boundary without changing any reports", () => {
@@ -130,7 +130,7 @@ describe("HeroChart completed-report averages", () => {
     const rows = await openData(10);
     expect(rows.at(-1)).not.toHaveTextContent("avg");
     fireEvent.focus(screen.getByRole("group", { name: "Explore Google and Bing values" }));
-    expect(screen.getByRole("status")).toHaveTextContent("Google10 · ProvisionalBingNot reported");
+    expect(screen.getByRole("status")).toHaveTextContent("Google10 · still countingBingNot reported");
     expect(screen.getByRole("status")).not.toHaveTextContent("avg");
   });
 });

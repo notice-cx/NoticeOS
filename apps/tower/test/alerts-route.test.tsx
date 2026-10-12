@@ -205,6 +205,19 @@ function figure(container: HTMLElement, mark: string): string | null {
   return container.querySelector<HTMLElement>(`[data-${mark}] dd`)?.textContent ?? null;
 }
 
+/** The board of open rows. The week's timeline above it names the same
+ * alerts on its bars, so a headline is looked for here. */
+function board(): HTMLElement {
+  const found = document.querySelector<HTMLElement>("[data-alert-board]");
+  if (found === null) throw new Error("no board on the page");
+  return found;
+}
+
+/** Unfold the alerts open for over a week, as an operator does. */
+function unfoldLongStanding(): void {
+  fireEvent.click(within(board()).getByRole("button", { name: /Open for over a week/ }));
+}
+
 /** Open the row whose line matches, the way an operator does: the verbs are
  * inside the row and never printed under it. */
 function openRow(name: RegExp | string): HTMLElement {
@@ -357,7 +370,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
       target: { value: "acorn.example" },
     });
 
-    expect(screen.getByText("Two sites have no nightly reports")).toBeInTheDocument();
+    expect(within(board()).getByText("Two sites have no nightly reports")).toBeInTheDocument();
     expect(screen.queryByText("No open alerts match these filters")).toBeNull();
   });
 
@@ -434,7 +447,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
         lastEvaluatedAt: "2026-08-01T09:00:00.000Z", source: "Nightly report", reason: "report-still-flags",
       },
     })]);
-    const row = screen.getByText("Signups well below normal").closest("li")!;
+    const row = within(board()).getByText("Signups well below normal").closest("li")!;
     expect(row).toHaveTextContent("Confirmed 3h ago");
     expect(row).toHaveTextContent("first seen");
     expect(row.querySelector("button button")).toBeNull();
@@ -501,7 +514,7 @@ describe("/alerts — the portfolio's open exceptions", () => {
         { id: 8, asset: "acorn.example", assetDisplayName: "Areas", firedAt: "2026-07-06T09:00:00.000Z" },
       ],
     })]);
-    const row = screen.getByText("Two sites have no nightly reports").closest("li")!;
+    const row = within(board()).getByText("Two sites have no nightly reports").closest("li")!;
     expect(row).toHaveTextContent("Last known");
     fireEvent.click(within(row).getByRole("button", { expanded: false }));
     expect(row.querySelector('[data-attention-group-member="ferns.example"]')).toHaveTextContent("Confirmed 3h ago");
@@ -588,10 +601,10 @@ describe("/alerts — the portfolio's open exceptions", () => {
 
     const row = screen.getByRole("button", { name: /Signups well below normal/ });
     expect(row.textContent).toContain("4× in 2d");
-    // The ring carries the severity and the mark carries the kind, so neither
-    // is colour alone.
-    expect(row.querySelector(".text-error")).not.toBeNull();
-    expect(row.textContent).toContain("△");
+    // The shape carries the severity and its word is read aloud, so the
+    // colour is never alone.
+    expect(row.querySelector('[data-alert-mark="error"].text-error svg')).not.toBeNull();
+    expect(row.textContent).toMatch(/^Error: /);
   });
 
   it("offers every asset in the store as a filter, not only the ones alerting", () => {
@@ -622,6 +635,124 @@ describe("/alerts — the portfolio's open exceptions", () => {
 
     oneSite("/alerts?asset=meadow.example");
     expect(screen.getByLabelText("Site")).toHaveValue("meadow.example");
+  });
+
+  /** The list is one board: a section per site, worst first, the week's
+   * timeline above it, each reading drawn against its rule's normal. */
+  describe("the board and the week drawn above it", () => {
+    it("groups the open alerts by site, the site of the worst alert first", () => {
+      renderAlerts([
+        alert({ id: 1, message: "Signups well below normal" }),
+        alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),
+        alert({ id: 3, message: "Plans saved well below normal", firstFiredAt: "2026-07-31T12:00:00.000Z" }),
+      ]);
+      const sections = [...board().querySelectorAll<HTMLElement>("[data-alert-site]")];
+      expect(sections.map((section) => section.getAttribute("data-alert-site"))).toEqual(["acorn.example", "meadow.example"]);
+      expect(sections[0]).toHaveTextContent("Areas 1 error");
+      expect(sections[1]).toHaveTextContent("Meadow Board 2 warnings");
+      // Newest first inside a site.
+      expect([...sections[1]!.querySelectorAll("[data-alert-row]")].map((row) => row.getAttribute("data-alert-row"))).toEqual(["1", "3"]);
+      // The site's name opens the site.
+      expect(within(sections[0]!).getByRole("link", { name: "Areas" })).toHaveAttribute("href", "/assets/acorn.example");
+    });
+
+    it("folds what has been open for over a week under its own heading, named but not drawn", () => {
+      renderAlerts([
+        alert({ id: 1, message: "Signups well below normal" }),
+        alert({ id: 2, message: "Sitemap is missing", firstFiredAt: "2026-06-01T09:00:00.000Z" }),
+      ]);
+      const fold = board().querySelector<HTMLElement>("[data-alert-long-standing]")!;
+      expect(fold).toHaveTextContent("Open for over a week · 1");
+      expect(fold).toHaveTextContent("Sitemap is missing on Meadow Board");
+      expect(fold.querySelector("[data-alert-row]")).toBeNull();
+      // Its verbs are one press away, never gone.
+      expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(1);
+
+      unfoldLongStanding();
+      expect(fold.querySelector('[data-alert-row="2"]')).toHaveTextContent("Meadow Board · Sitemap is missing");
+      expect(screen.getAllByRole("button", { name: "Resolve alert" })).toHaveLength(2);
+    });
+
+    it("shows the long-standing rows under their heading when nothing fresher is open", () => {
+      renderAlerts([alert({ id: 2, message: "Sitemap is missing", firstFiredAt: "2026-06-01T09:00:00.000Z" })]);
+      const fold = board().querySelector<HTMLElement>("[data-alert-long-standing]")!;
+      expect(within(fold).getByRole("heading", { name: "Open for over a week · 1" })).toBeInTheDocument();
+      expect(within(fold).queryByRole("button", { name: /Open for over a week/ })).toBeNull();
+      expect(fold.querySelector('[data-alert-row="2"]')).not.toBeNull();
+    });
+
+    it("draws a reading against the normal its rule computed, and nothing for a rule that kept none", () => {
+      renderAlerts([
+        alert({
+          id: 1,
+          ruleId: "flow-poisson-low",
+          metric: "plansSaved",
+          ruleInputs: { metric: "plansSaved", observed: 19, baselinePerDay: 58.2, alpha: 0.01, pLowerTail: 4.1e-6 },
+        }),
+        alert({ id: 2, message: "Clicks fell off a cliff" }),
+      ]);
+      const drawn = board().querySelector('[data-alert-row="1"] [data-normal-band]')!;
+      expect(drawn).toHaveAttribute("data-verdict", "below");
+      expect(within(drawn as HTMLElement).getByRole("img")).toHaveAccessibleName("Plans saved in 24 hours: 19 in 24h, below normal; usual 41 to 77 in 24h");
+      expect(board().querySelector('[data-alert-row="2"] [data-normal-band]')).toBeNull();
+    });
+
+    it("dates the nights behind an opened row, on the strip and in its name", () => {
+      const inputs = (observed: number) => ({ metric: "signups", observed, baselinePerDay: 39.3, alpha: 0.01 });
+      renderAlerts([alert({
+        ruleId: "flow-poisson-low",
+        metric: "signups",
+        ruleInputs: inputs(22),
+        readings: [
+          { at: "2026-08-01T06:00:00.000Z", message: null, ruleInputs: inputs(22) },
+          { at: "2026-07-31T06:00:00.000Z", message: null, ruleInputs: inputs(25) },
+          { at: "2026-07-30T06:00:00.000Z", message: null, ruleInputs: inputs(18) },
+        ],
+      })]);
+      const row = openRow(/Signups well below normal/);
+      const nights = row.querySelector<HTMLElement>("[data-alert-nights]")!;
+      expect(nights).toHaveTextContent(/^Jul 30.*Aug 1$/);
+      expect(within(nights).getByRole("img")).toHaveAccessibleName(/^Signups in 24 hours, each night it was read, Jul 30 to Aug 1;/);
+    });
+
+    it("draws the week: every open alert a bar from its onset to now that opens its row", () => {
+      const { container } = renderAlerts([
+        alert({ id: 1, message: "Signups well below normal" }),
+        alert({ id: 2, asset: "acorn.example", assetDisplayName: "Areas", severity: "error", message: "Clicks fell off a cliff" }),
+      ], "/alerts?severity=error");
+      const week = container.querySelector<HTMLElement>("[data-alert-week]")!;
+      // The portfolio's week, whatever the filters narrow below it.
+      expect(week.querySelector('[data-lane="acorn.example"] [data-state="open"]')).not.toBeNull();
+      expect(week.querySelector('[data-lane="meadow.example"] [data-state="open"]')).not.toBeNull();
+      // A bar keeps the narrowing when its row survives it, and drops it when not.
+      expect(week.querySelector('[data-span="open:2:acorn.example"] a')).toHaveAttribute("href", "/alerts?severity=error#alert-2");
+      expect(week.querySelector('[data-span="open:1:meadow.example"] a')).toHaveAttribute("href", "/alerts#alert-1");
+    });
+
+    it("opens the row a link names, even one folded as long-standing", () => {
+      renderAlerts([
+        alert({ id: 1, message: "Signups well below normal" }),
+        alert({ id: 2, message: "Sitemap is missing", firstFiredAt: "2026-06-01T09:00:00.000Z" }),
+      ], "/alerts#alert-2");
+      const row = board().querySelector<HTMLElement>('[data-alert-row="2"]')!;
+      expect(row.querySelector("button[aria-expanded]")).toHaveAttribute("aria-expanded", "true");
+      expect(within(row).getByRole("button", { name: "Mark alert read" })).toBeInTheDocument();
+      expect(within(board()).getByRole("button", { name: /Signups well below normal/ })).toHaveAttribute("aria-expanded", "false");
+    });
+
+    it("closes this week's settled alerts on the week, and draws no week with nothing in it", () => {
+      history.data = {
+        rows: [settledRow(1, "2026-07-30T12:00:00.000Z"), settledRow(2, "2026-07-01T12:00:00.000Z")],
+        total: 2, offset: 0, limit: 100, hasMore: false, generatedAt: "2026-08-01T12:00:00.000Z",
+      };
+      const { container, unmount } = renderAlerts([]);
+      expect(container.querySelector("[data-alert-week] [data-span=\"settled:1\"]")).toHaveAttribute("data-state", "closed");
+      expect(container.querySelector("[data-alert-week] [data-span=\"settled:2\"]")).toBeNull();
+      unmount();
+
+      history.data = undefined;
+      expect(renderAlerts([]).container.querySelector("[data-alert-week]")).toBeNull();
+    });
   });
 
   /** A snooze that produced no visible row would be a mute with a friendlier
@@ -681,12 +812,13 @@ describe("/alerts — the portfolio's open exceptions", () => {
       const section = container.querySelector("[data-snoozed-alerts]")!;
       expect(section.textContent).toContain("1,000th signup");
 
-      // The severity is the row's own, carried by the ring; the `◦` mark says
-      // parked. There is no milestone glyph, so the kind is stated in words.
+      // A parked row wears the parked mark whatever its severity, and says so
+      // to a screen reader.
       const row = within(section as HTMLElement).getByRole("button", {
         name: /1,000th signup/,
       });
-      expect(row.textContent).toContain("◦");
+      expect(row.querySelector('[data-alert-mark="parked"]')).not.toBeNull();
+      expect(row).toHaveAccessibleName(/^Snoozed:/);
 
       expect(answer(container)).toBe("No open alerts");
     });

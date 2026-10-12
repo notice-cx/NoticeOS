@@ -109,7 +109,7 @@ export function IncidentList({ items, nowMs, marker = null, title = "Problems", 
                   <span className="whitespace-nowrap font-medium">
                     {GROUP_TITLE[group]} <span className="tabular-nums">· {formatInt(rows.length)}</span>
                   </span>
-                  {folded ? <span className="col-start-2 line-clamp-2">{rows.map((row) => `${row.title} on ${row.site}`).join(" · ")}</span> : null}
+                  {folded ? <span className="col-start-2">{rows.map((row) => `${row.title} on ${row.site}`).join(" · ")}</span> : null}
                 </button>
               ) : (
                 <h3 className="m-0 px-5 pb-1 pt-2.5 text-micro font-medium text-muted-foreground">{GROUP_TITLE[group]}</h3>
@@ -139,10 +139,10 @@ function IncidentRow({ incident, nowMs, quiet, fresh, index }: { incident: Incid
       <span aria-hidden className={cn("absolute inset-y-2 start-0 w-0.5 rounded-full bg-current", ink, quiet && "opacity-40")} />
       <Glyph aria-hidden className={cn("size-4 shrink-0", ink, quiet && "opacity-60")} />
       <span className="flex min-w-0 flex-col gap-0.5">
-        <span className={cn("line-clamp-2 text-sm font-medium", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
+        <span className={cn("text-sm font-medium", quiet ? "text-muted-foreground" : "text-foreground")} title={incident.title}>
           {incident.title}
         </span>
-        <span className="truncate text-micro text-muted-foreground">{incident.site}</span>
+        <span className="text-micro text-muted-foreground">{incident.site}</span>
       </span>
       {incident.evidence ? <span className="hidden w-40 shrink-0 @md:block">{incident.evidence}</span> : null}
       <span className={cn("flex w-12 shrink-0 flex-col items-end tabular-nums", quiet && "opacity-70")}>

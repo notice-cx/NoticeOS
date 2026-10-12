@@ -1,35 +1,27 @@
-import { moneyCurrency, sumMoneyFigures } from '@noticeos/contract/money';
-import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
-import { revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
+import { moneyCurrency } from "@noticeos/contract/money";
 import { ChevronRight } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
 import {
   PERIOD_PATTERN,
-  PROVENANCE_LABEL,
-  type CostProvenance,
   type DomainOrder,
   type DomainSchedule,
-  type FinancialCostLine,
   type FinancialMonth,
   type FinancialProperty,
   type FinancialsPayload,
-  type MoneyFigure,
   type RecurringCost,
 } from "@shared/financials";
-import { integrationLabel } from "@shared/integrations";
-import { type SeriesPointOrGap } from "@shared/surface";
 import type { SeriesPoint } from "@shared/wall";
 import { CollectionEditor } from "@/components/CollectionEditor";
+import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { EmptyState } from "@/components/EmptyState";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { PageHeader } from "@/components/PageHeader";
-import { PageAnswer } from "@/components/surface/PageAnswer";
-import { monthRevenue } from "@/lib/wall-revenue";
-import { SavesPaused } from "@/components/SavesPaused";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
+import { SavesPaused } from "@/components/SavesPaused";
 import { SegmentBar } from "@/components/SegmentBar";
-import { StateChip, type StateChipProps, type StatusSubject } from "@/components/StateChip";
+import { StateChip } from "@/components/StateChip";
 import { HeroChart, type HeroSeries } from "@/components/surface/HeroChart";
 import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
@@ -44,26 +36,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useFinancials } from "@/hooks/useFinancials";
-import { useWall } from "@/hooks/useWall";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useWall } from "@/hooks/useWall";
 import { FinancialsPeriodError } from "@/lib/api";
 import {
-  formatPeriodMonth,
-  formatPeriodMonthLong,
-  formatPeriodMonthYear,
-  formatPercent,
-  formatSignedMoney,
   formatMoney,
+  formatPercent,
+  formatPeriodMonth,
+  formatPeriodMonthYear,
+  formatSeriesDate,
+  formatSignedMoney,
   formatUsd,
 } from "@/lib/format";
+import { lastMonthRevenue, monthDays, monthEquation, monthsThrough, revenueBySite, siteMoneyRows } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
+import { monthRevenue } from "@/lib/wall-revenue";
+import { CostComposition } from "@/routes/financials/CostComposition";
+import { MonthHero } from "@/routes/financials/MonthHero";
+import { SiteMoneyRows, TooShortForATrend, TrendDates } from "@/routes/financials/SiteMoneyRows";
 
 /** Cents, everywhere on this page: it exists to be reconciled against a
  * receipt, and a column of rounded figures does not add up to its own total. */
 const CENTS = { cents: true } as const;
 
-/** The three series' identity, stated once for the strip and the chart:
- * revenue cyan and solid, cost violet and dashed, net in plain ink and dotted. */
+/** The three series' identity in the month-by-month chart: revenue cyan and
+ * solid, cost violet and dashed, net in plain ink and dotted. */
 const SERIES = {
   revenue: { name: "Revenue", tone: "revenue", lineStyle: "solid" },
   cost: { name: "Cost", tone: "cost", lineStyle: "dashed" },
@@ -72,13 +69,13 @@ const SERIES = {
 } as const satisfies Record<string, Omit<HeroSeries, "points">>;
 
 /**
- * /financials: am I making money, and where? The strip states the answer, the
- * chart under it carries the shape, and everything read one cell at a time is
- * a collapsed panel underneath. Overhead sits on asset #0 in its own line and
- * asset nets carry direct costs only, because splitting shared cost needs an
- * allocation key nobody measured. The month is the page's range and lives in
- * the URL, so it is a link and a bookmark; the page defaults to the latest
- * month holding rows.
+ * /financials: am I making money, and where? The month is drawn as revenue
+ * less cost is net, with its days, its pace and its sites; everything read one
+ * cell at a time is a collapsed panel underneath. Overhead sits on asset #0 in
+ * its own line and site nets carry direct costs only, because splitting shared
+ * cost needs an allocation key nobody measured. The month is the page's range
+ * and lives in the URL, so it is a link and a bookmark; the page defaults to
+ * the latest month holding rows.
  */
 export default function FinancialsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -107,7 +104,7 @@ export default function FinancialsRoute() {
     !missingPeriod && data && !data.empty && data.period >= data.currentPeriod;
 
   return (
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-3.5 p-4 md:p-6">
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-5 p-4 md:p-6">
       <PageHeader
         title="Money"
         /* The page's one question, not a fact about how the payload chose a
@@ -424,21 +421,28 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
   );
 }
 
+/**
+ * The month, drawn. Laid out by its own width rather than the window's: the
+ * desk's sidebar or a portrait monitor leaves the page less than the
+ * viewport. The month as an equation with its days, its pace and its sites
+ * leads; the cost side of the equation sits beside it; then every site ranked
+ * by what it earned, and the months before. Everything read one cell at a
+ * time is a collapsed panel underneath.
+ */
 function Ledger({ data }: { data: FinancialsPayload }) {
   // How many sites the installation has, from the sidebar's own read already
   // in the cache, so a month in which only one of several sites earned keeps
-  // its by-site table. Null until that read answers.
+  // its by-site rows. Null until that read answers.
   const wall = useWall().data;
   const sites = wall?.assets.length ?? null;
   /* The open month is the calendar month the store is standing in, as the
      Worker worked it out on the operator's saved clock, not off `period`:
-     June is not provisional because somebody chose to look at it. */
+     June is not still counting because somebody chose to look at it. */
   const openPeriod = data.currentPeriod;
-  /* Every month up to and including the selected one, so the strip's deltas
-     and sparklines end at the month it describes. */
-  const upto = data.months.filter((month) => month.period <= data.period);
+  /* Every month up to and including the selected one, so the chart and the
+     lines end at the month the page describes. */
+  const upto = monthsThrough(data);
   const shown = upto.at(-1);
-  const shownIsOpen = data.period >= openPeriod;
 
   if (!shown) {
     // The same answer a refused month gets: its name, and the months that
@@ -446,56 +450,58 @@ function Ledger({ data }: { data: FinancialsPayload }) {
     return <MissingPeriod period={data.period} periods={data.periods} />;
   }
 
-  const revenue = monthly(upto, (month) => month.total.revenue);
-  const cost = monthly(upto, (month) => month.total.cost);
-  const net = monthly(upto, (month) => month.total.net);
-
-  /** The month's whole turnover, both sides, split by what has settled.
-   * MAGNITUDES, not signed sums: revenue and cost each have to be checked
-   * against a statement, a net of zero can hide two large unsettled sides, and
-   * a negative estimated adjustment is still money nobody has checked — summed
-   * with its sign it would shrink the unsettled share it belongs to. */
-  const settled = shown.booked.currency === null ? null : Math.abs(shown.booked.revenue) + Math.abs(shown.booked.cost);
-  const trendCurrency = moneyCurrency(upto.map(month => month.total));
-  // Whether any cost has been written down at all: a month with no cost line
-  // and a zero total has costs nobody recorded, not costs of zero.
-  const costRecorded = data.costLines.length > 0 || shown.total.cost !== 0;
+  const equation = monthEquation(shown, openPeriod, data.costLines.length);
+  // While the month is open, its revenue pace is the one Home's answer and the
+  // TV state (`monthRevenue`), so it is one number on every screen.
+  const model = equation.open && wall && equation.currency === "USD" ? monthRevenue(wall.portfolio, wall.assets) : null;
+  const pace = model?.period === shown.period && model.pace ? { projected: model.pace.projected, daysLeft: model.pace.daysLeft } : null;
+  const projections = new Map((wall?.assets ?? []).map((asset) => [asset.id, asset.revenueProjection]));
+  const rows = siteMoneyRows(data.properties, data.period, equation.open, equation.revenue, equation.currency, projections);
+  const trendCurrency = moneyCurrency(upto.map((month) => month.total));
 
   return (
-    <>
-      {/* One answer first: the month's net in a sentence, the pace Home and
-          the TV say under it while the month is open, and revenue, cost and
-          what is confirmed beside it. A cost nobody recorded is a dash. */}
-      <MoneyAnswer shown={shown} shownIsOpen={shownIsOpen} costRecorded={costRecorded} settled={settled} wall={wall} />
-
-      {data.dailyRevenue ? <PortfolioRevenue history={data.dailyRevenue} sites={sites} /> : null}
-
-      <PropertySplit
-        properties={data.properties}
-        overhead={data.overhead}
-        period={data.period}
-        openPeriod={openPeriod}
-        sites={sites}
-      />
-
-      <Panel
-        title="Month by month"
-        count={`${data.months.length} months`}
-        mark="months"
-      >
-          <div className="mb-4">
+    <div className="@container flex flex-col gap-5" data-money-ledger="">
+      <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
+        <MonthHero
+          equation={equation}
+          days={data.dailyRevenue ? monthDays(data.dailyRevenue) : null}
+          lastMonth={lastMonthRevenue(data.months, shown.period, equation.currency)}
+          pace={pace}
+          bySite={revenueBySite(data.properties, equation.currency)}
+          className={cn("@3xl:col-span-2", data.costLines.length > 0 ? "@6xl:col-span-8" : "@6xl:col-span-12")}
+        />
+        {/* A cost side with nothing behind it is a box for nothing: the
+            equation already says none was recorded. */}
+        {data.costLines.length > 0 ? (
+          <CostComposition
+            lines={data.costLines}
+            recurringCosts={data.recurringCosts}
+            period={data.period}
+            className="self-start @3xl:col-span-2 @6xl:col-span-4"
+          />
+        ) : null}
+        <SiteMoneyRows
+          rows={rows}
+          overhead={data.overhead}
+          period={data.period}
+          openPeriod={openPeriod}
+          sites={sites}
+          className="@3xl:col-span-2 @6xl:col-span-12"
+        />
+        {upto.length >= 2 ? (
+          <section aria-label="Month by month" data-money-months="" className="rounded-xl bg-card px-5 pt-4 pb-3 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12">
             {/* Net is drawn, not inferred: the scale takes a signed domain, so
                 the page's headline figure is a line rather than a subtraction
                 performed by eye. */}
             <HeroChart
-              title="Monthly performance"
+              title="Month by month"
               series={[
-                { ...SERIES.revenue, points: revenue },
-                { ...SERIES.cost, points: cost },
-                { ...SERIES.net, points: net },
+                { ...SERIES.revenue, points: monthly(upto, (month) => month.total.revenue) },
+                { ...SERIES.cost, points: monthly(upto, (month) => month.total.cost) },
+                { ...SERIES.net, points: monthly(upto, (month) => month.total.net) },
               ]}
               range={upto.length}
-              height={220}
+              height={200}
               /* A monthly ledger has nothing to smooth and two overlapping
                  translucent areas read as a third colour that means nothing —
                  so: lines, no trailing average, no fill. */
@@ -506,29 +512,24 @@ function Ledger({ data }: { data: FinancialsPayload }) {
               provisionalFrom={openPeriod}
               ariaLabel="Revenue, cost and net for the whole ledger, month by month"
             />
-          </div>
-        <MonthlyTable months={data.months} openPeriod={openPeriod} />
-      </Panel>
+          </section>
+        ) : null}
+      </div>
 
-      {/* A disclosure with nothing behind it is a box to open for nothing. */}
-      {data.costLines.length > 0 ? (
-        <Panel
-          title="Where the cost comes from"
-          count={`${data.costLines.length} lines`}
-          mark="cost-breakdown"
-        >
-          <CostBreakdown lines={data.costLines} recurringCosts={data.recurringCosts} />
+      {data.dailyRevenue ? (
+        <Panel title="Day by day" count={formatPeriodMonthYear(data.period)} mark="days">
+          <PortfolioRevenue history={data.dailyRevenue} sites={sites} />
         </Panel>
       ) : null}
+
+      <Panel title="Every month" count={`${data.months.length} months`} mark="months">
+        <MonthlyTable months={data.months} openPeriod={openPeriod} />
+      </Panel>
 
       {/* The two registers are deliberately on a view page, which is what
           `data-config-surface` declares: these two tables are the files, and
           correcting a price here is why they are on the page that spends them. */}
-      <Panel
-        title="Declared costs"
-        mark="costs"
-        configSurface
-      >
+      <Panel title="Declared costs" mark="costs" configSurface>
         <Costs
           period={data.period}
           currentPeriod={openPeriod}
@@ -538,318 +539,10 @@ function Ledger({ data }: { data: FinancialsPayload }) {
           properties={data.properties}
         />
       </Panel>
-
-      {/* No About panel: each fact sits on the figure it qualifies, as a
-          shape. */}
-    </>
+    </div>
   );
 }
 
-/**
- * The month's answer. While the month is open, the revenue pace is the one
- * Home's brief and the TV state (`monthRevenue`), so it is one number on every
- * screen. A cost nobody recorded is "none recorded", and the net says "revenue
- * only", never a green net over a $0 nobody counted.
- */
-function MoneyAnswer({ shown, shownIsOpen, costRecorded, settled, wall }: {
-  shown: FinancialMonth;
-  shownIsOpen: boolean;
-  costRecorded: boolean;
-  settled: number | null;
-  wall: ReturnType<typeof useWall>["data"];
-}) {
-  const currency = shown.total.currency;
-  const month = formatPeriodMonthLong(shown.period).replace(/\s\d{4}$/, "");
-  const pace = shownIsOpen && wall ? monthRevenue(wall.portfolio, wall.assets)?.pace ?? null : null;
-  const detail = [
-    pace ? `on pace for ${formatUsd(pace.projected)} revenue · ${pace.daysLeft} ${pace.daysLeft === 1 ? "day" : "days"} left` : null,
-    costRecorded ? null : "revenue only",
-  ].filter(Boolean).join(" · ") || undefined;
-  return (
-    <PageAnswer
-      answer={`${month} net ${formatSignedMoney(shown.total.net, currency)}${shownIsOpen ? " so far" : ""}`}
-      detail={detail}
-      figures={[
-        { label: "Revenue", value: formatMoney(shown.total.revenue, currency), tone: "text-financial-revenue", mark: "money-revenue" },
-        costRecorded
-          ? { label: "Cost", value: formatMoney(shown.total.cost, currency), mark: "money-cost" }
-          : { label: "Cost", value: "—", note: "none recorded", mark: "money-cost" },
-        { label: "Confirmed", value: formatMoney(settled, shown.booked.currency), mark: "money-confirmed" },
-      ]}
-      marks={{ "data-surface-hero": "", "data-money-answer": shownIsOpen ? "open" : "closed" }}
-    />
-  );
-}
-
-/**
- * Where the money is, asset by asset: the page's one visible table. The share
- * bar answers which asset is carrying this month; the net-by-month sparkline
- * in every row answers which one is getting better.
- */
-function PropertySplit({
-  properties,
-  overhead,
-  period,
-  openPeriod,
-  sites,
-}: {
-  properties: FinancialProperty[];
-  overhead: MoneyFigure;
-  period: string;
-  /** The month the STORE is standing in — the one point on any line here that
-   * is still being counted, drawn hollow wherever it appears. */
-  openPeriod: string;
-  /** The installation's site count, or null before it is known. */
-  sites: number | null;
-}) {
-  const owned = properties.filter((property) => !property.isOs);
-  /* One site is its own split: every row of a by-site table over one site
-     equals its total, and with nothing shared there is nothing to allocate.
-     The table stays while an overhead line pays for more than the site. */
-  const several = (sites ?? owned.length) > 1;
-  const overheadExists = overhead.cost !== 0 || overhead.revenue !== 0;
-  if (!several && !overheadExists) return null;
-  // "Sites, direct" is the total minus the overhead; with no overhead it is
-  // the total again, so it goes with the overhead row.
-  const subtotal = several && overheadExists;
-  const direct = sumMoneyFigures(owned.map(property => property.figure));
-  const portfolio = sumMoneyFigures([...owned.map(property => property.figure), overhead]);
-  const directNet = direct.net;
-  const portfolioNet = portfolio.net;
-  const periodRevenue = portfolio.revenue;
-
-  return (
-    <section className="rounded-[10px] border border-border bg-card">
-      {/* The two-tier read is the table's own last three rows: assets' direct
-          net, the shared overhead, the portfolio net. */}
-      <SectionLabel
-        title="By site"
-        caption={formatPeriodMonthYear(period)}
-        className="px-4 pb-1 pt-3"
-      />
-      <div className="px-2 pb-2 sm:px-4 sm:pb-4">
-        {/* `stacked`: Net would otherwise be off the right edge at 390px. */}
-        <Table stacked>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Site</TableHead>
-              <TableHead>Net · by month</TableHead>
-              <TableHead className="text-right">Revenue</TableHead>
-              <TableHead className="text-right">Direct cost</TableHead>
-              <TableHead className="text-right">Net</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {owned.map((property) => (
-              <TableRow key={property.asset} data-subject={`asset:${property.asset}`}>
-                <TableCell className="font-medium">
-                  <span className="flex items-center gap-2">
-                    {/* Identity is the glyph everywhere else in this Tower, and
-                        it sits OUTSIDE the link so the link's box stays exactly
-                        the words — see the note below. */}
-                    <PropertyFavicon
-                      domain={property.asset}
-                      displayName={property.displayName}
-                    />
-                    {/* The name is the card's one way out on a phone, so it needs the
-                        44px thumb floor: `inline-flex` makes the box 44px and
-                        `-my-3` returns 24 of them, so the cell keeps its 20px. */}
-                    <Link
-                      to={`/assets/${encodeURIComponent(property.asset)}/financials`}
-                      /* `min-w-11` as well as `min-h-11`: the floor is 44px on
-                         both axes, claimed into the padding and the gap
-                         between cards, where no other control is. */
-                      className="hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
-                    >
-                      {property.displayName}
-                    </Link>
-                  </span>
-                </TableCell>
-                {/* Which way this asset is going. The line is muted: net's movement
-                    is not a verdict. `average={false}` because these are
-                    monthly points with no noise to smooth away. */}
-                <TableCell label="Net · by month" dropWhenStacked>
-                  <PropertyTrend
-                    property={property}
-                    period={period}
-                    openPeriod={openPeriod}
-                  />
-                </TableCell>
-                <TableCell label="Revenue" className="text-right tabular-nums">
-                  {/* Nothing reported is a dash, not $0.00: the cell itself tells an
-                      unreported month from a zero one. */}
-                  {property.revenueReported ? (
-                    formatMoney(property.figure.revenue, property.figure.currency, CENTS)
-                  ) : (
-                    <span data-revenue-unreported={property.asset}>
-                      <InfoTooltip label={`${property.displayName}: no revenue reported`} trigger="—">
-                        No revenue reported
-                      </InfoTooltip>
-                    </span>
-                  )}
-                  {/* Which asset is carrying the month: the one question a
-                      column of dollar figures makes the reader do arithmetic
-                      for. Absent when the period earned nothing at all: a
-                      share of zero is not a small share, and an empty track
-                      on every row would be a proportion of nothing. */}
-                  {property.revenueReported && property.figure.currency === portfolio.currency && property.figure.revenue !== null && periodRevenue !== null && periodRevenue > 0 ? (
-                    <RevenueShare
-                      name={property.displayName}
-                      revenue={property.figure.revenue}
-                      total={periodRevenue}
-                    />
-                  ) : null}
-                </TableCell>
-                <TableCell label="Direct cost" className="text-right tabular-nums">
-                  {formatMoney(property.figure.cost, property.figure.currency, CENTS)}
-                </TableCell>
-                <TableCell
-                  label="Net"
-                  className={cn("text-right tabular-nums", netClass(property.figure.net))}
-                >
-                  {formatSignedMoney(property.figure.net, property.figure.currency, CENTS)}
-                </TableCell>
-              </TableRow>
-            ))}
-            {/* The three summary rows carry no line: a total's trajectory is the
-                chart at the top of the page. */}
-            {subtotal ? (
-              <TableRow className="border-t-2 border-border">
-                <TableCell className="font-medium">Sites, direct</TableCell>
-                <TableCell />
-                <TableCell />
-                <TableCell />
-                <TableCell
-                  label="Net"
-                  className={cn("text-right font-semibold tabular-nums", netClass(directNet))}
-                >
-                  {formatSignedMoney(directNet, direct.currency, CENTS)}
-                </TableCell>
-              </TableRow>
-            ) : null}
-            {/* The OS line is the whole reason nothing above it is allocated.
-                Splitting $200 of Claude Code six ways needs a key nobody
-                measured; subtracting it once, in the open, needs nothing. */}
-            {overheadExists ? <TableRow className={subtotal ? undefined : "border-t-2 border-border"}>
-              <TableCell className="font-medium">
-                Overhead
-                <span className="ml-2 text-xs font-normal text-muted-foreground">
-                  shared, allocated to no site
-                </span>
-              </TableCell>
-              <TableCell />
-              <TableCell />
-              <TableCell label="Direct cost" className="text-right tabular-nums">
-                {formatMoney(overhead.cost, overhead.currency, CENTS)}
-              </TableCell>
-              <TableCell label="Net" className={cn("text-right tabular-nums", netClass(overhead.net))}>
-                {formatSignedMoney(overhead.net, overhead.currency, CENTS)}
-              </TableCell>
-            </TableRow> : null}
-            <TableRow className="border-t-2 border-border">
-              <TableCell className="font-semibold">Total net</TableCell>
-              <TableCell />
-              <TableCell />
-              <TableCell />
-              <TableCell
-                label="Net"
-                className={cn("text-right text-lg font-semibold tabular-nums", netClass(portfolioNet))}
-              >
-                {formatSignedMoney(portfolioNet, portfolio.currency, CENTS)}
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-      </div>
-    </section>
-  );
-}
-
-/** A line needs three points before it is a trend rather than a slope drawn
- * through two readings; below that the cell prints a dash and says why on
- * hover, the same floor as the month table's own sparkline column. */
-const MIN_TREND_MONTHS = 3;
-
-/** The dash a trend cell prints under that floor, with its reason on demand
- * from a hover, a key or a tap. */
-function TooShortForATrend() {
-  const reason = `Needs ${MIN_TREND_MONTHS} months of history`;
-  return <InfoTooltip label={`No trend: ${reason}`} trigger="—">{reason}</InfoTooltip>;
-}
-
-/**
- * One asset's net, month by month. The series stops at the month the table
- * describes, and nothing is interpolated: the payload carries a point only for
- * a month the asset has a ledger row in.
- */
-function PropertyTrend({
-  property,
-  period,
-  openPeriod,
-}: {
-  property: FinancialProperty;
-  period: string;
-  openPeriod: string;
-}) {
-  /* The asset's own month axis, holes included: a sparkline spaces its points
-     by position, so the payload carries the axis, a month it booked nothing
-     in is null, and the line breaks over it rather than bridging it. */
-  const currency = moneyCurrency(property.months.flatMap(month => month.figure === null ? [] : [month.figure]));
-  const series: SeriesPointOrGap[] = property.months
-    .filter((month) => month.period <= period)
-    .map((month) => ({
-      t: month.period,
-      v: currency === null || month.figure?.currency !== currency ? null : month.figure.net,
-    }));
-
-  /* Three readings, not three positions: an axis of ten months holding two
-     figures is still two figures. */
-  const booked = series.filter((point) => point.v !== null);
-  if (booked.length < MIN_TREND_MONTHS) {
-    return <TooShortForATrend />;
-  }
-
-  return (
-    <span className="block" data-property-trend={property.asset}>
-      <Sparkline
-        data={series}
-        size="cell"
-        average={false}
-        readout
-        tone="muted"
-        provisionalFrom={openPeriod}
-        format={(value) => formatMoney(value, currency, CENTS)}
-        ariaLabel={`${property.displayName} net by month, ${series[0]!.t} to ${series.at(-1)!.t}`}
-      />
-    </span>
-  );
-}
-
-/** One asset's slice of the period's revenue, as the shape beside the figure.
- * The dollars are in the cell above it and the exact percentage in the hover. */
-function RevenueShare({
-  name,
-  revenue,
-  total,
-}: {
-  name: string;
-  revenue: number;
-  total: number;
-}) {
-  const percent = formatPercent((revenue / total) * 100);
-  return (
-    <SegmentBar
-      className="mt-1"
-      ariaLabel={`${name} earned ${percent}% of the period's revenue`}
-      segments={[
-        { name: "asset", value: revenue, fill: "bg-foreground/70" },
-        { name: "rest", value: total - revenue, fill: "bg-muted-foreground/25" },
-      ]}
-      title={`${percent}% of the period's revenue`}
-      data-revenue-share={name}
-    />
-  );
-}
 
 /** The trajectory, one row per month, with a sparkline cell for the shape.
  * Behind a disclosure because the chart above answers "is this getting better"
@@ -919,127 +612,28 @@ function MonthlyTable({
               </TableCell>
               {/* The row's own shape: net up to and including this month. */}
               <TableCell label="Net to date" className="text-right" dropWhenStacked>
-                {index >= 2 ? (
-                  <Sparkline
-                    data={net.slice(0, index + 1)}
-                    size="cell"
-                    average={false}
-                    readout
-                    tone="muted"
-                    provisionalFrom={openPeriod}
-                    format={(value) => formatMoney(value, moneyCurrency(months.map(item => item.total)), CENTS)}
-                    ariaLabel={`Net by month through ${month.period}`}
-                  />
-                ) : (
+                {index < 2 ? (
                   <TooShortForATrend />
+                ) : net.length === 0 ? (
+                  <Sparkline data={[]} size="cell" emptyReason="Months in different currencies" ariaLabel={`Net by month through ${formatSeriesDate(month.period)}`} />
+                ) : (
+                  <span className="ms-auto flex w-24 flex-col">
+                    <Sparkline
+                      data={net.slice(0, index + 1)}
+                      size="cell"
+                      average={false}
+                      readout
+                      tone="muted"
+                      provisionalFrom={openPeriod}
+                      format={(value) => formatMoney(value, moneyCurrency(months.map(item => item.total)), CENTS)}
+                      ariaLabel={`Net by month, ${formatSeriesDate(net[0]!.t)} to ${formatSeriesDate(month.period)}`}
+                    />
+                    <TrendDates first={net[0]!.t} last={month.period} />
+                  </span>
                 )}
               </TableCell>
             </TableRow>
           ))}
-        </TableBody>
-      </Table>
-    </div>
-  );
-}
-
-/**
- * How a cost figure came to be known, as a glyph. All four faces stay in the
- * quiet half of the palette: provenance is not severity. They separate on
- * weight and on the dot's shape rather than on hue, so the ladder reads the
- * same on a grayscale screen, and it runs from measured down to
- * unaccounted-for. The chip replaces the word rather than sitting beside it.
- */
-const PROVENANCE_CHIP: Readonly<
-  Record<CostProvenance, Pick<StateChipProps, "tone" | "dot" | "attention">>
-> = Object.freeze({
-  metered: { tone: "neutral", dot: "solid" },
-  stated: { tone: "affirmative", dot: "solid" },
-  amortized: { tone: "na", dot: "solid" },
-  unclassified: { tone: "na", dot: "hollow", attention: true },
-});
-
-/* The chip is the word and nothing else: the labels are the operator's own
-   words for the four kinds (shared/financials.ts). */
-function ProvenanceChip({ provenance, subject }: { provenance: CostProvenance; subject: StatusSubject }) {
-  const face = PROVENANCE_CHIP[provenance];
-  return (
-    <StateChip
-      subject={subject}
-      label={PROVENANCE_LABEL[provenance]}
-      tone={face.tone}
-      dot={face.dot}
-      attention={face.attention ?? false}
-    />
-  );
-}
-
-/**
- * Where a cost line came from, named the way the operator names it: the
- * subscription's own label, the provider's product name for a metered bill,
- * "Domain orders" for the amortized terms. The store's keys are how the rows
- * are filed, not how anyone says them.
- */
-function costSourceLabel(source: string | null, recurringCosts: readonly RecurringCost[]): string {
-  if (source === null) return "—";
-  if (source.startsWith("recurring:")) {
-    const id = source.slice("recurring:".length);
-    return recurringCosts.find((cost) => cost.id === id)?.label ?? id;
-  }
-  if (source.startsWith("metered:")) {
-    const id = source.slice("metered:".length);
-    return integrationLabel(id, id);
-  }
-  if (source === "domains") return "Domain orders";
-  return source;
-}
-
-function CostBreakdown({
-  lines,
-  recurringCosts,
-}: {
-  lines: FinancialCostLine[];
-  recurringCosts: readonly RecurringCost[];
-}) {
-  const total = sumMoneyFigures(lines.map(line => ({ currency: line.currency, revenue: 0, cost: line.amount, net: -line.amount })));
-  return (
-    <div className="flex flex-col gap-3">
-      {/* `stacked`: the Source column, what a figure is checked against, is
-          the one that would be truncated at 390px. */}
-      <Table stacked>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Family</TableHead>
-            <TableHead>Type</TableHead>
-            <TableHead>Source</TableHead>
-            <TableHead className="text-right">Amount</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {lines.map((line) => (
-            <TableRow key={`${line.family}:${line.source ?? "none"}:${line.currency}`}>
-              <TableCell className="font-medium">{line.family}</TableCell>
-              <TableCell label="Type">
-                <ProvenanceChip provenance={line.provenance} subject={`cost:${line.family}:${line.source ?? "none"}`} />
-              </TableCell>
-              <TableCell label="Source" className="text-muted-foreground" data-cost-source={line.source ?? ""}>
-                {costSourceLabel(line.source, recurringCosts)}
-                {line.rows > 1 ? (
-                  <span className="ml-1.5 text-xs tabular-nums">×{line.rows}</span>
-                ) : null}
-              </TableCell>
-              <TableCell label="Amount" className="text-right tabular-nums">
-                {formatMoney(line.amount, line.currency, CENTS)}
-              </TableCell>
-            </TableRow>
-          ))}
-          <TableRow className="border-t-2 border-border">
-            <TableCell className="font-semibold" colSpan={3}>
-              Total
-            </TableCell>
-            <TableCell label="Amount" className="text-right font-semibold tabular-nums">
-              {formatMoney(total.cost, total.currency, CENTS)}
-            </TableCell>
-          </TableRow>
         </TableBody>
       </Table>
     </div>

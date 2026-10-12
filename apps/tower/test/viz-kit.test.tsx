@@ -185,8 +185,28 @@ describe("PortfolioRows", () => {
       </MemoryRouter>,
     );
     const name = screen.getByText("Lantern Works");
-    expect(name.className).toContain("truncate");
+    expect(name.className).not.toContain("truncate");
     expect(name.getAttribute("title")).toBe("Lantern Works");
     expect(screen.getAllByText("no revenue").length).toBeGreaterThan(0);
+  });
+
+  it("dates every people line and names a failing source in words", () => {
+    const people = Array.from({ length: 28 }, (_, i) => ({ t: new Date(Date.UTC(2026, 7, 26 + i)).toISOString().slice(0, 10), v: 100 + i }));
+    const { container } = render(
+      <MemoryRouter>
+        <PortfolioRows
+          formatMoney={(n) => formatUsd(n, { cents: true })}
+          rows={[{
+            id: "p", name: "Lantern Works", health: { word: "At risk", tone: "warn" }, people, peopleLatest: 127, peopleChange: 5.8,
+            revenue: null, share: null,
+            sources: [{ label: "Bing", state: "failing" }, { label: "GA4", state: "working" }, { label: "Uptime", state: "overdue" }],
+          }]}
+        />
+      </MemoryRouter>,
+    );
+    const dates = [...container.querySelectorAll("[data-portfolio-dates]")].map((el) => el.textContent);
+    expect(dates[0]).toBe("Aug 26Sep 22");
+    expect(screen.getAllByRole("img", { name: "Lantern Works: people a day, Aug 26 to Sep 22" }).length).toBeGreaterThan(0);
+    expect(screen.getByText("1 of 3 data sources live; Bing failing, Uptime late")).toBeTruthy();
   });
 });

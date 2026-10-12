@@ -9,7 +9,8 @@ const usd = (value: number) => formatUsd(value);
 const cents = (value: number) => formatUsd(value, { cents: true });
 
 /** The ink of each site's share, strongest first; past the fourth they share the last. */
-const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "bg-financial-revenue/40", "bg-financial-revenue/25"] as const;
+/** The month's split by site, largest first: one revenue ink stepping down. */
+export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "bg-financial-revenue/40", "bg-financial-revenue/25"] as const;
 
 /**
  * Home's lead: the month so far as the largest figure on the screen, where it
@@ -34,7 +35,7 @@ export function MoneyHero({ money, className }: { money: HomeMoney; className?: 
           {money.soFar === null ? (
             <span className="text-figure-sm text-muted-foreground" data-money-figure="">not reported yet</span>
           ) : (
-            <span className="flex items-baseline gap-2" data-money-figure="">
+            <span className="flex flex-wrap items-baseline gap-x-2" data-money-figure="">
               <span className="text-display tabular-nums text-foreground">{usd(money.soFar)}</span>
               {money.estimated ? <span className="text-sm font-medium text-muted-foreground">est.</span> : null}
             </span>

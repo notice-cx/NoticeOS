@@ -478,12 +478,12 @@ function RowHead({ row, problems, at, tabbable, register, onFocusTarget }: RowHe
             data-health-target={key}
             onFocus={() => onFocusTarget(at)}
             title={row.name}
-            className="block truncate rounded-sm text-sm leading-6 font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+            className="block rounded-sm text-sm leading-6 font-medium text-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           >
             {row.name}
           </Link>
         ) : (
-          <span title={row.name} className="block truncate text-sm leading-6 font-medium text-foreground">
+          <span title={row.name} className="block text-sm leading-6 font-medium text-foreground">
             {row.name}
           </span>
         )}
