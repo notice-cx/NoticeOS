@@ -79,7 +79,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `audit:flows` | The flow walker: walk every declared operator flow in a real browser and report what each one costs (actions, screens, page changes, explanatory words, empty steps, repeated checks, duplicate statuses, ungrouped lists). | `apps/tower/e2e/flow-gate.mjs` |
 | `audit:viewport` | Capture the running Tower at each viewport through a local Firefox Marionette session, for a visual review. | `scripts/tower-viewport-audit.mjs` |
 | `audit:wall-fit` | Does the Wall still fit the TV? | `scripts/wall-fit-check.mjs` |
-| `audit:surfaces` | Does a desk surface still meet the design doc? | `scripts/surface-audit.mjs` |
+| `audit:surfaces` | Does each Tower page still meet the design doc? | `scripts/surface-audit.mjs` |
 
 ### Tests
 
