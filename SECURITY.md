@@ -11,12 +11,13 @@ or disclosure plan is agreed with the maintainers.
 
 ## Deployment boundaries
 
-The standalone installation trusts whoever can reach it. Keep it behind an
-access proxy, VPN or private network; do not expose it directly to the internet.
+The standalone installation has no login: anyone who can reach it can read and
+change its data. Keep it behind an access proxy, VPN or private network; do not
+expose it directly to the internet.
 The [Docker demo preview](deploy/demo/README.md) has a separate, fixed read-only
-profile for synthetic data. It requires an HTTPS reverse proxy and keeps its
-database ports private. Do not place customer data or provider credentials in
-that deployment. Customer account hosting is outside the preview release.
+profile for synthetic data. It requires an HTTPS reverse proxy and does not
+publish its database ports. Do not place customer data or provider credentials
+in that deployment. Customer account hosting is not part of the preview release.
 
 See the [release and upgrade policy](docs/reference/release-policy.md) for supported
 installation paths, verification and database maintenance.

@@ -5,9 +5,9 @@ description: "Go from a machine with Docker to the first number on a site's Over
 
 # Install in five minutes
 
-This page gets you from a machine with Docker to the first number on a site's Overview.
+Follow this page to go from a machine with Docker to the first number on a site's Overview.
 
-NoticeOS runs on your own machine as a few Docker containers, and you use it through the **Tower**, its web app, in your browser. There you add a **site**, one of your websites or products; connect a **data source**, a service that already holds the site's numbers, such as Google Analytics; and read the site's first figures on its **Overview**, the first tab of the site's own page. Any other word you meet is in the [Glossary](/concepts/glossary).
+NoticeOS runs on your own machine as a few Docker containers, and you use it through the **Tower**, its web app, in your browser. There you add a **site**, one of your websites or products; connect a **data source**, a service that already holds the site's numbers, such as Google Analytics; and read the site's first figures on its **Overview**, the first tab of the site's own page. Other terms are defined in the [Glossary](/concepts/glossary).
 
 ## Before you begin
 
@@ -25,17 +25,17 @@ To work on NoticeOS itself or build its image yourself, [install from source](/s
    docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
    ```
 
-2. On **Home**, select **Add your first site**. In the **Add a site** dialog, type the domain in the **Domain** field and select **Add site**. You land on the new site's **Data sources** tab.
-3. On the **Data sources** tab, select **Connect** on a source, paste what the provider issued, select **Connect**, then select **Start collecting**. Google signs you in instead of taking a key.
+2. On **Home**, select **Add your first site**. In the **Add a site** dialog, type the domain in the **Domain** field and select **Add site**. The new site's **Data sources** tab opens.
+3. On the **Data sources** tab, select **Connect** on a source, paste what the provider issued, select **Connect**, then select **Start collecting**. For Google, you sign in with your Google account instead of pasting a key.
 4. Open the site's **Overview** to see its first number.
 
-Setup keeps the installation in `~/noticeos`; `~/noticeos/noticeos status` shows it. [Install with Docker](/start/install-with-docker) covers the options, the daily commands and updates.
+Setup puts the installation in `~/noticeos`; `~/noticeos/noticeos status` shows its state. [Install with Docker](/start/install-with-docker) covers the options, the daily commands and updates.
 
 ## Verify
 
 - **Home** shows the site with the health word **Setting up** until the first numbers arrive.
-- On the **Data sources** tab, the source's row moves from **Collecting** to **Working** as its first result lands.
-- The site's **Overview** opens with a row of figures over one chart.
+- On the **Data sources** tab, the source's row changes from **Collecting** to **Working** when its first result arrives.
+- The site's **Overview** shows a row of figures above one chart.
 
 ## Next steps
 

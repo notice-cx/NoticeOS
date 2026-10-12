@@ -4,8 +4,8 @@
 
 ## Your startup. In clear view.
 
-**A self-hosted operating desk for your websites and software products.**
-See traffic, revenue, costs, alerts and work together—on your laptop, phone or TV.
+**A self-hosted app for your websites and software products.**
+See traffic, revenue, costs, alerts and work in one place, on your laptop, phone or TV.
 
 [![CI](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
@@ -16,15 +16,15 @@ See traffic, revenue, costs, alerts and work together—on your laptop, phone or
 [![Dolt 2](https://img.shields.io/badge/Dolt-2-6B45CB)](https://www.dolthub.com/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
 
-![NoticeOS brings together traffic and signals, revenue and costs, tasks and workflows, and changes and outcomes.](docs/images/noticeos-overview.svg)
+![NoticeOS shows traffic and signals, revenue and costs, tasks and workflows, and changes and outcomes in one place.](docs/images/noticeos-overview.svg)
 
 - **Know what needs attention.** See collection failures, unusual traffic and missing evidence.
-- **See what earns.** Compare recorded revenue and costs, with dates and coverage kept visible.
+- **See what makes money.** Compare recorded revenue and costs, with dates and coverage kept visible.
 - **Keep work moving.** Track owners, blockers, approvals and completion evidence across projects.
 - **Check what changed.** Review the follow-up evidence for a change. Completing work is not proof of a better outcome.
 
-The **Tower** is the web app. **Wall** is its at-a-glance TV view.
-Missing data stays unknown; it is never silently turned into zero.
+The **Tower** is the web app. **Wall** is its TV view.
+Missing data is shown as unknown, never as zero.
 
 ## Install with Docker
 
@@ -37,7 +37,7 @@ docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup
 
 Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup makes the
 installation folder `~/noticeos` with its own secrets and starts Postgres, the
-Dolt task hub, the app and its backup worker as one Docker Compose stack, from
+Dolt task database, the app and its backup worker as one Docker Compose stack, from
 main's newest published image. The folder's launcher runs its commands:
 `~/noticeos/noticeos status`, `logs`, `apply`, `update`.
 [Install with Docker](docs/start/install-with-docker.md) covers the options,
@@ -63,9 +63,9 @@ pnpm os:setup
 Open **[http://127.0.0.1:5173/](http://127.0.0.1:5173/)**. Setup fetches the app
 image published for `main` (or builds it when none is published), makes the
 installation folder `~/noticeos` with its own secrets, starts
-Postgres, the Dolt task hub, the app and its backup worker as one Docker Compose
+Postgres, the Dolt task database, the app and its backup worker as one Docker Compose
 stack, and points the `pnpm os:*` commands at it. It starts with no user
-websites or provider accounts, and existing databases are never touched.
+websites or provider accounts, and existing databases are never changed.
 
 [Install from source](docs/start/install-from-source.md) covers the options;
 [Run with Docker](docs/start/run-with-docker.md) covers the folder, changing a
@@ -86,25 +86,25 @@ and [bootstrap credential setup](docs/06-operations.md#bootstrap-secrets-vs-inte
 
 ## One shared place for work
 
-**Beads supplies the task model; Dolt stores it in one central hub.**
+**Beads provides the task model; Dolt stores the tasks in one central database.**
 People and agents coordinate the same tasks across NoticeOS and the projects
 it manages, with status, ownership, dependencies, approval gates and evidence.
 New installations include a NoticeOS task project, so Tasks works before you
-add a website. [Connect a task project](docs/guides/connect-a-task-project.md) walks through
+add a website. [Connect a task project](docs/guides/connect-a-task-project.md) covers
 a project's shared tasks, repository access and agent instructions.
 
 People work on the **Tasks** page. A coding agent such as Claude Code reaches
 the same tasks, and the site reports, through the MCP server the Tower serves
-at `/api/mcp`; [Connect an agent](docs/guides/connect-an-agent.md) sets it up
-in one command. Installable agent skills and hooks, and connections to tools
-such as Jira or Linear, are planned; they are not available yet.
+at `/api/mcp`; [Connect an agent](docs/guides/connect-an-agent.md) shows how to
+set it up with one command. Installable agent skills and hooks, and connections
+to tools such as Jira or Linear, are planned; they are not available yet.
 
 ## Deployment status
 
 | Installation | Use it for |
 | --- | --- |
 | [Standalone](#install-with-docker) | Your own assets, on a trusted network |
-| [Docker stack](deploy/compose/README.md) | A prepared installation that runs on its own, from an image or a checkout's live source, controlled with `pnpm os:*` or its folder's `noticeos` launcher |
+| [Docker stack](deploy/compose/README.md) | A prepared installation that keeps running in the background, from an image or a checkout's live source, controlled with `pnpm os:*` or its folder's `noticeos` launcher |
 | [Docker demo preview](deploy/demo/README.md) | A shared, read-only demo with synthetic assets and ongoing simulated activity |
 
 Standalone has no user login: anyone who can reach it can operate it. Keep it
@@ -116,15 +116,15 @@ Visitors explore the same product and task model; they cannot change data or
 connect real providers. Follow the demo guide for setup, updates and recovery.
 
 Customer account hosting and invitation-based onboarding are not part of this
-preview release. Local qualification does not establish a deployed public service.
-See the [workspace ownership contract](docs/23-configuration-ownership.md),
+preview release. Checks that pass on a local machine do not show that a public
+deployment works. See the [workspace ownership contract](docs/23-configuration-ownership.md),
 [security policy](SECURITY.md) and [release policy](docs/reference/release-policy.md).
 
 ## Contribute
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) for the code map, isolated tests and
 review process. Use the public repository's issues and pull requests when
-available; access to the maintainers' private task hub is not required.
+available; access to the maintainers' private task database is not required.
 Report vulnerabilities privately through [SECURITY.md](SECURITY.md).
 
 Useful references: [design docs](docs/README.md) · [operations](scripts/README.md) ·
