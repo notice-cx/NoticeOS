@@ -104,7 +104,9 @@ export function AssetSettingsPanel({
 }) {
   const { wiring, rules, asset } = data;
   return (
-    <div id="configuration" className="flex scroll-mt-4 flex-col gap-3.5">
+    // One column of panels at the width /settings draws its own, so the two
+    // settings pages read as one: a form is easier to scan narrow.
+    <div id="configuration" className="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
       {/* When saves are paused the tab says so once; each editor below shows
           only its lock. */}
       <SavesPaused />

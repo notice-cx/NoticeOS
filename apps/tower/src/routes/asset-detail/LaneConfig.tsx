@@ -165,7 +165,7 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
       ) : null}
 
       {blocker !== null ? (
-        <p className="mt-2 truncate border-t border-border pt-2 text-xs text-foreground" data-lane-note>
+        <p className="mt-2 break-words border-t border-border pt-2 text-xs text-foreground" data-lane-note>
           {blocker}
         </p>
       ) : null}
@@ -738,7 +738,7 @@ export function Ga4LaneConfig({ asset, config }: { asset: string; config: AssetG
 function notApplicableWhy(lane: AssetIntegrationLane, asset: string, isOs: boolean): ReactNode {
   const { cell, catalog } = lane;
   if (cell.since !== "") {
-    return cell.note ? <span className="block truncate">{cell.note}</span> : null;
+    return cell.note ? <span className="block break-words">{cell.note}</span> : null;
   }
   const ruled =
     catalog.scope === "portfolio" && !isOs

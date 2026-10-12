@@ -331,7 +331,12 @@ month against last month on a `PaceBar`, then the accounting months as revenue
 and cost bars on one ruler. Search: the queries that moved, each drawn where it
 sits on the results page now against before, then the tracked terms with a
 rank track on every row. Alerts: the last thirty days as an `EventTimeline`,
-one row per condition, and each open reading on its `NormalBand`.
+one row per condition, and each open reading on its `NormalBand`. Activity:
+the last ninety days of changes and bets on one `EventTimeline`, a bet marked
+where it was registered and where its verdict came in. Data sources: the
+connected sources feeding the site as a `FlowGraph`, the failing one lit where
+it sits, the rest named on one line. Settings is a form: one column of panels
+at the width `/settings` uses.
 
 **Sites answers which one needs me.** The answer names the sites that do, beside
 where the month is heading and yesterday's visitors; one bar splits every site
