@@ -453,7 +453,7 @@ function PageDecisionRow({
           <Icon className={cn("size-4 shrink-0", colors.text)} aria-hidden />
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <span className="truncate font-mono text-[13px] font-semibold text-foreground">
+              <span className="min-w-0 break-all font-mono text-[13px] font-semibold text-foreground">
                 {row.path}
               </span>
               <HandoffBeadBadge bead={bead} />
@@ -528,11 +528,11 @@ function PageDecisionRow({
 
       <div role="cell" className="order-1 min-w-0 lg:order-none">
         <MobileCellLabel>Page</MobileCellLabel>
-        <div className="truncate font-mono text-sm font-semibold leading-snug text-foreground">
+        <div className="break-all font-mono text-sm font-semibold leading-snug text-foreground">
           {row.path}
         </div>
         {row.leadingQuery ? (
-          <p className="mt-1 truncate text-[10px] text-muted-foreground">
+          <p className="mt-1 break-words text-micro text-muted-foreground">
             leads on “{row.leadingQuery.query}”
           </p>
         ) : (

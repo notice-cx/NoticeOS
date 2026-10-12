@@ -80,6 +80,11 @@ export interface AlertRowProps {
   snoozed?: boolean;
   /** Identity for a portfolio surface. Absent on the asset's own page. */
   asset?: AlertHistoryAsset | null;
+  /** The reading behind the alert, drawn under the row whether or not it is
+   * open (a `NormalBand` against the rule's own normal). */
+  evidence?: ReactNode;
+  /** The closed row's caption wraps rather than being cut short. */
+  wrapCaption?: boolean;
   className?: string;
 }
 
@@ -144,6 +149,8 @@ export function AlertRow({
   history = false,
   snoozed = false,
   asset = null,
+  evidence,
+  wrapCaption = false,
   className,
 }: AlertRowProps) {
   const alert = translateAlert(flag);
@@ -203,6 +210,8 @@ export function AlertRow({
           alert.hint
         )}
       </>}
+      captionWrap={wrapCaption}
+      below={evidence ? <div className="pb-2 pe-2 ps-9" data-alert-evidence="">{evidence}</div> : undefined}
       /* A settled row's value is its open span; an open row's is its age from
          onset, not from the latest re-reading. */
       value={

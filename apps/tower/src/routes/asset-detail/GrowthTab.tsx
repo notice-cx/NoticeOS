@@ -1,33 +1,24 @@
+import type { CSSProperties } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type {
-  AssetDetailPayload,
   ProductUseMetric,
   ProductUseSnapshot,
   SerpPanelSnapshot,
   SerpPanelTerm,
 } from "@shared/asset-detail";
-import { serpPanelScoreboard, serpPanelTerms } from "@shared/asset-detail";
-import {
-  periodDelta,
-  windowSeries,
-  type RangeDays,
-} from "@shared/surface";
-import type { SignalTrend } from "@shared/wall";
+import { serpPanelTerms } from "@shared/asset-detail";
+import type { RangeDays } from "@shared/surface";
 import type { WatchSeed } from "@shared/watch-windows";
 import { ProductJourney } from "@/components/ProductJourney";
-import { serpPanelScope } from "@/components/SerpPanelBoard";
+import { PanelOverviews, PanelRanks, serpPanelScope } from "@/components/SerpPanelBoard";
 import { productConnection } from "@shared/product";
 import { SectionLabel } from "@/components/surface/SectionLabel";
-import {
-  SmallMultiple,
-  SmallMultipleStrip,
-} from "@/components/surface/SmallMultiple";
-import { formatCalendarRange, formatInt } from "@/lib/format";
+import { BarStrip } from "@/components/viz/BarStrip";
+import { ChangeRows, changeScale, type ChangeRow } from "@/components/viz/ChangeRows";
+import { formatCalendarRange, formatInt, formatSeriesDate } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { useAssetTabPath } from "@/routes/asset-detail/AssetTabs";
-import {
-  settledSeries,
-  weightedMetricWindow,
-} from "@/routes/asset-detail/overview-metrics";
+import { growthMoves, type GrowthMove } from "@/routes/asset-detail/growth-moves";
 import { timelineAnnotations } from "@/routes/asset-detail/shared";
 import {
   MovementChip,
@@ -39,12 +30,12 @@ import {
 import { useRange } from "@/routes/asset-detail/useRange";
 
 /**
- * The Growth tab answers one question, which way did the numbers go, as two
- * pairs of charts following the page's range, then the three strips that say
- * whether the tracked panel, the other collected series and the product are
- * moving. No tables: a table answers "which row", and that is the Search tab.
- * The header range controls the traffic charts and collected daily metrics;
- * other snapshots name their own windows explicitly.
+ * The Growth tab answers one question, which way did the numbers go. It opens
+ * on every series the site collects, each against the window before it, as
+ * bars that rise or fall from one zero line; then the four charts with their
+ * marks, the tracked search terms as a funnel, and what people did in the
+ * product. The header range moves the board and the charts; the snapshots
+ * below name their own windows.
  */
 export function GrowthTab({
   data,
@@ -67,14 +58,17 @@ export function GrowthTab({
   // sentence on whichever tab marks it.
   const timeline = timelineAnnotations(data.annotations.items);
   const audience = [performance.activeUsers, performance.sessions];
+  const moves = growthMoves(performance, days);
 
   return (
-    <div id="growth-evidence" className="flex scroll-mt-4 flex-col gap-5">
-      {/* The block that is this tab's answer (`audit:surfaces`): the audience
-          pair is where the eye has to land. */}
+    <div id="growth-evidence" className="@container flex scroll-mt-4 flex-col gap-5">
+      {moves.length > 0 ? <Moves moves={moves} days={days} /> : null}
+
       <section
         id="performance"
-        data-surface-hero
+        // With no series to compare, the audience pair is the answer
+        // (`audit:surfaces` wants exactly one hero per tab).
+        {...(moves.length === 0 ? { "data-surface-hero": "" } : {})}
         className="scroll-mt-4 flex flex-col gap-2"
       >
         <SectionLabel
@@ -87,7 +81,7 @@ export function GrowthTab({
             />
           }
         />
-        <div className="grid min-w-0 gap-3.5 lg:grid-cols-2">
+        <div className="grid min-w-0 gap-3.5 @4xl:grid-cols-2">
           <TrendPanel
             title="Active users"
             trends={[{ name: "GA4", tone: "primary", trend: performance.activeUsers }]}
@@ -119,11 +113,9 @@ export function GrowthTab({
         action={{ to: searchTab, label: "Search →" }}
       />
 
-      <AlsoCollected performance={performance} days={days} />
-
       {/* The analysis's age is Search's to state, beside the findings it
           dates; Growth draws the numbers. */}
-      <PanelScoreboard panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
+      <PanelSummary panel={data.executive?.serpPanel ?? null} searchTab={searchTab} />
 
       <ProductUse snapshot={data.executive?.productUse ?? null} />
 
@@ -134,23 +126,101 @@ export function GrowthTab({
         product={data.executive?.product ?? null}
         connection={productConnection(data.integrations.lanes)}
       />
-
     </div>
   );
 }
 
-
-// --- the tracked panel's scoreboard ----------------------------------------
+// --- which way it went -------------------------------------------------------
 
 /**
- * The panel as six numbers: how is the panel doing, and nothing else. Both
- * this and `SerpPanelBoard` read `serpPanelScoreboard`, so the strip and the
- * board can never disagree about what "top 10" means. Denominators, not
- * percentages: `AI Overview` is quoted against the terms the panel could
- * answer for, because dividing by the tracked count spends every unknown as a
- * "no".
+ * Every collected series against the window before it, as two ruled panels
+ * on one scale: visitors and what they did, then how the site shows in
+ * search. A rate's arrow states improvement, not raw movement: a falling
+ * average position is an improving one, and "right, green" means better on
+ * every row of the page.
  */
-function PanelScoreboard({
+function Moves({ moves, days }: { moves: readonly GrowthMove[]; days: RangeDays }) {
+  const scale = changeScale(moves.map((move) => move.improvement));
+  const groups = [
+    { key: "audience", title: "Visitors", rows: moves.filter((move) => move.group === "audience") },
+    { key: "search", title: "In search", rows: moves.filter((move) => move.group === "search") },
+  ].filter((group) => group.rows.length > 0);
+  return (
+    <section
+      id="growth-moves"
+      data-surface-hero=""
+      aria-label={`Which way it went · last ${days} days`}
+      className={cn("grid scroll-mt-4 gap-5", groups.length > 1 && "@5xl:grid-cols-2")}
+    >
+      {groups.map((group) => (
+        <ChangeRows
+          key={group.key}
+          title={group.title}
+          caption={`last ${days} days`}
+          against={`vs prior ${days} days`}
+          scale={scale}
+          rows={group.rows.map((move) => moveRow(move, days))}
+          className="h-full"
+        />
+      ))}
+    </section>
+  );
+}
+
+function moveRow(move: GrowthMove, days: RangeDays): ChangeRow {
+  const first = move.days[0]?.t;
+  const last = move.days.at(-1)?.t;
+  return {
+    key: move.key,
+    label: move.label,
+    figure: move.value === null ? null : move.format(move.value),
+    unit: move.unit,
+    absent: move.absent,
+    improvement: move.improvement,
+    change: <MoveChange move={move} days={days} />,
+    history:
+      move.days.length >= 3 && first && last ? (
+        <BarStrip
+          data={move.days}
+          tone={move.tone}
+          provisionalFrom={move.provisionalFrom}
+          partial={move.partial}
+          baseline={move.baseline === null ? null : { value: move.baseline, label: `prior ${move.stripFormat(move.baseline)}` }}
+          format={move.stripFormat}
+          ariaLabel={`${move.label}, ${formatSeriesDate(first)} to ${formatSeriesDate(last)}`}
+          className="h-12"
+        />
+      ) : undefined,
+  };
+}
+
+/** The move in words beside its bar, withheld where the windows cannot be
+ * compared; a series with no earlier window says so rather than drawing a
+ * level line. */
+function MoveChange({ move, days }: { move: GrowthMove; days: RangeDays }) {
+  const { delta } = move;
+  return (
+    <span className="inline-flex items-center gap-1 whitespace-nowrap" data-collected-delta={move.key}>
+      {delta === null ? (
+        <span className="text-muted-foreground">no earlier {days} days</span>
+      ) : delta.comparable && delta.percent === null ? (
+        <span className="text-muted-foreground">up from none</span>
+      ) : (
+        <MovementChip delta={delta} percent={move.improvement} className="text-xs" />
+      )}
+    </span>
+  );
+}
+
+// --- the tracked panel -------------------------------------------------------
+
+/**
+ * How the tracked search terms are doing, and nothing else: how many of them
+ * reach each tier, and what the AI Overview does on them, as the same two
+ * funnels the Search tab's board opens with. Then the one term closest to a
+ * tier it has not crossed.
+ */
+function PanelSummary({
   panel,
   searchTab,
 }: {
@@ -158,54 +228,32 @@ function PanelScoreboard({
   searchTab: string;
 }) {
   if (!panel) return null;
-  const board = serpPanelScoreboard(panel);
   const move = bestMove(serpPanelTerms(panel));
 
   return (
     <section id="panel-scoreboard" className="scroll-mt-4 flex flex-col gap-2">
       <SectionLabel
-        title={`Search terms · ${formatInt(board.tracked)} tracked`}
+        title="Search terms"
         caption={serpPanelScope(panel)}
         action={{ to: searchTab, label: "Search terms →" }}
       />
-      <SmallMultipleStrip columns={6}>
-        <SmallMultiple
-          label="Ranking"
-          value={formatInt(board.ranking)}
-          secondary={`of ${formatInt(board.tracked)}`}
-        />
-        <SmallMultiple label="Top 10" value={formatInt(board.top10)} />
-        <SmallMultiple label="Top 3" value={formatInt(board.top3)} />
-        <SmallMultiple
-          label="AI Overview"
-          value={board.aioKnown === 0 ? "—" : formatInt(board.aioPresent)}
-          secondary={
-            board.aioKnown === 0
-              ? "not checked"
-              : `of ${formatInt(board.aioKnown)} checked`
-          }
-        />
-        <SmallMultiple
-          label="Cites us"
-          value={board.aioPresent === 0 ? "—" : formatInt(board.aioCitesUs)}
-          secondary={
-            board.aioPresent === 0
-              ? "no overview seen"
-              : `of ${formatInt(board.aioPresent)} shown`
-          }
-        />
-        <SmallMultiple
-          label="Best move"
-          value={
-            move === null ? (
-              "—"
+      <div className="@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <PanelRanks panel={panel} />
+        <div className="flex min-w-0 flex-col gap-4">
+          <PanelOverviews panel={panel} />
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-t border-border/60 pt-3 text-xs text-muted-foreground" data-best-move="">
+            <span>Closest to the next tier</span>
+            {move === null ? (
+              <span>nothing within reach</span>
             ) : (
-              <span className="block text-sm [overflow-wrap:anywhere]">{move.term.query}</span>
-            )
-          }
-          secondary={move === null ? "nothing within reach" : move.caption}
-        />
-      </SmallMultipleStrip>
+              <span className="flex flex-wrap items-baseline gap-x-2">
+                <span className="font-semibold text-foreground">{move.term.query}</span>
+                <span className="whitespace-nowrap tabular-nums">{move.caption}</span>
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
     </section>
   );
 }
@@ -240,159 +288,14 @@ function bestMove(
   return null;
 }
 
-// --- the series the four charts do not lead with ---------------------------
-
-interface CollectedSpec {
-  key: string;
-  label: string;
-  trend: SignalTrend;
-  /** A stored daily rate supplies its chart coverage; the period calculation
-   * uses original counts rather than reverse-engineering rounded rates. */
-  values?: SignalTrend;
-  format: (value: number) => string;
-  aggregate: "total" | "ratio" | "weighted-mean";
-  weights?: SignalTrend;
-  secondary: string;
-  /** Inverts the direction chip only — the line stays neutral ink, so nothing
-   * but the arrow and its tone claims a judgement. */
-  lowerIsBetter?: boolean;
-}
+// --- product use -------------------------------------------------------------
 
 /**
- * The other four series the OS collects, as one strip with sparklines:
- * context for the charts above. Sessions is not here, because it is a chart
- * above. The direction chip states improvement, not raw movement: a falling
- * average position is an improving one, and "arrow up, green" has to mean the
- * same thing on every row of the page.
- */
-function AlsoCollected({
-  performance,
-  days,
-}: {
-  performance: AssetDetailPayload["performance"];
-  days: RangeDays;
-}) {
-  const all: CollectedSpec[] = [
-    {
-      key: "page-views",
-      label: "Page views",
-      trend: performance.pageViews,
-      format: formatInt,
-      aggregate: "total",
-      secondary: "pages opened",
-    },
-    {
-      key: "events",
-      label: "Events",
-      trend: performance.events,
-      format: formatInt,
-      aggregate: "total",
-      secondary: "tracked actions",
-    },
-    {
-      key: "search-ctr",
-      label: "Click rate",
-      trend: performance.searchCtr,
-      values: performance.webSearchClicks.google,
-      weights: performance.webSearchImpressions.google,
-      format: (value) => `${(value * 100).toFixed(1)}%`,
-      aggregate: "ratio",
-      secondary: "clicks ÷ impressions",
-    },
-    {
-      key: "search-position",
-      label: "Average position",
-      trend: performance.searchPosition,
-      weights: performance.webSearchImpressions.google,
-      format: (value) => value.toFixed(1),
-      aggregate: "weighted-mean",
-      secondary: "weighted by impressions",
-      lowerIsBetter: true,
-    },
-  ];
-  // Fewer than three reported days is no trend: a cell that is not there
-  // rather than a dash pretending to a series.
-  const specs = all.filter((spec) => spec.trend.series.length >= 3);
-  if (specs.length === 0) return null;
-
-  return (
-    <section id="also-collected" className="scroll-mt-4 flex flex-col gap-2">
-      <SectionLabel
-        title="Also collected"
-        caption={
-          <SectionCaption
-            label="About supporting metrics"
-            text="The same window, from the same reports"
-            caveat={sectionCaveat(
-              specs.map((spec) => spec.trend),
-              days,
-            )}
-          />
-        }
-      />
-      <SmallMultipleStrip columns={4}>
-        {specs.map((spec) => (
-          <CollectedCell key={spec.key} spec={spec} days={days} />
-        ))}
-      </SmallMultipleStrip>
-    </section>
-  );
-}
-
-function CollectedCell({ spec, days }: { spec: CollectedSpec; days: RangeDays }) {
-  const { trend } = spec;
-  const weighted = spec.weights && spec.aggregate !== "total"
-    ? weightedMetricWindow(spec.values ?? trend, spec.weights, days, spec.aggregate)
-    : null;
-  const delta = weighted ? weighted.delta : periodDelta(
-    trend.series,
-    days,
-    trend.timeZoneChanges,
-    trend.provisionalFrom,
-  );
-  const window = windowSeries(
-    settledSeries(trend.series, trend.provisionalFrom),
-    days,
-  );
-  const total = window.reduce((sum, point) => sum + point.v, 0);
-  const value = weighted ? weighted.value : window.length < 3 ? null : total;
-  const improvement =
-    delta === null || delta.percent === null
-      ? null
-      : spec.lowerIsBetter
-        ? -delta.percent
-        : delta.percent;
-
-  return (
-    <SmallMultiple
-      label={spec.label}
-      value={value === null ? "—" : spec.format(value)}
-      secondary={
-        delta === null || (delta.comparable && improvement === null) ? (
-          spec.secondary
-        ) : (
-          <span
-            className="inline-flex items-center gap-1"
-            data-collected-delta={spec.key}
-          >
-            <MovementChip delta={delta} percent={improvement} className="text-[11px]" />
-            {spec.secondary}
-          </span>
-        )
-      }
-      spark={weighted ? weighted.spark : window}
-      format={spec.format}
-    />
-  );
-}
-
-// --- product use -----------------------------------------------------------
-
-/**
- * What people did in the product, as one strip. The strip draws no total,
- * because a person can appear under more than one action. No sparkline,
- * because there is no series: the snapshot is one exact rolling aggregate
- * over its own window.
+ * What people did in the product, as one bar per action on a shared ruler,
+ * most people first, with the declared comparisons beside them. No total is
+ * drawn, because one person can take several of these actions, and no
+ * sparkline, because the snapshot is one exact rolling aggregate over its own
+ * window rather than a series.
  */
 function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
   if (!snapshot) return null;
@@ -420,6 +323,8 @@ function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
         numerator: added.users, denominator: opened.users, declared: false });
     }
   }
+  const ranked = [...metrics].sort((a, b) => (b.users ?? -1) - (a.users ?? -1));
+  const top = Math.max(1, ...metrics.map((metric) => metric.users ?? 0));
 
   return (
     <section id="product-use" className="scroll-mt-4 flex flex-col gap-2">
@@ -429,43 +334,60 @@ function ProductUse({ snapshot }: { snapshot: ProductUseSnapshot | null }) {
         title={`Product use · last ${formatInt(snapshot.days)} days`}
         caption={formatCalendarRange(snapshot.windowStart, snapshot.windowEnd)}
       />
-      <SmallMultipleStrip columns={5}>
-        {comparisons.map((comparison) => (
-          <SmallMultiple
-            key={`comparison:${comparison.key}`}
-            label={comparison.label}
-            value={
-              <span data-small-multiple={comparison.label} title={comparison.declared ? "Independent event-user volumes, not a same-person conversion" : undefined}>
-                {Math.round(comparison.value * 100)}%
+      <div className={cn("@container grid gap-x-8 gap-y-5 rounded-xl bg-card p-5 ring-1 ring-border/70", comparisons.length > 0 && "@3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]")}>
+        <ul className="m-0 grid list-none gap-2.5 p-0" aria-label="People who took each action">
+          {ranked.map((metric, index) => (
+            <li key={metric.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 @lg:grid-cols-[minmax(7rem,12rem)_minmax(0,1fr)_minmax(6rem,auto)]" data-product-action={metric.key}>
+              <span className="min-w-0 text-xs text-foreground">{metric.label}</span>
+              <span aria-hidden className={cn("col-span-2 row-start-2 h-2 overflow-hidden rounded-full @lg:col-span-1 @lg:row-start-auto", metric.users === null ? "text-muted-foreground/50 viz-hatch" : "bg-viz-track")}>
+                {metric.users ? (
+                  <span className="viz-grow-x block h-full rounded-full bg-traffic/70" style={{ width: `${Math.max(2, (metric.users / top) * 100)}%`, "--viz-i": index } as CSSProperties} />
+                ) : null}
               </span>
-            }
-            secondary={`${formatInt(comparison.numerator)} of ${formatInt(comparison.denominator)}`}
-          />
-        ))}
-        {metrics.map((metric) => (
-          <SmallMultiple
-            key={metric.key}
-            label={metric.label}
-            value={
-              <span
-                data-small-multiple={metric.label}
-                title={
-                  metric.users === null
-                    ? `Google Analytics returned no ${metric.eventName} row in this window`
-                    : `${formatInt(metric.users)} people, ${formatInt(metric.events ?? 0)} ${metric.eventName} events`
-                }
-              >
-                {metric.users === null ? "—" : formatInt(metric.users)}
+              <span className="col-start-2 row-start-1 flex flex-col items-end tabular-nums @lg:col-start-auto @lg:row-start-auto">
+                <span
+                  className="text-sm font-semibold text-foreground"
+                  data-small-multiple={metric.label}
+                  title={
+                    metric.users === null
+                      ? `Google Analytics returned no ${metric.eventName} row in this window`
+                      : `${formatInt(metric.users)} people, ${formatInt(metric.events ?? 0)} ${metric.eventName} events`
+                  }
+                >
+                  {metric.users === null ? "—" : formatInt(metric.users)}
+                </span>
+                <span className="text-micro text-muted-foreground">
+                  {metric.users === null ? "none recorded" : `${formatInt(metric.events ?? 0)} times`}
+                </span>
               </span>
-            }
-            secondary={
-              metric.users === null
-                ? "none recorded"
-                : `${formatInt(metric.events ?? 0)} times`
-            }
-          />
-        ))}
-      </SmallMultipleStrip>
+            </li>
+          ))}
+        </ul>
+        {comparisons.length > 0 ? (
+          <ul className="m-0 grid list-none content-start gap-4 p-0" aria-label="Comparisons">
+            {comparisons.map((comparison) => (
+              <li key={`comparison:${comparison.key}`} className="flex flex-col gap-1.5">
+                <span className="text-xs text-muted-foreground">{comparison.label}</span>
+                <span className="flex items-baseline gap-2 tabular-nums">
+                  <span
+                    className="text-figure-sm text-foreground"
+                    data-small-multiple={comparison.label}
+                    title={comparison.declared ? "Independent event-user volumes, not a same-person conversion" : undefined}
+                  >
+                    {Math.round(comparison.value * 100)}%
+                  </span>
+                  <span className="text-xs text-muted-foreground">{formatInt(comparison.numerator)} of {formatInt(comparison.denominator)}</span>
+                </span>
+                <span aria-hidden className="h-2 overflow-hidden rounded-full bg-viz-track">
+                  {comparison.value > 0 ? (
+                    <span className="viz-grow-x block h-full rounded-full bg-traffic" style={{ width: `${Math.max(2, Math.min(100, comparison.value * 100))}%` }} />
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </section>
   );
 }

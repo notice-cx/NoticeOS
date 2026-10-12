@@ -590,6 +590,28 @@ describe("AssetDetailRoute — Alerts speak the same language as the portfolio b
     firstFiredAt: "2026-07-01T02:30:00.000Z",
   };
 
+  it("draws the month of alerts on one axis and an open reading against its rule's normal", async () => {
+    const low = {
+      ...pullFailure,
+      id: 12,
+      metric: "signups",
+      ruleId: "flow-poisson-low",
+      ruleInputs: { metric: "signups", observed: 4, baselinePerDay: 39, alpha: 0.01 },
+      correlatedChanges: [],
+      firstFiredAt: "2026-07-04T02:30:00.000Z",
+    };
+    const base = payload();
+    stubFetch(200, payload({ flags: { ...base.flags, open: [low], openError: 0, openWarn: 1 } }));
+    const { container, findByText } = renderRoute("meadow.example", "", "alerts");
+
+    await findByText("Last 30 days");
+    const timeline = container.querySelector("[data-site-alert-timeline]")!;
+    expect(timeline.querySelector('[data-lane="flow-poisson-low:signups"]')).not.toBeNull();
+    const reading = container.querySelector('[data-alert-evidence] [data-normal-band]')!;
+    expect(reading).toHaveAttribute("data-verdict", "below");
+    expect(reading.textContent).toContain("4");
+  });
+
   it("names the page heading by the asset, not by its favicon", async () => {
     stubFetch(200, payload());
     const { findByText } = renderRoute("meadow.example");
@@ -3323,7 +3345,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     data.performance = { ...data.performance, sessions: trend, pageViews: trend };
     stubFetch(200, data);
     const { container, findByText } = renderPath("/assets/meadow.example/growth?range=7");
-    await findByText("Also collected");
+    await findByText("Audience");
     const head = container.querySelector('[data-growth-chart="Sessions"] [data-growth-delta]')!;
     const supporting = container.querySelector('[data-collected-delta="page-views"]')!;
     for (const movement of [head, supporting]) {
@@ -3374,10 +3396,10 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       "/assets/meadow.example/growth?range=7",
     );
 
-    await findByText("Also collected");
+    await findByText("Audience");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(sessions.textContent).toContain("1,400 visits");
-    const strip = container.querySelector("#also-collected")!;
+    const strip = container.querySelector("#growth-moves")!;
     expect(strip.textContent).toContain("Average position");
     expect(strip.textContent).toContain("12.0");
     const position = strip.querySelector('[data-collected-delta="search-position"]')!;
@@ -3416,7 +3438,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     stubFetch(200, data);
     const { container, findByText } = renderRoute("meadow.example", "", "growth");
 
-    await findByText("Also collected");
+    await findByText("Audience");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(within(sessions as HTMLElement).getByRole("list")).toHaveTextContent("7-day average");
     expect(sessions.textContent).not.toContain("reporting timezone moved");
@@ -3429,7 +3451,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     expect(event).toHaveTextContent("America/Los_Angeles → America/New_York");
     expect(event).toHaveTextContent("value unaltered, not comparable");
     expect(container.querySelector("[data-about]")).toBeNull();
-    const position = container.querySelector("#also-collected")!;
+    const position = container.querySelector("#growth-moves")!;
     expect(position.textContent).not.toContain("⚠");
   });
 
@@ -3478,7 +3500,7 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
       "/assets/meadow.example/growth?range=7",
     );
 
-    await findByText("Also collected");
+    await findByText("Audience");
     const sessions = container.querySelector('[data-growth-chart="Sessions"]')!;
     expect(sessions.querySelector("[data-growth-delta]")?.textContent).toBe("Not comparable");
     expect(
@@ -4111,13 +4133,16 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     // A mixed month whose blended net would be $644.20: that number must
     // appear nowhere.
     stubFetch(200, payload({ ledger: MIXED_LEDGER }));
-    const { findAllByText, findByText } = renderRoute("meadow.example", "", "financials");
+    const { container, findByText } = renderRoute("meadow.example", "", "financials");
 
     const section = (await findByText("Monthly accounting")).closest(CARD)!;
-    // The month names the strip's cell and a row in the entries table below
-    // it; the label is a span, the table cell a <td>.
-    const tile = (await findAllByText("June 2026"))
-      .find((node) => node.tagName === "SPAN")!.parentElement!;
+    const tile = container.querySelector('[data-ledger-month="2026-06"]')!;
+    // The month's equation is the booked rows; the estimate rides beside it.
+    const hero = container.querySelector("[data-site-money-answer]")!;
+    expect(hero).toHaveAttribute("data-site-money-answer", "booked");
+    expect(hero.textContent).toContain("+$498");
+    expect(hero.textContent).not.toContain("$644");
+    expect(hero.querySelector("[data-site-money-forecast]")).toHaveTextContent("forecast +$146 not booked yet");
     expect(tile.textContent).toContain("$498.10");
     expect(tile.textContent).toContain("$146.10");
     expect(tile.textContent).not.toContain("$644.20");
@@ -4147,11 +4172,11 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
         },
       }),
     );
-    const { findAllByText, findByText } = renderRoute("meadow.example", "", "financials");
+    const { container, findByText } = renderRoute("meadow.example", "", "financials");
 
     await findByText("Monthly accounting");
-    const tile = (await findAllByText("June 2026"))
-      .find((node) => node.tagName === "SPAN")!.parentElement!;
+    const tile = container.querySelector('[data-ledger-month="2026-06"]')!;
+    expect(container.querySelector("[data-site-money-answer]")).toHaveAttribute("data-site-money-answer", "forecast");
     expect(tile.textContent).toContain("—");
     expect(tile.textContent).toContain("forecast $146.10");
     expect(tile.textContent).not.toContain("$0.00");
@@ -6114,18 +6139,9 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     return data;
   }
 
-  /** The cells of one strip, in the order the DOM draws them. */
-  function cells(container: HTMLElement, strip: number): string[] {
-    // The strips themselves, not the cells: a `SmallMultiple` is also a grid.
-    // Strip 0 stays visible; the rest are in the "More context" disclosure.
-    const strips = [
-      ...container.querySelectorAll(
-        "#search-context > .grid, #search-context [data-context-more] > .grid",
-      ),
-    ] as HTMLElement[];
-    return [...strips[strip]!.children].map(
-      (cell) => cell.textContent?.trim() ?? "",
-    );
+  /** One named cell of the context, its words and figures as drawn. */
+  function cell(container: HTMLElement, name: string): string {
+    return container.querySelector(`[data-context-cell="${name}"]`)?.textContent?.trim() ?? "";
   }
 
   it("leads the search context with the dollar value, above every count", async () => {
@@ -6133,33 +6149,28 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
-    const rankings = cells(container, 0);
-    expect(rankings[0]).toContain("Traffic value");
-    expect(rankings[0]).toContain("$2,410");
-    expect(rankings[0]).toContain("1,320 visits a month, priced as ads");
-    expect(rankings.slice(1).join(" ")).toContain("Keywords");
-    expect(rankings.slice(1).join(" ")).toContain("184");
+    const value = container.querySelector('[data-context-cell="traffic-value"]')!;
+    expect(value.textContent).toContain("Traffic value");
+    expect(value.textContent).toContain("$2,410");
+    expect(value.textContent).toContain("1,320 visits a month, priced as ads");
+    const keywords = container.querySelector('[data-context-cell="keywords"]')!;
+    expect(keywords.textContent).toContain("Keywords");
+    expect(keywords.textContent).toContain("184");
+    // Drawn first: everything else in the section follows the money.
+    expect(value.compareDocumentPosition(keywords) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const label = container.querySelector("#search-context h2")!.parentElement!;
     expect(label.textContent).toContain("Modelled · Jul 27, 2026");
     expect(label.querySelector("[data-info-tooltip-trigger]")).toBeNull();
   });
 
-  it("gives the top-20 count and the link movement cells of their own", async () => {
+  it("gives the top-20 count and the link movement rows of their own", async () => {
     stubFetch(200, withIntelligence());
     const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
-    const rankings = cells(container, 0);
-    const links = cells(container, 1);
-    expect(rankings.some((cell) => cell.startsWith("Top 20") && cell.includes("44"))).toBe(
-      true,
-    );
-    expect(links.some((cell) => cell.startsWith("Gained") && cell.includes("11"))).toBe(
-      true,
-    );
-    expect(links.some((cell) => cell.startsWith("Lost") && cell.includes("4"))).toBe(
-      true,
-    );
+    expect(cell(container, "top20")).toMatch(/^Top 20.*44/);
+    expect(cell(container, "gained")).toMatch(/^Gained.*11/);
+    expect(cell(container, "lost")).toMatch(/^Lost.*4/);
     for (const value of ["6", "21", "9", "3,480", "212", "27,000", "8,100"]) {
       expect(container.querySelector("#search-context")!.textContent).toContain(value);
     }
@@ -6171,15 +6182,15 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
-    const links = cells(container, 1);
-    expect(links[0]).toContain("Linking domains");
-    expect(links[0]).toContain("—");
-    expect(links[0]).toContain("no link report");
-    for (const label of ["Gained", "Lost", "Links", "Domain rank"]) {
-      const cell = links.find((entry) => entry.startsWith(label))!;
-      expect(cell).toContain("—");
-      expect(cell).not.toMatch(/\b0\b/);
+    expect(cell(container, "linking-domains")).toContain("Links");
+    expect(cell(container, "linking-domains")).toContain("—");
+    expect(cell(container, "linking-domains")).toContain("no link report");
+    for (const name of ["gained", "lost", "links", "domain-rank"]) {
+      expect(cell(container, name)).toContain("—");
+      expect(cell(container, name)).not.toMatch(/\b0\b/);
     }
+    // An unmeasured step is a hatched track, never a bar of zero.
+    expect(container.querySelector('[data-context-cell="gained"] .viz-hatch')).not.toBeNull();
   });
 
   it("says an AI mention figure was not reported rather than printing zero", async () => {
@@ -6197,19 +6208,59 @@ describe("AssetDetailRoute — the Search tab's search context", () => {
     const { container, findByText } = renderRoute("meadow.example", "", "search");
 
     await findByText("Search context");
-    const all = [
-      ...container.querySelectorAll(
-        "#search-context > .grid > *, #search-context [data-context-more] > .grid > *",
-      ),
-    ].map((cell) => cell.textContent?.trim() ?? "");
-    const cell = (label: string) => all.find((entry) => entry.startsWith(label))!;
-    expect(cell("AI mentions")).toContain("—");
-    expect(cell("AI mentions")).toContain("Google not reported");
-    expect(cell("AI mentions")).toContain("3 ChatGPT");
-    expect(cell("Google demand")).toContain("—");
-    expect(cell("Google demand")).toContain("not reported");
-    expect(cell("Google demand")).not.toMatch(/\b0\b/);
-    expect(cell("ChatGPT demand")).toContain("8,100");
+    expect(cell(container, "ai-mentions")).toContain("—");
+    expect(cell(container, "ai-mentions")).toContain("Google not reported");
+    expect(cell(container, "ai-mentions")).toContain("3 ChatGPT");
+    expect(cell(container, "google-demand")).toContain("—");
+    expect(cell(container, "google-demand")).toContain("not reported");
+    expect(cell(container, "google-demand")).not.toMatch(/\b0\b/);
+    expect(cell(container, "chatgpt-demand")).toContain("8,100");
+  });
+});
+
+describe("AssetDetailRoute — the Search tab's queries that moved", () => {
+  const mover = (query: string, previousImpressions: number, currentImpressions: number, previousPosition: number, currentPosition: number) => ({
+    query,
+    previousImpressions,
+    currentImpressions,
+    impressionDelta: currentImpressions - previousImpressions,
+    impressionDeltaPercent: ((currentImpressions - previousImpressions) / previousImpressions) * 100,
+    previousPosition,
+    currentPosition,
+    positionImprovement: previousPosition - currentPosition,
+  });
+
+  it("leads with the queries that moved most, each drawn where it sits on the page now against before", async () => {
+    const data = payload();
+    const trends = data.executive!.searchQueries!;
+    data.executive = {
+      ...data.executive!,
+      searchQueries: {
+        ...trends,
+        google: {
+          ...trends.google!,
+          movers: [
+            mover("small move", 100, 110, 5, 5),
+            mover("big fall", 1000, 700, 4, 9),
+            mover("big climb", 200, 400, 12, 6),
+          ],
+        },
+      },
+    };
+    stubFetch(200, data);
+    const { container, findByText } = renderRoute("meadow.example", "", "search");
+
+    await findByText("Queries that moved");
+    const board = container.querySelector("#search-moves")!;
+    expect(board.closest("[data-surface-hero]")).not.toBeNull();
+    const rows = [...board.querySelectorAll("[data-change-row]")].map((row) => row.getAttribute("data-change-row"));
+    expect(rows).toEqual(["big fall", "big climb", "small move"]);
+    const row = (query: string) => board.querySelector(`[data-change-row="${query}"]`)!;
+    expect(row("big fall").querySelector("[data-change-bar]")).toHaveAttribute("data-change-bar", "worse");
+    expect(row("big fall").querySelector("[data-position-move]")).toHaveAttribute("data-position-move", "down");
+    expect(row("big climb").querySelector("[data-position-move]")).toHaveAttribute("data-position-move", "up");
+    expect(row("big climb").textContent).toContain("12 → 6");
+    expect(row("small move").querySelector("[data-position-move]")).toHaveAttribute("data-position-move", "level");
   });
 });
 

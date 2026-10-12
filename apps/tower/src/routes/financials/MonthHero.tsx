@@ -127,7 +127,7 @@ export function MonthHero({ equation, days, lastMonth, pace, bySite, className }
  * revenue wears its identity ink, cost and the operators stay neutral. A cost
  * nobody recorded is named, and the net then says it is revenue only.
  */
-function Equation({ equation }: { equation: MonthEquation }) {
+export function Equation({ equation }: { equation: MonthEquation }) {
   const { currency } = equation;
   return (
     <dl className="m-0 flex flex-wrap items-end gap-x-2.5 gap-y-2 tabular-nums @md:gap-x-4" data-money-equation="">

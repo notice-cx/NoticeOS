@@ -564,7 +564,7 @@ function DecisionRow({
           <Icon className={cn("size-4 shrink-0", colors.text)} aria-hidden />
           <span className="min-w-0 flex-1">
             <span className="flex min-w-0 flex-wrap items-center gap-1.5">
-              <span className="truncate text-[13px] font-semibold text-foreground">
+              <span className="min-w-0 break-words text-[13px] font-semibold text-foreground">
                 {row.query}
               </span>
               {/* The two marks that decide whether the row is opened at all. */}
@@ -649,7 +649,7 @@ function DecisionRow({
         </div>
         {row.dataforseo?.page &&
         row.dataforseo.page !== "(not set)" ? (
-          <p className="mt-1 truncate font-mono text-[10px] text-muted-foreground">
+          <p className="mt-1 break-all font-mono text-micro text-muted-foreground">
             {row.dataforseo.page}
           </p>
         ) : (

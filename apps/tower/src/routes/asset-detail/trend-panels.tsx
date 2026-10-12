@@ -50,7 +50,7 @@ export function SearchPair({
     ...searchTrends(performance.webSearchImpressions),
   ].map((one) => one.trend);
   return (
-    <section id="search-performance" className="scroll-mt-4 flex flex-col gap-2">
+    <section id="search-performance" className="@container scroll-mt-4 flex flex-col gap-2">
       <SectionLabel
         title="Search"
         caption={
@@ -65,7 +65,7 @@ export function SearchPair({
         }
         action={action}
       />
-      <div className="grid min-w-0 gap-3.5 lg:grid-cols-2">
+      <div className="grid min-w-0 gap-3.5 @4xl:grid-cols-2">
         <TrendPanel
           title="Clicks"
           trends={searchTrends(performance.webSearchClicks)}

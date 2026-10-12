@@ -149,6 +149,8 @@ that reads at a glance, and the kit has it:
 | where things are | a map, when place is the data (visitors by country), never as scenery | — |
 | a queue | its size, its age spread, then the rows with age as a length | `DecisionQueue` |
 | open problems | one ranked panel: new since the last look first, the long-standing folded | `IncidentList` |
+| several measures, each against its own earlier window | ruled rows: the figure, its days against the earlier level, the move as a bar from one shared zero line | `ChangeRows` |
+| a count narrowing step by step | bars on one ruler, each with its share of the step before; a step nobody measured hatched | `FunnelBars` |
 
 **Tabs are the one way a desk page is sectioned.** When a page holds more than
 one question, `Tabs` divides it: the same bar on a site's page, Alerts, System
@@ -329,6 +331,16 @@ day squares, led by the source that broke most recently, and the open alerts
 the chart does not already show. Bets, Needs you, the search movers and the
 product cells follow. Provider names appear only as a chart key beside their
 own line.
+
+**A site's other tabs open on their answer, drawn.** Growth: every series the
+site collects against the window before, as `ChangeRows` above the four
+charts, the tracked terms as a `FunnelBars` and product use as bars. Money: the
+month as one equation, its ad revenue days against the usual day and the
+month against last month on a `PaceBar`, then the accounting months as revenue
+and cost bars on one ruler. Search: the queries that moved, each drawn where it
+sits on the results page now against before, then the tracked terms with a
+rank track on every row. Alerts: the last thirty days as an `EventTimeline`,
+one row per condition, and each open reading on its `NormalBand`.
 
 **Sites answers which one needs me.** The answer names the sites that do, beside
 where the month is heading and yesterday's visitors; one bar splits every site
@@ -525,8 +537,9 @@ its call sites, rather than living beside it.
 The vocabulary covers every shape of data the Tower draws, and grows when a
 new shape arrives: the form table under Principles names each form and its
 component. `BarStrip`, `PaceBar`, `NormalBand`, `StatTile`, `HealthGrid`,
-`EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue` and
-`IncidentList` in `components/viz/` are the kit, staged with invented figures
+`EventTimeline`, `FlowGraph`, `PortfolioRows`, `DecisionQueue`,
+`IncidentList`, `ChangeRows` and `FunnelBars` in `components/viz/` are the
+kit, staged with invented figures
 at `/dev/visual-kit`. One `Card` with four kinds. `PageAnswer`,
 `FinishLine`. `KpiStrip` / `Kpi` and `SmallMultiple` for a
 figure fused to its series; `HeroChart` for a dated chart with keys, event

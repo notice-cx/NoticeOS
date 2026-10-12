@@ -1269,4 +1269,18 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "Work as flow, one row per project around a centre line: done this week grows left in the win's green, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked.",
     variants: ["six projects with the key", "compact for the Wall"],
   },
+  {
+    name: "ChangeRows",
+    file: "components/viz/ChangeRows.tsx",
+    purpose:
+      "Several measures each against its own earlier window, one ruled row each: the figure, its recent days as a bar strip against the earlier level, and the move as a bar from one shared zero line, right and green for better, left and red for worse. A site's Growth and Search tabs.",
+    variants: ["three measures with a missing one", "narrow column"],
+  },
+  {
+    name: "FunnelBars",
+    file: "components/viz/FunnelBars.tsx",
+    purpose:
+      "A count narrowing step by step on one ruler (tracked → ranking → top 10 → top 3), the figure at each row's end with its share of the step before; a step nobody measured is a hatched track and a word, never a zero.",
+    variants: ["rank funnel with shares and an unmeasured step"],
+  },
 ];

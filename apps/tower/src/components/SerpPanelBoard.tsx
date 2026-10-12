@@ -9,6 +9,8 @@ import {
 import { marketLabel } from "@shared/site-markets";
 import { Monitor, Smartphone, TriangleAlert } from "lucide-react";
 import { AiOverviewGlyphs } from "@/components/AiOverviewGlyphs";
+import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { FunnelBars } from "@/components/viz/FunnelBars";
 import { formatCalendarDate, formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +51,6 @@ export function SerpPanelBoard({
 }: SerpPanelBoardProps) {
   if (!panel) return null;
 
-  const board = serpPanelScoreboard(panel);
   const depth = panel.trackedDepth;
   // Terms, not (term, device) rows: the panel reads each term on every device.
   const rows = serpPanelTerms(panel);
@@ -67,7 +68,7 @@ export function SerpPanelBoard({
     <section
       data-serp-panel
       className={cn(
-        "min-w-0 rounded-lg border border-border bg-background/40 p-4",
+        "@container min-w-0 rounded-lg border border-border bg-background/40 p-4",
         failedCalls > 0 &&
           (settledDegradation
             ? "border-warn/35 bg-warn/5"
@@ -79,7 +80,7 @@ export function SerpPanelBoard({
       }
     >
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
-        <h3 className="text-wall-label font-semibold uppercase tracking-widest text-muted-foreground">
+        <h3 className={cn("m-0", eyebrowClass)}>
           Search terms
         </h3>
         {/* The collection every number below belongs to, stated once. */}
@@ -97,45 +98,11 @@ export function SerpPanelBoard({
         </div>
       </div>
 
-      {/* Two questions, one divider: where we rank, and what the AI Overview does. */}
-      <div className="mt-3 grid gap-x-6 gap-y-4 sm:grid-cols-[minmax(0,3fr)_auto_minmax(0,2fr)]">
-        <dl className="grid grid-cols-4 gap-x-4 gap-y-2">
-          <Tile label="Tracked" value={formatInt(board.tracked)} name="tracked" />
-          <Tile
-            label="Ranking"
-            value={formatInt(board.ranking)}
-            sub={depth === null ? "inside tracked depth" : `inside top ${formatInt(depth)}`}
-            name="ranking"
-          />
-          <Tile label="Top 10" value={formatInt(board.top10)} name="top10" />
-          <Tile label="Top 3" value={formatInt(board.top3)} name="top3" />
-        </dl>
-
-        <div className="hidden w-px bg-border sm:block" aria-hidden />
-
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2">
-          {/* Denominators, not percentages. */}
-          <Tile
-            label="AI Overview"
-            value={board.aioKnown === 0 ? "—" : formatInt(board.aioPresent)}
-            sub={
-              board.aioKnown === 0
-                ? "not checked"
-                : `of ${formatInt(board.aioKnown)} checked`
-            }
-            name="aio-present"
-          />
-          <Tile
-            label="Cites us"
-            value={board.aioPresent === 0 ? "—" : formatInt(board.aioCitesUs)}
-            sub={
-              board.aioPresent === 0
-                ? "no overview seen"
-                : `of ${formatInt(board.aioPresent)} shown`
-            }
-            name="aio-cites-us"
-          />
-        </dl>
+      {/* Two questions side by side: where we rank, and what the AI Overview
+          does. Each is a funnel on its own ruler. */}
+      <div className="mt-3 grid gap-x-8 gap-y-4 @3xl:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+        <PanelRanks panel={panel} />
+        <PanelOverviews panel={panel} />
       </div>
 
       {collapsed ? (
@@ -256,7 +223,7 @@ function ClusterLine({
     <div className="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
       <h4 className="text-xs font-semibold text-foreground">{label}</h4>
       <p
-        className="text-[10px] tabular-nums text-muted-foreground"
+        className="text-micro tabular-nums text-muted-foreground"
         data-serp-panel-cluster-line={label}
       >
         {formatInt(board.top10)} of {formatInt(board.tracked)} in top 10
@@ -300,28 +267,93 @@ function groupByLabel(terms: SerpPanelTerm[]): PanelCluster[] {
   ];
 }
 
-/** One scoreboard figure, at the page's scale rather than the Wall's `Stat`. */
-function Tile({
-  label,
-  value,
-  sub,
-  name,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  name: string;
-}) {
+/**
+ * The tracked terms narrowing tier by tier, on one ruler: tracked, found
+ * inside the depth the pull read, on page one, in the top three. Each tier
+ * counts terms, never (term, device) rows, from `serpPanelScoreboard`.
+ * Exported so the Growth tab draws the panel in the same picture.
+ */
+export function PanelRanks({ panel, className }: { panel: SerpPanelSnapshot; className?: string }) {
+  const board = serpPanelScoreboard(panel);
+  const depth = panel.trackedDepth;
   return (
-    <div className="flex min-w-0 flex-col gap-0.5" data-serp-panel-stat={name}>
-      <dt className="truncate text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="text-xl font-semibold leading-none tabular-nums">{value}</dd>
-      {sub ? (
-        <dd className="truncate text-[10px] tabular-nums text-muted-foreground">{sub}</dd>
-      ) : null}
-    </div>
+    <FunnelBars
+      ariaLabel={`Tracked search terms by rank: ${formatInt(board.tracked)} tracked, ${formatInt(board.ranking)} found, ${formatInt(board.top10)} in the top 10, ${formatInt(board.top3)} in the top 3`}
+      className={className}
+      steps={[
+        { key: "tracked", label: "Tracked", value: board.tracked, fill: "bg-foreground/30", marks: { "data-serp-panel-stat": "tracked" } },
+        {
+          key: "ranking",
+          label: "Ranking",
+          value: board.ranking,
+          note: depth === null ? "inside tracked depth" : `inside top ${formatInt(depth)}`,
+          fill: "bg-traffic/45",
+          marks: { "data-serp-panel-stat": "ranking" },
+        },
+        { key: "top10", label: "Top 10", value: board.top10, fill: "bg-traffic/70", marks: { "data-serp-panel-stat": "top10" } },
+        { key: "top3", label: "Top 3", value: board.top3, fill: "bg-traffic", marks: { "data-serp-panel-stat": "top3" } },
+      ]}
+    />
+  );
+}
+
+/**
+ * What the AI Overview does on the tracked terms, against what was checked:
+ * a term nobody could check is not a "no", so the ruler is the checked count,
+ * never the panel. Denominators, not percentages.
+ */
+export function PanelOverviews({ panel, className }: { panel: SerpPanelSnapshot; className?: string }) {
+  const board = serpPanelScoreboard(panel);
+  return (
+    <FunnelBars
+      ariaLabel={board.aioKnown === 0
+        ? "AI Overviews: not checked"
+        : `AI Overviews: shown on ${formatInt(board.aioPresent)} of ${formatInt(board.aioKnown)} checked terms, citing this site on ${formatInt(board.aioCitesUs)}`}
+      className={className}
+      max={board.aioKnown}
+      steps={[
+        {
+          key: "aio-present",
+          label: "AI Overview",
+          value: board.aioKnown === 0 ? null : board.aioPresent,
+          note: board.aioKnown === 0 ? "not checked" : `of ${formatInt(board.aioKnown)} checked`,
+          fill: "bg-foreground/45",
+          marks: { "data-serp-panel-stat": "aio-present" },
+        },
+        {
+          key: "aio-cites-us",
+          label: "Cites us",
+          value: board.aioPresent === 0 ? null : board.aioCitesUs,
+          note: board.aioPresent === 0 ? "no overview seen" : `of ${formatInt(board.aioPresent)} shown`,
+          fill: "bg-traffic",
+          marks: { "data-serp-panel-stat": "aio-cites-us" },
+        },
+      ]}
+    />
+  );
+}
+
+/**
+ * Where one term sits on the results page, drawn: a ruler from first place to
+ * the depth the pull read, the top three and the rest of page one shaded, the
+ * term a dot on it. A term past the depth is a hollow ring beyond the ruler's
+ * end, because the pull did not look further; an unread or depthless term
+ * draws no ruler at all.
+ */
+function RankTrack({ rank, trackedDepth }: { rank: number | null; trackedDepth: number | null }) {
+  if (trackedDepth === null || trackedDepth < 3) return null;
+  const at = (position: number) => `${((position - 0.5) / trackedDepth) * 92}%`;
+  return (
+    <span aria-hidden className="relative hidden h-3 w-32 shrink-0 self-center @2xl:block" data-serp-rank-track={rank ?? "beyond"}>
+      <span className="absolute inset-y-[4px] start-0 w-[92%] rounded-full bg-viz-track" />
+      <span className="absolute inset-y-[4px] start-0 rounded-s-full bg-traffic/30" style={{ width: `${(Math.min(10, trackedDepth) / trackedDepth) * 92}%` }} />
+      <span className="absolute inset-y-[4px] start-0 rounded-s-full bg-traffic/45" style={{ width: `${(3 / trackedDepth) * 92}%` }} />
+      {rank === null ? (
+        <span className="absolute top-1/2 end-0 size-2.5 -translate-y-1/2 rounded-full border-2 border-muted-foreground/60" />
+      ) : (
+        <span className="absolute top-1/2 size-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full border border-card bg-traffic" style={{ insetInlineStart: at(Math.min(rank, trackedDepth)) }} />
+      )}
+    </span>
   );
 }
 
@@ -392,7 +424,7 @@ function PanelRow({
         <div className="min-w-0 flex-1">
           <span className="text-xs font-medium text-foreground">{row.query}</span>
           {row.bestUrl ? (
-            <span className="ml-2 truncate font-mono text-[10px] text-muted-foreground">
+            <span className="ml-2 break-all font-mono text-micro text-muted-foreground">
               {pathOf(row.bestUrl)}
             </span>
           ) : null}
@@ -400,6 +432,7 @@ function PanelRow({
             <FailedCallGlyph devices={failedDevices} />
           ) : null}
         </div>
+        <RankTrack rank={row.bestRank} trackedDepth={whollyUnread ? null : trackedDepth} />
         {/* A blank slot for a surface whose overview never loaded, so the
             desktop mark cannot slide under the phone column. */}
         <AiOverviewGlyphs readings={row.devices} unknownSurface="blank" />
@@ -440,7 +473,7 @@ function SerpCompositionLane({ reading }: { reading: SerpPanelQuery }) {
       className="min-w-0 border-l border-border/60 pl-2"
       data-serp-composition-device={reading.device}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-micro text-muted-foreground">
         <span className="inline-flex items-center gap-1 font-semibold text-foreground">
           <DeviceIcon className="size-3" aria-hidden />
           {device}
@@ -468,7 +501,7 @@ function SerpCompositionLane({ reading }: { reading: SerpPanelQuery }) {
           {composition.top3Domains.map((domain, index) => (
             <li
               key={`${index}:${domain}`}
-              className="min-w-0 font-mono text-[10px] text-foreground"
+              className="min-w-0 font-mono text-micro text-foreground"
             >
               <span className="mr-0.5 text-muted-foreground tabular-nums">
                 {index + 1}
@@ -480,7 +513,7 @@ function SerpCompositionLane({ reading }: { reading: SerpPanelQuery }) {
       ) : null}
 
       {composition.serpFeatures.length > 0 ? (
-        <p className="mt-0.5 text-[10px] text-muted-foreground" data-serp-features>
+        <p className="mt-0.5 text-micro text-muted-foreground" data-serp-features>
           {composition.serpFeatures.map(featureLabel).join(" · ")}
         </p>
       ) : null}
@@ -581,7 +614,7 @@ function PanelCoverage({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold tabular-nums",
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-micro font-semibold tabular-nums",
         settled
           ? "border-warn/30 bg-warn-soft text-warn"
           : "border-warn/55 bg-warn-soft text-warn",
