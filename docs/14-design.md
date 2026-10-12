@@ -159,6 +159,8 @@ that can be read quickly, and the kit has a component for it:
 | how things connect or flow | nodes and edges, each node in its state with its live count, the broken one highlighted in place | `FlowGraph` |
 | where things are | a map, when place is the data (visitors by country), never as decoration | — |
 | a queue | its size, the spread of its items' ages, then the rows with age as a bar length | `DecisionQueue` |
+| a quantity over time and who contributed it | columns split by contributor in neutral colours, each contributor named beside the newest complete column, the current column outlined | `StackedWeeks` |
+| a contest over a window | each contestant's running total over the window up to now, the leader in milestone green, each place named at the end of its line | `RaceChart` |
 | open problems | one ranked panel: new since the operator last looked first, the long-standing ones collapsed | `IncidentList` |
 | several measures, each against its own earlier window | rows divided by thin lines: the figure, its days against the earlier level, the change as a bar from one shared zero line | `ChangeRows` |
 | a count narrowing step by step | bars on one scale, each with its share of the step before; a step with no measurement hatched | `FunnelBars` |
@@ -392,7 +394,16 @@ for over a week collapsed under one line.
 operator as a `DecisionQueue` with the spread of their ages, closed and filed
 a day over two weeks as two dated `BarStrip`s on one scale, each project's
 week as the Wall's `WorkFlow` chart, and the most stuck epic as a `FlowGraph`
-whose blocked edges are drawn as broken lines. The full task table follows.
+whose blocked edges are drawn as broken lines. The full task table follows, with each task's
+assignee on its row.
+
+**Agents shows who did the work**: the tasks closed in the last seven days
+against the seven days before, eight weeks of closed tasks as `StackedWeeks`
+split by who closed them, one row per worker (the task it holds, its last
+seven days as a strip, its median time from claim to close), the week's
+ranking of agents and the models they named as a `RaceChart`, the week's
+trophies, and the claims and closes with their evidence as chips. A close is
+counted for whoever closed the task; an agent is a worker that named a model.
 
 **Money shows one equation**: revenue − cost = net for the month, net the
 largest, beside the month's days as a `BarStrip` (a day some source did not

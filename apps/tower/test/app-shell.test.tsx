@@ -126,6 +126,7 @@ describe("the sidebar is the desk's only navigation", () => {
       ["Sites", "/assets"],
       ["Alerts", "/alerts"],
       ["Tasks", "/tasks"],
+      ["Agents", "/agents"],
       ["Money", "/financials"],
       ["System health", "/health"],
       ["Integrations", "/integrations"],

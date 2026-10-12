@@ -1,5 +1,6 @@
 import {
   Bell,
+  Bot,
   Globe,
   GitBranch,
   HeartPulse,
@@ -42,10 +43,14 @@ export const INTEGRATIONS_ROUTE = "/integrations";
 
 export const TASKS_ROUTE = "/tasks";
 
+/** Who did the work; Tasks links here from its who's-working line. */
+export const AGENTS_ROUTE = "/agents";
+
 /**
  * The desk's navigation, in the operator's order: where they land, what they
- * own, what is shouting, what is queued, what it earned, whether the inputs are
- * trustworthy, what they are plugged into, and finally the knobs.
+ * own, what is shouting, what is queued and who is working it, what it earned,
+ * whether the inputs are trustworthy, what they are plugged into, and finally
+ * the knobs.
  *
  * Health answers "is everything working" from collector evidence; Integrations
  * answers "what am I connected with" from the credential store. `/properties`
@@ -57,7 +62,7 @@ export const TASKS_ROUTE = "/tasks";
  */
 export const NAV_ITEMS: NavItem[] = [
   { to: "/", label: "Home", icon: House, end: true, keywords: ["overview", "desk", "start"] },
-  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs", "agents"] },
+  { to: "/workflows", label: "Workflows", icon: GitBranch, keywords: ["schedules", "jobs", "automation", "runs"] },
   {
     to: ASSETS_ROUTE,
     label: "Sites",
@@ -66,6 +71,7 @@ export const NAV_ITEMS: NavItem[] = [
   },
   { to: "/alerts", label: "Alerts", icon: Bell, keywords: ["flags", "attention", "warnings"] },
   { to: TASKS_ROUTE, label: "Tasks", icon: ListTodo, keywords: ["work", "queue", "beads", "todo"] },
+  { to: AGENTS_ROUTE, label: "Agents", icon: Bot, keywords: ["agents", "models", "velocity", "leaderboard", "who closed"] },
   {
     to: "/financials",
     // The route, the payload and the asset tab's id keep `financials`.

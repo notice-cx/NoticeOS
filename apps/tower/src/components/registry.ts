@@ -1204,6 +1204,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero"],
   },
   {
+    name: "StackedWeeks",
+    file: "components/viz/StackedWeeks.tsx",
+    purpose:
+      "Weeks as columns, each split by who contributed: a quantity over time and its parts at once. Contributors are neutral inks named beside the newest settled week; the week still running is outlined and dashed.",
+    variants: ["eight weeks, three contributors and the current week"],
+  },
+  {
+    name: "RaceChart",
+    file: "components/viz/RaceChart.tsx",
+    purpose:
+      "A running total per contestant over one window, racing to now: the leader in the win ink, each line named at its end with its place, and Replay drawing the window again.",
+    variants: ["three contestants over seven days"],
+  },
+  {
     name: "FitLabel",
     file: "components/viz/FitLabel.tsx",
     purpose:

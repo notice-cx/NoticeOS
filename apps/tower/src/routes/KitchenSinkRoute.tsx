@@ -2813,7 +2813,7 @@ export function KitchenSinkRoute() {
             </Button>
           </header>
 
-          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, FitLabel, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows, WorkFlow">
+          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, FitLabel, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows, WorkFlow, StackedWeeks, RaceChart">
             <div className="w-full">
               <VisualKitGallery />
             </div>
