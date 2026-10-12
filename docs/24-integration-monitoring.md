@@ -1,15 +1,15 @@
 # 24 — Integration monitoring
 
 An operator should learn about missing data from System Health before noticing
-an empty card. A connected account proves access was configured. It does not
-prove that every report, live feed, calendar, or notification is working.
+an empty card. A connected account shows that access was configured. It does
+not show that every report, live feed, calendar, or notification is working.
 
 ## One health record per capability
 
 `packages/contract/src/integration-health.ts` is the coverage inventory and
 shared state projection. Its tests require every connected provider and every
-lane in `config/integrations.json` to have a monitor or an explicit coverage
-gap. New providers cannot silently inherit green health. Family-based adapters
+catalog entry in `config/integrations.json` to have a monitor or an explicit
+coverage gap. A new provider cannot be shown as green without a monitor. Family-based adapters
 expand the collector's actual report plan by property and date; they do not
 copy a list of report names into monitoring.
 
@@ -50,8 +50,8 @@ and report payloads never enter health rows or grouping keys.
 | Unknown | The observer or inventory cannot be read, or its evidence is invalid. |
 
 The reducer orders observations by attempt start, not arrival. A slow success
-from an older request cannot clear a newer failure. Ties prefer failure until
-a later success proves recovery. Invalid/future timestamps make availability
+from an older request cannot clear a newer failure. On a tie, the failure is kept
+until a later success records recovery. Invalid/future timestamps make availability
 unknown. Last attempt, last successful attempt, and the date covered by a
 report remain separate facts.
 
@@ -68,8 +68,8 @@ semantic validation, inside the provider adapter. Catching only HTTP errors
 misses HTTP-200 error envelopes, malformed data, and partial reports. Failure
 categories are access, rate limit, exhausted budget, network, provider error,
 invalid report, incomplete report, configuration, and monitoring failure.
-Each category maps to reviewed product copy and an action; raw provider prose
-is never displayed as a diagnosis.
+Each category maps to reviewed product copy and an action; the provider's raw
+error text is never displayed as a diagnosis.
 
 The recorder is awaited. If it fails, successful business data can remain
 visible, but the response explicitly reports monitoring unavailable. A
@@ -77,11 +77,11 @@ recorder exception must not turn an irreversible successful action into a
 retryable action failure: outbound sends retain their delivery ID and success
 receipt, with a separate monitoring error. Monitoring never resends messages.
 
-NoticeOS's scheduled runner continues to own `job_runs`. Those rows describe
+NoticeOS's scheduled runner continues to write `job_runs`. Those rows describe
 workflow execution, not arbitrary integration incidents. Configuration stays
 in `config_documents`; credentials stay in `credentials`; neither becomes an
-incident log. Account-wide credential status is setup evidence, not the
-capability-health source of truth.
+incident log. Account-wide credential status is setup evidence; capability
+health is not derived from it.
 
 ## Durable state and recovery
 
@@ -126,8 +126,8 @@ retry, and the safe corrective action. All visible times use the viewer's local
 clock or relative age, with exact UTC references in tooltips.
 
 Group failures only when evidence identifies the same cause and scope, such as
-the same account access failure or the same property quota bucket. Merely
-sharing an HTTP status or provider is insufficient to claim a shared cause.
+the same account access failure or the same property quota bucket. Sharing
+an HTTP status or provider is not enough to group failures as one cause.
 A group expands to its individual capabilities and assets. Green means a
 recorded operational success, not a successful business outcome.
 
@@ -137,17 +137,17 @@ outbound outage notifications is separate from observing existing deliveries.
 
 ## Retry and freshness ownership
 
-The provider adapter owns one bounded retry policy and honors `Retry-After`.
+The provider adapter holds one bounded retry policy and follows `Retry-After`.
 Pages share reads; hidden pages do not continue polling. Health reads and
 connection badges never start provider probes. Existing paid-request budgets,
-report cadence, measurement thresholds, and operator permissions remain owned
-by their existing policies. Monitoring does not invent new obligations for
+report cadence, measurement thresholds, and operator permissions remain set
+by their existing policies. Monitoring does not add new obligations for
 event-driven integrations or bypass provider quotas.
 
 GA4's display read now shares successful live counts for 30 seconds and hourly
 Core reports for 15 minutes. Cache misses share a database lease; HTTP 429
-responses pause frequent requests for five minutes by default, honoring
-Google’s explicit Retry-After when supplied. The durable lease preserves cooldown even if the
+responses pause frequent requests for five minutes by default, or for the
+period in Google’s explicit Retry-After when one is sent. The durable lease preserves cooldown even if the
 platform response cache is lost. Cache entries are local to a data center;
 another region may temporarily show “Checking traffic” until it can obtain a
 new reading. Actual observation time is retained on cached values and failures.
@@ -155,7 +155,7 @@ Hourly failure does not blank successful realtime counts.
 
 Google documents separate Core and Realtime budgets and daily replenishment;
 request allowance cannot be restored by retrying. The diagnostic category and
-next attempt are not a promised reset time. References:
+next attempt do not state when the quota resets. References:
 [Data API quotas](https://developers.google.com/analytics/devguides/reporting/data/v1/quotas)
 and [quota management guidance](https://developers.google.com/analytics/blog/2023/data-api-quota-management).
 
@@ -196,7 +196,7 @@ projection. System Health never starts a live provider read. The Wall still
 requests the counts and calendar data it displays, and reports a failed
 monitoring write separately from those results.
 
-The interface groups by provider and operation; grouping does not infer a
+The interface groups by provider and operation; grouping does not imply a
 shared cause. Expanding an operation shows its asset/report evidence, last
 attempt, last success, next eligible check and safe guidance. Unknown coverage
 has its own filter and stays gray. An operation with both a failure and a

@@ -57,7 +57,7 @@ External login identities use the provider's stable issuer and subject;
 matching email strings alone cannot merge accounts. Provider-connection OAuth
 is separate from signing in to NoticeOS. Authenticated sessions and identity
 validation use a maintained authentication component or standard identity
-provider; NoticeOS owns workspace membership and action authorization. The
+provider; NoticeOS itself handles workspace membership and action authorization. The
 component is selected through a bounded runtime and lifecycle proof, without
 requiring a paid identity vendor or inventing password/session cryptography.
 
@@ -168,7 +168,7 @@ Private Tower → ingest calls carry the bounded original request proof for a
 fixed receiver method. The receiver reconstructs fresh admission; a live context
 brand does not cross Worker realms. Service binding access alone is not
 end-user authority. A network caller cannot submit
-a serialized context or audit actor and have it trusted. Native middleware,
+a serialized context or audit actor and have it accepted. Native middleware,
 tool APIs and task subprocesses use the same authorization decision before
 acquiring capabilities. Object ownership is checked within the context;
 denials expose neither foreign data nor whether the requested object exists.
@@ -177,13 +177,13 @@ Context is immutable for the operation. Store transactions use its workspace;
 repositories need not repeat identity discovery. Hosted entries fail closed
 when context is absent; `onlyWorkspace()` is never their fallback. An explicit
 standalone adapter may resolve the sole provisioned workspace and operator
-behind the existing trusted access boundary. It must refuse ambiguous stores.
+behind the existing trusted access boundary. It must reject ambiguous stores.
 
 The shared implementation is
 [`workspace-admission.mts`](../scripts/workspace-admission.mts). Its awaited
 operation keeps an immutable context live only within its creating admission
 module instance. Serialized, copied, escaped or differently authorized contexts
-are refused. Composite reads keep the original semantic action while reading
+are rejected. Composite reads keep the original semantic action while reading
 required settings. Each entry fixes its profile and fresh authority reader on
 the server; request data cannot select a profile or assert verified authority.
 Stored reads, provider reads and effects are distinct named actions: a POST
@@ -220,7 +220,7 @@ permission. On dispatch and retry, reload authority and workspace state, then
 resolve current capabilities. Revocation or suspension prevents new effects;
 already completed external effects remain recorded. Long steps recheck before
 each external effect. Approvals pin workspace, run, step, definition version,
-approver and exact action/payload so changed work cannot borrow an old approval.
+approver and exact action/payload so changed work cannot reuse an old approval.
 
 The native [`hosted-job-runner.mts`](../scripts/hosted-job-runner.mts) binds a
 deployment-owned registry, workspace and service. PostgreSQL stores occurrence
@@ -228,14 +228,14 @@ and attempt identities, definition/input digests and projected workflow output;
 raw inputs, errors and bearer credentials are not persisted. Database effects
 commit with their checkpoints. Outside effects record their start first and
 remain uncertain after interrupted execution or acknowledgement; retries never
-silently repeat them. Each step obtains fresh central admission. Registered
-adapters must honor cancellation and await cleanup. The
+repeat them. Each step obtains fresh central admission. Registered adapters must
+stop on cancellation and await cleanup. The
 [hosted scheduler](../scripts/hosted-scheduler.mts) supplies workspace-owned
 cron dispatch, and the Tower reads persisted attempts and scheduler status for
 Workflows. The [scheduler qualification](../scripts/hosted-scheduler.test.mjs)
 exercises the timer, journal and tenant read path. Publication refreshes within
 15 seconds; a status older than 45 seconds is stale. A deployment may name
-registered lanes to run once as it starts, at that minute and through the same
+registered jobs to run once as it starts, at that minute and through the same
 journal, when their saved schedule is enabled; nothing else is caught up. A
 checked-in Worker cron does not instantiate this native scheduler or enable a
 remote deployment.
@@ -261,7 +261,7 @@ The current one-connection-per-provider schema remains the compatibility model.
 Trusted context and cache interfaces carry an opaque connection identity/revision
 without requiring a provider to be a globally unique key. Supporting multiple
 connections for the same provider requires an explicit schema and product
-change; this contract does not silently migrate credentials.
+change; this contract does not migrate credentials.
 
 ### Keys, caches and files
 
@@ -273,7 +273,7 @@ must preserve ownership:
 | SQL records, joins, uniqueness and foreign keys | Workspace + local record identity, enforced by composite keys and forced row security. |
 | Credential/token/resource caches and refresh leases | Workspace + connection identity/revision + actual grant/scope where relevant. Rotation cannot reuse another grant's token. |
 | Config/query cache | Workspace + data identity + authorization-relevant principal scope + backing store identity. Public reference data may be shared only when it contains no tenant inputs. |
-| Job deduplication, overlap and retry IDs | Workspace + lane/run/step identity and the logical occurrence. Identical customer job names do not share locks. |
+| Job deduplication, overlap and retry IDs | Workspace + job/run/step identity and the logical occurrence. Identical customer job names do not share locks. |
 | Native files, logs, object keys and downloads | Workspace-owned namespace/manifest; authorization also checked when reading, signing a URL or exporting. Secrets stay redacted. |
 | Browser query, preferences, pending writes and undo | Person/session generation + workspace + resource/action. |
 
@@ -288,7 +288,7 @@ Standalone installations can read legacy archives through that same manifest.
 An old DataForSEO checkpoint is considered only when its namespaced counterpart
 is absent and the database proves the selected workspace is its sole workspace;
 invalid objects or failed reads never trigger that fallback. Hosted and demo
-profiles never adopt unscoped checkpoints.
+profiles never use unscoped checkpoints.
 
 ## Postgres, task execution and transport
 
@@ -325,7 +325,7 @@ restricted credential and executor/filesystem capability. Prefixes are unique
 inside a workspace; physical database names are unique within their server and
 are not derived from a tenant-supplied name without trusted provisioning.
 
-A workspace never chooses a host, database, checkout path, executable, arbitrary
+A tenant never chooses a host, database, checkout path, executable, arbitrary
 CLI arguments or raw volume. Provisioning, migration, backup and restore
 authority stays with platform maintenance. Branches are not tenant secrecy
 boundaries.
@@ -339,8 +339,8 @@ exclude arbitrary flags, files, configuration and branch operations.
 
 Versioned panel evidence and remote agent review of it are not built yet.
 Retry-safe task writes, one MCP endpoint for every tool in every workspace a
-person belongs to, and agent sign-in (OAuth 2.1 through the identity engine's
-maintained provider) now exist locally ([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry));
+person belongs to, and agent sign-in (OAuth 2.1 through the authentication
+component's maintained provider) now exist locally ([scripts/README.md](../scripts/README.md#explicit-local-hosted-tasks-entry));
 their activation and any public service remain unqualified.
 
 The [Dolt 2.4.0 / Beads 1.3.1 qualification](../scripts/dolt-tenant-permissions-compose.test.mjs)
@@ -364,7 +364,7 @@ The demo uses the same released application, Postgres schema, task service and
 Beads model as an ordinary workspace. The public entry resolves a configured
 demo workspace on the server and **always** grants demo-reader authority, even
 when the browser also holds a customer session. A selector cannot turn it into
-a customer request. The UI persistently identifies synthetic data.
+a customer request. The UI always labels synthetic data as synthetic.
 
 Visitors may explore approved views, filters, charts, task details and sanitized
 settings/provider summaries. They cannot edit settings/tasks, reveal secrets,
@@ -372,7 +372,7 @@ approve work, run arbitrary queries, trigger collection or perform outward
 actions. Enforce capabilities at the service/executor boundary, not only in the
 UI or by HTTP method: a POST may be a read; a GET may trigger an external call.
 External realtime/calendar/discovery reads must use persisted synthetic evidence
-or be unavailable, never silently contact a real provider.
+or be unavailable; they never contact a real provider.
 
 A separate demo-bound service principal supplies simulated observations and
 scenario task transitions through ordinary writers. Ordinary jobs and the
@@ -384,8 +384,8 @@ never evidence that real OAuth, billing or external delivery worked.
 
 Use a versioned deterministic portfolio and idempotent dated events. Preserve
 relationships among usage, revenue, costs, tasks and observed outcomes, including
-missing data, failures and recoveries. No arbitrary periodic history deletion
-or fabricated causal lift makes the display fresh. Reseeding is an explicit
+missing data, failures and recoveries. The display is not kept current by
+deleting history on a schedule or by fabricating causal lift. Reseeding is an explicit
 versioned operation respecting append-only history. Apply finite query windows,
 export size, concurrency and simulator work budgets before public exposure;
 public demand cannot consume unbounded customer capacity. Existing collection
@@ -408,7 +408,7 @@ before restarting halted activity.
 A fresh standalone installation still starts without a hosted identity provider.
 It uses the same schema and explicit single-workspace adapter behind its
 documented access boundary. A hosted profile must be explicitly provisioned;
-adding a second workspace cannot silently turn a standalone admin into an
+adding a second workspace does not turn a standalone admin into an
 all-workspace operator. Ordinary fresh workspaces start with empty assets,
 connections and customer schedules plus generic defaults. Only the explicitly
 selected demo workspace receives fictional content.
@@ -423,7 +423,7 @@ The bootstrap-secret distinction remains defined once in
 The credential resolver enforces that profile boundary, including legacy Google
 service-account binding names. Captured credentials and health observations carry
 the selected store's workspace and connection identities; another workspace or a
-replaced connection cannot adopt their results. Hosted health revisions include
+replaced connection cannot use their results. Hosted health revisions include
 both identities. Standalone revisions retain their existing form so historical
 monitoring evidence remains usable.
 
@@ -432,7 +432,8 @@ client session generation, clear/remount scoped queries and drafts, and discard
 late responses. Pending writes and Undo keep their original workspace; a failed
 Save cannot replay into the next one. Cancellation does not undo an already
 committed write. Each tab keeps its own selected workspace; an auth library's
-session-wide active-organization field cannot silently retarget another tab.
+session-wide active-organization field cannot change which workspace another tab
+uses.
 The server checks every write independently.
 
 User preference caches include person identity and, where relevant, workspace.
@@ -450,10 +451,10 @@ has passed isolation proof and the owner approves its activation scope.
 
 Schema changes are append-only numbered migrations recorded in Postgres; never
 edit the frozen baseline. Preserve compatibility with eligible app rollback
-versions. An older single-workspace release must refuse a multi-workspace store,
-not select an arbitrary customer. A release cannot advertise rollback to a
-version incapable of serving its active hosted identities. The activation
-package states compatible releases, legacy workspace assignment, schema/backfill
+versions. An older single-workspace release must reject a multi-workspace
+store instead of selecting an arbitrary customer. A release cannot list as a
+rollback target a version that cannot serve its active hosted identities. The
+activation package lists compatible releases, legacy workspace assignment, schema/backfill
 and credential transitions, recovery procedure and exact verification scope.
 No migration, auth activation, public hosting or DNS change is authorized by
 this document alone.
@@ -468,15 +469,15 @@ Tests run through public APIs, private calls and background work, not just SQL.
 
 | Exercise | Required evidence |
 | --- | --- |
-| Forge workspace/object/actor/context fields; replay expired sessions or keys | Refusal before effects; no foreign existence disclosure or forged audit actor. |
+| Forge workspace/object/actor/context fields; replay expired sessions or keys | Rejection before effects; no foreign existence disclosure or forged audit actor. |
 | Invite, accept twice, change role, revoke membership, remove last owner | Current authority enforced; single-use invitation; last-owner invariant; no uninvited workspace creation. |
-| Cross-origin session mutation and forged private service context | CSRF/origin and internal authentication checks refuse before acquiring capabilities. |
-| Interleave successful and failed transactions on reused pooled connections | Each operation sees only its workspace; state does not leak after commit/rollback. |
-| Concurrent saves and warm cache reuse; failed reads; credential rotation | Ownership remains correct; stale save refuses atomically; no legacy or foreign fallback. |
-| Retry jobs after revocation/suspension; collide names and occurrence times | Authority rechecked, effects refused when revoked, deduplication remains workspace-bound. |
+| Cross-origin session mutation and forged private service context | CSRF/origin and internal authentication checks reject the request before acquiring capabilities. |
+| Interleave successful and failed transactions on reused pooled connections | Each operation reads only its own workspace's data; state does not leak after commit/rollback. |
+| Concurrent saves and warm cache reuse; failed reads; credential rotation | Ownership remains correct; stale save is rejected atomically; no legacy or foreign fallback. |
+| Retry jobs after revocation/suspension; collide names and occurrence times | Authority rechecked, effects rejected when revoked, deduplication remains workspace-bound. |
 | Execute foreign task projects, branches, database selectors or file paths | Task executor and Dolt grants deny access; bd is still the write path. |
 | Switch/logout during reads, optimistic Saves and Undo; use two tabs | Late data/rollback cannot enter the new context; pending writes keep their owner. |
-| Invoke demo mutations through HTTP, RPC, tasks and tool APIs, including GET side effects | Server refusal independent of UI and HTTP verb, including a signed-in customer visiting demo. |
+| Invoke demo mutations through HTTP, RPC, tasks and tool APIs, including GET side effects | Server rejection independent of UI and HTTP verb, including a signed-in customer visiting demo. |
 | Run simulator beside customer activity; exceed public budgets | Only synthetic workspace inputs/tasks change; no real outward effect or unbounded shared work. |
 | Read exports, objects, task history, logs and backup metadata | Access is workspace-bound; physical platform backups never become customer downloads. |
 | Start fresh standalone; upgrade and exercise declared rollback versions | Existing simple install remains usable; migrations and compatible identity/store behavior have executable proof. |
