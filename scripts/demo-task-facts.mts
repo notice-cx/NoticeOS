@@ -13,118 +13,165 @@ export interface DemoTaskFact {
 }
 type Asset = { id: string; prefix: string; name: string; createdAt: string };
 const DAY = 86_400_000;
-const at = (day: string, offset: number, hour = 12) => new Date(Date.parse(`${day}T00:00:00Z`) + offset * DAY + hour * 3_600_000).toISOString();
+const HOUR = 3_600_000;
 type TaskBrief = readonly [context: string, acceptance: string, opening: string, evidence: string];
-const BRIEFS: Record<string, readonly TaskBrief[]> = {
+/** When a task moved: days from the reference day, or hours before the
+ * cutoff for work that moved within the last day. */
+type When = number | `${number}h`;
+type Owner = 'Builder' | 'Verifier' | 'Mara';
+interface Plan {
+  title: string; brief: TaskBrief; status: DemoTaskStatus; opened: When;
+  started?: When; finished?: When; owner?: Owner;
+  /** Index of the task in the same project this one waits for. */
+  dependsOn?: number;
+  /** A human gate holding the task at this index. */
+  gate?: number;
+  /** A question waiting on the operator. */
+  human?: boolean;
+  priority?: number;
+}
+const task = (title: string, brief: TaskBrief, plan: Omit<Plan, 'title' | 'brief'>): Plan => ({ title, brief, ...plan });
+
+/** Each project's work as the board shows it on the reference day: some
+ * finished this week, some moving, some blocked, the asks waiting on Mara. */
+const WORK: Record<string, readonly Plan[]> = {
   lb: [
-    ["Brief exports fell despite continued visits; inspect index navigation.", "Link reproduction, navigation verification, repair annotation, and registered follow-up.", "Search works. Returning through the brief library breaks exporting.", "The repair annotation links verification and separate readback."],
-    ["Exporting fails after returning through the brief library.", "Record the brief, index action, and failed export for repair.", "Start from the index return path, not search.", "The index return failure is recorded for repair."],
-    ["Returning to the index must preserve usable brief navigation.", "Verify entry, return navigation, and exporting; record the dated result.", "Check returning to the index as well as fresh entry.", "Entry, return navigation, and exporting pass before closure."],
-    ["The shipped repair has a registered 28-day comparison.", "Record report days, sessions delta, and outcome after the deadline.", "Use the registered window. Keep revenue attribution separate.", "Registered windows and the evaluator outcome are recorded."],
-    ["Accumulating briefs make the brief library difficult to scan.", "Draft project groups and a route checklist for separate verification.", "Group by projects. Keep the template filter parked.", "The project-group draft and route checklist are ready."],
-    ["The completed subscription month needs its own ledger check.", "Check subscription income and reconciled state separately from usage.", "Use the subscription entry, not combined revenue.", "The subscription month and reconciled booking state match."],
-    ["Brief library verification needs the unfinished grouped draft.", "After draft closure, check routes and record missing links.", "Waiting for the grouped draft; other brief work can proceed.", "The completed index draft has its route checklist."],
-    ["A template filter remains an unselected proposal.", "At the wake-up date, choose a bounded discovery task.", "Keep this parked until the brief library is accepted.", "The template-filter proposal has a scheduled discovery decision."],
+    task('Restore brief navigation', ['Brief exports fell despite continued visits; inspect index navigation.', 'Link reproduction, navigation verification, repair annotation, and registered follow-up.', 'Search works. Returning through the brief library breaks exporting.', 'The repair annotation links verification and readback.'], { status: 'closed', opened: -60, finished: -42, priority: 1 }),
+    task('Reproduce the navigation failure', ['Exporting fails after returning through the brief library.', 'Record the brief, index action, and failed export for repair.', 'Start from the index return path, not search.', 'The index return failure is recorded.'], { status: 'closed', opened: -59, finished: -45 }),
+    task('Verify the navigation repair', ['Returning to the index must preserve usable brief navigation.', 'Verify entry, return navigation, and exporting; record the dated result.', 'Check returning to the index as well as fresh entry.', 'Entry, return and exporting pass.'], { status: 'closed', opened: -58, finished: -43, owner: 'Verifier' }),
+    task('Read the repair follow-up', ['The shipped repair has a registered 28-day comparison.', 'Record report days, sessions delta, and outcome after the deadline.', 'Use the registered window. Keep revenue attribution separate.', 'Registered window and evaluator outcome recorded.'], { status: 'closed', opened: -57, finished: -13, owner: 'Verifier' }),
+    task('Group the brief library', ['Accumulating briefs make the brief library difficult to scan.', 'Draft project groups and a route checklist for separate verification.', 'Group by projects. Keep the template filter parked.', 'Project groups and route checklist shipped.'], { status: 'closed', opened: -21, started: -9, finished: -4 }),
+    task('Check the completed subscription report', ['The completed subscription month needs its own ledger check.', 'Check subscription income and reconciled state separately from usage.', 'Use the subscription entry, not combined revenue.', 'Subscription month and booking state match.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara' }),
+    task('Verify the refreshed brief library', ['The grouped library needs its routes checked before announcing.', 'Check every grouped route; record missing links.', 'Grouped draft shipped; checking routes from the library index.', ''], { status: 'in_progress', opened: -21, started: -3, owner: 'Verifier', dependsOn: 4 }),
+    task('Explore a template filter', ['A template filter remains an unselected proposal.', 'At the wake-up date, choose a bounded discovery task.', 'Keep this parked until the brief library is accepted.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara' }),
+    task('Restore the nightly report', ['The nightly report stopped arriving two nights ago.', 'Find why the report job stopped; resume nightly delivery.', 'Report job exits before sending; checking its schedule.', ''], { status: 'in_progress', opened: '30h', started: '5h', priority: 1 }),
+    task('Fix the export button on mobile', ['Exports fail on narrow phone screens after the last release.', 'Export works on three phone widths; record each result.', 'Reproduced on the smallest width first.', 'Exports pass on all three phone widths.'], { status: 'closed', opened: -5, started: '30h', finished: '20h' }),
+    task('Add a brief template for agencies', ['Agency customers keep rebuilding the same brief by hand.', 'Ship one agency template; link it from the library.', 'Drafted from the three most copied briefs.', 'Agency template published and linked.'], { status: 'closed', opened: -14, started: -3, finished: -1 }),
+    task('Write the onboarding email sequence', ['New trials receive no guidance after signing up.', 'Draft three onboarding emails; send once the order is chosen.', 'Drafts ready; sending waits on the order decision.', ''], { status: 'open', opened: -9 }),
+    task('Which onboarding email goes out first?', ['Two first emails compete: a product tour or templates.', 'Choose the first email; the sequence ships after it.', 'Both drafts are attached; the tour converted better in tests.', ''], { status: 'open', opened: -2, owner: 'Mara', human: true }),
+    task('Speed up large brief exports', ['Large briefs take twelve seconds to export.', 'Exports of the largest briefs finish under four seconds.', 'Profiling shows image resizing dominates export time.', ''], { status: 'open', opened: -9 }),
+    task('Send the agency template launch email', ['The agency template launch needs the email sequence first.', 'Send the launch email once the sequence is live.', 'Waiting for the onboarding sequence before announcing.', ''], { status: 'blocked', opened: -5, dependsOn: 11, owner: 'Mara' }),
   ],
   pw: [
-    ["Source saves dropped for two days; visits continue.", "Link reproduction, restore saving, and verify; retain the original alert.", "Starting with the save action. Keep the alert open.", "Saving and reopening pass the separate verification checklist."],
-    ["The source-save alert needs a repeatable failing action.", "Record the source, preview, and failed save for repair.", "Sources open. Saving fails after the source preview.", "The preview-save failure is reproduced for the repair."],
-    ["Collection label revisions need Mara’s decision first.", "After approval, revise labels and retain the before/after list.", "The label draft awaits Mara. Save repair can continue.", "The revised labels match Mara’s recorded decision."],
-    ["Source-save verification awaits the repair.", "Run the failing save flow, reopen it, and record results.", "Use the reported route once the restore task closes.", "Saving and reopening pass the reported route checklist."],
-    ["Saved-source links can be checked during the repair.", "Open each index link; file broken targets against named sources.", "This check needs neither save repair nor label approval.", "Saved-source links reach their named source routes."],
-    ["Monthly licensing reconciliation remains separate from the missing day.", "Check monthly corrections and reconciled state; retain the daily gap.", "Use the completed month. The recent gap remains visible.", "Monthly corrections reconcile; the daily gap stays visible."],
-    ["One recent daily report is missing.", "Identify the missing day; never substitute a zero observation.", "Collection resumed. The earlier missing day still needs explicit treatment.", "Recovered report checked; the earlier daily gap remains."],
-    ["Shared research folders remain a discovery proposal.", "At the wake-up date, decide a bounded discovery scope.", "Park shared-folder exploration while existing source saving is repaired.", "Shared research folders have a scheduled discovery decision."],
+    task('Restore source saving', ['Source saves dropped for two days; visits continue.', 'Link reproduction, restore saving, and verify; retain the original alert.', 'Starting with the save action. Keep the alert open.', 'Saving restored; tonight’s report confirms recovery.'], { status: 'closed', opened: -2, started: -2, finished: '3h', priority: 1 }),
+    task('Reproduce the source-save failure', ['The source-save alert needs a repeatable failing action.', 'Record the source, preview, and failed save for repair.', 'Sources open. Saving fails after the source preview.', 'The preview-save failure is reproduced.'], { status: 'closed', opened: -2, finished: -1 }),
+    task('Revise the collection labels', ['Collection label revisions need Mara’s decision first.', 'After approval, revise labels and retain the before/after list.', 'The label draft awaits Mara. Save repair can continue.', ''], { status: 'blocked', opened: -12, owner: 'Mara' }),
+    task('Verify restored source saving', ['Source-save verification follows the shipped repair.', 'Run the failing save flow, reopen it, and record results.', 'Use the reported route now the restore task is closed.', ''], { status: 'in_progress', opened: -2, started: '2h', owner: 'Verifier', dependsOn: 0 }),
+    task('Check the saved-source links', ['Saved-source links can be checked during the repair.', 'Open each index link; file broken targets against named sources.', 'This check needs neither save repair nor label approval.', 'Saved-source links reach their named routes.'], { status: 'closed', opened: -12, started: -6, finished: -5 }),
+    task('Reconcile the completed licensing report', ['Monthly licensing reconciliation remains separate from the missing day.', 'Check monthly corrections and reconciled state; retain the daily gap.', 'Use the completed month. The recent gap remains visible.', 'Monthly corrections reconcile; the gap stays visible.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara' }),
+    task('Verify the recovered daily report', ['One recent daily report is missing.', 'Identify the missing day; never substitute a zero observation.', 'Collection resumed. The earlier missing day still needs explicit treatment.', 'Recovered report checked; the earlier gap remains.'], { status: 'closed', opened: -4, finished: -2, owner: 'Verifier' }),
+    task('Explore shared research folders', ['Shared research folders remain a discovery proposal.', 'At the wake-up date, decide a bounded discovery scope.', 'Park shared-folder exploration while existing source saving is repaired.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara' }),
+    task('Approve revised collection labels', ['Synthetic operator decision; this gate blocks only its declared task.', 'Mara records the decision before the blocked task proceeds.', 'Waiting for the stated decision; unrelated ready work remains available.', ''], { status: 'open', opened: '3h', gate: 2, owner: 'Mara' }),
+    task('Add a save shortcut to the reader', ['Readers want to save a source without leaving the page.', 'Ship a keyboard save shortcut; record it in help.', 'Shortcut drafted; waits for saving to be stable.', ''], { status: 'open', opened: -12 }),
+    task('Renew the university license', ['The largest university license renews next month.', 'Send renewal terms; record the signed license.', 'Usage summary prepared for the renewal call.', ''], { status: 'in_progress', opened: -9, started: -3, owner: 'Mara' }),
+    task('Stop duplicate sources after import', ['Importing a library creates duplicate sources.', 'Imports skip existing sources; record counts before and after.', 'Duplicates share a URL but differ in title.', 'A second import created no duplicates.'], { status: 'closed', opened: -12, started: -5, finished: -3 }),
+    task('Add citation export for reference managers', ['Researchers retype citations into their reference managers.', 'Export saved sources as citations in two common formats.', 'Format list agreed; export reuses saved metadata.', ''], { status: 'open', opened: -5 }),
   ],
   wp: [
-    ["Slow recipe pages lose visits before readers reach a recipe.", "Link page timings before and after; keep ad income claims separate.", "Start with the ten most visited recipe pages.", "Measured recipe pages now beat their recorded baseline."],
-    ["Recipe page timings need a measured baseline first.", "Record load timings for the most visited recipe pages.", "Measure before changing images or ad placement.", "Baseline timings recorded for the most visited pages."],
-    ["The holiday recipe collection needs Mara’s selection.", "After her choice, record the recipes and their publishing dates.", "Waiting for Mara’s selection; page speed work continues.", "The holiday collection matches Mara’s recorded choice."],
-    ["Faster recipe pages need verification after the speed work.", "Re-measure the baseline pages; record any page that regressed.", "Use the same pages once the speed task closes.", "The baseline pages pass the recorded timing check."],
-    ["Printable recipe cards can be checked independently.", "Print each card layout; file problems against named recipes.", "This check needs neither speed work nor the holiday selection.", "Printable cards render on every checked recipe."],
-    ["The completed month’s ad payment needs its own check.", "Compare the payment with the month’s daily estimates; keep both labelled.", "Use the stored daily estimates, never traffic, for the comparison.", "Payment and daily estimates are both recorded."],
-    ["Seasonal recipe pages need review before the holidays.", "List seasonal pages with falling search clicks; propose updates.", "Use the last four weeks of search clicks.", "Seasonal pages with falling clicks are listed."],
-    ["A weekly meal plan remains a discovery proposal.", "At the wake-up date, scope a bounded meal-plan discovery.", "Park this until the faster pages are verified.", "The meal-plan proposal has a scheduled discovery decision."],
+    task('Speed up the recipe pages', ['Slow recipe pages lose visits before readers reach a recipe.', 'Link page timings before and after; keep ad income claims separate.', 'Start with the ten most visited recipe pages.', 'Measured recipe pages beat their baseline.'], { status: 'closed', opened: -21, started: -12, finished: -7, priority: 1 }),
+    task('Measure the slow recipe pages', ['Recipe page timings need a measured baseline first.', 'Record load timings for the most visited recipe pages.', 'Measure before changing images or ad placement.', 'Baseline timings recorded for top pages.'], { status: 'closed', opened: -21, finished: -12 }),
+    task('Choose the holiday recipe collection', ['The holiday recipe collection needs Mara’s selection.', 'After her choice, record the recipes and their publishing dates.', 'Waiting for Mara’s selection; page speed work continues.', ''], { status: 'blocked', opened: -12, owner: 'Mara' }),
+    task('Verify the faster recipe pages', ['Faster recipe pages need verification after the speed work.', 'Re-measure the baseline pages; record any page that regressed.', 'Use the same pages once the speed task closes.', ''], { status: 'open', opened: -9, owner: 'Verifier', dependsOn: 0 }),
+    task('Check the printable recipe cards', ['Printable recipe cards can be checked independently.', 'Print each card layout; file problems against named recipes.', 'This check needs neither speed work nor the holiday selection.', 'Printable cards render on every checked recipe.'], { status: 'closed', opened: -12, started: -4, finished: -3 }),
+    task('Check the completed ad payment', ['The completed month’s ad payment needs its own check.', 'Compare the payment with the month’s daily estimates; keep both labelled.', 'Use the stored daily estimates, never traffic, for the comparison.', 'Payment and daily estimates are both recorded.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara' }),
+    task('Review the seasonal recipe pages', ['Seasonal recipe pages need review before the holidays.', 'List seasonal pages with falling search clicks; propose updates.', 'Use the last four weeks of search clicks.', ''], { status: 'in_progress', opened: -12, started: -2 }),
+    task('Explore a weekly meal plan', ['A weekly meal plan remains a discovery proposal.', 'At the wake-up date, scope a bounded meal-plan discovery.', 'Park this until the faster pages are verified.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara' }),
+    task('Approve the holiday recipe collection', ['Synthetic operator approval; it holds only the collection choice.', 'Mara approves or changes the collection before publishing dates.', 'Shortlist of twenty recipes attached for approval.', ''], { status: 'open', opened: -9, gate: 2, owner: 'Mara' }),
+    task('Fix the recipe save button', ['Recipe saves failed for a day after a plugin update.', 'Saving works again on recipe pages; record the cause.', 'The plugin update broke the save request; rolling back.', 'Saves restored; the plugin version is pinned.'], { status: 'closed', opened: -2, started: -2, finished: -1, priority: 1 }),
+    task('Publish ten Thanksgiving recipes', ['Thanksgiving searches start rising in mid-October.', 'Publish ten tested recipes before the search rise.', 'Ten recipes tested; photos ready for six.', 'Ten Thanksgiving recipes published with photos.'], { status: 'closed', opened: -14, started: '40h', finished: '20h' }),
+    task('Compress the recipe photos', ['Recipe photos are the heaviest part of every page.', 'Serve compressed photos on every recipe page.', 'Starting with the hundred most visited recipes.', 'Every recipe page serves compressed photos.'], { status: 'closed', opened: -14, started: -5, finished: -2 }),
+    task('Add a printable shopping list', ['Readers copy ingredients by hand into shopping lists.', 'Each recipe offers a printable shopping list.', 'The list groups ingredients by store section.', 'Shopping lists print from every recipe.'], { status: 'closed', opened: -9, started: '30h', finished: '6h' }),
+    task('Write the pumpkin recipe roundup', ['A pumpkin roundup ranked well last autumn.', 'Refresh the roundup with this year’s recipes.', 'Twelve recipes chosen; writing the introductions now.', ''], { status: 'in_progress', opened: -9, started: '26h' }),
+    task('Move the newsletter signup below recipes', ['The newsletter signup interrupts recipes before the ingredients.', 'Move the signup below each recipe; compare weekly signups.', 'Placement drafted; waits for the holiday pages.', ''], { status: 'open', opened: -9 }),
+    task('Plan the December cookie series', ['December cookie searches peak in the second week.', 'Outline twelve cookie posts with dates and photos.', 'Outline started from last year’s best cookie posts.', ''], { status: 'open', opened: -5 }),
+    task('Add cooking times to recipe cards', ['Recipe cards lack cooking times in search results.', 'Recipe cards carry valid cooking time and rating data.', 'Waiting for the page speed verification first.', ''], { status: 'blocked', opened: -5, dependsOn: 3 }),
+  ],
+  tn: [
+    task('Ship the trail page redesign', ['Trail pages looked dated beside newer guide sites.', 'Ship the redesigned trail pages; record the changed routes.', 'The redesign covers trail, region and map pages.', 'Redesign live; comparison registered on sessions.'], { status: 'closed', opened: -50, started: -40, finished: -36, priority: 1 }),
+    task('Read the redesign comparison', ['The redesign’s 28-day comparison has its final reading.', 'Record sessions before and after; file the rollback decision.', 'Final reading in; sessions fell after the redesign.', 'Sessions fell; rollback question filed.'], { status: 'closed', opened: -37, started: -8, finished: -7, owner: 'Verifier' }),
+    task('Roll back the trail page redesign?', ['Sessions fell after the redesign, while the season fell too.', 'Decide: roll back, or keep it and fix the slowest pages.', 'The comparison and search positions are attached for review.', ''], { status: 'open', opened: -7, owner: 'Mara', human: true, priority: 1 }),
+    task('Find the trail pages losing search clicks', ['Search clicks to trail pages have fallen since July.', 'List the pages with the largest click losses.', 'Comparing positions for the fifty biggest trail pages.', 'Forty pages listed with their lost positions.'], { status: 'closed', opened: -9, started: -6, finished: -4 }),
+    task('Refresh the twenty biggest trail guides', ['The biggest trail guides have outdated access details.', 'Update access, parking and season notes on twenty guides.', 'Eight guides refreshed; parking details take longest.', ''], { status: 'in_progress', opened: -9, started: -3 }),
+    task('Bring back interactive trail maps', ['The redesign replaced interactive maps with static images.', 'Restore interactive maps on every trail page.', 'Waiting for the rollback decision before changing maps.', ''], { status: 'blocked', opened: -7, dependsOn: 2 }),
+    task('Reconcile the trail ad payment', ['The outdoor site’s monthly ad payment has arrived.', 'Compare the payment with its daily estimates; keep both.', 'The payment sits slightly above the estimates’ sum.', 'Payment and estimates recorded side by side.'], { status: 'closed', opened: -9, started: -7, finished: -6, owner: 'Mara' }),
+    task('Plan the winter trail series', ['Winter hiking guides could soften the seasonal drop.', 'Outline ten winter trail guides with publishing dates.', 'Parked until the redesign decision is made.', ''], { status: 'deferred', opened: -30, finished: -20, owner: 'Mara' }),
+    task('Fix broken links in trail guides', ['Trail guides link to closed park pages.', 'Replace or remove every broken outbound link.', 'Two hundred links checked; thirty-one are broken.', 'Every broken outbound link replaced or removed.'], { status: 'closed', opened: -12, started: '44h', finished: '20h' }),
+    task('Speed up the trail map pages', ['Map pages became the slowest pages after the redesign.', 'Map pages load in under three seconds on phones.', 'Map scripts load before the page text.', ''], { status: 'open', opened: -9 }),
+    task('Add trail difficulty filters', ['Readers ask to filter trails by difficulty.', 'Ship difficulty filters on every region page.', 'Difficulty labels exist on most trails already.', ''], { status: 'open', opened: -12 }),
   ],
   fr: [
-    ["CSV input handling needs verification before more examples.", "Check empty, zero, and numeric inputs; record concrete failures.", "Start with inputs; more examples cannot repair rejected values.", "The CSV input checklist is recorded."],
-    ["First usage reports cover only the short post-launch period.", "Verify launch bounds and identify provisional recent days.", "Check available days before interpreting a change.", "Usage begins at launch; recent days remain provisional."],
-    ["Sample files must match accepted CSV inputs.", "Check examples against accepted inputs; hold unsupported cases.", "Waiting for the input checklist before accepting examples.", "Sample files match the accepted input checklist."],
-    ["CSV acceptance includes keyboard operation.", "After input acceptance, complete those cases using the keyboard.", "Reuse accepted input cases; record every unreachable control.", "Keyboard operation completes the accepted input cases."],
-    ["Published help links need checking while CSV work continues.", "Open named help routes; separate failures from missing usage days.", "These links can be checked before CSV input acceptance.", "Published help links open their named routes."],
-    ["Operating costs exist; monetization is unconfigured.", "Check initial costs; leave unconfigured subscription and licensing revenue absent.", "Record operating costs without inventing disconnected revenue.", "Initial costs are recorded; unconfigured monetization remains absent."],
-    ["The next comparison must begin no earlier than launch.", "Choose available days and retain provisional indicators.", "A mature-site window would fabricate this site’s earlier history.", "The next comparison uses only actual post-launch days."],
-    ["Saved validation rules remain a discovery proposal.", "At the wake-up date, define evidence for bounded discovery.", "Keep this parked until input and keyboard checks finish.", "Saved rules have a bounded discovery decision."],
+    task('Check CSV input handling', ['CSV input handling needs verification before more examples.', 'Check empty, zero, and numeric inputs; record concrete failures.', 'Start with inputs; more examples cannot repair rejected values.', ''], { status: 'in_progress', opened: -22, started: -3 }),
+    task('Verify the first usage reports', ['First usage reports cover only the short post-launch period.', 'Verify launch bounds and identify provisional recent days.', 'Check available days before interpreting a change.', 'Usage begins at launch; recent days stay provisional.'], { status: 'closed', opened: -21, finished: -14, owner: 'Verifier' }),
+    task('Review sample CSV files', ['Sample files must match accepted CSV inputs.', 'Check examples against accepted inputs; hold unsupported cases.', 'Waiting for the input checklist before accepting examples.', ''], { status: 'open', opened: -20, owner: 'Mara' }),
+    task('Verify keyboard CSV use', ['CSV acceptance includes keyboard operation.', 'After input acceptance, complete those cases using the keyboard.', 'Reuse accepted input cases; record every unreachable control.', ''], { status: 'blocked', opened: -19, owner: 'Verifier', dependsOn: 0 }),
+    task('Check the published help links', ['Published help links need checking while CSV work continues.', 'Open named help routes; separate failures from missing usage days.', 'These links can be checked before CSV input acceptance.', 'Published help links open their named routes.'], { status: 'closed', opened: -18, started: -6, finished: -5 }),
+    task('Record the initial operating costs', ['Operating costs exist; monetization is unconfigured.', 'Check initial costs; leave unconfigured subscription and licensing revenue absent.', 'Record operating costs without inventing disconnected revenue.', 'Initial costs recorded; no revenue invented.'], { status: 'closed', opened: -17, started: -7, finished: -6, owner: 'Mara' }),
+    task('Review the next coverage comparison', ['The next comparison must begin no earlier than launch.', 'Choose available days and retain provisional indicators.', 'A mature-site window would fabricate this site’s earlier history.', 'The comparison uses only post-launch days.'], { status: 'closed', opened: -16, started: -3, finished: -2, owner: 'Verifier' }),
+    task('Explore saved validation rules', ['Saved validation rules remain a discovery proposal.', 'At the wake-up date, define evidence for bounded discovery.', 'Keep this parked until input and keyboard checks finish.', ''], { status: 'deferred', opened: -15, finished: -10, owner: 'Mara' }),
+    task('Charge for saved validation rules?', ['Early users ask to keep their validation rules between visits.', 'Decide whether saved rules are free or part of a paid plan.', 'A third of returning users rerun the same checks.', ''], { status: 'open', opened: -20, owner: 'Mara', human: true }),
+    task('Add a drag-and-drop upload', ['Users paste CSV text because uploading is hidden.', 'Upload a file by dropping it onto the page.', 'The drop zone covers the whole input panel.', 'Dropping a file uploads and checks it.'], { status: 'closed', opened: -12, started: -3, finished: -1 }),
+    task('Detect the delimiter automatically', ['Semicolon files fail the check without warning.', 'Detect comma, semicolon and tab delimiters automatically.', 'Testing with twenty real-world sample files.', 'All three delimiters detected on every sample.'], { status: 'closed', opened: -9, started: '28h', finished: '6h' }),
+    task('Write the launch post', ['Fresh Rows has no public launch announcement yet.', 'Publish a launch post with three worked examples.', 'Draft written; the examples need final screenshots.', ''], { status: 'in_progress', opened: -9, started: '22h', owner: 'Mara' }),
+    task('Show row numbers in error messages', ['Error messages do not say which row failed.', 'Every error names its row and column.', 'Row numbers added; column names come next.', 'Errors name their row and column.'], { status: 'closed', opened: -12, started: -5, finished: -3 }),
+    task('Add a pricing page', ['Visitors cannot see what the paid plan includes.', 'Publish a pricing page with the free and paid plans.', 'Waiting for the saved-rules pricing decision.', ''], { status: 'blocked', opened: -9, dependsOn: 8 }),
+    task('Export the cleaned CSV', ['Users want the corrected file, not only the errors.', 'Download the cleaned CSV after fixing its errors.', 'The export reuses the rows already checked.', ''], { status: 'open', opened: -5 }),
   ],
   no: [
-    ["Portfolio recovery must preserve operational records and task history.", "Verify restored databases, task history, and configuration on isolated resources.", "Server startup alone is insufficient; inspect restored task history.", "Recovery checks include task history and configuration readbacks."],
-    ["Task-board refresh must retain identity, empty queues, and failures.", "Compare snapshot identities and counts; distinguish unavailable from empty.", "An unavailable project must never appear as an empty queue.", "Board refresh preserves identities and distinguishes unavailable counts."],
-    ["The next operating-cost budget needs Mara’s decision.", "Record approved scope after the gate; preserve existing cost history.", "Next budget approval does not authorize rewriting previous costs.", "Mara’s next budget scope preserves previous cost history."],
-    ["Project-map verification awaits the shared budget decision.", "After approval, verify all five project identities and snapshot reads.", "These projects already exist; this review never reinitializes them.", "All five projects match their current snapshot identities."],
-    ["Collection history includes a failed attempt and later recovery.", "Inspect both recorded attempts; never recollect to rewrite history.", "Read the recorded attempts, rather than starting another collection.", "The failed attempt and later recovery remain inspectable."],
-    ["Shared costs belong to the OS, separate from property revenue.", "Check OS cost entries, booking states, and recorded periods.", "Keep portfolio overhead separate; use the ledger’s recorded amounts.", "Shared costs retain OS ownership, periods, booking states."],
-    ["Portfolio report links must preserve task-board asset identities.", "Open four property links and the OS; check target identities.", "Compare with the five-project map, not display names.", "All five portfolio links open their declared identities."],
-    ["A further portfolio import needs bounded discovery first.", "At the wake-up date, choose scope without copying an installation.", "Park this until task, recovery, and report checks finish.", "The next import has a scheduled bounded discovery decision."],
+    task('Verify the portfolio backup restore', ['Portfolio recovery must preserve operational records and task history.', 'Verify restored databases, task history, and configuration on isolated resources.', 'Server startup alone is insufficient; inspect restored task history.', 'Recovery checks include task history readbacks.'], { status: 'closed', opened: -390, finished: -7 }),
+    task('Check the task-board refresh', ['Task-board refresh must retain identity, empty queues, and failures.', 'Compare snapshot identities and counts; distinguish unavailable from empty.', 'An unavailable project must never appear as an empty queue.', 'Board refresh keeps identities and unavailable counts.'], { status: 'closed', opened: -359, finished: -8 }),
+    task('Review the next operating-cost budget', ['The next operating-cost budget needs Mara’s decision.', 'Record approved scope after the gate; preserve existing cost history.', 'Next budget approval does not authorize rewriting previous costs.', ''], { status: 'open', opened: -328, owner: 'Mara' }),
+    task('Verify the refreshed task projects', ['Project-map verification awaits the shared budget decision.', 'After approval, verify all six project identities and snapshot reads.', 'These projects already exist; this review never reinitializes them.', ''], { status: 'blocked', opened: -297, finished: -10, owner: 'Verifier', dependsOn: 2 }),
+    task('Inspect the recorded collection recovery', ['Collection history includes a failed attempt and later recovery.', 'Inspect both recorded attempts; never recollect to rewrite history.', 'Read the recorded attempts, rather than starting another collection.', ''], { status: 'open', opened: -266 }),
+    task('Reconcile the shared operating costs', ['Shared costs belong to the OS, separate from property revenue.', 'Check OS cost entries, booking states, and recorded periods.', 'Keep portfolio overhead separate; use the ledger’s recorded amounts.', 'Shared costs keep OS ownership and periods.'], { status: 'closed', opened: -235, finished: -12, owner: 'Mara' }),
+    task('Check the portfolio report links', ['Portfolio report links must preserve task-board asset identities.', 'Open five property links and the OS; check target identities.', 'Compare with the six-project map, not display names.', 'All six portfolio links open their identities.'], { status: 'closed', opened: -204, finished: -13, owner: 'Verifier' }),
+    task('Explore the next portfolio import', ['A further portfolio import needs bounded discovery first.', 'At the wake-up date, choose scope without copying an installation.', 'Park this until task, recovery, and report checks finish.', ''], { status: 'deferred', opened: -173, finished: -1, owner: 'Mara' }),
+    task('Approve the next operating-cost budget', ['Synthetic operator decision; this gate holds only the budget review.', 'Mara records the budget decision before its review proceeds.', 'The budget review waits; other system work stays available.', ''], { status: 'open', opened: -1, gate: 2, owner: 'Mara' }),
   ],
 };
 
 /** Facts describe fictional work, never provider execution or causal returns. */
 export function generateDemoTaskFacts({ assets, seed, referenceDate, cutoff }: { assets: readonly Asset[]; seed: string; referenceDate: string; cutoff: string }) {
   const id = (asset: Asset, key: string) => `${asset.prefix}-${createHash('sha256').update(`${seed}\0${asset.id}\0${key}`).digest('hex').slice(0, 6)}`;
+  const at = (when: When, hour: number) => typeof when === 'number'
+    ? new Date(Date.parse(`${referenceDate}T00:00:00Z`) + when * DAY + hour * HOUR).toISOString()
+    : new Date(Date.parse(cutoff) - Number(when.slice(0, -1)) * HOUR).toISOString();
   const tasks: DemoTaskFact[] = [];
-  const projectTitles: Record<string, readonly string[]> = {
-    lb: ['Restore brief navigation', 'Reproduce the navigation failure', 'Verify the navigation repair', 'Read the repair follow-up', 'Group the brief library', 'Check the completed subscription report', 'Verify the refreshed brief library', 'Explore a template filter'],
-    wp: ['Speed up the recipe pages', 'Measure the slow recipe pages', 'Choose the holiday recipe collection', 'Verify the faster recipe pages', 'Check the printable recipe cards', 'Check the completed ad payment', 'Review the seasonal recipe pages', 'Explore a weekly meal plan'],
-    pw: ['Restore source saving', 'Reproduce the source-save failure', 'Revise the collection labels', 'Verify restored source saving', 'Check the saved-source links', 'Reconcile the completed licensing report', 'Verify the recovered daily report', 'Explore shared research folders'],
-    fr: ['Check CSV input handling', 'Verify the first usage reports', 'Review sample CSV files', 'Verify keyboard CSV use', 'Check the published help links', 'Record the initial operating costs', 'Review the next coverage comparison', 'Explore saved validation rules'],
-    no: ['Verify the portfolio backup restore', 'Check the task-board refresh', 'Review the next operating-cost budget', 'Verify the refreshed task projects', 'Inspect the recorded collection recovery', 'Reconcile the shared operating costs', 'Check the portfolio report links', 'Explore the next portfolio import'],
-  };
   const projects = assets.map(asset => ({ asset: asset.id, prefix: asset.prefix, database: `demo_${asset.prefix}` }));
   for (const asset of assets) {
-    const titles = projectTitles[asset.prefix];
-    if (!titles || titles.length !== 8) throw new Error('The task scenario needs its five declared projects.');
+    const plans = WORK[asset.prefix];
+    if (!plans) throw new Error('The task scenario needs every declared project.');
     const epic = id(asset, 'epic');
-    const older = asset.prefix === 'fr' ? -23 : -390;
-    const events = (start: number, status: DemoTaskStatus, finish: number, owner: string): DemoTaskEvent[] => {
-      const first = at(referenceDate, start);
-      const last = at(referenceDate, finish, 15);
-      const history: DemoTaskEvent[] = [{ at: first, status: 'open', assignee: 'Mara' }];
-      if (status === 'closed') history.push({ at: new Date(Date.parse(first) + 3_600_000).toISOString(), status: 'in_progress', assignee: owner });
-      history.push({ at: last, status, assignee: owner });
-      return history;
-    };
-    tasks.push({ id: epic, asset: asset.id, prefix: asset.prefix, title: `${asset.name} operating work`, description: 'Synthetic work container; unfinished children keep this epic open.', acceptance: 'Required children need accepted evidence before this epic closes.', issueType: 'epic', priority: 2, events: [{ at: at(referenceDate, older), status: 'open', assignee: 'Mara' }], comments: [] });
-    for (const [index, title] of titles.entries()) {
-      let start = asset.prefix === 'fr' ? -22 + index : older + index * 31;
-      let finish = asset.prefix === 'fr' ? -15 + index : -7 - index;
-      let status: DemoTaskStatus = index < 2 || index === 5 || index === 6 ? 'closed' : index === 7 ? 'deferred' : index === 3 ? 'blocked' : 'open';
-      if (asset.prefix === 'lb' && index < 4) { start = -60 + index; finish = [-42, -45, -43, -13][index]!; status = 'closed'; }
-      if (asset.prefix === 'pw' && index < 4) { start = -2; finish = -1; status = index === 0 ? 'in_progress' : index === 1 ? 'closed' : 'open'; }
-      if (asset.prefix === 'fr' && index === 0) { status = 'in_progress'; finish = -2; }
-      if (asset.prefix === 'pw' && index === 6) finish = -2;
-      if (index === 6 && asset.prefix === 'lb') status = 'open';
-      if (index === 7) finish = -1;
-      const owner = index === 2 || index === 5 || index === 7 ? 'Mara' : index === 3 || index === 6 ? 'Verifier' : 'Builder';
-      const brief = BRIEFS[asset.prefix]![index]!;
-      const task: DemoTaskFact = { id: id(asset, `task-${index}`), asset: asset.id, prefix: asset.prefix, title, description: `${brief[0]} Asset: /assets/${asset.id}`, acceptance: brief[1], issueType: 'task', priority: asset.prefix === 'pw' && index === 0 ? 1 : 2, events: events(start, status, finish, owner), parent: epic, comments: [], ...(status === 'closed' ? { closeEvidence: brief[3] } : {}) };
-      if (index === 3 && asset.prefix !== 'lb') task.dependsOn = id(asset, 'task-0');
-      if (index === 3 && asset.prefix === 'no') task.dependsOn = id(asset, 'task-2');
-      if (index === 6 && asset.prefix === 'lb') task.dependsOn = id(asset, 'task-4');
-      if (index === 7) task.deferUntil = at(referenceDate, 14);
-      task.comments.push({ author: 'Mara', at: task.events[0]!.at, text: brief[2] });
-      if (status === 'in_progress') task.comments.push({ author: owner, at: task.events.at(-1)!.at, text: 'Checking the agreed cases; verification remains open.' });
-      if (task.dependsOn) task.comments.push({ author: owner, at: task.events.at(-1)!.at, text: `Waiting for /tasks/${task.dependsOn} before verification.` });
-      if (status === 'closed') task.comments.push({ author: 'Verifier', at: task.events.at(-1)!.at, text: `${brief[3]} Evidence: /tasks/${task.id} · /assets/${asset.id}` });
-      tasks.push(task);
-    }
-    if (asset.prefix === 'pw' || asset.prefix === 'no') {
-      const blocked = id(asset, 'task-2');
-      tasks.push({ id: id(asset, 'human-gate'), asset: asset.id, prefix: asset.prefix, title: asset.prefix === 'pw' ? 'Approve revised collection labels' : 'Approve the next operating-cost budget', description: 'Synthetic operator decision; this gate blocks only its declared task.', acceptance: 'Mara records the decision before the blocked task proceeds.', issueType: 'gate', priority: 2, human: true, blocks: blocked, events: [{ at: at(referenceDate, -1), status: 'open', assignee: 'Mara' }], comments: [{ author: 'Builder', at: at(referenceDate, -1), text: 'Waiting for the stated decision; unrelated ready work remains available.' }] });
+    tasks.push({ id: epic, asset: asset.id, prefix: asset.prefix, title: `${asset.name} operating work`, description: 'Synthetic work container; unfinished children keep this epic open.', acceptance: 'Required children need accepted evidence before this epic closes.', issueType: 'epic', priority: 2, events: [{ at: at(Math.min(...plans.map(plan => typeof plan.opened === 'number' ? plan.opened : 0)) - 1, 9), status: 'open', assignee: 'Mara' }], comments: [] });
+    for (const [index, plan] of plans.entries()) {
+      const owner: Owner = plan.owner ?? 'Builder';
+      // Times of day vary by task so a day's work does not all land at once.
+      const opened = at(plan.opened, 8 + (index * 3) % 7);
+      const history: DemoTaskEvent[] = [{ at: opened, status: 'open', assignee: 'Mara' }];
+      const later = (when: When | undefined, hour: number) => {
+        const previous = Date.parse(history.at(-1)!.at);
+        return new Date(Math.max(previous + HOUR, Date.parse(at(when ?? plan.opened, hour)))).toISOString();
+      };
+      if (plan.status === 'closed' || plan.status === 'in_progress') history.push({ at: later(plan.started, 10 + (index * 2) % 5), status: 'in_progress', assignee: owner });
+      if (plan.status !== 'open' && plan.status !== 'in_progress') history.push({ at: later(plan.finished, 13 + (index * 5) % 7), status: plan.status, assignee: owner });
+      const gateFor = plan.gate === undefined ? undefined : id(asset, `task-${plan.gate}`);
+      const fact: DemoTaskFact = { id: id(asset, `task-${index}`), asset: asset.id, prefix: asset.prefix, title: plan.title,
+        description: gateFor ? plan.brief[0] : `${plan.brief[0]} Asset: /assets/${asset.id}`, acceptance: plan.brief[1],
+        issueType: gateFor ? 'gate' : 'task', priority: plan.priority ?? 2, events: history, comments: [],
+        ...(gateFor ? { human: true, blocks: gateFor } : { parent: epic }),
+        ...(plan.human ? { human: true } : {}),
+        ...(plan.dependsOn === undefined ? {} : { dependsOn: id(asset, `task-${plan.dependsOn}`) }),
+        ...(plan.status === 'deferred' ? { deferUntil: at(14, 12) } : {}),
+        ...(plan.status === 'closed' ? { closeEvidence: plan.brief[3] } : {}) };
+      fact.comments.push({ author: plan.human || gateFor ? 'Builder' : 'Mara', at: opened, text: plan.brief[2] });
+      if (plan.status === 'in_progress') fact.comments.push({ author: owner, at: history.at(-1)!.at, text: 'Checking the agreed cases; verification remains open.' });
+      if (fact.dependsOn && plan.status !== 'closed') fact.comments.push({ author: owner, at: history.at(-1)!.at, text: `Waiting for /tasks/${fact.dependsOn} before verification.` });
+      if (plan.status === 'closed') fact.comments.push({ author: 'Verifier', at: history.at(-1)!.at, text: `${plan.brief[3]} Evidence: /tasks/${fact.id} · /assets/${asset.id}` });
+      tasks.push(fact);
     }
   }
   if (tasks.some(task => task.events.some(event => event.at > cutoff || event.at < assets.find(asset => asset.id === task.asset)!.createdAt) || task.comments.some(comment => comment.at > cutoff))) throw new Error('Task history falls outside its declared asset lifetime or cutoff.');
-  const first = assets.find(asset => asset.prefix === 'lb')!; const second = assets.find(asset => asset.prefix === 'pw')!; const third = assets.find(asset => asset.prefix === 'wp')!;
-  return { projects, tasks, storyIds: { repair: id(first, 'task-0'), readback: id(first, 'task-3'), problem: id(second, 'task-0'), ship: id(third, 'task-0'), shipReadback: id(third, 'task-3') } };
+  const story = (prefix: string, index: number) => id(assets.find(asset => asset.prefix === prefix)!, `task-${index}`);
+  return { projects, tasks, storyIds: { repair: story('lb', 0), readback: story('lb', 3), problem: story('pw', 0), ship: story('wp', 0), shipReadback: story('wp', 3), slide: story('tn', 0), slideReadback: story('tn', 1) } };
 }
 
 /** Import the dated facts through bd; no task-table SQL writer exists here. */

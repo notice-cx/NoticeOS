@@ -30,6 +30,7 @@ export interface DemoActivityWriter {
         written: number;
     }>;
     outcomes(store: WorkspaceStore, at: string): Promise<unknown>;
+    freshness(store: WorkspaceStore, at: string): Promise<unknown>;
 }
 export interface HostedDemoOptions {
     readonly workspaceId: string;

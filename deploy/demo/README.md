@@ -97,11 +97,12 @@ derives from each site's own synthetic daily users; no analytics provider is
 called. Its meetings come from a fixed synthetic weekly schedule; no calendar
 feed is fetched. The ordinary hosted scheduler runs the demo's lanes under the
 release's job identities: a quarter-hour refresh writes today's provisional
-synthetic traffic and search counts, the ad-supported site's daily estimate
-arrives each morning, and the task board refreshes every five minutes. Their
-executions are System health's background operations. A daily outcome check
-over the demo's own watch windows is the Workflows page's history. The banner's
-generation time is the demo service's latest write.
+synthetic traffic and search counts, the ad-supported sites' daily estimates
+arrive each morning, an hourly freshness check raises and clears the alert for
+a site whose nightly report has gone quiet, and the task board refreshes every
+five minutes. Their executions are System health's background operations. A
+daily outcome check over the demo's own watch windows is the Workflows page's
+history. The banner's generation time is the demo service's latest write.
 
 The demo's pages ask search engines to index them. Their links preview with
 the TV dashboard, at absolute URLs the server fills from the configured public
@@ -119,8 +120,14 @@ running demo's refuses that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which
 [update.sh](update.sh) performs by itself as a fresh generation (see
 [Stop, restart and update](#stop-restart-and-update)). The scenario holds
-four fictional sites, one ad-supported, so every Wall widget, counter and
-chart shows data.
+five fictional sites, so every Home and Wall form shows data: a subscription
+product whose nightly report has stopped, a licensed tool whose saves broke, a
+recipe site growing into its season, an outdoor guide sliding after a redesign
+the outcome check rejected, and a product weeks old; two of them earn ad
+income. Last night's synthetic backup failed, decisions wait from hours to
+weeks, and each project's board has work done this week, in progress and
+blocked. The release's own evaluators produce every alert and verdict from
+the synthetic history; none is written as a result.
 Visitor writes and provider actions are refused. Health does not establish that
 any remote domain has been deployed or that an expired grant can be renewed.
 

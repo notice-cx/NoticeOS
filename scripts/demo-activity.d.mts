@@ -6,7 +6,7 @@ export declare const DEMO_ACTIVITY_LIMITS: Readonly<{
     daysFromAnchor: 36525;
 }>;
 export interface DemoActivitySignal {
-    integration: 'ga4' | 'gsc';
+    integration: 'ga4' | 'gsc' | 'bing-webmaster';
     propertyRef: string;
     credentialRef: 'synthetic-demo';
     timeZone: 'UTC';
@@ -175,9 +175,10 @@ export interface DemoActivityDay {
     changes: DemoChange[];
     reports: DemoSearchReport[];
 }
-/** Share of a day's activity in each UTC hour: quiet overnight, busiest early
- * afternoon, an evening bump. The live minute pulse and the quarter-hour
- * refresh read the same day shape. */
+/** Share of a day's activity in each UTC hour, for readers on both sides of
+ * the Atlantic: busiest from the European afternoon into the American one,
+ * still busy through the American evening, quietest before a European dawn.
+ * The live minute pulse and the quarter-hour refresh read the same day shape. */
 export declare const DEMO_HOUR_SHARE: readonly number[];
 /** The share of a UTC day's activity counted by the end of `minuteOfDay`. */
 export declare function demoDayShare(minuteOfDay: number): number;
@@ -190,4 +191,5 @@ export declare function createDemoActivity(input: DemoScenario): {
     batch(first: string, last: string): DemoActivityDay[];
     collection(at: string): DemoActivityCollection;
     adRevenue(asset: string, date: string): number;
+    seededReports(): DemoSearchReport[];
 };

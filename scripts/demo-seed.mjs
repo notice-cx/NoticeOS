@@ -18,6 +18,7 @@ import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mj
 import { createDemoTasks, configureDemoTasks } from './demo-tasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
 import { generateDemoWorkflows, writeDemoWorkflowHistory } from './demo-workflows.mjs';
+import { createDemoActivity } from './demo-activity.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { verifyDemoRelease } from './demo-release.mjs';
 export { REQUIRED_DEMO_ENTRIES, verifyDemoRelease } from './demo-release.mjs';
@@ -119,21 +120,27 @@ SELECT noticeos.only_workspace()::text AS workspace,
     // authority marks this database. No role, grant or HBA change is needed.
     await execute(['exec', ids[0], 'psql', '-X', '--no-password', '--username', 'postgres', '--dbname', DATABASE, '--set', 'ON_ERROR_STOP=1', '--command', `ALTER DATABASE ${DATABASE} SET ${PROFILE_SETTING} = '${DEVELOPMENT}';`]);
 }
+/** The released evaluator reads each declared comparison at its final check,
+ * oldest first: the repair it confirms and the redesign it rejects. */
 export async function evaluateDemoWatch(store, scenario, runWatchWindows) {
     const capability = demoStoreCapability(store, scenario.manifest.workspaceId);
     const ledger = () => capability.STORE.read(tx => tx.query('SELECT to_jsonb(l)::text AS row FROM noticeos.ledger_entries l ORDER BY entry_id'));
     const before = await ledger();
-    const evaluatedAt = scenario.manifest.stories.repair.checkAt;
-    const result = await runWatchWindows(capability, Date.parse(evaluatedAt));
-    if (result.failed.length || result.overdue.length || result.closed.length !== 1 || result.closed[0].id !== scenario.manifest.stories.repair.watchId || result.closed[0].outcome !== 'ship_confirmed') throw new Error('The released watch evaluator did not record the declared synthetic repair outcome.');
-    const rows = await capability.STORE.read(tx => tx.query('SELECT w.status, w.outcome, w.closed_at, r.checked_at, r.baseline::text AS baseline, r.post::text AS post FROM noticeos.watch_windows w JOIN noticeos.watch_window_readings r USING (workspace_id, window_id) WHERE w.window_id = $1 AND r.final', [scenario.manifest.stories.repair.watchId]));
-    const reading = rows[0];
-    const readback = scenario.tasks.find(task => task.id === scenario.manifest.stories.repair.readbackTaskId);
-    const closes = readback.events.find(event => event.status === 'closed').at;
-    if (rows.length !== 1 || reading.status !== 'closed' || reading.outcome !== 'ship_confirmed' || Date.parse(reading.checked_at) !== Date.parse(evaluatedAt) || Date.parse(reading.closed_at) !== Date.parse(evaluatedAt) || Date.parse(evaluatedAt) >= Date.parse(closes) || JSON.parse(reading.baseline).days !== 28 || JSON.parse(reading.post).days !== 28) throw new Error('The persisted demo watch reading does not precede its task readback with complete coverage.');
+    const read = async (story, outcome) => {
+        const result = await runWatchWindows(capability, Date.parse(story.checkAt));
+        if (result.failed.length || result.overdue.length || result.closed.length !== 1 || result.closed[0].id !== story.watchId || result.closed[0].outcome !== outcome) throw new Error('The released watch evaluator did not record the declared synthetic outcome.');
+        const rows = await capability.STORE.read(tx => tx.query('SELECT w.status, w.outcome, w.closed_at, r.checked_at, r.baseline::text AS baseline, r.post::text AS post FROM noticeos.watch_windows w JOIN noticeos.watch_window_readings r USING (workspace_id, window_id) WHERE w.window_id = $1 AND r.final', [story.watchId]));
+        const reading = rows[0];
+        const readback = scenario.tasks.find(task => task.id === story.readbackTaskId);
+        const closes = readback.events.find(event => event.status === 'closed').at;
+        if (rows.length !== 1 || reading.status !== 'closed' || reading.outcome !== outcome || Date.parse(reading.checked_at) !== Date.parse(story.checkAt) || Date.parse(reading.closed_at) !== Date.parse(story.checkAt) || Date.parse(story.checkAt) >= Date.parse(closes) || JSON.parse(reading.baseline).days !== 28 || JSON.parse(reading.post).days !== 28) throw new Error('The persisted demo watch reading does not precede its task readback with complete coverage.');
+        return { result, reading, evaluatedAt: story.checkAt };
+    };
+    const repair = await read(scenario.manifest.stories.repair, 'ship_confirmed');
+    const slide = await read(scenario.manifest.slide, 'kill_confirmed');
     const after = await ledger();
     if (JSON.stringify(before) !== JSON.stringify(after)) throw new Error('The demo watch evaluation changed the ledger.');
-    return { capability, result, reading, evaluatedAt, ledgerSha256: createHash('sha256').update(JSON.stringify(before)).digest('hex') };
+    return { capability, ...repair, slide, ledgerSha256: createHash('sha256').update(JSON.stringify(before)).digest('hex') };
 }
 export async function demoFlagJoins(capability, scenario) {
     const joins = [];
@@ -146,6 +153,28 @@ export async function demoFlagJoins(capability, scenario) {
         joins.push({ task: story.ref, asset: story.asset, key: rows[0].key, rule: rows[0].rule });
     }
     return joins;
+}
+/** The release's hourly freshness check as it ran at the reference day's
+ * midnight, the first hour the stopped reports were past their threshold:
+ * the site whose nightly reports stopped is the one late site. */
+export async function recordDemoFreshness(capability, scenario, runFreshnessCheck) {
+    if (typeof runFreshnessCheck !== 'function') throw new Error('The released freshness check is absent.');
+    const result = await runFreshnessCheck(capability, Date.parse(`${scenario.manifest.referenceDate}T00:00:00.000Z`));
+    const rows = await capability.STORE.read(tx => tx.query("SELECT asset_id AS asset FROM noticeos.flags WHERE rule_id = 'ingest-freshness' AND resolved_at IS NULL"));
+    if (result.fired !== 1 || rows.length !== 1 || rows[0].asset !== scenario.manifest.reportGap.asset) throw new Error('The freshness check did not find the declared late report.');
+    return { fired: result.fired, stale: result.stale, asset: rows[0].asset };
+}
+/** The latest seeded week's search reports through the ordinary snapshot
+ * writer, so every site's search movers and findings read from the first
+ * visit; the simulator writes each Monday after. */
+export async function recordDemoSearchReports(capability, scenario, writeInsightSnapshot) {
+    if (typeof writeInsightSnapshot !== 'function') throw new Error('The released report writer is absent.');
+    const reports = createDemoActivity(scenario).seededReports();
+    for (const report of reports) {
+        const written = await writeInsightSnapshot(capability, JSON.stringify(report), Date.parse(scenario.manifest.cutoff));
+        if (!written.ok) throw new Error('The ordinary writer refused a seeded search report.');
+    }
+    return { reports: reports.length, generatedAt: reports[0]?.generatedAt ?? null };
 }
 /** Observe the populated synthetic store, never a scheduler or outside process. */
 export async function recordDemoOsObservation(capability, scenario, runAssetZeroPulse) {
@@ -203,6 +232,8 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const counts = await store.inWorkspace(workspace, tx => fillDemo(tx, scenario, { evaluatePulse }));
         const watch = await evaluateDemoWatch(store, scenario, helpers.runWatchWindows);
         const joins = await demoFlagJoins(watch.capability, scenario);
+        const freshness = await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
+        const searchReports = await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
         const taskReceipt = await tasks({ plan, scenario, createdPostgres: setup, capability: watch.capability, writeSnapshot: helpers.writeBeadsSnapshot, joins, env, binary });
         const taskConfig = await configureTasks({ plan, scenario, receipt: taskReceipt, capability: watch.capability, helpers });
         const display = await seedDemoDisplay({ home, installation: plan.installation, scenario, capability: watch.capability, helpers });
@@ -211,7 +242,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const workflowHistory = await writeDemoWorkflowHistory({ home, history,
             writeRuns: (input, nowMs) => helpers.writeJobRuns(watch.capability, input, nowMs) });
         const schema = setup.schema;
-        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
+        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, freshness, searchReports, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
         writeFileSync(path.join(home, 'demo-manifest.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
         // Wall clock completion is distinct from the scenario's historical
         // cutoff. A viewer may use this receipt only after every real seed

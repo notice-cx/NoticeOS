@@ -32,11 +32,10 @@ test('the factory owns its scenario snapshot and refuses altered seeded facts', 
 });
 
 test('usage relationships, exact counts and cumulative pulse totals stay consistent for a year', () => {
-  const totals = new Map(scenario.assets.filter(asset => !asset.isOs).map(asset => {
-    const last = scenario.pulses.filter(pulse => pulse.asset === asset.id).at(-1);
-    return [asset.id, last.metrics[asset.event].total];
-  }));
-  const previous = new Map();
+  // Each site's own counter through the last seeded day, reported or not.
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  const totals = new Map(sites.map(asset => [asset.id, scenario.daily.filter(row => row.asset === asset.id).reduce((n, row) => n + row.events, 0)]));
+  const previous = new Map(sites.map(asset => [asset.id, -1]));
   for (let i = 0; i < 366; i++) {
     const date = shiftDemoDay(scenario.manifest.referenceDate, i);
     for (const asset of activity.day(date).assets) {
@@ -45,12 +44,15 @@ test('usage relationships, exact counts and cumulative pulse totals stay consist
       assert.equal(gsc.ctr, gsc.clicks / gsc.impressions);
       assert.ok(gsc.impressions >= gsc.clicks);
       if (ga4.observations === null) { assert.equal(asset.pulse, null); continue; }
-      const read = values(ga4), pulse = Object.values(asset.pulse.metrics)[0];
+      const read = values(ga4);
       for (const name of ['sessions', 'active_users', 'page_views', 'event_count']) assert.ok(Number.isSafeInteger(read[name]) && read[name] >= 0);
       assert.ok(read.page_views > read.sessions && read.sessions >= read.active_users);
+      // A quiet night sends no report while its traffic is still collected.
+      if (asset.pulse === null) { assert.equal(asset.asset, scenario.manifest.reportGap.asset); continue; }
+      const pulse = Object.values(asset.pulse.metrics)[0];
       assert.equal(read.event_count, read.page_views + read.sessions + pulse.last24h);
       assert.ok(Number.isSafeInteger(pulse.total) && pulse.total >= totals.get(asset.asset));
-      if (!previous.has(asset.asset) || previous.get(asset.asset) === i - 1) assert.equal(pulse.total - totals.get(asset.asset), pulse.last24h);
+      if (previous.get(asset.asset) === i - 1) assert.equal(pulse.total - totals.get(asset.asset), pulse.last24h);
       else assert.ok(pulse.total - totals.get(asset.asset) > pulse.last24h); // missed report still counted by the asset
       assert.ok(pulse.avg7d >= 0 && Number.isFinite(pulse.avg7d));
       totals.set(asset.asset, pulse.total); previous.set(asset.asset, i);
@@ -84,6 +86,8 @@ test('quarter-hour refreshes rise toward the finished day and keep a missing rep
     assert.equal(refresh.date, date); assert.equal(refresh.synthetic, true); assert.equal(refresh.scenarioHash, final.scenarioHash);
     assert.deepEqual(refresh, activity.collection(`${date}T${time}:00.000Z`));
     for (const [index, asset] of refresh.assets.entries()) {
+      // Bing answers once a day, never in the quarter-hour refresh.
+      assert.ok(asset.signals.every(signal => signal.integration !== 'bing-webmaster'));
       for (const signal of asset.signals) {
         const day = final.assets[index].signals.find(row => row.integration === signal.integration);
         assert.deepEqual({ ...signal, observations: null }, { ...day, observations: null });
@@ -110,9 +114,23 @@ test('quarter-hour refreshes rise toward the finished day and keep a missing rep
   }
 });
 
+test('a stopped nightly report continues from the seed and recurs, each gap closed by the next report', () => {
+  const { reportGap } = scenario.manifest;
+  const quiet = Array.from({ length: 70 }, (_, i) => activity.day(shiftDemoDay(scenario.manifest.referenceDate, i)))
+    .map(day => day.assets.find(asset => asset.asset === reportGap.asset).pulse === null);
+  // The seeded gap's last night, then reports, then the next gap three weeks on.
+  assert.equal(quiet[0], true);
+  assert.equal(quiet[1], false);
+  assert.deepEqual(quiet.flatMap((value, i) => value ? [i] : []), [0, 21, 22, 23, 44, 45, 46, 67, 68, 69]);
+  for (const site of scenario.assets.filter(asset => !asset.isOs && asset.id !== reportGap.asset)) {
+    assert.ok(activity.day(scenario.manifest.referenceDate).assets.find(asset => asset.asset === site.id).pulse !== null, site.id);
+  }
+});
+
 test('seven-day pulse averages cross the original seed boundary without resetting', () => {
   const first = activity.day(scenario.manifest.referenceDate);
   for (const asset of first.assets) {
+    if (asset.pulse === null) continue;
     const previous = scenario.daily.filter(row => row.asset === asset.asset).slice(-6);
     const metric = Object.values(asset.pulse.metrics)[0];
     assert.equal(metric.avg7d, (previous.reduce((sum, row) => sum + row.events, 0) + metric.last24h) / 7);
@@ -125,7 +143,7 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
   assert.equal(next.length, 2);
   assert.ok(next.every(row => row.kind === 'revenue' && row.coverageStart === '2026-10-17' && row.coverageEnd === '2026-10-17' && !row.coverageComplete));
   const month = activity.day('2026-11-01').money;
-  assert.equal(month.filter(row => row.kind === 'cost').length, 5);
+  assert.equal(month.filter(row => row.kind === 'cost').length, 6);
   assert.ok(month.filter(row => row.kind === 'cost').every(row => row.coverageEnd === '2026-11-30' && row.coverageComplete));
   assert.ok(month.filter(row => row.asset === 'freshrows.example').every(row => row.kind === 'cost'));
   for (const row of [...next, ...month]) {
@@ -153,14 +171,15 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
   assert.deepEqual(activity.day('2026-10-20').tasks.map(task => [task.asset, task.phase]), [[sites[1], 'create']]);
   for (const site of sites) {
     const own = first.filter(task => task.asset === site);
-    assert.deepEqual(own.map(task => task.phase), site === sites[3] ? ['create', 'start'] : ['create', 'start', 'complete']);
+    // A site's cycle closes four days after it starts, so the last two sites close the next week.
+    assert.deepEqual(own.map(task => task.phase), sites.indexOf(site) >= 3 ? ['create', 'start'] : ['create', 'start', 'complete']);
     assert.equal(new Set(own.map(task => task.key)).size, 1);
     assert.match(own[0].description, /simulated review of fictional data/u);
   }
   assert.match(first.find(task => task.phase === 'complete').closeReason, /No live deployment or measured business improvement/u);
   // Review weeks register nothing; the following week every site ships and its close records one change with its comparison.
   assert.ok(activity.batch('2026-10-19', '2026-10-25').every(day => day.changes.length === 0));
-  const shipWeek = activity.batch('2026-10-26', '2026-11-01').concat(activity.day('2026-11-02'));
+  const shipWeek = activity.batch('2026-10-26', '2026-11-01').concat(activity.batch('2026-11-02', '2026-11-03'));
   const shipped = shipWeek.flatMap(day => day.changes);
   assert.deepEqual(shipped.map(change => change.asset), sites);
   for (const change of shipped) {
@@ -175,10 +194,11 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
     assert.equal(change.watch.baselineStart, shiftDemoDay(day.date, -28));
     assert.equal(change.watch.baselineEnd, shiftDemoDay(day.date, -1));
     assert.deepEqual(change.watch.checkOffsets, [28]);
-    assert.match(change.watch.note, /no causal revenue claim/u);
+    // The comparison is named for the change it reads.
+    assert.equal(change.watch.note.toLowerCase(), close.title.replace(/^Ship the /u, '').toLowerCase());
   }
   // Each site's work is about its own site, and keys never repeat across cycles.
-  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source|collection/u, 'weeknightpantry.example': /recipe/u, 'freshrows.example': /row|CSV/u };
+  const titles = { 'lightbrief.example': /brief/u, 'pinwell.example': /source|collection/u, 'weeknightpantry.example': /recipe/u, 'trailnotes.example': /trail/u, 'freshrows.example': /row|CSV/u };
   const keys = new Set();
   for (let w = 0; w < 8; w++) {
     for (const task of activity.day(shiftDemoDay('2026-10-19', w * 7)).tasks) {
@@ -191,7 +211,7 @@ test('each site runs its own weekly cycle, reviews and ships alternating, withou
 test('every Monday each site reports its search queries against the week before, in the executive snapshot shape', () => {
   assert.deepEqual(activity.day('2026-10-18').reports, []);
   const monday = activity.day('2026-10-19');
-  assert.equal(monday.reports.length, 4);
+  assert.equal(monday.reports.length, 5);
   for (const report of monday.reports) {
     const asset = monday.assets.find(entry => entry.asset === report.asset);
     assert.ok(asset);
@@ -249,21 +269,24 @@ test('visits surge and settle on their own, so a day can read well above or belo
   }
 });
 
-test('the ad-supported site continues its seeded estimates and is paid two months later', () => {
-  const site = scenario.manifest.adSites[0].asset;
-  for (const estimate of scenario.adRevenue.slice(-20)) assert.equal(activity.adRevenue(site, estimate.date), estimate.minor);
+test('the ad-supported sites continue their seeded estimates and are paid two months later', () => {
   assert.throws(() => activity.adRevenue('lightbrief.example', '2026-10-20'));
-  assert.throws(() => activity.adRevenue(site, '2020-01-01'));
-  const later = Array.from({ length: 10 }, (_, i) => activity.adRevenue(site, shiftDemoDay(scenario.manifest.referenceDate, i)));
-  assert.ok(later.every(minor => Number.isSafeInteger(minor) && minor > 0));
   const paid = activity.day('2026-12-06').money.filter(row => row.family === 'ads');
-  assert.equal(paid.length, 1);
-  const days = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
-  const estimates = days.reduce((sum, date) => sum + activity.adRevenue(site, date), 0);
-  assert.deepEqual({ ...paid[0], amountMinor: 0 }, { asset: site, kind: 'revenue', family: 'ads', period: '2026-10', amountMinor: 0, currency: 'USD',
-    bookingState: 'reconciled', source: 'mediavine', externalId: `${activity.day('2026-12-06').key}/wp/payment`,
-    note: 'Synthetic ad network payment; no real payout.', coverageStart: '2026-10-01', coverageEnd: '2026-10-31', coverageComplete: true });
-  assert.ok(Math.abs(paid[0].amountMinor / estimates - 1) <= 0.016);
+  assert.equal(paid.length, scenario.manifest.adSites.length);
+  for (const { asset: site } of scenario.manifest.adSites) {
+    const prefix = scenario.assets.find(asset => asset.id === site).prefix;
+    for (const estimate of scenario.adRevenue.filter(day => day.asset === site).slice(-20)) assert.equal(activity.adRevenue(site, estimate.date), estimate.minor);
+    assert.throws(() => activity.adRevenue(site, '2020-01-01'));
+    const later = Array.from({ length: 10 }, (_, i) => activity.adRevenue(site, shiftDemoDay(scenario.manifest.referenceDate, i)));
+    assert.ok(later.every(minor => Number.isSafeInteger(minor) && minor > 0));
+    const payment = paid.find(row => row.asset === site);
+    const days = Array.from({ length: 31 }, (_, i) => `2026-10-${String(i + 1).padStart(2, '0')}`);
+    const estimates = days.reduce((sum, date) => sum + activity.adRevenue(site, date), 0);
+    assert.deepEqual({ ...payment, amountMinor: 0 }, { asset: site, kind: 'revenue', family: 'ads', period: '2026-10', amountMinor: 0, currency: 'USD',
+      bookingState: 'reconciled', source: 'mediavine', externalId: `${activity.day('2026-12-06').key}/${prefix}/payment`,
+      note: 'Synthetic ad network payment; no real payout.', coverageStart: '2026-10-01', coverageEnd: '2026-10-31', coverageComplete: true });
+    assert.ok(Math.abs(payment.amountMinor / estimates - 1) <= 0.016);
+  }
   assert.equal(activity.day('2026-12-07').money.filter(row => row.family === 'ads').length, 0);
   // The seed booked every payment before its reference day; none repeats.
   const seeded = new Set(scenario.ledger.filter(row => row.family === 'ads').map(row => row.period));
@@ -281,7 +304,7 @@ test('recurring incidents dip each mature site\'s tracked action and recover; th
     // Only a baseline of three a day or more can carry a volume-aware alert.
     if (reading.avg7d >= 3 && reading.last24h < reading.avg7d * 0.65) dips.set(asset.asset, (dips.get(asset.asset) ?? 0) + 1);
   }
-  for (const site of ['lightbrief.example', 'pinwell.example', 'weeknightpantry.example']) assert.ok(dips.get(site) >= 2, site);
+  for (const site of ['lightbrief.example', 'pinwell.example', 'weeknightpantry.example', 'trailnotes.example']) assert.ok(dips.get(site) >= 2, site);
   assert.equal(dips.get('freshrows.example'), undefined);
   assert.ok(days.every(day => day.assets.find(asset => asset.asset === 'freshrows.example').pulse.metrics.completed_checks.avg7d < 3));
   // Most incident days are followed, within a week, by an ordinary day.

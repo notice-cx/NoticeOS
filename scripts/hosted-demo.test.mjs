@@ -41,7 +41,7 @@ const projects = assets.map((asset, i) => ({ asset: asset.id, projectId: allocat
 test('demo composition refuses a foreign workspace, changed seed and ambiguous task ownership before I/O', () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const options = { workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } };
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {} } };
   assert.throws(() => createHostedDemo({ ...options, workspaceId: customers[0] }), /demo activity refused/);
   const changed = structuredClone(scenario); changed.daily[0].sessions++;
   assert.throws(() => createHostedDemo({ ...options, scenario: changed }), /demo activity refused/);
@@ -51,8 +51,8 @@ test('demo composition refuses a foreign workspace, changed seed and ambiguous t
 test("the demo's scheduled lanes are the release's own workflows and accept only the scheduler's minute", () => {
   const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
   const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects,
-    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {} } });
-  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'watch-windows', 'beads-snapshot']);
+    store: untouched, grant: untouched, tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes() {}, freshness() {} } });
+  assert.deepEqual(demo.schedule.map(lane => lane.key), ['mediavine', 'counters', 'freshness', 'watch-windows', 'beads-snapshot']);
   for (const lane of demo.schedule) {
     const stages = WORKFLOW_DEFINITIONS.find(definition => definition.id === lane.key)?.stages.map(stage => stage.id);
     assert.ok(lane.steps.every(step => stages?.includes(step.key)), lane.key);
@@ -82,16 +82,17 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
-      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks } });
+      tasks: { execute() {} }, writer: { write() {}, collect() {}, revenue() {}, snapshot() {}, outcomes: helpers.writeDemoOutcomeChecks, freshness() {} } });
     const lane = demo.schedule.find(entry => entry.key === 'watch-windows');
     const minute = `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T03:30:00.000Z`;
     const run = () => store.write(tx => lane.steps[0].run({ input: minute, signal: new AbortController().signal }, tx));
-    // The seeded repair window is due; the ordinary sweep closes it with the
-    // scenario's declared outcome. The recipe site's shipped change is still
-    // counting, so its window stays open and is scanned again, closed never.
+    // The seeded repair and redesign windows are due; the ordinary sweep
+    // closes each with what the scenario's sessions say. The recipe site's
+    // shipped change is still counting, so its window stays open and is
+    // scanned again, closed never.
     const first = await run();
-    assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })) },
-      { scanned: 2, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }] });
+    assert.deepEqual({ scanned: first.scanned, failed: first.failed, overdue: first.overdue, closed: first.closed.map(({ id, outcome }) => ({ id, outcome })).sort((a, b) => a.id.localeCompare(b.id)) },
+      { scanned: 3, failed: [], overdue: [], closed: [{ id: scenario.manifest.stories.repair.watchId, outcome: 'ship_confirmed' }, { id: scenario.manifest.slide.watchId, outcome: 'kill_confirmed' }].sort((a, b) => a.id.localeCompare(b.id)) });
     const again = await run();
     assert.equal(again.scanned, 1);
     assert.deepEqual(again.closed, []);
@@ -166,7 +167,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const make = (over = {}) => {
       const demo = createHostedDemo({ workspaceId: workspace, serviceId, scenario, projects,
         store: openStore(), grant: openGrant(), now: () => clock,
-        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, async snapshot(store, snapshot) {
+        writer: { collect: helpers.writeDemoCollection, revenue: helpers.writeDemoAdRevenue, outcomes: helpers.writeDemoOutcomeChecks, freshness: (store, at) => helpers.runFreshnessCheck({ STORE: store }, Date.parse(at)), async snapshot(store, snapshot) {
           const result = await helpers.writeDemoTaskSnapshot(store, snapshot);
           if (failSnapshot) { failSnapshot = false; throw new Error('Controlled rollback after task summary write'); }
           return result;

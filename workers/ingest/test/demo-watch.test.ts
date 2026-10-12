@@ -21,7 +21,12 @@ it('the unchanged sweep derives the repair outcome from its registration and rea
   const bound = new Proxy(env, { get(target, key) { if (key === 'STORE') return target.STORE; throw new Error(`Unexpected demo binding: ${String(key)}`); } });
   const result = await runWatchWindows(bound, Date.parse(scenario.manifest.cutoff));
   expect(result.failed).toEqual([]);
-  expect(result.closed).toMatchObject([{ id: scenario.manifest.stories.repair.watchId, asset: 'lightbrief.example', outcome: 'ship_confirmed' }]);
+  // Both declared comparisons are past their final check: the repair the
+  // sessions confirm and the redesign they reject.
+  expect([...result.closed].sort((a, b) => a.id.localeCompare(b.id))).toMatchObject([
+    { id: scenario.manifest.stories.repair.watchId, asset: 'lightbrief.example', outcome: 'ship_confirmed' },
+    { id: scenario.manifest.slide.watchId, asset: 'trailnotes.example', outcome: 'kill_confirmed' },
+  ].sort((a, b) => a.id.localeCompare(b.id)));
   const rows = await env.STORE.read(tx => tx.query<{ status: string; outcome: string; baseline: string; post: string; checked: string }>(`SELECT w.status, w.outcome, r.baseline, r.post, r.checked_at AS checked
     FROM noticeos.watch_windows w JOIN noticeos.watch_window_readings r USING (workspace_id, window_id) WHERE w.window_id = $1`, [scenario.manifest.stories.repair.watchId]));
   expect(rows).toHaveLength(1);

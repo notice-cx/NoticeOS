@@ -113,8 +113,9 @@ test('Compose exposes only loopback HTTP and gives no bootstrap volume to the ap
   assert.match(image, /hosted-demo-build\.mjs --out/u); assert.doesNotMatch(image, /vite dev|COPY installation|os-supervisor/u);
   const ignore = fs.readFileSync(path.join(ROOT, 'deploy/demo/Dockerfile.dockerignore'), 'utf8');
   assert.equal(ignore.split('\n')[0], '**'); assert.match(ignore, /\*\*\/\.\*/u); assert.doesNotMatch(ignore, /!installation/u);
-  // No documentation enters the image: the Tower embeds none of it.
-  assert.doesNotMatch(ignore, /^!docs\//mu);
+  // No documentation enters the image: the Tower embeds none of it. The docs
+  // workspace's manifest does, or the frozen lockfile names a missing importer.
+  assert.doesNotMatch(ignore, /^!docs\/(?!package\.json$)/mu); assert.match(ignore, /^!docs\/package\.json$/mu);
 });
 
 test('the update script keeps the README invariants: exact commit, dolt before app, fresh generations never purge, no raw store writes', () => {

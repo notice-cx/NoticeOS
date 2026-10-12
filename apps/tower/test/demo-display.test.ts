@@ -61,7 +61,7 @@ afterAll(async () => {
 
 it('saved demo display and the released OS observer reach ordinary Wall readers without any scheduler evidence', async () => {
   if (!home || !fixture) throw new Error('The disposable demo fixture is absent.');
-  expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'jobs', 'reports', 'snapshots', 'watch']);
+  expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'insights', 'jobs', 'reports', 'snapshots', 'watch']);
   const display = await seedDemoDisplay({ home, installation, scenario, capability, helpers });
   expect(display.documents).toEqual(generateDemoDisplay(scenario));
   const report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
@@ -88,7 +88,7 @@ it('saved demo display and the released OS observer reach ordinary Wall readers 
     expect(site.counters?.cards[0]?.value).toBe(latest.metrics[configured.cards[0]!.metric]!.total);
     expect(site.counters?.cards[0]?.source).toBe('nightly');
   }
-  expect(configuredSites).toBe(4);
+  expect(configuredSites).toBe(5);
   expect(await fixture.call.read(tx => tx.query('SELECT count(*)::int AS jobs FROM noticeos.job_runs'))).toEqual([{ jobs: 0 }]);
   await expect(seedDemoDisplay({ home, installation, scenario, capability, helpers })).rejects.toThrow('existing exports');
   expect((await helpers.getConfigDocuments(capability, display.files)).every(document => document.version === 1)).toBe(true);

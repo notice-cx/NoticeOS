@@ -18,19 +18,24 @@ it('the released writer mirrors generated runs and the actual final watch readin
   const ledger = () => env.STORE.read(tx => tx.query('SELECT to_jsonb(l)::text AS row FROM noticeos.ledger_entries l ORDER BY entry_id'));
   const moneyBefore = await ledger();
   const bound = new Proxy(env, { get(target, key) { if (key === 'STORE') return target.STORE; throw new Error(`Unexpected demo binding: ${String(key)}`); } });
+  const final = async (watchId: string) => env.STORE.read(tx => tx.query<{ outcome: string; checked_at: string; baseline: string; post: string }>(`SELECT w.outcome, r.checked_at::text AS checked_at, r.baseline::text AS baseline, r.post::text AS post
+    FROM noticeos.watch_windows w JOIN noticeos.watch_window_readings r USING (workspace_id, window_id) WHERE w.window_id = $1 AND r.final`, [watchId]));
   const evaluatedAt = scenario.manifest.stories.repair.checkAt;
   const result = await runWatchWindows(bound, Date.parse(evaluatedAt));
-  const readings = await env.STORE.read(tx => tx.query<{ outcome: string; checked_at: string; baseline: string; post: string }>(`SELECT w.outcome, r.checked_at::text AS checked_at, r.baseline::text AS baseline, r.post::text AS post
-    FROM noticeos.watch_windows w JOIN noticeos.watch_window_readings r USING (workspace_id, window_id) WHERE w.window_id = $1 AND r.final`, [scenario.manifest.stories.repair.watchId]));
+  const readings = await final(scenario.manifest.stories.repair.watchId);
   expect(readings).toHaveLength(1);
-  const history = generateDemoWorkflows({ scenario, watch: { evaluatedAt, result, reading: readings[0]! }, tasks: {
+  const slideResult = await runWatchWindows(bound, Date.parse(scenario.manifest.slide.checkAt));
+  const slideReadings = await final(scenario.manifest.slide.watchId);
+  expect(slideReadings).toHaveLength(1);
+  const slide = { evaluatedAt: scenario.manifest.slide.checkAt, result: slideResult, reading: slideReadings[0]! };
+  const history = generateDemoWorkflows({ scenario, watch: { evaluatedAt, result, reading: readings[0]!, slide }, tasks: {
     synthetic: true, scenarioHash: demoScenarioHash(scenario), workspaceId: scenario.manifest.workspaceId, release: scenario.manifest.release,
     projects: scenario.assets.map(asset => ({ asset: asset.id })), tasks: 38, snapshots: 401,
   } });
   const written = await writeJobRuns(bound, { runs: history.runs }, Date.parse(history.cutoff));
-  expect(written).toMatchObject({ ok: true, created: 4, duplicate: 0, stale: 0, pruned: 0 });
+  expect(written).toMatchObject({ ok: true, created: history.runs.length, duplicate: 0, stale: 0, pruned: 0 });
   const stored = await env.STORE.read(tx => tx.query<{ job: string; started_at: string; finished_at: string; outcome: string; detail: string }>('SELECT job, started_at::text AS started_at, finished_at::text AS finished_at, outcome, detail FROM noticeos.job_runs ORDER BY started_at'));
-  expect(stored).toHaveLength(4);
+  expect(stored).toHaveLength(history.runs.length);
   for (const run of history.runs) {
     const row = stored.find(row => row.job === run.job && Date.parse(row.started_at) === Date.parse(run.startedAt));
     expect(row).toBeDefined();
@@ -39,5 +44,5 @@ it('the released writer mirrors generated runs and the actual final watch readin
     expect(row?.detail).toContain('Synthetic scenario');
   }
   expect(await ledger()).toEqual(moneyBefore);
-  expect(await writeJobRuns(bound, { runs: history.runs }, Date.parse(history.cutoff))).toMatchObject({ ok: true, created: 0, duplicate: 4 });
+  expect(await writeJobRuns(bound, { runs: history.runs }, Date.parse(history.cutoff))).toMatchObject({ ok: true, created: 0, duplicate: history.runs.length });
 });

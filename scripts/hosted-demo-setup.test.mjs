@@ -141,7 +141,7 @@ test('fresh PostgreSQL18 and Dolt create the complete scoped demo, reuse without
     const result = await setupHostedDemo(input); assert.equal(result.created, true);
     const bytes = fs.readFileSync(result.runtimeFile), configuration = JSON.parse(bytes);
     assert.equal(fs.statSync(result.runtimeFile).mode & 0o777, 0o600); assert.equal(fs.existsSync(path.join(home, '.setup-pending.json')), false);
-    assert.equal(configuration.tasks.targets.length, 4); assert.equal(configuration.activity.projects.length, 3);
+    assert.equal(configuration.tasks.targets.length, 6); assert.equal(configuration.activity.projects.length, 5);
     assert.equal(bytes.includes(Buffer.from(secret)), false); assert.equal(bytes.includes(Buffer.from(input.dolt.adminPassword)), false);
     assert.equal(configuration.workspaceDatabaseUrl.includes('noticeos_app:'), true);
     assert.equal(configuration.activity.grantConnectionString.includes('noticeos_service_grant:'), true);

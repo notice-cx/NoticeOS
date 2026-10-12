@@ -12,7 +12,7 @@ import { runCommand } from './run-command.mjs';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mjs';
-import { evaluateDemoWatch, demoFlagJoins, recordDemoOsObservation } from './demo-seed.mjs';
+import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
 import { seedDemoTaskHistory, configureDemoTasks, writeDemoTaskReceipt } from './demo-tasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
 import { generateDemoWorkflows, writeDemoWorkflowHistory } from './demo-workflows.mjs';
@@ -254,6 +254,8 @@ export async function setupHostedDemo(input) {
         });
         const watch = await evaluateDemoWatch(store, scenario, helpers.runWatchWindows);
         const joins = await demoFlagJoins(watch.capability, scenario);
+        await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
+        await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
         phase = 'task_provision';
         const inspectorSecret = password();
         await ownerSql(`CREATE USER 'grant_inspector'@'%' IDENTIFIED BY '${inspectorSecret}'; GRANT SELECT ON mysql.* TO 'grant_inspector'@'%';`);

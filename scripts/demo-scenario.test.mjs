@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, shiftDemoDay } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoProperties, shiftDemoDay, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 
 const options = { seed: 'portfolio-v1', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 
@@ -11,7 +11,7 @@ test('the same declared seed, cutoff and release reproduce all facts and identit
   assert.equal(demoScenarioHash(first), demoScenarioHash(second));
   assert.notEqual(demoScenarioHash(generateDemoScenario({ ...options, seed: 'portfolio-v2' })), demoScenarioHash(first));
   assert.equal(first.manifest.synthetic, true);
-  assert.equal(first.manifest.identities.length, 5);
+  assert.equal(first.manifest.identities.length, 6);
 });
 
 test('mature sites have 400 days and the young site has no pre-launch history', () => {
@@ -65,12 +65,19 @@ test('reference-month traffic and independently recorded income reconcile to exa
 test('missing traffic, provisional signals and absent recorded income remain distinct', () => {
   const scenario = generateDemoScenario(options);
   assert.equal(scenario.daily.filter(d => d.reportMissing).length, 1);
-  assert.equal(scenario.daily.filter(d => d.provisional).length, 12);
+  // GA4 keeps only yesterday provisional, so a projection has its complete days.
+  assert.equal(scenario.daily.filter(d => d.provisional).length, 5);
+  assert.ok(scenario.daily.filter(d => d.provisional).every(d => d.age === -1));
+  // Light Brief's nightly report stopped; its GA4 days are still reported.
+  const quiet = scenario.daily.filter(d => d.pulseMissing);
+  assert.equal(quiet.length, DEMO_REPORT_GAP_DAYS);
+  assert.ok(quiet.every(d => d.asset === scenario.manifest.reportGap.asset && !d.reportMissing && d.date >= scenario.manifest.reportGap.from));
+  assert.ok(!scenario.pulses.some(p => quiet.some(d => d.asset === p.asset && d.date === p.date)));
   assert.ok(scenario.daily.every(day => !('adMinor' in day) && !('adMissing' in day)));
   // Subscription and licensing income is recorded monthly; only the
   // ad-supported site has ad income, as the network's payments.
   const ads = scenario.assets.filter(a => a.adRpm).map(a => a.id);
-  assert.deepEqual(ads, ['weeknightpantry.example']);
+  assert.deepEqual(ads, ['weeknightpantry.example', 'trailnotes.example']);
   assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ads.includes(row.asset)
     ? row.family === 'ads' && row.source === 'mediavine' && row.state === 'reconciled'
     : ['subs', 'licensing'].includes(row.family) && row.source === 'demo-recorded-income'));
@@ -98,9 +105,11 @@ test('the repair and current failure share their dated source facts', () => {
   const broken = scenario.pulses.find(p => p.asset === problem.asset && p.date === problem.date);
   const comparisons = [7, 14, 21, 28].map(offset => scenario.pulses.find(p => p.asset === problem.asset && p.date === shiftDemoDay(problem.date, -offset)));
   assert.ok(comparisons.every(p => p.metrics.source_saves.last24h > broken.metrics.source_saves.last24h * 10));
+  // Each report's total is the site's own counter through its night, so a
+  // night without a report never loses the actions it counted.
   for (const asset of scenario.assets.filter(a => !a.isOs)) {
     const pulses = scenario.pulses.filter(p => p.asset === asset.id);
-    assert.equal(pulses.at(-1).metrics[asset.event].total, scenario.daily.filter(d => d.asset === asset.id).reduce((n, d) => n + d.events, 0));
+    assert.equal(pulses.at(-1).metrics[asset.event].total, scenario.daily.filter(d => d.asset === asset.id && d.date <= pulses.at(-1).date).reduce((n, d) => n + d.events, 0));
     assert.ok(pulses.every(p => p.generatedAt <= options.cutoff));
   }
 });
@@ -151,13 +160,16 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 5);
+  assert.equal(scenario.manifest.scenarioVersion, 6);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],
     ['Weeknight Pantry', 'weeknightpantry.example', 'wp', 'recipe_saves', null],
+    ['Trail Notes', 'trailnotes.example', 'tn', 'route_downloads', null],
     ['Fresh Rows', 'freshrows.example', 'fr', 'completed_checks', null],
   ]);
+  // Only the OS and the site still setting up are observed without acting.
+  assert.deepEqual(scenario.assets.filter(asset => asset.senseOnly).map(asset => asset.prefix), ['fr', 'no']);
   const correction = scenario.ledger.find(row => row.supersedes && row.minor !== scenario.ledger.find(old => old.key === row.supersedes).minor);
   assert.ok(correction && correction.family === 'subs');
   assert.equal(scenario.ledger.find(row => row.key === correction.supersedes).source, correction.source);
@@ -184,28 +196,73 @@ test('partial income has bounded explicit coverage even on the first posting day
   }
 });
 
-test('the ad-supported site has daily estimates through its reported day and paid months reconciled', () => {
+test('the ad-supported sites have daily estimates through their reported day and paid months reconciled', () => {
   for (const [cutoff, through] of [['2026-10-16T12:00:00.000Z', '2026-10-14'], ['2026-10-16T14:10:00.000Z', '2026-10-15'], ['2026-10-01T00:01:00.000Z', '2026-09-29']]) {
     const scenario = generateDemoScenario({ ...options, cutoff });
-    const asset = scenario.assets.find(a => a.adRpm);
-    const days = scenario.daily.filter(d => d.asset === asset.id);
-    assert.deepEqual(scenario.manifest.adSites, [{ asset: asset.id, siteId: 'demo-wp' }]);
-    assert.equal(scenario.adRevenue.at(-1).date, through, cutoff);
-    assert.equal(scenario.adRevenue[0].date, asset.createdAt.slice(0, 10));
-    for (const estimate of scenario.adRevenue) {
-      const day = days.find(d => d.date === estimate.date);
-      assert.equal(estimate.minor, demoAdRevenueMinor(options.seed, asset, estimate.date, day.sessions));
-      assert.ok(estimate.minor > 0 && estimate.recordedAt <= cutoff && estimate.recordedAt.slice(0, 10) > estimate.date);
-    }
-    for (const payment of scenario.ledger.filter(row => row.asset === asset.id && row.kind === 'revenue')) {
-      const month = scenario.adRevenue.filter(day => day.date.startsWith(payment.period)).reduce((n, day) => n + day.minor, 0);
-      assert.ok(Math.abs(payment.minor / month - 1) <= 0.016, payment.period);
-      assert.ok(payment.recordedAt <= cutoff && payment.coverageComplete === true);
-      assert.equal(payment.recordedAt.slice(0, 10), `${new Date(Date.UTC(Number(payment.period.slice(0, 4)), Number(payment.period.slice(5, 7)) + 1, 6)).toISOString().slice(0, 7)}-06`);
+    assert.deepEqual(scenario.manifest.adSites, [{ asset: 'weeknightpantry.example', siteId: 'demo-wp' }, { asset: 'trailnotes.example', siteId: 'demo-tn' }]);
+    for (const asset of scenario.assets.filter(a => a.adRpm)) {
+      const days = scenario.daily.filter(d => d.asset === asset.id);
+      const estimates = scenario.adRevenue.filter(day => day.asset === asset.id);
+      assert.equal(estimates.at(-1).date, through, cutoff);
+      assert.equal(estimates[0].date, asset.createdAt.slice(0, 10));
+      for (const estimate of estimates) {
+        const day = days.find(d => d.date === estimate.date);
+        assert.equal(estimate.minor, demoAdRevenueMinor(options.seed, asset, estimate.date, day.sessions));
+        assert.ok(estimate.minor > 0 && estimate.recordedAt <= cutoff && estimate.recordedAt.slice(0, 10) > estimate.date);
+      }
+      for (const payment of scenario.ledger.filter(row => row.asset === asset.id && row.kind === 'revenue')) {
+        const month = estimates.filter(day => day.date.startsWith(payment.period)).reduce((n, day) => n + day.minor, 0);
+        assert.ok(Math.abs(payment.minor / month - 1) <= 0.016, payment.period);
+        assert.ok(payment.recordedAt <= cutoff && payment.coverageComplete === true);
+        assert.equal(payment.recordedAt.slice(0, 10), `${new Date(Date.UTC(Number(payment.period.slice(0, 4)), Number(payment.period.slice(5, 7)) + 1, 6)).toISOString().slice(0, 7)}-06`);
+      }
     }
   }
-  // Recipe demand peaks before the holidays and ad income follows it.
+  // Recipe demand peaks before the holidays and trail demand in summer; ad
+  // income follows each.
   const scenario = generateDemoScenario(options);
-  const month = prefix => scenario.adRevenue.filter(day => day.date.startsWith(prefix)).reduce((n, day) => n + day.minor, 0);
-  assert.ok(month('2025-12') > month('2026-06') * 1.5);
+  const month = (asset, prefix) => scenario.adRevenue.filter(day => day.asset === asset && day.date.startsWith(prefix)).reduce((n, day) => n + day.minor, 0);
+  assert.ok(month('weeknightpantry.example', '2025-12') > month('weeknightpantry.example', '2026-06') * 1.5);
+  assert.ok(month('trailnotes.example', '2026-07') > month('trailnotes.example', '2026-09') * 1.25);
+});
+
+test('the outdoor guide slides, and its redesign comparison has a decline to read', () => {
+  const scenario = generateDemoScenario(options);
+  const { slide } = scenario.manifest;
+  const visits = (from, to) => scenario.daily.filter(d => d.asset === slide.asset && d.date >= from && d.date <= to).reduce((n, d) => n + d.sessions, 0);
+  const lastFourWeeks = visits(shiftDemoDay(scenario.manifest.referenceDate, -28), shiftDemoDay(scenario.manifest.referenceDate, -1));
+  const fourBefore = visits(shiftDemoDay(scenario.manifest.referenceDate, -56), shiftDemoDay(scenario.manifest.referenceDate, -29));
+  assert.ok(lastFourWeeks < fourBefore * 0.85);
+  assert.ok(slide.registeredAt <= slide.annotationAt && slide.baselineEnd < slide.registeredAt.slice(0, 10) && slide.checkAt < options.cutoff);
+  const registered = slide.registeredAt.slice(0, 10);
+  // The release's evaluator decides; the scenario only has to hold a decline
+  // past the registered ten-percent kill threshold for it to find.
+  assert.ok(visits(registered, shiftDemoDay(registered, 27)) < visits(slide.baselineStart, slide.baselineEnd) * 0.9);
+  assert.ok(scenario.tasks.some(task => task.id === slide.ref && task.events.at(-1).status === 'closed'));
+  const readback = scenario.tasks.find(task => task.id === slide.readbackTaskId);
+  assert.ok(readback.events.find(event => event.status === 'closed').at > slide.checkAt);
+});
+
+test('the recipe site\'s one-day dip recovers on its next report, and the save repair ships after the last report', () => {
+  const scenario = generateDemoScenario(options);
+  const { dip, fix } = scenario.manifest;
+  const saves = date => scenario.pulses.find(p => p.asset === dip.asset && p.date === date).metrics[dip.metric].last24h;
+  const weekBefore = saves(shiftDemoDay(dip.date, -7));
+  assert.ok(saves(dip.date) < weekBefore * 0.3 && saves(shiftDemoDay(dip.date, 1)) > weekBefore * 0.7);
+  assert.equal(dip.resolvedAt, scenario.pulses.find(p => p.asset === dip.asset && p.date === shiftDemoDay(dip.date, 1)).generatedAt);
+  const lastReport = scenario.pulses.filter(p => p.asset === fix.asset).at(-1).generatedAt;
+  assert.ok(lastReport < fix.annotationAt && fix.annotationAt < options.cutoff);
+  assert.equal(scenario.tasks.find(task => task.id === fix.ref).events.at(-1).status, 'closed');
+});
+
+test('each source names the property the register maps', () => {
+  const scenario = generateDemoScenario(options);
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  for (const site of sites) {
+    const properties = demoProperties(site);
+    assert.match(properties.ga4, /^[1-9][0-9]{4,14}$/u);
+    assert.equal(properties.gsc, `sc-domain:${site.id}`);
+    assert.equal(properties.bing, ['wp', 'tn'].includes(site.prefix) ? `https://${site.id}/` : null);
+  }
+  assert.equal(new Set(sites.map(site => demoProperties(site).ga4)).size, sites.length);
 });
