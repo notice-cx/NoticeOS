@@ -2,10 +2,10 @@
 
 Start with the [domain model](CONTEXT.md), [report contract](docs/02-signal-contract.md)
 and [repository instructions](AGENTS.md). Keep a change focused on the behavior
-it improves, and include a regression that demonstrates the problem when one
+it improves, and include a regression test that reproduces the problem when one
 is needed.
 
-## Find the code that owns the change
+## Find the code to change
 
 | Path | Responsibility |
 | --- | --- |
@@ -13,7 +13,7 @@ is needed.
 | `apps/tower/shared/` | Tower payloads and portable UI contracts |
 | `apps/tower/worker/` | Tower HTTP reads and request routing |
 | `apps/tower/vite/` | Native-only task, configuration and host adapters |
-| `workers/ingest/src/` | Stored writes, collectors, scheduled lanes and private RPC |
+| `workers/ingest/src/` | Stored writes, collectors, scheduled jobs and private RPC |
 | `packages/contract/src/` | Shared report types, validation and signal rules |
 | `packages/postgres/src/` | Workspace-scoped store and identity helpers |
 | `packages/mediavine/src/` | The publisher-portal client |
@@ -49,7 +49,7 @@ currently using Node 24.21.0, pnpm 12.8.1 and PostgreSQL 18 server binaries.
 Put PostgreSQL's `initdb`, `pg_ctl` and `psql` on `PATH` for database tests.
 
 Tests create disposable stores and use synthetic configuration. Never point
-them at an existing installation, provider account, task hub or database.
+them at an existing installation, provider account, task database or other database.
 Do not pass installation selectors or real credentials into a test run.
 Keep the fixture guards enabled and use the shared test helpers for servers
 and browsers. [`scripts/README.md`](scripts/README.md#notes) describes the
@@ -57,7 +57,7 @@ configuration and secret isolation; the
 [journey guide](apps/tower/e2e/README.md) describes browser isolation.
 Operational commands such as deployment, restoration and provider collection
 are not test setup. Authorization, migrations, credentials and measurement-rule
-changes need explicit review; passing tests do not authorize their activation.
+changes need explicit review; passing tests are not approval to turn them on.
 
 Install the pinned test browser once for this checkout:
 
@@ -80,7 +80,7 @@ work than a full pass, while retaining the checks needed to assess the change.
 - UI: run related rendering/interaction tests and affected flow checks. Use a
   focused browser journey when the changed behavior needs a real browser.
 - Worker or script logic: run its tests and affected callers' critical paths.
-  Include refusal, timeout and cleanup behavior where those paths change.
+  Include rejection, timeout and cleanup behavior where those paths change.
 - Store, tenancy or backups: keep the relevant isolated database, ownership,
   failure-preservation and restore proofs. Never substitute production reads.
 - Shared types/configuration: typecheck the changed package and its affected
@@ -115,10 +115,10 @@ recursive workspace test does not run `scripts/*.test.mjs`.
 CI runs these gates across six parallel jobs (`.github/workflows/ci.yml`: the
 Tower's typecheck and unit tests; the other workspaces'; the root script
 suite; the build and browser journeys; the journey harness and UX flow report;
-and the task store against a real Dolt server), with `build` as the verdict
-over all six. A pull request that changes only documentation skips all but the
-root script suite (`scripts/ci-scope.mjs`). Release acceptance still requires
-passing CI:
+and the task store against a real Dolt server). The `build` job is the required
+check; it combines the results of all six. A pull request that changes only
+documentation runs only the root script suite (`scripts/ci-scope.mjs`). Release
+acceptance still requires passing CI:
 
 ```sh
 pnpm -r typecheck
@@ -160,14 +160,14 @@ type(scope): describe the change
 - Keep one coherent change per commit. Add a body when the reason, tradeoff or
   validation needs explanation; do not repeat the subject.
 - Put issue references in the footer (`Fixes: #123`). Maintainer work tracked
-  in Beads uses `Refs: <bead-id>`; public contributors do not need a Beads ID.
+  in Beads uses `Refs: <task-id>`; public contributors do not need a task ID.
 - Mark a breaking change with `!` before the colon and a `BREAKING CHANGE:`
   footer explaining its impact and upgrade steps. This does not replace the
   repository's migration and compatibility requirements.
 
 ```text
 fix(compose): restore dashboard rendering
-feat(wall): add configurable pulse metrics
+feat(wall): add configurable metrics
 docs: clarify the first-run setup
 ```
 
@@ -183,10 +183,10 @@ screenshots; state any skipped qualification. Keep installation files, private
 archives, backups, credentials and actual task records out of patches and
 evidence.
 
-NoticeOS uses Beads and Dolt as its central work model. The maintainers' private
-hub is not required to contribute. Use the public repository's issue and pull
-request mechanisms when they are available. Report vulnerabilities privately
-through the [security policy](SECURITY.md).
+NoticeOS tracks its work in Beads and Dolt. You do not need access to the
+maintainers' private task database to contribute. Use the public repository's
+issue and pull request mechanisms when they are available. Report
+vulnerabilities privately through the [security policy](SECURITY.md).
 
 See the [release policy](docs/reference/release-policy.md) for installation, upgrade and
-publication boundaries.
+publication rules.

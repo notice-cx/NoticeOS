@@ -8,7 +8,7 @@ support or upgrade guarantee.
 ## What can be installed today
 
 The [source installation](../../README.md#run-from-source) starts a new, empty
-standalone installation with Postgres and a Dolt task hub. Existing
+standalone installation with Postgres and a Dolt task database. Existing
 installations require their own configuration and maintenance procedures.
 Standalone access relies on a trusted network or access layer; it is not a
 public login-protected hosted product.
@@ -16,8 +16,8 @@ public login-protected hosted product.
 The [application container](../../deploy/compose/README.md) starts an already
 prepared installation; `pnpm os:setup`, or its launcher's `setup`, prepares a new one. The container itself
 does not initialize or migrate either database.
-Its declared platform and fixture checks are evidence for those exact inputs,
-not a promise that every host or architecture has been exercised.
+Its declared platform and fixture checks are evidence for those exact inputs;
+they do not show that every host or architecture has been tested.
 
 Every `main` commit that passes CI is published as the app image
 `ghcr.io/notice-cx/noticeos:<commit>`, for linux/amd64 and linux/arm64, with a
@@ -26,7 +26,7 @@ build provenance attestation
 from the container source allowlist alone. A published image is a build, not a
 qualified release. `pnpm os:setup` and `pnpm os:update` use it only when its
 labels match the commit, the schema and the hash of the public build inputs
-the checkout prepares for that commit; otherwise they refuse. When nothing is
+the checkout prepares for that commit; otherwise they stop without changing anything. When nothing is
 published for the commit, or the registry is unreachable, they build the image
 locally from the same inputs. A fork's commits are not published there, so a
 fork builds locally.
@@ -35,9 +35,9 @@ An installation also needs no checkout:
 `docker run --rm ghcr.io/notice-cx/noticeos:main launcher | sh -s -- setup`
 sets one up from main's newest published image, which its app then runs
 ([Install with Docker](../start/install-with-docker.md)). With no checkout
-there is no source to check that image against: the launcher runs what the
-`main` tag names, and `noticeos update` moves to whatever it names later,
-refusing an image without commit and schema labels. The release workflow annotates
+there is no source to check that image against: the launcher runs the image the
+`main` tag points to, and `noticeos update` moves to whatever image it points to later,
+and rejects an image without commit and schema labels. The release workflow annotates
 each published index with its commit (`org.opencontainers.image.revision`), so
 the newest published version is read from one manifest. Others can fetch the
 image only while its package on GitHub's registry is public, a setting its
@@ -46,7 +46,7 @@ owner makes once.
 Hosted identity, scoped browser/task APIs and journaled scheduling have local
 disposable qualification. The
 [operator runtime instructions](../../scripts/README.md#hosted-runtime-composition-and-recovery)
-name the implemented explicit compositions and their limits.
+list the implemented explicit compositions and their limits.
 
 The [portable demo profile](../../deploy/demo/README.md) packages the compiled app,
 Postgres and Dolt for a Linux server or VM behind an HTTPS reverse proxy. It
@@ -76,14 +76,14 @@ Describe compatibility against the installation's actual schema and runtime.
 An additive migration still needs explicit verification of app versions eligible
 for rollback. New hosted authorization behavior cannot be assumed to exist in
 an older standalone release. A candidate handling non-USD ledger rows must also
-qualify the exact rollback app against that state; a prior app that assumes USD
+qualify the exact rollback app against that state; a prior app that handles only USD
 is not a compatible rollback merely because the schema is unchanged.
 
 ## Upgrade an existing installation
 
 Before an upgrade, identify the running commit, pending frozen migrations and
 the target release's instructions. Preserve a backup with a tested restore
-path for the operational store, task hub and configured archives. Use the
+path for the operational store, task database and configured archives. Use the
 [backup and restore procedure](../../scripts/README.md#backups--restore) for the
 installation's declared transport.
 
@@ -98,11 +98,11 @@ existing database through fresh-install setup.
 
 The [app update](../../scripts/README.md#merging-is-not-deploying-osupdate)
 checks main's published image against the checkout, or builds it locally,
-replaces only the stack's app container and refuses a release whose
+replaces only the stack's app container and stops on a release whose
 migrations the database has not applied. Without a checkout, `noticeos update`
 moves the image and the stack definition copied out of it together, recreates
-each service whose declaration changed, and refuses the same releases. App rollback keeps the updated
-database; it does not reverse a migration, and it is refused across a schema
+each service whose declaration changed, and stops on the same releases. App rollback keeps the updated
+database; it does not reverse a migration, and it is blocked across a schema
 change. Restore and database engine upgrades have separate procedures and must
 not be inferred from an app rollback command. The local stack commands are
 not a general hosted upgrade API.
@@ -118,8 +118,8 @@ hosting and other transports need their own qualification; the local stack
 commands are not a remote release mechanism.
 
 Retain occurrence journals across app changes and rollback. An uncertain
-outside effect remains halted after restart; app rollback does not authorize
-resetting a checkpoint, generating a new occurrence ID or replaying delivery.
+outside effect remains halted after restart; an app rollback is not, by itself,
+approval to reset a checkpoint, generate a new occurrence ID or replay delivery.
 A separately reviewed recovery plan must reconcile the exact destination and
 journal evidence. See the
 [recovery states](../../scripts/README.md#journal-inspection-and-uncertain-effects).

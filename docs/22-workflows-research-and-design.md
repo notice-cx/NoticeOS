@@ -16,7 +16,7 @@ the task-board refresh runs every minute, several collectors run through the
 hour, and other jobs run daily or weekly. A calendar cell cannot show those
 differences without hiding work or becoming illegible.
 
-The surface answers four questions in order:
+The page is ordered around four questions the operator asks:
 
 1. Does anything need my attention?
 2. What does each workflow accomplish, and has it been running?
@@ -24,9 +24,9 @@ The surface answers four questions in order:
 4. What happened inside the run I am inspecting?
 
 Trigger.dev, Inngest, LangSmith, Langfuse, Temporal, Windmill and n8n were
-studied from their public documentation. What NoticeOS took from them: aligned
-activity history across workflows, a selected run that stays put while you
-inspect a step, a graph that records what a run actually did rather than what
+studied from their public documentation. These features were adopted from
+them: aligned activity history across workflows, a selected run that stays
+selected while you inspect a step, a graph that records what a run actually did rather than what
 the definition allows, separate schedule and execution states, a schedule
 treated as one trigger among several with a preview before saving, and one set
 of execution records read at portfolio and workflow scope.
@@ -35,17 +35,17 @@ of execution records read at portfolio and workflow scope.
 
 **Home → Workflows → Sites → Alerts → Tasks** gives execution its own place
 without replacing the portfolio overview. Workflows holds the operator
-automations; Tasks remains the register of human and agent work. System health
-owns collection, refreshes, backups, service checks and connection evidence.
-Integrations manages provider access. The catalog in
+automations; Tasks remains the list of human and agent work. System health
+covers collection, refreshes, backups, service checks and connection evidence.
+Integrations is where provider access is managed. The catalog in
 [`scripts/scheduled-jobs.mjs`](../scripts/scheduled-jobs.mjs) gives each job a
 `workflow` or `system` surface; both surfaces share the scheduler, trace,
 output inspector and editor. Older workflow URLs redirect to the right surface
 with the requested run intact.
 
-At `/workflows` the first screen holds a one-line answer, filters and the
-inventory. One row per workflow, consistent height, restrained borders; no
-cards repeating "enabled", "scheduled" and "active".
+At `/workflows` the first screen holds a one-line summary, filters and the
+inventory. The inventory has one row per workflow, consistent height and minimal
+borders; there are no cards repeating "enabled", "scheduled" and "active".
 
 | Column | Meaning |
 | --- | --- |
@@ -56,10 +56,10 @@ cards repeating "enabled", "scheduled" and "active".
 
 **Activity** and **Schedule** are route-backed views of the same inventory.
 The schedule view has a shared time axis for the next 24 hours, one row per
-workflow, and marks for the next executions. It is a forecast of the confirmed
-schedule, not a promise of success: paused workflows have no marker, pending
-changes are not drawn as armed, and future executions are never drawn as green
-history.
+workflow, and marks for the next executions. It shows the confirmed schedule,
+not whether those runs will succeed: paused workflows have no marker, pending
+changes are not drawn as confirmed, and future executions are never drawn as
+green history.
 
 The inventory sorts by **Latest run** by default, newest first, including runs
 in progress; workflows without a recorded run come last. **Needs attention**,
@@ -83,22 +83,23 @@ completion assumed from a node's place in the graph. Nodes are focusable
 buttons; selecting one opens an inspector with its purpose, result and timing.
 On a narrow screen the stages become a vertical list.
 
-A short deterministic workflow has a small graph, and that is correct. No
-decorative "AI" nodes, invented substeps or universal canvas. Where only
-whole-job evidence exists, the page shows the definition and says the run has
-no step details. Observations come from real execution boundaries.
+A short deterministic workflow has a small graph, and that is correct. The
+page has no decorative "AI" nodes, invented substeps or universal canvas. Where
+only whole-job evidence exists, the page shows the definition and a note that
+the run has no step details. Observations come from real execution boundaries.
 
-The inspector leads with a concise outcome, not a raw payload: "Two properties
-could not be collected" before any JSON. Raw inputs, credentials and provider
+The inspector shows a short outcome before any raw payload: "Two properties
+could not be collected" comes before any JSON. Raw inputs, credentials and provider
 response bodies stay out of the trace. The inspector shows allowlisted counts,
 metadata and per-site or per-project results as metric cards and tables, with
-a collapsed captured-data view. Missing output reads as unavailable; zero is a
-real recorded value.
+a collapsed captured-data view. Missing output is shown as unavailable; zero
+is a real recorded value.
 
 A timing view shows start offsets and durations for real spans. Waiting,
 execution and retries stay distinct where evidence supports them. While a
-worker that reports stages only at the end is still running, the page says it
-is awaiting stage results; it never animates an imagined sequence.
+worker that reports stages only at the end is still running, the page shows
+that it is awaiting stage results; it never animates stages that have not been
+reported.
 
 ## State contract
 
@@ -106,8 +107,8 @@ is awaiting stage results; it never animates an imagined sequence.
 | --- | --- | --- |
 | Succeeded | Green check | Recorded successful execution; no recorded failed step |
 | Failed | Red error glyph | Failed execution or recorded failed stage |
-| Running | Neutral spinner | Current execution observation and a fresh runtime heartbeat |
-| Skipped | Gray slash | Recorded execution declined or skipped work |
+| Running | Neutral spinner | Current execution observation and a recent regular signal that the runner is still running |
+| Skipped | Gray slash | Recorded execution that skipped its work |
 | Paused | Gray pause glyph | Confirmed disabled schedule; past failures stay in history |
 | No runs | Gray hollow mark | Readable history holds no recorded execution |
 | Unknown | Gray question mark with an explanation | History or runtime evidence is unavailable, stale or incomplete |
@@ -116,14 +117,14 @@ is awaiting stage results; it never animates an imagined sequence.
 A skip is neutral and labelled **Skipped**, never counted as success: the
 operator needs to tell useful execution from work that did not run. Colour is
 supplementary; every state has text and shape, and compact charts share a
-legend. A chart with no observations keeps its empty geometry and says "No
+legend. A chart with no observations keeps its empty geometry and shows "No
 recorded runs", never a fabricated zero-success rate. Successful execution
 means the operation completed; search improvement, revenue lift and model
 output quality need their own outcome evidence.
 
 Current state and past condition are separate. A workflow can be paused now and
 have failed yesterday. A daily workflow is healthy with most hourly buckets
-empty; a weekly one is not broken for having no run today. Lateness, if added,
+empty; a weekly workflow with no run today is not broken. Lateness, if added,
 comes from a recorded obligation and the schedule in force at the time, never
 from a guessed cadence or today's settings applied backwards.
 
@@ -143,9 +144,9 @@ Pausing alone keeps the cron and zone. The runner and bounded catch-up use the
 same saved zone.
 
 Saving uses the guarded save and **Undo**: the editor captures the prior
-schedule when editing starts, refuses a conflicting save and keeps the draft
+schedule when editing starts, rejects a conflicting save and keeps the draft
 after a failure. Restoring a default removes that workflow's override only.
-The editor says what a change costs where it matters: more frequent paid
+The editor shows what a change costs where it matters: more frequent paid
 collection spends more; pausing backups stops future copies.
 
 There is no arbitrary-command field. A new executable workflow needs a
@@ -176,14 +177,14 @@ output usage, cost and pricing provenance. Missing usage means unknown cost,
 not zero. Tool calls, retrieval, approvals and evaluation are their own step
 kinds. A run can link to a conversation, parent workflow or task without
 sharing their identities. An export to OpenTelemetry's GenAI conventions, which
-are still moving, is a versioned adapter; the store never depends on that
+are still changing, is a versioned adapter; the store never depends on that
 vocabulary.
 
 Agent loops carry attempt identity and parent links from the start. Definition
 nodes describe allowable structure; run spans describe the path taken. A failed
 tool attempt followed by a success stays in the trace. An approval is a
 persisted waiting state with an owner and a decision record; reopening a
-browser cannot approve it, and a retry cannot silently repeat a protected side
+browser cannot approve it, and a retry cannot repeat a protected side
 effect. These are requirements for later agent execution, not capabilities of
 the current scheduler.
 
@@ -194,9 +195,9 @@ the Sense → Attribute → Decide → Act → Learn loop applied to workflows.
 
 ## Rendering and acceptance
 
-The target is a calm operations workspace: clear names, aligned timelines,
-restrained navigation, red only where evidence warrants attention, green only
-for successful execution. Pages use the design system's typography, panels,
+The target is an operations page with clear names, aligned timelines, minimal
+navigation, red only where evidence warrants attention and green only for
+successful execution. Pages use the design system's typography, panels,
 page header, tabs and tooltips. Execution charts have their own registry
 entries, because the annotation timeline and lifecycle stepper show different
 data.
@@ -204,25 +205,25 @@ data.
 The surface is acceptable when an operator can spot a failed workflow in the
 first viewport, explain its purpose without reading source, open the failing
 run and stage, tell paused from unknown, and preview a schedule change before
-saving, by keyboard, on a narrow screen and with stale data. A polished
-screenshot of fabricated healthy data proves nothing.
+saving, by keyboard, on a narrow screen and with stale data. A screenshot of
+invented healthy data is not evidence that the page works.
 
 ## Operations and integration boundaries
 
 Five operator automations cover notifications, outcome checks, search review
 tasks, unpublished-change checks and outcome task updates. The other built-in
 jobs are internal operations under System health. Arbitrary custom and model
-workflows are not built. An operation's purpose for the operator, not the fact
-that it is scheduled, decides which surface owns it.
+workflows are not built. The page that shows an operation is chosen by the
+operation's purpose for the operator, not by whether it is scheduled.
 
 System health starts with observed scheduler, live-execution and history
-status, then groups connection issues into actions. Unknown is explicit when
-any monitoring source is unavailable. **Background operations** has hourly
+status, then groups connection issues into actions. It shows Unknown
+explicitly when any monitoring source is unavailable. **Background operations** has hourly
 activity, the schedule, filters and execution details; credential expiry, data
-costs and the full source matrix sit below the actionable overview. Nothing
-invents an uptime or success-rate trend the records do not support.
+costs and the full source matrix sit below the actionable overview. No page
+shows an uptime or success-rate trend that the records do not support.
 
-Integrations is the home for provider accounts, keys, webhooks and their
+Integrations is the page for provider accounts, keys, webhooks and their
 settings. Provider discovery stays separate from configured connections, in
 operator language: guided connection, site assignment and verification, never
 a resource schema.
@@ -231,14 +232,15 @@ a resource schema.
 
 The **Integrations** catalog is one row per provider, grouped by category
 (Traffic & search, Revenue, Coordination, Other), with one status and one
-action. There is no search, filter or purpose sentence: those are read without
-deciding anything. Names carry no parenthetical implementation detail.
+action. There is no search, filter or purpose sentence, because the operator
+would read them without making any decision from them. Names carry no parenthetical implementation detail.
 
 A provider that declares a connect kind in the contract (`IntegrationConnect`)
 connects in one panel over the list: you paste the key and press **Connect**;
-the Tower's `POST /api/integrations/:provider/connect` asks the provider first
-and stores the key only if it accepts; the panel shows checking, then the key
-accepted or the provider's refusal. There is no asset-selection step and no
+the Tower's `POST /api/integrations/:provider/connect` first tests the key with
+the provider and stores it only if the provider accepts it; the panel shows a
+checking state, then either that the key was accepted or the provider's
+rejection. There is no asset-selection step and no
 detour through a site.
 
 A provider's own page remains for managing a connected provider and for every

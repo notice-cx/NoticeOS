@@ -181,6 +181,12 @@ dispatcher in `worker/stored-read-route.ts`. Paths that exist today:
 `POST /api/mcp` serves an MCP server over the same read models the Wall and
 asset pages use, so an agent can answer what an asset earned, what its decision
 lanes say, and whether a piece of search research has already been paid for.
+On a standalone installation the same path also carries the task tools: the
+dev-server lane (`vite/mcp-lane.ts`) answers it with
+`scripts/standalone-mcp.mts`, every tool over the installation's database and
+linked task projects, and passes the read-model calls through to this Worker.
+The task tools write through the task client; the operator-facing list is
+[Connect an agent](../../docs/guides/connect-an-agent.md).
 
 ```jsonc
 // .mcp.json, or `claude mcp add --transport http noticeos http://127.0.0.1:5173/api/mcp`
@@ -195,9 +201,9 @@ Bodies are JSON, at most 256 KiB; a browser `Origin` other than the Tower's own
 is refused. The tools are declared once in `scripts/read-model-tools.mjs`:
 `list_properties`, `property_report`, `research_lookup`.
 
-Constraints, all load-bearing:
+Constraints on the read-model tools, all load-bearing:
 
-- **Read-only, enforced.** No tool reaches a write, and
+- **Read-only, enforced.** No read-model tool reaches a write, and
   `test/mcp-route.test.ts` asserts the store is untouched after every tool
   has run. Collection stays behind `POST /api/signal-collect` on the ingest,
   where the lane lock and the budget gate live.

@@ -5,7 +5,7 @@ description: "What NoticeOS collects and checks on a schedule, where you change 
 
 # Scheduled jobs
 
-This page gets you the list of jobs an installation runs, how to change or pause each one, and what catch-up after downtime does and does not do.
+This page lists the jobs an installation runs, how to change or pause each one, and what catch-up after downtime does and does not do.
 
 ## Before you begin
 
@@ -31,11 +31,11 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Product analytics archives | 12:30 | Archives PostHog reports |
 | Search rankings and backlinks | Mondays 12:45 | The weekly DataForSEO collection. This one spends money; see [Budgets](/operate/budgets-and-the-kill-switch) |
 | Local research summaries | 13:10 | Refreshes each site's local research files and publishes the summary |
-| Task board refresh | every minute | Photographs the task service for the Tasks page |
-| Task service health | every 15 minutes | Checks the task service answers |
+| Task board refresh | every minute | Copies the task service's current tasks into the store for the Tasks page |
+| Task service health | every 15 minutes | Checks that the task service responds |
 | Task project checks | 5 past each hour | Checks every declared task project still exists |
-| Search review tasks | 25 past each hour | Files a review task when a new search collection lands |
-| Unpublished commit checks | 40 past each hour | Files a task when a project's commits sit unpushed |
+| Search review tasks | 25 past each hour | Files a review task when a new search collection arrives |
+| Unpublished commit checks | 40 past each hour | Files a task when a project has commits that are not pushed |
 | Outcome task updates | 50 past each hour | Updates the tasks that track an outcome window |
 
 ### Catch-up after downtime
@@ -50,7 +50,7 @@ While the service is down, a due job is skipped and recorded. At the next start 
 | Ad revenue | 36 hours, and only if a report is actually due |
 | Search rankings and backlinks (weekly) | 8 days |
 
-The pass runs cheapest job first, so a reboot is not a burst of provider calls. It never replays every missed tick: one missed day of a 15-minute job is one refresh, not 96. A failed run still counts as a run, so catch-up never loops on a failure.
+The pass runs cheapest job first, so a reboot is not a burst of provider calls. It never replays every missed run: one missed day of a 15-minute job is one refresh, not 96. A failed run still counts as a run, so catch-up never loops on a failure.
 
 Some things are never caught up, by design: database migrations, restores, settings imports, deployments and any change to alert rules or measurement. Those are your explicit actions and stay that way.
 
@@ -62,10 +62,10 @@ Some things are never caught up, by design: database migrations, restores, setti
 
 A collection fed by a provider connection is changed with that connection: open **Integrations**, select the connection, and use its **Manage** panel. A collection no connection feeds is changed under **Settings** > **Data collection**.
 
-The **Workflows** page (`/workflows`) lists the operator automations with their history; their schedules are edited the same way. Saved schedules survive restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
+The [Workflows](/tower/workflows) page (`/workflows`) lists the operator automations with their history; their schedules are edited the same way. Saved schedules are kept across restarts and deploys. A time you save uses your browser's time zone; the product default is UTC.
 
-::: tip Pausing is a real stop
-A paused job does not run on its schedule, is not caught up after downtime, and refuses **Start collecting** from a connection panel until you resume it.
+::: tip Pausing fully stops a job
+A paused job does not run on its schedule, is not caught up after downtime, and blocks **Start collecting** on a connection panel until you resume it.
 :::
 
 ## Run one job by hand
@@ -86,8 +86,8 @@ A connection's **Start collecting** button runs that provider's first collection
 
 ## If it didn't work
 
-- `pnpm os:run-job` refuses the expression by name: no job runs on it. Use one of the expressions the command prints.
-- **Start collecting** is refused from a connection panel: the job is **Paused**. Resume it under **Background operations** first.
+- `pnpm os:run-job` rejects the expression and prints it: no job runs on it. Use one of the expressions the command prints.
+- **Start collecting** is blocked on a connection panel: the job is **Paused**. Resume it under **Background operations** first.
 - A provider job records **paused before the monthly data cap**: the metered spend would cross the cap. Raise it under **Settings** > **General** > **Budget**, or wait for next month. See [Troubleshooting](/operate/troubleshooting).
 
 The runner's contract, including the port map and the exact recovery policy, is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/scripts/README.md#bounded-catch-up-after-downtime.

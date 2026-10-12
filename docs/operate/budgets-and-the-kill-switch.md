@@ -5,7 +5,7 @@ description: "The one spending cap NoticeOS enforces today, the alert thresholds
 
 # Budgets and the kill switch
 
-This page gets you an honest picture of what NoticeOS caps, what it only reports, and what you stop by hand.
+This page lists what NoticeOS caps, what it only reports, and what you stop by hand.
 
 ## What is enforced today
 
@@ -26,21 +26,21 @@ Under **Settings** > **Alert rules** you tune when an anomaly is worth an alert:
 | Setting | Default | What it means |
 | --- | --- | --- |
 | Anomaly sensitivity | 0.01 | How unlikely a reading must be, against its recent average, before it is flagged |
-| Minimum daily volume to test | 3 | A series under this average is not tested at all, so quiet sites do not cry wolf |
-| Low-volume window | 72 hours | How much history a low-volume test needs before it will speak |
+| Minimum daily volume to test | 3 | A series under this average is not tested one day at a time; its days are pooled over the low-volume window, so low-volume sites do not raise false alarms |
+| Low-volume window | 72 hours | How many hours of counts are pooled for a series under the minimum daily volume |
 
-Alerts are not enforcement. They tell you; they stop nothing.
+Alerts are not enforcement. They notify you; they stop nothing.
 
 ## Spending on demand
 
-Two actions spend money outside the schedule, and both say so first:
+Two actions spend money outside the schedule, and both show the cost first:
 
 - **Start collecting** on a connection's panel runs a provider's first collection now. A metered step shows its price before you confirm.
 - In the terminal, `pnpm signals:collect -- --asset example.com` collects one site now and prints what it cost. It goes through the same cap.
 
 ## The kill switch
 
-NoticeOS does not have an automated kill switch yet: one rehearsed action that stops every cron, revokes repository access and freezes provider keys. NoticeOS does not execute changes on your sites in this release, so there is nothing of its own to kill. Any agent that acts on your sites is one you started, and you stop it where you started it.
+NoticeOS does not have an automated kill switch yet: one rehearsed action that stops every cron, revokes repository access and freezes provider keys. NoticeOS does not execute changes on your sites in this release, so there is nothing of its own to stop. Any agent that acts on your sites is one you started, and you stop it where you started it.
 
 The collection schedule controls are not an agent pause. Pausing a job stops data collection; it does not stop anything outside NoticeOS.
 
@@ -61,6 +61,6 @@ Stopping the installation stops collection and notifications; it does not touch 
 
 ## What NoticeOS will never do by itself
 
-Some settings are yours alone, for good: authentication, billing, security headers, database migrations, consent surfaces, analytics pipelines, holdout assignments and the three alert thresholds. No automation inside NoticeOS changes them, and none can be promoted to.
+Some settings are permanently yours alone: authentication, billing, security headers, database migrations, consent surfaces, analytics pipelines, holdout assignments and the three alert thresholds. No automation inside NoticeOS changes them, and none can ever be made eligible for automation.
 
 Related: [Scheduled jobs](/operate/scheduled-jobs), [Settings](/tower/settings), [Tasks and agents](/concepts/tasks-and-agents). The full design, including the gateway, loop detectors and velocity breaker for the day NoticeOS makes its first model call, is in [doc 06, Operations & self-observability](../06-operations.md#budget-enforcement-hard-caps-alerts-are-not-enforcement).

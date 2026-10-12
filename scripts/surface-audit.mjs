@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Does a desk surface still meet the design doc? Measures the live Tower's
+// Does each Tower page still meet the design doc? Measures the live Tower's
 // routes at the desk viewport (1440×900) and the phone viewport (390×844) and
 // reports, per route, every acceptance line in `docs/14-design.md` a browser
 // can see. Same shape as `scripts/wall-fit-check.mjs`: headless Chromium over
@@ -915,7 +915,7 @@ export function measureExpression(options) {
 // The CLI. Everything below runs only when this file is the entry point.
 // ---------------------------------------------------------------------------
 
-const HELP = `Measure the live Tower's desk surfaces against docs/14-design.md.
+const HELP = `Measure the live Tower's pages against docs/14-design.md.
 
 The Tower must be running (pnpm os:start, or apps/tower's dev server) and a local
 Chrome must be launchable. Read-only: it navigates and measures, nothing else.

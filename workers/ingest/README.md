@@ -181,7 +181,7 @@ when the caller resolved nothing (every suite here states its own config), so a
 run that read neither the store nor a file never claims on a log line that it
 did.
 
-A property id saved on an asset's Sources tab is what the **next** collection
+A property id saved on an asset's Data sources tab is what the **next** collection
 run asks for, with no app restart and no update —
 `test/config-reaches-collectors.test.ts` drives one Save through
 `applyConfigOps` and two `runCron` fires in one isolate. The tab prints

@@ -5,7 +5,7 @@ import { defineConfig } from 'vitepress';
 import llmstxt, { copyOrDownloadAsMarkdownButtons } from 'vitepress-plugin-llms';
 
 // The documentation site: the guides, screens and operations pages for the
-// person at the desk, and the numbered design library beside them. It is served
+// person who runs NoticeOS, and the numbered design library beside them. It is served
 // at the root of its own domain; `DOCS_BASE` and `DOCS_SITE` serve a copy elsewhere.
 
 const repo = 'https://github.com/notice-cx/NoticeOS';
@@ -68,7 +68,7 @@ export default defineConfig({
     },
   },
   vite: {
-    plugins: [llmstxt({ domain: site.replace(/\/$/u, ''), title: 'NoticeOS', description: 'Install, use and operate NoticeOS, the self-hosted operating desk for your websites and software products.' })],
+    plugins: [llmstxt({ domain: site.replace(/\/$/u, ''), title: 'NoticeOS', description: 'Install, use and operate NoticeOS, the self-hosted app that shows traffic, revenue, costs, alerts and work for your websites and software products in one place.' })],
   },
   themeConfig: {
     logo: { light: '/notice-mark.svg', dark: '/notice-mark-light.svg', alt: 'The Notice mark' },
@@ -77,7 +77,7 @@ export default defineConfig({
     nav: [
       { text: 'Start', link: '/start/what-is-noticeos' },
       { text: 'Guides', link: '/guides/add-your-first-site' },
-      { text: 'The Tower', link: '/tower/home' },
+      { text: 'The Tower', link: '/tower/' },
       { text: 'Operate', link: '/operate/daily-operations' },
       { text: 'Concepts', link: '/concepts/how-noticeos-thinks' },
       { text: 'Reference', link: '/reference/commands' },
@@ -112,11 +112,14 @@ export default defineConfig({
       {
         text: 'The Tower',
         items: [
+          { text: 'What the Tower is', link: '/tower/' },
           { text: 'Home', link: '/tower/home' },
+          { text: 'Workflows', link: '/tower/workflows' },
           { text: 'Sites', link: '/tower/sites' },
           { text: 'Alerts', link: '/tower/alerts' },
           { text: 'Tasks', link: '/tower/tasks' },
           { text: 'Money', link: '/tower/financials' },
+          { text: 'System health', link: '/tower/health' },
           { text: 'Integrations', link: '/tower/integrations' },
           { text: 'Settings', link: '/tower/settings' },
           { text: 'The Wall', link: '/tower/wall' },
@@ -136,7 +139,7 @@ export default defineConfig({
       {
         text: 'Concepts',
         items: [
-          { text: 'How NoticeOS thinks', link: '/concepts/how-noticeos-thinks' },
+          { text: 'How NoticeOS works', link: '/concepts/how-noticeos-thinks' },
           { text: 'Alerts', link: '/concepts/alerts' },
           { text: 'Attribution and measurement', link: '/concepts/attribution-and-measurement' },
           { text: 'Tasks and agents', link: '/concepts/tasks-and-agents' },

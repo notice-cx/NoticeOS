@@ -1,33 +1,33 @@
 ---
 title: "Settings"
-description: "The portfolio-wide settings: the clock, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
+description: "The portfolio-wide settings: the time zone, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
 ---
 
 # Settings
 
-Settings answers one question: what does the whole installation run on, and where do I change it.
+The Settings page shows the settings that apply to the whole installation, and where to change them.
 
 ## What you see
 
-A section list sits on the left and the page opens on **General**. Sites have their own Settings tab; this page is what applies to all of them.
+Tabs across the top, the same as on a site's page, open on **General**. Each tab has its own address (`/settings/alert-rules`, `/settings/task-projects`), so a link opens it; an older link such as `/settings#task-hub` still opens its tab. Sites have their own Settings tab; this page holds the settings that apply to all of them.
 
 ### General
 
-**Time zone.** Every daily figure is read in one zone, including which date is yesterday's revenue and which month is current. Your device's zone leads the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.
+**Time zone.** Every daily figure is calculated in one zone, including which date is yesterday's revenue and which month is current. Your device's zone is first in the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.
 
-**Monthly data cap** (USD per month · all sites) is the ceiling on metered collection. A meter shows **Spent in October** against it, and **Stops at the budget** says what happens at the top. It counts scheduled DataForSEO collection and one-off research on the same account. The product ships with $25.
+**Monthly data cap** (USD per month · all sites) is the spending limit for metered collection. A meter shows **Spent in October** against it, and **Stops at the budget** shows what happens when spend reaches the cap. It counts scheduled DataForSEO collection and one-off research on the same account. The product ships with $25.
 
 **Value of your time** (USD per minute · prices review time in ROI), shown **Per hour** beside it, prices your review time when work is ranked by return.
 
 ### Alert rules
 
-The three thresholds every site is judged by, marked **All sites**: **Anomaly sensitivity** (lower means fewer, surer alerts), **Minimum daily volume to test** (quieter metrics are tested over several days) and **Low-volume window** (hours pooled together for quieter metrics). A replay over the fields shows what each value would have fired on your own data. Under them, a record shows how often each rule has been tuned.
+The three thresholds every site is tested against, marked **All sites**: **Anomaly sensitivity** (lower means fewer, surer alerts), **Minimum daily volume to test** (lower-volume metrics are tested over several days) and **Low-volume window** (hours pooled together for lower-volume metrics). A replay over the fields shows what each value would have fired on your own data. Under them, a record shows how often each rule has been tuned.
 
 ### Data collection
 
 The schedules of the collections no connection feeds, one row each, such as **Nightly reports** and **Live traffic and counters**. A collection fed by a connection is scheduled on its **Manage** panel on **Integrations**.
 
-Under the schedules sit the search panels' history window (**Each pass asks for**, **Cost per pass**) and freshness bar. **Nightly report pulls** lists each site whose report the product fetches.
+Under the schedules are the search panels' history window (**Each pass asks for**, **Cost per pass**) and freshness bar. **Nightly report pulls** lists each site whose report the product fetches.
 
 ### TV dashboard
 
@@ -39,11 +39,11 @@ Under the schedules sit the search panels' history window (**Each pass asks for*
 
 ### Task projects
 
-The map from a site to the project its tasks live in: the **Task database** status, the **Projects** table (**Site**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line.
+The map from a site to the project its tasks are stored in: the **Task database** status, the **Projects** table (**Site**, **Prefix**, **Database**, and a **Found** column that marks a database that does not exist), the checklist an **Add** opens, and the **Task database server** line.
 
 ### Installation
 
-Shown only on a standalone installation: where it lives and what it runs, read-only.
+Shown only on a standalone installation: where it is installed and what it runs, read-only.
 
 - **Folder**: the installation folder; select it to copy the path.
 - **Tower**: the address and port it listens on, and who can reach it: **This machine only.**, **Every device on your network.** or **Devices that reach** one address.
@@ -60,7 +60,7 @@ Shown only when this installation manages members: where people are invited to t
 ## What you can do
 
 - **Time zone**: picking a zone saves it, with **Saved · Undo** beside the field.
-- **Monthly data cap** and **Value of your time** keep an explicit **Save**; they never autosave.
+- **Monthly data cap** and **Value of your time** have an explicit **Save**; they are never saved automatically.
 - **Alert rules**: change the three thresholds after reading the replay.
 - **Data collection**: each row is one pick (**Paused**, **Every few minutes**, **Hourly**, **Daily**, **Weekly**, then a time) saved with **Undo** beside it.
 - **Edit layout** opens the Wall editor; **Set a countdown** adds the top strip's countdown.
@@ -70,18 +70,18 @@ Shown only when this installation manages members: where people are invited to t
 
 ## States and labels
 
-- An unresolvable zone reads **Unknown zone · UTC used**.
+- An unresolvable zone shows **Unknown zone · UTC used**.
 - **not read yet** means the spend has not been read this session.
-- Before any reports exist the alert-rules replay reads **No reports to replay yet**.
-- The freshness bar reads **Fits the window** or **Outside the window**.
+- Before any reports exist the alert-rules replay shows **No reports to replay yet**.
+- The freshness bar shows **Fits the window** or **Outside the window**.
 - **Nightly report pulls** shows each site as **Enabled** or **Paused**, or **None · sites send their own**.
-- **No countdown set.** means the top strip shows none; **Saved countdown refused** names why a saved countdown cannot be drawn.
+- **No countdown set.** means the top strip shows none; **Saved countdown refused** shows why a saved countdown cannot be drawn.
 - Unclaimed sites are marked **No owner**.
-- **Found** reads **Unknown** when no project could be read, rather than claiming every row is fine. On a hosted view the Task projects section reads **Read-only here**.
-- **Updates** reads **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry did not say. From a checkout, a newer version adds **Pull main in the checkout first.**
-- **Last backup** reads **never** before the first run, and shows **Failed** when the latest run failed.
+- **Found** shows **Unknown** when no project could be read, instead of marking every row as found. On a hosted view the Task projects section shows **Read-only here**.
+- **Updates** shows **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry returned no result. From a checkout, a newer version adds **Pull main in the checkout first.**
+- **Last backup** shows **never** before the first run, and shows **Failed** when the latest run failed.
 - **Folder** shows the apply command, with **Apply the current settings to show the folder and ports here.**, while the app runs without the current stack settings.
-- When saves are paused the page says so once at the top and every field shows its lock.
+- When saves are paused the page shows a notice once at the top and every field shows a lock.
 
 ## Related guides
 

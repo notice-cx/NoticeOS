@@ -5,11 +5,13 @@ description: "Check, read, restart and update a running NoticeOS installation wi
 
 # Daily operations
 
-This page gets you the handful of commands that keep an installation running, and what each health state means.
+This page lists the commands that keep an installation running, and what each health state means.
 
 ## The stack
 
-NoticeOS runs as one Docker Compose stack of the app (`noticeos`, which holds the Tower, the data receiver and the scheduler), `postgres`, `dolt` and an optional `backup` worker. Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects; `pnpm os:setup` writes it. Run them from the checkout. [Run with Docker](/start/run-with-docker) describes the stack.
+An installation runs as a **stack**: a few Docker containers that start and stop together. The app, `noticeos`, serves the Tower, receives reports and runs the scheduled jobs; `postgres` holds the store, your data; `dolt` holds the task database; and an optional `backup` worker takes the nightly backup. [Run with Docker](/start/run-with-docker) describes each one.
+
+Every `pnpm os:*` command acts on the stack that `.local/stack.json` selects; `pnpm os:setup` writes it. Run them from the checkout.
 
 ```sh
 pnpm os:status                 # each service's state and health, migrations, the app's commit
@@ -32,25 +34,25 @@ An installation [set up with Docker alone](/start/install-with-docker) has no ch
 ~/noticeos/noticeos update
 ```
 
-`os:logs` shows 200 lines unless you pass `-- --lines N`. `os:restart` stops at the first step whose health does not return. `os:apply` recreates only the services your edit changes; see [Change a setting](/start/run-with-docker#change-a-setting).
+`os:logs` shows 200 lines unless you pass `-- --lines N`. `os:restart` stops at the first step whose health check does not pass. `os:apply` recreates only the services your edit changes; see [Change a setting](/start/run-with-docker#change-a-setting).
 
 `pnpm os:stop` and `pnpm os:start` take the whole stack down and bring it back: the app first on the way down, the databases first on the way up. Use them deliberately; the daily commands are the ones above. The [command reference](/reference/commands) lists every command.
 
-## What status tells you
+## What status shows
 
 `pnpm os:status` prints the installation folder, one line per service, then:
 
 | Line | What it means |
 | --- | --- |
-| `noticeos: running, healthy` | The scheduler is running with a fresh heartbeat, the Tower and the data receiver answer, and a configured backup worker answers. |
-| `noticeos: running, starting` | The app is still starting or the scheduler is still arming. |
+| `noticeos: running, healthy` | The scheduler is running and its heartbeat (a regular signal that it is still running) is recent, the Tower and the data receiver respond, and a configured backup worker responds. |
+| `noticeos: running, starting` | The app is still starting or the scheduler has not yet set its timers. |
 | `noticeos: running, unhealthy` | One of those checks failed. Read the logs. |
 | `database:` | `has every migration this code carries`, or how many migrations it is behind and what to do. |
 | `settings:` | Shown only when a service does not run as `installation.env` declares. `pnpm os:apply` shows the change. |
 | `app source:` and `main:` | The commit the app runs and the commit `main` is on. Without a checkout, `main:` is the newest published commit, read from the image registry. |
 | `update:` | `current`, `main differs; pnpm os:update moves the app to it`, or `unknown`. Without a checkout, the launcher's `update` is named. |
 
-An answering port is never good enough. For what to do about anything other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
+A port that responds does not show that the installation is healthy. For what to do about anything other than `healthy`, see [Service states](/operate/troubleshooting#service-states).
 
 ## Development and production
 
@@ -58,21 +60,21 @@ In production the app runs a prepared image, so merging code never changes what 
 
 Without a checkout, `~/noticeos/noticeos update` moves the installation to main's newest published version, and `rollback` returns to the one before. See [Install with Docker](/start/install-with-docker#update-and-roll-back).
 
-On a development stack, `pnpm os:dev` runs the app from this checkout's live source, so edits appear at once. `pnpm os:prod` returns it to the image. Status says `mode: development` while it runs live source.
+On a development stack, `pnpm os:dev` runs the app from this checkout's live source, so edits appear at once. `pnpm os:prod` returns it to the image. Status shows `mode: development` while it runs live source.
 
 ## In the Tower
 
-- **System health** (`/health`) shows the service's own report: data freshness per site, connection states and, under **Background operations**, every scheduled job with its latest run. See [Scheduled jobs](/operate/scheduled-jobs).
+- [System health](/tower/health) (`/health`) shows the service's own report: data freshness per site, connection states and, under **Background operations**, every scheduled job with its latest run. See [Scheduled jobs](/operate/scheduled-jobs).
 - **Workflows** (`/workflows`) lists the operator automations and their history.
 - **Integrations** (`/integrations`) shows each provider connection and its last test.
 - **Settings** > **Installation** (`/settings/installation`) shows the folder, the ports, the version, whether a newer one is published, the last backup and the status command to copy. It is read-only; the commands change the installation.
 
 ## A daily routine
 
-1. Glance at the Wall or Home for anything flagged.
+1. Check the Wall or Home for anything flagged.
 2. Open **System health** if a card shows a gap. A gap is unknown data, never a zero.
 3. Run `pnpm os:status` if the Tower itself is slow or down.
-4. After merging verified code, run `pnpm os:update`. Merging is not deploying. Without a checkout, run `~/noticeos/noticeos update` when a newer version is published.
+4. After merging verified code, run `pnpm os:update`. Merging code does not deploy it. Without a checkout, run `~/noticeos/noticeos update` when a newer version is published.
 
 ::: tip Restart is not an upgrade
 `os:restart` keeps the code and settings that are running. Only `os:update` moves the app to new code, and it never applies a database migration. Only `os:apply` applies an edit to `installation.env`. See [Upgrade](/start/upgrade).

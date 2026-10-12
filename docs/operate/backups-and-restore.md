@@ -5,11 +5,11 @@ description: "What the nightly backup captures, where it goes, how long it is ke
 
 # Backups and restore
 
-This page gets you a nightly backup to trust and a restore you have rehearsed before you need it.
+This page covers the nightly backup and how to rehearse a restore before you need one.
 
 ## Before you begin
 
-- An absolute offsite folder that a sync client (Google Drive, Dropbox, iCloud Drive, a mounted share) carries off the machine, with its parent already existing.
+- An absolute offsite folder that a sync client (Google Drive, Dropbox, iCloud Drive, a mounted share) copies off the machine, with its parent already existing.
 - The task database service running; task databases are backed up online.
 - The stack's backup worker (`deploy/compose/backup.compose.yaml`), which `pnpm os:setup` includes unless given `--without-backup`. Its contract is on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/deploy/compose/backup.README.md.
 
@@ -34,7 +34,7 @@ The stack takes a backup nightly at **04:00 UTC**; `pnpm os:backup` takes one no
 
 ## Set where it goes and how long it is kept
 
-The backup settings are `host-backup.json` in the installation folder's `backup/profile/`, beside the worker's profile. `pnpm os:setup -- --offsite <folder>` writes one; the worker sees that folder as `/backup-offsite`. Without it, the product default names no offsite folder. To hand off to another folder on this machine, change `NOTICEOS_BACKUP_OFFSITE_PARENT` in `installation.env` and run [`pnpm os:apply`](/start/run-with-docker#change-a-setting).
+The backup settings are `host-backup.json` in the installation folder's `backup/profile/`, beside the worker's profile. `pnpm os:setup -- --offsite <folder>` writes one; inside the worker, that folder is `/backup-offsite`. Without it, the product default has no offsite folder. To copy the backups to another folder on this machine, change `NOTICEOS_BACKUP_OFFSITE_PARENT` in `installation.env` and run [`pnpm os:apply`](/start/run-with-docker#change-a-setting).
 
 1. In `host-backup.json`, set the offsite folder and the retention:
 
@@ -49,11 +49,11 @@ The backup settings are `host-backup.json` in the installation folder's `backup/
 
 2. Leave the service running. The file is read at every run; an edit applies at the next backup without a restart.
 
-- `offsiteBackupDir` is the folder, as the worker sees it, that the sync client carries off the machine. Each finished set is copied under `<offsiteBackupDir>/<date>/`. Its **parent must already exist**; a missing sync mount fails the run instead of creating a folder that only looks offsite. `null` means no offsite copy, and the record says so.
+- `offsiteBackupDir` is the folder, by its path inside the worker, that the sync client copies off the machine. Each finished set is copied under `<offsiteBackupDir>/<date>/`. Its **parent must already exist**; a missing sync mount fails the run instead of creating a local folder that is never synced. `null` means no offsite copy, and the record shows that.
 - `retention` keeps the latest `daily` complete sets and the first complete set of each of the latest `weekly` weeks, in both the local and offsite trees. Without it, sets older than 30 days are removed.
 
-::: warning Retention waits for success
-Old sets are removed only after every stage, including the offsite copy, succeeds. A failed run keeps everything it finds.
+::: warning Retention runs only after success
+Old sets are removed only after every stage, including the offsite copy, succeeds. A failed run removes nothing.
 :::
 
 ## Change the time or run one now
@@ -76,10 +76,10 @@ Adding a repository to Tasks never authorizes a production export; only this fil
 
 Restore into **isolated stores first**, never over the live ones.
 
-1. In the dated folder, open `RESTORE.md`. It names each part and how it went.
+1. In the dated folder, open `RESTORE.md`. It lists each part and its result.
 2. **Postgres:** prepare the roles and an empty owner-owned database, then restore the dump into it **without** applying migrations first. The exact steps are on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/host/README.md#backup-and-restore.
 3. **Raw archive:** restore `r2/` as one complete tree.
-4. **Task databases:** restore into a new, empty task service. The helper refuses to overwrite an existing service or volume. Steps: https://github.com/notice-cx/NoticeOS/blob/main/db/dolt/host/README.md#backup-and-recovery.
+4. **Task databases:** restore into a new, empty task service. The helper stops instead of overwriting an existing service or volume. Steps: https://github.com/notice-cx/NoticeOS/blob/main/db/dolt/host/README.md#backup-and-recovery.
 5. Check row counts, ledger totals and archive references before you point an app at the restored stores.
 
 Replacing the live stores is a separate operator decision: stop the stack first (`pnpm os:stop`), restore, then start it again (`pnpm os:start`). A restore does not run migrations and a migration does not restore; keep the two steps apart.
@@ -88,11 +88,11 @@ For a demo installation, the procedure is a stopped backup of its four volumes; 
 
 ## Verify
 
-- The dated folder holds `backup.json`, written last, and `RESTORE.md` says how each part went.
+- The dated folder holds `backup.json`, written last, and `RESTORE.md` lists the result of each part.
 - The finished set is copied under `<offsiteBackupDir>/<date>/`.
 - **System health** > **Background operations** shows the backup job's latest result.
 
-A complete set does not prove the offsite copy is synchronized or restorable; a completed offsite handoff proves the local copy was made, not that the sync client finished uploading. Only your rehearsal proves a restore. A backup never deletes any source rows; completeness is never permission to prune the store.
+A complete set does not prove the offsite copy is synchronized or restorable; a completed offsite handoff proves the local copy was made, not that the sync client finished uploading. Only your rehearsal proves a restore. A backup never deletes any source rows; a complete backup is never a reason to delete rows from the store.
 
 ## If it didn't work
 

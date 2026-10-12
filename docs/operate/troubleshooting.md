@@ -1,40 +1,40 @@
 ---
 title: "Troubleshooting"
-description: "The states and refusals you will meet while running NoticeOS, what each one means, and what to do about it."
+description: "The states and stop messages you will see while running NoticeOS, what each one means, and what to do about it."
 ---
 
 # Troubleshooting
 
-This page gets you from a symptom to the one command or setting that fixes it.
+This page lists each symptom with the command or setting that fixes it.
 
-Start every investigation with the state, not the port: `pnpm os:status`. When the cause is unclear, read `pnpm os:logs -- --lines 200` before restarting anything.
+Start every investigation by running `pnpm os:status`, not by checking a port. When the cause is unclear, read `pnpm os:logs -- --lines 200` before restarting anything.
 
-An installation without a checkout runs each command on this page through its folder's launcher, with no `--`: `~/noticeos/noticeos status`, `~/noticeos/noticeos logs --lines 200`. Its messages name the launcher where this page names `pnpm os:*`.
+An installation without a checkout runs each command on this page through its folder's launcher, with no `--`: `~/noticeos/noticeos status`, `~/noticeos/noticeos logs --lines 200`. Its messages show the launcher command where this page shows `pnpm os:*`.
 
 ## Service states
 
 **A service is `exited` or `created`.**
-The stack was stopped or a service did not start. Run `pnpm os:start`; it starts the databases, then the backup worker, then the app, and stops at the first one whose health does not return.
+The stack was stopped or a service did not start. Run `pnpm os:start`; it starts the databases, then the backup worker, then the app, and stops at the first one whose health check does not pass.
 
 **`noticeos: running, starting`.**
-The app is starting or its scheduler is still arming. Wait a minute and check again. If it stays there, read the log.
+The app is starting or its scheduler has not yet set its timers. Wait a minute and check again. If it stays there, read the log.
 
 **`noticeos: running, unhealthy`.**
-The scheduler's heartbeat is old, the Tower or the data receiver does not answer, or a configured backup worker does not. Read `pnpm os:logs -- noticeos`, then `pnpm os:restart`.
+The scheduler's heartbeat (a regular signal that it is still running) is old, the Tower or the data receiver does not respond, or a configured backup worker does not. Read `pnpm os:logs -- noticeos`, then `pnpm os:restart`.
 
 **`postgres` or `dolt` is `unhealthy`.**
 A database did not pass its own health check. Read `pnpm os:logs -- postgres` or `-- dolt`, then `pnpm os:restart`.
 
-**`database:` says the database is behind.**
+**`database:` shows the database is behind.**
 The code the app runs carries migrations the database has not applied. Applying them is your own step; see [Upgrade](/start/upgrade#apply-database-changes).
 
 **The app keeps restarting.**
-The scheduler refused to start. The log says why; see Scheduler refusals.
+The scheduler exits at start. The log shows why; see [When the scheduler stops at start](#when-the-scheduler-stops-at-start).
 
-## Scheduler refusals
+## When the scheduler stops at start
 
-**The log says `REFUSING to start` and names a fix; exit code 5.**
-The database address in the secrets file is unusable, or the database is behind the code. The line names the command: usually the migration sequence in [Upgrade](/start/upgrade). The address itself is never printed.
+**The log shows `REFUSING to start` and a fix; exit code 5.**
+The database address in the secrets file is unusable, or the database is behind the code. The line includes the command: usually the migration sequence in [Upgrade](/start/upgrade). The address itself is never printed.
 
 **Exit code 3, with an `lsof` line.**
 Another scheduler already holds the data port (8791), and two would fire every schedule twice. Restart the app with `pnpm os:restart`.
@@ -43,34 +43,34 @@ Another scheduler already holds the data port (8791), and two would fire every s
 On a development stack, run `pnpm os:dev`: it builds a matching image and moves the app onto it. On a production stack, run `pnpm os:update` to move the app to a matching image.
 
 **`pnpm os:restart` or `pnpm os:update` names a service that is not healthy.**
-`pnpm os:logs -- <service>` shows why. When it is the app and the database lacks this code's migrations, the message says so: run `pnpm os:migrate -- --apply`, then `pnpm os:restart`.
+`pnpm os:logs -- <service>` shows why. When it is the app and the database lacks this code's migrations, the message shows that: run `pnpm os:migrate -- --apply`, then `pnpm os:restart`.
 
 ## Runtime log lines
 
-In the app container, one process runs the Tower and the data receiver together, and one scheduler fires every schedule. A second copy would run every schedule twice, so the runtime refuses to share its ports. A `pnpm db:try-tower` Tower or a browser-test server has its own folder and ports; it does not make the stack unhealthy.
+In the app container, one process runs the Tower and the data receiver together, and one scheduler fires every schedule. A second copy would run every schedule twice, so a second runtime does not start on ports that are in use. A `pnpm db:try-tower` Tower or a browser-test server has its own folder and ports; it does not make the stack unhealthy.
 
 **`[ingest-door] cannot listen on <host>:<port>`.**
 Another runtime already holds the data port inside the app container. Run `pnpm os:restart`.
 
-**`cron … fired → HTTP 403 runner_lane_loopback_only`, and every request on the data port answers 403.**
-The scheduler's mark is not reaching the app, so every schedule is refused. A restart runs the same code. File an issue with the log lines; the fix arrives through `pnpm os:update`.
+**`cron … fired → HTTP 403 runner_lane_loopback_only`, and every request on the data port returns 403.**
+The header that marks a request as the scheduler's is not reaching the app, so every scheduled request is rejected. A restart runs the same code. File an issue with the log lines; the fix is installed with `pnpm os:update`.
 
-**One request path answers 403 while the others work.**
-The failure belongs to that path. Keep the redacted request and log lines, and file them.
+**One request path returns 403 while the others work.**
+The failure is specific to that path. Keep the redacted request and log lines, and file them.
 
 **`cron … fired → HTTP 500 {"error":"scheduled_failed"}`.**
 The job failed in its provider, credential or database work. Read its recorded failure under **System health** > **Background operations**, or in `pnpm os:logs`. Do not rerun the job to test health.
 
-**`/api/pulse` answers 401 where it used to work.**
+**`/api/pulse` returns 401 where it used to work.**
 The data receiver's bootstrap secret is missing or changed. See [bootstrap secrets](../06-operations.md#bootstrap-secrets-vs-integration-credentials). Keep the value out of anything you share.
 
 **The Tower loads, but every card is empty.**
 An empty screen does not prove the database is behind. Read the `database:` line of `pnpm os:status` first. A migration is always your own step; see [Upgrade](/start/upgrade).
 
-**`pnpm --filter @noticeos/ingest dev` refuses to start.**
+**`pnpm --filter @noticeos/ingest dev` exits without starting.**
 Expected while another runtime holds the data port: a standalone data receiver would be a second runtime over the same files.
 
-## `pnpm os:setup` and `pnpm os:convert-legacy` refusals
+## When `pnpm os:setup` or `pnpm os:convert-legacy` stops
 
 Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`; from the Docker install, with the new folder's `noticeos setup:`. Setup's checks run before it makes anything.
 
@@ -78,7 +78,7 @@ Each line starts with `pnpm os:setup:` or `pnpm os:convert-legacy:`; from the Do
 This checkout already has an installation. Use it, or move it with `pnpm os:convert-legacy`.
 
 **"… is not empty; setup makes a new installation in a new or empty folder".**
-Choose a new or empty folder with `--dir`. A folder inside the checkout is refused too.
+Choose a new or empty folder with `--dir`. A folder inside the checkout is rejected too.
 
 **"Docker already has containers for the project …", or "the volume … already exists; setup never takes over existing data".**
 Another installation uses that project name. Choose another with `--project`, or move that installation with `pnpm os:convert-legacy`.
@@ -99,13 +99,13 @@ The port you named with `--tower-port` is taken. Name another, or leave it out a
 Mount or create the sync folder first, then run setup again.
 
 **"Made so far, left for inspection: …".**
-A step failed after setup started making things. The line before it says which step; `pnpm os:logs` shows the services' side. Setup never deletes or reuses what it made, so a new attempt needs another `--dir` and `--project`.
+A step failed after setup started making things. The line before it shows which step; `pnpm os:logs` shows the services' side. Setup never deletes or reuses what it made, so a new attempt needs another `--dir` and `--project`.
 
 **"… are not healthy; a conversion moves a healthy stack".**
 Fix the stack first: `pnpm os:status`, then `pnpm os:logs`. A development app may be broken; the databases and the backup worker may not.
 
 **"the app runs from live source and the record of its prepared image is missing", or "the stack changed since pnpm os:dev recorded it".**
-The conversion cannot tell which prepared stack to move. Run `pnpm os:prod`, then `pnpm os:convert-legacy` again.
+The conversion has no record of which prepared stack to move. Run `pnpm os:prod`, then `pnpm os:convert-legacy` again.
 
 **"the stack already runs from the layout; nothing to convert".**
 Nothing to do.
@@ -117,11 +117,11 @@ An earlier conversion is still recorded. Undo it, or remove that file once you k
 The new stack did not become healthy, so the old one was started again. Nothing in the old installation changed.
 
 **"The conversion stands, with the app on its prepared image: …".**
-The stack moved, but the development app did not come back on live source. `pnpm os:dev` tries again; the sentence says why it failed.
+The stack moved, but the development app did not come back on live source. `pnpm os:dev` tries again; the message shows why it failed.
 
-## `pnpm os:apply` refusals
+## When `pnpm os:apply` stops
 
-Each line starts with `pnpm os:apply:`. Apply never rewrites `installation.env`. The first six lines are refusals and change nothing; the last three follow a service that did not start.
+Each line starts with `pnpm os:apply:`. Apply never rewrites `installation.env`. The first six lines mean apply stopped before changing anything; the last three follow a service that did not start.
 
 **"…'s data would come from … instead of …; apply never points a database at other data".**
 A data volume name changed in `installation.env`. Put the old name back.
@@ -136,7 +136,7 @@ Another program holds the port you chose. Choose a free one and apply again.
 A declared service has no container to recreate. `pnpm os:status` shows the stack as it is.
 
 **"Compose cannot read the stack: …", or "Compose cannot read the stack; is Docker running?".**
-Compose's own complaint follows the colon: usually a line in `installation.env` it cannot read, or a value it needs. Fix the line and apply again. Without a complaint, start Docker.
+Compose's own error follows the colon: usually a line in `installation.env` it cannot read, or a value it needs. Fix the line and apply again. When no error follows, start Docker.
 
 **"Another app operation holds the stack lock."**
 An update, rollback or development switch is running. Let it finish, then apply again.
@@ -150,13 +150,13 @@ No earlier settings were recorded, so nothing was put back. Undo the edit and ap
 **"… The earlier settings did not come back either; pnpm os:status and pnpm os:logs show where it stands."**
 Neither your settings nor the earlier ones started. Read `pnpm os:status` and `pnpm os:logs -- <service>`.
 
-## Update refusals
+## When an update stops
 
 **"The published image for main … was not built from this checkout's source; nothing was changed. Add -- --build to build it here."**
 The image CI published for this commit does not match the source this checkout prepares. Run `pnpm os:update -- --build`, or `pnpm os:setup -- --build`, to build it here.
 
 **"No published image for this commit yet (it appears a few minutes after CI passes on main), or the registry is unreachable; building it here instead."**
-Not a refusal. `os:update` or `os:setup` builds the image here, which takes a few minutes. A fork always builds here.
+The command does not stop: `os:update` or `os:setup` builds the image here, which takes a few minutes. A fork always builds here.
 
 **"Deploy from a clean checkout at main. Commit verified changes first."**
 `os:update` and `os:setup` use the committed source of `main`. Check out `main` and commit or set aside your edits.
@@ -164,24 +164,24 @@ Not a refusal. `os:update` or `os:setup` builds the image here, which takes a fe
 **`os:update` stops at a migration the database has not applied.**
 Expected. Take a backup, run `pnpm os:migrate -- --apply`, then `pnpm os:update` again. See [Upgrade](/start/upgrade#apply-database-changes).
 
-**`os:update` says main changes the Postgres roles.**
+**`os:update` prints that main changes the Postgres roles.**
 That is operator maintenance on the database, outside an app update. Follow the Postgres host guide on GitHub: https://github.com/notice-cx/NoticeOS/blob/main/db/postgres/host/README.md.
 
-**`os:update` refuses changed source, declarations or image labels.**
+**`os:update` stops because the source, declarations or image labels changed.**
 The stack changed between preparing and applying the plan. Run `pnpm os:status`, then prepare a new plan.
 
-**`os:rollback` says the database schema changed.**
+**`os:rollback` prints that the database schema changed.**
 The previous image would run older code on the newer schema. Restoring a backup is a separate procedure with its own approval.
 
-**`os:update` refuses while the app runs live source.**
+**`os:update` stops while the app runs live source.**
 Run `pnpm os:prod` first.
 
-**An `os:*` command says the selector is invalid or a service is unexpected.**
+**An `os:*` command prints that the selector is invalid or a service is unexpected.**
 `.local/stack.json` is missing, or names files that moved. `pnpm os:setup` or `pnpm os:convert-legacy` writes it; nobody edits it by hand. Without a checkout, the selector is the folder's `stack.json`, which setup wrote. The stack must contain `noticeos`, `postgres` and `dolt`, and at most `backup` besides.
 
 ## The `noticeos` launcher
 
-Each line starts with `noticeos:`. The launcher runs nothing when it refuses.
+Each line starts with `noticeos:`. When the launcher stops with one of these lines, it has run nothing.
 
 **"could not fetch ghcr.io/notice-cx/noticeos:main; check the connection and that Docker is running".**
 The launcher fetches main's newest image before `setup`, `update` and `migrate`. Check the connection, that Docker is running and that your account can run `docker`. When those are fine, the image is not public yet, and only its owner can change that. The one-line install stops at its first step for the same reasons, with Docker's own message.
@@ -199,17 +199,17 @@ Mount or create the sync folder first, then run setup again.
 Choose an installation or offsite folder without a comma.
 
 **"the installation's network is missing; … start brings the stack up".**
-`migrate` reaches Postgres on the installation's network. Run `~/noticeos/noticeos start`, then migrate again.
+`migrate` connects to Postgres on the installation's network. Run `~/noticeos/noticeos start`, then migrate again.
 
 **"neither the app nor installation.env names the installation's image".**
 The app container is gone and `installation.env` has lost its `NOTICEOS_APP_IMAGE` line. Copy that line back from `stack-apply/applied.env` in the folder, the settings the stack last ran with.
 
-## `noticeos update` and `rollback` refusals
+## When `noticeos update` or `rollback` stops
 
-Each line starts with `noticeos update:` or `noticeos rollback:`. A refusal changes nothing.
+Each line starts with `noticeos update:` or `noticeos rollback:`. When one of them stops, nothing was changed.
 
 **"Nothing to update: the app runs …, the newest published version."**
-Not a refusal. The installation is current.
+Nothing went wrong: the installation is current.
 
 **"installation.env has an edit that is not applied yet: … apply applies it, or undo it; then try again."**
 Run `~/noticeos/noticeos apply`, or undo the edit, then update again.
@@ -244,24 +244,24 @@ Neither version started. Read `~/noticeos/noticeos status` and `~/noticeos/notic
 ## Data and credentials
 
 **A card shows a gap or "No report" instead of a number.**
-That is unknown data, not zero. Open **System health** > **Background operations**; the job that feeds the card says what went wrong in its latest run. A site set to send no nightly report shows "No report" on purpose.
+That is unknown data, not zero. Open **System health** > **Background operations**; the job that supplies the card's data shows what went wrong in its latest run. A site set to send no nightly report shows "No report" on purpose.
 
 **A connection shows "Legacy env" or System health counts legacy credentials.**
-The credential still lives in the environment file. On the card, choose **Import from this machine**. See [Secrets and credentials](/operate/secrets-and-credentials).
+The credential is still stored in the environment file. On the card, choose **Import from this machine**. See [Secrets and credentials](/operate/secrets-and-credentials).
 
-**`creds:check` says it is running the env-only check.**
-The installation is stopped, so store-held credentials cannot be proved. Start it with `pnpm os:start`, or pass `--origin` with the right port.
+**`creds:check` prints that it is running the env-only check.**
+The installation is stopped, so store-held credentials cannot be tested. Start it with `pnpm os:start`, or pass `--origin` with the right port.
 
 **A provider job records "paused before the monthly data cap".**
 The metered spend would cross the Monthly data cap. Raise it under **Settings** > **General** > **Budget**, or wait for next month.
 
 ## Browser and Wall
 
-**The Tower refuses a hostname.**
+**The Tower rejects a hostname.**
 Standalone keeps a hostname allowlist. Add your alias to `TOWER_ALLOWED_HOSTS` in `installation.env`, then run `pnpm os:apply`. Never allow every host.
 
 **Another device cannot reach the Tower.**
-The Tower listens on `127.0.0.1` unless `NOTICEOS_TOWER_BIND` says otherwise. See [Open the Tower to your network](/start/run-with-docker#open-the-tower-to-your-network).
+The Tower listens on `127.0.0.1` unless `NOTICEOS_TOWER_BIND` sets another address. See [Open the Tower to your network](/start/run-with-docker#open-the-tower-to-your-network).
 
 **After an update, the Wall still shows the old release.**
 A browser running code from before the update prompt existed needs one manual refresh. After that the Wall reloads itself.
