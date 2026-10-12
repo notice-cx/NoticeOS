@@ -67,6 +67,60 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div>
 </div>
 <div id="timeline" data-surface-hero="" class="scroll-mt-4">
+<div class="flex flex-col gap-3.5">
+<section aria-label="The last 90 days" data-activity-timeline="" class="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
+<h2 class="m-0 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Last 90 days</h2>
+<div role="group" aria-label="Changes and bets on Meadow Board over the last 90 days" data-event-timeline="true" data-unit="day" class="@container w-full [--timeline-name:6rem]">
+<ul class="sr-only" data-event-timeline-list="true">
+<li>Shipped: Changes · July title batch · 1 day ago</li>
+</ul>
+<div class="divide-y divide-viz-grid">
+<div data-lane="changes" data-state="quiet" class="flex flex-col gap-1.5 py-2 @min-[30rem]:flex-row @min-[30rem]:gap-3">
+<div data-lane-label="true" title="Changes" class="flex min-h-7 min-w-0 items-center gap-1.5 @min-[30rem]:w-[var(--timeline-name,8rem)] @min-[30rem]:shrink-0">
+<span class="text-sm text-muted-foreground">Changes</span>
+</div>
+<div class="relative min-w-0 flex-1">
+<div aria-hidden="true" class="pointer-events-none absolute inset-x-0 -inset-y-2">
+<span class="absolute inset-y-0 w-px bg-viz-grid" style="left: 15.231%;">
+</span>
+<span class="absolute inset-y-0 w-px bg-viz-grid" style="left: 30.787%;">
+</span>
+<span class="absolute inset-y-0 w-px bg-viz-grid" style="left: 46.343%;">
+</span>
+<span class="absolute inset-y-0 w-px bg-muted-foreground/25" style="left: 61.898%;">
+</span>
+<span class="absolute inset-y-0 w-px bg-viz-grid" style="left: 77.454%;">
+</span>
+<span class="absolute inset-y-0 w-px bg-viz-grid" style="left: 93.009%;">
+</span>
+<span data-now="true" class="absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 rounded-full bg-foreground" style="left: 100%;">
+</span>
+</div>
+<div class="relative h-7">
+<span aria-hidden="true" class="absolute left-0 top-1/2 h-px bg-viz-grid" style="width: 100%;">
+</span>
+<div data-mark-key="change:41" data-event="change:41" data-kind="shipped" class="absolute top-1/2 -translate-x-1/2 -translate-y-1/2" style="left: 98.657%;">
+<button type="button" aria-label="Changes · July title batch · 1 day ago" class="viz-arrive relative flex size-6 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring" style="--viz-i: 0;">
+<span aria-hidden="true" class="relative flex size-5 items-center justify-center rounded-full ring-1 ring-inset bg-card ring-border">
+<span class="size-2 rotate-45 rounded-xs bg-foreground">
+</span>
+</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div aria-hidden="true" data-axis="true" class="relative h-5 @min-[30rem]:ml-[calc(var(--timeline-name,8rem)+0.75rem)]">
+<span data-tick="Apr 20" class="absolute top-1 whitespace-nowrap text-micro tabular-nums text-muted-foreground -translate-x-1/2" style="left: 15.231%;">Apr 20</span>
+<span data-tick="May 4" class="absolute top-1 whitespace-nowrap text-micro tabular-nums text-muted-foreground -translate-x-1/2" style="left: 30.787%;">May 4</span>
+<span data-tick="May 18" class="absolute top-1 whitespace-nowrap text-micro tabular-nums text-muted-foreground -translate-x-1/2" style="left: 46.343%;">May 18</span>
+<span data-tick="Jun 1" class="absolute top-1 whitespace-nowrap text-micro tabular-nums font-medium text-foreground -translate-x-1/2" style="left: 61.898%;">Jun 1</span>
+<span data-tick="Jun 15" class="absolute top-1 whitespace-nowrap text-micro tabular-nums text-muted-foreground -translate-x-1/2" style="left: 77.454%;">Jun 15</span>
+<span data-now-label="true" class="absolute top-1 whitespace-nowrap text-xs font-semibold text-foreground -translate-x-full pr-1.5" style="left: 100%;">Now</span>
+</div>
+</div>
+</section>
 <section class="flex flex-col rounded-[10px] border border-border bg-card" aria-label="Timeline">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Timeline</h2>
@@ -102,6 +156,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </li>
 </ul>
 </section>
+</div>
 </div>
 </div>
 </div>
@@ -3051,7 +3106,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-settings" class="flex flex-col gap-4">
-<div id="configuration" class="flex scroll-mt-4 flex-col gap-3.5">
+<div id="configuration" class="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
 <div data-surface-hero="">
 <section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Identity">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
