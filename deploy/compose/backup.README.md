@@ -15,9 +15,9 @@ their existing host definitions.
 
 The installation folder's `installation.env` sets the variables
 `backup.compose.yaml` requires: its folders under `backup/`, the task data
-volume and the network. Compose refuses missing declarations and bind sources. The application mounts the request folder; the worker also mounts
-the declared task spokes, task data, credentials, exporter roots and private
-Postgres socket. Dolt and the worker share `/backup-staging` at the same path.
+volume and the network. Compose stops with an error when a declaration or bind source is missing. The application mounts the request folder; the worker also mounts
+the declared task project repositories, task data, credentials, exporter roots
+and private Postgres socket. Dolt and the worker share `/backup-staging` at the same path.
 
 `pnpm os:setup` writes the worker profile folder, `backup/profile/`, mode `0700`
 with private files `0600`. Its `profile.json` is exactly:
@@ -34,12 +34,12 @@ It writes a private `backup-client.json` into the state folder:
 
 The request folder is mode `0700`, owned by the application's declared UID. The
 worker profile's owner is the identity that receives the completed private backup
-files and directories. Bootstrap credential custody follows
+files and directories. How bootstrap credentials are kept is set out in
 [the operations contract](../../docs/06-operations.md#bootstrap-secrets-vs-integration-credentials).
 
 This profile requires the worker profile and application client files to have the
-same UID and GID. It refuses different identities before running an exporter;
-private parent directories remain mode `0700`.
+same UID and GID. When the identities differ, it stops with an error before
+running an exporter; private parent directories remain mode `0700`.
 
 An optional private `host-backup.json` beside the worker profile uses the
 [host backup declaration](../../config/host-backup.README.md); `pnpm os:setup --
@@ -51,12 +51,12 @@ suppressed. Its platform dependencies and credential adapter must be prepared fo
 this Linux runtime.
 
 Native D1 targets saved in **Integrations → Cloudflare** need no exporter
-checkout. The protected worker reaches only `http://noticeos:5173` on its
+checkout. The protected worker connects only to `http://noticeos:5173` on its
 declared installation network, using the existing private bootstrap bearer.
 The app's standalone receiver authenticates before opening SQL and keeps the
-provider token private. Every selected database becomes verified gzip plus
-receipt/restore custody in the dated set; selection changes or any failed
-target refuse publication. A native target and legacy exporter cannot cover
+provider token private. Each selected database is written to the dated set as
+a verified gzip file with a private record of its export receipt and restore
+steps; if the selection changes or any target fails, the set is not published. A native target and legacy exporter cannot cover
 the same asset. Account activation and recurring export impact still require
 the owner's specific production approval.
 
@@ -73,28 +73,30 @@ The existing backup pipeline attempts every store, publishes completion last,
 preserves earlier complete sets after a failure, and retains its existing dated,
 daily and weekly retention behavior. A complete container set includes Postgres,
 R2, task databases and server metadata, approved exporter output, restore
-instructions and private recovery custody. Recovery custody includes the bootstrap
-bindings, database credentials, task selector, task inventory, spoke configuration
-and worker/exporter declarations. Source credential or declaration changes during
-capture refuse publication.
+instructions and private recovery material. The recovery material includes the bootstrap
+bindings, database credentials, task selector, task inventory, task project
+configuration and worker/exporter declarations. If a source credential or
+declaration changes during capture, the set is not published.
 
 `node deploy/compose/health.mjs` reports application health and whether the declared
-backup worker is ready. A missing declaration is reported explicitly. A configured
-worker that stops or loses its fresh private heartbeat makes container health fail.
+backup worker is ready. A missing declaration is reported explicitly. Container
+health fails when a configured worker stops or its private heartbeat (a regular
+signal that the worker is still running) is no longer fresh.
 Backup completion remains a separate job result.
 
-Only an exact finished response permits automatic retirement of a request. A
-timeout or lost worker preserves its request. Backup publication claims also carry
-a verified boot and PID namespace identity. Unknown, legacy and foreign claims
-remain fenced and produce an actionable failure. Deliberate recovery requires
-fencing the relevant writers and establishing that the originating operation has
-stopped before removing its protected claim.
+A request is removed automatically only after the worker writes its exact
+finished response. After a timeout or a lost worker, the request is kept.
+Backup publication claims also carry a verified boot and PID namespace
+identity. Unknown, legacy and foreign claims are never removed automatically:
+they block the backup, which fails with a message that names the next step. To
+recover by hand, first stop the relevant writers from writing and confirm that
+the operation that made the claim has stopped, then remove its protected claim.
 
 Restore uses a new, proven absent destination. The Postgres restore identity must
-receive its own private copy or input stream; source custody stays mode `0600`.
+receive its own private copy or input stream; the backup's own copy stays mode `0600`.
 Task restore verifies the complete snapshot's file hashes and pinned format before
-starting the new server. Restore the archived bootstrap bindings and spoke
-configuration, adapting only the explicitly chosen new endpoint and credentials
+starting the new server. Restore the archived bootstrap bindings and task
+project configuration, adapting only the explicitly chosen new endpoint and credentials
 selector.
 
 The opt-in proof is `scripts/container-backup-compose.test.mjs`, enabled by

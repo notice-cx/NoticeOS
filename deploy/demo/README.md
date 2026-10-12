@@ -26,7 +26,7 @@ PostgreSQL has no host port; app and setup share Dolt's network namespace so
 its plaintext listener stays on `127.0.0.1`.
 Only Dolt's shared namespace joins the normal ingress bridge, which permits the
 published loopback HTTP port. PostgreSQL joins only the internal private network.
-This is not a network-wide outbound firewall; the demo Worker transport refuses
+This is not a network-wide outbound firewall; the demo Worker transport rejects
 external HTTP, and the task clients disable telemetry and version checks.
 Use a proxy on the same VM, or a proxy container sharing Dolt's network namespace.
 A tunnel can connect to the loopback application port with the same exact Host.
@@ -42,7 +42,8 @@ commit, an exact UTC cutoff (`YYYY-MM-DDTHH:mm:ss.sssZ`), and an explicit future
 expiry is the simulator's permission deadline; restarting does not renew it.
 Review the expiry before launch and arrange explicit operator maintenance before
 it expires. This fresh-only setup does not provide a renewal command or authorize
-changing an existing service grant. Expired or revoked grants refuse activity.
+changing an existing service grant. Once the grant has expired or been revoked,
+the simulator's activity is rejected.
 
 Set the env file's exact image tag, absolute config path and unused loopback HTTP
 port. Use a new Compose project name. The examples below use `demo-preview`,
@@ -74,9 +75,11 @@ docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/comp
 
 Setup applies the committed schema only to its new empty store, creates the
 fixed demo workspace and scoped users, seeds its scenario, and writes private
-runtime configuration. Partial or unmarked data refuses automatic adoption.
+runtime configuration. Setup stops with an error, and does not adopt the data,
+when the store holds partial or unmarked data.
 Preserve failed volumes for diagnosis; do not delete them to force a retry.
-Repeated completed setup validates and reuses its scenario rather than reseeding.
+Running setup again after it has completed validates and reuses its scenario
+instead of reseeding.
 
 The app mounts only its state volume. Bootstrap database administrator passwords
 stay in the separate bootstrap volume, never in app configuration or environment.
@@ -90,60 +93,64 @@ curl --fail --header 'Host: demo.example.com' http://127.0.0.1:16448/__noticeos_
 ```
 
 A successful health response is `{ "ok": true }`. Connect through the HTTPS
-proxy to explore Sites, Financials, Tasks, Workflows and Settings. The demo banner
-identifies synthetic data and its latest successfully completed generation.
-The Wall's live pulse and today-by-hour chart read synthetic values the demo
+proxy to explore Sites, Money, Tasks, Workflows and Settings. The demo banner
+marks the data as synthetic and shows its latest successfully completed generation.
+The Wall's live user counts, with their per-minute bars, and its today-by-hour
+chart show synthetic values the demo
 derives from each site's own synthetic daily users; no analytics provider is
 called. Its meetings come from a fixed synthetic weekly schedule; no calendar
-feed is fetched. The ordinary hosted scheduler runs the demo's lanes under the
-release's job identities: a quarter-hour refresh writes today's provisional
+feed is fetched. The ordinary hosted scheduler runs the demo's scheduled jobs
+under the release's job identities: a quarter-hour refresh writes today's provisional
 synthetic traffic and search counts, the ad-supported sites' daily estimates
 arrive each morning, an hourly freshness check raises and clears the alert for
-a site whose nightly report has gone quiet, and the task board refreshes every
-five minutes. The same hourly lane runs the release's home-page check against
+a site whose nightly report has stopped arriving, and the task board refreshes every
+five minutes. The same hourly job runs the release's home-page check against
 each fictional site's synthetic page, so no site is fetched. Each day one site
-in turn answers HTTP 503 for 25 minutes: the check marks it down and raises its
-alert, and the next hour's check marks it up and closes the alert. Their
-executions are System health's background operations. The Workflows page
+in turn returns HTTP 503 for 25 minutes: the check marks it down and raises its
+alert, and the next hour's check marks it up and closes the alert. System health
+lists these runs as background operations. The Workflows page
 shows three of the release's workflows, each run once as the demo starts and
-then every hour: the outcome check reads the demo's own watch windows; outcome
-task updates post each closed comparison's verdict on the task that owns its
-reading; and the notifier finds what it would say and is skipped, because the
-demo connects no notification channel. The banner's generation time is the
+then every hour: the outcome check reads the demo's own measurement windows;
+outcome task updates post each closed comparison's verdict on the task that
+holds its reading; and the notifier collects the notifications it would send
+and its run is marked skipped, because the demo connects no notification channel. The banner's generation time is the
 demo service's latest write.
 
-The demo's pages ask search engines to index them. Their links preview with
-the TV dashboard, at absolute URLs the server fills from the configured public
-origin. An installation's own pages ask not to be indexed.
+The demo's pages allow search engines to index them. A shared link to them
+shows a preview image of the TV dashboard, at absolute URLs the server fills
+from the configured public origin. An installation's own pages are marked not
+to be indexed.
 
 Counting the demo's visitors is optional and the operator's choice. To use
 Statcounter, set `NOTICEOS_DEMO_STATCOUNTER=project:security` in the private
 env file. Both values come from the project's tracking code: `sc_project` and
 `sc_security`. Then recreate the app, or run `update.sh`, which keeps the line.
-The server adds Statcounter's tag to each page and counts every in-app view.
-Unset, the pages carry no analytics. No account is named in the source.
+The server adds Statcounter's tag to each page, and the tag counts every in-app
+view. When the line is unset, the pages carry no analytics. No account is named in the source.
 
 The scenario is versioned. A release whose scenario version differs from a
-running demo's refuses that demo's stored scenario at startup. Such a release
+running demo's rejects that demo's stored scenario at startup. Such a release
 needs a fresh setup with a new project name and volumes, which
 [update.sh](update.sh) performs by itself as a fresh generation (see
 [Stop, restart and update](#stop-restart-and-update)). The scenario holds
-five fictional sites, so every Home and Wall form shows data: a subscription
+five fictional sites, so every Home and Wall view shows data: a subscription
 product whose nightly report has stopped, a licensed tool whose saves broke, a
-recipe site growing into its season, an outdoor guide sliding after a redesign
-the outcome check rejected, and a product weeks old; two of them earn ad
-income. Last night's synthetic backup failed, decisions wait from hours to
-weeks, and each project's board has work done this week, in progress and
-blocked. The release's own evaluators produce every alert and verdict from
-the synthetic history; none is written as a result.
-Visitor writes and provider actions are refused. Health does not establish that
-any remote domain has been deployed or that an expired grant can be renewed.
+recipe site whose traffic is rising with its season, an outdoor guide losing
+traffic after a redesign the outcome check rejected, and a product weeks old;
+two of them have ad income. Last night's synthetic backup failed, open
+decisions range from hours to weeks old, and each project's board has work
+done this week, in progress and blocked. The release's own evaluators produce every alert and verdict from
+the synthetic history; none is seeded as a finished result.
+Visitor writes and provider actions are rejected. A passing health check does
+not show that any remote domain has been deployed or that an expired grant can
+be renewed.
 
 Integrations shows Google (Analytics and Search Console), Bing and the ad
 network connected through demo connections. A demo connection stores no login,
-needs no credential key and fetches nothing. Only the server's demo profile
-answers one, for the one demo workspace its configuration names; any other
-profile or workspace reads the same providers as not connected. Its syncs are
+needs no credential key and fetches nothing. A demo connection counts as
+connected only under the server's demo profile and only for the one demo
+workspace its configuration names; any other profile or workspace shows the
+same providers as not connected. Its syncs are
 the collection runs the simulator records: the quarter-hour Google refresh,
 Bing's daily report and the ad network's morning report. A run that fails
 shows that source failing until the next one succeeds; one site's Analytics
@@ -173,8 +180,9 @@ history, while the artifact manifest supplies the new application's release.
 `main` or an exact commit on the public repository, downloads that source
 archive and builds the exact-commit image, then compares the scenario version
 and frozen migrations of the release this generation was seeded from (its
-configuration's `release`) with the target's. A demo that is already on the
-target and healthy needs nothing; one that is unhealthy is deployed again. A compatible release
+configuration's `release`) with the target's. When the demo already runs the
+target and is healthy, the script changes nothing; when it runs the target but
+is unhealthy, the script deploys it again. A compatible release
 takes exactly the steps above: only the image tag changes in the env file, the
 namespace owner and then the application are recreated, and health is checked
 through the configured public Host. An incompatible release gets a **fresh
@@ -182,14 +190,14 @@ generation**: a new Compose project (`demo-g2`, `demo-g3`, …) with new volumes
 and its own configuration under `generations/` beside the env file (release =
 target, cutoff = now, the rest copied), prepared and seeded by the fresh-setup
 steps above and switched in on the same loopback port; the env file then names
-the new generation. If the new generation fails health, the previous one is
-brought back and the command fails naming both commits. Previous generations
+the new generation. If the new generation fails its health check, the previous
+one is brought back and the command fails with an error that names both commits. Previous generations
 stay stopped with their volumes; the purge command is printed, never run.
 
 Every build adds an image of about 2 GB, so the script keeps the disk from
 filling. Before building it checks that Docker has 12 GiB free (the artifact
-build refuses below 10). When it has not, it removes `noticeos-demo` images no
-container uses, never the running release, and build cache no image needs; if
+build stops below 10). When it has not, it removes `noticeos-demo` images no
+container uses, never the running release, and build cache no image uses; if
 that is still not enough it stops before building, changes nothing, and prints
 the purge of each stopped generation, whose containers keep their image. After
 a healthy deploy it removes the same unused images, keeping the new release and
@@ -210,8 +218,8 @@ docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/comp
 docker compose --env-file /operator/demo.env -p demo-preview -f deploy/demo/compose.yaml up -d --wait --force-recreate app
 ```
 
-A compatible update reuses runtime configuration and data. Health refusal means
-stop and diagnose; never bypass schema, artifact or permission checks. Rollback
+A compatible update reuses runtime configuration and data. If the health check
+fails, stop and diagnose; never bypass schema, artifact or permission checks. Rollback
 to the previous exact image only if the stored schema remains compatible.
 
 ## Stopped backup and fresh restore
