@@ -2,6 +2,7 @@ import { useLayoutEffect, useMemo, useRef, useState, type ComponentType, type CS
 import { Link } from "react-router-dom";
 import { Circle, CircleCheck, CircleX, TriangleAlert, Unplug, X, type LucideIcon } from "lucide-react";
 import { ageMs, formatAge } from "@shared/freshness";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { cn } from "@/lib/utils";
 
 // How parts connect and which one is broken, drawn so the answer is seen
@@ -603,9 +604,8 @@ function NodeCard({ node, nowMs, column, grow, dense, register }: { node: FlowNo
             <Icon className="size-3.5" />
           </span>
         ) : null}
-        {/* A name wraps between its words on the desk rather than losing its
-            end; the TV's dense graph keeps one line to hold its height. */}
-        <span className={cn("min-w-0 flex-1 text-sm font-medium", dense ? "truncate" : "leading-snug", node.state === "absent" && "text-muted-foreground")} title={node.label}>{node.label}</span>
+        {/* A name wraps between its words rather than losing its end. */}
+        <span className={cn("min-w-0 flex-1 break-words text-sm font-medium", dense ? "leading-tight" : "leading-snug", node.state === "absent" && "text-muted-foreground")} title={node.label}>{node.label}</span>
         {ageText ? <span aria-hidden data-flow-age className={AGE_BADGE[node.state]}>{ageText}</span> : null}
         {dense ? (
           <span className={cn("flex shrink-0 items-center", spec.ink)} data-flow-state-word title={word}>
@@ -617,15 +617,15 @@ function NodeCard({ node, nowMs, column, grow, dense, register }: { node: FlowNo
       {dense ? (
         <span className="flex min-w-0 items-baseline gap-2">
           {node.value ? <span className="shrink-0 text-figure-sm tabular-nums">{node.value}</span> : null}
-          {node.caption ? <span className="min-w-0 truncate text-xs text-muted-foreground" title={node.caption}>{node.caption}</span> : null}
+          {node.caption ? <FitLabel className="flex-1 text-xs text-muted-foreground">{node.caption}</FitLabel> : null}
         </span>
       ) : (
         <>
-          {node.value ? <span className="mt-0.5 truncate text-figure-sm tabular-nums" title={node.value}>{node.value}</span> : null}
+          {node.value ? <span className="mt-0.5 break-words text-figure-sm tabular-nums">{node.value}</span> : null}
           {node.caption ? <span className="text-xs text-muted-foreground">{node.caption}</span> : null}
           <span className={cn("mt-auto flex min-w-0 items-center gap-1.5 pt-1 text-xs font-medium", spec.ink)} data-flow-state-word>
             <StateGlyph state={node.state} />
-            <span className="truncate">{word}</span>
+            <span>{word}</span>
             {ageText ? <span className="sr-only">{`, for ${ageText}`}</span> : null}
           </span>
         </>

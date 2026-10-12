@@ -4,6 +4,7 @@ import { BarStrip } from "@/components/viz/BarStrip";
 import { DecisionQueue } from "@/components/viz/DecisionQueue";
 import { EventTimeline } from "@/components/viz/EventTimeline";
 import { eventTimelineCompact, eventTimelineDay, eventTimelineWeek } from "@/components/viz/EventTimeline.fixtures";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { FlowGraph } from "@/components/viz/FlowGraph";
 import { FLOW_DEPENDENCIES, FLOW_LOOP, FLOW_NOW_MS, FLOW_SYSTEM } from "@/components/viz/FlowGraph.fixtures";
 import { HealthGrid } from "@/components/viz/HealthGrid";
@@ -65,6 +66,12 @@ export function VisualKitGallery() {
         </Specimen>
         <Specimen id="normal-band-ok" title="NormalBand — within its range" className="w-80">
           <NormalBand value={3891} low={3500} high={4400} label="Visitors yesterday" />
+        </Specimen>
+        <Specimen id="fit-label" title="FitLabel — a one-line label shown whole when it fits, and not at all when it does not; never cut to …" className="w-80">
+          <div className="flex flex-col gap-2 text-xs">
+            <span className="flex w-full rounded-sm bg-muted px-2 py-1"><FitLabel>Nightly report late</FitLabel></span>
+            <span className="flex w-24 rounded-sm bg-muted px-2 py-1"><FitLabel>Nightly report late</FitLabel></span>
+          </div>
         </Specimen>
       </Group>
 
@@ -213,7 +220,7 @@ export function VisualKitGallery() {
             action={{ label: "All tasks →", to: "#" }}
           />
         </Specimen>
-        <Specimen id="portfolio" title="PortfolioRows — one ruled row per site; names never wrap" className="w-[52rem]">
+        <Specimen id="portfolio" title="PortfolioRows — one ruled row per site; a name is never cut" className="w-[52rem]">
           <PortfolioRows rows={PORTFOLIO} formatMoney={usd} action={{ label: "All sites →", to: "#" }} />
         </Specimen>
         <Specimen id="portfolio-narrow" title="PortfolioRows in a narrow column" className="w-[22rem]">

@@ -846,7 +846,7 @@ function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: numbe
               data-declared-asset={line.asset}
             >
               <PropertyFavicon domain={line.asset} displayName={line.displayName} />
-              <span className="min-w-0 flex-1 truncate text-sm">{line.displayName}</span>
+              <span className="min-w-0 flex-1 break-words text-sm">{line.displayName}</span>
               <span className="tabular-nums text-sm">{formatUsd(line.perMonth, CENTS)}</span>
               <SegmentBar
                 className="w-20 shrink-0"

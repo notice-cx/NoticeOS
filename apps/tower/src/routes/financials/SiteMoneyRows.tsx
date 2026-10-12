@@ -118,7 +118,7 @@ function SiteRow({ row, index, period, openPeriod }: { row: SiteMoneyRow; index:
         <Link
           to={`/assets/${encodeURIComponent(property.asset)}/financials`}
           title={property.displayName}
-          className="min-w-0 truncate text-sm font-medium text-foreground hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
+          className="min-w-0 break-words text-sm font-medium text-foreground hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
         >
           {property.displayName}
         </Link>

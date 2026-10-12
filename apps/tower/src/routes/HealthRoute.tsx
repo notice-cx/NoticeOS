@@ -379,7 +379,7 @@ function Layers({
                 key={report.id}
                 className="min-w-0 grid-cols-[minmax(0,1fr)]"
                 label={
-                  <span className="block truncate" title={`${report.label} · ${utcRunReference(report.at)}`}>
+                  <span className="block break-words leading-snug" title={`${report.label} · ${utcRunReference(report.at)}`}>
                     {shortLaneName(report.id, report.label)}
                   </span>
                 }
@@ -539,7 +539,7 @@ function DataSpend({
               className="flex items-baseline justify-between gap-3 text-[13px]"
               data-spend-asset={row.asset}
             >
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 break-words text-muted-foreground">
                 {displayNames.get(row.asset) ?? row.asset}
               </span>
               <span className="shrink-0 tabular-nums text-foreground">
@@ -553,7 +553,7 @@ function DataSpend({
               className="flex items-baseline justify-between gap-3 text-[13px]"
               data-spend-unattributed
             >
-              <span className="truncate text-muted-foreground">
+              <span className="min-w-0 break-words text-muted-foreground">
                 Research, not tied to a site
               </span>
               <span className="shrink-0 tabular-nums text-foreground">

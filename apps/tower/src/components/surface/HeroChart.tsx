@@ -26,6 +26,7 @@ import { pillControlClass } from "@/components/ui/pill";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { SERIES_TONE_CLASS, type SeriesTone } from "@/components/surface/Sparkline";
 import { ChartDot } from "@/components/surface/ChartMarks";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { cn } from "@/lib/utils";
 import { ChartEventMarkers } from "@/components/ChartEventMarkers";
 import { InfoTooltip } from "@/components/InfoTooltip";
@@ -810,14 +811,15 @@ export function HeroChart({
           </svg>
 
           {windows.map((window) => (
-            <span
+            <FitLabel
               key={`span-label-${window.startIndex}-${window.label}`}
               data-hero-span-label=""
-              className="pointer-events-none absolute top-0.5 max-w-[45%] truncate rounded-sm bg-card/80 px-1 text-[10px] leading-4 text-warn"
+              className="pointer-events-none absolute top-0.5 max-w-[45%] text-[10px] leading-4 text-warn"
+              labelClassName="rounded-sm bg-card/80 px-1"
               style={{ left: `${Math.min(80, percentOf(Math.max(0, window.startIndex)))}%` }}
             >
               {window.label}
-            </span>
+            </FitLabel>
           ))}
 
           {marks.length > 0 ? <ChartEventMarkers

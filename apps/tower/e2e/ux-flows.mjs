@@ -415,11 +415,11 @@ FLOWS["fresh-install"] = {
     const panel = w.page.locator('[data-connect-panel="bing-webmaster"]');
     await w.click(panel.getByRole("link", { name: /^Open / }), "Open the site", { role: "nav" });
     // The fixture's Bing days sum to 602 clicks over 28 days (harness.ts).
-    await w.waitFor("Open → the first number", () => w.page.locator("[data-kpi]").filter({ hasText: "602" }).first().waitFor({ timeout: 15_000 }));
-    // …and the chart under the strip draws that number, not an empty users
-    // chart beside it.
-    await w.waitFor("the first number → its chart", () => w.page.locator("[data-hero-chart]").filter({ hasText: "Search clicks · daily" })
-      .locator('[data-hero-line="Bing"], [data-hero-raw="Bing"]').first().waitFor({ timeout: 15_000 }));
+    await w.waitFor("Open → the first number", () => w.page.locator('[data-overview-numbers] [data-measure="search"]').filter({ hasText: "602" }).first().waitFor({ timeout: 15_000 }));
+    // …and the chart under the numbers draws that number, not an empty
+    // visitors chart beside it.
+    await w.waitFor("the first number → its chart", () => w.page.locator('[data-overview-chart="search"]').filter({ hasText: "Search clicks" })
+      .locator("[data-overview-chart-key]").filter({ hasText: "Bing" }).first().waitFor({ timeout: 15_000 }));
     await w.end("first number");
   },
 };

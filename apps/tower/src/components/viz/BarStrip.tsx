@@ -111,9 +111,9 @@ export function BarStrip({
       </div>
       <div className="mt-1 flex items-baseline justify-between gap-2 text-micro tabular-nums text-muted-foreground" aria-hidden>
         {shown ? (
-          <span className="truncate text-foreground">
-            {formatSeriesDate(shown.t)} · {shown.v === null ? "not reported" : format(shown.v)}
-            {provisionalFrom !== null && shown.t >= provisionalFrom ? " · still counting" : partialDays.has(shown.t) ? " · not every source reported" : ""}
+          <span className="flex min-w-0 flex-wrap gap-x-[0.35em] text-foreground">
+            <span className="whitespace-nowrap">{formatSeriesDate(shown.t)} · {shown.v === null ? "not reported" : format(shown.v)}</span>
+            {provisionalFrom !== null && shown.t >= provisionalFrom ? <>{" "}<span className="whitespace-nowrap">· still counting</span></> : partialDays.has(shown.t) ? <>{" "}<span className="whitespace-nowrap">· not every source reported</span></> : null}
           </span>
         ) : (
           <>

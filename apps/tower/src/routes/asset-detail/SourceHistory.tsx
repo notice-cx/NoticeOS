@@ -165,11 +165,11 @@ export function SourceHistory({ rows, notConnected, domain, nowMs, action, class
           onKeyDown={move}
           onFocus={(event) => { if (event.target === event.currentTarget) setActive((current) => current ?? { r: daily[0]!.r, c: length - 1 }); }}
           onBlur={() => setActive(null)}
-          className="grid grid-cols-[minmax(0,5.5rem)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring @xl:grid-cols-[minmax(0,8rem)_minmax(0,1fr)_auto]"
+          className="grid grid-cols-[fit-content(7rem)_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring @xl:grid-cols-[fit-content(10rem)_minmax(0,1fr)_auto]"
         >
           {daily.map(({ row, r }) => (
             <div key={row.id} data-source-row={row.id} data-state={row.state ?? "derived"} className="col-span-full grid grid-cols-subgrid items-center">
-              <span title={row.label} className="truncate text-xs font-medium text-foreground">{row.name}</span>
+              <span title={row.label} className="break-words text-xs font-medium leading-snug text-foreground">{row.name}</span>
               <div role="img" aria-label={rowSummary(row)} className="relative grid h-4 gap-[2px]" style={{ gridTemplateColumns: `repeat(${length}, minmax(0,1fr))` }}
                 onPointerLeave={() => setActive(null)}>
                 {row.days!.map((day, c) => (
@@ -178,7 +178,7 @@ export function SourceHistory({ rows, notConnected, domain, nowMs, action, class
                     className={cn("h-full rounded-[2px]", cellClass(day.state, row.state, active?.r === r && active.c === c))} />
                 ))}
                 {active?.r === r && row.days![active.c] ? (
-                  <span role="status" className="pointer-events-none absolute bottom-full z-10 mb-1.5 w-max max-w-56 -translate-x-1/2 rounded-md border border-border bg-card px-2 py-1 text-xs text-card-foreground shadow-sm"
+                  <span role="status" data-status-for={`readout:${titleId}`} className="pointer-events-none absolute bottom-full z-10 mb-1.5 w-max max-w-56 -translate-x-1/2 rounded-md border border-border bg-card px-2 py-1 text-xs text-card-foreground shadow-sm"
                     style={{ left: `${Math.min(80, Math.max(20, ((active.c + 0.5) / length) * 100))}%` }}>
                     <span className="font-medium">{row.label}</span> · {formatSeriesDate(row.days![active.c]!.t)} · {dayWords(row, row.days![active.c]!.state)}
                   </span>

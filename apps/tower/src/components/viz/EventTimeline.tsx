@@ -16,6 +16,7 @@ import { Banknote, ChevronsLeft, CircleAlert, CircleCheck, Trophy, Users } from 
 import { Link } from "react-router-dom";
 import { formatAge } from "@shared/freshness";
 import { SEVERITY_SHAPE } from "@/components/SeverityDot";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { cn } from "@/lib/utils";
 
 // What happened when, on one time axis that ends at now. One row per site
@@ -728,14 +729,8 @@ function SpanMark({ p, index, below, open, panelId, bind, onPress, still }: {
               <span className="shrink-0 whitespace-nowrap tabular-nums" data-span-age>{p.age}</span>
             </>
           ) : p.labelAt === "inside" ? <Shape className="size-3.5 shrink-0" strokeWidth={2.5} /> : null}
-          {/* One line tall and wrapping: a label wider than the bar drops to the
-              hidden second line whole, rather than being cut to "Nightly r…".
-              The zero-width first item is what lets a lone label wrap. */}
           {p.labelAt === "inside" ? (
-            <span className="flex h-[1lh] min-w-0 flex-1 flex-wrap overflow-hidden" data-span-label>
-              <span aria-hidden className="w-0 shrink-0" />
-              <span className="whitespace-nowrap">{clipped && p.ageAt === "inside" ? <span className="opacity-60">· </span> : null}{p.span.label}</span>
-            </span>
+            <FitLabel className="flex-1" data-span-label="">{clipped && p.ageAt === "inside" ? <span className="opacity-60">· </span> : null}{p.span.label}</FitLabel>
           ) : <span className="flex-1" />}
           {!clipped && p.ageAt === "inside" ? <span className="shrink-0 whitespace-nowrap tabular-nums font-semibold" data-span-age>{p.age}</span> : null}
           {p.state === "closed" && (p.x2 - p.x1) > 0 ? <CircleCheck className="size-3.5 shrink-0 text-healthy" strokeWidth={2.5} /> : null}

@@ -78,7 +78,7 @@ export function StatTile({
 }: StatTileProps) {
   const body = (
     <>
-      <span className="truncate text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="text-xs font-medium leading-snug text-muted-foreground">{label}</span>
       <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
         {value === null ? (
           <span className="text-sm font-medium text-muted-foreground" data-stat-absent="">

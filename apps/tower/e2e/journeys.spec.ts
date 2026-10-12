@@ -527,7 +527,9 @@ test("an empty installation's Wall is calm: the clock, no alarms, and a quiet li
  * never spills, so this is the other half.
  *
  * - `clipped`: a text run an ancestor's overflow cuts off sideways. Designed
- *   truncation (`text-overflow: ellipsis`) is a choice and is not counted.
+ *   truncation (`text-overflow: ellipsis`) is a choice and is not counted, and
+ *   neither is a run an ancestor hides whole, such as a `FitLabel` that did not
+ *   fit: it is not shown at all, so nothing of it is cut.
  * - `wrapped`: a label under `scope` that must stay on its one line and
  *   either broke onto a second line or overflowed its own box.
  */
@@ -553,15 +555,22 @@ function wallLegibility(scope: string) {
       if (rect.width === 0) continue;
       let left = rect.left;
       let right = rect.right;
+      let top = rect.top;
+      let bottom = rect.bottom;
       let designedTruncation = false;
       for (let el: Element | null = parent; el && el !== root; el = el.parentElement) {
         const style = getComputedStyle(el);
         if (style.textOverflow === "ellipsis") designedTruncation = true;
-        if (style.overflowX === "visible") continue;
         const box = el.getBoundingClientRect();
+        if (style.overflowY !== "visible") {
+          top = Math.max(top, box.top);
+          bottom = Math.min(bottom, box.bottom);
+        }
+        if (style.overflowX === "visible") continue;
         left = Math.max(left, box.left + parseFloat(style.borderLeftWidth || "0"));
         right = Math.min(right, box.right - parseFloat(style.borderRightWidth || "0"));
       }
+      if (bottom - top <= 0) continue;
       const cut = Math.max(rect.right - right, left - rect.left);
       if (cut > 1 && !designedTruncation) clipped.push({ text: text.slice(0, 40), cut: Math.round(cut) });
     }

@@ -1017,7 +1017,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid gap-3 @md:grid-cols-2 @3xl:grid-cols-4">
 <div data-measure="money" class="min-w-0">
 <a data-stat="Net, June" data-stat-role="money" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-financial-revenue h-full outline-none hover:ring-foreground/30 focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-shadow" href="/assets/meadow.example/financials" data-discover="true">
-<span class="truncate text-xs font-medium text-muted-foreground">Net, June</span>
+<span class="text-xs font-medium leading-snug text-muted-foreground">Net, June</span>
 <span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 <span class="text-figure tabular-nums text-foreground" data-stat-figure="">+$498.10</span>
 </span>
@@ -1026,7 +1026,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 <button type="button" data-measure="people" aria-pressed="true" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
 <div data-stat="Visitors a day, 28 days" data-stat-role="people" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-traffic h-full ring-2 ring-primary/70">
-<span class="truncate text-xs font-medium text-muted-foreground">Visitors a day, 28 days</span>
+<span class="text-xs font-medium leading-snug text-muted-foreground">Visitors a day, 28 days</span>
 <span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 <span class="text-figure tabular-nums text-foreground" data-stat-figure="">96</span>
 </span>
@@ -1121,7 +1121,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </button>
 <button type="button" data-measure="search" aria-pressed="false" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
 <div data-stat="Search clicks, 28 days" data-stat-role="people" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-traffic h-full">
-<span class="truncate text-xs font-medium text-muted-foreground">Search clicks, 28 days</span>
+<span class="text-xs font-medium leading-snug text-muted-foreground">Search clicks, 28 days</span>
 <span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 <span class="text-figure tabular-nums text-foreground" data-stat-figure="">333</span>
 </span>
@@ -1216,7 +1216,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </button>
 <button type="button" data-measure="product" aria-pressed="false" class="min-w-0 rounded-lg text-start outline-none focus-visible:ring-2 focus-visible:ring-ring">
 <div data-stat="Signups, latest report" data-stat-role="context" class="relative flex min-w-0 flex-col gap-1.5 overflow-hidden rounded-lg bg-card p-4 ring-1 ring-border/70 before:absolute before:inset-x-0 before:top-0 before:h-0.5 before:bg-foreground/25 h-full">
-<span class="truncate text-xs font-medium text-muted-foreground">Signups, latest report</span>
+<span class="text-xs font-medium leading-snug text-muted-foreground">Signups, latest report</span>
 <span class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
 <span class="text-figure tabular-nums text-foreground" data-stat-figure="">10</span>
 </span>
@@ -1249,7 +1249,11 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-1 flex-col">
 <div class="relative">
 <div aria-hidden="true" class="relative h-5">
-<span data-overview-change-label="" class="pointer-events-none absolute top-0 hidden max-w-[40%] truncate text-micro text-muted-foreground @xl:block -translate-x-full" style="left: calc(94.6429% - 14px);">July title batch</span>
+<span data-overview-change-label="" style="left: calc(94.6429% - 14px);" class="h-[1lh] min-w-0 overflow-hidden pointer-events-none absolute top-0 hidden max-w-[40%] text-micro text-muted-foreground @xl:block -translate-x-full" data-fit-label="">
+<span aria-hidden="true" class="inline-block w-0">
+</span>
+<span class="inline-block whitespace-nowrap">July title batch</span>
+</span>
 </div>
 <div class="relative h-44 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring @3xl:h-56" tabindex="0" role="group" aria-label="Visitors a day by day, Jun 8 to Jul 5" aria-describedby="_rID_">
 <span aria-hidden="true" class="absolute inset-x-0 border-t border-viz-grid" style="bottom: 0%;">
@@ -1488,8 +1492,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="grid grid-cols-[minmax(0,1fr)] gap-2 rounded-b-md bg-muted/40 px-2 pb-2.5 ps-9 text-xs leading-relaxed text-muted-foreground max-sm:wrap-anywhere" data-list-row-body="true">
 <dl class="grid gap-x-6 gap-y-1 sm:grid-cols-2">
 <div class="flex justify-between gap-3">
-<dt class="truncate text-muted-foreground">Average position</dt>
-<dd class="max-w-[16ch] truncate font-medium tabular-nums" title="6.1">6.1</dd>
+<dt class="min-w-0 break-words text-muted-foreground">Average position</dt>
+<dd class="max-w-[16ch] break-words text-end font-medium tabular-nums">6.1</dd>
 </div>
 </dl>
 <span data-recommendation-validity="unverified" class="block whitespace-normal text-xs font-normal normal-case tracking-normal text-muted-foreground tabular-nums">
@@ -1523,7 +1527,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <ul class="m-0 list-none p-0" data-movers="rising">
 <li class="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">Rising</li>
 <li class="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject="query:weekly meal plan">
-<span class="min-w-0 truncate">weekly meal plan</span>
+<span class="min-w-0 break-words">weekly meal plan</span>
 <span class="shrink-0 tabular-nums text-trend-positive">▲ 7.4→6.1</span>
 </li>
 </ul>

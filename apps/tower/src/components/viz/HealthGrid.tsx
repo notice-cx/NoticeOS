@@ -5,6 +5,7 @@ import { CONNECTION_LABELS, type SourceKind } from "@shared/connection-status";
 import { ageMs, formatAge } from "@shared/freshness";
 import { SegmentBar } from "@/components/SegmentBar";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { cn } from "@/lib/utils";
 
 // Which data feeds work, on which subject, and since when, as one picture:
@@ -725,11 +726,11 @@ export function HealthGrid({ rows, columns, nowMs, title = "Data sources", actio
                       title={column.label}
                       data-active={lit ? "" : undefined}
                       className={cn(
-                        "hidden truncate px-0.5 pb-1 text-center text-xs font-medium transition-colors @2xl:block",
+                        "hidden px-0.5 pb-1 text-xs font-medium transition-colors @2xl:block",
                         lit ? "text-foreground" : "text-muted-foreground",
                       )}
                     >
-                      <span aria-hidden>{column.short}</span>
+                      <FitLabel aria-hidden className="text-center">{column.short}</FitLabel>
                       <span className="sr-only">{column.label}</span>
                     </span>
                   );

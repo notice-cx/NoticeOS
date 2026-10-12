@@ -242,9 +242,11 @@ numbers align, baked into the stat components rather than applied by hand.
 
 **Layout fits the content.** Regions sit on a grid with spans by importance.
 Components size themselves by their own container (`@container`), not the
-viewport, so a panel in half the page lays out for half the page. A name never
-breaks mid-word: it truncates with the whole name on hover and to assistive
-technology, and a squeezed column drops before a name does. A filler line
+viewport, so a panel in half the page lays out for half the page. Nothing is
+cut to an ellipsis. A squeezed column drops before a name does, and a name
+too long for what is left wraps between its words, never mid-word and never a
+word a line. A label that must stay on one line (inside a timeline bar, over a
+grid column, on a chart) is shown whole or not at all (`FitLabel`). A filler line
 ("that's everything") is a line inside its region, never a grid cell of its
 own.
 

@@ -1192,6 +1192,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero"],
   },
   {
+    name: "FitLabel",
+    file: "components/viz/FitLabel.tsx",
+    purpose:
+      "A one-line label shown whole or not at all: wider than its room, it drops out rather than being cut to an ellipsis. For labels that must stay on one line, such as a name inside a timeline bar, a column header over a grid or a note on a chart; anything else wraps between its words.",
+    variants: ["fits, shown whole", "too wide, left out"],
+  },
+  {
     name: "PaceBar",
     file: "components/viz/PaceBar.tsx",
     purpose:

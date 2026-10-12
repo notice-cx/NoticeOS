@@ -758,7 +758,7 @@ function BoardRow({
           <TableCell
             label="Project"
             foldWhenStacked
-            className="max-w-[10rem] truncate whitespace-nowrap py-1 text-xs text-muted-foreground"
+            className="max-w-[10rem] break-words py-1 text-xs text-muted-foreground"
           >
             {project?.name ?? task.project}
           </TableCell>

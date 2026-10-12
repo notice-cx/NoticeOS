@@ -95,9 +95,7 @@ export function AlertBoard({
             </ul>
           ) : (
             <div className="px-5 pb-3 ps-10.5">
-              {/* The clamp sits on an unpadded box: padding under a clamped
-                  line would show the top of the next one. */}
-              <p className="m-0 text-xs text-muted-foreground line-clamp-2 max-sm:line-clamp-none">
+              <p className="m-0 text-xs text-muted-foreground">
                 {board.longStanding.map((item) => `${shortHeadline(translateAlert(item).headline)} on ${siteName(item)}`).join(" · ")}
               </p>
             </div>

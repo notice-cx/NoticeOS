@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import type { SurfaceAnnotation, SurfaceSpan } from "@shared/surface";
 import { ChartEventMarkers } from "@/components/ChartEventMarkers";
 import { axisLabelWidth } from "@/components/surface/HeroChart";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { formatCalendarRange, formatSeriesDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { dateRange, landmarks, type Measure, type MeasureDay, type MeasureGap } from "@/routes/asset-detail/overview-measures";
@@ -160,14 +161,14 @@ export function OverviewChart({ measure, tone, changes, watches, alertTo, action
         {/* Shipped changes: a mark above the plot that opens its own note. */}
         <div aria-hidden className="relative h-5">
           {labelled.map(({ change, index }) => (
-            <span
+            <FitLabel
               key={`${change.date}-${change.label}`}
               data-overview-change-label=""
-              className={cn("pointer-events-none absolute top-0 hidden max-w-[40%] truncate text-micro text-muted-foreground @xl:block", x(index) > 70 && "-translate-x-full")}
+              className={cn("pointer-events-none absolute top-0 hidden max-w-[40%] text-micro text-muted-foreground @xl:block", x(index) > 70 && "-translate-x-full")}
               style={{ left: x(index) > 70 ? `calc(${x(index)}% - 14px)` : `calc(${x(index)}% + 14px)` }}
             >
               {change.label}
-            </span>
+            </FitLabel>
           ))}
         </div>
 
@@ -258,6 +259,7 @@ export function OverviewChart({ measure, tone, changes, watches, alertTo, action
 
           {active !== null && days[active] ? (
             <Readout
+              subject={`readout:${instructions}`}
               day={days[active]}
               at={x(active)}
               measure={measure}
@@ -373,18 +375,19 @@ function Lane({ at, n, ink, kind, children }: {
             className={cn("absolute top-0 h-1.5 border-x border-b border-current/60", kind === "gap" && "viz-hatch border-dashed")}
             style={{ left: `${(one.from / n) * 100}%`, width: `${((one.to - one.from + 1) / n) * 100}%` }} />
         ))}
-        <span
-          className={cn("absolute top-1.5 max-w-full truncate font-medium", fromEnd && "text-end")}
+        <FitLabel
+          className={cn("absolute top-1.5 max-w-full font-medium", fromEnd && "text-end")}
           style={fromEnd ? { right: `${100 - end}%`, maxWidth: `${end}%` } : { left: `${start}%`, maxWidth: `${100 - start}%` }}
         >
           {kind === "alert" ? <span aria-hidden>△ </span> : kind === "watch" ? <span aria-hidden>◦ </span> : null}
           {children}
-        </span>
+        </FitLabel>
     </div>
   );
 }
 
-function Readout({ day, at, measure, counting, spans, changes }: {
+function Readout({ subject, day, at, measure, counting, spans, changes }: {
+  subject: string;
   day: MeasureDay;
   at: number;
   measure: Measure;
@@ -398,6 +401,7 @@ function Readout({ day, at, measure, counting, spans, changes }: {
   return (
     <div
       role="status"
+      data-status-for={subject}
       aria-atomic="true"
       className="pointer-events-none absolute top-1 z-10 grid min-w-36 max-w-64 -translate-x-1/2 gap-0.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs tabular-nums text-muted-foreground shadow-sm"
       style={{ left: `${Math.min(84, Math.max(16, at))}%` }}
@@ -408,7 +412,7 @@ function Readout({ day, at, measure, counting, spans, changes }: {
         {counting ? " · still counting" : ""}
         {day.v !== null && day.missing.length > 0 ? ` · ${day.missing.join(" and ")} not reported` : ""}
       </span>
-      {[...spans, ...changes].map((line) => <span key={line} className="line-clamp-2">{line}</span>)}
+      {[...spans, ...changes].map((line) => <span key={line}>{line}</span>)}
     </div>
   );
 }

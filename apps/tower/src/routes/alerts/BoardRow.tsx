@@ -107,12 +107,12 @@ export function BoardRow({
         >
           <span className="col-start-1 row-start-1">{mark}</span>
           <span className="col-start-2 row-start-1 grid min-w-0 gap-0.5">
-            <span className={cn("text-sm font-medium break-words", quiet ? "text-muted-foreground" : "text-foreground", !open && "line-clamp-2 max-sm:line-clamp-none")}>
+            <span className={cn("text-sm font-medium break-words", quiet ? "text-muted-foreground" : "text-foreground")}>
               {title}
             </span>
             {caption ? (
               // A sentence: it wraps rather than losing its end to an ellipsis.
-              <span className={cn("text-xs text-muted-foreground", !open && "line-clamp-2 max-sm:line-clamp-none")}>{caption}</span>
+              <span className="text-xs text-muted-foreground">{caption}</span>
             ) : null}
           </span>
           {evidence ? (

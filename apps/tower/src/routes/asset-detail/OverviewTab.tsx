@@ -46,6 +46,7 @@ import {
 import { Sparkline } from "@/components/surface/Sparkline";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { BarStrip } from "@/components/viz/BarStrip";
+import { FitLabel } from "@/components/viz/FitLabel";
 import { IncidentList, type Incident } from "@/components/viz/IncidentList";
 import { StatTile, type StatRole } from "@/components/viz/StatTile";
 import { watchOutcome } from "@/components/watch-outcome";
@@ -558,7 +559,7 @@ function SearchMovers({ trends, assetId }: { trends: SearchQueryTrends | null; a
               <li className="m-0 py-1 text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground">{column.word}</li>
               {column.rows.length === 0 ? <li className="m-0 py-1 text-xs text-muted-foreground">none</li> : column.rows.map((mover) => (
                 <li key={mover.query} className="m-0 flex items-baseline justify-between gap-3 border-t border-border/60 py-1.5 text-[13px]" data-subject={`query:${mover.query}`}>
-                  <span className="min-w-0 truncate">{mover.query}</span>
+                  <span className="min-w-0 break-words">{mover.query}</span>
                   <span className={cn("shrink-0 tabular-nums", column.tone)}>
                     {column.arrow} {position(mover.previousPosition)}→{position(mover.currentPosition)}
                   </span>
@@ -743,8 +744,8 @@ function WhatMatters({
             <dl className="grid gap-x-6 gap-y-1 sm:grid-cols-2">
               {findingEvidence(insight).map((row) => (
                 <div key={`${row.label}-${row.value}`} className="flex justify-between gap-3">
-                  <dt className="truncate text-muted-foreground">{savedEvidenceLabel(row.label)}</dt>
-                  <dd className="max-w-[16ch] truncate font-medium tabular-nums" title={row.value}>
+                  <dt className="min-w-0 break-words text-muted-foreground">{savedEvidenceLabel(row.label)}</dt>
+                  <dd className="max-w-[16ch] break-words text-end font-medium tabular-nums">
                     {row.value}
                   </dd>
                 </div>
@@ -991,7 +992,7 @@ export function ProductUse({
               />
               <span aria-hidden className="mt-0.5 flex justify-between gap-2 whitespace-nowrap text-micro" data-product-dates="">
                 <time dateTime={summary.first}>{formatSeriesDate(summary.first)}</time>
-                <span className="truncate">daily counts</span>
+                <FitLabel className="flex-1 text-center">daily counts</FitLabel>
                 <time dateTime={summary.last}>{formatSeriesDate(summary.last)}</time>
               </span>
               {summary.missingDays > 0 ? <span className="block">{summary.missingDays} missing {summary.missingDays === 1 ? "day" : "days"}</span> : null}

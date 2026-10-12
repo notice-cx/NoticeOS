@@ -178,10 +178,10 @@ function JobRow({ row, today, index }: { row: JobRunRow; today: string; index: n
       style={{ "--viz-i": index } as CSSProperties}
     >
       <span role="rowheader" className="flex min-w-0 items-baseline gap-2 @lg:flex-col @lg:items-start @lg:gap-0">
-        <Link to={row.href} title={row.label} className="min-w-0 truncate text-sm font-medium text-foreground hover:underline">
+        <Link to={row.href} title={row.label} className="min-w-0 break-words text-sm font-medium text-foreground hover:underline">
           {row.label}
         </Link>
-        <span className="truncate text-micro text-muted-foreground" title={row.schedule}>
+        <span className="text-micro text-muted-foreground">
           {row.paused ? "Paused" : row.schedule}
         </span>
       </span>

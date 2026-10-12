@@ -81,7 +81,7 @@ export function CostComposition({
           return (
             <li key={`${line.family}:${line.source ?? "none"}:${line.currency}`} className="flex min-w-0 flex-col gap-1.5" data-cost-line={line.source ?? ""}>
               <div className="flex min-w-0 items-baseline justify-between gap-3">
-                <span className="min-w-0 truncate text-sm font-medium text-foreground" title={label} data-cost-source={line.source ?? ""}>
+                <span className="min-w-0 break-words text-sm font-medium text-foreground" title={label} data-cost-source={line.source ?? ""}>
                   {label}
                   {line.rows > 1 ? <span className="ms-1.5 text-xs font-normal tabular-nums text-muted-foreground">×{line.rows}</span> : null}
                 </span>
