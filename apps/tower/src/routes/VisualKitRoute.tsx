@@ -237,7 +237,7 @@ export function VisualKitGallery() {
           <StackedWeeks weeks={WEEKS} keys={["claude", "codex", "Mara"]} names={{ claude: "claude", codex: "codex", Mara: "Mara" }}
             unit="tasks" ariaLabel="Tasks closed a week, by who closed them" className="min-h-48" />
         </Specimen>
-        <Specimen id="race-chart" title="RaceChart — a running total per contestant, racing to now" className="w-[36rem]">
+        <Specimen id="race-chart" title="RaceChart — a running total per contestant over 7 days" className="w-[36rem]">
           <RaceChart entries={RACE} from={RACE_FROM} to={RACE_FROM + 7 * 86_400_000} unit="task"
             ticks={Array.from({ length: 7 }, (_, index) => [RACE_FROM + index * 86_400_000, ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"][index]!] as const)}
             ariaLabel="Tasks closed in the last 7 days, per agent and model" className="min-h-60" />

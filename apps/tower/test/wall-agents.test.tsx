@@ -39,7 +39,7 @@ describe("WallAgents", () => {
     expect(within(rows[0]!).getByText("1")).toBeInTheDocument();
     expect(rows[0]).toHaveTextContent("claude · Opus 5.5");
     expect(rows[1]).toHaveTextContent("codex · GPT-5-Codex3");
-    expect(screen.getByText("13 closed · 2 in hand")).toBeInTheDocument();
+    expect(screen.getByText("13 closed · 2 in progress")).toBeInTheDocument();
   });
 
   it("says so when no agent has named a model", () => {

@@ -340,7 +340,7 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
   agents: {
     type: 'agents',
     label: 'Agents',
-    shows: ['Closed in 7 days', 'Agents and models', 'In hand'],
+    shows: ['Closed in 7 days', 'Agents and models', 'In progress'],
     defaultWidth: 1,
     minWidthRem: 18,
     maxWidthRem: 30,

@@ -19,7 +19,7 @@ export function WallAgents({ agents }: { agents: WallAgentsData | null | undefin
         <h2 className={eyebrow}>Agents · 7 days</h2>
         {agents ? (
           <span className="text-wall-micro tabular-nums text-muted-foreground" data-wall-agents-meta="">
-            {formatInt(agents.closed)} closed · {formatInt(agents.inProgress)} in hand
+            {formatInt(agents.closed)} closed · {formatInt(agents.inProgress)} in progress
           </span>
         ) : null}
       </div>

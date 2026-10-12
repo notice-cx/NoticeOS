@@ -23,7 +23,7 @@ The page starts with a one-line summary: **No decisions for you**, or **3 decisi
 
 **Filters**: **Project** (**Every project** or one), **Status** (**Any status**, then **Open**, **In progress**, **Blocked**, **Parked**, **Closed this week**, each with its count), **Priority**, **Assignee** and a label. The filters narrow the list, not the charts above it.
 
-**Working now**, under the answer, names who holds work in progress and how much, with **Agents →** to the [Agents](/tower/agents) page.
+**Working now**, under the summary, lists who holds tasks in progress and how many each holds, with a link, **Agents →**, to the [Agents](/tower/agents) page.
 
 **All tasks** is the table: **Id**, **Project**, **Who** (the agent or person holding it, or **nobody**), **Age** and **State**. Each row opens its task page at `/tasks/<id>`, with the full description and the evidence attached when it was closed.
 

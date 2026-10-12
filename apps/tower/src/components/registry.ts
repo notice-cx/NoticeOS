@@ -909,7 +909,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallAgents",
     file: "components/wall/WallAgents.tsx",
     purpose:
-      "The TV's Agents widget: each agent and the model it named, ranked by tasks closed in the last 7 days, with its place, a bar on one shared scale and the count, the leader in the win ink, and what the agents hold now.",
+      "The TV's Agents widget: each agent and the model it named, ranked by tasks closed in the last 7 days, with its place, a bar on one shared scale and the count, the leader in milestone green, and how many tasks the agents hold now.",
     variants: ["ranked standings", "no agent yet"],
   },
   {
@@ -1214,14 +1214,14 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "StackedWeeks",
     file: "components/viz/StackedWeeks.tsx",
     purpose:
-      "Weeks as columns, each split by who contributed: a quantity over time and its parts at once. Contributors are neutral inks named beside the newest settled week; the week still running is outlined and dashed.",
+      "Weeks as columns, each split by who contributed: a quantity over time and its parts at once. Contributors are neutral shades named beside the newest complete week; the current week is outlined and dashed.",
     variants: ["eight weeks, three contributors and the current week"],
   },
   {
     name: "RaceChart",
     file: "components/viz/RaceChart.tsx",
     purpose:
-      "A running total per contestant over one window, racing to now: the leader in the win ink, each line named at its end with its place, and Replay drawing the window again.",
+      "A running total per contestant over one window up to now: the leader in milestone green, each line named at its end with its place, and Replay drawing the lines again from the start.",
     variants: ["three contestants over seven days"],
   },
   {

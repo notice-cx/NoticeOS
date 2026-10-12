@@ -264,12 +264,12 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
   const recent = closed.filter((task) => Date.parse(task.closedAt!) >= from && modelsOf.has(task.closer!));
   const playerName = (task: AgentTask) => task.model ? `${label(task.closer!)} · ${task.model}` : label(task.closer!);
   const trophies: Trophy[] = [];
-  if (racers[0]) trophies.push({ key: "most", award: "Most shipped", holder: racers[0].model ? `${racers[0].name} · ${racers[0].model}` : racers[0].name,
+  if (racers[0]) trophies.push({ key: "most", award: "Most tasks closed", holder: racers[0].model ? `${racers[0].name} · ${racers[0].model}` : racers[0].name,
     value: `${racers[0].closes.length}`, detail: racers[0].closes.length === 1 ? "task" : "tasks" });
   const fastest = recent.filter((task) => (cycleHours(task) ?? -1) >= 0).sort((a, b) => cycleHours(a)! - cycleHours(b)!)[0];
   if (fastest) trophies.push({ key: "fastest", award: "Fastest close", holder: playerName(fastest), value: formatHours(cycleHours(fastest)!), detail: fastest.title });
   const streaks = workers.filter((worker) => worker.agent).map((worker) => ({ worker, streak: streakOf(worker.days) })).sort((a, b) => b.streak - a.streak);
-  if (streaks[0] && streaks[0].streak > 1) trophies.push({ key: "streak", award: "Longest streak", holder: streaks[0].worker.name,
+  if (streaks[0] && streaks[0].streak > 1) trophies.push({ key: "streak", award: "Most days in a row", holder: streaks[0].worker.name,
     value: `${streaks[0].streak}`, detail: "days running" });
   const urgent = new Map<string, { name: string; n: number }>();
   for (const task of recent.filter((entry) => entry.priority <= 1)) {
@@ -277,7 +277,7 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
     urgent.set(name, { name, n: (urgent.get(name)?.n ?? 0) + 1 });
   }
   const mostUrgent = [...urgent.values()].sort((a, b) => b.n - a.n)[0];
-  if (mostUrgent) trophies.push({ key: "urgent", award: "Took the urgent ones", holder: mostUrgent.name, value: `${mostUrgent.n}`,
+  if (mostUrgent) trophies.push({ key: "urgent", award: "Most urgent tasks closed", holder: mostUrgent.name, value: `${mostUrgent.n}`,
     detail: mostUrgent.n === 1 ? "high-priority close" : "high-priority closes" });
 
   const events: AgentEvent[] = [];

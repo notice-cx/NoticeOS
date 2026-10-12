@@ -32,7 +32,7 @@ export function WorkerRows({ workers, nowMs, href }: { workers: readonly Worker[
       {workers.length === 0 ? <EmptyState size="sm" title="Nobody has claimed a task yet" /> : (
         <div className="@container/rows flex flex-col">
           <div aria-hidden className="hidden gap-4 pb-2 text-micro font-semibold uppercase tracking-[0.06em] text-muted-foreground @2xl/rows:grid @2xl/rows:grid-cols-[minmax(8rem,1fr)_minmax(0,2.2fr)_9rem_5.5rem_4.5rem]">
-            <span>Who</span><span>Working on now</span><span>Done, 7 days</span><span>To close</span><span className="text-right">Blocked</span>
+            <span>Who</span><span>Working on now</span><span>Closed, 7 days</span><span>Claim to close</span><span className="text-right">Blocked</span>
           </div>
           {workers.map((worker) => {
             const first = worker.inHand[0];
@@ -50,7 +50,7 @@ export function WorkerRows({ workers, nowMs, href }: { workers: readonly Worker[
                       <span className="text-muted-foreground"> · {first.projectName}{first.claimedAt ? ` · ${formatAge(ageMs(nowMs, first.claimedAt))}` : ""}</span>
                       {worker.inHand.length > 1 ? <span className="text-muted-foreground"> · +{formatInt(worker.inHand.length - 1)} more</span> : null}
                     </>
-                  ) : <span className="text-muted-foreground">Nothing in hand</span>}
+                  ) : <span className="text-muted-foreground">Nothing in progress</span>}
                 </span>
                 <span className="col-start-2 row-start-1 flex items-center justify-end gap-2 @2xl/rows:col-start-auto @2xl/rows:row-start-auto @2xl/rows:justify-start">
                   <span className="text-figure-sm font-semibold tabular-nums text-foreground" data-agent-week={worker.week}>{formatInt(worker.week)}</span>
@@ -124,8 +124,8 @@ export function AgentFeed({ events, nowMs, href }: { events: readonly AgentEvent
   const dayName = (day: string) => day === today ? "Today" : day === yesterday ? "Yesterday"
     : new Date(`${day}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric", timeZone: "UTC" });
   return (
-    <section aria-label="What they've been up to" data-agent-feed="" className={PANEL}>
-      <h2 className={cn("m-0", eyebrowClass)}>What they've been up to</h2>
+    <section aria-label="Claims and closes" data-agent-feed="" className={PANEL}>
+      <h2 className={cn("m-0", eyebrowClass)}>Claims and closes</h2>
       {events.length === 0 ? <EmptyState size="sm" title="No claims or closes in the last 7 days" /> : (
         <div className="flex flex-col gap-3">
           {[...days.entries()].map(([day, list]) => (
@@ -171,8 +171,8 @@ const AWARD_ICON = { most: Trophy, fastest: Zap, streak: Flame, urgent: Timer } 
 /** The last seven days' awards, one figure each. */
 export function AgentTrophies({ trophies }: { trophies: readonly Award[] }) {
   return (
-    <section aria-label="Trophies" data-agent-trophies="" className={PANEL}>
-      <h2 className={cn("m-0", eyebrowClass)}>Trophies · last 7 days</h2>
+    <section aria-label="Leaders" data-agent-trophies="" className={PANEL}>
+      <h2 className={cn("m-0", eyebrowClass)}>Leaders · last 7 days</h2>
       {trophies.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
         <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
           {trophies.map((trophy, index) => {

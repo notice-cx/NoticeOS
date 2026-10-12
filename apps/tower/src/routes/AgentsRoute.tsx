@@ -13,7 +13,6 @@ import { useNow } from "@/hooks/useNow";
 import { formatHours, medianOf, type AgentWork } from "@/lib/agent-work";
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { AgentFeed, AgentTrophies, PANEL, WorkerRows, taskHref } from "./agents/agent-panels";
 
 const DAY_MS = 86_400_000;
@@ -21,8 +20,8 @@ const DAY_MS = 86_400_000;
 /**
  * `/agents`: who did the work. The answer is the last seven days' closes
  * against the seven before; then eight weeks of closes stacked by worker, each
- * worker's row, the week's race between agents and the models they named, its
- * trophies, and the claims and closes themselves with their evidence.
+ * worker's row, the week's ranking of agents and the models they named, its
+ * leaders, and the claims and closes themselves with their evidence.
  */
 export function AgentsRoute() {
   const nowMs = useNow();
@@ -32,7 +31,7 @@ export function AgentsRoute() {
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6" data-agents-page="">
       <PageHeader title="Agents" />
       {!read.live ? (
-        <div className={PANEL}><EmptyState title="Agent work needs the live task read" hint={READ_ONLY_TASKS_HINT} /></div>
+        <div className={PANEL}><EmptyState title="Not available in the read-only snapshot" hint="Open Agents in the local NoticeOS." /></div>
       ) : read.projects === 0 && !read.pending ? (
         <TaskHubUnavailable />
       ) : read.work === null ? (
@@ -64,11 +63,11 @@ function AgentsBoard({ work, nowMs, broken, complete, projectSelection }: {
       <div data-surface-hero="" className="flex flex-col gap-5">
         <PageAnswer
           answer={`${formatInt(work.week)} ${work.week === 1 ? "task" : "tasks"} closed in 7 days`}
-          detail={change === null ? "The 7 days before are still being read"
+          detail={change === null ? "Still loading the 7 days before"
             : change === 0 ? "As many as the 7 days before"
             : `${formatInt(Math.abs(change))} ${change > 0 ? "more" : "fewer"} than the 7 days before (${formatInt(work.lastWeek!)})`}
           figures={[
-            { label: "In hand", value: formatInt(work.inHand), mark: "agents-in-hand" },
+            { label: "In progress", value: formatInt(work.inHand), mark: "agents-in-hand" },
             { label: "Blocked", value: formatInt(work.blocked), tone: work.blocked > 0 ? "text-warn" : undefined, mark: "agents-blocked" },
             { label: "Claim to close", value: median === null ? "not yet" : formatHours(median), note: median === null ? undefined : "median", mark: "agents-median" },
           ]}
@@ -77,7 +76,7 @@ function AgentsBoard({ work, nowMs, broken, complete, projectSelection }: {
         <section aria-label="Velocity" data-agent-velocity="" className={cn(PANEL, "shadow-raised")}>
           <header className="flex flex-wrap items-baseline justify-between gap-3">
             <h2 className={cn("m-0", eyebrowClass)}>Velocity · tasks closed a week</h2>
-            <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · still reading some projects"}</span>
+            <span className="text-xs text-muted-foreground">{complete ? "last 8 weeks" : "last 8 weeks · some projects still loading"}</span>
           </header>
           <StackedWeeks weeks={work.velocity.weeks} keys={work.velocity.keys} names={work.velocity.names} unit="tasks"
             ariaLabel="Tasks closed a week, by who closed them" className="min-h-56" />
@@ -87,8 +86,8 @@ function AgentsBoard({ work, nowMs, broken, complete, projectSelection }: {
       <div className="@container">
       <div className="grid gap-4 @5xl:grid-cols-12 [&>*]:min-w-0">
         <div className="@5xl:col-span-7"><WorkerRows workers={work.workers} nowMs={nowMs} href={href} /></div>
-        <section aria-label="The week's race" data-agent-race="" className={cn(PANEL, "@5xl:col-span-5")}>
-          <h2 className={cn("m-0", eyebrowClass)}>The week's race · agents and models</h2>
+        <section aria-label="Ranking" data-agent-race="" className={cn(PANEL, "@5xl:col-span-5")}>
+          <h2 className={cn("m-0", eyebrowClass)}>Ranking · agents and models, last 7 days</h2>
           {work.race.players.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
             <RaceChart
               entries={work.race.players.map((player) => ({ key: player.key, name: player.model ? `${player.name} · ${player.model}` : player.name,
@@ -96,7 +95,7 @@ function AgentsBoard({ work, nowMs, broken, complete, projectSelection }: {
               from={work.race.from} to={work.race.to} unit="task" ticks={ticks}
               ariaLabel="Tasks closed in the last 7 days, running total per agent and model, ranked by points" className="min-h-64" />
           )}
-          <span className="text-xs text-muted-foreground">Ranked by points: urgent work counts more (top 5, high 3, normal 2, low 1).</span>
+          <span className="text-xs text-muted-foreground">Ranked by points: a top-priority task counts 5, high 3, normal 2, low and lowest 1.</span>
         </section>
       </div>
       </div>
