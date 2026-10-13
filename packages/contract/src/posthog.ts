@@ -51,6 +51,7 @@ export const POSTHOG_WINDOW_DAYS: Readonly<Record<PosthogFamily, number>> = {
   exceptions: 14,
   rageclicks: 14,
   'web-vitals': 14,
+  'inp-targets': 14,
   funnels: 7,
 };
 
@@ -62,6 +63,7 @@ export const POSTHOG_ROW_LIMITS: Readonly<Record<PosthogFamily, number>> = {
   exceptions: 100,
   rageclicks: 100,
   'web-vitals': 300,
+  'inp-targets': 300,
   funnels: POSTHOG_FUNNEL_LIMITS.maxFunnels * POSTHOG_FUNNEL_LIMITS.maxSteps,
 };
 
@@ -72,6 +74,8 @@ export const POSTHOG_WEB_VITALS_TOP_PATHS = 20;
 export const POSTHOG_MESSAGE_MAX = 200;
 /** Rage-click element text is cut to this many characters. */
 export const POSTHOG_ELEMENT_TEXT_MAX = 80;
+/** An interaction's target selector is cut to this many characters. */
+export const POSTHOG_INTERACTION_TARGET_MAX = 200;
 
 const isoDate = z.iso.date();
 const count = z.number().int().nonnegative();
@@ -153,6 +157,30 @@ export const posthogWebVitalsRowSchema = z.strictObject({
   measurements: count,
 } satisfies PosthogRowShape<'web-vitals'>);
 
+/**
+ * The element behind each page view's slowest interaction (INP), as the
+ * browser library's web-vitals attribution names it, grouped with that
+ * interaction's page, device and OS. One page view reports one interaction:
+ * its slowest. A null target means the event carried no attribution, which
+ * older library versions and unattributed metrics send.
+ */
+export const posthogInpTargetsRowSchema = z.strictObject({
+  path: z.string().nullable(),
+  device: z.string().nullable(),
+  os: z.string().nullable(),
+  /** The CSS selector of the element, cut to 200 characters, or null. */
+  target: z.string().max(POSTHOG_INTERACTION_TARGET_MAX).nullable(),
+  /** pointer or keyboard, or null when not recorded. */
+  interactionType: z.string().nullable(),
+  /** Page views whose slowest interaction was this one. */
+  measurements: count,
+  /** Milliseconds: the whole interaction, then its three parts. */
+  inpP75: percentile,
+  inputDelayP75: percentile,
+  processingP75: percentile,
+  presentationDelayP75: percentile,
+} satisfies PosthogRowShape<'inp-targets'>);
+
 export const posthogFunnelsRowSchema = z.strictObject({
   funnelId: z.string().min(1),
   name: z.string().min(1),
@@ -170,6 +198,7 @@ export type PosthogEventsRow = z.infer<typeof posthogEventsRowSchema>;
 export type PosthogExceptionsRow = z.infer<typeof posthogExceptionsRowSchema>;
 export type PosthogRageclicksRow = z.infer<typeof posthogRageclicksRowSchema>;
 export type PosthogWebVitalsRow = z.infer<typeof posthogWebVitalsRowSchema>;
+export type PosthogInpTargetsRow = z.infer<typeof posthogInpTargetsRowSchema>;
 export type PosthogFunnelsRow = z.infer<typeof posthogFunnelsRowSchema>;
 
 /** The row schema of each family, for a reader that has the family name. */
@@ -179,6 +208,7 @@ export const POSTHOG_ROW_SCHEMAS = {
   exceptions: posthogExceptionsRowSchema,
   rageclicks: posthogRageclicksRowSchema,
   'web-vitals': posthogWebVitalsRowSchema,
+  'inp-targets': posthogInpTargetsRowSchema,
   funnels: posthogFunnelsRowSchema,
 } as const satisfies Record<PosthogFamily, z.ZodType>;
 
@@ -188,6 +218,7 @@ export interface PosthogRowsByFamily {
   exceptions: PosthogExceptionsRow;
   rageclicks: PosthogRageclicksRow;
   'web-vitals': PosthogWebVitalsRow;
+  'inp-targets': PosthogInpTargetsRow;
   funnels: PosthogFunnelsRow;
 }
 
@@ -224,6 +255,7 @@ export const posthogArchiveBodySchema = z
     bodySchema('exceptions'),
     bodySchema('rageclicks'),
     bodySchema('web-vitals'),
+    bodySchema('inp-targets'),
     bodySchema('funnels'),
   ])
   .refine((body) => body.rows.length <= body.rowLimit, {

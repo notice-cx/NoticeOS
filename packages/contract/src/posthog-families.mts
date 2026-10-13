@@ -16,6 +16,7 @@ export const POSTHOG_FAMILIES = [
   'exceptions',
   'rageclicks',
   'web-vitals',
+  'inp-targets',
   'funnels',
 ] as const;
 export type PosthogFamily = (typeof POSTHOG_FAMILIES)[number];
@@ -40,6 +41,11 @@ export const POSTHOG_FAMILY_ROWS = {
   'web-vitals': {
     grain: 'page-device-os',
     fields: ['path', 'device', 'os', 'lcpP75', 'inpP75', 'clsP75', 'fcpP75', 'measurements'],
+  },
+  'inp-targets': {
+    grain: 'page-device-os-element',
+    fields: ['path', 'device', 'os', 'target', 'interactionType', 'measurements', 'inpP75', 'inputDelayP75',
+      'processingP75', 'presentationDelayP75'],
   },
   funnels: { grain: 'funnel-step', fields: ['funnelId', 'name', 'step', 'event', 'path', 'people'] },
 } as const satisfies Readonly<Record<PosthogFamily, PosthogFamilyRow>>;

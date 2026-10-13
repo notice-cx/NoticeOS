@@ -539,7 +539,7 @@ rage-click, and how fast the page is on their own device.
 **What runs, and when.** A daily run at **12:30 UTC** (`30 12 * * *`). It
 starts after the 12:15 Google/Bing archives and before the 13:10 local summary
 rebuild. For each launched asset that has both a key and a saved region and
-project, the run reads the project's timezone. It then runs six queries, one at
+project, the run reads the project's timezone. It then runs seven queries, one at
 a time, each ending on the last complete day in that timezone:
 
 | Family (report) | Window | One row is | Bound |
@@ -549,11 +549,12 @@ a time, each ending on the last complete day in that timezone:
 | `exceptions` | trailing 14 days | one error type + message (first 200 characters): count, people, sessions, most in one session, whether any stack frame names a source file, top page, top browser | top 100 by count |
 | `rageclicks` | trailing 14 days | one page + element (tag, text, name-or-id attribute): clicks, people, desktop/mobile/tablet clicks, people who viewed that page | top 100 by people |
 | `web-vitals` | trailing 14 days | one page × device × OS: 75th-percentile LCP, INP, CLS, FCP and the measurement count | top 20 pages by measurements, all their segments, at most 300 rows |
+| `inp-targets` | trailing 14 days | one page × device × OS × the element behind each page view's slowest interaction (its CSS selector, first 200 characters) × pointer or keyboard: page views, 75th-percentile INP and its three parts (input delay, processing, presentation delay) | the same top 20 pages, at most 300 rows by page views |
 | `funnels` | trailing 7 days | one step of a declared funnel: people who reached it in order within the window | the declared steps |
 
 **Window grain, not day grain.** Unique people and percentiles cannot be
-added across days, so a 14-day total built from daily rows would be wrong. So `events`, `exceptions`, `rageclicks`, `web-vitals` and
-`funnels` are one row per item over the whole window. Only `web-daily` has one
+added across days, so a 14-day total built from daily rows would be wrong. So `events`, `exceptions`, `rageclicks`, `web-vitals`,
+`inp-targets` and `funnels` are one row per item over the whole window. Only `web-daily` has one
 row per day, and its `people` is unique within that day. The archive body records
 its own window (`window.start`/`window.end`, inclusive, in the project's
 timezone), so a reader never has to assume one.
@@ -684,6 +685,11 @@ counts the ones left for the next run in `retryNotAsked`.
   has merged a person across ids.
 - Web-vitals percentiles use `quantileExact`, so a re-run gives the same
   result. PostHog's own dashboards use an approximate percentile.
+- `inp-targets` reads the attribution PostHog's browser library keeps for INP
+  by default (`$web_vitals_INP_event.attribution`: `interactionTarget`,
+  `interactionType`, `inputDelay`, `processingDuration`, `presentationDelay`).
+  An event from a library version that kept none has an empty element and
+  empty parts: unknown, not a fast interaction.
 
 **Checklist, filled.**
 

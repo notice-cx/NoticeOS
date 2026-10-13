@@ -95,6 +95,11 @@ const FIXTURE_ROWS: Record<string, unknown[][]> = {
     ['/', 'Desktop', 'Windows', 3256, 190, null, 1500, 9001],
     ['/', 'Mobile', 'Android', 1645, 120, 0.01, 900, 8800],
   ],
+  'inp-targets': [
+    ['/calculator', 'Desktop', 'Chrome OS', 'button.print', 'pointer', 120, 1000, 8, 40, 952],
+    ['/calculator', 'Desktop', 'Chrome OS', 'input#age', 'keyboard', 300, 64, 2, 30, 32],
+    ['/calculator', 'Mobile', 'iOS', null, null, 90, 144, null, null, null],
+  ],
   funnels: [[18826, 15864, 15394]],
 };
 
@@ -104,6 +109,7 @@ const FIXTURE_COLUMNS: Record<string, string[]> = {
   exceptions: ['exception_type', 'exception_message', 'occurrences', 'people', 'sessions', 'max_per_session', 'has_source_file', 'top_path', 'top_browser'],
   rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people'],
   'web-vitals': ['path', 'device', 'os', 'lcp_p75', 'inp_p75', 'cls_p75', 'fcp_p75', 'measurements'],
+  'inp-targets': ['path', 'device', 'os', 'target', 'interaction_type', 'measurements', 'inp_p75', 'input_delay_p75', 'processing_p75', 'presentation_delay_p75'],
   funnels: ['funnel_1_step_1', 'funnel_1_step_2', 'funnel_1_step_3'],
 };
 
@@ -190,17 +196,17 @@ async function manifests(): Promise<ManifestRow[]> {
 beforeEach(reset);
 
 describe('PostHog product analytics archive', () => {
-  it('archives all six families for meadow.example with the contract body', async () => {
+  it('archives all seven families for meadow.example with the contract body', async () => {
     const { fetchImpl, calls } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register() });
 
-    expect(result).toMatchObject({ attempted: 6, succeeded: 6, failed: 0, budgetStopped: false, budgetRemainingBytes: 9000000000, bytesRead: 6000 });
-    // One project read, then the six families strictly one after another.
+    expect(result).toMatchObject({ attempted: 7, succeeded: 7, failed: 0, budgetStopped: false, budgetRemainingBytes: 9000000000, bytesRead: 7000 });
+    // One project read, then the seven families strictly one after another.
     expect(calls.map((call) => `${call.method} ${call.url}`)).toEqual([
       `GET ${ORIGIN}/api/projects/424242/`,
-      ...Array.from({ length: 6 }, () => `POST ${ORIGIN}/api/projects/424242/query/`),
+      ...Array.from({ length: 7 }, () => `POST ${ORIGIN}/api/projects/424242/query/`),
     ]);
-    expect(calls.map((call) => call.family)).toEqual([null, 'web-daily', 'events', 'exceptions', 'rageclicks', 'web-vitals', 'funnels']);
+    expect(calls.map((call) => call.family)).toEqual([null, 'web-daily', 'events', 'exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels']);
     expect(calls.every((call) => call.authorization === `Bearer ${KEY}`)).toBe(true);
 
     const rows = await manifests();
@@ -210,6 +216,7 @@ describe('PostHog product analytics archive', () => {
       ['exceptions', 'success', '2026-09-22'],
       ['rageclicks', 'success', '2026-09-22'],
       ['web-vitals', 'success', '2026-09-22'],
+      ['inp-targets', 'success', '2026-09-22'],
       ['funnels', 'success', '2026-09-22'],
     ]);
     const workspaceId = await env.STORE.workspaceId();
@@ -250,6 +257,17 @@ describe('PostHog product analytics archive', () => {
     expect((bodies.get('rageclicks')!.rows as { text: string | null }[]).map((row) => row.text).filter(Boolean)).toEqual(['Next', 'Female', 'Male', 'Calculate My Plan']);
     expect((bodies.get('web-vitals')!.rows as unknown[])[0]).toEqual({ path: '/calculator', device: 'Desktop', os: 'Chrome OS', lcpP75: 3844, inpP75: 744, clsP75: 0.051, fcpP75: 1802, measurements: 22298 });
     expect((bodies.get('web-vitals')!.rows as { clsP75: number | null }[])[4]!.clsP75).toBeNull();
+    // The element behind each page view's slowest tap, with where its time went;
+    // an event with no attribution keeps its count and leaves the parts unknown.
+    expect(bodies.get('inp-targets')).toMatchObject({ window: { start: '2026-09-09', end: '2026-09-22' }, rowLimit: 300 });
+    expect(bodies.get('inp-targets')!.rows).toEqual([
+      { path: '/calculator', device: 'Desktop', os: 'Chrome OS', target: 'button.print', interactionType: 'pointer', measurements: 120,
+        inpP75: 1000, inputDelayP75: 8, processingP75: 40, presentationDelayP75: 952 },
+      { path: '/calculator', device: 'Desktop', os: 'Chrome OS', target: 'input#age', interactionType: 'keyboard', measurements: 300,
+        inpP75: 64, inputDelayP75: 2, processingP75: 30, presentationDelayP75: 32 },
+      { path: '/calculator', device: 'Mobile', os: 'iOS', target: null, interactionType: null, measurements: 90,
+        inpP75: 144, inputDelayP75: null, processingP75: null, presentationDelayP75: null },
+    ]);
     expect(bodies.get('funnels')!.rows).toEqual([
       { funnelId: 'calculator', name: 'Calculator', step: 1, event: '$pageview', path: '/calculator', people: 18826 },
       { funnelId: 'calculator', name: 'Calculator', step: 2, event: 'form_start', path: null, people: 15864 },
@@ -263,7 +281,7 @@ describe('PostHog product analytics archive', () => {
       nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register(),
       scope: { asset: 'meadow.example', window: { start: '2026-09-08', end: '2026-09-22' } },
     });
-    expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 7 });
     for (const call of calls.filter((c) => c.method === 'POST')) {
       expect(call.query).toContain("timestamp >= toDateTime('2026-09-08 00:00:00')");
       expect(call.query).toContain("timestamp < toDateTime('2026-09-23 00:00:00')");
@@ -277,9 +295,9 @@ describe('PostHog product analytics archive', () => {
     const before = (await env.RAW_SIGNALS.list()).objects.length;
     // A later collectedAt must not change the content hash.
     const again = await runPosthogDumps(env, { nowMs: NOW + 3_600_000, fetchImpl: posthogFetch().fetchImpl, rawKeys: KEYS, laneRegister: register() });
-    expect(again).toMatchObject({ attempted: 6, succeeded: 0, unchanged: 6 });
+    expect(again).toMatchObject({ attempted: 7, succeeded: 0, unchanged: 7 });
     expect((await env.RAW_SIGNALS.list()).objects.length).toBe(before);
-    expect((await manifests()).filter((row) => row.status === 'unchanged')).toHaveLength(6);
+    expect((await manifests()).filter((row) => row.status === 'unchanged')).toHaveLength(7);
   });
 
   it('keeps the contract bound and marks the archive truncated when PostHog had more', async () => {
@@ -319,6 +337,7 @@ describe('PostHog product analytics archive', () => {
     expect(result.skipped.filter((skip) => skip.family !== null).map((skip) => [skip.family, skip.reason])).toEqual([
       ['rageclicks', 'budget-exhausted'],
       ['web-vitals', 'budget-exhausted'],
+      ['inp-targets', 'budget-exhausted'],
       ['funnels', 'budget-exhausted'],
     ]);
   });
@@ -368,7 +387,7 @@ describe('PostHog product analytics archive', () => {
   it('skips the funnels family with a reason when none are declared', async () => {
     const { fetchImpl, calls } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register({ host: 'us', projectId: '424242' }) });
-    expect(result).toMatchObject({ attempted: 5, succeeded: 5 });
+    expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
     expect(calls.some((call) => call.family === 'funnels')).toBe(false);
     expect(result.skipped).toContainEqual(expect.objectContaining({ asset: 'meadow.example', family: 'funnels', reason: 'no-funnels' }));
   });
@@ -378,8 +397,8 @@ describe('PostHog product analytics archive', () => {
       Response.json({ type: 'authentication_error', code: 'authentication_failed', detail: 'Personal API key found in request Authorization header is invalid.' }, { status: 401 }),
     );
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register() });
-    expect(result).toMatchObject({ attempted: 6, failed: 6, budgetStopped: false });
-    // One project read, no query: the key's refusal is today's answer for all six.
+    expect(result).toMatchObject({ attempted: 7, failed: 7, budgetStopped: false });
+    // One project read, no query: the key's refusal is today's answer for all seven.
     expect(calls).toHaveLength(1);
     const rows = await manifests();
     expect(new Set(rows.map((row) => row.errorCode))).toEqual(new Set(['posthog_access_denied']));
@@ -401,7 +420,7 @@ describe('PostHog product analytics archive', () => {
     );
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register() });
     expect(calls.map((call) => call.family)).toEqual([null, 'web-daily', 'events']);
-    expect(result).toMatchObject({ attempted: 6, succeeded: 1, failed: 5 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 1, failed: 6 });
     expect((await manifests()).slice(1).every((row) => row.errorCode === 'posthog_access_denied')).toBe(true);
   });
 
@@ -423,7 +442,7 @@ describe('PostHog product analytics archive', () => {
     await putCredential(env, { provider: 'posthog', fields: { POSTHOG_KEYS: KEYS } });
     const { fetchImpl, calls } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, laneRegister: register() });
-    expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 7 });
     expect(calls[0]!.authorization).toBe(`Bearer ${KEY}`);
     expect((await manifests())[0]!.credentialRef).toBe('store:POSTHOG_KEYS');
     const stamped = await credentialVerdict('posthog');
@@ -438,7 +457,7 @@ describe('PostHog product analytics archive', () => {
     );
     await runPosthogDumps(env, { nowMs: NOW, fetchImpl, laneRegister: register() });
     const stamped = await credentialVerdict('posthog');
-    expect(stamped?.lastError).toBe('Access was refused · 6 of 6 reports');
+    expect(stamped?.lastError).toBe('Access was refused · 7 of 7 reports');
   });
 });
 
@@ -503,7 +522,7 @@ describe('PostHog — one run per asset at a time', () => {
     expect(held?.expiresAt).toBe(NOW + POSTHOG_LEASE_MS);
     expect(held?.owner).toMatch(/^[0-9a-f-]{36}$/);
     posthog.open();
-    expect(await run).toMatchObject({ attempted: 6, succeeded: 6 });
+    expect(await run).toMatchObject({ attempted: 7, succeeded: 7 });
     expect(await leaseRow()).toBeNull();
   });
 
@@ -516,8 +535,8 @@ describe('PostHog — one run per asset at a time', () => {
     expect(refused).toMatchObject({ attempted: 0, succeeded: 0, failed: 0 });
     expect(second.calls).toHaveLength(0);
     first.open();
-    expect(await firstRun).toMatchObject({ attempted: 6, succeeded: 6 });
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(6);
+    expect(await firstRun).toMatchObject({ attempted: 7, succeeded: 7 });
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(7);
   });
 
   it('skips, with its reason, an asset another run holds, and still collects the others', async () => {
@@ -543,8 +562,8 @@ describe('PostHog — one run per asset at a time', () => {
     });
     // Nothing was asked about meadow.example's project; northwind.example's was read.
     expect(calls.some((call) => call.url.includes('/424242/'))).toBe(false);
-    expect(calls.filter((call) => call.url.includes('/700001/'))).toHaveLength(6);
-    expect(result).toMatchObject({ attempted: 5, succeeded: 5 });
+    expect(calls.filter((call) => call.url.includes('/700001/'))).toHaveLength(7);
+    expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
     expect(new Set((await manifests()).map((row) => row.propertyRef))).toEqual(new Set(['us:700001']));
     // The holder's lease is untouched; northwind.example's was given back.
     expect(await leaseRow()).toEqual({ owner: 'on-demand-run', expiresAt: NOW + POSTHOG_LEASE_MS - 600_000 });
@@ -555,7 +574,7 @@ describe('PostHog — one run per asset at a time', () => {
     await holdLease('meadow.example', 'crashed-run', NOW);
     const { fetchImpl } = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl, rawKeys: KEYS, laneRegister: register() });
-    expect(result).toMatchObject({ attempted: 6, succeeded: 6 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 7 });
     expect(result.skipped.some((skip) => skip.reason === 'in-flight')).toBe(false);
     expect(await leaseRow()).toBeNull();
 
@@ -566,7 +585,7 @@ describe('PostHog — one run per asset at a time', () => {
 
   it('releases the lease after provider failures and after a 429 budget stop', async () => {
     const denied = posthogFetch(() => Response.json({ detail: 'Invalid key.' }, { status: 401 }));
-    expect(await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl: denied.fetchImpl, rawKeys: KEYS, laneRegister: register() })).toMatchObject({ attempted: 6, failed: 6 });
+    expect(await runPosthogDumps(env, { nowMs: NOW, clock, fetchImpl: denied.fetchImpl, rawKeys: KEYS, laneRegister: register() })).toMatchObject({ attempted: 7, failed: 7 });
     expect(await leaseRow()).toBeNull();
 
     const budget = posthogFetch((call) =>
@@ -662,9 +681,9 @@ describe('PostHog — a store failure while saving a report', () => {
       await restore();
     }
 
-    // PostHog answered all six; the store kept none of them.
-    expect(posthog.calls.filter((call) => call.method === 'POST')).toHaveLength(6);
-    expect(result).toMatchObject({ attempted: 6, succeeded: 0, failed: 6 });
+    // PostHog answered all seven; the store kept none of them.
+    expect(posthog.calls.filter((call) => call.method === 'POST')).toHaveLength(7);
+    expect(result).toMatchObject({ attempted: 7, succeeded: 0, failed: 7 });
     const rows = await manifests();
     expect(rows.map((row) => [row.report, row.status, row.errorCode])).toEqual(
       POSTHOG_FAMILIES.map((family) => [family, 'error', LOCAL_STORE_FAILED]),
@@ -698,7 +717,7 @@ describe('PostHog — a store failure while saving a report', () => {
       { nowMs: DAY, fetchImpl: posthog.fetchImpl, laneRegister: register() },
     );
 
-    expect(result).toMatchObject({ attempted: 6, succeeded: 5, failed: 1 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 6, failed: 1 });
     expect((await manifests()).find((row) => row.report === 'events')).toMatchObject({ status: 'error', errorCode: LOCAL_STORE_FAILED, objectKey: null });
     expect(await healthOf('events', '2026-09-13')).toEqual({ outcome: 'failure', failure: 'monitoring', code: 'monitoring' });
     // The key worked for every report PostHog answered.
@@ -789,7 +808,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl: cutUplink(posthog.fetchImpl), laneRegister: register() });
 
-    expect(result).toMatchObject({ attempted: 6, succeeded: 0, failed: 6, retried: 0 });
+    expect(result).toMatchObject({ attempted: 7, succeeded: 0, failed: 7, retried: 0 });
     for (const outcome of result.outcomes) expect(outcome).toMatchObject({ egressDown: true, errorCode: EGRESS_DOWN_CODE });
     expect(posthog.calls).toHaveLength(0);
     // No manifest, no Health observation, no credential verdict: nothing that
@@ -816,7 +835,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     }) as typeof fetch;
     const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl, rawKeys: KEYS, laneRegister: register() });
 
-    expect(result).toMatchObject({ attempted: 6, failed: 6 });
+    expect(result).toMatchObject({ attempted: 7, failed: 7 });
     expect(result.outcomes.every((outcome) => outcome.egressDown === true)).toBe(true);
     // The first query met the wall; the other five were never sent into it.
     expect(sent.filter((url) => url.endsWith('/query/'))).toHaveLength(1);
@@ -830,7 +849,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const back = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: reachable(posthog.fetchImpl), rawKeys: KEYS, laneRegister: register() });
 
-    expect(back).toMatchObject({ attempted: 12, succeeded: 12, failed: 0, retried: 6 });
+    expect(back).toMatchObject({ attempted: 14, succeeded: 14, failed: 0, retried: 7 });
     // Per family, the window the dark night owed and then today's.
     expect(asked(posthog.calls)).toEqual(FAMILIES.flatMap((family) => [`${family} 2026-09-22`, `${family} 2026-09-23`]));
     // The exact window that night's own run would have asked.
@@ -878,7 +897,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     const posthog = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: KEYS, laneRegister: register(), retryLimit: 20 });
 
-    expect(next.retried).toBe(10);
+    expect(next.retried).toBe(11);
     expect(asked(posthog.calls).filter((ask) => !ask.endsWith('2026-09-23'))).toEqual([
       'web-daily 2026-09-22',
       'events 2026-09-17',
@@ -889,6 +908,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
       'rageclicks 2026-09-22',
       'web-vitals 2026-09-21',
       'web-vitals 2026-09-22',
+      'inp-targets 2026-09-22',
       'funnels 2026-09-22',
     ]);
     for (const family of FAMILIES) expect(await latest(family, '2026-09-22')).toMatchObject({ status: 'success' });
@@ -962,42 +982,43 @@ describe('PostHog — an offline night and the windows it cost', () => {
       ['exceptions', 'budget-exhausted'],
       ['rageclicks', 'budget-exhausted'],
       ['web-vitals', 'budget-exhausted'],
+      ['inp-targets', 'budget-exhausted'],
       ['funnels', 'budget-exhausted'],
     ]);
-    // The four the stop never reached stay owed on the alert, which stays open
+    // The five the stop never reached stay owed on the alert, which stays open
     // for them.
     expect(await latest('events', '2026-09-22')).toMatchObject({ errorCode: 'posthog_query_budget_exceeded' });
     expect(await owedOnFlag()).toEqual({
-      'meadow.example': ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `posthog:${family}:2026-09-22`),
+      'meadow.example': ['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `posthog:${family}:2026-09-22`),
     });
 
-    // The next day: the four the alert names, the refused window once more,
-    // and the windows of 09-23 the stop never asked — oldest first, six at most.
+    // The next day: the five the alert names, the refused window once more,
+    // and the windows of 09-23 the stop never asked — oldest first, seven at most.
     const again = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY + 86_400_000, fetchImpl: reachable(again.fetchImpl), rawKeys: KEYS, laneRegister: register() });
-    expect(next.retried).toBe(6);
-    // Named window by window, with the four left for the next run.
+    expect(next.retried).toBe(7);
+    // Named window by window, with the five left for the next run.
     expect(next.recollected.map((outcome) => `${outcome.report} ${outcome.reportDate}`)).toEqual([
       'events 2026-09-22',
       'events 2026-09-23',
-      ...['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `${family} 2026-09-22`),
+      ...['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
     ]);
-    expect(next.retryNotAsked).toBe(4);
+    expect(next.retryNotAsked).toBe(5);
     expect(asked(again.calls)).toEqual([
       'web-daily 2026-09-24',
       'events 2026-09-22',
       'events 2026-09-23',
       'events 2026-09-24',
-      ...['exceptions', 'rageclicks', 'web-vitals', 'funnels'].flatMap((family) => [`${family} 2026-09-22`, `${family} 2026-09-24`]),
+      ...['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].flatMap((family) => [`${family} 2026-09-22`, `${family} 2026-09-24`]),
     ]);
     expect(await openEgressFlags()).toBe(0);
 
     // And the day after, the rest of what the stop never asked.
     const last = posthogFetch();
     const after = await runPosthogDumps(env, { nowMs: NEXT_DAY + 2 * 86_400_000, fetchImpl: last.fetchImpl, rawKeys: KEYS, laneRegister: register() });
-    expect(after.retried).toBe(4);
+    expect(after.retried).toBe(5);
     expect(asked(last.calls).filter((ask) => ask.endsWith('2026-09-23'))).toEqual(
-      ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `${family} 2026-09-23`),
+      ['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-23`),
     );
     for (const family of FAMILIES) {
       expect(await latest(family, '2026-09-22')).toMatchObject({ status: 'success' });
@@ -1069,7 +1090,7 @@ describe('PostHog — an offline night and the windows it cost', () => {
     );
     await runPosthogDumps(env, { nowMs: NOW, fetchImpl: first.fetchImpl, rawKeys: KEYS, laneRegister: register() });
     // The 403 is the key's refusal for every window left that day.
-    for (const family of ['rageclicks', 'web-vitals', 'funnels']) {
+    for (const family of ['rageclicks', 'web-vitals', 'inp-targets', 'funnels']) {
       expect(await latest(family, '2026-09-22')).toMatchObject({ errorCode: 'posthog_access_denied' });
     }
 
@@ -1130,16 +1151,16 @@ describe('PostHog — an offline night and the windows it cost', () => {
     });
     expect(stopped).toMatchObject({ budgetStopped: true, attempted: 3, failed: 1 });
     expect(stopped.skipped.filter((skip) => skip.reason === 'budget-exhausted').map((skip) => `${skip.asset} ${skip.family}`)).toEqual([
-      ...['rageclicks', 'web-vitals', 'funnels'].map((family) => `meadow.example ${family}`),
+      ...['rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `meadow.example ${family}`),
       ...NOM_FAMILIES.map((family) => `northwind.example ${family}`),
     ]);
 
     const posthog = posthogFetch();
     const next = await runPosthogDumps(env, { nowMs: NEXT_DAY, fetchImpl: posthog.fetchImpl, rawKeys: keys, laneRegister: assets });
     // The refused window once more, and every window the stop never asked.
-    expect(next.retried).toBe(4 + NOM_FAMILIES.length);
+    expect(next.retried).toBe(5 + NOM_FAMILIES.length);
     expect(project('424242')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
-      ['exceptions', 'rageclicks', 'web-vitals', 'funnels'].map((family) => `${family} 2026-09-22`),
+      ['exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels'].map((family) => `${family} 2026-09-22`),
     );
     expect(project('700001')(posthog.calls).filter((ask) => ask.endsWith('2026-09-22'))).toEqual(
       NOM_FAMILIES.map((family) => `${family} 2026-09-22`),
