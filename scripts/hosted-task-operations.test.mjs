@@ -6,7 +6,8 @@ import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/hosted-task-operations.mts: retry-safe writes over the
-// shared fakes in test-fixtures/hosted-task-fakes.mjs.
+// shared fakes in test-fixtures/hosted-task-fakes.mjs, and reads in one
+// executor session.
 
 const [A, B, P, S, PERSON, OTHER] = ['11111111', '22222222', '33333333', '44444444', '55555555', '66666666']
   .map(prefix => `${prefix}-1111-4111-8111-111111111111`);
@@ -120,4 +121,76 @@ test('keys and operation identities are the server’s, never a caller’s', asy
   const plain = fixture();
   assert.deepEqual(await plain.operations.write(proof(), A, create), { status: 'done', value: { id: 'tt-1', project: 'example' }, replayed: false });
   assert.equal(plain.store.rows.size, 0);
+});
+
+test('a close records who closed it and with which model; the close stands if that record fails', async () => {
+  const f = fixture();
+  await f.operations.write(proof(), A, create, KEY);
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'update', taskId: 'tt-1', claim: true, model: 'Opus 5.5' } });
+  assert.equal(f.tasks.get('tt-1').metadata.noticeos_claimed_model, 'Opus 5.5');
+  const closed = await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-1', reason: 'Done · abc1234', model: 'Opus 5.5' } }, 'agent-close-0001');
+  assert.equal(closed.status, 'done');
+  const { metadata, closed_at } = f.tasks.get('tt-1');
+  assert.deepEqual([metadata.noticeos_closed_by, metadata.noticeos_closed_model, metadata.noticeos_closed_at], [PERSON, 'Opus 5.5', closed_at]);
+  // A replayed close repeats nothing, the record included.
+  assert.equal((await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-1', reason: 'Done · abc1234', model: 'Opus 5.5' } }, 'agent-close-0001')).replayed, true);
+  assert.deepEqual(f.attributions, [['tt-1', PERSON]]);
+
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'Second' } });
+  f.fail('attribute');
+  const unrecorded = await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'close', taskId: 'tt-2', reason: 'Done' } });
+  assert.equal(unrecorded.status, 'done');
+  assert.equal(f.tasks.get('tt-2').status, 'closed');
+  assert.equal(f.tasks.get('tt-2').metadata.noticeos_closed_by, undefined);
+});
+
+test('a closed-only read may ask for the Agents page history; the board keeps its week', async () => {
+  const f = fixture();
+  const history = await f.operations.board(proof(), A, P, ['closed'], 56);
+  assert.equal(history.closedSince, '2026-08-12');
+  assert.equal(history.epics, null);
+  const read = f.calls.filter(call => call.operation.kind !== 'closed-board').map(call => call.operation.kind);
+  assert.deepEqual(read, [], 'a closed-only read skips the ready list and the epics');
+  assert.equal((await f.operations.board(proof(), A, P, ['open', 'closed'])).closedSince, '2026-09-30');
+  await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 57));
+  await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 0));
+});
+
+test('a board, task or history read runs its commands in one executor session where the executor offers one', async () => {
+  const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
+    membership: async (_headers, workspaceId) => ({ principalId: PERSON, sessionId: S,
+      expiresAt: new Date(Date.now() + 60000).toISOString(), workspaceId, role: 'operator', workspaceStatus: 'active' }) });
+  const answers = {
+    ready: [{ id: 'tt-1' }],
+    'active-board': [{ id: 'tt-1', title: 'Open', status: 'open', priority: 2 }],
+    'closed-board': [{ id: 'tt-2', title: 'Closed', status: 'closed', priority: 2, closed_at: new Date(Date.now() - 60000).toISOString() }],
+    show: [{ id: 'tt-1', title: 'Open', status: 'open', priority: 2 }],
+    comments: [], history: [],
+  };
+  const sessions = [];
+  const executor = {
+    execute: async () => assert.fail('A read goes through the session'),
+    reads: async (_proof, workspaceId, projectId, work) => {
+      const kinds = []; sessions.push({ workspaceId, projectId, kinds });
+      return work(async operation => {
+        kinds.push(operation.kind);
+        if (operation.kind === 'epics') throw new Error('unavailable');
+        return answers[operation.kind];
+      });
+    },
+  };
+  const operations = createHostedTaskOperations({ admission, executor,
+    directory: { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]) } });
+  const board = await operations.board(proof(), A, P, ['open', 'closed']);
+  assert.deepEqual(board.tasks.map(row => [row.id, row.ready]), [['tt-1', true], ['tt-2', false]]);
+  assert.equal(board.epics, null, 'A failed epic read inside the session stays unknown');
+  assert.equal((await operations.task(proof(), A, P, 'tt-1')).task.id, 'tt-1');
+  assert.deepEqual(await operations.history(proof(), A, P, 'tt-1', 5), []);
+  assert.deepEqual(sessions, [
+    { workspaceId: A, projectId: P, kinds: ['ready', 'active-board', 'closed-board', 'epics'] },
+    { workspaceId: A, projectId: P, kinds: ['ready', 'show', 'comments'] },
+    { workspaceId: A, projectId: P, kinds: ['history'] },
+  ]);
+  assert.throws(() => createHostedTaskOperations({ admission, executor: { ...executor, reads: 'not a function' },
+    directory: { catalog: async () => [] } }));
 });

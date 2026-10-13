@@ -917,6 +917,19 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     expect('handoffs' in stored).toBe(false);
   });
 
+  // Who did the work rides beside the board for the Wall and Home, which read
+  // no live task server: each worker and model, and the newest claims and closes.
+  it('stores who did the work, and an older poller sends none', async () => {
+    const workers = [{ id: 'claude', model: 'Opus 5.5', closedRecent: 4, inProgress: 1 }, { id: 'Mara', model: null, closedRecent: 1, inProgress: 0 }];
+    const recentWork = [{ kind: 'closed', taskId: 'md-9x1', title: 'Fix the export', by: 'claude', model: 'Opus 5.5',
+      at: '2026-08-02T10:00:00.000Z', evidence: 'Exports pass · 3f2a91c' }];
+    const stored = await storedProject({ projects: [project({ workers, recentWork })] });
+    expect(stored.workers).toEqual(workers);
+    expect(stored.recentWork).toEqual(recentWork);
+    const older = await storedProject({ projects: [project()] });
+    expect('workers' in older || 'recentWork' in older).toBe(false);
+  });
+
   // All four surfaces the emitter writes: a surface missing from this list
   // 422s every snapshot from a property carrying one of its beads.
   it('stores every surface that can file work, page and alert included', async () => {

@@ -6,10 +6,14 @@
 // board. `LiveTask` extends `WorkItem` rather than restating it. Tasks are
 // coordination state, not signals.
 
+import { TASK_METADATA } from "@noticeos/contract/task-metadata";
 import type { WorkItem } from "./work";
 
 /** Closed history is bounded in time, never sampled by row count. */
 export const TASKS_CLOSED_WINDOW_DAYS = 7;
+/** The Agents page's closed read: eight weeks, asked for separately so the
+ * board's own read stays a week. The task servers refuse a longer one. */
+export const TASKS_CLOSED_HISTORY_DAYS = 56;
 
 /** Task ids share the lane's prefix/hash grammar, including gate and child ids. */
 export function isTaskId(value: unknown): value is string {
@@ -116,6 +120,27 @@ export function taskActorLabel(actor: string, actors?: readonly TaskActor[]): st
   const found = actors.find(person => person.principalId === actor);
   if (found?.displayName.trim()) return found.displayName;
   return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/iu.test(actor) ? 'Unknown actor' : actor;
+}
+
+/** Who closed a task and the model they named, when the server recorded it
+ * for this close. A task closed again since, without a record, shows its
+ * close and no closer rather than an earlier one's. */
+export function closeAttribution(task: Pick<LiveTask, "status" | "closedAt" | "metadata">): { by: string; model: string | null } | null {
+  if (task.status !== "closed" || task.closedAt === null) return null;
+  const by = metadataText(task.metadata, TASK_METADATA.closedBy.name);
+  const at = metadataText(task.metadata, TASK_METADATA.closedAt.name);
+  if (by === null || at === null || Math.abs(Date.parse(at) - Date.parse(task.closedAt)) > 1000) return null;
+  return { by, model: metadataText(task.metadata, TASK_METADATA.closedModel.name) };
+}
+
+/** The model a task's claimer named when it claimed the task, or null. */
+export function claimedModel(task: Pick<LiveTask, "metadata">): string | null {
+  return metadataText(task.metadata, TASK_METADATA.claimedModel.name);
+}
+
+function metadataText(metadata: Record<string, unknown> | null, name: string): string | null {
+  const value = metadata?.[name];
+  return typeof value === "string" && value.trim() !== "" ? value : null;
 }
 
 /** One task and its conversation — the task page's read. */

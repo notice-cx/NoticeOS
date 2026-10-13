@@ -173,6 +173,32 @@ export interface WorkProject {
    * appear in this snapshot's `ready` set, by priority and age. An approval is
    * identifiable by `issueType`. */
   waiting: WorkItem[];
+  /** Who did the work. Absent when nobody holds or closed any, or when the
+   * poller that wrote this snapshot did not count it. */
+  workers?: WorkWorker[];
+  /** The newest claims and closes, newest first. Absent under the same rule. */
+  recentWork?: WorkEvent[];
+}
+
+/** One worker and the model it named: its closes in the closed window and the
+ * work it holds. A close belongs to the closer NoticeOS recorded, else to the
+ * task's holder. */
+export interface WorkWorker {
+  id: string;
+  model: string | null;
+  closedRecent: number;
+  inProgress: number;
+}
+
+/** One claim or close, with a close's evidence as the closer gave it. */
+export interface WorkEvent {
+  kind: "claimed" | "closed";
+  taskId: string;
+  title: string;
+  by: string;
+  model: string | null;
+  at: string;
+  evidence: string | null;
 }
 
 export interface WorkPayload {

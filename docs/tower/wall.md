@@ -25,7 +25,7 @@ The Wall is drawn from a layout you arrange in the Tower. It has no navigation a
 
 **Work this week.** What is waiting for you, what is in progress, done this week and blocked, then one row per project: what got done extends left, what is still open extends right. It shows counts only, never a task's text.
 
-Two more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site) and **Live feed** (what happened since last night, newest on top, from stored events only). Add them at `/wall/edit`.
+Three more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site), **Live feed** (what happened since last night, newest on top, from stored events only; a line for a task an agent claimed or closed shows the agent and its model, and a close shows its commit and links) and **Agents** (each agent and the model it named, ranked by tasks closed in the last 7 days, with how many tasks the agents hold now). Add them at `/wall/edit`.
 
 On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order. On a television the background is true black, so unused pixels emit no light.
 

@@ -56,6 +56,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["provider logos", "calendar", "fallback", "small", "default", "large"],
   },
   {
+    name: "AgentMark",
+    file: "components/AgentMark.tsx",
+    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter.",
+    variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default"],
+  },
+  {
     name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable",
     file: "components/TaskSourceSection.tsx",
     purpose: "Core task database health beside Settings → Task projects. TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",
@@ -85,7 +91,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallCanvas",
     file: "components/WallCanvas.tsx",
     purpose:
-      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the eight widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
+      "The TV drawn from a WallLayout document (shared/wall-layout, saved at config/tower.json /wall) plus the polled payload: rows top to bottom, each a grid of widgets in the document's widths, the one `fill` row taking the height the others leave, and everything stacking into one column on a portrait tablet or phone. A column's rows fit their content, take the height left over, or share it by their size weights. It owns no widget of its own; the nine widget types map onto registry components, and `editing` is a render prop the Wall editor uses to preview through the exact component the television draws.",
     variants: ["default", "a legacy save drawn as the default", "rows reordered", "widget removed", "widths and floors from the document", "site filter", "fill row", "editing slot", "column", "column rows sized by weight"],
   },
   {
@@ -906,6 +912,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["fresh", "stale with its age", "failed, last pulse kept", "pulse refused (figures only)", "no GA4", "compact row", "roomier row", "phone row", "one-site tile"],
   },
   {
+    name: "WallAgents",
+    file: "components/wall/WallAgents.tsx",
+    purpose:
+      "The TV's Agents widget: each agent and the model it named, ranked by tasks closed in the last 7 days, with its place, a bar on one shared scale and the count, the leader in milestone green, and how many tasks the agents hold now.",
+    variants: ["ranked standings", "no agent yet"],
+  },
+  {
     name: "NeedsYou / IssueGlyph",
     file: "components/wall/NeedsYou.tsx",
     purpose:
@@ -1202,6 +1215,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "A short run of days as bars: the newest settled day in the series' identity ink, the days before it neutral, the usual level as a dashed rule. A day still counting is hatched, an unreported day an empty hatched slot, a measured zero a stub.",
     variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero"],
+  },
+  {
+    name: "StackedWeeks",
+    file: "components/viz/StackedWeeks.tsx",
+    purpose:
+      "Weeks as columns, each split by who contributed: a quantity over time and its parts at once. Contributors are neutral shades named beside the newest complete week; the current week is outlined and dashed.",
+    variants: ["eight weeks, three contributors and the current week"],
+  },
+  {
+    name: "RaceChart",
+    file: "components/viz/RaceChart.tsx",
+    purpose:
+      "A running total per contestant over one window up to now: the leader in milestone green, each line named at its end with its place, and Replay drawing the lines again from the start.",
+    variants: ["three contestants over seven days"],
   },
   {
     name: "FitLabel",

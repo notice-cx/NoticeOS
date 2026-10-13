@@ -1131,14 +1131,17 @@ async function fetchTaskProjectsRequest(fetch: ApiTransport, signal?: AbortSigna
 
 /** One project's live board: active/parked work and every recent closure.
  * `status` narrows the stored statuses; closed rows always use the bounded
- * date window reported in `closedSince`. */
+ * date window reported in `closedSince`, a week unless `closedDays` asks a
+ * closed-only read for more. */
 async function fetchTasksRequest(fetch: ApiTransport,
   project: string,
   status?: string,
   signal?: AbortSignal,
+  closedDays?: number,
 ): Promise<LiveTasksPayload> {
   const params = new URLSearchParams({ project });
   if (status !== undefined) params.set("status", status);
+  if (closedDays !== undefined) params.set("closedDays", String(closedDays));
   const path = `/api/tasks?${params}`;
   const res = await fetch(path, { signal, headers: { accept: "application/json" } });
   if (!res.ok) throw await refusal(res, `GET ${path} failed: ${res.status}`);

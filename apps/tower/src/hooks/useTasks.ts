@@ -11,6 +11,7 @@ import { useCallback } from "react";
 import { useSearchParams } from 'react-router-dom';
 
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
+import { TASKS_CLOSED_HISTORY_DAYS } from "@shared/tasks";
 import { dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { useOwnerAnswers } from "@/lib/browser-context";
@@ -114,6 +115,28 @@ export function useTasksAcross(
         fetchTasks(project, undefined, signal),
       enabled: live && project !== "",
       staleTime: 15_000,
+    })),
+  });
+}
+
+/**
+ * Each project's closed work over the Agents page's eight weeks: a closed-only
+ * read beside the board's, never in place of it, so the board stays a week.
+ * Keyed apart from the board's entries; a task write's `["tasks"]`
+ * invalidation still refreshes it while the page is open.
+ */
+export function useClosedHistoryAcross(
+  projects: string[],
+): UseQueryResult<LiveTasksPayload, Error>[] {
+  const { fetchTasks } = useTowerApi();
+  const { live } = useTasksLive();
+  return useQueries({
+    queries: projects.map((project) => ({
+      queryKey: ["tasks", project, "closed", TASKS_CLOSED_HISTORY_DAYS],
+      queryFn: ({ signal }: { signal?: AbortSignal }) =>
+        fetchTasks(project, "closed", signal, TASKS_CLOSED_HISTORY_DAYS),
+      enabled: live && project !== "",
+      staleTime: 60_000,
     })),
   });
 }

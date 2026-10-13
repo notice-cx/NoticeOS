@@ -6,6 +6,7 @@
 import { randomUUID } from 'node:crypto';
 import { createHostedJobRunner } from './hosted-job-runner.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
+import { recordCloser } from './hosted-task-operations.mjs';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS } from './demo-activity.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
@@ -155,15 +156,18 @@ export function createHostedDemo(options) {
                 || found.created_by !== serviceId || !Array.isArray(found.labels) || !found.labels.includes('synthetic-demo')
                 || found.labels.includes('human'))
                 refuse();
+            // The simulator works as the demo's named agents, so the board, the
+            // Agents page and the Wall credit them rather than its service account.
             if (task.phase === 'start') {
                 if (found.status !== 'open')
                     refuse();
-                await execute({ kind: 'update', taskId: found.id, claim: true });
+                await execute({ kind: 'update', taskId: found.id, status: 'in_progress', assignee: task.agent });
                 return 'written';
             }
-            if (found.status !== 'in_progress' || found.assignee !== serviceId)
+            if (found.status !== 'in_progress' || found.assignee !== task.agent)
                 refuse();
-            await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+            const closed = await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+            await recordCloser(execute, found.id, closed, task.agent, task.model);
             return 'closed';
         }
     }

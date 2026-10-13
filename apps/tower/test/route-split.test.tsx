@@ -79,6 +79,7 @@ describe("each screen is its own file", () => {
     ["/alerts/:tab?", () => import("@/routes/AlertsRoute")],
     ["/tasks", () => import("@/routes/TasksRoute")],
     ["/tasks/:id", () => import("@/routes/TaskRoute")],
+    ["/agents", () => import("@/routes/AgentsRoute")],
     ["/financials", () => import("@/routes/FinancialsRoute")],
     ["/health", () => import("@/routes/HealthRoute")],
     ["/integrations", () => import("@/routes/IntegrationsRoute")],

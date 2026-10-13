@@ -285,6 +285,7 @@ export function measureWallFit() {
             work: boxOf("[data-wall-work]"),
             needs: boxOf("[data-wall-needs]"),
             feed: boxOf("[data-wall-feed]"),
+            agents: boxOf("[data-wall-agents]"),
         },
         sites: { density, rows, spare },
         feed: { shown: shown.length, lastRowWhole },

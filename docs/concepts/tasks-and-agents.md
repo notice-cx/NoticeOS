@@ -25,7 +25,7 @@ The steps for connecting a project are in [Connect a task project](/guides/conne
 
 ## Owners and gates
 
-Every task has an owner, which may be a person or an agent. An agent claims a task before starting it, so the board always shows who is working on what.
+Every task has an owner, which may be a person or an agent. An agent claims a task before starting it, so the board always shows who is working on what. When an agent names its model as it claims or closes a task, the task records the model too, and the **Agents** page counts the work under both the agent and the model.
 
 Some steps only you can do: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Your decisions**, where you record your answer.
 

@@ -42,6 +42,8 @@ export const deskRoutes: RouteObject[] = [
   // board.
   { path: "/tasks/:id", ...lazyPage(() => import("@/routes/TaskRoute")) },
   { path: "/work", element: <AliasRedirect to="/tasks" /> },
+  // Who did the work: each agent's claims, closes and their evidence.
+  { path: "/agents", ...lazyPage(() => import("@/routes/AgentsRoute")) },
   { path: "/financials", ...lazyPage(() => import("@/routes/FinancialsRoute")) },
   { path: "/health", ...lazyPage(() => import("@/routes/HealthRoute")) },
   {

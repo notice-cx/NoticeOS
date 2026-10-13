@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useOwnerToast } from '@/lib/browser-context';
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { BrandLockup } from "@/components/BrandLockup";
+import { AgentMark } from "@/components/AgentMark";
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
 import { TaskHubUnavailable, TaskProjectSteps, TaskSourceRows } from "@/components/TaskSourceSection";
@@ -189,6 +190,7 @@ import { PanelReviewLine } from "@/components/PanelReviewLine";
 import { SerpPanelBoard } from "@/components/SerpPanelBoard";
 import { AlertList, AlertRow, AttentionAllClear } from "@/components/AlertRow";
 import { WallCanvas } from "@/components/WallCanvas";
+import { WallAgents } from "@/components/wall/WallAgents";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
@@ -2813,7 +2815,7 @@ export function KitchenSinkRoute() {
             </Button>
           </header>
 
-          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, FitLabel, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows, WorkFlow">
+          <Section title="Visual kit: BarStrip, PaceBar, NormalBand, FitLabel, StatTile, HealthGrid, EventTimeline, FlowGraph, IncidentList, DecisionQueue, PortfolioRows, WorkFlow, StackedWeeks, RaceChart">
             <div className="w-full">
               <VisualKitGallery />
             </div>
@@ -2872,6 +2874,27 @@ export function KitchenSinkRoute() {
               <IntegrationLogo provider="google" size="small" />
               <IntegrationLogo provider="google" />
               <IntegrationLogo provider="google" size="large" />
+            </div>
+          </Section>
+          <Section title="AgentMark">
+            <div className="flex flex-wrap items-start gap-6">
+              {([
+                ["claude", ["Opus 5.5"]],
+                ["codex", ["GPT-5-Codex"]],
+                ["gemini-cli", []],
+                ["build-bot", ["Sonnet 5.5"]],
+                ["Mara", []],
+              ] as const).map(([name, models]) => (
+                <div key={name} className="flex flex-col items-center gap-2">
+                  <AgentMark name={name} models={models} />
+                  <span className="text-xs text-muted-foreground">{models.length ? `${name} · ${models[0]}` : name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center gap-4" aria-label="Agent mark sizes">
+              <AgentMark name="claude" size="small" />
+              <AgentMark name="claude" />
+              <AgentMark name="Mara" size="small" />
             </div>
           </Section>
           <Section title="WhatLands (notification channel)">
@@ -5494,6 +5517,19 @@ export function KitchenSinkRoute() {
                 operator={{ waiting: 0, urgent: 0, measuredProjects: 6, urgentMeasuredProjects: 6, projectCount: 6, capturedAt: iso(0) }}
                 nowMs={NOW}
               />
+            </div>
+          </Section>
+
+          <Section title="WallAgents (agents and models ranked by closes / no agent yet)">
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallAgents agents={{ closed: 31, inProgress: 7, capturedAt: iso(0), standings: [
+                { id: "claude", model: "Sonnet 5.5", closed: 11, inProgress: 2 },
+                { id: "claude", model: "Opus 5.5", closed: 10, inProgress: 3 },
+                { id: "codex", model: "GPT-5-Codex", closed: 5, inProgress: 2 },
+              ] }} />
+            </div>
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallAgents agents={null} />
             </div>
           </Section>
 

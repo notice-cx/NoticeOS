@@ -271,7 +271,7 @@ describe("the version's description when there is no note", () => {
 });
 
 describe("the Add drawer's rows", () => {
-  it("shows every widget of the default as placed and offers the two it leaves out, while the write lane still refuses a second", () => {
+  it("shows every widget of the default as placed and offers the three it leaves out, while the write lane still refuses a second", () => {
     expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => [o.spec.type, o.disabledReason])).toEqual([
       ["strip", "On the TV"],
       ["loop", "On the TV"],
@@ -281,6 +281,7 @@ describe("the Add drawer's rows", () => {
       ["work", "On the TV"],
       ["needs", null],
       ["feed", null],
+      ["agents", null],
     ]);
     const twice: WallLayout = {
       version: 1,
@@ -293,7 +294,7 @@ describe("the Add drawer's rows", () => {
   it("offers a widget again once it is taken off", () => {
     const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
     const options = wallLibraryOptions(state.layout);
-    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed"]);
+    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents"]);
   });
 });
 

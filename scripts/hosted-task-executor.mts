@@ -12,7 +12,7 @@ import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
-  type HostedTaskRequest } from './hosted-task-command.mjs';
+  type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
@@ -53,6 +53,14 @@ export interface VerifiedTaskProject {
 export interface HostedTaskExecutor {
   execute(proof: Request, serverSelectedWorkspaceId: string, request: HostedTaskRequest,
     controls?: TaskVerificationControls): Promise<unknown>;
+  /** One request's reads of one project in one owned profile: the binaries,
+   * credentials and grants are verified once, and admission and the project
+   * mapping are read again before every command, as `execute` does. Only
+   * read operations run; the profile is retired after `work` and every
+   * command it started have finished. */
+  reads<T>(proof: Request, serverSelectedWorkspaceId: string, projectId: string,
+    work: (run: (operation: HostedTaskOperation) => Promise<unknown>) => Promise<T>,
+    controls?: TaskVerificationControls): Promise<T>;
   /** Platform-only initialization check. Caller must hold the canonical mapping
    * against rebinding/revocation through verification and activation COMMIT.
    * Neither this result nor a directory row authenticates a tenant request. */
@@ -212,6 +220,9 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
   const admission: WorkspaceAdmission = options.admission;
   const directory = options.directory, resolveTarget = options.resolveTarget;
   const verified = new WeakMap<object, TaskProjectMapping>();
+  /** Each pinned binary's last hashed file identity and its digest, shared by
+   * the commands that check the binary while it is being read. */
+  const digests = new Map<string, { readonly identity: string; readonly digest: Promise<string> }>();
   async function current(expected: TaskProjectMapping, life: Lifetime, read = () => directory.project(expected.workspaceId, expected.projectId)): Promise<TaskProjectMapping> {
     checkpoint(life);
     const fresh = mapping(await read());
@@ -236,10 +247,23 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
     checkpoint(life);
     for (const [file, sha] of [[binary, binarySha], [doltBinary, doltSha]]) {
       checkpoint(life);
-      const stat = await fs.lstat(file!);
-      if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o022)
-        || await fs.realpath(file!) !== path.resolve(file!)
-        || createHash('sha256').update(await fs.readFile(file!)).digest('hex') !== sha) fail();
+      const stat = await fs.lstat(file!, { bigint: true });
+      if (!stat.isFile() || stat.isSymbolicLink() || (stat.mode & 0o022n)
+        || await fs.realpath(file!) !== path.resolve(file!)) fail();
+      // Hashing the pinned binaries takes longer than the commands they run, so
+      // it runs again only when a file's identity changed. Replacing or
+      // rewriting a file changes its inode or ctime, which no unprivileged
+      // process can set back.
+      const identity = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeNs}:${stat.ctimeNs}`;
+      let known = digests.get(file!);
+      if (known?.identity !== identity) {
+        const digest = fs.readFile(file!).then(bytes => createHash('sha256').update(bytes).digest('hex'));
+        // A failed read is not a verdict; the next command reads again.
+        digest.catch(() => { if (digests.get(file!)?.digest === digest) digests.delete(file!); });
+        known = { identity, digest };
+        digests.set(file!, known);
+      }
+      if (await known.digest !== sha) fail();
     }
     const scratch = await privateDirectory(scratchRoot);
     const free = await fs.statfs(scratch);
@@ -444,6 +468,55 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
         if (error instanceof HumanDecisionRefused) throw error;
         fail();
       }
+    },
+    async reads<T>(original: Request, serverSelectedWorkspaceId: string, projectId: string,
+      work: (run: (operation: HostedTaskOperation) => Promise<unknown>) => Promise<T>,
+      controls?: TaskVerificationControls): Promise<T> {
+      try {
+        const workspaceId = uuid(serverSelectedWorkspaceId), selectedProjectId = uuid(projectId);
+        if (!(original instanceof Request) || typeof work !== 'function') fail();
+        const supplied = lifetime(controls);
+        const life: Lifetime = Object.freeze({ ...supplied,
+          signal: supplied.signal ? AbortSignal.any([original.signal, supplied.signal]) : original.signal });
+        checkpoint(life);
+        const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: life.signal });
+        const readMapping = () => directory.project(workspaceId, selectedProjectId);
+        return await admission.withAdmission('tasks.read', { requestedWorkspaceId: workspaceId, correlationId: 'task-executor' }, proof, async first => {
+          checkpoint(life);
+          const selected = mapping(await readMapping());
+          checkpoint(life);
+          if (selected.workspaceId !== workspaceId || selected.projectId !== selectedProjectId) fail();
+          return ownedRun(selected, life, async run => {
+            let open = true;
+            const started = new Set<Promise<unknown>>();
+            const read = async (operation: HostedTaskOperation) => {
+              const request = snapshotRequest({ projectId: selectedProjectId, operation }, workspaceId);
+              // The runner's poll batch keeps its own service-only path.
+              if (!open || request.operation.kind === 'snapshot' || hostedTaskAction(request.operation) !== 'tasks.read') fail();
+              const plan = createHostedTaskPlanner([{ workspaceId, projectId: selectedProjectId, capability: Symbol() }])(workspaceId, request);
+              return admission.withAdmission('tasks.read', { requestedWorkspaceId: workspaceId, correlationId: first.correlationId }, proof, async effect => {
+                if (effect.principalId !== first.principalId || effect.sessionId !== first.sessionId
+                  || effect.principalKind !== first.principalKind || effect.profile !== first.profile) fail();
+                await current(selected, life, readMapping);
+                admission.assertContext(effect, 'tasks.read');
+                checkpoint(life);
+                return run([plan.argv[0]!, plan.argv[1]!, `--actor=${effect.principalId}`, ...plan.argv.slice(2)]);
+              });
+            };
+            try {
+              return await work(operation => {
+                const command = read(operation);
+                started.add(command);
+                return command;
+              });
+            } finally {
+              // No command starts after `work`, and none outlives the profile.
+              open = false;
+              await Promise.allSettled(started);
+            }
+          });
+        });
+      } catch { fail(); }
     },
     async verifyProject(input: TaskProjectMapping, controls?: TaskVerificationControls): Promise<VerifiedTaskProject> {
       try {

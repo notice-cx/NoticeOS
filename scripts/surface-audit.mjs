@@ -32,6 +32,7 @@ export const DEFAULT_ROUTES = [
   `/assets/${SITE_TOKEN}/search`,
   "/alerts",
   "/tasks",
+  "/agents",
   "/financials",
   "/health",
   "/integrations",

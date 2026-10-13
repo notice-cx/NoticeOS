@@ -8,10 +8,12 @@
  * Command execution is not qualified here, including history's internal
  * checkout with --readonly. The executor proof must exercise the exact plans.
  */
-import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 export const HOSTED_TASK_LIMITS = Object.freeze({
     projects: 4096, identifier: 128, title: 512, body: 8192,
     comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
+    /** The longest closed read: the Agents page's eight weeks and the day it starts in. */
+    closedDays: 57,
 });
 function invalid() { throw new Error('Invalid hosted task plan input.'); }
 /** Data properties only: malformed JavaScript callers cannot smuggle getters. */
@@ -117,6 +119,13 @@ function linkList(value, parent) {
         return `${type}:${target}`;
     }));
 }
+/** A model as its agent names it: one line, at most an identifier long. */
+function model(value) {
+    const name = text(value, HOSTED_TASK_LIMITS.identifier);
+    if (/[\r\n\t]/u.test(name) || name.trim() !== name)
+        invalid();
+    return name;
+}
 function deferDate(value) {
     if (value === '')
         return value;
@@ -126,10 +135,10 @@ function deferDate(value) {
     return value;
 }
 function handoffMetadata(value) {
-    // The operation identity is the server's, never a caller's metadata.
+    // What only the server writes is never a caller's metadata.
     const row = record(value);
     keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
-        .filter(name => name !== TASK_METADATA.operation.name));
+        .filter(name => !SERVER_TASK_METADATA.includes(name)));
     const result = Object.create(null);
     for (const [key, entry] of Object.entries(row))
         result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
@@ -138,7 +147,7 @@ function handoffMetadata(value) {
 function command(input) {
     const op = record(input);
     const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
-        'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']);
+        'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']);
     const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
@@ -209,7 +218,7 @@ function command(input) {
                 invalid();
             const since = Date.parse(op.since), until = Date.parse(op.until);
             if (!Number.isFinite(since) || !Number.isFinite(until) || new Date(since).toISOString().slice(0, 10) !== op.since
-                || new Date(until).toISOString() !== op.until || until < since || until - since > 8 * 86400000)
+                || new Date(until).toISOString() !== op.until || until < since || until - since > HOSTED_TASK_LIMITS.closedDays * 86400000)
                 invalid();
             argv.push('list', '--status=closed', `--closed-after=${op.since}`, `--closed-before=${op.until}`, '--limit=0', '--include-gates');
             break;
@@ -246,8 +255,8 @@ function command(input) {
             break;
         case 'update': {
             const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'];
-            keys(op, ['kind', 'taskId'], fields);
-            if (!fields.some(key => Object.hasOwn(op, key)))
+            keys(op, ['kind', 'taskId'], [...fields, 'model']);
+            if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true)
                 invalid();
             argv.push('update');
             if (Object.hasOwn(op, 'status'))
@@ -275,6 +284,9 @@ function command(input) {
                 argv.push(`--add-label=${labelList(op.addLabels).join(',')}`);
             if (Object.hasOwn(op, 'removeLabels'))
                 argv.push(`--remove-label=${labelList(op.removeLabels).join(',')}`);
+            // In the claim itself, so the claim and its model land together.
+            if (Object.hasOwn(op, 'model'))
+                argv.push(`--metadata=${JSON.stringify({ [TASK_METADATA.claimedModel.name]: model(op.model) })}`);
             argv.push('--', task(op.taskId));
             break;
         }
@@ -283,9 +295,22 @@ function command(input) {
             argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
             break;
         case 'close':
-            keys(op, ['kind', 'taskId', 'reason']);
+            keys(op, ['kind', 'taskId', 'reason'], ['model']);
+            if (Object.hasOwn(op, 'model'))
+                model(op.model);
             argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
             break;
+        case 'attribute': {
+            // The task client's close carries no metadata, so the closer follows it.
+            keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model']);
+            if (typeof op.closedAt !== 'string' || !Number.isFinite(Date.parse(op.closedAt)) || op.closedAt.length > 64)
+                invalid();
+            const metadata = { [TASK_METADATA.closedBy.name]: text(op.closedBy, HOSTED_TASK_LIMITS.identifier),
+                [TASK_METADATA.closedAt.name]: op.closedAt,
+                ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.closedModel.name]: model(op.model) } : {}) };
+            argv.push('update', `--metadata=${JSON.stringify(metadata)}`, '--', task(op.taskId));
+            break;
+        }
         case 'depend':
         case 'undepend': {
             keys(op, ['kind', 'taskId', 'dependsOn', ...(kind === 'depend' ? ['type'] : [])]);

@@ -159,6 +159,8 @@ that can be read quickly, and the kit has a component for it:
 | how things connect or flow | nodes and edges, each node in its state with its live count, the broken one highlighted in place | `FlowGraph` |
 | where things are | a map, when place is the data (visitors by country), never as decoration | — |
 | a queue | its size, the spread of its items' ages, then the rows with age as a bar length | `DecisionQueue` |
+| a quantity over time and who contributed it | columns split by contributor in neutral colours, each contributor named beside the newest complete column, the current column outlined | `StackedWeeks` |
+| a contest over a window | each contestant's running total over the window up to now, the leader in milestone green, each place named at the end of its line | `RaceChart` |
 | open problems | one ranked panel: new since the operator last looked first, the long-standing ones collapsed | `IncidentList` |
 | several measures, each against its own earlier window | rows divided by thin lines: the figure, its days against the earlier level, the change as a bar from one shared zero line | `ChangeRows` |
 | a count narrowing step by step | bars on one scale, each with its share of the step before; a step with no measurement hatched | `FunnelBars` |
@@ -392,7 +394,19 @@ for over a week collapsed under one line.
 operator as a `DecisionQueue` with the spread of their ages, closed and filed
 a day over two weeks as two dated `BarStrip`s on one scale, each project's
 week as the Wall's `WorkFlow` chart, and the most stuck epic as a `FlowGraph`
-whose blocked edges are drawn as broken lines. The full task table follows.
+whose blocked edges are drawn as broken lines. The full task table follows, with each task's
+assignee on its row.
+
+**Agents shows who did the work**: the tasks closed in the last seven days
+against the seven days before, eight weeks of closed tasks as `StackedWeeks`
+split by who closed them, one row per worker (the task it holds, its last
+seven days as a strip, its median time from claim to close), the week's
+ranking of agents and the models they named as a `RaceChart`, the week's
+trophies, and the claims and closes with their evidence as chips. A close is
+counted for whoever closed the task; an agent is a worker that named a model.
+Each worker's name carries an `AgentMark`: its maker's original artwork from
+`public/agents`, chosen by the name and then the models it named, or the
+name's first letter for a person or an unknown maker.
 
 **Money shows one equation**: revenue − cost = net for the month, net the
 largest, beside the month's days as a `BarStrip` (a day some source did not
@@ -430,13 +444,13 @@ now (one row per site: live people, today against the same weekday last week,
 a 30-day trend, the month's money); and whether work is moving (waiting on the
 operator, in progress, done this week and blocked, one row per project, done
 work as a bar extending left of a centre line and the open queue extending
-right). Anything else belongs on the Tower page for its subject; the Needs attention
-and live feed widgets stay in the widget library for an operator who wants
-them on the Wall.
+right). Anything else belongs on the Tower page for its subject; the Needs
+attention, live feed and agents widgets stay in the widget library for an
+operator who wants them on the Wall.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of eight widget types: the strip, the loop, revenue, the last 24
-hours, Needs attention, the site rows, work and the feed. `scripts/wall-layout.mts`
+renders rows of nine widget types: the strip, the loop, revenue, the last 24
+hours, Needs attention, the site rows, work, the feed and the agents' ranking. `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining

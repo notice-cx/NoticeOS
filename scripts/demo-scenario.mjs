@@ -3,7 +3,7 @@
 // estimates of real businesses.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 6;
+export const SCENARIO_VERSION = 7;
 const DAY_MS = 86_400_000;
 /** Five sites with their own shapes: a steady subscription product, a
  * licensed tool, a recipe site growing into its season, an outdoor guide

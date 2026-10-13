@@ -432,7 +432,8 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
         assert.equal(current.snapshots, retained.snapshots + 2);
         assert.ok(result.days.every(day => day.receipt.steps['task-summary'].state === 'succeeded'));
         const task = (await readTasks(projects[0])).find(row => row.id === createdTaskId);
-        assert.equal(task.status, 'in_progress'); assert.equal(task.assignee, serviceId);
+        // The first cycle is a review: the verifier claims it by name.
+        assert.equal(task.status, 'in_progress'); assert.equal(task.assignee, 'codex');
         assert.equal((await latestSnapshot()).projects.find(project => project.asset === projects[0].asset).counts.inProgress, 1);
         assert.deepEqual(await Promise.all(customers.map(counts)), customerBefore);
       } finally { await runtime.close(); }
@@ -457,7 +458,9 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       const closed = await tasks.execute(proof, workspace, { projectId: projects[0].projectId,
         operation: { kind: 'show', taskId: createdTaskId } });
       assert.equal(closed.length, 1); assert.equal(closed[0].status, 'closed');
-      assert.equal(closed[0].assignee, serviceId); assert.ok(closed[0].close_reason.includes('No live deployment'));
+      assert.equal(closed[0].assignee, 'codex'); assert.ok(closed[0].close_reason.includes('No live deployment'));
+      assert.deepEqual([closed[0].metadata?.noticeos_closed_by, closed[0].metadata?.noticeos_closed_model], ['codex', 'GPT-5-Codex']);
+      assert.ok(Math.abs(Date.parse(closed[0].metadata?.noticeos_closed_at) - Date.parse(closed[0].closed_at)) <= 1000);
       const project = (await latestSnapshot()).projects.find(project => project.asset === projects[0].asset);
       assert.equal(project.counts.open, 1); assert.equal(project.counts.inProgress, 0); assert.equal(project.counts.closedRecent, 1);
       assert.ok(project.recentlyClosed.some(task => task.id === createdTaskId));

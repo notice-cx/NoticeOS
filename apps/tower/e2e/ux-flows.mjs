@@ -651,7 +651,7 @@ FLOWS["arrange-wall"] = {
 
 const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/growth`, `/assets/${ASSET}/financials`,
   `/assets/${ASSET}/search`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
-  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/integrations",
+  `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
   "/health", "/health/operations", "/financials", "/settings", "/wall"];
 

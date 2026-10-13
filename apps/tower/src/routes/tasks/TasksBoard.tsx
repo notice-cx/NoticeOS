@@ -55,6 +55,7 @@ import { AskQueue } from "./ask-queue";
 import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
 import { OpenTaskLink } from "./open-task-link";
 import { PriorityMark, RestingMark, TaskStatusMark } from "./task-face";
+import { AGENTS_ROUTE } from "@/components/nav-items";
 
 /**
  * The task board: `/tasks` across every project, an asset's Tasks tab with
@@ -307,6 +308,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
               the board knows where its answer ends. */}
           <div data-surface-hero className="@container flex flex-col gap-5">
             {answer}
+            {scoped ? null : <WorkingNow tasks={allTasks} />}
             {/* Laid out by its own width, not the window's: a site's Tasks tab
                 and a portrait monitor both leave the board less than the
                 viewport. The queue leads with the days in and out beside it
@@ -405,6 +407,27 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 function errorText(err: unknown, fallback: string): string {
   if (err instanceof Error && err.message !== "") return err.message;
   return fallback;
+}
+
+/** Who holds work right now, busiest first, and the way to the Agents page. */
+function WorkingNow({ tasks }: { tasks: readonly BoardTask[] }) {
+  const counts = new Map<string, { name: string; n: number }>();
+  for (const task of tasks) {
+    if (task.status !== "in_progress" || !task.assignee) continue;
+    const entry = counts.get(task.assignee) ?? { name: taskActorLabel(task.assignee, task.actors), n: 0 };
+    counts.set(task.assignee, { ...entry, n: entry.n + 1 });
+  }
+  const working = [...counts.values()].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name));
+  if (working.length === 0) return null;
+  return (
+    <p className="m-0 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm" data-tasks-working="">
+      <span className="text-muted-foreground">Working now</span>
+      {working.map((entry) => (
+        <span key={entry.name}><span className="font-medium text-foreground">{entry.name}</span> <span className="tabular-nums text-muted-foreground">{formatInt(entry.n)}</span></span>
+      ))}
+      <Link to={AGENTS_ROUTE} className={cn("font-medium text-foreground underline-offset-4 hover:underline", pillControlClass)}>Agents →</Link>
+    </p>
+  );
 }
 
 // --- Filters: the state is the URL, so a narrowed board is a link -----------
@@ -654,6 +677,7 @@ function Board({
                 {showProject ? (
                   <TableHead className="whitespace-nowrap">Project</TableHead>
                 ) : null}
+                <TableHead className="whitespace-nowrap">Who</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Age</TableHead>
                 <TableHead className="whitespace-nowrap">State</TableHead>
               </TableRow>
@@ -716,7 +740,8 @@ function BoardRow({
   const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
   const epic = task.parent ? (project?.epicNames.get(task.parent) ?? null) : null;
-  const columns = showProject ? 5 : 4;
+  const columns = showProject ? 6 : 5;
+  const holder = task.assignee ? taskActorLabel(task.assignee, task.actors) : null;
 
   return (
     <>
@@ -763,6 +788,10 @@ function BoardRow({
             {project?.name ?? task.project}
           </TableCell>
         ) : null}
+        {/* Who holds it: an agent's name or a person's, on every row. */}
+        <TableCell label="Who" foldWhenStacked className="max-w-[8rem] break-words py-1 text-xs" data-task-holder={task.assignee ?? ""}>
+          {holder ? <span className="font-medium text-foreground">{holder}</span> : <span className="text-muted-foreground">nobody</span>}
+        </TableCell>
         <TableCell
           label="Age"
           foldWhenStacked
@@ -783,6 +812,7 @@ function BoardRow({
             {isGate(task) ? "needs your approval" : null}
             <span aria-hidden>·</span>
             <TaskStatusMark status={task.status} />
+            {holder ? <><span aria-hidden>·</span><span className="text-foreground">{holder}</span></> : null}
             <span aria-hidden>·</span>
             {formatAge(ageMs(nowMs, task.updatedAt)) || "—"}
           </span>

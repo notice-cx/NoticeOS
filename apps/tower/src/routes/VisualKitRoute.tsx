@@ -15,6 +15,8 @@ import { IncidentList } from "@/components/viz/IncidentList";
 import { NormalBand } from "@/components/viz/NormalBand";
 import { PaceBar } from "@/components/viz/PaceBar";
 import { PortfolioRows } from "@/components/viz/PortfolioRows";
+import { RaceChart } from "@/components/viz/RaceChart";
+import { StackedWeeks } from "@/components/viz/StackedWeeks";
 import { StatTile } from "@/components/viz/StatTile";
 import { WorkFlow } from "@/components/viz/WorkFlow";
 import { formatInt, formatUsd } from "@/lib/format";
@@ -230,10 +232,34 @@ export function VisualKitGallery() {
         </Specimen>
       </Group>
 
+      <Group title="Who did the work">
+        <Specimen id="stacked-weeks" title="StackedWeeks — weeks split by who did the work, this week still counting" className="w-[44rem]">
+          <StackedWeeks weeks={WEEKS} keys={["claude", "codex", "Mara"]} names={{ claude: "claude", codex: "codex", Mara: "Mara" }}
+            unit="tasks" ariaLabel="Tasks closed a week, by who closed them" className="min-h-48" />
+        </Specimen>
+        <Specimen id="race-chart" title="RaceChart — a running total per contestant over 7 days" className="w-[36rem]">
+          <RaceChart entries={RACE} from={RACE_FROM} to={RACE_FROM + 7 * 86_400_000} unit="task"
+            ticks={Array.from({ length: 7 }, (_, index) => [RACE_FROM + index * 86_400_000, ["Sat", "Sun", "Mon", "Tue", "Wed", "Thu", "Fri"][index]!] as const)}
+            ariaLabel="Tasks closed in the last 7 days, per agent and model" className="min-h-60" />
+        </Specimen>
+      </Group>
+
       <ChangesAndFunnels peopleAverage={peopleAverage} />
     </div>
   );
 }
+
+const WEEKS = [9, 11, 10, 13, 15, 14, 17, 8].map((claude, index) => ({
+  start: new Date(Date.UTC(2026, 7, 24 + index * 7)).toISOString().slice(0, 10),
+  current: index === 7,
+  counts: { claude, codex: [3, 4, 2, 5, 4, 3, 5, 2][index]!, Mara: [5, 4, 6, 5, 6, 4, 5, 1][index]! },
+}));
+const RACE_FROM = Date.UTC(2026, 9, 10);
+const RACE = [
+  { key: "opus", name: "claude · Opus 5.5", at: [0.6, 1.4, 2.2, 2.9, 3.5, 4.1, 4.6, 5.3, 5.9, 6.4].map((day) => RACE_FROM + day * 86_400_000) },
+  { key: "sonnet", name: "claude · Sonnet 5.5", at: [1.1, 2.4, 3.2, 4.4, 5.1, 6.2].map((day) => RACE_FROM + day * 86_400_000) },
+  { key: "codex", name: "codex · GPT-5-Codex", at: [2.1, 3.9, 5.6].map((day) => RACE_FROM + day * 86_400_000) },
+];
 
 /** Several measures against their own earlier windows, and counts that
  * narrow step by step: a site's Growth, Search and Money tabs. */

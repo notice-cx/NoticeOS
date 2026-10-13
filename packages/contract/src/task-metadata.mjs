@@ -29,7 +29,20 @@ export const TASK_METADATA = Object.freeze({
     /** The server's identity for the hosted write that created this task, so a
      * retried request can find it. Server-set only; it has no older name. */
     operation: Object.freeze({ name: "noticeos_operation_id", legacy: "noticeos_operation_id" }),
+    /** The model the claimer named when it claimed the task. Server-set. */
+    claimedModel: Object.freeze({ name: "noticeos_claimed_model", legacy: "noticeos_claimed_model" }),
+    /** Who closed the task. The task client keeps no closer, so the server
+     * records it after the close; it describes only the close at `closedAt`. */
+    closedBy: Object.freeze({ name: "noticeos_closed_by", legacy: "noticeos_closed_by" }),
+    /** The model the closer named. Server-set, with `closedBy`. */
+    closedModel: Object.freeze({ name: "noticeos_closed_model", legacy: "noticeos_closed_model" }),
+    /** The close `closedBy` describes; a reopened and closed task no longer matches it. */
+    closedAt: Object.freeze({ name: "noticeos_closed_at", legacy: "noticeos_closed_at" }),
 });
+/** The names only the server writes. A caller's metadata never carries them,
+ * so no filer can forge who closed a task or a write's identity. */
+export const SERVER_TASK_METADATA = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
+    TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt].map(field => field.name));
 /** The label every Tower handoff bead carries from now on. */
 export const HANDOFF_LABEL = "noticeos-handoff";
 /** The label handoff beads filed before the rename carry. */

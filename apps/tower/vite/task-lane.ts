@@ -21,7 +21,8 @@ import type {
   LiveTaskDetail,
   LiveTasksPayload,
 } from "../shared/tasks";
-import { isTaskId, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
+import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
+import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import {
   DEFAULT_REPO_ROOT,
@@ -443,14 +444,17 @@ function readEpics(spoke: Spoke, opts: Resolved): LiveEpic[] | null {
   }
 }
 
-function listTasks(spoke: Spoke, statuses: string, opts: Resolved): LiveTasksPayload {
+function listTasks(spoke: Spoke, statuses: string, opts: Resolved, closedDays = TASKS_CLOSED_WINDOW_DAYS): LiveTasksPayload {
   // Match the snapshot's UTC day boundary, but keep every matching closure.
   // The row-count cap lives only in the browser's 25-row display pagination.
   const readAt = opts.now().toISOString();
-  const closedSince = new Date(Date.parse(readAt) - TASKS_CLOSED_WINDOW_DAYS * 86_400_000)
+  const closedSince = new Date(Date.parse(readAt) - closedDays * 86_400_000)
     .toISOString().slice(0, 10);
-  const ready = readReady(spoke, opts);
   const requested = new Set(statuses.split(","));
+  // A closed task is never ready and belongs to no open count, so a closed-only
+  // read skips the ready list and the epics.
+  const closedOnly = requested.size === 1 && requested.has("closed");
+  const ready = closedOnly ? new Set<string>() : readReady(spoke, opts);
   const tasks = new Map<string, LiveTask>();
   const read = (args: string[], closed: boolean) => {
     // bd hides gate issues unless explicitly included. They must survive the
@@ -483,7 +487,7 @@ function listTasks(spoke: Spoke, statuses: string, opts: Resolved): LiveTasksPay
     readAt,
     closedSince,
     tasks: [...tasks.values()],
-    epics: readEpics(spoke, opts),
+    epics: closedOnly ? null : readEpics(spoke, opts),
   };
 }
 
@@ -624,7 +628,10 @@ async function actOnTask(
   if (action === "close") {
     // A close without a reason is one nobody can audit.
     const reason = requiredString(input, "reason");
-    runVerb(verb, [id, "--reason", reason], spoke, opts);
+    // One actor for the close and the closer it records.
+    const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+    const { json } = runVerb(verb, [id, "--reason", reason], spoke, operatorOpts);
+    recordCloser(id, json, spoke, operatorOpts);
   } else if (action === "comments") {
     const commentText = requiredString(input, "text");
     runVerb(verb, [id, commentText], spoke, opts);
@@ -637,6 +644,20 @@ async function actOnTask(
     runVerb(verb, reason === null ? [id] : [id, "--reason", reason], spoke, opts);
   }
   return { status: 200, body: { id, project: spoke.asset } };
+}
+
+/** Who closed it, written onto the task after the close: `bd` keeps no
+ * closer. The close stands whether or not this lands. */
+function recordCloser(id: string, closed: unknown, spoke: Spoke, opts: Resolved & { actor: string }): void {
+  const row = (Array.isArray(closed) ? closed : [closed]).find((entry): entry is Record<string, unknown> =>
+    entry !== null && typeof entry === "object" && (entry as Record<string, unknown>).id === id);
+  if (row?.status !== "closed" || typeof row.closed_at !== "string") return;
+  const metadata = { [TASK_METADATA.closedBy.name]: opts.actor, [TASK_METADATA.closedAt.name]: row.closed_at };
+  try {
+    runVerb("update", [id, "--metadata", JSON.stringify(metadata)], spoke, opts);
+  } catch {
+    // The task shows its close without a closer.
+  }
 }
 
 /** `bd human respond` can fail to resolve the id before writing anything
@@ -737,8 +758,16 @@ async function route(
       if (!STATUS_PATTERN.test(statuses)) {
         throw refuse(422, "invalid_status", `"${statuses}" is not a comma-separated status list`);
       }
+      // A longer closed history is a closed-only read, so the board's own read stays a week.
+      const days = url.searchParams.get("closedDays");
+      if (days !== null && (!/^[1-9]\d?$/.test(days) || Number(days) > TASKS_CLOSED_HISTORY_DAYS || statuses !== "closed")) {
+        throw refuse(422, "invalid_window", `closedDays is 1 to ${TASKS_CLOSED_HISTORY_DAYS}, with status=closed`);
+      }
       const spoke = await spokeByAsset(url.searchParams.get("project"), opts);
-      return { status: 200, body: listTasks(spoke, statuses, opts) as unknown as Record<string, unknown> };
+      return {
+        status: 200,
+        body: listTasks(spoke, statuses, opts, days === null ? undefined : Number(days)) as unknown as Record<string, unknown>,
+      };
     }
     if (method === "POST") return createTask(request, opts);
     return { status: 405, body: { error: "method_not_allowed" } };

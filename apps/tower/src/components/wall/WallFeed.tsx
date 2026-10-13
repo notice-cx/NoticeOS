@@ -22,6 +22,7 @@ import {
   CalendarX,
   Check,
   CheckCheck,
+  CircleDot,
   DollarSign,
   FileText,
   GitCommitHorizontal,
@@ -45,11 +46,13 @@ import {
   type WallFeedTone,
 } from "@shared/wall-feed";
 import { useWallFeed } from "@/hooks/useWallFeed";
+import { evidenceParts } from "@/lib/agent-work";
 import { cn } from "@/lib/utils";
 
 /** One glyph per kind: the shape says what happened, the tone how it went. */
 const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "task-done": Check,
+  "task-claimed": CircleDot,
   "task-filed": Plus,
   alert: TriangleAlert,
   resolved: CheckCheck,
@@ -262,8 +265,15 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
                       className={cn("line-clamp-2 text-wall-list-line", aged ? "text-muted-foreground" : "text-foreground")}
                       data-feed-text
                     >
+                      {item.who ? (
+                        <>
+                          <span className="font-semibold" data-feed-who>{item.who}</span>
+                          {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")}>{item.kind === "task-done" ? "closed" : "claimed"}</span>{" "}
+                        </>
+                      ) : null}
                       {item.text}
                     </span>
+                    {item.who && (item.model || item.evidence) ? <FeedEvidence model={item.model ?? null} evidence={item.evidence ?? null} /> : null}
                   </span>
                   <time
                     dateTime={item.at}
@@ -279,6 +289,20 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
         </ol>
       </div>
     </section>
+  );
+}
+
+/** A worker's line's model and a close's pointers: the commit and links the
+ * closer cited, as small chips; the sentence itself is the task's line. */
+function FeedEvidence({ model, evidence }: { model: string | null; evidence: string | null }) {
+  const pointers = evidence ? evidenceParts(evidence).filter((part) => part.kind !== "text") : [];
+  return (
+    <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 pt-0.5 text-wall-list-meta text-muted-foreground" data-feed-evidence>
+      {model ? <span>{model}</span> : null}
+      {pointers.map((part, index) => (
+        <span key={index} className={cn("rounded-md bg-background/60 px-1.5 py-px", part.kind === "commit" && "font-mono")}>{part.text}</span>
+      ))}
+    </span>
   );
 }
 

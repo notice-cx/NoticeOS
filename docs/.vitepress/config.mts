@@ -118,6 +118,7 @@ export default defineConfig({
           { text: 'Sites', link: '/tower/sites' },
           { text: 'Alerts', link: '/tower/alerts' },
           { text: 'Tasks', link: '/tower/tasks' },
+          { text: 'Agents', link: '/tower/agents' },
           { text: 'Money', link: '/tower/financials' },
           { text: 'System health', link: '/tower/health' },
           { text: 'Integrations', link: '/tower/integrations' },
