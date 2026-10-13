@@ -44,6 +44,14 @@
       "truncated": false
     },
     {
+      "family": "inp-targets",
+      "reportDate": "2026-09-22",
+      "windowStart": "2026-09-08",
+      "windowEnd": "2026-09-22",
+      "rows": 2,
+      "truncated": false
+    },
+    {
       "family": "funnels",
       "reportDate": "2026-09-22",
       "windowStart": "2026-09-16",

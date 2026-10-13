@@ -168,6 +168,17 @@ function acceptanceArchives() {
         { ...vitals('/', 'Tablet', 'Android', 600, 2_000, null), clsP75: null },
       ],
     }),
+    'inp-targets.json': posthogArchive('inp-targets', {
+      window: FORTNIGHT,
+      rowLimit: 300,
+      rows: [
+        { path: '/calculator', device: 'Desktop', os: 'Chrome OS', target: 'button.print', interactionType: 'pointer', measurements: 120,
+          inpP75: 1000, inputDelayP75: 8, processingP75: 40, presentationDelayP75: 952 },
+        // No attribution on the event: the element and the parts are unknown.
+        { path: '/calculator', device: 'Mobile', os: 'iOS', target: null, interactionType: null, measurements: 90,
+          inpP75: 144, inputDelayP75: null, processingP75: null, presentationDelayP75: null },
+      ],
+    }),
     'funnels.json': posthogArchive('funnels', {
       window: { start: '2026-09-16', end: '2026-09-22' },
       rows: funnel([18_826, 15_864, 15_394, 1_232]),
@@ -237,7 +248,7 @@ test('the download tool can be narrowed to PostHog archives', () => {
   assert.throws(() => parseDownloadArgs(['--asset', 'meadow.example', '--integration', 'hotjar']), /posthog/);
 });
 
-test('flattens all six PostHog families to posthog-<family>.csv, one row per contract row', async () => {
+test('flattens all seven PostHog families to posthog-<family>.csv, one row per contract row', async () => {
   await withPanel(acceptanceArchives(), async ({ summary, read }) => {
     assert.deepEqual(
       summary.datasets.map(({ name, rows }) => ({ name, rows })),
@@ -247,6 +258,7 @@ test('flattens all six PostHog families to posthog-<family>.csv, one row per con
         // Two archives, one row per configured step each: the week before is
         // kept beside this one, never merged into it.
         { name: 'posthog-funnels', rows: 8 },
+        { name: 'posthog-inp-targets', rows: 2 },
         { name: 'posthog-rageclicks', rows: 9 },
         { name: 'posthog-web-daily', rows: 28 },
         { name: 'posthog-web-vitals', rows: 8 },
@@ -414,6 +426,7 @@ test('the executive product block carries the Tower section, bounded', async () 
         ['exceptions', '2026-09-08', '2026-09-22'],
         ['rageclicks', '2026-09-08', '2026-09-22'],
         ['web-vitals', '2026-09-08', '2026-09-22'],
+        ['inp-targets', '2026-09-08', '2026-09-22'],
         ['funnels', '2026-09-16', '2026-09-22'],
       ],
     );
@@ -536,6 +549,7 @@ const POSTHOG_CSV_HEADERS = {
   exceptions: 'asset,report_date,collected_at,data_state,provider_truncated,count,has_source_file,max_per_session,message,people,project_time_zone,row_grain,row_limit,sessions,top_browser,top_path,type,window_end,window_start',
   rageclicks: 'asset,report_date,collected_at,data_state,provider_truncated,attr,clicks,desktop_clicks,mobile_clicks,page_people,path,people,project_time_zone,row_grain,row_limit,tablet_clicks,tag,text,window_end,window_start',
   'web-vitals': 'asset,report_date,collected_at,data_state,provider_truncated,cls_p75,device,fcp_p75,inp_p75,lcp_p75,measurements,os,path,project_time_zone,row_grain,row_limit,window_end,window_start',
+  'inp-targets': 'asset,report_date,collected_at,data_state,provider_truncated,device,inp_p75,input_delay_p75,interaction_type,measurements,os,path,presentation_delay_p75,processing_p75,project_time_zone,row_grain,row_limit,target,window_end,window_start',
   funnels: 'asset,report_date,collected_at,data_state,provider_truncated,event,funnel_id,name,path,people,project_time_zone,row_grain,row_limit,step,window_end,window_start',
 };
 

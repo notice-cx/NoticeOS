@@ -4250,6 +4250,7 @@ const POSTHOG_NOMINAL_WINDOW_DAYS = {
   exceptions: 14,
   rageclicks: 14,
   'web-vitals': 14,
+  'inp-targets': 14,
   funnels: 7,
 };
 const POSTHOG_FAMILY_ORDER = Object.keys(POSTHOG_NOMINAL_WINDOW_DAYS);
