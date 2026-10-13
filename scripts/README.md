@@ -982,11 +982,15 @@ normalized daily site-level series, the only file in the panel dir that can be
 summed — and `freshness.json`, which grades each integration's newest report
 day against `refresh.freshnessMaxAgeDays` (no source grades as not fresh;
 families no cron produces, `UNCOLLECTED_FAMILIES`, are graded separately in
-`uncollected[]`). The completed report directory is a symlink to an immutable
-generation under `<asset>.reports/`, so interruption leaves the previous
-report visible; one asset's failure does not stop the others. It costs
-nothing: zero provider calls. What a property repo may conclude from the panel
-dir is [doc 20](../docs/20-signal-panels.md).
+`uncollected[]`), and lists each report family with its collection health,
+read once per pass from the Tower's `GET /api/integrations/health`. The
+completed report directory is a symlink to a version under `<asset>.reports/`
+that is never rewritten, so interruption leaves the previous report visible;
+one asset's failure does not stop the others. Versions stay for 14 days, the
+older ones gzipped (`scripts/panel-versions.mts`), and the MCP panel tools
+read them (`scripts/panel-mcp.mts`). It costs nothing: zero provider calls.
+What a property repo may conclude from a panel is
+[doc 20](../docs/20-signal-panels.md).
 
 ## The executive rules
 

@@ -1,41 +1,95 @@
 # 20 — Signal panels: the read contract for property repos
 
-The instructions below describe the file path a property repository reads
-today. Remote reads over the API or MCP and immutable panel versions are not
-built yet.
-
-*Each property has a set of files that shows what happened in search for it
-this week. NoticeOS collects GA4, Google Search Console, Bing Webmaster,
-DataForSEO and PostHog centrally, flattens them into one directory per property, and keeps
-that directory current on a cadence. **A property repo reads those files. It
-never calls a provider about itself.***
+*Each property has a panel: its GA4, Google Search Console, Bing Webmaster,
+DataForSEO, PostHog and Clarity reports, which NoticeOS collects centrally,
+flattens into one table per report family and rebuilds every day. **An agent
+working on a property reads its panel through NoticeOS's MCP panel tools. It
+never calls a provider about the property.***
 
 This doc is written for the agent working in a property's repo, not for
 NoticeOS. If you are here to change how panels are produced, the code is
 `scripts/signal-panels-refresh.mjs`, the roster is
 [`config/signal-panels.json`](../config/signal-panels.json), and the
 per-integration catalog is
-[`config/integrations.json`](../config/integrations.json).
+[`config/integrations.json`](../config/integrations.json). The tools are
+`scripts/panel-mcp.mts`, over `scripts/panel-store.mts` and
+`scripts/panel-query.mts`.
 
-## The read path
+## How an agent reads a panel
 
-```text
-../noticeos/.local/signal-dumps/reports/<asset>/
-```
+The `noticeos` MCP server ([Connect an agent](guides/connect-an-agent.md))
+serves four read-only tools. Each one names the workspace from
+`list_workspaces`.
 
-The portfolio is laid out as siblings, so from any property repo the panel dir is
-`../<the OS checkout>/.local/signal-dumps/reports/<your asset id>/` —
-`../noticeos/…` for a checkout cloned under its own name. `<asset>` is the
-site id exactly as the store records it — for example `example.com`.
+| Tool | What it returns |
+|---|---|
+| `list_panels` | Every site with a published panel: its latest version, when it was built, and the report families that need attention. |
+| `get_panel` | One version of a site's panel (the latest unless `version` names another): when it was built, every report family with its newest report day, its age on the day of the read and its collection status, every table with its columns and row count, the versions kept, and the reading rules below in short form. |
+| `query_panel` | One read-only SQL `SELECT` in DuckDB's dialect over a version's tables, named after their files (`posthog-web-vitals.csv` is `posthog_web_vitals`). It returns the column names and types and at most `max_rows` rows (200 unless named, 2000 at most), and marks a result it cut short. |
+| `read_panel_document` | One of a version's JSON documents: `executive`, `summary`, `freshness` or `report`. A part larger than 64 KB returns as an outline of its keys; `pointer` (a JSON Pointer such as `/items/0`) selects a part. |
 
-The directory is **gitignored working data**, not a committed artifact. It exists
-on the operator's machine, where the OS runs. Read it; do not vendor it into a
-property repo, and do not treat a copy you made last month as current.
+Open `get_panel` first. Its `attention` list names every report family whose
+collection is failing, overdue or paused, every family with no report in the
+panel, every family imported by hand and how old it is, and the panel itself
+when it is not the latest version or the daily refresh has not published it
+for more than 36 hours.
 
-## First: is it current?
+### Versions
 
-**`freshness.json` is the first file you open.** It is written on every refresh
-pass and records how current the panel is:
+Each daily refresh publishes a new **version**: a folder that is never
+rewritten afterwards, named `<generation>-<built at>-<suffix>`, for example
+`00000011-2026-10-13T13-10-04-637Z-4f83dc`. Its `report.json` lists every file
+with its size and sha256.
+
+- A version stays readable for 14 days (`PANEL_VERSION_KEEP_DAYS` in
+  `scripts/panel-versions.mts`). The latest version and the one before it are
+  stored as written; older ones are stored gzipped and return the same rows.
+- **Cite the version you read in a finding**, so a later reader opens the same
+  evidence. A review task filed by NoticeOS records the version it covers in
+  `noticeos_panel_version` and names it in its description.
+- A version that is no longer kept is refused with the latest version's name.
+  No tool substitutes another version for the one you asked for.
+
+### Report family status
+
+`get_panel` gives each report family one `status`, measured when you read it:
+
+| `status` | Meaning |
+|---|---|
+| `ok` | The panel holds the family and its newest report day collected successfully. |
+| `failing` | The newest report day's collection failed. `collection.failing` lists the failed days with the reason code (for example `incomplete-report` when the provider cut the result short). |
+| `overdue` | The collection did not run on its schedule. |
+| `missing` | Collection expects the family, and the panel holds no report of it. |
+| `imported` | An operator imports the family by hand; `ageDays` is the age of the newest import. |
+| `paused` | Collection is turned off for this site; the panel keeps the reports already collected. |
+| `unchecked` | The panel was built without a collection-health read, or before families were recorded. |
+
+`ageDays` is whole days from the family's newest report day to the day of the
+read. The collection status is the one recorded when the version was built;
+the Tower's Integrations page shows the status now.
+
+### Query limits
+
+A query runs in its own process: 30 seconds, 512 MB for DuckDB and 512 MB
+for the process, one thread, and at most 256 KB of rows returned. It can read
+only the files of the version it names. A text that is not exactly one `SELECT`
+(`WITH … SELECT` included) is refused before it runs, so `COPY`, `ATTACH`,
+`SET` and `INSTALL` never run. Filter and aggregate in SQL instead of reading
+raw rows page by page.
+
+## On the OS's own machine
+
+The same versions are files on the machine NoticeOS runs on, under the
+installation's `state/.local/signal-dumps/reports/` (in a checkout without
+Docker, the checkout's `.local/signal-dumps/reports/`). `<asset>` there is a
+link to the latest version in `<asset>.reports/`. The files are working data,
+not a committed artifact: read them in place, and do not copy them into a
+property repo.
+
+## What `freshness.json` records
+
+Each version's `freshness.json` records how current its sources were when it
+was built:
 
 ```json
 {
@@ -90,6 +144,13 @@ pass and records how current the panel is:
   review task lists the operator export as one of its requests.
   `fresh` shows whether the collectors are current; `uncollected[]` shows how
   old each hand-imported file is, in the same file.
+- **`families[]` is one row per report family** the panel holds or the
+  site's collection expects: its `role` (`collected` or `imported`), its newest
+  report day, how many archived report days it has, and `collection`, the
+  family's collection health when the version was built (state, reason code,
+  last success and failing days). `collection` (top level) records when health
+  was read and whether the read succeeded. `get_panel` derives each family's
+  `status` from these.
 - **`freshness.json` missing means the refresh has never run for this property.**
   Check [`config/signal-panels.json`](../config/signal-panels.json): the property
   may be deliberately off the roster, and the entry records why. The operator can
@@ -199,7 +260,10 @@ second question, using data the nightly Bing collection already archived.
 
 ## Answering "what happened in search this week"
 
-1. `freshness.json` — is the panel current, and which integrations?
+Each file below is a `query_panel` table named after it
+(`signal-trend-daily.csv` is `signal_trend_daily`).
+
+1. `get_panel` — is the panel current, and which report families need attention?
 2. `signal-trend-daily.csv` — filter to `integration=gsc`, `metric=clicks` and
    `metric=impressions`, take the last 7 complete days against the 7 before.
    **Ignore rows with `provisional=1` when computing a change**: those are days
@@ -304,8 +368,8 @@ A property repo must not call GA4, GSC, Bing, DataForSEO or PostHog's query API
 about itself (its PostHog browser snippet, which SENDS events, is the property's
 own and stays). That is
 a hard architectural rule (`docs/01-architecture.md`, `docs/09-onboarding-a-site.md`
-design decision 1), not a preference, and with the panel dir, following it costs
-nothing:
+design decision 1), not a preference, and with the panel tools, following it
+costs nothing:
 
 - **Credentials.** The provider credentials live in the OS's secret store. A
   property that pulls its own analytics needs a copy of them, and a portfolio
@@ -332,25 +396,20 @@ links to this doc instead of copying it, so it does not need to change when this
 doc changes.
 
 ```markdown
-## Search and traffic data comes from NoticeOS
+## Search, traffic and product data come from NoticeOS
 
-Never call GA4, Search Console, Bing Webmaster or DataForSEO about this property.
-NoticeOS collects them centrally and keeps a flattened panel current:
+Never call GA4, Search Console, Bing Webmaster, DataForSEO, PostHog or Clarity
+about this property. NoticeOS collects them centrally and rebuilds this site's
+panel every day. Read it through the `noticeos` MCP server's panel tools:
+`get_panel` with `asset: "<asset>"` first (its `attention` list names what is
+failing, missing or old), then `query_panel` for SQL over its tables. Cite the
+panel version you read in any finding.
 
-    ../noticeos/.local/signal-dumps/reports/<asset>/
-
-Open `freshness.json` first (is it current, which integrations, and how old is
-anything under `uncollected[]`?), then
-`signal-trend-daily.csv` for the daily clicks/impressions series, then the
-per-family CSVs for which query or page moved. Absent rows are unknown, never
-zero; `provisional=1` days are still filling in.
-
-Product data — funnels, errors, rage clicks, real-visitor speed — is in the
-`posthog-*.csv` files. Do not query PostHog's API about this property; read one
-`report_date` at a time and never add `people` across rows.
-
-Full contract, file list, and honesty rules: `../noticeos/docs/20-signal-panels.md`.
-Missing a family you need? File it in the OS's own task project — do not add a collector here.
+Absent rows are unknown, never zero; `provisional=1` days are still filling in;
+read one `report_date` at a time and never add `people` across rows.
+Full contract and reading rules: docs/20-signal-panels.md in the NoticeOS repository.
+Missing a report family you need? File it in the OS's own task project — do not
+add a collector here.
 ```
 
 ## How the panels are produced (for the curious, and for whoever debugs it)
@@ -396,6 +455,11 @@ Missing a family you need? File it in the OS's own task project — do not add a
   `signal-trend-daily.csv` and `freshness.json` become visible together at
   `reports/<asset>/`. The previous completed generation remains available if
   analysis fails. Earlier plain `analysis/<asset>/` folders remain untouched.
+  Before the first site, the pass reads the installation's collection health
+  once (`GET /api/integrations/health` on the Tower, the read behind the
+  Integrations page) and records each family's state in that site's
+  `freshness.json`; a failed read is recorded as unavailable and the panel
+  still publishes.
 - **It costs nothing.** A pass makes **zero provider calls**. Every byte it
   writes was already fetched by the collectors above; the refresh reads them
   back out of R2 and Postgres through the running ingest Worker
