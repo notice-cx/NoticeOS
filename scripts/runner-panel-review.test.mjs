@@ -21,6 +21,7 @@ import {
 // a canned door and a recording `bd`; nothing reaches a real tracker.
 
 const UP = { running: true, ready: true };
+const VERSION = '00000004-2026-09-22T13-10-04-637Z-4f83dc';
 const PROJECTS = JSON.stringify({ spokes: [{ asset: 'shop.example', prefix: 'shop', repo: '../shop', database: 'shop' }] });
 
 /** A published panel's freshness.json whose DataForSEO source reaches `day`,
@@ -52,6 +53,7 @@ function filer({ landings, existing = '[]', hub = true, panel = (asset) => publi
       return { code: 0, stdout: argv.includes('create') ? '{"id":"shop-1"}' : existing, stderr: '' };
     },
     readPublished: async (asset) => panel(asset),
+    readVersion: async () => VERSION,
     state: { skipping: null, unmapped: new Set(), waiting: new Set() },
     emit: (level, text) => lines.push(`${level} ${text}`),
     stopped: () => false,
@@ -85,6 +87,10 @@ test('a landing with no review files one bead, asked of this runner’s own door
   assert.equal(asked[0].url, serpPanelLandingsUrl(CONFIG));
   assert.deepEqual(result.filed, [{ asset: 'shop.example', panelDate: '2026-09-21', beadId: 'shop-1' }]);
   assert.deepEqual(ran.map((argv) => argv[2] === '--actor' ? argv[4] : argv[2]), ['list', 'create']);
+  // The review names the panel version it was filed on, beside its identity.
+  const create = ran[1].join(' ');
+  assert.match(create, new RegExp(`"noticeos_panel_version":"${VERSION}"`, 'u'));
+  assert.match(create, new RegExp(`get_panel asset=shop\\.example version=${VERSION}`, 'u'));
 });
 
 test('an already-filed landing files nothing, and a down hub asks nothing', async () => {

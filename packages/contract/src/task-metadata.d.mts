@@ -41,6 +41,11 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_panel_date";
         legacy: "reindex_panel_date";
     }>;
+    /** The published panel version a review covers. It has no older name. */
+    panelVersion: Readonly<{
+        name: "noticeos_panel_version";
+        legacy: "noticeos_panel_version";
+    }>;
     /** An unpushed-work ask's site. */
     pushAsset: Readonly<{
         name: "noticeos_push_asset";

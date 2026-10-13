@@ -33,6 +33,7 @@ export const INVALID_PANEL_REVIEW_LABEL = 'invalid-automation';
  * read as well. */
 export const PANEL_REVIEW_ASSET_KEY = TASK_METADATA.panelAsset.name;
 export const PANEL_REVIEW_DATE_KEY = TASK_METADATA.panelDate.name;
+export const PANEL_REVIEW_VERSION_KEY = TASK_METADATA.panelVersion.name;
 /** How long the reviewer has. A weekly panel triaged later than this is being
  * read against a result page the next collection has already replaced. */
 export const PANEL_REVIEW_DUE_DAYS = 7;

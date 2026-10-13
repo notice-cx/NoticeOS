@@ -17,6 +17,8 @@ import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirect
 import { taskChildEnvironment } from './task-client.mjs';
 import { readTaskProjects } from './task-project-config.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
+import { createPanelOperations } from './panel-mcp.mjs';
+import { PANEL_REPORTS_ROOT } from './signal-panel-paths.mjs';
 /** The origin every request to the endpoint is addressed to, whatever carried it. */
 export const STANDALONE_MCP_ORIGIN = 'http://localhost';
 /** Names the agent a request acts as; without it, `agent`. */
@@ -76,7 +78,9 @@ export async function openStandaloneMcp(options) {
         executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)) }),
         receipts: options.receipts ?? taskReceipts(opened) });
     const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
+    const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;
     const handle = createHostedMcp({ profile: 'standalone', trustedOrigin: STANDALONE_MCP_ORIGIN, standaloneWorkspaceId: workspaceId,
-        operations, readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }) });
+        operations, readModels: async (request) => fetch(tower + MCP_PATH, { method: 'POST', headers: request.headers, body: await request.text(), signal: request.signal }),
+        panels: createPanelOperations({ admission, root: () => panelRoot }) });
     return Object.freeze({ handle, close: () => store.close() });
 }

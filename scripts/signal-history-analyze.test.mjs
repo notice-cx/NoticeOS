@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { gunzipSync } from 'node:zlib';
 import {
   FIXTURE_ANALYZED_AT,
   FIXTURE_ASSET,
@@ -192,6 +193,8 @@ test('a run names its generation; the same generation gives the same report agai
   await analyze(ws);
   const first = await published(ws);
   const manifest = await readCurrentGeneration(ws.history);
+  const raw = new Map();
+  for (const name of [...first.files.keys()].filter((name) => name !== REPORT_RECORD)) raw.set(name, await fs.readFile(path.join(ws.output, name)));
   assert.deepEqual(JSON.parse(first.files.get(REPORT_RECORD)), {
     format: REPORT_FORMAT,
     asset: FIXTURE_ASSET,
@@ -201,6 +204,8 @@ test('a run names its generation; the same generation gives the same report agai
     history: path.relative(REPO_ROOT, ws.history),
     analyzedAt: FIXTURE_ANALYZED_AT,
     duckdb: manifest.writer.duckdb,
+    // Every other file of the version, with the bytes it was written with.
+    files: [...raw.keys()].sort().map((name) => ({ name, bytes: raw.get(name).length, sha256: createHash('sha256').update(raw.get(name)).digest('hex') })),
   });
   await analyze(ws);
   const again = await published(ws);
@@ -217,9 +222,19 @@ test('a run names its generation; the same generation gives the same report agai
   assert.equal((await analyze(ws, { generation: 1 })).report.generation, 1);
   assert.deepEqual((await published(ws)).files, first.files);
 
-  // The current report and the one before it are kept; older ones are gone.
+  // Every version of the last two weeks is kept. The current one and the one
+  // before it stay as written; the older ones hold the same bytes, gzipped.
+  const versions = [first.target, again.target, second.target, (await published(ws)).target].map((target) => path.basename(target));
   const kept = (await fs.readdir(reportsFolder(ws.output))).filter((name) => !name.startsWith('.'));
-  assert.deepEqual(kept.sort(), [path.basename(second.target), path.basename((await published(ws)).target)].sort());
+  assert.deepEqual(kept.sort(), [...versions].sort());
+  for (const [index, version] of versions.entries()) {
+    const folder = path.join(reportsFolder(ws.output), version);
+    const csv = await fs.readdir(folder).then((names) => names.filter((name) => name.includes('.csv')));
+    assert.ok(csv.length > 0);
+    assert.ok(csv.every((name) => name.endsWith(index < 2 ? '.csv.gz' : '.csv')), version);
+  }
+  const gzipped = path.join(reportsFolder(ws.output), versions[0], 'gsc-query.csv.gz');
+  assert.deepEqual(gunzipSync(await fs.readFile(gzipped)), raw.get('gsc-query.csv'));
   assert.deepEqual(await leftovers(ws), []);
 });
 

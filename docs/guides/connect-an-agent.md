@@ -1,11 +1,11 @@
 ---
 title: "Connect an agent"
-description: "Give a coding agent on this machine your tasks and site reports through MCP, with no task tool or credential of its own."
+description: "Give a coding agent on this machine your tasks, site reports and each site's data panel through MCP, with no task tool or credential of its own."
 ---
 
 # Connect an agent
 
-This page shows how to connect an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, and reads site reports. It needs no task tool and no credential of its own.
+This page shows how to connect an AI coding agent, such as Claude Code, to your installation through MCP (the Model Context Protocol). The agent reads and updates the tasks you see on **Tasks**, reads site reports, and queries each site's search, traffic and product data. It needs no task tool and no credential of its own.
 
 MCP is an open standard that lets an AI agent use another program's tools. The Tower serves NoticeOS's tools at `/api/mcp`, beside its own pages; you register that address with the agent once, and from then on it can list, file, claim and close tasks and read how your sites are doing, the way you would in the Tower. Only you can approve work.
 
@@ -63,6 +63,7 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes |
 | `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Your decisions**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |
 | `list_properties`, `property_report`, `research_lookup` | Read site reports and stored research |
+| `list_panels`, `get_panel`, `query_panel`, `read_panel_document` | Read each site's data panel: its Search Console, Analytics, Bing, DataForSEO, PostHog and Clarity reports as tables, rebuilt daily. `get_panel` shows how current each report is and what needs attention; `query_panel` runs one read-only SQL `SELECT` over a panel's tables. Each panel version stays readable for 14 days. See [Signal panels](../20-signal-panels.md#how-an-agent-reads-a-panel) |
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
@@ -92,6 +93,7 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 - In the agent, `list_workspaces` returns one workspace, **This installation**.
 - `list_projects` lists your linked task projects.
 - `list_tasks` with `ready: true` matches **Next up** on **Tasks**.
+- `list_panels` lists each site on the panel refresh roster with a version built in the last day.
 
 ## If it didn't work
 

@@ -13,12 +13,16 @@
  * scopes a 403 naming the scope. The demo takes no credential and reads only.
  * Standalone takes no credential either: whoever may start its process
  * operates the installation, in its one workspace.
+ *
+ * The panel tools (panel-mcp.mts) run here too, where `panels` is given:
+ * they read published panel files, which only this side of the Worker can.
  */
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp, type McpMessage, type McpServer, type McpTool } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
 import { TASK_MCP_TOOLS, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
+import { PANEL_MCP_TOOLS, type PanelOperations } from './panel-mcp.mjs';
 import type { HostedTaskOperations } from './hosted-task-operations.mjs';
 
 export const MCP_PATH = AGENT_RESOURCE_PATH;
@@ -28,6 +32,8 @@ export const MCP_PATH = AGENT_RESOURCE_PATH;
 export const READ_MODELS_HEADER = 'x-noticeos-mcp-part';
 const SERVER_INFO = Object.freeze({ name: 'noticeos', version: '1.0.0' });
 const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
+/** Said only where the panel tools are offered. */
+const PANEL_INSTRUCTIONS = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
 const BODY_BYTES = 256 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 
@@ -53,6 +59,8 @@ export interface HostedMcpOptions {
   /** Sends one read-model MCP call to the Tower Worker. Without it, only the
    * task tools are offered. */
   readonly readModels?: (request: Request) => Promise<Response>;
+  /** Reads published panels. Without it, the panel tools are not offered. */
+  readonly panels?: PanelOperations;
 }
 
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -69,11 +77,12 @@ const LIST_WORKSPACES: McpTool = Object.freeze({ name: 'list_workspaces',
 const TASK_TOOLS = TASK_MCP_TOOLS.map(inWorkspace);
 const READ_TOOLS = READ_MODEL_TOOLS.map(tool => inWorkspace({ ...tool,
   annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) }));
+const PANEL_TOOLS = PANEL_MCP_TOOLS.map(inWorkspace);
 /** The scopes a call needs; list_workspaces needs only a valid token. */
 function scopesFor(name: string): readonly string[] {
   const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
   if (task) return [task.annotations.readOnlyHint === false ? 'tasks:write' : 'tasks:read'];
-  return READ_MODEL_TOOLS.some(tool => tool.name === name) ? ['evidence:read'] : [];
+  return [...READ_MODEL_TOOLS, ...PANEL_MCP_TOOLS].some(tool => tool.name === name) ? ['evidence:read'] : [];
 }
 /** What a token may do in a workspace: its scopes, bounded by the role. */
 function access(scopes: readonly string[], workspace: HostedMcpWorkspace): string[] {
@@ -84,9 +93,10 @@ function access(scopes: readonly string[], workspace: HostedMcpWorkspace): strin
 
 export function createHostedMcp(options: HostedMcpOptions): (original: Request) => Promise<Response> {
   const origin = createBrowserRequestPolicy(options.trustedOrigin).origin;
-  const { profile, operations, agents, readModels } = options;
+  const { profile, operations, agents, readModels, panels } = options;
   if (!['hosted', 'demo', 'standalone'].includes(profile) || !operations || typeof operations.write !== 'function'
-    || readModels !== undefined && typeof readModels !== 'function') throw new Error('MCP configuration refused');
+    || readModels !== undefined && typeof readModels !== 'function'
+    || panels !== undefined && typeof panels?.read !== 'function') throw new Error('MCP configuration refused');
   /** The one workspace a demo or standalone endpoint serves. */
   const named = profile === 'demo' ? options.demoWorkspaceId : options.standaloneWorkspaceId;
   const only = profile !== 'hosted' && typeof named === 'string' && UUID.test(named) ? named : undefined;
@@ -94,7 +104,7 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
       || (profile === 'demo' ? options.standaloneWorkspaceId : options.demoWorkspaceId) !== undefined)
     || profile === 'hosted' && (options.demoWorkspaceId !== undefined || options.standaloneWorkspaceId !== undefined || !agents
       || typeof agents.verify !== 'function' || typeof agents.workspaces !== 'function')) throw new Error('MCP configuration refused');
-  const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : [])]);
+  const tools: readonly McpTool[] = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
     { status: 400, headers: { 'cache-control': 'no-store' } });
   const refused = () => taskRefusal(null);
@@ -138,12 +148,12 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
     } else if (bearer !== null) return invalid('this endpoint takes no credentials');
     // The parsed body is not forwarded: admission reads only request metadata.
     const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
-    const server: McpServer = { info: SERVER_INFO, instructions: INSTRUCTIONS, tools, async call(name, args) {
+    const server: McpServer = { info: SERVER_INFO, instructions: panels ? `${INSTRUCTIONS} ${PANEL_INSTRUCTIONS}` : INSTRUCTIONS, tools, async call(name, args) {
       if (name === 'list_workspaces') {
         if (Object.keys(args).length) throw new McpToolError('invalid arguments: list_workspaces takes none');
         if (profile === 'demo') return { workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
         if (profile === 'standalone') return { workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
-          access: ['tasks:read', 'tasks:write', ...(readModels ? ['evidence:read'] : [])] }] };
+          access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : [])] }] };
         const workspaces = await agents!.workspaces(original).catch(() => null);
         if (!workspaces) throw refused();
         return { workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
@@ -154,8 +164,11 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
         throw new McpToolError('invalid arguments: workspace (a workspaceId from list_workspaces)');
       }
       const task = TASK_MCP_TOOLS.find(tool => tool.name === name);
+      const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
       try {
-        return task ? await task.run({ proof, workspaceId: workspace, operations }, rest) : await readModel(original, name, workspace, rest);
+        if (task) return await task.run({ proof, workspaceId: workspace, operations }, rest);
+        if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
+        return await readModel(original, name, workspace, rest);
       } catch (error) { throw taskRefusal(error); }
     } };
     const authorize = scopes === null ? undefined : (message: McpMessage) => {
