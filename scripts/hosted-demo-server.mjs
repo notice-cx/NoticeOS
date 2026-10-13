@@ -171,7 +171,7 @@ const TYPES = Object.freeze({ '.html': 'text/html; charset=utf-8', '.js': 'text/
     '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
     '.webp': 'image/webp', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8', '.zip': 'application/zip' });
 // Fixed built app routes, including its public legacy aliases (App.tsx).
-const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings|integrations|workflows(?:\/[^/]+)?|tasks(?:\/[^/]+)?|work|(?:assets|properties)(?:\/[^/]+(?:\/[^/]+)?)?|alerts(?:\/[^/]+)?|health(?:\/operations(?:\/[^/]+)?)?)$/u;
+const PAGE = /^\/(?:|wall(?:\/edit)?|financials|settings(?:\/[^/]+)?|integrations|agents|workflows(?:\/[^/]+)?|tasks(?:\/[^/]+)?|work|(?:assets|properties)(?:\/[^/]+(?:\/[^/]+)?)?|alerts(?:\/[^/]+)?|health(?:\/operations(?:\/[^/]+)?)?)$/u;
 function page(pathname) {
     return !/\.(?:m?[jt]sx?|map|json|env|css|html)$/iu.test(pathname) && !pathname.includes('%') && PAGE.test(pathname);
 }

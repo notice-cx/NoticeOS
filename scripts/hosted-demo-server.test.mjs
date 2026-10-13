@@ -89,6 +89,16 @@ test('actual HTTP gateway preserves original proof, refuses hostile Host/release
       // The page's absolute URLs name the configured origin, never a request header's.
       assert.equal((await request(address)).text, `<link rel="canonical" href="${origin}/"><main>Compiled preview</main>`);
     }
+    // Every Tower page opens at its own address: each route the app declares,
+    // the developer pages aside, with and without its optional part.
+    const routes = [...readFileSync(path.join(REPO_ROOT, 'apps/tower/src/App.tsx'), 'utf8').matchAll(/path: "([^"]+)"/gu)]
+      .map(match => match[1]).filter(route => route !== '*' && !route.startsWith('/dev/'));
+    assert.ok(routes.includes('/agents'));
+    for (const route of routes) {
+      for (const address of new Set([route.replace(/\/:\w+\?/gu, '').replace(/:\w+/gu, 'example'), route.replace(/:\w+\??/gu, 'example')])) {
+        assert.equal((await request(address)).status, 200, address);
+      }
+    }
     for (const address of ['/@vite/client', '/@fs/etc/passwd', '/src/main.tsx', '/manifest.json', '/client/.env', '/assets/missing.js.map']) assert.equal((await request(address)).status, 404);
     assert.equal((await request('/brand.zip')).status, 200);
     // The Wall's live traffic and meetings are answered here, synthetically, before any Worker or task service.
