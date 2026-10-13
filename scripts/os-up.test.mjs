@@ -3054,16 +3054,16 @@ test('a panel-less review asks for the inventory, never for a panel walk', () =>
   const text = panelReviewDescription({ asset: 'acorn.example', panelDate: '2026-08-03', panel: false, queries: null, families: 5 });
   assert.match(text, /5 DataForSEO report families/);
   assert.match(text, /Inventory pass/);
-  assert.match(text, /dataforseo-ranked-keywords\.csv/);
-  assert.match(text, /gsc-\*, ga4-\*, bing-webmaster-\*/);
-  assert.match(text, /freshness\.json FIRST/);
+  assert.match(text, /dataforseo_ranked_keywords/);
+  assert.match(text, /gsc_\*, ga4_\* and bing_webmaster_\* tables/);
+  assert.match(text, /get_panel asset=acorn\.example is the panel this review covers — read its attention list first/);
   assert.match(text, /open readback beads for an active measurement window/);
   assert.match(text, /git log/);
   assert.match(text, /measurement state and last ship date\/commit/);
   assert.match(text, /too-recently-changed-to-verdict/);
   assert.match(text, /readback bead/);
   // The panel walk is not in it — there is no panel to walk.
-  assert.doesNotMatch(text, /dataforseo-serp-panel\.csv/);
+  assert.doesNotMatch(text, /dataforseo_serp_panel/);
   assert.doesNotMatch(text, /tracked queries/);
   // But earning one is a named outcome: this is the only route a property has to
   // a panel, and a review that never mentions it leaves the roster frozen.
@@ -3080,18 +3080,20 @@ test('a collection of unknown size still asks for the whole collection', () => {
 });
 
 test('the bead tells its reader where the panel is, from inside the property repo', () => {
-  const landing = { asset: 'northwind.example', panelDate: '2026-08-02', queries: 6 };
+  const landing = { asset: 'northwind.example', panelDate: '2026-08-02', queries: 6, version: '00000004-2026-08-03T13-10-04-637Z-4f83dc' };
   const text = panelReviewDescription(landing, { osCheckout: 'home-os', installation: { root: '/srv/home-os', env: {} } });
   assert.match(text, /all 6 collected result pages/);
   assert.match(text, /docs\/20-signal-panels\.md in home-os/);
+  // The version the review was filed on, through the panel tools first.
+  assert.match(text, /get_panel asset=northwind\.example version=00000004-2026-08-03T13-10-04-637Z-4f83dc is the panel this review covers/);
   assert.match(text, /\.local\/signal-dumps\/reports\/northwind\.example\//);
-  assert.match(text, /dataforseo-serp-panel\.csv/);
+  assert.match(text, /dataforseo_serp_panel/);
   // Every path is qualified: none of these files are the reader's.
   assert.match(text, /NoticeOS: Sites → northwind\.example → Settings → Tracked search terms/);
   assert.match(text, /pnpm config:export in home-os/);
   assert.match(text, /home-os\/installation\/serp-panel\.json/);
   assert.doesNotMatch(text, /config\/serp-panel\.json/);
-  assert.match(text, /panel dir in home-os \(\.local\/signal-dumps/);
+  assert.match(text, /same files are in home-os \(\.local\/signal-dumps/);
   const relocated = panelReviewDescription({ ...landing, panel: false }, {
     osCheckout: 'home-os', installation: { root: '/srv/home-os', env: { NOTICEOS_INSTALLATION_DIR: '/srv/settings' } },
   });
@@ -3176,9 +3178,9 @@ test('the review asks for the week’s whole collection, not only the panel', ()
   ]) {
     assert.match(text, family);
   }
-  // freshness.json first, and the read contract named: a reviewer standing in
-  // the property's repo has to be able to tell stale from silent.
-  assert.match(text, /freshness\.json FIRST/);
+  // The panel's attention list first, and the read contract named: a reviewer
+  // standing in the property's repo has to be able to tell stale from silent.
+  assert.match(text, /read its attention list first/);
   assert.match(text, /docs\/20-signal-panels\.md/);
   // Nothing to pull: the daily refresh already keeps the dir current, and a
   // review that starts with a provider call is a review that does not happen.

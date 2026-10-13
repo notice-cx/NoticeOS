@@ -1,4 +1,4 @@
-import { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY, PANEL_REVIEW_DATE_KEY, PANEL_REVIEW_DUE_DAYS, PANEL_REVIEW_ACTOR, PANEL_REVIEW_LIMIT, panelReviewTitle, panelReviewDueDate, panelReviewListArgs, panelReviewPanelDate, invalidPanelReview, panelReviewAlreadyFiled, panelReviewEntry, PANEL_DATE_RE } from '../panel-review-summary.mjs';
+import { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY, PANEL_REVIEW_DATE_KEY, PANEL_REVIEW_VERSION_KEY, PANEL_REVIEW_DUE_DAYS, PANEL_REVIEW_ACTOR, PANEL_REVIEW_LIMIT, panelReviewTitle, panelReviewDueDate, panelReviewListArgs, panelReviewPanelDate, invalidPanelReview, panelReviewAlreadyFiled, panelReviewEntry, PANEL_DATE_RE } from '../panel-review-summary.mjs';
 export { PANEL_REVIEW_LABEL, INVALID_PANEL_REVIEW_LABEL, PANEL_REVIEW_ASSET_KEY, PANEL_REVIEW_DATE_KEY, PANEL_REVIEW_DUE_DAYS, PANEL_REVIEW_ACTOR, PANEL_REVIEW_LIMIT, panelReviewTitle, panelReviewDueDate, panelReviewListArgs, panelReviewPanelDate, invalidPanelReview, panelReviewAlreadyFiled, panelReviewEntry } from '../panel-review-summary.mjs';
 // runner/panel-review.mjs — the panel-review convention (one review bead per
 // property per collection day) and the hourly filer that writes those beads
@@ -9,6 +9,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { checkoutRelative, installationPath } from '../installation.mjs';
 import { PANEL_FRESHNESS_FILE, panelReportPath, panelReportRelativePath } from '../signal-panel-paths.mjs';
+import { isPanelVersion } from '../panel-versions.mjs';
 import { readTaskProjectConfig } from '../task-project-config.mjs';
 import { CONFIG, HOME_ROOT, OS_CHECKOUT } from './config.mjs';
 import { isShuttingDown } from './lifecycle.mjs';
@@ -102,6 +103,17 @@ export async function readPublishedFreshness(asset) {
   }
 }
 
+/** The published panel version the property's link names now, or null. A
+ * review records it, so its reader opens the evidence it was filed on. */
+export async function readPublishedVersion(asset) {
+  try {
+    const version = path.basename(await fs.readlink(panelReportPath(asset)));
+    return isPanelVersion(version) ? version : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Why the published panel does not yet hold this landing, or null when it does.
  *
@@ -129,6 +141,16 @@ export function panelPublicationGap(freshness, landing) {
   );
   const missing = landing.reports.filter((report) => !(published.get(report) >= landing.panelDate));
   return missing.length === 0 ? null : `the published panel lacks ${missing.join(', ')}`;
+}
+
+/** Where the reviewer reads the evidence: the version this review covers,
+ * through NoticeOS's panel tools, and the same files on the OS's own machine. */
+function panelSource(landing, osCheckout) {
+  const version = landing.version ? ` version=${landing.version}` : '';
+  return `NoticeOS's panel tools (the noticeos MCP server): get_panel asset=${landing.asset}${version} ` +
+    `is the panel this review covers — read its attention list first — and query_panel runs SQL over ` +
+    `its tables. On the OS's own machine the same files are in ${osCheckout} ` +
+    `(${panelReportRelativePath(landing.asset)}/), and docs/20-signal-panels.md there is the read contract.`;
 }
 
 /** What the reviewer is being asked to do, written for somebody standing in the
@@ -182,13 +204,10 @@ export function panelReviewDescription(landing, { osCheckout = OS_CHECKOUT, inst
       `is the metered part; the rest is already paid for and answers what the panel's ` +
       `chosen terms cannot — what this property ranks for AT ALL, who is linking to it, ` +
       `and whether the models mention it.`,
-    `WHERE: the property's panel dir in ${osCheckout} ` +
-      `(${panelReportRelativePath(landing.asset)}/) — read freshness.json FIRST, ` +
-      `docs/20-signal-panels.md is the read contract. The panel is ` +
-      `dataforseo-serp-panel.csv; the inventory is dataforseo-ranked-keywords.csv; then ` +
-      `dataforseo-backlinks-*.csv, dataforseo-llm-mentions-*.csv, and the gsc-*, ga4-*, ` +
-      `bing-webmaster-* exports. The dir is kept current by the daily panel refresh, so ` +
-      `nothing needs pulling. Read the saved terms at ${settings}. For a current local ` +
+    `WHERE: ${panelSource(landing, osCheckout)} The panel is the dataforseo_serp_panel ` +
+      `table; the inventory is dataforseo_ranked_keywords; then the dataforseo_backlinks_*, ` +
+      `dataforseo_llm_mentions_*, gsc_*, ga4_* and bing_webmaster_* tables. The daily panel ` +
+      `refresh keeps it current, so nothing needs pulling. Read the saved terms at ${settings}. For a current local ` +
       `export, run pnpm config:export in ${osCheckout}; the terms are exported to ${exports.terms}. ` +
       `Measurement state is THIS property's open readback beads; surface recency ` +
       `comes from git log in this repo, scoped to the content source paths rather than ` +
@@ -231,13 +250,11 @@ function collectionReviewDescription(landing, osCheckout, settings, exports) {
       `inventory surfaces head terms worth watching every week, adding them through that ` +
       `Settings section is a legitimate outcome of this review — that is how a ` +
       `property earns a panel, and the next review would then carry the panel walk too.`,
-    `WHERE: the property's panel dir in ${osCheckout} ` +
-      `(${panelReportRelativePath(landing.asset)}/) — read freshness.json FIRST, ` +
-      `docs/20-signal-panels.md is the read contract. The inventory is ` +
-      `dataforseo-ranked-keywords.csv; then dataforseo-backlinks-*.csv, ` +
-      `dataforseo-llm-mentions-*.csv, and the gsc-*, ga4-*, bing-webmaster-* exports. The ` +
-      `dir is kept current by the daily panel refresh, so nothing needs pulling. No ` +
-      `freshness.json calls for checking Panel refresh in the same Settings section. ` +
+    `WHERE: ${panelSource(landing, osCheckout)} The inventory is the ` +
+      `dataforseo_ranked_keywords table; then the dataforseo_backlinks_*, ` +
+      `dataforseo_llm_mentions_*, gsc_*, ga4_* and bing_webmaster_* tables. The daily ` +
+      `panel refresh keeps it current, so nothing needs pulling. No published panel ` +
+      `calls for checking Panel refresh in the same Settings section. ` +
       `Run pnpm config:export in ${osCheckout} for current local exports: tracked terms ` +
       `in ${exports.terms}, refresh roster in ${exports.roster}. A missing or failed ` +
       `refresh needs investigation; that is a bead in the OS's own tracker, not a ` +
@@ -296,6 +313,8 @@ export function panelReviewCreateArgs(repoDir, landing) {
     metadata: {
       [PANEL_REVIEW_ASSET_KEY]: landing.asset,
       [PANEL_REVIEW_DATE_KEY]: landing.panelDate,
+      // Which evidence it was filed on; not part of its identity.
+      ...(landing.version ? { [PANEL_REVIEW_VERSION_KEY]: landing.version } : {}),
     },
     description: panelReviewDescription(landing),
     acceptance: panelReviewAcceptance(landing.panel !== false),
@@ -324,6 +343,7 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     run = runBd,
     get = fetch,
     readPublished = readPublishedFreshness,
+    readVersion = readPublishedVersion,
     state = panelFilerState,
     emit = log,
     stopped = () => isShuttingDown(),
@@ -414,9 +434,10 @@ export async function runPanelReviewFiler(runtime, deps = {}) {
     }
     waiting.delete(collection);
 
+    const version = await readVersion(landing.asset).catch(() => null);
     const created = await runBeadsStep(
       run,
-      panelReviewCreateArgs(repoDir, landing),
+      panelReviewCreateArgs(repoDir, { ...landing, version }),
       'create',
       'panel review create',
     );
