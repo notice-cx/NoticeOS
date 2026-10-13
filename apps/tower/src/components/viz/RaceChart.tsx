@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,8 @@ export interface RaceEntry {
   key: string;
   /** Who, as the page names them: "claude · Opus 5.5". */
   name: string;
+  /** A decorative mark beside the name, such as the agent's maker's. */
+  mark?: ReactNode;
   /** Each finished unit's instant, ms. */
   at: readonly number[];
   /** The figure the place is decided by, when it is not the count. */
@@ -45,6 +47,8 @@ export function RaceChart({ entries, from, to, unit, ticks, ariaLabel, className
   const ends = ranked.map((entry) => ({ key: entry.key, at: (entry.at.length / top) * 100 }));
   for (let index = 1; index < ends.length; index++) ends[index]!.at = Math.min(ends[index]!.at, ends[index - 1]!.at - 18);
   const plural = (n: number) => `${formatInt(n)} ${n === 1 ? unit : `${unit}s`}`;
+  // A mark takes room from the name, so marked names get a wider column.
+  const marked = ranked.some((entry) => entry.mark !== undefined);
 
   return (
     <div className={cn("@container/race flex flex-col gap-2", className)} data-race-chart="">
@@ -69,11 +73,12 @@ export function RaceChart({ entries, from, to, unit, ticks, ariaLabel, className
             })}
           </svg>
         </div>
-        <div aria-hidden className="relative w-40 shrink-0" data-race-names="">
+        <div aria-hidden className={cn("relative shrink-0", marked ? "w-48" : "w-40")} data-race-names="">
           {ranked.map((entry, index) => (
             <span key={entry.key} className="absolute inset-x-0 flex -translate-y-1/2 items-start gap-1.5" style={{ top: `${100 - Math.max(ends[index]!.at, -10)}%` }}>
               <span className={cn("grid size-[18px] shrink-0 place-items-center rounded-[5px] text-micro font-bold tabular-nums",
                 index === 0 ? "bg-milestone text-milestone-foreground" : "bg-muted text-foreground")}>{index + 1}</span>
+              {entry.mark}
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="text-xs font-semibold text-foreground [overflow-wrap:anywhere]">{entry.name}</span>
                 <span className="text-micro tabular-nums text-muted-foreground">{plural(entry.at.length)}</span>
@@ -82,7 +87,7 @@ export function RaceChart({ entries, from, to, unit, ticks, ariaLabel, className
           ))}
         </div>
       </div>
-      <div className="flex items-center gap-3 pr-[10.75rem]">
+      <div className={cn("flex items-center gap-3", marked ? "pr-[12.75rem]" : "pr-[10.75rem]")}>
         <div aria-hidden className="relative h-4 min-w-0 flex-1 text-micro text-muted-foreground">
           {ticks.map(([ms, label], index) => (
             // A narrow chart names every other day.

@@ -404,6 +404,9 @@ seven days as a strip, its median time from claim to close), the week's
 ranking of agents and the models they named as a `RaceChart`, the week's
 trophies, and the claims and closes with their evidence as chips. A close is
 counted for whoever closed the task; an agent is a worker that named a model.
+Each worker's name carries an `AgentMark`: its maker's original artwork from
+`public/agents`, chosen by the name and then the models it named, or the
+name's first letter for a person or an unknown maker.
 
 **Money shows one equation**: revenue − cost = net for the month, net the
 largest, beside the month's days as a `BarStrip` (a day some source did not

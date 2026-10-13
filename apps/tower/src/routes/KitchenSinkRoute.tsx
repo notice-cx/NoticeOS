@@ -3,6 +3,7 @@ import { toast } from 'sonner';
 import { useOwnerToast } from '@/lib/browser-context';
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { BrandLockup } from "@/components/BrandLockup";
+import { AgentMark } from "@/components/AgentMark";
 import { IntegrationLogo } from "@/components/IntegrationLogo";
 import { IntegrationHealthPanel } from "@/components/IntegrationHealthPanel";
 import { TaskHubUnavailable, TaskProjectSteps, TaskSourceRows } from "@/components/TaskSourceSection";
@@ -2873,6 +2874,27 @@ export function KitchenSinkRoute() {
               <IntegrationLogo provider="google" size="small" />
               <IntegrationLogo provider="google" />
               <IntegrationLogo provider="google" size="large" />
+            </div>
+          </Section>
+          <Section title="AgentMark">
+            <div className="flex flex-wrap items-start gap-6">
+              {([
+                ["claude", ["Opus 5.5"]],
+                ["codex", ["GPT-5-Codex"]],
+                ["gemini-cli", []],
+                ["build-bot", ["Sonnet 5.5"]],
+                ["Mara", []],
+              ] as const).map(([name, models]) => (
+                <div key={name} className="flex flex-col items-center gap-2">
+                  <AgentMark name={name} models={models} />
+                  <span className="text-xs text-muted-foreground">{models.length ? `${name} · ${models[0]}` : name}</span>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 flex items-center gap-4" aria-label="Agent mark sizes">
+              <AgentMark name="claude" size="small" />
+              <AgentMark name="claude" />
+              <AgentMark name="Mara" size="small" />
             </div>
           </Section>
           <Section title="WhatLands (notification channel)">

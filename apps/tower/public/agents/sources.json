@@ -1,0 +1,21 @@
+{
+  "claude.svg": {
+    "source": "https://www-cdn.anthropic.com/ae59ca4ca194dac9c9dc3bc78c5829468cb0e8af.zip",
+    "path": "Anthropic media resources/Anthropic logos/Claude logos/3 Claude Spark/SVG/Claude Spark - Clay.svg",
+    "reference": "https://www.anthropic.com/press-kit",
+    "retrieved": "2026-10-13",
+    "sha256": "6d53db4be375e899c937c26cf16684a80d6e869b1928d72b37748bef2560e219"
+  },
+  "openai.png": {
+    "source": "https://open-vsx.org/api/openai/chatgpt/alpine-arm64/26.5908.31748/file/blossom.dark.png",
+    "reference": "https://open-vsx.org/extension/openai/chatgpt",
+    "retrieved": "2026-10-13",
+    "sha256": "2ce1c57dd3b312417106a487815ab1235bddce17e1fa9b32a2f048bd71ee25d3"
+  },
+  "gemini.png": {
+    "source": "https://www.gstatic.com/lamda/images/gemini_sparkle_4g_512_lt_f94943af3be039176192d.png",
+    "reference": "https://gemini.google.com/",
+    "retrieved": "2026-10-13",
+    "sha256": "5e7cfecaa53f4f65a313fe89b0f389548126544a78fad8489510c70ae641a4a1"
+  }
+}

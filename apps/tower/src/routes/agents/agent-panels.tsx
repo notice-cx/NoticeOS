@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Check, CircleDot, Flame, Timer, Trophy, Zap } from "lucide-react";
 import { ageMs, formatAge } from "@shared/freshness";
+import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Badge } from "@/components/ui/badge";
@@ -39,9 +40,12 @@ export function WorkerRows({ workers, nowMs, href }: { workers: readonly Worker[
             return (
               <div key={worker.id} data-agent-row={worker.id}
                 className="grid grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1.5 border-t border-border/70 py-3 first-of-type:border-t-0 @2xl/rows:grid-cols-[minmax(8rem,1fr)_minmax(0,2.2fr)_9rem_5.5rem_4.5rem]">
-                <span className="flex min-w-0 flex-col">
-                  <span className="font-semibold text-foreground [overflow-wrap:anywhere]">{worker.name}</span>
-                  <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{worker.models.length ? worker.models.join(" · ") : worker.agent ? "agent" : "no model named"}</span>
+                <span className="flex min-w-0 items-center gap-2.5">
+                  <AgentMark name={worker.name} models={worker.models} />
+                  <span className="flex min-w-0 flex-col">
+                    <span className="font-semibold text-foreground [overflow-wrap:anywhere]">{worker.name}</span>
+                    <span className="text-xs text-muted-foreground [overflow-wrap:anywhere]">{worker.models.length ? worker.models.join(" · ") : worker.agent ? "agent" : "no model named"}</span>
+                  </span>
                 </span>
                 <span className="col-span-2 row-start-2 min-w-0 text-sm @2xl/rows:col-span-1 @2xl/rows:row-start-auto">
                   {first ? (
@@ -134,9 +138,12 @@ export function AgentFeed({ events, nowMs, href }: { events: readonly AgentEvent
               <ol className="m-0 flex list-none flex-col p-0">
                 {list.map((event) => (
                   <li key={`${event.kind}-${event.task.project}-${event.task.id}`} data-agent-event={event.kind}
-                    className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-start gap-x-3 border-t border-border/50 py-2.5 first:border-t-0">
-                    <span aria-hidden className="mt-0.5 grid size-6 place-items-center rounded-full bg-muted">
-                      {event.kind === "closed" ? <Check className="size-3.5 text-milestone" /> : <CircleDot className="size-3.5 text-muted-foreground" />}
+                    className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-start gap-x-3 border-t border-border/50 py-2.5 first:border-t-0">
+                    <span aria-hidden className="relative mt-0.5 size-7">
+                      <AgentMark name={event.who} models={[event.model]} />
+                      <span className="absolute -right-1 -bottom-1 grid size-4 place-items-center rounded-full bg-card ring-1 ring-border">
+                        {event.kind === "closed" ? <Check className="size-3 text-milestone" strokeWidth={3} /> : <CircleDot className="size-3 text-muted-foreground" />}
+                      </span>
                     </span>
                     <span className="flex min-w-0 flex-col gap-1">
                       <span className="text-sm [overflow-wrap:anywhere]">
@@ -186,7 +193,10 @@ export function AgentTrophies({ trophies }: { trophies: readonly Award[] }) {
                   {trophy.value}
                   {trophy.detail ? <span className="ms-1.5 text-xs font-normal text-muted-foreground [overflow-wrap:anywhere]">{trophy.detail}</span> : null}
                 </span>
-                <span className="text-sm font-medium text-foreground [overflow-wrap:anywhere]">{trophy.holder}</span>
+                <span className="flex min-w-0 items-center gap-2 text-sm font-medium text-foreground">
+                  <AgentMark name={trophy.who} models={[trophy.model]} size="small" />
+                  <span className="min-w-0 [overflow-wrap:anywhere]">{trophy.holder}</span>
+                </span>
               </div>
             );
           })}

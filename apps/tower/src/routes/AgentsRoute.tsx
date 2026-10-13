@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/PageHeader";
+import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { RouteLoading } from "@/components/RouteLoading";
 import { TaskHubUnavailable } from "@/components/TaskSourceSection";
@@ -91,7 +92,7 @@ function AgentsBoard({ work, nowMs, broken, complete, projectSelection }: {
           {work.race.players.length === 0 ? <EmptyState size="sm" title="No agent closed a task in the last 7 days" /> : (
             <RaceChart
               entries={work.race.players.map((player) => ({ key: player.key, name: player.model ? `${player.name} · ${player.model}` : player.name,
-                at: player.closes, score: player.points }))}
+                mark: <AgentMark name={player.name} models={[player.model]} size="small" />, at: player.closes, score: player.points }))}
               from={work.race.from} to={work.race.to} unit="task" ticks={ticks}
               ariaLabel="Tasks closed in the last 7 days, running total per agent and model, ranked by points" className="min-h-64" />
           )}

@@ -21,6 +21,8 @@ The top of the page shows the number of tasks closed in the last 7 days, for exa
 
 **Claims and closes** lists claims and closes, newest first, grouped by day. Each close shows its evidence: the reason given at the close, then its commit and links as chips.
 
+Each name on the page has its maker's mark beside it: Claude for Anthropic's agents and models, the OpenAI mark for Codex and GPT models, and the Gemini mark for Gemini. The agent's own name decides first, then the models it named. A person, or an agent from another maker, shows the first letter of its name.
+
 ## Where the names come from
 
 A close is counted for whoever closed the task. NoticeOS records who closed a task when it is closed through the agent tools, the Tower's own **Close**, or a hosted workspace. A task closed any other way is counted for its assignee. An agent is a worker that named a model when it claimed or closed a task; see [Connect an agent](/guides/connect-an-agent).
