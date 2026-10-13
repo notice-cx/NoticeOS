@@ -443,8 +443,9 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       const results = await Promise.allSettled([demo.tick(), other.tick()]);
       assert.ok(results.some(result => result.status === 'fulfilled'));
       await demo.tick();
-      const state = (await admin.query("SELECT occurrence,state FROM noticeos.hosted_job_occurrences WHERE workspace_id=$1 ORDER BY occurrence", [workspace])).rows;
-      assert.equal(state.length, 5); assert.ok(state.every(row => row.state === 'succeeded'));
+      const state = (await admin.query(`SELECT occurrence,state,attempt,effect_step,
+        ARRAY(SELECT jsonb_object_keys(steps)) AS steps FROM noticeos.hosted_job_occurrences WHERE workspace_id=$1 ORDER BY occurrence`, [workspace])).rows;
+      assert.equal(state.length, 5, JSON.stringify(state)); assert.ok(state.every(row => row.state === 'succeeded'), JSON.stringify(state));
       // Each completed day holds its sites' reports once.
       const activity = createDemoActivity(scenario);
       for (let i = 0; i < 5; i++) {
