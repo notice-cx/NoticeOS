@@ -567,3 +567,66 @@ test('snapshot refuses nonservice principals and expanded historical windows bef
   assert.equal(f.state.directoryCalls, 0); assert.equal(f.state.resolves, 0);
   assert.deepEqual(await f.commands(), []);
 }));
+
+test('a pinned binary is hashed once per file identity; a changed binary is refused and a restored one hashed again', () => fixture(async f => {
+  const pinned = [f.options.binary.path, f.options.doltBinary.path], readFile = fs.readFile;
+  let hashed = 0;
+  fs.readFile = (file, ...rest) => { if (pinned.includes(file)) hashed++; return readFile(file, ...rest); };
+  try {
+    await Promise.all([1, 2, 3].map(() => f.executor.execute(request(), A, task({ kind: 'ready' }))));
+    await f.executor.execute(request(), A, task({ kind: 'ready' }));
+    assert.equal(hashed, 2, 'Concurrent and later commands share each binary\'s one hash');
+    const original = await readFile(f.options.binary.path, 'utf8');
+    await fs.writeFile(f.options.binary.path, original + '\n// changed\n');
+    await refused(() => f.executor.execute(request(), A, task({ kind: 'ready' })));
+    await refused(() => f.executor.execute(request(), A, task({ kind: 'ready' })));
+    assert.equal(hashed, 3, 'A binary that no longer matches its pin stays refused until it changes again');
+    await fs.writeFile(f.options.binary.path, original);
+    await f.executor.execute(request(), A, task({ kind: 'ready' }));
+    assert.equal(hashed, 4);
+  } finally { fs.readFile = readFile; }
+}));
+
+test('reads verifies one owned profile once and admits and resolves the project again before every command', () => fixture(async f => {
+  const results = await f.executor.reads(request(), A, P, async run => [await run({ kind: 'ready' }), await run({ kind: 'epics' })]);
+  assert.deepEqual(results.map(row => row.args), [['--sandbox', '--json', '--actor=' + PERSON, '--readonly', 'ready', '--limit=0'],
+    ['--sandbox', '--json', '--actor=' + PERSON, '--readonly', 'epic', 'status']]);
+  const commands = await f.commands();
+  assert.equal(commands.filter(row => row.args[0] === '--version').length, 1, 'The client is verified once');
+  assert.equal(new Set(commands.map(row => row.home)).size, 1);
+  assert.equal(f.state.resolves, 1);
+  assert.equal(f.state.directoryCalls, 3, 'The mapping is read for the profile, then again before each command');
+  assert.ok(f.state.membershipReads >= 3);
+}));
+
+test('reads runs only reads, stops at a revoked or rebound caller, and nothing outlives its profile', () => fixture(async f => {
+  for (const operation of [{ kind: 'create', title: 'not dispatched' }, { kind: 'close', taskId: 'tt-a', reason: 'no' },
+    { kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) }]) {
+    await refused(() => f.executor.reads(request(), A, P, run => run(operation)));
+  }
+  assert.equal((await f.commands()).some(row => row.args.includes('create') || row.args.includes('close')), false);
+  await refused(() => f.executor.reads(request(), A, P, async run => {
+    await run({ kind: 'ready' }); f.state.active = false; return run({ kind: 'epics' });
+  }));
+  f.state.active = true;
+  await refused(() => f.executor.reads(request(), A, P, async run => {
+    await run({ kind: 'ready' }); f.state.selected = Object.freeze({ ...mapping(), executorRef: C }); return run({ kind: 'epics' });
+  }));
+  f.state.selected = mapping();
+  assert.equal((await f.commands()).some(row => row.args.includes('epic')), false);
+  let kept, finished = false;
+  await f.executor.reads(request(), A, P, async run => {
+    kept = run;
+    void run({ kind: 'ready' }).then(() => { finished = true; });
+  });
+  assert.equal(finished, true, 'A command the work did not await finishes before its profile is retired');
+  await refused(() => kept({ kind: 'ready' }));
+}));
+
+test('reads refuses an unadmitted caller before the directory, credentials or any process', () => fixture(async f => {
+  f.state.active = false;
+  await refused(() => f.executor.reads(request(), A, P, run => run({ kind: 'ready' })));
+  await refused(() => f.executor.reads(request(), B, R, run => run({ kind: 'ready' })));
+  assert.equal(f.state.directoryCalls, 0); assert.equal(f.state.resolves, 0);
+  assert.deepEqual(await f.commands(), []);
+}));

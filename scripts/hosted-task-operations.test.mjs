@@ -6,7 +6,8 @@ import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/hosted-task-operations.mts: retry-safe writes over the
-// shared fakes in test-fixtures/hosted-task-fakes.mjs.
+// shared fakes in test-fixtures/hosted-task-fakes.mjs, and reads in one
+// executor session.
 
 const [A, B, P, S, PERSON, OTHER] = ['11111111', '22222222', '33333333', '44444444', '55555555', '66666666']
   .map(prefix => `${prefix}-1111-4111-8111-111111111111`);
@@ -153,4 +154,43 @@ test('a closed-only read may ask for the Agents page history; the board keeps it
   assert.equal((await f.operations.board(proof(), A, P, ['open', 'closed'])).closedSince, '2026-09-30');
   await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 57));
   await assert.rejects(async () => f.operations.board(proof(), A, P, ['closed'], 0));
+});
+
+test('a board, task or history read runs its commands in one executor session where the executor offers one', async () => {
+  const admission = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin,
+    membership: async (_headers, workspaceId) => ({ principalId: PERSON, sessionId: S,
+      expiresAt: new Date(Date.now() + 60000).toISOString(), workspaceId, role: 'operator', workspaceStatus: 'active' }) });
+  const answers = {
+    ready: [{ id: 'tt-1' }],
+    'active-board': [{ id: 'tt-1', title: 'Open', status: 'open', priority: 2 }],
+    'closed-board': [{ id: 'tt-2', title: 'Closed', status: 'closed', priority: 2, closed_at: new Date(Date.now() - 60000).toISOString() }],
+    show: [{ id: 'tt-1', title: 'Open', status: 'open', priority: 2 }],
+    comments: [], history: [],
+  };
+  const sessions = [];
+  const executor = {
+    execute: async () => assert.fail('A read goes through the session'),
+    reads: async (_proof, workspaceId, projectId, work) => {
+      const kinds = []; sessions.push({ workspaceId, projectId, kinds });
+      return work(async operation => {
+        kinds.push(operation.kind);
+        if (operation.kind === 'epics') throw new Error('unavailable');
+        return answers[operation.kind];
+      });
+    },
+  };
+  const operations = createHostedTaskOperations({ admission, executor,
+    directory: { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]) } });
+  const board = await operations.board(proof(), A, P, ['open', 'closed']);
+  assert.deepEqual(board.tasks.map(row => [row.id, row.ready]), [['tt-1', true], ['tt-2', false]]);
+  assert.equal(board.epics, null, 'A failed epic read inside the session stays unknown');
+  assert.equal((await operations.task(proof(), A, P, 'tt-1')).task.id, 'tt-1');
+  assert.deepEqual(await operations.history(proof(), A, P, 'tt-1', 5), []);
+  assert.deepEqual(sessions, [
+    { workspaceId: A, projectId: P, kinds: ['ready', 'active-board', 'closed-board', 'epics'] },
+    { workspaceId: A, projectId: P, kinds: ['ready', 'show', 'comments'] },
+    { workspaceId: A, projectId: P, kinds: ['history'] },
+  ]);
+  assert.throws(() => createHostedTaskOperations({ admission, executor: { ...executor, reads: 'not a function' },
+    directory: { catalog: async () => [] } }));
 });

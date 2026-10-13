@@ -19,6 +19,12 @@ import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 export interface TaskOperationExecutor {
   execute(proof: Request, workspaceId: string, request: HostedTaskRequest,
     controls?: { readonly deadline?: number; readonly signal?: AbortSignal }): Promise<unknown>;
+  /** One request's reads of one project in one client session. An executor
+   * that verifies its client before each command offers this; one that
+   * verifies nothing per command leaves it out and runs `execute` per read. */
+  reads?<T>(proof: Request, workspaceId: string, projectId: string,
+    work: (run: (operation: HostedTaskOperation) => Promise<unknown>) => Promise<T>,
+    controls?: { readonly deadline?: number; readonly signal?: AbortSignal }): Promise<T>;
 }
 export interface HostedTaskOperationsOptions {
   readonly admission: WorkspaceAdmission;
@@ -115,7 +121,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
   const { directory, executor, workspaceActors, receipts } = options;
   const admission: WorkspaceAdmission = options.admission;
   if (typeof admission?.withAdmission !== 'function' || typeof directory?.catalog !== 'function'
-    || typeof executor?.execute !== 'function') invalid();
+    || typeof executor?.execute !== 'function' || executor.reads !== undefined && typeof executor.reads !== 'function') invalid();
   const now = options.now ?? Date.now;
   const pendingMs = options.pendingMs ?? 5 * 60_000;
   if (!Number.isFinite(pendingMs) || pendingMs < 30_000) invalid();
@@ -142,14 +148,16 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       const project = selected(catalog, projectId);
       const readAt = new Date(now()).toISOString(), deadline = now() + 30000;
       const controls = Object.freeze({ deadline, signal: proof.signal });
-      return work(project, operation => executor.execute(proof, workspaceId, { projectId, operation }, controls), readAt, async () => {
+      const actorsOf = async () => {
         // Names are presentation only. An unavailable roster does not invent a
         // name or stop the underlying task read; hosted UUIDs remain unknown.
         let actors: readonly WorkspaceActor[] = [];
         try { actors = await workspaceActors?.(workspaceId) ?? []; } catch { /* Unknown is an honest display state. */ }
         admission.assertContext(context, 'tasks.read');
         return actors;
-      });
+      };
+      if (executor.reads) return executor.reads(proof, workspaceId, projectId, run => work(project, run, readAt, actorsOf), controls);
+      return work(project, operation => executor.execute(proof, workspaceId, { projectId, operation }, controls), readAt, actorsOf);
     });
   }
   /** A created task as both adapters answer it. */
