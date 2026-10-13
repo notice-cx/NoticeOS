@@ -285,9 +285,9 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
 });
 
 // About twenty demo days, each reading five task projects through the pinned
-// task client against a real Dolt server.
+// task client against a real Dolt server: about four minutes in CI.
 test('persistent demo uses ordinary Postgres writers and actual scoped Beads without changing either customer', {
-  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 1_200_000,
+  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 600_000,
 }, async t => {
   // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
   // runs other suites over the same folder: this file keeps its own inside it.
