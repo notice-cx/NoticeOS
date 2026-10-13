@@ -21,7 +21,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
-import { TASK_MCP_TOOLS, taskRefusal } from './hosted-task-mcp.mjs';
+import { TASK_MCP_TOOLS, TASK_QUALITY, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS } from './panel-mcp.mjs';
 export const MCP_PATH = AGENT_RESOURCE_PATH;
@@ -82,6 +82,7 @@ export function createHostedMcp(options) {
     const tools = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
     const invalid = (message) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } }, { status: 400, headers: { 'cache-control': 'no-store' } });
     const refused = () => taskRefusal(null);
+    const instructions = [panels ? `${INSTRUCTIONS} ${PANEL_INSTRUCTIONS}` : INSTRUCTIONS, '', ...TASK_QUALITY].join('\n');
     /** One read-model call, as the Worker's own MCP endpoint answers it. */
     async function readModel(original, name, workspaceId, args) {
         const authorization = original.headers.get('authorization');
@@ -138,7 +139,7 @@ export function createHostedMcp(options) {
             return invalid('this endpoint takes no credentials');
         // The parsed body is not forwarded: admission reads only request metadata.
         const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
-        const server = { info: SERVER_INFO, instructions: panels ? `${INSTRUCTIONS} ${PANEL_INSTRUCTIONS}` : INSTRUCTIONS, tools, async call(name, args) {
+        const server = { info: SERVER_INFO, instructions, tools, async call(name, args) {
                 if (name === 'list_workspaces') {
                     if (Object.keys(args).length)
                         throw new McpToolError('invalid arguments: list_workspaces takes none');

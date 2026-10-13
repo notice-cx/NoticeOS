@@ -30,6 +30,20 @@ const LINKS = Object.freeze([['depends_on', 'blocked-by'], ['blocks', 'blocks'],
     ['discovered_from', 'discovered-from']]);
 /** How many tasks one create_tasks call files: few enough to finish well inside a client's patience. */
 const BATCH = 25;
+/** How to write a task that reads cold, said to every agent the task tools
+ * reach (hosted-mcp.mts puts it in the server's instructions). The one copy:
+ * AGENTS.md and config/beads.README.md point here. Lint checks the shape;
+ * this is the content. */
+export const TASK_QUALITY = Object.freeze([
+    'Writing a task: a stranger must be able to act on it without this conversation.',
+    '- title: the outcome, in plain language.',
+    '- description: plain labelled lines, unwrapped: WHAT, WHY with the numbers, WHERE as pointers that resolve in a repo (file paths, commits, doc sections), FIX. A bug also has a "## Steps to Reproduce" section.',
+    '- acceptance: the proof that completes it, provable the day the work lands. Never "watch for N days": close on today\'s proof and name where a recurrence would show.',
+    '- Never cite a session, a transcript, an agent\'s report or a temporary file; cite the repo evidence under it.',
+    '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask first, lettered options with one marked recommended, technical notes last. A step that must wait for approval uses request_human_approval.',
+    '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
+    '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
+]);
 function refuse(message) { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';
 /** A task tool's failure as the caller may read it. Admission, project

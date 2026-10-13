@@ -288,10 +288,10 @@ finds missing. Without them, run `bd` in the checkout, or `pnpm os:bd --
   <agent>`, verify against its acceptance criteria, commit the completed piece,
   close it with the commit hash and the evidence, then recheck the hub.
 - A finding you report but do not fix is filed first; the report cites the id.
-- A task has an outcome-stated title and a self-contained description: what,
-  why with the numbers, where as pointers that resolve in a repo, and the proof
-  that completes it. Never cite a session, a transcript or another agent's
-  report. Mark real blocking edges only.
+- How to write a task — title, description, acceptance, the `human` label,
+  epics and edges — is `TASK_QUALITY` in `scripts/hosted-task-mcp.mts`, the
+  one copy: the task tools send it to every connected agent in their server
+  instructions.
 - Work only the operator can do carries the `human` label (`bd human list` is
   the inbox); a step that must block until approval is a `bd gate create
   --type human` gate.
