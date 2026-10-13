@@ -102,6 +102,9 @@ export interface Trophy {
   key: "most" | "fastest" | "streak" | "urgent";
   award: string;
   holder: string;
+  /** The holder's worker name and the model it named, apart. */
+  who: string;
+  model: string | null;
   value: string;
   detail: string | null;
 }
@@ -176,6 +179,25 @@ export function streakOf(days: readonly number[]): number {
     else break;
   }
   return streak;
+}
+
+/** The makers whose published marks the Tower ships, in `public/agents`. */
+export type AgentMaker = "anthropic" | "openai" | "google";
+
+const MAKER_NAMES: readonly (readonly [AgentMaker, RegExp])[] = [
+  ["anthropic", /\b(?:claude|opus|sonnet|haiku)\b/iu],
+  ["openai", /\b(?:codex|openai|gpt|o[1-9])\b/iu],
+  ["google", /\bgemini\b/iu],
+];
+
+/** Whose agent this is, by its own name first and then the models it named;
+ * null for a name and models that belong to no maker, a person's included. */
+export function agentMaker(name: string, models: readonly (string | null)[] = []): AgentMaker | null {
+  for (const text of [name, ...models]) {
+    const found = text ? MAKER_NAMES.find(([, pattern]) => pattern.test(text)) : undefined;
+    if (found) return found[0];
+  }
+  return null;
 }
 
 /**
@@ -267,19 +289,21 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
   // The most closes, not the most points: the ranking already shows points.
   const most = [...racers].sort((a, b) => b.closes.length - a.closes.length || b.points - a.points)[0];
   if (most) trophies.push({ key: "most", award: "Most tasks closed", holder: most.model ? `${most.name} · ${most.model}` : most.name,
-    value: `${most.closes.length}`, detail: most.closes.length === 1 ? "task" : "tasks" });
+    who: most.name, model: most.model, value: `${most.closes.length}`, detail: most.closes.length === 1 ? "task" : "tasks" });
   const fastest = recent.filter((task) => (cycleHours(task) ?? -1) >= 0).sort((a, b) => cycleHours(a)! - cycleHours(b)!)[0];
-  if (fastest) trophies.push({ key: "fastest", award: "Fastest close", holder: playerName(fastest), value: formatHours(cycleHours(fastest)!), detail: fastest.title });
+  if (fastest) trophies.push({ key: "fastest", award: "Fastest close", holder: playerName(fastest), who: label(fastest.closer!), model: fastest.model,
+    value: formatHours(cycleHours(fastest)!), detail: fastest.title });
   const streaks = workers.filter((worker) => worker.agent).map((worker) => ({ worker, streak: streakOf(worker.days) })).sort((a, b) => b.streak - a.streak);
   if (streaks[0] && streaks[0].streak > 1) trophies.push({ key: "streak", award: "Most days in a row", holder: streaks[0].worker.name,
-    value: `${streaks[0].streak}`, detail: "days" });
-  const urgent = new Map<string, { name: string; n: number }>();
+    who: streaks[0].worker.name, model: streaks[0].worker.models[0] ?? null, value: `${streaks[0].streak}`, detail: "days" });
+  const urgent = new Map<string, { name: string; who: string; model: string | null; n: number }>();
   for (const task of recent.filter((entry) => entry.priority <= 1)) {
     const name = playerName(task);
-    urgent.set(name, { name, n: (urgent.get(name)?.n ?? 0) + 1 });
+    urgent.set(name, { name, who: label(task.closer!), model: task.model, n: (urgent.get(name)?.n ?? 0) + 1 });
   }
   const mostUrgent = [...urgent.values()].sort((a, b) => b.n - a.n)[0];
-  if (mostUrgent) trophies.push({ key: "urgent", award: "Most urgent tasks closed", holder: mostUrgent.name, value: `${mostUrgent.n}`,
+  if (mostUrgent) trophies.push({ key: "urgent", award: "Most urgent tasks closed", holder: mostUrgent.name,
+    who: mostUrgent.who, model: mostUrgent.model, value: `${mostUrgent.n}`,
     detail: mostUrgent.n === 1 ? "high-priority close" : "high-priority closes" });
 
   const events: AgentEvent[] = [];

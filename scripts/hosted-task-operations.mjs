@@ -68,7 +68,7 @@ export function createHostedTaskOperations(options) {
     const { directory, executor, workspaceActors, receipts } = options;
     const admission = options.admission;
     if (typeof admission?.withAdmission !== 'function' || typeof directory?.catalog !== 'function'
-        || typeof executor?.execute !== 'function')
+        || typeof executor?.execute !== 'function' || executor.reads !== undefined && typeof executor.reads !== 'function')
         invalid();
     const now = options.now ?? Date.now;
     const pendingMs = options.pendingMs ?? 5 * 60_000;
@@ -94,7 +94,7 @@ export function createHostedTaskOperations(options) {
             const project = selected(catalog, projectId);
             const readAt = new Date(now()).toISOString(), deadline = now() + 30000;
             const controls = Object.freeze({ deadline, signal: proof.signal });
-            return work(project, operation => executor.execute(proof, workspaceId, { projectId, operation }, controls), readAt, async () => {
+            const actorsOf = async () => {
                 // Names are presentation only. An unavailable roster does not invent a
                 // name or stop the underlying task read; hosted UUIDs remain unknown.
                 let actors = [];
@@ -104,7 +104,10 @@ export function createHostedTaskOperations(options) {
                 catch { /* Unknown is an honest display state. */ }
                 admission.assertContext(context, 'tasks.read');
                 return actors;
-            });
+            };
+            if (executor.reads)
+                return executor.reads(proof, workspaceId, projectId, run => work(project, run, readAt, actorsOf), controls);
+            return work(project, operation => executor.execute(proof, workspaceId, { projectId, operation }, controls), readAt, actorsOf);
         });
     }
     /** A created task as both adapters answer it. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { LiveTask } from "@shared/tasks";
-import { evidenceParts, readAgentWork, streakOf, taskPoints, type AgentProjectRead } from "@/lib/agent-work";
+import { agentMaker, evidenceParts, readAgentWork, streakOf, taskPoints, type AgentProjectRead } from "@/lib/agent-work";
 
 // Thursday 2026-10-15, noon UTC.
 const NOW = Date.parse("2026-10-15T12:00:00.000Z");
@@ -65,6 +65,10 @@ describe("readAgentWork", () => {
     expect(work.trophies.map((trophy) => [trophy.key, trophy.holder, trophy.value])).toEqual([
       ["most", "claude · Opus 5.5", "2"], ["fastest", "claude · Sonnet 5.5", "2 h"], ["streak", "claude", "3"], ["urgent", "claude · Opus 5.5", "1"],
     ]);
+    // Each award names its worker and model apart, for the worker's mark.
+    expect(work.trophies.map((trophy) => [trophy.who, trophy.model])).toEqual([
+      ["claude", "Opus 5.5"], ["claude", "Sonnet 5.5"], ["claude", "Opus 5.5"], ["claude", "Opus 5.5"],
+    ]);
   });
 
   it("gives Most tasks closed to the most closes, not the most points", () => {
@@ -95,6 +99,27 @@ describe("the contest's rules", () => {
     expect(streakOf([0, 1, 1, 1, 0, 2, 1])).toBe(2);
     expect(streakOf([1, 1, 1, 1, 1, 1, 0])).toBe(6);
     expect(streakOf([0, 0, 0, 0, 0, 0, 0])).toBe(0);
+  });
+});
+
+describe("agentMaker", () => {
+  it("reads the maker from the worker's name first, then the models it named", () => {
+    expect(agentMaker("claude")).toBe("anthropic");
+    expect(agentMaker("claude-code", ["GPT-5-Codex"])).toBe("anthropic");
+    expect(agentMaker("codex")).toBe("openai");
+    expect(agentMaker("gemini-cli")).toBe("google");
+    expect(agentMaker("build-bot", [null, "Sonnet 5.5"])).toBe("anthropic");
+    expect(agentMaker("build-bot", ["o3"])).toBe("openai");
+    expect(agentMaker("verifier", ["GPT-5-Codex"])).toBe("openai");
+  });
+
+  it("leaves a person and an unknown maker without one", () => {
+    expect(agentMaker("Mara")).toBeNull();
+    expect(agentMaker("Mara", [null])).toBeNull();
+    expect(agentMaker("deploy-bot", ["Verifier 1"])).toBeNull();
+    // A maker's word inside another word is not that maker.
+    expect(agentMaker("Claudette")).toBeNull();
+    expect(agentMaker("Joshua")).toBeNull();
   });
 });
 

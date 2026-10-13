@@ -56,6 +56,12 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["provider logos", "calendar", "fallback", "small", "default", "large"],
   },
   {
+    name: "AgentMark",
+    file: "components/AgentMark.tsx",
+    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter.",
+    variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default"],
+  },
+  {
     name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable",
     file: "components/TaskSourceSection.tsx",
     purpose: "Core task database health beside Settings → Task projects. TaskSourceRows presents actual snapshot availability and project count without gating Tasks navigation or task actions. TaskHubUnavailable leads an unmapped installation to this existing project manager. TaskProjectSteps retains the host commands after adding a project. Provider credentials stay on Integrations.",

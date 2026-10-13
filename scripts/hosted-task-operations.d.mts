@@ -10,6 +10,13 @@ export interface TaskOperationExecutor {
         readonly deadline?: number;
         readonly signal?: AbortSignal;
     }): Promise<unknown>;
+    /** One request's reads of one project in one client session. An executor
+     * that verifies its client before each command offers this; one that
+     * verifies nothing per command leaves it out and runs `execute` per read. */
+    reads?<T>(proof: Request, workspaceId: string, projectId: string, work: (run: (operation: HostedTaskOperation) => Promise<unknown>) => Promise<T>, controls?: {
+        readonly deadline?: number;
+        readonly signal?: AbortSignal;
+    }): Promise<T>;
 }
 export interface HostedTaskOperationsOptions {
     readonly admission: WorkspaceAdmission;
