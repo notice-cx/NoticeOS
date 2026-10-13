@@ -29,6 +29,10 @@ const allocations = workspaces.map(workspaceId => ({ workspaceId, projectId, dat
 test('ordinary hosted task snapshots retain current two-customer and demo summaries through scoped service reads', {
   skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 240000,
 }, async t => {
+  // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
+  // runs other suites over the same folder: this file keeps its own inside it.
+  process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
+    path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'task-snapshot-'));
   const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
   await withOwnedTaskProjects(async (physical, controls) => {
     const root = mkdtempSync(path.join(os.tmpdir(), 'n-snapshot-pg-'));

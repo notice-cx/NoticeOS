@@ -390,12 +390,14 @@ push contacts, even with auto-push enabled. Source data remains unchanged.
 
 `pnpm test:task-store` runs the hosted task store proofs: the
 fixed executor's qualification, two executors racing one claim, a create
-and comment retried after a lost reply, and the demo simulator's days, which
-also start a throwaway Postgres. On a Linux host with Docker and PostgreSQL
-server binaries, `node scripts/task-store-test-tools.mjs --out <new folder>`
-prepares their inputs: the task and Dolt clients `deploy/compose/Dockerfile`
-pins, verified against its digests, the pinned server image and a new evidence
-folder. It prints the variables to export. CI's `task-store` job runs them all.
+and comment retried after a lost reply, task summaries read with a service
+grant, the task HTTP routes under a signed-in session, and the demo
+simulator's days. The last three also start a throwaway Postgres. On a Linux
+host with Docker and PostgreSQL server binaries,
+`node scripts/task-store-test-tools.mjs --out <new folder>` prepares their
+inputs: the task and Dolt clients `deploy/compose/Dockerfile` pins, verified
+against its digests, the pinned server image and a new evidence folder. It
+prints the variables to export. CI's `task-store` job runs them all.
 Their fixture removes the Compose project it started when a run fails, also
 after a Docker command that timed out, and when the process exits before the
 run ends; only a cleanup that cannot finish keeps the fixture's files.
