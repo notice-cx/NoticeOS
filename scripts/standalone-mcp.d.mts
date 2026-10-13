@@ -39,5 +39,7 @@ export interface StandaloneMcpOptions {
     /** Where the Tower answers its read-model MCP calls. */
     readonly tower?: string;
     readonly fetch?: typeof globalThis.fetch;
+    /** Where the installation publishes its site panels; tests name a fixture. */
+    readonly panelRoot?: string;
 }
 export declare function openStandaloneMcp(options: StandaloneMcpOptions): Promise<StandaloneMcp>;
