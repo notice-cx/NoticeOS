@@ -75,6 +75,10 @@ export interface DecisionQueueProps {
   title?: string;
   /** "All tasks →". */
   action?: { label: string; to: string };
+  /** A control beside the title, such as Select. */
+  headerAction?: ReactNode;
+  /** A bar between the header and the rows, such as a selection's actions. */
+  toolbar?: ReactNode;
   /** The queue could not be read, or is empty: one line in place of the rows. */
   empty?: string;
   /** The rows, when each needs its own state (wired verbs): `QueueRow`s in
@@ -83,7 +87,7 @@ export interface DecisionQueueProps {
   className?: string;
 }
 
-export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, empty = "Nothing to decide.", children, className }: DecisionQueueProps) {
+export function DecisionQueue({ items, total = null, totalNote, limit = 4, title = "Decide", action, headerAction, toolbar, empty = "Nothing to decide.", children, className }: DecisionQueueProps) {
   const [open, setOpen] = useState(false);
   const count = total ?? items.length;
   const buckets = ageBuckets(items);
@@ -97,6 +101,7 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
       <header className="flex flex-col gap-3 px-5 pb-3 pt-4">
         <div className="flex items-baseline justify-between gap-3">
           <h2 className={cn("m-0", eyebrowClass)}>{title}</h2>
+          {headerAction}
           {action ? (
             <Link to={action.to} className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-2 focus-visible:ring-ring">
               {action.label}
@@ -139,6 +144,7 @@ export function DecisionQueue({ items, total = null, totalNote, limit = 4, title
           </div>
         ) : null}
       </header>
+      {toolbar}
       {items.length === 0 ? (
         <p className="m-0 border-t border-border/60 px-5 py-4 text-sm text-muted-foreground">{empty}</p>
       ) : (

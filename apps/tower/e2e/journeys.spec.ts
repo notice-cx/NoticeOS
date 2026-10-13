@@ -1,7 +1,7 @@
 import { formatSeriesDate } from "../src/lib/format";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE } from "./fixtures";
+import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -1855,6 +1855,35 @@ async function assertSourcesFit(page: Page, context: string) {
 // Health's list of things to set up; Settings still offers No report. Once the
 // first number turns Home into the dashboard, Home's System does not count the
 // site either.
+test("several approvals are decided in one action: one Undo, each reaches the task client in turn, and a refused one is named and stays", async ({ page }) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
+    tasks: { id: string; status: string }[]; taskCommands: string[][];
+  };
+  const approvals = ["jt-approve", "jt-press", "jt-banner", REFUSED_GATE];
+  await keyboardActivate(page, page.locator("[data-waiting-list]").getByRole("button", { name: "Select", exact: true }));
+  const bar = page.locator("[data-inbox-selection]");
+  await keyboardActivate(page, bar.getByRole("button", { name: "Select all 5", exact: true }));
+  await expect(bar.getByRole("status")).toHaveText("5 selected");
+  // The ask picked with them is not an approval, so Approve leaves it alone.
+  await keyboardActivate(page, bar.getByRole("button", { name: "Approve 4", exact: true }));
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Approved 4" })).toBeVisible();
+  for (const id of approvals) await expect(page.locator(`[data-inbox-row="${id}"]`)).toHaveCount(0);
+  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
+  // Nothing is written inside the Undo window.
+  expect((await status()).tasks.every((row) => row.status === "open")).toBe(true);
+  await expect.poll(async () => (await status()).tasks.map((row) => `${row.id}:${row.status}`).sort(), { timeout: 20_000 })
+    .toEqual(["jt-approve:closed", "jt-banner:closed", "jt-press:closed", `${REFUSED_GATE}:open`, "jt-review:open"]);
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: `Not sent: ${REFUSED_GATE}` })).toBeVisible();
+  await expect(page.locator(`[data-inbox-row="${REFUSED_GATE}"]`)).toHaveCount(1);
+  const resolved = (await status()).taskCommands.map((argv) => argv.slice(2)).filter((argv) => argv[0] === "gate" && argv[1] === "resolve");
+  expect(resolved.map((argv) => argv[2]).sort()).toEqual([...approvals].sort());
+  expect(resolved.every((argv) => argv.includes("--actor"))).toBe(true);
+  await assertNoPageOverflow(page);
+});
+
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

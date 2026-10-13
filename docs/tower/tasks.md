@@ -13,7 +13,7 @@ The Tasks page shows how big the queue is, and which tasks in it cannot move for
 
 The page starts with a one-line summary: **No decisions for you**, or **3 decisions for you** with **1 needs your approval** and how many tasks are open under it. Three figures follow: **Urgent**, **Blocked** and **Closed this week**.
 
-**Your decisions** is the queue: how many decisions are waiting, the oldest one's age, and one bar splitting them by age (under 7 days, 7–30, 30–60, over 60). Each decision is a row with its age drawn as a length and its buttons: **Approve** for a gate that blocks work until you approve it, **Answer** or **Dismiss** for a question. A row's caption names the project and, for a gate, **needs your approval**. Pressing the row opens its details in place. The queue ends with **That's everything waiting on you.**
+**Your decisions** is the queue: how many decisions are waiting, the oldest one's age, and one bar splitting them by age (under 7 days, 7–30, 30–60, over 60). Each decision is a row with its age drawn as a length and its buttons: **Approve** for a gate that blocks work until you approve it, **Answer** or **Dismiss** for a question. A row's caption names the project and, for a gate, **needs your approval**. Pressing the row opens its details in place. The queue ends with **That's every decision for you.**
 
 **In and out** draws the last 14 days: tasks closed a day and tasks filed a day, each with a dashed line at its daily average, and one line stating whether more tasks were closed or filed over the days both were counted. Today is drawn hatched while it is still being counted.
 
@@ -34,6 +34,7 @@ The board works on a new installation because it ships with its own NoticeOS pro
 - **Approve** a gate from its row.
 - **Answer** a question: the box opens on the row, you type **Your answer** and select **Send**. The answer text becomes the note.
 - **Dismiss** a question you decline.
+- Decide several at once: **Select** beside **Your decisions** puts a checkbox on every row you can answer and shows every row. Tick rows, or **Select all**, then **Approve** sends every selected gate and **Answer** or **Dismiss** every selected question; each button shows how many rows it sends. One **Undo** takes the whole batch back. After the Undo window the rows are sent one at a time, and any that are refused are named in a message and return to the queue. **Done** leaves without sending.
 - Select a project's name in **Work by project** to narrow the list to it.
 - Pick another epic from the list beside **Epic**; the choice is kept in the page's address. Select a task in the graph to open its page.
 - **New task** opens the composer in place. It has fields for a **Title** (**What should be true when this is done**), a **Project**, a **Priority** and a **Type**, with optional **Parent epic**, **Labels**, a **Description** (**What, why with the numbers, where**) and **Done when** (**The proof that it is done**). **File task** files it.

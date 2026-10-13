@@ -463,6 +463,22 @@ FLOWS["inbox"] = {
   },
 };
 
+/** Several decisions taken at once (Gmail, Linear): Select, Select all,
+ * then one verb for every selected approval. */
+FLOWS["inbox-bulk"] = {
+  title: "Approve several decisions at once (select, then one press)",
+  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/more-decisions"); await page.goto("/"); },
+  async run(w) {
+    await nav(w, "Tasks");
+    const queue = w.page.locator("[data-waiting-list]");
+    await w.click(queue.getByRole("button", { name: "Select", exact: true }), "Select", { role: "choose" });
+    const bar = w.page.locator("[data-inbox-selection]");
+    await w.click(bar.getByRole("button", { name: "Select all 5", exact: true }), "Select all", { role: "choose" });
+    await w.click(bar.getByRole("button", { name: "Approve 4", exact: true }), "Approve 4", { role: "commit" });
+    await w.end("approved");
+  },
+};
+
 /** File task on a saved finding's row, prefilled from the finding (PagerDuty
  * → Jira): two presses, on the page it is read on. */
 FLOWS["file-task-from-finding"] = {

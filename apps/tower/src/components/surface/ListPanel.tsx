@@ -182,6 +182,8 @@ export interface ListRowProps {
   /** Under the row whether or not it is expanded — the answer box a row
    * action opens in place. */
   below?: ReactNode;
+  /** Before the row, outside its button: a selection checkbox. */
+  leading?: ReactNode;
   defaultExpanded?: boolean;
   /** Navigation rows open an exact item instead of expanding an empty preview. */
   to?: string;
@@ -213,6 +215,7 @@ export function ListRow({
   rowActions,
   rowActionsInline = false,
   below,
+  leading,
   defaultExpanded = false,
   to,
   returnTo,
@@ -293,13 +296,21 @@ export function ListRow({
     <div className={shell}>{body}</div>
   );
 
+  // Like the row's actions, a sibling of its button and never inside it.
+  const row = leading ? (
+    <div className="flex items-center">
+      <span className="shrink-0" data-list-row-leading>{leading}</span>
+      <div className="min-w-0 flex-1">{main}</div>
+    </div>
+  ) : main;
+
   return (
     <li className={cn("m-0", className)} {...marks}>
       {/* A sibling of the row's own button, never inside it: a button in a
           button is unreachable by keyboard and screen reader. */}
       {rowActions ? (
         <div className={cn("flex items-center gap-x-2 rounded-md", !rowActionsInline && "max-sm:flex-wrap", open && "bg-muted/40")}>
-          <div className="min-w-0 flex-1">{main}</div>
+          <div className="min-w-0 flex-1">{row}</div>
           <span
             className={cn(
               "flex shrink-0 flex-wrap items-center gap-2 pe-2",
@@ -311,7 +322,7 @@ export function ListRow({
           </span>
         </div>
       ) : (
-        main
+        row
       )}
       {below}
       {/* `minmax(0,1fr)` holds the body to the row's width: an implicit column

@@ -149,6 +149,9 @@ export function journeySerpPanelSnapshot(market: { locationCode: number; languag
   };
 }
 
+/** The one approval the fixture's task client refuses; `/__journey/more-decisions` adds it. */
+export const REFUSED_GATE = "jt-refused";
+
 /** The operator's two asks: a top-priority one, so every journey walks the
  * inbox's warn register, and a human gate in `bd`'s own shape, titled "Gate:
  * human" with the ask under `Reason:` in its description, so every journey
