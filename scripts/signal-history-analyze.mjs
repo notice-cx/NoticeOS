@@ -51,9 +51,11 @@
 // under `<out>.reports/`. The job stages the whole report beside it, flushes it
 // to disk and swaps the link in one rename, so a reader of `--out` sees the
 // previous report or the new one, never a mix, and a job stopped at any point —
-// a limit, a kill, a crash — leaves the previous report in place. The report
-// before the current one is kept; older ones are removed. It never replaces a
-// folder it did not write, and one lock lets one job at a time write a link.
+// a limit, a kill, a crash — leaves the previous report in place. Each report
+// is a version that is never rewritten: report.json names every file with its
+// size and sha256, and older versions are kept and gzipped by the rule in
+// scripts/panel-versions.mts. It never replaces a folder it did not write, and
+// one lock lets one job at a time write a link.
 //
 // The scheduled panel refresh calls this bounded job; it reads no
 // file of the running OS. Run from the command line, it asks the
@@ -92,6 +94,7 @@ import {
   readGeneration,
 } from './signal-history.mjs';
 import { buildExecutiveSnapshot, marketPhrase, reclamationTargetList } from './signal-insights.mjs';
+import { panelVersionId, retainPanelVersions } from './panel-versions.mjs';
 
 const MODULE = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(MODULE), '..');
@@ -134,7 +137,7 @@ export function storedValueEvents(snapshot) {
   return { body: saved.body, version: saved.version };
 }
 
-export const REPORT_FORMAT = 'noticeos-signal-report/1';
+export const REPORT_FORMAT = 'noticeos-signal-report/2';
 export const REPORT_RECORD = 'report.json';
 
 /** The limits a run gets unless it is given others. */
@@ -608,13 +611,16 @@ async function runJob(job, stage) {
   await fs.mkdir(staging);
   let staged = 0;
   const written = [];
+  const files = [];
   const write = async (name, text) => {
-    staged += Buffer.byteLength(text);
+    const bytes = Buffer.byteLength(text);
+    staged += bytes;
     if (staged > limits.tempDiskMb * MB) {
       throw new JobFailure('temp-disk', `The report needed more than its ${limits.tempDiskMb} MB of temporary disk (${LIMIT_FLAGS.tempDiskMb}).`);
     }
     await fs.writeFile(path.join(staging, name), text, { flag: 'wx' });
     written.push(name);
+    files.push({ name, bytes, sha256: sha256(text) });
     if (written.length === 1) await stage('writing');
   };
   const { summary, executive } = await writeReport({
@@ -639,6 +645,7 @@ async function runJob(job, stage) {
     history: path.relative(REPO_ROOT, history),
     analyzedAt,
     duckdb: engine.version,
+    files: [...files].sort((left, right) => left.name.localeCompare(right.name)),
   }, null, 2)}\n`);
   // Every file on disk before the link can name it; flushed together, which
   // costs a fraction of one at a time.
@@ -651,7 +658,7 @@ async function runJob(job, stage) {
   // One rename makes the report a report folder; one more swaps the link.
   const reports = reportsFolder(output);
   const previous = await linkedReport(output);
-  const id = `${String(manifest.generation).padStart(8, '0')}-${analyzedAt.replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`;
+  const id = panelVersionId(manifest.generation, analyzedAt);
   const folder = path.join(reports, id);
   await fs.rename(staging, folder);
   const link = path.join(reports, `.link-${process.pid}-${randomBytes(4).toString('hex')}`);
@@ -660,11 +667,7 @@ async function runJob(job, stage) {
   await syncFolder(reports);
   await syncFolder(path.dirname(output));
 
-  // The current report and the one before it stay; older ones go.
-  for (const name of await fs.readdir(reports)) {
-    if (!REPORT_FOLDER.test(name) || name === id || path.join(reports, name) === previous) continue;
-    await fs.rm(path.join(reports, name), { recursive: true, force: true });
-  }
+  await retainPanelVersions(reports, { current: id, previous: previous === null ? null : path.basename(previous), now: analyzedAt });
   const secondsPublishing = lap();
 
   return {
@@ -672,6 +675,7 @@ async function runJob(job, stage) {
     executiveSnapshot: executive,
     report: {
       folder: path.relative(REPO_ROOT, folder),
+      version: id,
       generation: manifest.generation,
       generationContent: manifest.content,
       files: written.length,
