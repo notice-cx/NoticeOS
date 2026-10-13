@@ -32,7 +32,7 @@ export const PANEL_RULES = Object.freeze([
     'Read one report_date at a time: daily reads overlap, so never add rows or people across report dates.',
     'Bing weekly snapshots are revisions of each other; never sum them across collections.',
     'GSC page and query tables are top rows only; their totals never match signal_trend_daily.',
-    'dataforseo_serp_panel and posthog_web_vitals rows are per device; filter to one device before counting.',
+    'dataforseo_serp_panel, posthog_web_vitals and posthog_inp_targets rows are per device; filter to one device before counting.',
     'Empty aio_present or aio_cites_us means unknown, not false; empty best_rank means outside the tracked depth.',
     'people counts do not add across rows, days or report dates.',
     'Cite the panel version you read in any finding.',

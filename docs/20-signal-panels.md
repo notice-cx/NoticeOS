@@ -188,6 +188,7 @@ three files that are not raw families:
 | `posthog-exceptions.csv` | **What breaks in the browser, and for how many people?** One row per exception `message` (200 characters at most): `count`, `people`, `sessions`, `max_per_session`, `has_source_file`, `top_path`, `top_browser`. Top 100 by count, trailing 14 days. |
 | `posthog-rageclicks.csv` | **Which controls frustrate people?** One row per page + element (`path`, `tag`, `text`, `attr`): `clicks`, `people`, clicks by device, and `page_people` — the people who viewed that page in the window, the denominator. Top 100 by people, trailing 14 days. |
 | `posthog-web-vitals.csv` | **How fast is the site for real visitors?** One row per page + `device` + `os`: 75th-percentile `lcp_p75`, `inp_p75`, `fcp_p75` (ms) and `cls_p75`, plus `measurements`. The 20 most-measured pages, trailing 14 days. |
+| `posthog-inp-targets.csv` | **Which control makes a tap slow, and where does the time go?** One row per page + `device` + `os` + `target` (the CSS selector of the element behind each page view's slowest interaction) + `interaction_type` (`pointer` or `keyboard`): `measurements` (page views), `inp_p75` and its parts `input_delay_p75`, `processing_p75`, `presentation_delay_p75` (ms). The same 20 pages as `posthog-web-vitals.csv`, trailing 14 days. An empty `target` means the event carried no element: unknown. |
 | `posthog-funnels.csv` | **Where do people drop out of a journey?** One row per configured funnel step: `funnel_id`, `name`, `step`, `event`, `path`, `people`, ordered-step conversion inside a trailing 7-day window. Each read is kept beside the one before it for the week-over-week comparison. |
 | `executive.json` | A **deterministic** reading of the above by fixed rules — findings with source, evidence window, exact facts, confidence, and limitation. Not an LLM summary. |
 | `summary.json` | Row counts per family, the archive manifest behind them, and the collection caveats. |
@@ -225,7 +226,7 @@ Search data shows how people
 arrive; PostHog shows **what they do once they are on the site, and where it
 breaks** — funnels, errors, rage clicks and real-visitor speed. It is collected
 per property (each has its own PostHog project, host and read-only key,
-connected on the Tower's Integrations page) and is written here as six
+connected on the Tower's Integrations page) and is written here as seven
 `posthog-*.csv` files.
 
 | | |
@@ -233,7 +234,7 @@ connected on the Tower's Integrations page) and is written here as six
 | **Provider** | PostHog, one project per property. Every read is an aggregate PostHog computes server-side; raw events never leave PostHog. |
 | **Grain** | Every family except `web-daily` is a **window aggregate**: one row per event, message, page element, page segment or funnel step, over the read's own window. `web-daily` is one row per day. `row_grain` records which. |
 | **Its dates** | `window_start`–`window_end` (inclusive, in the PostHog project's timezone, `project_time_zone`) is what a row measures. `report_date` is the window's end. **Read the window from the row**, never from `report_date`: a manual collection can end on the same day as the daily read over a different window. |
-| **Windows on the daily read** | `web-daily` 28 days; `events`, `exceptions`, `rageclicks`, `web-vitals` 14 days; `funnels` 7 days. |
+| **Windows on the daily read** | `web-daily` 28 days; `events`, `exceptions`, `rageclicks`, `web-vitals`, `inp-targets` 14 days; `funnels` 7 days. |
 | **Repeat reads** | Consecutive daily reads overlap almost completely. **Read one `report_date` at a time** and never add rows across report dates. `web-daily` is resolved for you: a day re-sent by a later read keeps only the newest read's row. `funnels` keeps every read, so a funnel can be compared with the read that ended seven days earlier. |
 | **People counts do not add** | `people` is PostHog's unique-person count over that row's window. It does not add across rows (one person can hit three errors), across days, or across report dates. |
 | **Row limits** | Each family is cut at a row limit (above). `provider_truncated=true` means the limit was reached, so the file is a top-N read and any total built from it is a floor. `row_limit` records the limit. |

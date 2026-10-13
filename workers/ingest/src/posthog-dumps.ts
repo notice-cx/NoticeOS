@@ -19,6 +19,7 @@ import {
   POSTHOG_LANE_ID,
   POSTHOG_ROW_LIMITS,
   POSTHOG_WEB_VITALS_TOP_PATHS,
+  POSTHOG_INTERACTION_TARGET_MAX,
   POSTHOG_WINDOW_DAYS,
   POSTHOG_MESSAGE_MAX,
   POSTHOG_ELEMENT_TEXT_MAX,
@@ -1368,6 +1369,44 @@ export function posthogQuery(
           `LIMIT ${limit}`,
         ].join('\n'),
       };
+    case 'inp-targets': {
+      // The library keeps an allowlist of the attribution's scalar fields under
+      // $web_vitals_INP_event.attribution; an event without one has none.
+      const attribution = (field: string) => `JSONExtractRaw(properties, '$web_vitals_INP_event', 'attribution', '${field}')`;
+      // HogQL's toFloat is null-safe: a missing field is NULL, which quantiles skip.
+      const milliseconds = (field: string) => `quantileExact(0.75)(toFloat(${attribution(field)}))`;
+      return {
+        columns: ['path', 'device', 'os', 'target', 'interaction_type', 'measurements', 'inp_p75',
+          'input_delay_p75', 'processing_p75', 'presentation_delay_p75'],
+        text: [
+          'SELECT',
+          "  nullIf(toString(properties.$pathname), '') AS path,",
+          "  nullIf(toString(properties.$device_type), '') AS device,",
+          "  nullIf(toString(properties.$os), '') AS os,",
+          `  nullIf(substring(JSONExtractString(properties, '$web_vitals_INP_event', 'attribution', 'interactionTarget'), 1, ${POSTHOG_INTERACTION_TARGET_MAX}), '') AS target,`,
+          "  nullIf(JSONExtractString(properties, '$web_vitals_INP_event', 'attribution', 'interactionType'), '') AS interaction_type,",
+          '  count() AS measurements,',
+          '  quantileExact(0.75)(toFloat(properties.$web_vitals_INP_value)) AS inp_p75,',
+          `  ${milliseconds('inputDelay')} AS input_delay_p75,`,
+          `  ${milliseconds('processingDuration')} AS processing_p75,`,
+          `  ${milliseconds('presentationDelay')} AS presentation_delay_p75`,
+          'FROM events',
+          `WHERE event = '$web_vitals' AND ${bounds}`,
+          '  AND properties.$web_vitals_INP_value IS NOT NULL',
+          "  AND nullIf(toString(properties.$pathname), '') IN (",
+          "    SELECT nullIf(toString(properties.$pathname), '') AS top_path",
+          '    FROM events',
+          `    WHERE event = '$web_vitals' AND ${bounds}`,
+          '    GROUP BY top_path',
+          '    ORDER BY count() DESC, top_path ASC',
+          `    LIMIT ${POSTHOG_WEB_VITALS_TOP_PATHS}`,
+          '  )',
+          'GROUP BY path, device, os, target, interaction_type',
+          'ORDER BY measurements DESC, inp_p75 DESC, path ASC, device ASC, os ASC, target ASC, interaction_type ASC',
+          `LIMIT ${limit}`,
+        ].join('\n'),
+      };
+    }
     case 'funnels':
       return funnelQuery(window, funnels);
   }
@@ -1497,6 +1536,19 @@ function parseRow(family: Exclude<PosthogFamily, 'funnels'>, row: unknown[]): An
         clsP75: measure(row[5]),
         fcpP75: measure(row[6]),
         measurements: count(row[7]),
+      };
+    case 'inp-targets':
+      return {
+        path: text(row[0]),
+        device: text(row[1]),
+        os: text(row[2]),
+        target: clip(text(row[3]), POSTHOG_INTERACTION_TARGET_MAX),
+        interactionType: text(row[4]),
+        measurements: count(row[5]),
+        inpP75: measure(row[6]),
+        inputDelayP75: measure(row[7]),
+        processingP75: measure(row[8]),
+        presentationDelayP75: measure(row[9]),
       };
   }
 }

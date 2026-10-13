@@ -196,9 +196,9 @@ describe('connected with the account key', () => {
     expect(run.skipped.filter((skip) => skip.asset === 'meadow.example')).toEqual([
       expect.objectContaining({ family: 'funnels', reason: 'no-funnels' }),
     ]);
-    expect(run.succeeded).toBe(5);
+    expect(run.succeeded).toBe(6);
     expect(calls.filter((call) => call.method === 'POST').every((call) => call.authorization === `Bearer ${KEY}`)).toBe(true);
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog' AND credential_ref = 'store:POSTHOG_API_KEY'`)).toBe(5);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog' AND credential_ref = 'store:POSTHOG_API_KEY'`)).toBe(6);
   });
 
   it('collects now through the product analytics job for the confirmed site', async () => {
