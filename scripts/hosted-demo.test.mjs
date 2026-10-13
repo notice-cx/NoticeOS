@@ -284,9 +284,15 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
   }
 });
 
+// About twenty demo days, each reading five task projects through the pinned
+// task client against a real Dolt server.
 test('persistent demo uses ordinary Postgres writers and actual scoped Beads without changing either customer', {
-  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 240000,
+  skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 1_200_000,
 }, async t => {
+  // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
+  // runs other suites over the same folder: this file keeps its own inside it.
+  process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
+    path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'hosted-demo-'));
   const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
   return withOwnedTaskProjects(async physical => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-pg-'));
@@ -421,8 +427,9 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
         const current = await counts(workspace);
         // Each day records one report per site and one actual OS observation.
         assert.equal(current.pulses, retained.pulses + 2 * (assets.length + 1));
-        // The unchanged first board is touched; only the claimed board inserts.
-        assert.equal(current.snapshots, retained.snapshots + 1);
+        // Each site's weekly cycle starts a day after the site before it, so
+        // both days change a board: one files a task, the next claims another.
+        assert.equal(current.snapshots, retained.snapshots + 2);
         assert.ok(result.days.every(day => day.receipt.steps['task-summary'].state === 'succeeded'));
         const task = (await readTasks(projects[0])).find(row => row.id === createdTaskId);
         assert.equal(task.status, 'in_progress'); assert.equal(task.assignee, serviceId);
@@ -438,10 +445,13 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
       await demo.tick();
       const state = (await admin.query("SELECT occurrence,state FROM noticeos.hosted_job_occurrences WHERE workspace_id=$1 ORDER BY occurrence", [workspace])).rows;
       assert.equal(state.length, 5); assert.ok(state.every(row => row.state === 'succeeded'));
+      // Each completed day holds its sites' reports once.
+      const activity = createDemoActivity(scenario);
       for (let i = 0; i < 5; i++) {
         const day = shiftDemoDay(scenario.manifest.referenceDate, i);
-        const pulseCount = (await admin.query('SELECT count(*)::int n FROM noticeos.pulses WHERE workspace_id=$1 AND pulse_date=$2', [workspace, day])).rows[0].n;
-        assert.equal(pulseCount, 3);
+        const pulseCount = (await admin.query('SELECT count(*)::int n FROM noticeos.pulses WHERE workspace_id=$1 AND pulse_date=$2 AND asset_id=ANY($3::text[])',
+          [workspace, day, assets.map(asset => asset.id)])).rows[0].n;
+        assert.equal(pulseCount, activity.day(day).assets.filter(asset => asset.pulse !== null).length, day);
       }
       const closed = await tasks.execute(proof, workspace, { projectId: projects[0].projectId,
         operation: { kind: 'show', taskId: createdTaskId } });
@@ -485,26 +495,36 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     });
     await t.test('deployment factories await their owned handles on refusal and shutdown', async () => {
       const options = await runtimeOptions();
+      const revoke = revoked => admin.query(`UPDATE noticeos_platform.workspace_service_grants SET revoked_at=${revoked ? 'now()' : 'NULL'} WHERE service_id=$1`, [serviceId]);
       await assert.rejects(openHostedDemo({ ...options, directoryConnectionString: 'not-a-postgres-connection' }));
+      // Without a clock each factory also starts the hosted scheduler, which
+      // holds the workspace's schedule until it closes. This workspace saves
+      // no schedule, so the scheduler arms no lane and runs none at start.
       const retained = await counts(workspace), runtime = await openHostedDemo(options);
       try {
         const result = await runtime.tick();
         assert.ok(result.synthetic); assert.ok(result.days.every(day => day.receipt.state === 'uncertain'));
         assert.deepEqual(await counts(workspace), retained);
-        await admin.query('UPDATE noticeos_platform.workspace_service_grants SET revoked_at=now() WHERE service_id=$1', [serviceId]);
+        await revoke(true);
         await assert.rejects(runtime.tick());
-        const service = await startHostedDemo(options);
-        try {
-          assert.deepEqual(service.status(), { running: true, last: null, error: 'activity-unavailable' });
-          const closing = service.close(); assert.equal(service.close(), closing); await closing;
-          assert.equal(service.status().running, false);
-        } finally { await service.close(); }
-        assert.deepEqual(await counts(workspace), retained);
       } finally {
         const closing = runtime.close(); assert.equal(runtime.close(), closing); await closing;
-        await admin.query('UPDATE noticeos_platform.workspace_service_grants SET revoked_at=NULL WHERE service_id=$1', [serviceId]);
+        await revoke(false);
       }
       await assert.rejects(runtime.tick());
+      // A running service reports the uncertain day, never a healthy simulator.
+      const service = await startHostedDemo(options);
+      try {
+        const status = service.status();
+        assert.equal(status.running, true); assert.equal(status.error, 'activity-unavailable');
+        assert.deepEqual(status.last?.days.map(day => day.receipt.state), ['uncertain']);
+        const closing = service.close(); assert.equal(service.close(), closing); await closing;
+        assert.equal(service.status().running, false);
+      } finally { await service.close(); }
+      // Without its grant a service cannot claim the schedule, so it never starts.
+      await revoke(true);
+      try { await assert.rejects(startHostedDemo(options)); } finally { await revoke(false); }
+      assert.deepEqual(await counts(workspace), retained);
     });
     await t.test('shutdown finishes while the next-date selection is blocked by an owned database lock', async () => {
       const locker = await admin.connect(), scoped = openStore();
