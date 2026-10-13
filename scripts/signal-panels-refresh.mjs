@@ -26,6 +26,7 @@ import { DEFAULT_DOOR, doorUrl, operatorToken } from './ingest-door.mjs';
 import { readConfigSnapshot } from './config-store-client.mjs';
 import { BING_AI_INTEGRATION, BING_AI_REPORTS } from '../packages/contract/src/signal-families.mjs';
 import { readJsonFile } from './json-file.mjs';
+import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const ROSTER_DOCUMENT = 'config/signal-panels.json';
@@ -60,6 +61,72 @@ function isUncollected(integration, report) {
   return UNCOLLECTED_FAMILIES.some(
     (family) => family.integration === integration && family.report === report,
   );
+}
+
+/** The health check that watches each collected archive, by the integration
+ * whose archives it watches: the `lanes` of each archive monitor in
+ * packages/contract/src/integration-health.ts, which a test holds this to. */
+export const ARCHIVE_MONITORS = Object.freeze({
+  'ga4-archive': 'ga4',
+  'gsc-archive': 'gsc',
+  'bing-archive': 'bing-webmaster',
+  'dataforseo-research': 'dataforseo',
+  'clarity-export': 'clarity',
+  'posthog-archive': 'posthog',
+});
+/** How many failed report days a family lists, newest first. */
+const FAILED_DAYS_LISTED = 7;
+
+/**
+ * The installation's collection health as the Tower's Integrations page reads
+ * it (`GET /api/integrations/health`): one item per report family and day,
+ * with its state and the reason it failed. Read once per pass. A read that
+ * fails or answers without monitoring is recorded as unavailable, and the
+ * panel still publishes: health is about collection, not the panel's data.
+ */
+export async function readCollectionHealth({ tower = DEFAULT_TOWER_ORIGIN, fetchImpl = fetch, now = () => new Date().toISOString() } = {}) {
+  const readAt = now();
+  try {
+    const response = await fetchImpl(`${tower}/api/integrations/health`, { signal: AbortSignal.timeout(120_000) });
+    const body = await response.json();
+    if (!response.ok || body?.available !== true || !Array.isArray(body.items)) return { readAt, available: false };
+    return { readAt, available: true, items: body.items };
+  } catch {
+    return { readAt, available: false };
+  }
+}
+
+/**
+ * Each report family's collection state for one site, keyed
+ * `<integration>/<report>`: the state of its newest report day (an item with
+ * no day stands for the family's newest attempt), the last success, and the
+ * days that are failing now.
+ */
+export function familyCollection(asset, items) {
+  const byFamily = new Map();
+  for (const item of items) {
+    const integration = ARCHIVE_MONITORS[item?.capability];
+    if (item?.asset !== asset || !integration || typeof item.report !== 'string') continue;
+    const key = `${integration}/${item.report}`;
+    if (!byFamily.has(key)) byFamily.set(key, []);
+    byFamily.get(key).push(item);
+  }
+  const newestFirst = (left, right) => (right.reportDate ?? '9999-99-99').localeCompare(left.reportDate ?? '9999-99-99')
+    || (right.lastSuccessAt ?? '').localeCompare(left.lastSuccessAt ?? '');
+  const collection = new Map();
+  for (const [key, family] of byFamily) {
+    const [latest] = [...family].sort(newestFirst);
+    collection.set(key, {
+      state: latest.state,
+      reportDate: latest.reportDate ?? null,
+      failure: latest.failure ?? null,
+      code: latest.code ?? null,
+      lastSuccessAt: family.map((item) => item.lastSuccessAt).filter(Boolean).sort().at(-1) ?? null,
+      failing: family.filter((item) => item.state === 'failing').sort(newestFirst).slice(0, FAILED_DAYS_LISTED)
+        .map((item) => ({ reportDate: item.reportDate ?? null, failure: item.failure ?? null, code: item.code ?? null })),
+    });
+  }
+  return collection;
 }
 
 function usage() {
@@ -277,9 +344,14 @@ export function dayAge(reportDate, nowIso) {
  * separate `uncollected[]` list. Each collected source also lists its
  * families' own newest report days (`reports[]`), which the panel-review filer
  * (runner/panel-review.mjs) waits on.
+ *
+ * `families[]` is the per-family record the panel tools read
+ * (scripts/panel-store.mts): each family's newest report day and, from the
+ * pass's collection-health read, how its collection stood when the panel was
+ * built. Ages are not stored there; a reader measures them when it reads.
  */
 export function freshnessReport(input) {
-  const { asset, manifest, maxAgeDays, refreshedAt } = input;
+  const { asset, manifest, maxAgeDays, refreshedAt, collection = null } = input;
   const newest = new Map();
   const newestUncollected = new Map();
   const newestReports = new Map();
@@ -323,6 +395,31 @@ export function freshnessReport(input) {
     })
     .sort((a, b) => a.key.localeCompare(b.key));
 
+  // Every family the panel holds or collection expects: what the panel has of
+  // it and, where health was read, how its collection stands. A family
+  // collection expects that has no archive yet is listed with no report day.
+  const health = collection?.available ? familyCollection(asset, collection.items) : new Map();
+  const archived = new Map();
+  for (const row of manifest) {
+    const key = `${row.integration}/${row.report}`;
+    const held = archived.get(key) ?? { integration: row.integration, report: row.report, newestReportDate: null, archives: 0 };
+    held.archives += 1;
+    if (held.newestReportDate === null || row.reportDate > held.newestReportDate) held.newestReportDate = row.reportDate;
+    archived.set(key, held);
+  }
+  for (const key of health.keys()) {
+    if (archived.has(key) || health.get(key).state === 'paused') continue;
+    const [integration, report] = key.split('/');
+    archived.set(key, { integration, report, newestReportDate: null, archives: 0 });
+  }
+  const families = [...archived.entries()].sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, held]) => ({
+      family: `${held.integration}-${held.report}`,
+      ...held,
+      role: isUncollected(held.integration, held.report) ? 'imported' : 'collected',
+      collection: health.get(key) ?? null,
+    }));
+
   return {
     asset,
     refreshedAt,
@@ -338,6 +435,8 @@ export function freshnessReport(input) {
     // The families nobody collects, each aged from its own newest export.
     uncollected,
     staleUncollected: uncollected.filter((source) => !source.fresh).map((source) => source.key),
+    collection: { readAt: collection?.readAt ?? null, available: collection?.available === true },
+    families,
   };
 }
 
@@ -379,6 +478,8 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     freshnessMaxAgeDays,
     /** The site's saved search market, from the settings refreshPanels read. */
     market = null,
+    /** The pass's one collection-health read (readCollectionHealth). */
+    collection = null,
     writeHistory = publishSignalHistory,
     analyze = analyzeSignalHistory,
     publish = publishExecutiveSnapshot,
@@ -469,6 +570,7 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
     manifest: merged,
     maxAgeDays: freshnessMaxAgeDays,
     refreshedAt,
+    collection,
   });
   const history = await writeHistory({ asset, input: downloadsDir, output: historyDir });
   const analysisStartedAt = now();
@@ -511,6 +613,7 @@ async function refreshAssetLocked(asset, options, deps, historyDir) {
 
   return {
     asset,
+    version: analysis?.report?.version ?? null,
     archivesFetched: fetched.length,
     trendRows: trendRows.length,
     freshness,
@@ -538,6 +641,8 @@ export async function refreshPanels(options, deps = {}) {
   const windowDays = options.windowDays ?? roster.windowDays;
   console.log(`Panel refresh settings: database version ${saved.version}`);
   const targets = selectAssets(roster, options);
+  const collection = await (deps.readCollection ?? readCollectionHealth)({ fetchImpl: deps.fetchImpl ?? fetch });
+  if (!collection.available) console.log('Collection health: not read; panels record it as unavailable.');
   const results = [];
   const failures = [];
   for (const target of targets) {
@@ -548,6 +653,7 @@ export async function refreshPanels(options, deps = {}) {
         windowDays,
         freshnessMaxAgeDays: roster.freshnessMaxAgeDays,
         market: storedSearchMarket(documents, target.asset),
+        collection,
       });
       results.push(result);
       const stale = result.freshness.stale;
