@@ -43,7 +43,7 @@ export function AskSelection({ chosen, selectable, onPick, onSent }: {
   return (
     <div role="group" aria-label="Selected decisions" className="flex flex-col gap-2 border-t border-border/60 px-5 py-2.5" data-inbox-selection>
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm tabular-nums text-muted-foreground" role="status">{formatInt(chosen.length)} selected</span>
+        <span className="text-sm tabular-nums text-muted-foreground" role="status" data-status-for="selection:decisions">{formatInt(chosen.length)} selected</span>
         {chosen.length < selectable.length ? (
           <Button type="button" size="sm" variant="ghost" onClick={() => onPick(new Set(selectable.map((ask) => ask.task.id)))} data-inbox-select-all>
             Select all {formatInt(selectable.length)}

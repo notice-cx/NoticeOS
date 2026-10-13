@@ -399,7 +399,7 @@ describe('answers sent together', () => {
 
   it('cancels a group whole, with its Undo or with ⌘Z, and leaves other answers waiting', () => {
     vi.useFakeTimers();
-    const send = vi.fn(async () => {});
+    const send = vi.fn(async (_answer: string) => {});
     const queue = ownedQueue(OWNER_A, send, window);
     const undone = vi.fn();
     queue.schedule({ id: 'solo', answer: 'solo' });
