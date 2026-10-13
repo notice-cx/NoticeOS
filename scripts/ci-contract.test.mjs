@@ -56,14 +56,14 @@ const JOBS = {
   'flow-gate': [INSTALL, POSTGRES_STEP, BROWSER_INSTALL, 'pnpm --filter @noticeos/tower run test:journey-harness',
     'pnpm --filter @noticeos/tower run test:ux-flows'],
   // The opt-in real task store suites get their pinned inputs first.
-  'task-store': [INSTALL, 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"', 'pnpm test:task-store'],
+  'task-store': [INSTALL, POSTGRES_STEP, 'node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"', 'pnpm test:task-store'],
 };
 /** The jobs a documentation-only pull request skips (scripts/ci-scope.mjs). */
 const RUNTIME_JOBS = ['tower-unit', 'ingest-unit', 'browser', 'flow-gate', 'task-store'];
 /** The suites that start a Postgres server, so must run after POSTGRES_STEP. */
 const POSTGRES_SUITES = ['pnpm --filter @noticeos/tower run test', "pnpm -r --filter '!@noticeos/tower' test", 'pnpm test:scripts',
   'pnpm --filter @noticeos/tower run test:journeys', 'pnpm --filter @noticeos/tower run test:journey-harness',
-  'pnpm --filter @noticeos/tower run test:ux-flows'];
+  'pnpm --filter @noticeos/tower run test:ux-flows', 'pnpm test:task-store'];
 
 test('required CI runs every gate exactly once, each in its job, in gate order', () => {
   const workflow = readFileSync(WORKFLOW, 'utf8');
@@ -175,7 +175,8 @@ test('the Postgres suites run with NOTICEOS_REQUIRE_POSTGRES=1, the unit suites 
   assert.match(POSTGRES_STEP, /apt\.postgresql\.org\.sh -y/u);
   const scripts = jobBlock(workflow, 'scripts');
   assert.match(scripts, /NOTICEOS_TEST_POSTGRES17_BIN: \/usr\/lib\/postgresql\/17\/bin/u, 'the cross-major restore proof receives explicit old binaries');
-  for (const [name, suite] of [['tower-unit', 'pnpm --filter @noticeos/tower run test'], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts']]) {
+  for (const [name, suite] of [['tower-unit', 'pnpm --filter @noticeos/tower run test'], ['ingest-unit', "pnpm -r --filter '!@noticeos/tower' test"], ['scripts', 'pnpm test:scripts'],
+    ['task-store', 'pnpm test:task-store']]) {
     const step = new RegExp(`- run: ${suite.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}\\n\\s+env:\\n\\s+NOTICEOS_REQUIRE_POSTGRES: '1'\\n`, 'u');
     assert.match(jobBlock(workflow, name), step, `${suite} must run with NOTICEOS_REQUIRE_POSTGRES=1, so a server that cannot start fails the build`);
   }
