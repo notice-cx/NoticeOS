@@ -36,7 +36,7 @@ Alerts are not enforcement. They notify you; they stop nothing.
 Two actions spend money outside the schedule, and both show the cost first:
 
 - **Start collecting** on a connection's panel runs a provider's first collection now. A metered step shows its price before you confirm.
-- In the terminal, `pnpm signals:collect -- --asset example.com` collects one site now and prints what it cost. It goes through the same cap.
+- In the terminal, `pnpm os:collect -- --asset example.com` (`noticeos collect --asset example.com` when NoticeOS runs from Docker alone) collects one site now and prints what it cost. `--families` narrows it to the report families named. It goes through the same cap.
 
 ## The kill switch
 

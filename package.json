@@ -28,6 +28,7 @@
     "os:prod": "node scripts/stack-development.mjs --disable",
     "os:backup": "node scripts/stack-control.mjs backup",
     "os:run-job": "node scripts/stack-control.mjs run-job",
+    "os:collect": "node scripts/stack-control.mjs collect",
     "os:capacity": "node scripts/stack-control.mjs capacity",
     "os:mcp": "node scripts/stack-control.mjs mcp",
     "os:bd": "node scripts/stack-control.mjs bd",

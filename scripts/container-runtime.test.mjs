@@ -48,8 +48,12 @@ test('the container runs the runner, or one named job beside it, and nothing els
   assert.deepEqual(containerCommand(['mcp']), ['scripts/local-mcp.mjs']);
   assert.deepEqual(containerCommand(['mcp', '--actor', 'agent-1']), ['scripts/local-mcp.mjs', '--actor', 'agent-1']);
   assert.deepEqual(containerCommand(['bd', 'list', '--json']), ['scripts/local-bd.mjs', 'list', '--json']);
+  assert.deepEqual(containerCommand(['collect', '--asset', 'example.com', '--families', 'posthog-inp-targets']),
+    ['scripts/signal-collect.mjs', '--asset', 'example.com', '--families', 'posthog-inp-targets']);
   for (const argv of [['shell'], ['backup', '--now'], ['run-job'], ['run-job', '$(id)'], ['run-job', '0 6 * * *', 'x'], ['capacity', '--all'],
-    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json'], ['mcp', '--http'], ['mcp', '--actor'], ['bd']]) {
+    ['setup', '--force'], ['seed-settings', '--force', 'config/tower.json'], ['mcp', '--http'], ['mcp', '--actor'], ['bd'],
+    ['collect'], ['collect', '--asset', '$(id)'], ['collect', '--asset', 'example.com', '--door', 'http://example.org'],
+    ['collect', '--asset', 'example.com', '--families', 'everything']]) {
     assert.equal(containerCommand(argv), null, argv.join(' '));
   }
 });

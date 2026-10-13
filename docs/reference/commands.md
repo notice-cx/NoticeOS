@@ -28,6 +28,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
 | `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
+| `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |

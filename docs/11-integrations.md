@@ -663,8 +663,12 @@ runs, so none of the hourly budget is spent.
 **Running it on demand.**
 
 ```sh
-pnpm signals:collect -- --asset example.com --families 'posthog-*' [--start 2026-09-08 --end 2026-09-22]
+pnpm os:collect -- --asset example.com --families 'posthog-*' [--start 2026-09-08 --end 2026-09-22]
 ```
+
+`pnpm os:collect` runs `pnpm signals:collect` inside the app container, where
+the ingest's door is; in a checkout that runs NoticeOS without Docker, run
+`pnpm signals:collect` with the same arguments.
 
 Quote `posthog-*` in zsh, or write `posthog`. With `--start`/`--end`, every
 family uses that one inclusive window (at most 28 days), so a past manual

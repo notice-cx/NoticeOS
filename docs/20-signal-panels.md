@@ -431,8 +431,9 @@ add a collector here.
   two devices are one family, one archive and one manifest row, so the phone
   adds a second row per term to the walk, not a second task.
 - **A property that launched today can be collected before Monday.**
-  `pnpm signals:collect -- --asset <id> [--families serp-panel]` collects that
-  one property now, through the ingest's operator-authed
+  `pnpm signals:collect -- --asset <id> [--families serp-panel]` (on a Compose
+  installation, `pnpm os:collect -- --asset <id> [--families serp-panel]`)
+  collects that one property now, through the ingest's operator-authed
   `POST /api/signal-collect`. It runs the same collector the weekly cron runs,
   scoped — same spend gate, same retries — so the result is identical to a
   Monday collection and this refresh reads it without a special case. It pays

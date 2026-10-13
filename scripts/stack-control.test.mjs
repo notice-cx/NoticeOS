@@ -139,6 +139,24 @@ test('a backup, one schedule or the capacity report runs inside the running app 
   await assert.rejects(stackControl('backup', selector, stopped), /pnpm os:start/u);
   assert.deepEqual(stopped.writes(), []);
 });
+test('one site\'s collection runs inside the running app with exactly the asset, families and window given, and nothing else', async () => {
+  for (const args of [['--asset', 'example.com', '--families', 'posthog-inp-targets'], ['--asset', 'example.com'],
+    ['--', '--asset', 'example.com', '--families', 'posthog-*', '--start', '2026-09-08', '--end', '2026-09-22'],
+    ['--asset', 'example.com', '--families', 'serp-panel,ranked-keywords']]) {
+    const own = fixture(); await stackControl('collect', selector, { ...own, args });
+    assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','collect',...args.filter(arg => arg !== '--')]], args.join(' '));
+  }
+  // Refused before Docker is asked anything: no site, a site id a shell would read, another door, an unknown or mixed family.
+  for (const [args, refusal] of [[[], /pnpm os:collect -- --asset example\.com/u], [['--asset', '$(id)'], /must be a property id/u],
+    [['--asset', 'example.com', '--door', 'http://example.org'], /pnpm os:collect -- --asset/u], [['--asset', 'example.com', '--help'], /pnpm os:collect/u],
+    [['--asset', 'example.com', '--families', 'everything'], /Unknown report family: everything/u],
+    [['--asset', 'example.com', '--families', 'posthog-events,serp-panel'], /one provider per run/u], [['--asset', 'example.com', '--json', 'yes'], /Unknown option: --json/u]]) {
+    assert.throws(() => actionArgs('collect', args), refusal, args.join(' '));
+    const own = fixture();
+    await assert.rejects(stackControl('collect', selector, { ...own, args }), refusal);
+    assert.deepEqual(own.writes(), [], args.join(' '));
+  }
+});
 test('the MCP server and the task client run inside the running app, over this terminal\'s own input and output', async () => {
   for (const [action, args, job] of [['mcp', [], ['mcp']], ['mcp', ['--actor', 'agent-1'], ['mcp', '--actor', 'agent-1']],
     ['bd', ['--project', 'ex', 'ready', '--json'], ['bd', '--project', 'ex', 'ready', '--json']]]) {
