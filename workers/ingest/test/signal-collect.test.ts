@@ -415,6 +415,7 @@ function posthogProvider(): { fetchImpl: typeof fetch; queries: string[] } {
     exceptions: ['exception_type', 'exception_message', 'occurrences', 'people', 'sessions', 'max_per_session', 'has_source_file', 'top_path', 'top_browser'],
     rageclicks: ['path', 'tag', 'text', 'attr', 'clicks', 'people', 'desktop_clicks', 'mobile_clicks', 'tablet_clicks', 'page_people'],
     'web-vitals': ['path', 'device', 'os', 'lcp_p75', 'inp_p75', 'cls_p75', 'fcp_p75', 'measurements'],
+    'inp-targets': ['path', 'device', 'os', 'target', 'interaction_type', 'measurements', 'inp_p75', 'input_delay_p75', 'processing_p75', 'presentation_delay_p75'],
     funnels: ['funnel_1_step_1', 'funnel_1_step_2'],
   };
   const fetchImpl = (async (_input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
@@ -457,9 +458,9 @@ describe('POST /api/signal-collect — PostHog families', () => {
     expect(body).toMatchObject({
       collected: true,
       asset: 'meadow.example',
-      families: ['posthog-web-daily', 'posthog-events', 'posthog-exceptions', 'posthog-rageclicks', 'posthog-web-vitals', 'posthog-funnels'],
-      attempted: 6,
-      succeeded: 6,
+      families: ['posthog-web-daily', 'posthog-events', 'posthog-exceptions', 'posthog-rageclicks', 'posthog-web-vitals', 'posthog-inp-targets', 'posthog-funnels'],
+      attempted: 7,
+      succeeded: 7,
       failed: 0,
       costUsd: 0,
     });
@@ -529,8 +530,8 @@ describe('POST /api/signal-collect — PostHog families', () => {
     first.open();
     const done = await firstRun;
     expect(done.status).toBe(200);
-    expect(done.body).toMatchObject({ attempted: 6, succeeded: 6 });
-    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(6);
+    expect(done.body).toMatchObject({ attempted: 7, succeeded: 7 });
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(7);
 
     // Released: the next request runs.
     const third = gatedPosthogProvider();
@@ -558,7 +559,7 @@ describe('POST /api/signal-collect — PostHog families', () => {
     expect(body.error).toBe('collection_in_flight');
     expect(onDemand.calls).toHaveLength(0);
     daily.open();
-    expect(await dailyRun).toMatchObject({ attempted: 6, succeeded: 6 });
+    expect(await dailyRun).toMatchObject({ attempted: 7, succeeded: 7 });
   });
 
   it('reports the earlier windows it asked again, as the daily run counts them', async () => {
@@ -576,8 +577,8 @@ describe('POST /api/signal-collect — PostHog families', () => {
         { posthog: { fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs: Date.parse('2026-09-23T12:30:00Z') } },
       );
       expect(status).toBe(200);
-      expect(queries).toHaveLength(7);
-      expect(body).toMatchObject({ attempted: 7, succeeded: 7, failed: 0, retryNotAsked: 0 });
+      expect(queries).toHaveLength(8);
+      expect(body).toMatchObject({ attempted: 8, succeeded: 8, failed: 0, retryNotAsked: 0 });
       expect(body.retried).toEqual([
         { report: 'posthog-events', reportDate: '2026-09-21', status: 'success', retries: 1, errorCode: null },
       ]);
