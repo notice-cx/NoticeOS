@@ -24,6 +24,7 @@ export const COMMANDS = Object.freeze({
   backup: ['./stack-control.mjs', ['backup']],
   capacity: ['./stack-control.mjs', ['capacity']],
   'run-job': ['./stack-control.mjs', ['run-job']],
+  collect: ['./stack-control.mjs', ['collect']],
   apply: ['./stack-apply.mjs', []],
   update: ['./image-update.mjs', []],
   rollback: ['./image-update.mjs', ['--rollback']],

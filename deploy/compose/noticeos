@@ -7,7 +7,8 @@
 #       --dir <folder>, --tower-port <n>, --offsite <folder>, --without-backup
 #   ~/noticeos/noticeos <command>
 #       status, logs, start, stop, restart, apply, backup, capacity, run-job,
-#       update, rollback or migrate, with the options its pnpm os:* twin takes
+#       collect, update, rollback or migrate, with the options its pnpm os:*
+#       twin takes
 #   ~/noticeos/noticeos mcp [--actor <name>]
 #       the MCP server an agent on this machine starts, over stdio; at a
 #       terminal it prints how to connect it
@@ -32,7 +33,7 @@ fail() { printf 'noticeos: %s\n' "$1" >&2; exit 1; }
 absolute() { case $1 in /*) printf '%s' "$1" ;; '~') printf '%s' "$HOME" ;; '~/'*) printf '%s/%s' "$HOME" "${1#'~/'}" ;; *) printf '%s/%s' "$PWD" "$1" ;; esac; }
 
 command -v docker >/dev/null 2>&1 || fail 'Docker is not installed; install Docker Desktop or Docker Engine first.'
-[ $# -gt 0 ] || fail 'name a command: setup, status, logs, start, stop, restart, apply, backup, capacity, run-job, update, rollback, migrate, mcp or bd.'
+[ $# -gt 0 ] || fail 'name a command: setup, status, logs, start, stop, restart, apply, backup, capacity, run-job, collect, update, rollback, migrate, mcp or bd.'
 verb=$1
 shift
 
@@ -88,7 +89,7 @@ case $verb in
       network=$(docker network ls --quiet --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.network=installation)
       [ -n "$network" ] || fail "the installation's network is missing; $launcher start brings the stack up."
     fi ;;
-  status|logs|start|stop|restart|apply|backup|capacity|run-job|rollback)
+  status|logs|start|stop|restart|apply|backup|capacity|run-job|collect|rollback)
     # The version the installation runs reads it; with no app container, the one installation.env names.
     app=$(docker ps --all --quiet --filter "label=com.docker.compose.project=$project" --filter label=com.docker.compose.service=noticeos)
     if [ -n "$app" ]; then image=$(docker inspect --format '{{.Image}}' "$app"); else
@@ -121,7 +122,7 @@ case $verb in
       exec docker exec --interactive --tty "$app" node deploy/compose/entrypoint.mjs "$verb" "$@"
     fi
     exec docker exec --interactive "$app" node deploy/compose/entrypoint.mjs "$verb" "$@" ;;
-  *) fail "$verb is not a command: setup, status, logs, start, stop, restart, apply, backup, capacity, run-job, update, rollback, migrate, mcp or bd." ;;
+  *) fail "$verb is not a command: setup, status, logs, start, stop, restart, apply, backup, capacity, run-job, collect, update, rollback, migrate, mcp or bd." ;;
 esac
 
 set -- scripts/noticeos-cli.mjs "$verb" "$@"

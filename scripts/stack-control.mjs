@@ -2,8 +2,8 @@
 // Run the installation's Docker Compose stack: status, logs, start, stop, restart, and one-off jobs in the app.
 //
 // The one-off jobs run inside the app container with the runner's own
-// environment (deploy/compose/entrypoint.mjs): one backup, one schedule, the
-// capacity report, the MCP server and the task client.
+// environment (deploy/compose/entrypoint.mjs): one backup, one schedule, one
+// site's collection, the capacity report, the MCP server and the task client.
 //
 //   pnpm os:status      Where the installation is, what runs, its health, the database's migrations, and whether main is ahead.
 //   pnpm os:logs        Recent logs; `-- --follow`, `-- --lines N` or `-- <service>` narrow them.
@@ -12,6 +12,7 @@
 //   pnpm os:restart     Restart the stack in the same order, waiting for each layer's health.
 //   pnpm os:backup      Run one backup now, inside the app container.
 //   pnpm os:run-job -- "<cron>"  Fire the jobs scheduled on one cron expression now.
+//   pnpm os:collect -- --asset <id> [--families <a,b>]  Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed.
 //   pnpm os:capacity    The store's size and growth per table; `-- --json` for the raw inventory.
 //   pnpm os:mcp         The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it.
 //   pnpm os:bd -- <arguments>  Run bd in the installation's task project; `--project <prefix>` picks one of several.
@@ -24,16 +25,19 @@ import { imageInstallation } from './image-installation.mjs';
 import { ENV_FILE, readInstallationEnv } from './installation-layout.mjs';
 import { publishedRevision } from './published-image.mjs';
 import { runCommand } from './run-command.mjs';
+import { collectJobArgs } from './signal-collect.mjs';
 import { stackDatabaseCurrent } from './stack-database.mjs';
 import { serviceDrift } from './stack-drift.mjs';
 
-const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'capacity', 'mcp', 'bd'];
+const ACTIONS = ['status', 'start', 'stop', 'restart', 'logs', 'backup', 'run-job', 'collect', 'capacity', 'mcp', 'bd'];
 const SERVICES = ['postgres', 'dolt', 'backup', 'noticeos'];
 /** How long a job run inside the app container may take. */
-const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, capacity: 180_000, mcp: Infinity, bd: 600_000 };
+// A tracked-query panel is one call per term per device, so a collection runs for minutes.
+const JOB_TIMEOUT_MS = { backup: 3_600_000, 'run-job': 600_000, collect: 1_800_000, capacity: 180_000, mcp: Infinity, bd: 600_000 };
 const HELP = `Usage: stack-control.mjs status|start|stop|restart [--config /absolute/stack.json]
        stack-control.mjs logs [--follow] [--lines N] [postgres|dolt|backup|noticeos]
-       stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>`;
+       stack-control.mjs backup | run-job "<cron>" | capacity [--json] | mcp [--actor <name>] | bd <arguments>
+       stack-control.mjs collect --asset <id> [--families <a,b>] [--start <YYYY-MM-DD> --end <YYYY-MM-DD>]`;
 function refuse(message) { throw new Error(message); }
 export function validateSelector(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
@@ -117,6 +121,7 @@ export function actionArgs(action, args) {
     if (args.length !== 1 || !/^[0-9*/,\- ]{9,64}$/u.test(args[0])) refuse('Name one cron expression: pnpm os:run-job -- "0 6 * * *"');
     return { job: ['run-job', args[0]] };
   }
+  if (action === 'collect') return { job: ['collect', ...collectJobArgs(args)] };
   if (action === 'capacity') {
     if (args.length > 1 || args.length === 1 && args[0] !== '--json') refuse(HELP);
     return { job: ['capacity', ...args] };

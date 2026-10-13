@@ -117,6 +117,7 @@ Each matches a `pnpm os:*` command in a checkout, with the same options and no `
 | `noticeos backup` | `pnpm os:backup` | One backup now |
 | `noticeos capacity` | `pnpm os:capacity` | The store's size and growth per table |
 | `noticeos run-job "<cron>"` | `pnpm os:run-job -- "<cron>"` | Run the jobs scheduled on one cron expression now |
+| `noticeos collect --asset <id> --families <a,b>` | `pnpm os:collect -- --asset <id> --families <a,b>` | Collect one site's report families now; DataForSEO calls are billed |
 | `noticeos update`, `rollback` | `pnpm os:update`, `os:rollback` | Move to the newest published version, or back |
 | `noticeos migrate` | `pnpm os:migrate` | List pending database changes; `--apply` applies them |
 | `noticeos mcp` | `pnpm os:mcp` | Start the MCP server for an agent on this machine; see [Connect an agent](/guides/connect-an-agent) |

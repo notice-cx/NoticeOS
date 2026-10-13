@@ -19,6 +19,7 @@
 | `os:prod` | Run the app from the prepared image it ran before. | `scripts/stack-development.mjs --disable` |
 | `os:backup` | Run one backup now, inside the app container. | `scripts/stack-control.mjs backup` |
 | `os:run-job` | Fire the jobs scheduled on one cron expression now. | `scripts/stack-control.mjs run-job` |
+| `os:collect` | Collect one site's report families now, with the collector the schedule runs; DataForSEO calls are billed. | `scripts/stack-control.mjs collect` |
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
@@ -192,9 +193,10 @@ pnpm os:restart               # the whole stack, in dependency order, waiting fo
 pnpm os:capacity              # store size and growth per table, read-only
 pnpm os:backup                # one full backup now (Postgres + R2 + hub, then offsite)
 pnpm os:run-job -- "0 * * * *"   # fire the jobs scheduled on one cron expression now
+pnpm os:collect -- --asset example.com --families posthog-events   # one site's report families now
 ```
 
-`os:backup`, `os:run-job` and `os:capacity` run inside the app container with
+`os:backup`, `os:run-job`, `os:collect` and `os:capacity` run inside the app container with
 the runner's own environment. The container is `healthy` when the runner
 reports itself healthy with a heartbeat at most 60 s old, its Tower ready and
 its scheduler armed; a configured backup worker answers; and the Tower and
@@ -956,6 +958,12 @@ property the lane does not collect, or a family it is not due, comes back as
 a `422`, never as a $0.00 success; re-firing the same day stores identical
 content as `unchanged`. `--start`/`--end` pin one window of at most 28 days
 for PostHog families; one run is one provider.
+
+On a Compose installation the ingest's door is inside the app container, so
+from the host the same request is `pnpm os:collect -- <the same arguments>`
+(`<folder>/noticeos collect …` without a checkout). It runs this command in
+the app container with the runner's environment, after checking the
+arguments by this command's own rules; `--door` is not taken there.
 
 ## The standing panel refresh (`signals:refresh`)
 

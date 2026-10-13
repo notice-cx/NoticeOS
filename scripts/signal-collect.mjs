@@ -39,8 +39,8 @@ import {
  * (`DATAFORSEO_REPORTS`, pinned to these lists by its tests). */
 const KNOWN_FAMILIES = [...DATAFORSEO_BASE_REPORTS, ...DATAFORSEO_PERIODIC_REPORTS, DATAFORSEO_PANEL_REPORT];
 
-/** PostHog's families, named `posthog-<family>`; `posthog-*` asks for all
- * six. Read from the contract's own list rather than copied, so a family the
+/** PostHog's families, named `posthog-<family>`; `posthog-*` asks for every
+ * one. Read from the contract's own list rather than copied, so a family the
  * ingest collects is never refused here first. */
 const POSTHOG_FAMILIES = CONTRACT_POSTHOG_FAMILIES.map((family) => `posthog-${family}`);
 const POSTHOG_ALL = 'posthog-*';
@@ -66,7 +66,7 @@ Options:
   --families <a,b>      only these families; repeatable and comma-separated.
                         Default: every DataForSEO family the property is due.
                         DataForSEO: ${KNOWN_FAMILIES.join(', ')}
-                        PostHog: ${POSTHOG_ALL} or posthog (all six), or ${POSTHOG_FAMILIES.join(', ')}
+                        PostHog: ${POSTHOG_ALL} or posthog (every one), or ${POSTHOG_FAMILIES.join(', ')}
                         Quote ${POSTHOG_ALL} in zsh, or it is read as a file pattern.
   --start <YYYY-MM-DD>  PostHog only: one fixed window for every family, inclusive,
   --end <YYYY-MM-DD>    in the PostHog project's timezone. Both or neither; at most
@@ -151,6 +151,23 @@ export function parseArgs(argv) {
     door,
     ...(start !== null ? { start, end } : {}),
   };
+}
+
+/** What `pnpm os:collect` says when its arguments are refused. */
+export const COLLECT_JOB_USAGE = 'Name the site, and the families if not every one it is due: '
+  + 'pnpm os:collect -- --asset example.com --families posthog-inp-targets';
+
+/**
+ * The arguments `pnpm os:collect` passes to this command inside the app
+ * container, checked before Docker is asked anything and again in the
+ * container: this command's own, checked by the same rules, without `--door`,
+ * because in the container the door is always the runner's own.
+ */
+export function collectJobArgs(argv) {
+  const args = argv.filter((arg) => arg !== '--');
+  if (args.length === 0 || args.some((arg) => ['--door', '--help', '-h'].includes(arg))) throw new Error(COLLECT_JOB_USAGE);
+  parseArgs(args);
+  return args;
 }
 
 /**
