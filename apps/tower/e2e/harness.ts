@@ -31,7 +31,7 @@ import {
 } from "./wall-feed-fixture";
 import {
   EVERY_SOURCE_CATALOG, INITIAL_DOCUMENTS, JOURNEY_ARCHIVED_SITE, JOURNEY_ASSET, JOURNEY_COUNTER_CARDS, JOURNEY_CREDENTIALS_KEY, JOURNEY_KEY, JOURNEY_NOW,
-  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, initialTasks, journeyFindingSnapshot,
+  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, initialTasks, journeyFindingSnapshot,
   journeyPosthogSnapshot, journeySerpPanelSnapshot,
 } from "./fixtures";
 
@@ -836,6 +836,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     if (verb === "gate" && arg === "resolve") {
       const row = tasks.find((task) => task.id === argv[4]);
       if (!row || row.issue_type !== "gate") return { code: 1, stdout: "", stderr: "Unknown fixture gate" };
+      if (row.id === REFUSED_GATE) return { code: 1, stdout: "", stderr: "This fixture gate refuses approval" };
       row.status = "closed";
       row.closed_at = JOURNEY_NOW;
       publishTasks();
@@ -1171,6 +1172,15 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       // collector (Start collecting) asks for it here.
       publishTasks();
       response = Response.json({ published: true });
+    } else if (url.pathname === "/__journey/more-decisions" && request.method === "POST") {
+      // Three more approvals beside the fixture's own, one of which its task
+      // client refuses, for the journey that decides several at once.
+      const gate = initialTasks()[1]!;
+      const more = (id: string, reason: string) => ({ ...gate, id, description: `Ad-hoc fixture gate. It authorizes no real action.\n\nReason: ${reason}` });
+      tasks.push(more("jt-press", "Approve the synthetic press note"), more("jt-banner", "Approve the synthetic banner"),
+        more(REFUSED_GATE, "Approve the synthetic coupon"));
+      publishTasks();
+      response = Response.json({ added: 3 });
     } else if (url.pathname === "/__journey/core-tasks" && request.method === "POST") {
       // A provisioned core project uses the existing is_os asset model. Only
       // this fixture's Postgres and fake bd receive writes; no user site exists.

@@ -272,6 +272,69 @@ const ANSWERED: Record<InboxAnswer["kind"], string> = {
   dismiss: "Dismissed",
 };
 
+/** How many tasks a failure names before it counts the rest. */
+const FAILED_NAMED = 3;
+let batches = 0;
+
+/**
+ * Answer several inbox rows in one action, each with the call one row's own
+ * press makes: one toast, one Undo for all of them, the calls one at a time
+ * once the window closes, and one refresh when the last has settled. A row
+ * whose call is refused returns, and the failure names it.
+ */
+export function useInboxAnswers(): (answers: readonly InboxAnswer[]) => void {
+  const toast = useOwnerToast();
+  const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
+  const refresh = useTaskRefresh();
+  const api = useTowerApi();
+  const selected = useTaskSelection();
+  return useCallback(
+    (answers: readonly InboxAnswer[]) => {
+      const kinds = new Set(answers.map((answer) => answer.kind));
+      if (answers.length === 0 || kinds.size !== 1) return;
+      const kind = answers[0]!.kind;
+      batches += 1;
+      const group = `inbox-batch-${batches}`;
+      toast.success(`${ANSWERED[kind]} ${answers.length}`, {
+        id: group,
+        description: answers.length === 1 ? answers[0]!.title : `${answers[0]!.title} and ${answers.length - 1} more`,
+        duration: UNDO_WINDOW_MS,
+        action: { label: "Undo", onClick: () => undoGroup(group) },
+      });
+      const failed: { id: string; error: unknown }[] = [];
+      let settled = 0;
+      let undone = false;
+      const settle = () => {
+        settled += 1;
+        if (settled < answers.length) return;
+        toast.dismiss(group);
+        void refresh();
+        if (failed.length === 0) return;
+        const named = failed.slice(0, FAILED_NAMED).map((entry) => entry.id).join(", ");
+        const more = failed.length > FAILED_NAMED ? ` and ${failed.length - FAILED_NAMED} more` : "";
+        const reason = failed[0]!.error instanceof Error && failed[0]!.error.message !== "" ? failed[0]!.error.message : undefined;
+        toast.error(`Not sent: ${named}${more}`, reason === undefined ? undefined : { description: reason });
+      };
+      for (const answer of answers) {
+        const captured: InboxAnswer = Object.freeze({ ...answer, project: selected(answer.project) });
+        scheduleAnswer({
+          id: answer.id,
+          group,
+          send: (keepalive) => sendInboxAnswer(captured, keepalive, api),
+          onSent: settle,
+          onFailed: (error) => { failed.push({ id: answer.id, error }); settle(); },
+          onUndo: () => {
+            if (undone) return;
+            undone = true;
+            toast.dismiss(group);
+          },
+        });
+      }
+    },
+    [refresh, api, selected, toast, scheduleAnswer, undoGroup],
+  );
+}
+
 /**
  * Answer one inbox row. The toast names the task and carries Undo for the
  * window; the lane call follows; a refusal comes back in `bd`'s own words and

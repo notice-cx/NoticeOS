@@ -72,6 +72,7 @@ export function useOwnerAnswers() {
   return useMemo(() => ({
     hides: queue.hides,
     undo: queue.undo,
+    undoGroup: queue.undoGroup,
     schedule({ send, ...answer }: ScheduledAnswer) { queue.schedule({ ...answer, answer: send }); },
   }), [queue]);
 }

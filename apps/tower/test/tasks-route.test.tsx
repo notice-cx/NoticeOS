@@ -1699,3 +1699,163 @@ describe("Task reasons support focus and tap", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("The epic this task hangs off");
   });
 });
+
+describe("/tasks — several decisions taken in one action", () => {
+  const waiting = (ids: string[]) => payload({ projects: [project({ waiting: ids.map((id) => item({ id, title: id })) })] });
+  const gate = (id: string, title: string) => liveTask({ id, title, issueType: "gate", awaitType: "human" });
+  const ask = (id: string, title: string) => liveTask({ id, title, labels: ["human"], ready: true });
+  const mixed = () => ({
+    "meadow.example": board([
+      gate("md-g1", "Approve the spend"),
+      gate("md-g2", "Approve the launch"),
+      ask("md-a1", "Pick the launch date"),
+      ask("md-a2", "Name the newsletter"),
+    ]),
+  });
+  const rowOf = (container: HTMLElement, id: string) => container.querySelector(`[data-inbox-row="${id}"]`) as HTMLElement | null;
+  const pick = (container: HTMLElement, ...ids: string[]) => {
+    for (const id of ids) fireEvent.click(within(rowOf(container, id)!).getByRole("checkbox"));
+  };
+  const selection = (container: HTMLElement) => within(container.querySelector("[data-inbox-selection]") as HTMLElement);
+
+  it("offers Select only where two or more decisions can be answered, and keeps each row's verbs until it is pressed", () => {
+    // A read-only snapshot answers nothing, so nothing is selectable.
+    const snapshot = renderBoard({ data: waiting(["md-g1", "md-g2"]) });
+    expect(within(snapshot.container).queryByRole("button", { name: "Select" })).toBeNull();
+    snapshot.unmount();
+
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    expect(container.querySelector("[data-inbox-select]")).toBeNull();
+    expect(within(rowOf(container, "md-g1")!).getByRole("button", { name: "Approve" })).toBeEnabled();
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    expect(container.querySelectorAll("[data-inbox-select]")).toHaveLength(4);
+    // While selecting, the selection's verbs stand in for the rows' own.
+    expect(within(rowOf(container, "md-g1")!).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(selection(container).getByRole("status")).toHaveTextContent("0 selected");
+    fireEvent.click(within(container).getByRole("button", { name: "Done" }));
+    expect(container.querySelector("[data-inbox-select]")).toBeNull();
+  });
+
+  it("approves every selected approval in one action: one Undo, then one call at a time", async () => {
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    pick(container, "md-g1", "md-g2", "md-a1");
+    const bar = selection(container);
+    expect(bar.getByRole("status")).toHaveTextContent("3 selected");
+    // Each verb names how many rows it would send, and only rows it fits.
+    expect(bar.getByRole("button", { name: "Approve 2" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Answer 1" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Dismiss 1" })).toBeEnabled();
+
+    let release: () => void = () => undefined;
+    api.resolveGate.mockImplementationOnce(() => new Promise<undefined>((resolve) => { release = () => resolve(undefined); }));
+    fireEvent.click(bar.getByRole("button", { name: "Approve 2" }));
+    expect(rowOf(container, "md-g1")).toBeNull();
+    expect(rowOf(container, "md-g2")).toBeNull();
+    expect(rowOf(container, "md-a1")).not.toBeNull();
+    expect(toasts.success).toHaveBeenCalledWith("Approved 2", expect.objectContaining({
+      description: "Approve the spend and 1 more",
+      action: expect.objectContaining({ label: "Undo" }),
+    }));
+    // The selection ends with the action; the ask's own verbs are back.
+    expect(container.querySelector("[data-inbox-selection]")).toBeNull();
+    expect(within(rowOf(container, "md-a1")!).getByRole("button", { name: "Answer" })).toBeEnabled();
+
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.resolveGate).toHaveBeenCalledTimes(1));
+    // The second call waits for the first to settle.
+    expect(api.resolveGate).toHaveBeenCalledWith("md-g1");
+    await act(async () => release());
+    await waitFor(() => expect(api.resolveGate).toHaveBeenCalledTimes(2));
+    expect(api.resolveGate).toHaveBeenLastCalledWith("md-g2");
+    await waitFor(() => expect(toasts.dismiss).toHaveBeenCalled());
+    expect(toasts.error).not.toHaveBeenCalled();
+  });
+
+  it("takes the whole batch back with its one Undo, or with ⌘Z, and sends nothing", () => {
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    pick(container, "md-a1", "md-a2");
+    fireEvent.click(selection(container).getByRole("button", { name: "Dismiss 2" }));
+    expect(rowOf(container, "md-a1")).toBeNull();
+    expect(rowOf(container, "md-a2")).toBeNull();
+    const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => undo.action.onClick());
+    expect(rowOf(container, "md-a1")).not.toBeNull();
+    expect(rowOf(container, "md-a2")).not.toBeNull();
+
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    pick(container, "md-g1", "md-g2");
+    fireEvent.click(selection(container).getByRole("button", { name: "Approve 2" }));
+    fireEvent.keyDown(window, { key: "z", metaKey: true });
+    expect(rowOf(container, "md-g1")).not.toBeNull();
+    expect(rowOf(container, "md-g2")).not.toBeNull();
+    act(() => flushAnswers());
+    expect(api.dismissTask).not.toHaveBeenCalled();
+    expect(api.resolveGate).not.toHaveBeenCalled();
+  });
+
+  it("answers every selected question with one text, and never an empty one", async () => {
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    pick(container, "md-a1", "md-a2", "md-g1");
+    fireEvent.click(selection(container).getByRole("button", { name: "Answer 2" }));
+    const box = screen.getByLabelText("Your answer to 2 questions");
+    expect(box).toHaveFocus();
+    expect(selection(container).getByRole("button", { name: "Send" })).toBeDisabled();
+    fireEvent.change(box, { target: { value: "Go ahead, as agreed today." } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(toasts.success).toHaveBeenCalledWith("Answered 2", expect.anything());
+    // The approval picked with them is untouched: Answer sends questions only.
+    expect(rowOf(container, "md-g1")).not.toBeNull();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.respondToTask).toHaveBeenCalledTimes(2));
+    expect(api.respondToTask).toHaveBeenCalledWith("md-a1", "Go ahead, as agreed today.");
+    expect(api.respondToTask).toHaveBeenCalledWith("md-a2", "Go ahead, as agreed today.");
+    expect(api.resolveGate).not.toHaveBeenCalled();
+  });
+
+  it("names the decisions that were not sent, brings back their rows, and keeps the rest", async () => {
+    api.resolveGate.mockImplementation(async (id: string) => {
+      if (id === "md-g2") throw new Error("bd: md-g2 is not open");
+      return undefined;
+    });
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    pick(container, "md-g1", "md-g2");
+    fireEvent.click(selection(container).getByRole("button", { name: "Approve 2" }));
+    act(() => flushAnswers());
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-g2", { description: "bd: md-g2 is not open" }));
+    expect(api.resolveGate).toHaveBeenCalledWith("md-g1");
+    expect(rowOf(container, "md-g2")).not.toBeNull();
+    expect(rowOf(container, "md-g1")).toBeNull();
+    api.resolveGate.mockReset();
+    api.resolveGate.mockImplementation(async () => undefined);
+  });
+
+  it("shows every row while selecting, and Select all reaches the rows past the first five", async () => {
+    const ids = Array.from({ length: 7 }, (_, index) => `md-a${index}`);
+    const { container } = renderBoard({
+      data: waiting(ids), live: true,
+      boards: { "meadow.example": board(ids.map((id) => ask(id, `Ask ${id}`))) },
+    });
+    expect(container.querySelectorAll("[data-inbox-row]")).toHaveLength(5);
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    expect(container.querySelectorAll("[data-inbox-row]")).toHaveLength(7);
+    fireEvent.click(selection(container).getByRole("button", { name: "Select all 7" }));
+    expect(selection(container).getByRole("status")).toHaveTextContent("7 selected");
+    expect(selection(container).getByRole("button", { name: "Clear" })).toBeEnabled();
+    fireEvent.click(selection(container).getByRole("button", { name: "Dismiss 7" }));
+    expect(container.querySelectorAll("[data-inbox-row]")).toHaveLength(0);
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.dismissTask).toHaveBeenCalledTimes(7));
+  });
+
+  it("offers no selection in a workspace that does not let this person decide", () => {
+    const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
+    expect(within(container).getByRole("button", { name: "Select" })).toBeTruthy();
+    state.capabilities = { live: true, reason: null, operations: ["create", "update", "comment", "close"] };
+    fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
+    expect(within(container).queryByRole("button", { name: "Select" })).toBeNull();
+  });
+});

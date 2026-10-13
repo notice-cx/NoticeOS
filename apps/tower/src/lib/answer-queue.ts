@@ -4,7 +4,10 @@ import { browserOwnerKey, captureBrowserOwner, type BrowserOwner } from './brows
 /** An inbox answer lands after its Undo window.
  * It has no inverse, so Undo cancels an unsent answer rather than reversing it.
  * Each queue owns one captured browser context and its already-bound sender.
- * Retirement cancels unissued work; a dispatched request cannot be unsent. */
+ * Retirement cancels unissued work; a dispatched request cannot be unsent.
+ * Answers go one at a time: a hosted workspace refuses a second write to a
+ * project while one is running, so a batch sent at once would refuse itself.
+ * Answers scheduled together share a `group`, which Undo cancels whole. */
 export const UNDO_WINDOW_MS = 5_000;
 
 interface AnswerCallbacks {
@@ -12,6 +15,8 @@ interface AnswerCallbacks {
   onFailed?: (error: unknown) => void;
   onUndo?: () => void;
   delayMs?: number;
+  /** Answers given in one action; Undo and ⌘Z cancel them together. */
+  group?: string;
 }
 
 export interface QueuedAnswer<Answer> extends AnswerCallbacks {
@@ -30,6 +35,8 @@ export interface AnswerQueue<Answer> {
   readonly ownerKey: string;
   schedule(answer: QueuedAnswer<Answer>): void;
   undo(id: string): boolean;
+  /** Cancel every unsent answer of a group; how many were cancelled. */
+  undoGroup(group: string): number;
   undoLatest(): string | null;
   flush(keepalive?: boolean): void;
   hides(id: string, readAt: string | null): boolean;
@@ -40,6 +47,7 @@ export interface AnswerQueue<Answer> {
 
 interface Waiting {
   id: string;
+  group: string | null;
   timer: ReturnType<typeof setTimeout>;
   send: (keepalive: boolean) => Promise<void>;
   onUndo: () => void;
@@ -67,6 +75,16 @@ export function createAnswerQueue<Answer>(
   let version = 0;
   let active = true;
   let installed = false;
+  // Settles when the last answer handed over has settled, or null when none
+  // is in flight: an answer starts at once when the way is clear.
+  let tail: Promise<void> | null = null;
+  function inTurn(work: () => Promise<void>): Promise<void> {
+    const next = tail === null ? work() : tail.then(work);
+    const settled = next.then(() => undefined, () => undefined);
+    tail = settled;
+    void settled.then(() => { if (tail === settled) tail = null; });
+    return next;
+  }
 
   function emit() {
     version += 1;
@@ -91,7 +109,7 @@ export function createAnswerQueue<Answer>(
     page.addEventListener('keydown', keydown);
     installed = true;
   }
-  function schedule({ id, answer, onSent, onFailed, onUndo, delayMs = UNDO_WINDOW_MS }: QueuedAnswer<Answer>) {
+  function schedule({ id, answer, onSent, onFailed, onUndo, delayMs = UNDO_WINDOW_MS, group }: QueuedAnswer<Answer>) {
     if (!active) throw new Error('This browser context is no longer active.');
     installPageHooks();
     const ownedId = key(id);
@@ -99,6 +117,7 @@ export function createAnswerQueue<Answer>(
     if (previous) clearTimeout(previous.timer);
     const entry: Waiting = {
       id,
+      group: group ?? null,
       timer: setTimeout(() => void run(false), delayMs),
       send: run,
       onUndo: onUndo ?? (() => {}),
@@ -115,7 +134,8 @@ export function createAnswerQueue<Answer>(
         else dispatched.set(ownedId, remaining);
       };
       try {
-        await send(answer, keepalive);
+        // Leaving the page cannot wait its turn: keepalive requests go now.
+        await (keepalive ? send(answer, true) : inTurn(() => send(answer, false)));
       } catch (error) {
         if (!active) return;
         settled();
@@ -143,10 +163,17 @@ export function createAnswerQueue<Answer>(
     if (active) entry.onUndo();
     return true;
   }
+  function undoGroup(group: string) {
+    let cancelled = 0;
+    for (const entry of [...waiting.values()]) if (entry.group === group && undo(entry.id)) cancelled += 1;
+    return cancelled;
+  }
   function undoLatest() {
-    const latest = [...waiting.values()].at(-1)?.id ?? null;
-    if (latest !== null) undo(latest);
-    return latest;
+    const latest = [...waiting.values()].at(-1) ?? null;
+    if (latest === null) return null;
+    if (latest.group === null) undo(latest.id);
+    else undoGroup(latest.group);
+    return latest.id;
   }
   function flush(keepalive = false) {
     if (!active) return;
@@ -181,7 +208,7 @@ export function createAnswerQueue<Answer>(
   // schedules anything; installation is a context transition, not an action.
   installPageHooks();
   return {
-    owner, ownerKey, schedule, undo, undoLatest, flush, hides, retire,
+    owner, ownerKey, schedule, undo, undoGroup, undoLatest, flush, hides, retire,
     subscribe: listener => {
       if (!active) return () => {};
       listeners.add(listener);

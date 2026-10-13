@@ -371,3 +371,49 @@ describe("each answer is one call on the lane the inbox always used", () => {
     expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes", { keepalive: true });
   });
 });
+
+describe('answers sent together', () => {
+  it('sends one answer at a time, the next only once the one before has settled, either way', async () => {
+    vi.useFakeTimers();
+    const first = deferred(), second = deferred();
+    const send = vi.fn((answer: string) => (answer === 'a' ? first.promise : answer === 'b' ? second.promise : Promise.resolve()));
+    const queue = ownedQueue(OWNER_A, send);
+    const failed = vi.fn();
+    for (const id of ['a', 'b', 'c']) queue.schedule({ id, answer: id, group: 'batch', ...(id === 'b' ? { onFailed: failed } : {}) });
+    vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    expect(send.mock.calls.map(([answer]) => answer)).toEqual(['a']);
+    first.resolve();
+    await vi.waitFor(() => expect(send.mock.calls.map(([answer]) => answer)).toEqual(['a', 'b']));
+    second.reject(new Error('refused'));
+    await vi.waitFor(() => expect(send.mock.calls.map(([answer]) => answer)).toEqual(['a', 'b', 'c']));
+    expect(failed).toHaveBeenCalledOnce();
+    // Leaving the page cannot wait its turn.
+    const leaving = deferred();
+    const keep = vi.fn(() => leaving.promise);
+    const exit = ownedQueue(OWNER_B, keep);
+    exit.schedule({ id: 'x', answer: 'x' });
+    exit.schedule({ id: 'y', answer: 'y' });
+    exit.flush(true);
+    expect(keep).toHaveBeenCalledTimes(2);
+  });
+
+  it('cancels a group whole, with its Undo or with ⌘Z, and leaves other answers waiting', () => {
+    vi.useFakeTimers();
+    const send = vi.fn(async () => {});
+    const queue = ownedQueue(OWNER_A, send, window);
+    const undone = vi.fn();
+    queue.schedule({ id: 'solo', answer: 'solo' });
+    for (const id of ['a', 'b']) queue.schedule({ id, answer: id, group: 'one', onUndo: undone });
+    expect(queue.undoGroup('one')).toBe(2);
+    expect(undone).toHaveBeenCalledTimes(2);
+    expect(queue.hides('a', null)).toBe(false);
+    expect(queue.hides('solo', null)).toBe(true);
+
+    for (const id of ['c', 'd']) queue.schedule({ id, answer: id, group: 'two' });
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'z', metaKey: true }));
+    expect(queue.hides('c', null)).toBe(false);
+    expect(queue.hides('d', null)).toBe(false);
+    vi.advanceTimersByTime(UNDO_WINDOW_MS);
+    expect(send.mock.calls.map(([answer]) => answer)).toEqual(['solo']);
+  });
+});

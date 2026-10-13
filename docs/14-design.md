@@ -543,6 +543,8 @@ from its starting point to its result:
   a reason, set a market.
 - **Answer the inbox** — Tasks: approve a gate and answer a request, on the
   row.
+- **Approve several decisions at once** — Tasks: Select, Select all, then one
+  Approve for every selected approval, with one Undo.
 - **File a task from a finding** — the site page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.
