@@ -295,10 +295,12 @@ function command(input) {
             argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
             break;
         case 'close':
-            keys(op, ['kind', 'taskId', 'reason'], ['model']);
+            keys(op, ['kind', 'taskId', 'reason'], ['model', 'force']);
             if (Object.hasOwn(op, 'model'))
                 model(op.model);
-            argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
+            if (Object.hasOwn(op, 'force') && op.force !== true)
+                invalid();
+            argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, ...(op.force ? ['--force'] : []), '--', task(op.taskId));
             break;
         case 'attribute': {
             // The task client's close carries no metadata, so the closer follows it.

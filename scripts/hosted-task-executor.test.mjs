@@ -558,6 +558,17 @@ test('snapshot required read failure stays failed and a between-read revoke cann
   assert.equal(f.state.active, false);
 }));
 
+test('a forced close runs for a workspace service and refuses anyone else before directory or credentials', () => fixture(async f => {
+  const close = task({ kind: 'close', taskId: 'tt-a', reason: 'Done', force: true });
+  await refused(() => f.executor.execute(request(), A, close));
+  assert.equal(f.state.directoryCalls, 0); assert.equal(f.state.resolves, 0);
+  assert.deepEqual(await f.commands(), []);
+  const service = createWorkspaceAdmission({ kind: 'service', profile: Symbol(), authority: async () => ({ principalId: PERSON, workspaceId: A,
+    workspaceStatus: 'active', expiresAt: new Date(Date.now() + 60_000).toISOString(), actions: ['tasks.read', 'tasks.write'] }) });
+  const output = await createHostedTaskExecutor({ ...f.options, admission: service }).execute(request(), A, close);
+  assert.deepEqual(output.args.slice(2), ['--actor=' + PERSON, 'close', '--reason=Done', '--force', '--', 'tt-a']);
+}));
+
 test('snapshot refuses nonservice principals and expanded historical windows before directory or credentials', () => fixture(async f => {
   await refused(() => f.executor.execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) })));
   await refused(() => snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: '2000-01-01' })));
