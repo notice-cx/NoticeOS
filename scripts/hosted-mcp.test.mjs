@@ -8,6 +8,7 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
+import { TASK_QUALITY } from './hosted-task-mcp.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
@@ -90,6 +91,11 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.match(discovered.instructions, /list_workspaces/u);
   // Every agent is told to name its model on each claim and close, so its work is ranked.
   assert.match(discovered.instructions, /On every claim_task and close_task, pass model/u);
+  // And how to write a task: the one copy of the rules, in every session's instructions.
+  assert.equal(init.result.instructions, discovered.instructions);
+  for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
+  assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
+  assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
   assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',

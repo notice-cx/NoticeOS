@@ -233,11 +233,14 @@ judgment.
 
 ## Conventions
 
-The hub is the portfolio's **only** register of open work, and the process
-rules — file a bead, claim before building, verify, close with evidence, the
-quality bar, the `human` label and gates — are written once, in
-[AGENTS.md](../AGENTS.md#open-work-lives-in-the-task-hub). What belongs here is the
-filing grammar `bd` needs.
+The hub is the portfolio's **only** register of open work. The process rules
+— file a bead, claim before building, verify, close with evidence, the `human`
+label and gates — are written once, in
+[AGENTS.md](../AGENTS.md#open-work-lives-in-the-task-hub), and how to write a
+task is `TASK_QUALITY` in
+[`scripts/hosted-task-mcp.mts`](../scripts/hosted-task-mcp.mts), which the task
+tools send to every connected agent. What belongs here is the filing grammar
+`bd` needs.
 
 - **Epics.** Related work groups under a `-t epic` bead carrying an
   operator-readable theme title and a paragraph on why the members belong

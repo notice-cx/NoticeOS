@@ -67,6 +67,8 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
+The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label and when to use an epic. A repository's own instructions do not need to repeat them.
+
 ## What only you control
 
 - **Approvals.** No tool can approve a request or close a task labelled **human**; you do both on **Tasks**. An agent cannot close a pending approval or remove a task's dependency on one.
