@@ -32,14 +32,15 @@ function body(family: string, rows: unknown[], extra: Record<string, unknown> = 
 }
 
 describe('PostHog archive contract', () => {
-  it('names six families with the contract windows and bounds', () => {
-    expect(POSTHOG_FAMILIES).toEqual(['web-daily', 'events', 'exceptions', 'rageclicks', 'web-vitals', 'funnels']);
-    expect(POSTHOG_WINDOW_DAYS).toEqual({ 'web-daily': 28, events: 14, exceptions: 14, rageclicks: 14, 'web-vitals': 14, funnels: 7 });
+  it('names seven families with the contract windows and bounds', () => {
+    expect(POSTHOG_FAMILIES).toEqual(['web-daily', 'events', 'exceptions', 'rageclicks', 'web-vitals', 'inp-targets', 'funnels']);
+    expect(POSTHOG_WINDOW_DAYS).toEqual({ 'web-daily': 28, events: 14, exceptions: 14, rageclicks: 14, 'web-vitals': 14, 'inp-targets': 14, funnels: 7 });
     expect(POSTHOG_ROW_LIMITS['web-daily']).toBe(28);
     expect(POSTHOG_ROW_LIMITS.events).toBe(500);
     expect(POSTHOG_ROW_LIMITS.exceptions).toBe(100);
     expect(POSTHOG_ROW_LIMITS.rageclicks).toBe(100);
     expect(POSTHOG_ROW_LIMITS['web-vitals']).toBe(300);
+    expect(POSTHOG_ROW_LIMITS['inp-targets']).toBe(300);
   });
 
   it('accepts a body per family and rejects rows of another family', () => {
@@ -102,6 +103,7 @@ describe('PostHog family fields — one definition', () => {
       exceptions: 'exception-message',
       rageclicks: 'page-element',
       'web-vitals': 'page-device-os',
+      'inp-targets': 'page-device-os-element',
       funnels: 'funnel-step',
     });
   });
