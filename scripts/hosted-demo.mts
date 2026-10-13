@@ -186,7 +186,10 @@ export function createHostedDemo(options: HostedDemoOptions): {
         return 'written';
       }
       if (found.status !== 'in_progress' || found.assignee !== task.agent) refuse();
-      const closed = await execute({ kind: 'close', taskId: found.id, reason: task.closeReason });
+      // The agent holds the task, not this service, and the task client lets
+      // only the holder close it: the check above makes the hold this
+      // simulator's own, so the close overrides it.
+      const closed = await execute({ kind: 'close', taskId: found.id, reason: task.closeReason, force: true });
       await recordCloser(execute, found.id, closed, task.agent, task.model);
       return 'closed';
     }

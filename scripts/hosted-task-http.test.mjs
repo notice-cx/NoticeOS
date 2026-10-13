@@ -88,6 +88,7 @@ test('JSON extra authority/raw fields, nested values and escaped duplicate keys 
   for (const [path, method, value] of [['/api/tasks/tt-a', 'PATCH', { projectId: P }],
     ['/api/tasks/tt-a/comments', 'POST', { projectId: P, text: 'note', taskId: 'tt-b' }],
     ['/api/tasks/tt-a/close', 'POST', { projectId: P, reason: '' }],
+    ['/api/tasks/tt-a/close', 'POST', { projectId: P, reason: 'Done', force: true }],
     ['/api/tasks/tt-a/claim', 'POST', { projectId: P }]]) {
     assert.equal((await f.handler(request(path, method, value))).status, 400);
   }

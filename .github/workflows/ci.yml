@@ -153,8 +153,10 @@ jobs:
 
   # The real task store: the task client and Dolt server the
   # application pins, in Docker. Two servers racing one claim have one winner;
-  # a change retried after a lost reply is not repeated. The root suite skips
-  # these tests; this job supplies their opt-in inputs (db/dolt/host/README.md).
+  # a change retried after a lost reply is not repeated; task summaries, the
+  # task HTTP routes and the demo simulator's days run against Postgres too.
+  # The root suite skips these tests; this job supplies their opt-in inputs
+  # (db/dolt/host/README.md).
   task-store:
     needs: scope
     if: needs.scope.outputs.runtime == 'true'
@@ -167,8 +169,19 @@ jobs:
           node-version: 24.21.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: (test -x /usr/lib/postgresql/18/bin/initdb && test -x /usr/lib/postgresql/17/bin/initdb || (sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y && sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends postgresql-17 postgresql-18)) && echo /usr/lib/postgresql/18/bin >> "$GITHUB_PATH"
       - run: node scripts/task-store-test-tools.mjs --out "$RUNNER_TEMP/task-store" >> "$GITHUB_ENV"
       - run: pnpm test:task-store
+        env:
+          NOTICEOS_REQUIRE_POSTGRES: '1'
+      # Each suite's redacted receipt: every task and Dolt client command it
+      # ran, with its exit code and output, and the fixture's cleanup.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: task-store-evidence
+          path: ${{ runner.temp }}/task-store/evidence/
+          retention-days: 14
 
   # The one check branch protection requires: every job passed, or the scope
   # job skipped the runtime jobs for a documentation-only pull request.

@@ -90,12 +90,15 @@ export type HostedTaskOperation = {
     readonly taskId: string;
     readonly text: string;
 }
-/** `model` is the closer's, recorded by the attribution that follows the close. */
+/** `model` is the closer's, recorded by the attribution that follows the close.
+ * `force` closes a task someone else holds; only a workspace service may send
+ * it, and request parsers never construct it. */
  | {
     readonly kind: 'close';
     readonly taskId: string;
     readonly reason: string;
     readonly model?: string;
+    readonly force?: true;
 }
 /** Server-only: who closed a task, written after its close. Request parsers never construct it. */
  | {

@@ -51,8 +51,10 @@ export type HostedTaskOperation =
       /** With a claim only: the model the claimer names, kept on the task. */
       readonly model?: string }
   | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
-  /** `model` is the closer's, recorded by the attribution that follows the close. */
-  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string; readonly model?: string }
+  /** `model` is the closer's, recorded by the attribution that follows the close.
+   * `force` closes a task someone else holds; only a workspace service may send
+   * it, and request parsers never construct it. */
+  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string; readonly model?: string; readonly force?: true }
   /** Server-only: who closed a task, written after its close. Request parsers never construct it. */
   | { readonly kind: 'attribute'; readonly taskId: string; readonly closedBy: string; readonly closedAt: string; readonly model?: string }
   | { readonly kind: 'depend'; readonly taskId: string; readonly dependsOn: string; readonly type: HostedTaskDependencyType }
@@ -307,9 +309,10 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
       break;
     case 'close':
-      keys(op, ['kind', 'taskId', 'reason'], ['model']);
+      keys(op, ['kind', 'taskId', 'reason'], ['model', 'force']);
       if (Object.hasOwn(op, 'model')) model(op.model);
-      argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, '--', task(op.taskId));
+      if (Object.hasOwn(op, 'force') && op.force !== true) invalid();
+      argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, ...(op.force ? ['--force'] : []), '--', task(op.taskId));
       break;
     case 'attribute': {
       // The task client's close carries no metadata, so the closer follows it.

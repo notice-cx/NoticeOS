@@ -30,7 +30,12 @@ const { Kysely, PostgresDialect } = await import(require.resolve('kysely'));
 // No ordinary test invocation selects Docker, installed stores or live auth.
 test('native HTTP binds seven task operations to fresh maintained session and private directory', {
   skip: process.env.NOTICEOS_TEST_HOSTED_TASK_EXECUTOR !== '1', timeout: 240000,
-}, async t => withOwnedTaskProjects(async physical => {
+}, async t => {
+  // The fixture keeps one receipt per evidence folder, and pnpm test:task-store
+  // runs other suites over the same folder: this file keeps its own inside it.
+  process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
+    path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'task-http-'));
+  return withOwnedTaskProjects(async physical => {
   const root = mkdtempSync(path.join(os.tmpdir(), 'n-task-http-pg-'));
   const pools = []; let owner, identity, directory, database, server;
   let handler;
@@ -178,4 +183,5 @@ test('native HTTP binds seven task operations to fresh maintained session and pr
     assert.equal(sockets.size, 0);
     for (const outcome of cleanup) if (outcome.status === 'rejected') throw outcome.reason;
   }
-}));
+  });
+});

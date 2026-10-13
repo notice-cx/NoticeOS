@@ -77,7 +77,7 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
   assert.ok(path.isAbsolute(env.DOCKER_CONFIG ?? ''));
   const summary = { version: 1, bead: 'ro-ujb9.289.10.2.3', base, profile, binarySha, doltSha, imageId,
     expectedPeakAdditionalBytes: 128 * 1024 ** 2, freeBefore: free.bavail * free.bsize, stages: [], commands: [] };
-  let secrets = [], cleanup, record, fresh = false, uncertain = false, restoreSpawn;
+  let secrets = [], cleanup, record, fresh = false, uncertain = false, restoreSpawn, teardownOnExit;
   const save = () => {
     let content = JSON.stringify(summary, null, 2);
     for (const value of secrets) content = content.replaceAll(value, '[redacted]');
@@ -121,6 +121,10 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     assert.notEqual(initialVolume.code, 0, 'Existing project volumes are never reused');
     assert.match(initialVolume.stderr, /no such volume/iu);
     fresh = true;
+    // A process that exits before the finally below runs (a signal, or a
+    // timed-out test that never settles) still removes the project it started.
+    teardownOnExit = () => { childProcess.spawnSync('docker', [...compose, 'down', '--volumes'], { env, stdio: 'ignore', timeout: 90_000 }); };
+    process.once('exit', teardownOnExit);
     fs.writeFileSync(path.join(evidence, 'planned-config.json'), JSON.stringify({ profile, compose, image: DOLT_IMAGE, listener: '127.0.0.1:13383', base }, null, 2));
     const started = await prepareFreshDolt({ root, home, port: 13380 }, { fresh: true, env, run: (_bin, args, opts) => exec(args, opts) });
     assert.equal(started.ok, true, started.line);
@@ -385,9 +389,13 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     assert.deepEqual(fs.readdirSync(facts.scratchRoot), [], 'All verifier profiles are awaited before outer teardown');
   } catch (error) { summary.failure = { name: error.name, message: error.message }; save(); throw error; }
   finally {
+    if (teardownOnExit) process.removeListener('exit', teardownOnExit);
     restoreSpawn?.();
     summary.uncertainProcess = uncertain;
-    if (cleanup && fresh && !uncertain) {
+    // The project's name was proven unused before this run created it, so a
+    // failed or uncertain run still removes it: left running, it holds the
+    // fixed task port and every later run refuses to start.
+    if (cleanup && fresh) {
       summary.cleanup = await cleanup.finish([() => exec([...compose, 'down', '--volumes'], { timeoutMs: 90_000 })]);
       assert.equal(summary.cleanup.complete, true);
       const volume = await exec(['volume', 'inspect', `${profile.project}_dolt-data`]);

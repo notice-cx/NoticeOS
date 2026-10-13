@@ -289,6 +289,13 @@ test('a claim keeps its model in the same write; only the server records who clo
   ]) denied(() => plan(A, request(operation)));
 });
 
+test('a forced close passes --force before the task, and only for force: true', () => {
+  const plan = createHostedTaskPlanner(entries);
+  assert.deepEqual(plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Done', force: true })).argv.slice(2),
+    ['close', '--reason=Done', '--force', '--', 'tt-a']);
+  for (const force of [false, 'true', 1, null]) denied(() => plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Done', force })));
+});
+
 test('a closed read may span the Agents page history, and no further', () => {
   const plan = createHostedTaskPlanner(entries);
   const until = '2026-10-16T12:00:00.000Z';
