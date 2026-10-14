@@ -241,6 +241,21 @@ test('a failed run keeps a private report of every stage beside the dated sets a
   assert.deepEqual((await fs.readdir(path.join(f.repoRoot, '.local'))).filter(name => name.startsWith('.')), []);
 });
 
+test('the offsite copy leaves out the set\'s recovery folder and keeps everything else', async t => {
+  const f = await fixture(t);
+  // Container sets carry recovery/; this host-mode run gains one just before the handoff.
+  const result = await f.run({ fs: { ...fs, cp: async (source, target, options) => {
+    await f.write(path.join(source, 'recovery/bootstrap.json'), 'synthetic-secret');
+    return fs.cp(source, target, options);
+  } } });
+  assert.equal(result.ok, true, result.detail);
+  assert.equal(await fs.readFile(path.join(f.destination, 'recovery/bootstrap.json'), 'utf8'), 'synthetic-secret');
+  await absent(path.join(f.offsite, DAY, 'recovery'));
+  assert.deepEqual((await fs.readdir(path.join(f.offsite, DAY))).sort(),
+    (await fs.readdir(f.destination)).filter(name => name !== 'recovery').sort());
+  assert.deepEqual(await fs.readFile(path.join(f.offsite, DAY, 'RESTORE.md')), await fs.readFile(path.join(f.destination, 'RESTORE.md')));
+});
+
 async function assetFixture(f, { script = 'node export.mjs', asset = 'example.com' } = {}) {
   const repo = path.join(f.repoRoot, asset);
   const exports = path.join(repo, 'backups');
