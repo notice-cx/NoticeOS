@@ -59,7 +59,8 @@ function dumpSpec(integrations: readonly string[], oneAsset: boolean): string {
 /** The unbounded Mediavine read: every attempt ever made, the one written
  * last winning a tie. */
 const MEDIAVINE_SPEC = `SELECT r.asset_id AS asset, r.attempted_at, r.outcome, r.message,
-    (SELECT MAX(report_date) FROM noticeos.mediavine_current_daily d WHERE d.asset_id = r.asset_id) AS reported_through
+    (SELECT MAX(revenue_date) FROM noticeos.current_revenue d JOIN noticeos_ref.revenue_sources s USING (source)
+      WHERE d.asset_id = r.asset_id AND s.provider = 'mediavine') AS reported_through
     FROM noticeos.mediavine_runs r WHERE r.run_seq = (SELECT x.run_seq FROM noticeos.mediavine_runs x WHERE x.asset_id = r.asset_id ORDER BY attempted_at DESC, run_seq DESC LIMIT 1)`;
 
 const INTEGRATIONS: IntegrationsConfig = {
@@ -307,8 +308,8 @@ describe("the data-source evidence reads seek instead of ranking history", () =>
       }, { readOnly: true });
       const text = plan.map((row) => row["QUERY PLAN"]).join("\n");
       expect(text).toMatch(/Index (Only )?Scan (Backward )?using mediavine_runs_asset on mediavine_runs x/);
-      expect(text).toMatch(/Index Only Scan (Backward )?using mediavine_daily_latest on mediavine_daily d/);
-      expect(text).not.toMatch(/Seq Scan on mediavine_(runs|daily)/);
+      expect(text).toMatch(/Index Only Scan (Backward )?using revenue_observations_latest on revenue_observations d/);
+      expect(text).not.toMatch(/Seq Scan on (mediavine_runs|revenue_observations)/);
     } finally {
       await test.close();
     }

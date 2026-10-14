@@ -50,7 +50,7 @@ Shown only on a standalone installation: where it is installed and what it runs,
 - **Databases**: the ports for your own tools, such as **Postgres 5432 · Tasks 3306**.
 - **Version**: the commit the app runs; on a development stack, **Live source from a checkout; git updates it.**
 - **Updates**: whether a newer version is published.
-- **Last backup**: the age of the latest backup run.
+- **Last good backup**: the age of the newest backup that completed, scheduled or started by hand.
 - **Commands**: the status command to copy: `pnpm os:status` from a checkout, or `<folder>/noticeos status` without one. Status, logs, apply and update run in a terminal on the machine.
 
 ### Members
@@ -79,7 +79,7 @@ Shown only when this installation manages members: where people are invited to t
 - Unclaimed sites are marked **No owner**.
 - **Found** shows **Unknown** when no project could be read, instead of marking every row as found. On a hosted view the Task projects section shows **Read-only here**.
 - **Updates** shows **Current**, **Newer version published** with the update command, **Live source** on a development stack, or **Unknown** when the image registry returned no result. From a checkout, a newer version adds **Pull main in the checkout first.**
-- **Last backup** shows **never** before the first run, and shows **Failed** when the latest run failed.
+- **Last good backup** shows **never** before the first completed backup. **Failed** is amber after one scheduled backup fails and red after two, and clears when a backup completes.
 - **Folder** shows the apply command, with **Apply the current settings to show the folder and ports here.**, while the app runs without the current stack settings.
 - When saves are paused the page shows a notice once at the top and every field shows a lock.
 

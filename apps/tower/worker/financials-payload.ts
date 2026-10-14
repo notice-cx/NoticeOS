@@ -227,7 +227,7 @@ export async function buildFinancialsPayload(
     periods,
     periodIsCurrent,
     currentPeriod,
-    dailyRevenue: await loadPortfolioDailyRevenue(store, period, now),
+    dailyRevenue: await loadPortfolioDailyRevenue(store, period, now, osTimeZone),
     months,
     properties,
     overhead,

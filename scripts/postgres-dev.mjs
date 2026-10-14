@@ -54,6 +54,12 @@ export function migrationFiles(dir = MIGRATIONS_DIR) {
     .map((name) => path.join(dir, name));
 }
 
+/** The migrations numbered `first` and after, by name and in order: what a
+ * store built from the ones before applies next. */
+export function migrationsFrom(first, dir = MIGRATIONS_DIR) {
+  return migrationFiles(dir).map((file) => path.basename(file, '.sql')).filter((name) => name >= first);
+}
+
 /** The two synthetic workspaces the proof loads. */
 export const PROOF_WORKSPACES = [
   { ws: '0000000a-0000-4000-8000-00000000000a', slug: 'a', site: 'a.example' },

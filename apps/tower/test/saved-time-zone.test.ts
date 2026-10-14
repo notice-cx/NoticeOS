@@ -5,7 +5,7 @@ import { createTestStore, type TestStore, postgresUnavailable } from "./postgres
 import { addSites } from "./sites";
 
 import { formatTimestamp } from "../src/lib/format";
-import { MEDIAVINE_REPORTING_CLOCK } from "../shared/daily-revenue";
+import { MEDIAVINE_REPORTING_CLOCK } from "../../../packages/mediavine/src/index";
 import { seedRevenueHistory } from "./revenue-fixture";
 
 // Provider report days and readiness are independent of the saved operator

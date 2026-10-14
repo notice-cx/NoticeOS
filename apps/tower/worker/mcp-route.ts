@@ -5,7 +5,8 @@
 // 2. Honest nulls: unknown is never flattened to false; builder output passes
 //    through untidied.
 // 3. One vocabulary: the decision-lane words the Tower shows the operator.
-// 4. No new queries: every tool composes an existing builder.
+// 4. No new queries: every tool composes an existing builder, and
+//    `property_history` groups the same financial_ledger view by source.
 //
 // Hosted requests use fresh evidence.read admission for the selected workspace
 // on Tower and every ingest receiver. The fixed demo exposes stored tools only.
@@ -25,6 +26,9 @@ import { buildAssetDetailPayload } from "./asset-detail-payload";
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { JSON_HEADERS } from "./http";
 import { buildWallPayload } from "./wall-payload";
+import {
+  loadPropertyHistories, PROPERTY_HISTORY_MAX_DAYS, PROPERTY_HISTORY_MAX_MONTHS, summarizePropertyHistory,
+} from "./property-history";
 import type { CountersConfig } from "./counters";
 import type { DashboardConfig } from "../shared/dashboard";
 import type { IntegrationsConfig } from "../shared/integrations";
@@ -111,6 +115,23 @@ interface ToolDefinition {
   ): Promise<unknown>;
 }
 
+/** An optional whole-number argument in [min, max], or its default. */
+function wholeNumber(args: Record<string, unknown>, name: string, min: number, max: number, fallback: number): number {
+  const value = args[name];
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new McpToolError(`\`${name}\` must be a whole number from ${min} to ${max}`);
+  }
+  return value;
+}
+
+/** The days `list_properties` totals each property over. */
+const LIST_DAYS = 28;
+/** A property's totals over those days, or null for a property the history
+ * read did not reach. */
+const summaryOf = (history: Parameters<typeof summarizePropertyHistory>[0] | undefined) =>
+  history ? summarizePropertyHistory(history) : null;
+
 function requireAsset(args: Record<string, unknown>): string {
   const asset = args.asset;
   if (typeof asset !== "string" || asset.length === 0) {
@@ -121,7 +142,10 @@ function requireAsset(args: Record<string, unknown>): string {
 
 const RUNS: Record<string, ToolDefinition["run"]> = {
   async list_properties(store, deps) {
-    const wall = await buildWallPayload(store, wallOptions(deps));
+    const [wall, histories] = await Promise.all([
+      buildWallPayload(store, wallOptions(deps)),
+      loadPropertyHistories(store, { now: deps.now, days: LIST_DAYS, months: 0, osTimeZone: deps.osTimeZone }),
+    ]);
     return {
       generatedAt: wall.generatedAt,
       portfolio: wall.portfolio,
@@ -139,6 +163,10 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
         netPeriod: card.netPeriod,
         booked: card.booked,
         forecast: card.forecast,
+        // Yesterday's figure on its sources' clock, and the last 28 days in
+        // totals, each source and each provider named.
+        yesterdayRevenue: card.dailyRevenue ?? null,
+        last28Days: summaryOf(histories.get(card.id)),
       })),
       attention: wall.attention,
     };
@@ -167,6 +195,16 @@ const RUNS: Record<string, ToolDefinition["run"]> = {
       );
     }
     return payload;
+  },
+  async property_history(store, deps, args) {
+    const asset = args.asset === undefined ? undefined : requireAsset(args);
+    const days = wholeNumber(args, "days", 1, PROPERTY_HISTORY_MAX_DAYS, LIST_DAYS);
+    const months = wholeNumber(args, "months", 0, PROPERTY_HISTORY_MAX_MONTHS, 12);
+    const histories = await loadPropertyHistories(store, { now: deps.now, days, months, osTimeZone: deps.osTimeZone, ...(asset ? { asset } : {}) });
+    if (asset !== undefined && !histories.has(asset)) {
+      throw new McpToolError(`no property with id ${asset} — call list_properties for the ids in use`);
+    }
+    return { generatedAt: deps.now.toISOString(), days, months, properties: [...histories.values()] };
   },
   async research_lookup(_store, deps, args) {
     if (deps.ingest === null) {

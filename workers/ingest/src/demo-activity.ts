@@ -9,6 +9,7 @@ import { recordSignalFailure, recordSignalSuccess, SignalError } from './signal-
 import { importLedgerRows } from './routes/revenue.js';
 import { persistReport } from './mediavine.js';
 import { dates, pacificDay, shiftDate } from '@noticeos/mediavine';
+import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { writeBeadsSnapshot } from './beads-snapshots.js';
 import { runWatchWindows, type WatchWindowEvaluation } from './watch-windows.js';
 import { writeAnnotation } from './annotations.js';
@@ -123,7 +124,8 @@ export async function writeDemoAdRevenue(store: WorkspaceStore, input: {
   const outcomes: { asset: string; status: 'success'; observationCount: number }[] = [];
   for (const site of input.sites) {
     const [last] = await store.read((tx) => tx.query<{ day: string | null }>(
-      'SELECT MAX(report_date)::text AS day FROM noticeos.mediavine_current_daily WHERE asset_id = $1', [site.asset]));
+      'SELECT MAX(revenue_date)::text AS day FROM noticeos.current_revenue WHERE asset_id = $1 AND source = $2',
+      [site.asset, MEDIAVINE_REVENUE_SOURCE]));
     const floor = shiftDate(clock.yesterday, -31);
     const next = last?.day ? shiftDate(last.day, 1) : site.since;
     const start = next < floor ? floor : next;

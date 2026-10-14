@@ -27,9 +27,10 @@ import { flagDbRow } from "./flag-records";
 import { readPulseCoverage } from "./pulse-history";
 import { countersCadenceHours, readCounterReadings, readLatestCounterTotals, resolveWallCounters, type CountersConfig } from "./counters";
 import type { ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
-import { projectRevenue, REVENUE_HISTORY_DAYS, type RevenueDay } from '../shared/revenue-projection';
+import { projectRevenue, REVENUE_HISTORY_DAYS } from '../shared/revenue-projection';
 import { revenueHolidays } from './revenue-holidays';
-import { MEDIAVINE_REPORTING_CLOCK, revenueCalendarDate, yesterdayRevenue } from '../shared/daily-revenue';
+import { operatorRevenueClock, revenueCalendarDate, yesterdayRevenue, type SiteRevenueHistory } from '../shared/daily-revenue';
+import { emptyRevenueHistory, loadRevenueHistories } from './daily-revenue';
 import {
   releasedFreshnessFlag,
   reportingState,
@@ -299,7 +300,6 @@ export async function buildWallPayload(
    * their own period. Provider reports and their projection keep the
    * provider's separate clock. */
   const operatorToday = revenueCalendarDate(now, osTimeZone);
-  const revenueToday = revenueCalendarDate(now, MEDIAVINE_REPORTING_CLOCK.timeZone);
   const currentPeriod = operatorToday.slice(0, 7);
 
   // --- assets (by their place in the list; the System to SYSTEM, rest to cards) -
@@ -578,21 +578,22 @@ export async function buildWallPayload(
     includeWebSearch: true,
     nowMs,
   });
-  const revenueByAsset = new Map<string, RevenueDay[]>();
-  // Stored Mediavine report dates, bounded on that provider's reporting day.
-  for (const day of await store.read((tx) => tx.query<{ asset: string; date: string; amountMinor: bigint }>(
-    `SELECT asset_id AS asset, report_date AS date, amount_minor AS "amountMinor"
-       FROM noticeos.mediavine_current_daily
-      WHERE report_date >= $1::date - ${REVENUE_HISTORY_DAYS + 1} AND report_date <= $1::date
-      ORDER BY asset_id COLLATE "C", report_date`, [revenueToday]))) {
-    const rows = revenueByAsset.get(day.asset) ?? [];
-    rows.push({ date: day.date, amountMinor: cents(day.amountMinor) });
-    revenueByAsset.set(day.asset, rows);
-  }
+  // Each site's saved daily revenue from every source, on its sources' own
+  // reporting clock, back as far as the projection reads.
+  const revenueClockFallback = operatorRevenueClock(osTimeZone);
+  const revenueHistories = await loadRevenueHistories(store, { now, days: REVENUE_HISTORY_DAYS + 1, fallback: revenueClockFallback });
+  const revenueOf = (asset: string): SiteRevenueHistory =>
+    revenueHistories.get(asset) ?? emptyRevenueHistory(now, REVENUE_HISTORY_DAYS + 1, revenueClockFallback);
+  /** The clock a site's revenue days are on: its sources', or the operator's. */
+  const revenueClockOf = (asset: string) => revenueOf(asset).clock ?? revenueClockFallback;
+  /** The days every source the site owed reported: a partial day is not yet
+   * the day's revenue. */
+  const completeRevenueDays = (history: SiteRevenueHistory) =>
+    history.days.filter((day) => !history.partialDates.includes(day.date));
   // Skip the longer traffic read until a daily revenue source has supplied
   // history, and read it only for the assets that have: `projectRevenue`
   // answers "no revenue" before it looks at traffic.
-  const revenueTraffic = revenueByAsset.size ? await loadSignalTrends(store, REVENUE_HISTORY_DAYS, { includeWebSearch: false, includeSessions: true, assets: [...revenueByAsset.keys()], nowMs }) : new Map<string, SignalTrendSet>();
+  const revenueTraffic = revenueHistories.size ? await loadSignalTrends(store, REVENUE_HISTORY_DAYS, { includeWebSearch: false, includeSessions: true, assets: [...revenueHistories.keys()], nowMs }) : new Map<string, SignalTrendSet>();
   // The desk's per-asset ledger history, from the same grouping /financials'
   // by-asset table is built from (`./ledger-history`).
   const ledgerMonthsByAsset = await loadAssetMonths(store);
@@ -651,10 +652,12 @@ export async function buildWallPayload(
         declaredNoReport: declaredNoReport.has(a.id),
       }),
       activeUsers: signalTrends.activeUsers,
-      dailyRevenue: yesterdayRevenue(now, MEDIAVINE_REPORTING_CLOCK.timeZone, revenueByAsset.get(a.id) ?? []),
+      dailyRevenue: { ...yesterdayRevenue(now, revenueClockOf(a.id).timeZone, completeRevenueDays(revenueOf(a.id))),
+        timeZoneLabel: revenueClockOf(a.id).label },
       // Holidays for the year the projected month is in, on the same clock.
-      revenueProjection: projectRevenue(now, MEDIAVINE_REPORTING_CLOCK, revenueByAsset.get(a.id) ?? [], revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
-        revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar, Number(revenueToday.slice(0, 4)))),
+      revenueProjection: projectRevenue(now, revenueClockOf(a.id), completeRevenueDays(revenueOf(a.id)), revenueTraffic.get(a.id)?.sessions ?? emptySignalTrendSet().sessions,
+        revenueHolidays(integrations.assets[a.id]?.['ad-network']?.revenueHolidayCalendar,
+          Number(revenueCalendarDate(now, revenueClockOf(a.id).timeZone).slice(0, 4)))),
       // Two providers, one measurement, one column; the merge is `shared/wall.ts`'s.
       searchClicks: mergeSignalTrends([
         signalTrends.webSearchClicks.google,

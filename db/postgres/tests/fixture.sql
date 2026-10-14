@@ -127,6 +127,11 @@ SELECT :'ws', run_seq, :'site', 'mv-' || :'slug', '2026-09-01', 500, 'USD', '202
 INSERT INTO noticeos.mediavine_state (workspace_id, asset_id, site_id, target_date, attempts)
 VALUES (:'ws', :'site', 'mv-' || :'slug', '2026-09-02', 0);
 
+INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+  currency, run_ref, recorded_at)
+VALUES (:'ws', :'site', 'mediavine-journey', 'mv-' || :'slug', '2026-09-02', 600, 'USD', 'mv-run-2',
+  '2026-09-03T05:00:00Z');
+
 INSERT INTO noticeos.integration_connections (workspace_id, connection_id, provider, scope, created_at, updated_at)
 VALUES (:'ws', gen_random_uuid(), 'dataforseo', 'shared', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z');
 

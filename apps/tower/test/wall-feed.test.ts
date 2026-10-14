@@ -662,7 +662,7 @@ describe("the feed's reads are bounded", () => {
     }
   });
 
-  it.skipIf(unavailable !== null)("seeks each site's Mediavine attempts and the ledger's newest numbers on Postgres", async () => {
+  it.skipIf(unavailable !== null)("seeks each site's Mediavine attempts, its revenue figures and the ledger's newest numbers on Postgres", async () => {
     const pg = await createTestStore();
     try {
       const explain = (sql: string, params: SqlValue[]) => pg.store.inWorkspace(pg.workspaceId, async (tx) => {
@@ -671,11 +671,10 @@ describe("the feed's reads are bounded", () => {
       }, { readOnly: true });
       expect(await explain(FEED_MEDIAVINE_RUNS_SQL, [SINCE, 500])).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
       const revenue = await explain(FEED_REVENUE_SQL, [SINCE, 500]);
-      expect(revenue).toMatch(/Index (Only )?Scan using mediavine_runs_asset on mediavine_runs m/);
-      expect(revenue).toMatch(/Index (Only )?Scan (Backward )?using mediavine_daily_workspace_id_run_seq_report_date_key on mediavine_daily/);
+      expect(revenue).toMatch(/Index (Only )?Scan (Backward )?using revenue_observations_recorded on revenue_observations o/);
       expect(await explain(FEED_LEDGER_SQL, [500, SINCE, 500])).toMatch(/Index Scan Backward using ledger_entries_workspace_id_entry_number_key on ledger_entries/);
       for (const sql of [FEED_MEDIAVINE_RUNS_SQL, FEED_REVENUE_SQL, FEED_LEDGER_SQL]) {
-        expect(await explain(sql, sql === FEED_LEDGER_SQL ? [500, SINCE, 500] : [SINCE, 500])).not.toMatch(/Seq Scan on (mediavine|ledger)/);
+        expect(await explain(sql, sql === FEED_LEDGER_SQL ? [500, SINCE, 500] : [SINCE, 500])).not.toMatch(/Seq Scan on (mediavine|ledger|revenue)/);
       }
     } finally {
       await pg.close();

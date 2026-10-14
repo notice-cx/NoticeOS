@@ -11,6 +11,8 @@ import { seedAssets } from "./invented-sites";
 import type { IntegrationsConfig } from "../shared/integrations";
 import type { DashboardConfig } from "../shared/dashboard";
 import { buildAssetDetailPayload } from "../worker/asset-detail-payload";
+import { writeRevenue } from "./money";
+import { writeSignalRun } from "./collected-metrics";
 
 const NOW = new Date("2026-09-15T12:00:00.000Z");
 
@@ -247,6 +249,110 @@ describe("the MCP surface — tools", () => {
   });
 });
 
+describe("the MCP surface — revenue by source and traffic by provider", () => {
+  /** Synthetic days, `first`..`last`, one a day. */
+  function days(first: string, last: string): string[] {
+    const out: string[] = [];
+    for (let date = first; date <= last; date = new Date(Date.parse(`${date}T12:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) out.push(date);
+    return out;
+  }
+
+  /** Mediavine Journey from Aug 20 and a second Mediavine account from Sep 10,
+   * both through yesterday (Sep 14 on Mediavine's clock), and a GA4 and a
+   * Search Console run whose newest day is still provisional. */
+  async function seedMeadow(): Promise<void> {
+    await writeRevenue(ctx.call, [
+      ...days("2026-08-20", "2026-09-14").map((date) => ({ asset: "meadow.example", account: "mv-meadow", date, amountMinor: 100, run: "mv-run" })),
+      ...days("2026-09-10", "2026-09-14").map((date) => ({ asset: "meadow.example", source: "mediavine", account: "mv-second", date, amountMinor: 50, run: "mv-run-2" })),
+    ]);
+    const traffic = days("2026-08-18", "2026-09-14");
+    await writeSignalRun(ctx.call, { id: "ga4-run", asset: "meadow.example", integration: "ga4", finishedAt: "2026-09-15T06:00:00Z",
+      windowStart: traffic[0], windowEnd: "2026-09-14", provisionalFrom: "2026-09-14" },
+    traffic.flatMap((date) => [{ date, metric: "sessions", value: 10 }, { date, metric: "active_users", value: 8 }]));
+    await writeSignalRun(ctx.call, { id: "gsc-run", asset: "meadow.example", integration: "gsc", finishedAt: "2026-09-15T06:00:00Z",
+      windowStart: traffic[0], windowEnd: "2026-09-14" }, traffic.map((date) => ({ date, metric: "clicks", value: 3 })));
+  }
+
+  async function tool(name: string, args: Record<string, unknown> = {}) {
+    const { body } = await call("tools/call", { name, arguments: args });
+    return body.result as { isError?: boolean; content: { text: string }[]; structuredContent: Record<string, unknown> };
+  }
+
+  it("lists each property's last 28 days: revenue per named source and traffic per named provider", async () => {
+    await seedMeadow();
+    const result = await tool("list_properties");
+    const meadow = (result.structuredContent.properties as Record<string, unknown>[]).find((property) => property.asset === "meadow.example")!;
+    expect(meadow.yesterdayRevenue).toEqual({ date: "2026-09-14", amountMinor: 150, reportedThrough: "2026-09-14",
+      timeZone: "America/Los_Angeles", timeZoneLabel: "Pacific" });
+    const { revenue, traffic } = meadow.last28Days as {
+      revenue: Record<string, unknown> & { bySource: Record<string, unknown>[] };
+      traffic: Record<string, unknown>[];
+    };
+    expect(revenue).toMatchObject({ from: "2026-08-18", to: "2026-09-14", clock: { timeZone: "America/Los_Angeles", label: "Pacific" },
+      currency: "USD", totalMinor: 2850, daysReported: 26, partialDays: 0 });
+    expect(revenue.bySource.map(({ source, displayName, provider, family, totalMinor, daysReported }) =>
+      ({ source, displayName, provider, family, totalMinor, daysReported }))).toEqual([
+      { source: "mediavine", displayName: "Mediavine ad revenue", provider: "mediavine", family: "ads", totalMinor: 250, daysReported: 5 },
+      { source: "mediavine-journey", displayName: "Mediavine Journey ad revenue", provider: "mediavine", family: "ads", totalMinor: 2600, daysReported: 26 },
+    ]);
+    const series = (integration: string, metric: string) => traffic.find((item) => item.integration === integration && item.metric === metric);
+    // Sessions add; the provisional newest day is counted apart.
+    expect(series("ga4", "sessions")).toMatchObject({ source: "Google Analytics 4", unit: "count", additive: true,
+      from: "2026-08-18", to: "2026-09-14", settledDays: 27, provisionalDays: 1, total: 270, provisionalFrom: "2026-09-14" });
+    // People never add across days; their daily average stands in.
+    expect(series("ga4", "active_users")).toMatchObject({ additive: false, total: null, dailyAverage: 8 });
+    expect(series("gsc", "clicks")).toMatchObject({ source: "Google Search Console", additive: true, total: 84, provisionalDays: 0 });
+    // A property with no source and no collection lists nothing, never zeros.
+    const quiet = (result.structuredContent.properties as Record<string, unknown>[]).find((property) => property.asset !== "meadow.example")!;
+    const quietDays = quiet.last28Days as { revenue: { bySource: unknown[]; totalMinor: unknown }; traffic: unknown[] };
+    expect([quietDays.revenue.bySource, quietDays.revenue.totalMinor, quietDays.traffic]).toEqual([[], null, []]);
+  });
+
+  it("returns a property's days by source, its accounting months by source and booking state, and each traffic series", async () => {
+    await seedMeadow();
+    const result = await tool("property_history", { asset: "meadow.example", days: 7, months: 2 });
+    expect(result.isError).toBeUndefined();
+    const [meadow] = result.structuredContent.properties as {
+      asset: string;
+      revenue: { from: string; to: string; days: unknown[]; partialDates: string[]; months: Record<string, unknown>[];
+        bySource: { source: string; since: string; reportedThrough: string; days: unknown[]; clock: Record<string, unknown> }[] };
+      traffic: { days: number; series: { integration: string; metric: string; days: { date: string; value: number }[] }[] };
+    }[];
+    expect(meadow!.asset).toBe("meadow.example");
+    expect([meadow!.revenue.from, meadow!.revenue.to, meadow!.revenue.days.length, meadow!.revenue.partialDates])
+      .toEqual(["2026-09-08", "2026-09-14", 7, []]);
+    expect(meadow!.revenue.bySource.map((source) => [source.source, source.since, source.reportedThrough, source.days.length, source.clock.label]))
+      .toEqual([["mediavine", "2026-09-10", "2026-09-14", 5, "Pacific"], ["mediavine-journey", "2026-08-20", "2026-09-14", 7, "Pacific"]]);
+    expect(meadow!.revenue.months).toEqual([
+      { period: "2026-08", source: "mediavine-journey", sourceName: "Mediavine Journey ad revenue", family: "ads", currency: "USD",
+        bookingState: "estimated", amountMinor: 1200, entries: 1 },
+      { period: "2026-09", source: "mediavine", sourceName: "Mediavine ad revenue", family: "ads", currency: "USD",
+        bookingState: "estimated", amountMinor: 250, entries: 1 },
+      { period: "2026-09", source: "mediavine-journey", sourceName: "Mediavine Journey ad revenue", family: "ads", currency: "USD",
+        bookingState: "estimated", amountMinor: 1400, entries: 1 },
+    ]);
+    const sessions = meadow!.traffic.series.find((item) => item.integration === "ga4" && item.metric === "sessions")!;
+    expect(sessions.days.map((day) => day.date)).toEqual(days("2026-09-08", "2026-09-14"));
+    expect(meadow!.traffic.days).toBe(7);
+  });
+
+  it("returns every property when no asset is named", async () => {
+    await seedMeadow();
+    const listed = (await tool("list_properties")).structuredContent.properties as unknown[];
+    const result = await tool("property_history", { months: 0 });
+    const properties = result.structuredContent.properties as { asset: string; revenue: Record<string, unknown> }[];
+    expect(properties.length).toBeGreaterThanOrEqual(listed.length);
+    expect(properties.every((property) => !("months" in property.revenue))).toBe(true);
+  });
+
+  it("refuses days, months or a property out of range as a correctable error", async () => {
+    for (const args of [{ days: 0 }, { days: 366 }, { days: 1.5 }, { months: -1 }, { months: 121 }, { asset: "does.not.exist" }]) {
+      const result = await tool("property_history", args);
+      expect(result.isError, JSON.stringify(args)).toBe(true);
+    }
+  });
+});
+
 describe("the MCP surface — the research log", () => {
   it("tells an agent to buy when nothing was bought", async () => {
     const { body } = await call("tools/call", {
@@ -330,7 +436,7 @@ describe("the MCP surface is read-only", () => {
     const countRows = async () =>
       ((await (ctx.call).read((tx) =>
         tx.query<{ n: number }>(
-          `SELECT ((SELECT count(*) FROM noticeos.assets) + (SELECT count(*) FROM noticeos.ledger_entries) + (SELECT count(*) FROM noticeos.mediavine_daily)
+          `SELECT ((SELECT count(*) FROM noticeos.assets) + (SELECT count(*) FROM noticeos.ledger_entries) + (SELECT count(*) FROM noticeos.revenue_observations)
                   + (SELECT count(*) FROM noticeos.mediavine_runs)
                   + (SELECT count(*) FROM noticeos.item_dispositions) + (SELECT count(*) FROM noticeos.flags)
                   + (SELECT count(*) FROM noticeos.annotations))::int AS n`,

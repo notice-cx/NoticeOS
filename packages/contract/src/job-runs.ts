@@ -13,9 +13,22 @@ export const MANUAL_RUN_DETAIL = "trigger:manual";
  * through `javascriptInstant`. Scheduled firings only: a press cannot make a
  * silent scheduler look alive, nor a failed press make a healthy one look
  * broken.
+ *
+ * Beside it, each job's newest firing that ran (`last_ran_at`), a press
+ * included, because a press that ran did the job's work; then the scheduled
+ * firings that failed after it, counted (`failed_runs`) and dated from the
+ * first (`failing_since`). With nothing that ran on record, every failed
+ * scheduled firing counts.
  */
-export const LATEST_JOB_RUNS_SQL =
-  `SELECT DISTINCT ON (job) job, outcome, started_at FROM noticeos.job_runs WHERE detail IS NULL OR detail <> '${MANUAL_RUN_DETAIL}' ORDER BY job, started_at DESC`;
+export const LATEST_JOB_RUNS_SQL = `WITH good AS (
+    SELECT job, max(started_at) AS last_ran_at FROM noticeos.job_runs WHERE outcome = 'ran' GROUP BY job
+  )
+SELECT DISTINCT ON (r.job) r.job, r.outcome, r.started_at, g.last_ran_at,
+       min(r.started_at) FILTER (WHERE r.outcome = 'failed' AND r.started_at > coalesce(g.last_ran_at, '-infinity')) OVER (PARTITION BY r.job) AS failing_since,
+       (count(*) FILTER (WHERE r.outcome = 'failed' AND r.started_at > coalesce(g.last_ran_at, '-infinity')) OVER (PARTITION BY r.job))::int AS failed_runs
+  FROM noticeos.job_runs r LEFT JOIN good g ON g.job = r.job
+ WHERE r.detail IS NULL OR r.detail <> '${MANUAL_RUN_DETAIL}'
+ ORDER BY r.job, r.started_at DESC`;
 
 /** The manual firings the record still holds, newest first (two at one
  * instant, the later recorded first) — what the Workflows page adds to each

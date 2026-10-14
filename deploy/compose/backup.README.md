@@ -53,7 +53,8 @@ this Linux runtime.
 Native D1 targets saved in **Integrations → Cloudflare** need no exporter
 checkout. The protected worker connects only to `http://noticeos:5173` on its
 declared installation network, using the existing private bootstrap bearer.
-The app's standalone receiver authenticates before opening SQL and keeps the
+The app adds `noticeos` to `TOWER_ALLOWED_HOSTS` at start in both container
+modes, so the Tower's host check accepts these requests. The app's standalone receiver authenticates before opening SQL and keeps the
 provider token private. Each selected database is written to the dated set as
 a verified gzip file with a private record of its export receipt and restore
 steps; if the selection changes or any target fails, the set is not published. A native target and legacy exporter cannot cover
@@ -77,6 +78,11 @@ instructions and private recovery material. The recovery material includes the b
 bindings, database credentials, task selector, task inventory, task project
 configuration and worker/exporter declarations. If a source credential or
 declaration changes during capture, the set is not published.
+
+The offsite copy leaves out `recovery/`; only the local set has it. The copy
+creates every file and folder itself and sets its mode and owner through the
+descriptor it created, so a sync client that hard-links files while uploading
+them does not affect it. Symbolic links and other special files are refused.
 
 The job result the application records names only the first failed stage.
 Every run writes each stage's result and redacted errors to

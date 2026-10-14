@@ -1,8 +1,8 @@
 // @vitest-environment node
 // `projectRevenue` answers "no revenue" before it looks at traffic, so the Wall's
-// second trend read is narrowed to the assets `mediavine_current_daily`
-// returned. The specification is the same builder without that narrowing, and
-// the two payloads must be equal.
+// second trend read is narrowed to the sites with saved daily revenue. The
+// specification is the same builder without that narrowing, and the two
+// payloads must be equal.
 
 import type { WorkspaceStore } from "@noticeos/postgres";
 import { describe, expect, it, vi } from "vitest";

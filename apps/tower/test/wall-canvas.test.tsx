@@ -109,7 +109,7 @@ const PAYLOAD: WallPayload = {
     spendTodayUsd: 1,
     dailyCapUsd: 2,
     ingest: { fresh: 2, stale: 0, notExpected: 0, expected: 2 },
-    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: "2026-09-05T11:00:00.000Z" }],
+    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: "2026-09-05T11:00:00.000Z", lastRanAt: "2026-09-05T11:00:00.000Z", failedRuns: 0, failingSince: null }],
   },
   dashboard: {
     countdown: { emoji: "🌁", label: "Team offsite", targetAt: "2026-10-01T07:00:00.000Z" },

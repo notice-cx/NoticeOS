@@ -199,7 +199,7 @@ and speaks both protocol eras on one stateless POST: the self-describing
 2026-07-28 revision and the `initialize` handshake of the three 2025 versions.
 Bodies are JSON, at most 256 KiB; a browser `Origin` other than the Tower's own
 is refused. The tools are declared once in `scripts/read-model-tools.mjs`:
-`list_properties`, `property_report`, `research_lookup`.
+`list_properties`, `property_report`, `property_history`, `research_lookup`.
 
 Constraints on the read-model tools, all load-bearing:
 
@@ -211,7 +211,13 @@ Constraints on the read-model tools, all load-bearing:
   tidying it: unknown stays unknown, and booked and forecast are never summed.
 - **One vocabulary.** Output uses the decision-lane words the operator reads.
 - **No new queries.** Every tool composes an existing builder; a second query
-  for the same question would be a second truth.
+  for the same question would be a second truth. `property_history`
+  (`worker/property-history.ts`) composes the revenue ledger and signal-trend
+  readers the pages use, and adds one question no page asks: revenue per
+  accounting month by source, grouped from the same `financial_ledger` view.
+- **Every figure names its source.** Revenue names its revenue source, provider
+  and family, and traffic its provider and metric, all from the store's
+  vocabulary (`noticeos_ref`), so a source added there needs no tool change.
 
 **Access boundary.** The standalone Tower serves every `/api/*` route
 unauthenticated on the trusted LAN and deliberately holds no credentials, so a

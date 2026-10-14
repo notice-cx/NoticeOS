@@ -22,7 +22,7 @@ export function validateDemoViewer(value) {
         workspaceId: row.workspaceId, cutoff: row.cutoff, generatedAt: row.generatedAt });
 }
 /** Reviewed stored-read tools; adding a tool requires a new explicit review. */
-export const DEMO_MCP_READ_TOOLS = Object.freeze(['list_properties', 'property_report', 'research_lookup']);
+export const DEMO_MCP_READ_TOOLS = Object.freeze(['list_properties', 'property_history', 'property_report', 'research_lookup']);
 export function demoMcpRequestAllowed(viewer, body) {
     if (viewer === null)
         return true;

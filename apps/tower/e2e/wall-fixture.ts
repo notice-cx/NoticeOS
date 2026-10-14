@@ -97,7 +97,7 @@ const ASSETS: AssetCard[] = [
       ],
     },
     worstSeverity: "warn", openWarn: 1, activeUsers: trend(1480, 1),
-    dailyRevenue: { date: "2026-09-21", amountMinor: 4_318, reportedThrough: "2026-09-21", timeZone: TZ },
+    dailyRevenue: { date: "2026-09-21", amountMinor: 4_318, reportedThrough: "2026-09-21", timeZone: TZ, timeZoneLabel: "Pacific" },
     revenueProjection: projection(131_000, 92_400), dataSources: sources({ posthog: "live", uptime: "live" }),
     work: work(176, 14, 4, 9, 58, [3, 11, 98, 47, 17]),
   }),
@@ -110,7 +110,7 @@ const ASSETS: AssetCard[] = [
       ],
     },
     activeUsers: trend(640, 4),
-    dailyRevenue: { date: "2026-09-21", amountMinor: 1_207, reportedThrough: "2026-09-21", timeZone: TZ },
+    dailyRevenue: { date: "2026-09-21", amountMinor: 1_207, reportedThrough: "2026-09-21", timeZone: TZ, timeZoneLabel: "Pacific" },
     revenueProjection: projection(38_500, 26_100), work: work(64, 5, 2, 3, 19, [1, 4, 33, 18, 8]),
   }),
   card("lantern.example", "Lantern Works", { activeUsers: trend(210, 7), work: work(12, 2, 1, 0, 4, [0, 2, 6, 3, 1]) }),
@@ -139,7 +139,7 @@ const PORTFOLIO = { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD',
 const SYSTEM = {
   assetId: "root-os", hasPulse: true, spendTodayUsd: 0.41, dailyCapUsd: 0.83,
   ingest: { fresh: 5, stale: 0, notExpected: 2, expected: 5 },
-  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(3 * HOUR) }],
+  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(3 * HOUR), lastRanAt: iso(3 * HOUR), failedRuns: 0, failingSince: null }],
 } as SystemBand;
 
 const ATTENTION = [{

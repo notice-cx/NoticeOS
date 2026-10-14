@@ -6,7 +6,7 @@ import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { createGzip } from 'node:zlib';
 import { createHash } from 'node:crypto';
-import { privateBackupFile } from './container-backup-profile.mjs';
+import { BACKUP_APP_ORIGIN, privateBackupFile } from './container-backup-profile.mjs';
 import { doorFromEnv } from './ingest-door.mjs';
 import { CLOUDFLARE_D1_BACKUP_PATH, D1_MAX_BYTES, cloudflareAccountId, d1Record, d1Receipt, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
 
@@ -60,8 +60,8 @@ export function createCloudflareD1BackupClient({ repoRoot, transport, env = proc
   readBootstrap = file => JSON.parse(privateBackupFile(file).text), requestMs = 240_000 } = {}) {
   if (!path.isAbsolute(repoRoot ?? '') || (transport !== undefined && transport !== 'container')
     || !Number.isFinite(requestMs) || requestMs < 1 || requestMs > 240_000) refuse();
-  const origin = new URL(transport === 'container' ? 'http://noticeos:5173' : doorFromEnv(env));
-  if (transport === 'container' ? repoRoot !== '/state' || origin.origin !== 'http://noticeos:5173'
+  const origin = new URL(transport === 'container' ? BACKUP_APP_ORIGIN : doorFromEnv(env));
+  if (transport === 'container' ? repoRoot !== '/state' || origin.origin !== BACKUP_APP_ORIGIN
     : origin.protocol !== 'http:' || !['127.0.0.1', 'localhost', '[::1]'].includes(origin.hostname)) refuse();
   if (origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) refuse();
   let bearer;

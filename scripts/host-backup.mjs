@@ -16,9 +16,13 @@ import { backupAsset, validateAssetBackups } from './asset-backup.mjs';
 import { createCloudflareD1BackupClient, cloudflareD1InventoryKey, copyCloudflareD1 } from './cloudflare-d1-backup.mjs';
 import { backupDate, backupReportComplete, retainedBackupDates, validateBackupRetention } from './backup-retention.mjs';
 import { BACKUP_PATHS, readBackupWorker, privateBackupFile } from './container-backup-profile.mjs';
-import { dumpContainerPostgres, backupContainerDolt, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup } from './container-backup-transport.mjs';
+import { dumpContainerPostgres, backupContainerDolt, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
 import { analyticalHistoryDirectory, backupAnalyticalHistory, verifyAnalyticalHistoryBackup,
   assertAnalyticalHistoryReplacement, retainedAnalyticalHistoryDates } from './analytical-history-backup.mjs';
+
+/** A container set's bootstrap key, database credentials and task-service
+ * settings. It stays in the local set; the offsite copy leaves it out. */
+const RECOVERY_DIR = 'recovery';
 
 const LABELS = {
   preparation: 'Preparation', postgres: 'Postgres', r2: 'R2', taskHub: 'Task hub', assets: 'Asset databases', history: 'Analytical history',
@@ -421,7 +425,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
     });
     if (working) {
       if (containerMode) await attempt('recovery', async result => {
-        const copied = await copyContainerRecovery(path.join(working, 'recovery'));
+        const copied = await copyContainerRecovery(path.join(working, RECOVERY_DIR));
         result.expected = copied.files; result.copied = copied.files;
       });
       await attempt('postgres', async (result) => {
@@ -554,7 +558,7 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
       }
 
       if (containerMode && stages.recovery.status === 'completed') {
-        try { await verifyContainerRecovery(path.join(working, 'recovery')); }
+        try { await verifyContainerRecovery(path.join(working, RECOVERY_DIR)); }
         catch (error) { fail(stages.recovery, 'Credential generation', error); }
       }
 
@@ -595,9 +599,9 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
             throw new Error('Incomplete rerun: preserving the existing offsite backup');
           }
           const offsiteWorking = await freshDirectory(offsiteBackupDir);
-          await io.cp(destination, offsiteWorking, { recursive: true });
+          if (containerMode) await copyOffsiteBackup(destination, offsiteWorking, worker, { fs: io, omit: [RECOVERY_DIR] });
+          else await io.cp(destination, offsiteWorking, { recursive: true, filter: source => source !== path.join(destination, RECOVERY_DIR) });
           if (historyCustody) await verifyAnalyticalHistoryBackup(path.join(offsiteWorking, 'history'), { io, expected: historyCustody });
-          if (containerMode) await ownContainerBackup(offsiteWorking, worker, { offsite: true });
           await replaceDirectory(offsiteWorking, path.join(offsiteBackupDir, day));
         });
       }
@@ -694,7 +698,7 @@ ${composeTaskHub
   records their generation content fingerprints and file sizes/SHA-256 hashes.
 - \`backup.json\`: copy completeness used by daily/weekly retention.
 - \`RESTORE.md\`: these copy results and restore instructions.
-${containerMode ? '- `recovery/`: private bootstrap credentials, Postgres role custody and task installation declarations, with a hashed manifest. Keep the whole set private.\n' : ''}
+${containerMode ? '- `recovery/`: private bootstrap credentials, Postgres role custody and task installation declarations, with a hashed manifest. Keep the whole set private.\n  Only the local set has it; the offsite copy leaves it out. Keep a copy of it in a password manager.\n' : ''}
 
 ## Restore
 

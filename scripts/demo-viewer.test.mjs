@@ -78,7 +78,7 @@ test('capabilities preserve real availability and provenance without inventing s
   assert.throws(() => demoViewerCapabilities(viewer, '/api/config', null), /response is invalid/u);
 });
 test('MCP only accepts reviewed tool reads and transport methods in a demo', () => {
-  for (const name of ['list_properties', 'property_report', 'research_lookup']) {
+  for (const name of ['list_properties', 'property_report', 'property_history', 'research_lookup']) {
     assert.equal(demoMcpRequestAllowed(viewer, { jsonrpc: '2.0', method: 'tools/call', params: { name } }), true);
   }
   for (const value of [null, [], {}, { jsonrpc: '2.0', method: 'tools/call', params: { name: 'new_write_tool' } },

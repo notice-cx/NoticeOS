@@ -11,8 +11,32 @@ export const READ_MODEL_TOOLS: readonly ReadModelTool[] = Object.freeze([
   {
     name: "list_properties",
     description:
-      "Every property under management with its lifecycle status, open-flag severity, and the period's revenue, cost and margin. Start here when you do not know a property's id.",
+      "Every property under management with its lifecycle status, open-flag severity, the period's booked and forecast revenue, cost and margin, and its last 28 days in totals: daily revenue by source (each named, with its provider and family) and traffic by provider and metric. Start here when you do not know a property's id; call property_history for the days behind the totals.",
     inputSchema: { type: "object", properties: {}, additionalProperties: false },
+  },
+  {
+    name: "property_history",
+    description:
+      "Revenue and traffic day by day for one property, or for every property when asset is omitted. Revenue: each day's figures per source from the revenue ledger (the source's name, provider, family, currency, first and last reported day, and the clock its days are counted on), their daily sum, the days a source missed, and accounting months by source and booking state (estimated or reconciled). Traffic: each provider's daily series (GA4 sessions, users, page views and events; Search Console and Bing clicks and impressions; Search Console CTR and position) with its unit, whether days add up, when it was collected and the first provisional day. A missing day is unknown, never zero.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        asset: { type: "string", description: "Property id, e.g. example.com. Omit for every property." },
+        days: {
+          type: "integer",
+          minimum: 1,
+          maximum: 365,
+          description: "Days of daily revenue and traffic, ending yesterday on each source's clock; default 28.",
+        },
+        months: {
+          type: "integer",
+          minimum: 0,
+          maximum: 120,
+          description: "Accounting months of revenue by source, the current one included; default 12, 0 for none.",
+        },
+      },
+      additionalProperties: false,
+    },
   },
   {
     name: "property_report",

@@ -9,6 +9,9 @@ export const BACKUP_PATHS = Object.freeze({
   doltSecrets: '/run/dolt-secrets', clientHome: '/tmp/backup-client-home',
   exporterHome: '/tmp/backup-exporter-home', offsite: '/backup-offsite/backups',
 });
+/** The app as the worker reaches it on the installation network: its Compose
+ * service name and the Tower's port. The app's host guard admits this name. */
+export const BACKUP_APP_ORIGIN = 'http://noticeos:5173';
 const refusal = () => { throw new Error('The declared backup worker is not prepared; no complete backup was published.'); };
 
 export function privateBackupFile(file, io = fs, privateMode = true) {

@@ -34,6 +34,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'capability_targets',
   'ledger_entries',
   'mediavine_daily',
+  'revenue_observations',
   'mediavine_runs',
   'mediavine_sites',
   'mediavine_state',

@@ -22,16 +22,19 @@ function laneLabel(job: string): string {
   return SCHEDULED_JOBS.find((candidate) => jobRunName(candidate) === job)?.label ?? job;
 }
 
+/** No lane has started within the silence window, so the scheduler itself is silent. */
+export function schedulerSilent(lanes: readonly ScheduledLane[], nowMs: number): boolean {
+  const freshest = Math.max(...lanes.map((lane) => Date.parse(lane.startedAt)));
+  return !Number.isFinite(freshest) || freshest < nowMs - CRON_RUN_SILENCE_MS;
+}
+
 export function scheduledLanePosture(
   lanes: ScheduledLane[],
   nowMs: number,
 ): ScheduledLanePosture {
   if (lanes.length === 0) return "unknown";
   if (lanes.some((lane) => lane.outcome === "failed")) return "failed";
-  const freshest = Math.max(...lanes.map((lane) => Date.parse(lane.startedAt)));
-  if (!Number.isFinite(freshest) || freshest < nowMs - CRON_RUN_SILENCE_MS) {
-    return "silent";
-  }
+  if (schedulerSilent(lanes, nowMs)) return "silent";
   if (lanes.some((lane) => lane.outcome === "skipped")) return "skipped";
   return "healthy";
 }

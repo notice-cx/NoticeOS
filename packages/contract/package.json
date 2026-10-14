@@ -38,6 +38,10 @@
       "types": "./src/ledger-coverage.d.mts",
       "default": "./src/ledger-coverage.mjs"
     },
+    "./revenue-sources": {
+      "types": "./src/revenue-sources.d.mts",
+      "default": "./src/revenue-sources.mjs"
+    },
     "./*": {
       "types": "./src/*.ts",
       "default": "./src/*.ts"

@@ -1324,8 +1324,8 @@ describe("ScheduledLanesPanel — silence and failure are visible states", () =>
     const { container } = render(
       <ScheduledLanesPanel
         lanes={[
-          { job: "beads-snapshot", outcome: "ran", startedAt: hoursAgo(1) },
-          { job: "backup", outcome: "failed", startedAt: hoursAgo(2) },
+          { job: "beads-snapshot", outcome: "ran", startedAt: hoursAgo(1), lastRanAt: hoursAgo(1), failedRuns: 0, failingSince: null },
+          { job: "backup", outcome: "failed", startedAt: hoursAgo(2), lastRanAt: null, failedRuns: 1, failingSince: hoursAgo(2) },
         ]}
         nowMs={NOW}
       />,
@@ -1355,8 +1355,8 @@ describe("ScheduledLanesPanel — silence and failure are visible states", () =>
     const { container } = render(
       <ScheduledLanesPanel
         lanes={[
-          { job: "beads-snapshot", outcome: "ran", startedAt: hoursAgo(27) },
-          { job: "backup", outcome: "ran", startedAt: hoursAgo(28) },
+          { job: "beads-snapshot", outcome: "ran", startedAt: hoursAgo(27), lastRanAt: hoursAgo(27), failedRuns: 0, failingSince: null },
+          { job: "backup", outcome: "ran", startedAt: hoursAgo(28), lastRanAt: hoursAgo(28), failedRuns: 0, failingSince: null },
         ]}
         nowMs={NOW}
       />,

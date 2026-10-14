@@ -92,9 +92,12 @@ id as it was. Both retain financial history. Connecting again lists those
 sites as already mapped, and Start resumes them. A site with stored revenue remains assigned to its
 original asset, preventing the same site's history from appearing twice.
 
-`mediavine_daily` keeps changed daily observations in integer USD cents;
-`mediavine_runs` keeps attempted ranges, outcome, and the portal summary versus
-the daily sum. Daily sums drive the shared `financial_ledger` view. A reported
+Each changed day is filed in the revenue ledger (`revenue_observations`, the
+one table every revenue collector writes) under the source `mediavine-journey`,
+"Mediavine Journey ad revenue", in integer USD cents, naming the Mediavine site
+and the run that reported it. `mediavine_runs` keeps attempted ranges,
+outcome, and the portal summary versus the daily sum. Daily sums drive the
+shared `financial_ledger` view, the same way for every source. A reported
 summary discrepancy is shown, not distributed across dates. Missing or partial
 responses preserve the last complete data. Daily estimates replace an older
 Mediavine CSV estimate only once they cover its recorded window; unknown CSV

@@ -1,7 +1,7 @@
 import { useId, useState, type ReactNode } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { ClaritySnapshot, ProductDay, SearchIntelligenceSnapshot } from "@shared/asset-detail";
-import { MEDIAVINE_REPORTING_CLOCK, siteRevenueWindow, type DailyRevenueHistory } from "@shared/daily-revenue";
+import { revenueTimeZone, siteRevenueWindow, type DailyRevenueHistory } from "@shared/daily-revenue";
 import { shiftLabel, windowSeries, type RangeDays, type SurfaceSpan } from "@shared/surface";
 import type { SeriesPoint, SignalTrend } from "@shared/wall";
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
@@ -80,7 +80,7 @@ export function siteLead(data: SiteLeadData, days: RangeDays, nowMs: number): Si
   ];
   if (traffic.some(hasPoints)) return { kind: "traffic", source: "providers", metrics: signalMetrics(data, days) };
   if ((data.dailyRevenue?.days.length ?? 0) > 0) {
-    return { kind: "revenue", history: siteRevenueWindow(data.dailyRevenue, nowMs, MEDIAVINE_REPORTING_CLOCK.timeZone, days) };
+    return { kind: "revenue", history: siteRevenueWindow(data.dailyRevenue, nowMs, revenueTimeZone(data.dailyRevenue, data.osTimeZone), days) };
   }
   const product = data.executive?.product?.webDaily?.days ?? [];
   if (product.length > 0) return { kind: "traffic", source: "posthog", metrics: productMetrics(product, days) };

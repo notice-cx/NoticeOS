@@ -23,6 +23,7 @@ One backup run captures every store of the installation into a dated folder, `.l
 | `r2/` | The raw provider archive: report files plus their index |
 | `beads/` | Every task database, taken online from the running task service, with its permissions and recovery credentials under `beads/metadata/` |
 | `assets/` and `cloudflare-d1/` | Production exports for sites you have explicitly approved |
+| `recovery/` | The key that decrypts stored provider credentials, the database passwords and the task service settings. Only the local set has it: the offsite copy leaves it out, so keep a copy of this folder in a password manager |
 | `RESTORE.md` | Generated instructions: what the set is, how each part went, how to restore it |
 | `backup.json` | The completeness record, written last |
 

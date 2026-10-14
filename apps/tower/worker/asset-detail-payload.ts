@@ -5,8 +5,7 @@ import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { readSite, type SiteRecord } from "./asset-registry";
 import { loadDailyRevenue } from "./daily-revenue";
 import { SCHEDULED_JOBS, scheduleFor, type ScheduleOverrides } from "../../../scripts/scheduled-jobs.mjs";
-import { MEDIAVINE_REPORTING_CLOCK, yesterdayRevenue } from "../shared/daily-revenue";
-import { shiftRevenueDate } from "../shared/revenue-projection";
+import { operatorRevenueClock } from "../shared/daily-revenue";
 // AssetDetail payload assembly — the one read behind GET /api/assets/:id.
 // Every fact is paired with the file or store table that owns it. Config the
 // builder needs is passed in, never read from disk.
@@ -1502,8 +1501,6 @@ async function assembleAssetDetail(
   // The Wall's own set, so the card and this page cannot disagree.
   const declaredNoReport = new Set(noNightlyReport ?? []);
   const declared = declaredNoReport.has(id);
-  // The last completed Mediavine reporting day, independent of Settings.
-  const yesterday = yesterdayRevenue(now, MEDIAVINE_REPORTING_CLOCK.timeZone, []).date;
 
   // Every read that needs only the asset row, issued together. A section the
   // view does not draw is not read at all.
@@ -1650,7 +1647,8 @@ async function assembleAssetDetail(
       )
       .then(([row]) => ({ ts: row?.ts == null ? null : javascriptInstant(row.ts) })),
     asset.isOs === 1 ? readLatestJobRuns(store) : null,
-    wants("dailyRevenue") ? loadDailyRevenue(store, id, shiftRevenueDate(yesterday, -89), yesterday) : null,
+    // Ninety days ending yesterday on the site's revenue sources' own clock.
+    wants("dailyRevenue") ? loadDailyRevenue(store, id, { now, days: 90, fallback: operatorRevenueClock(osTimeZone) }) : null,
     // The site's all-time totals: read only when the Overview draws them and
     // the register configures any.
     wants("counters") && (counters.assets[id]?.cards?.length ?? 0) > 0

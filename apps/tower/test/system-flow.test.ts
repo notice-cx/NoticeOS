@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { CredentialSummary } from "@noticeos/contract/integrations";
 import type { IntegrationHealthItem } from "@noticeos/contract/integration-health";
-import type { SystemBand } from "@shared/wall";
+import type { ScheduledLane, SystemBand } from "@shared/wall";
 import { systemFlow } from "@/lib/system-flow";
+import { backupLane, backupNight, pressedBackupLane } from "./backup-lanes";
 
 const NOW = Date.parse("2026-10-11T20:00:00.000Z");
 const at = (hoursAgo: number) => new Date(NOW - hoursAgo * 3_600_000).toISOString();
@@ -32,7 +33,7 @@ describe("the system map", () => {
       item("google", "ga4-daily", "c.example", "failing", at(6)),
       item("bing-webmaster", "bing-daily", "a.example", "healthy", at(1)),
     ];
-    const { nodes, edges } = systemFlow({ credentials, items, system: system([{ job: "signals", outcome: "ran", startedAt: at(0.1) }]), nowMs: NOW });
+    const { nodes, edges } = systemFlow({ credentials, items, system: system([{ job: "signals", outcome: "ran", startedAt: at(0.1), lastRanAt: at(0.1), failedRuns: 0, failingSince: null }]), nowMs: NOW });
     const sources = nodes.filter((node) => node.id.startsWith("source:"));
     expect(sources.map((node) => node.label)).toEqual(["Google", "Bing"]);
     expect(sources[0]).toMatchObject({ state: "warn", since: at(6), caption: "1 of 3 sites failing" });
@@ -41,16 +42,33 @@ describe("the system map", () => {
     expect(edges.find((edge) => edge.from === "source:bing-webmaster")?.state).toBe("flowing");
   });
 
-  it("lights a failed backup on its node and breaks the store's edge to it", () => {
-    const { nodes, edges } = systemFlow({
-      credentials: new Map(),
-      items: [],
-      system: system([{ job: "backup", outcome: "failed", startedAt: at(6) }, { job: "signals", outcome: "ran", startedAt: at(0.1) }]),
-      nowMs: NOW,
+  describe("the backups node", () => {
+    const signals = { job: "signals", outcome: "ran" as const, startedAt: at(0.1), lastRanAt: at(0.1), failedRuns: 0, failingSince: null };
+    const backups = (lane: ScheduledLane) => {
+      const { nodes, edges } = systemFlow({ credentials: new Map(), items: [], system: system([lane, signals]), nowMs: NOW });
+      return { node: nodes.find((node) => node.id === "backups"), edge: edges.find((edge) => edge.to === "backups")?.state, runner: nodes.find((node) => node.id === "runner")?.state };
+    };
+
+    it("dates twelve failed nights from the first, captioned with the last good copy's age, and breaks the store's edge", () => {
+      const { node, edge, runner } = backups(backupLane(NOW, 12, backupNight(NOW, 12)));
+      expect(node).toMatchObject({ state: "error", since: backupNight(NOW, 11), caption: "last good copy 12d ago" });
+      expect(edge).toBe("broken");
+      expect(runner).toBe("error");
     });
-    expect(nodes.find((node) => node.id === "backups")).toMatchObject({ state: "error", since: at(6), caption: "last run failed" });
-    expect(edges.find((edge) => edge.to === "backups")?.state).toBe("broken");
-    expect(nodes.find((node) => node.id === "runner")?.state).toBe("error");
+
+    it("is amber after one failed night and red after two", () => {
+      expect(backups(backupLane(NOW, 1, backupNight(NOW, 1)))).toMatchObject({ node: { state: "warn", since: backupNight(NOW, 0), caption: "last good copy 1d ago" }, edge: "flowing" });
+      expect(backups(backupLane(NOW, 2, backupNight(NOW, 2)))).toMatchObject({ node: { state: "error", since: backupNight(NOW, 1), caption: "last good copy 2d ago" }, edge: "broken" });
+    });
+
+    it("is green once a backup runs after the failures, scheduled or pressed", () => {
+      expect(backups(backupLane(NOW, 0, backupNight(NOW, 0))).node).toMatchObject({ state: "ok", since: null, caption: "last good copy 16h ago" });
+      expect(backups(pressedBackupLane(NOW, at(1))).node).toMatchObject({ state: "ok", since: null, caption: "last good copy 1h ago" });
+    });
+
+    it("reads no good copy yet when none was ever made", () => {
+      expect(backups(backupLane(NOW, 2, null)).node).toMatchObject({ state: "error", since: backupNight(NOW, 1), caption: "no good copy yet" });
+    });
   });
 
   it("never calls an unread system healthy", () => {

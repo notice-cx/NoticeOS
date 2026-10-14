@@ -611,7 +611,7 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (workspace_id, daily_id); unique (workspace_id, daily_number); unique (workspace_id, run_seq, report_date)
 - **Links:** (workspace_id, asset_id, site_id) → `mediavine_sites`; (workspace_id) → `workspaces`; (workspace_id, run_seq, asset_id, site_id) → `mediavine_runs`
-- **Triggers:** `number_in_workspace` (before insert)
+- **Triggers:** `mediavine_daily_reaches_revenue_ledger` (after insert); `number_in_workspace` (before insert)
 
 ## `mediavine_runs`
 
@@ -745,6 +745,27 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, research_id); unique (workspace_id, research_number)
 - **Links:** (provider) → `noticeos_ref.integrations`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Row checks:** `((cost_state = 'unknown') = (cost_usd IS NULL))`
+- **Triggers:** `number_in_workspace` (before insert)
+
+## `revenue_observations`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `observation_id` | bigint, identity | yes |  |
+| `observation_number` | bigint | yes | `(observation_number >= 1)` |
+| `asset_id` | text | yes |  |
+| `source` | text | yes |  |
+| `account_ref` | text | yes | `(account_ref <> '')` |
+| `revenue_date` | date | yes |  |
+| `item_ref` | text | no | `(item_ref <> '')` |
+| `amount_minor` | bigint | yes |  |
+| `currency` | character(3) | yes | `(currency ~ '^[A-Z]{3}$')` |
+| `run_ref` | text | yes | `(run_ref <> '')` |
+| `recorded_at` | timestamp with time zone | yes |  |
+
+- **Keys:** primary (workspace_id, observation_id); unique (workspace_id, observation_number)
+- **Links:** (source) → `noticeos_ref.revenue_sources`; (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 - **Triggers:** `number_in_workspace` (before insert)
 
 ## `signal_observations`
@@ -964,3 +985,17 @@ which rows leave for the analytical store, and when, is its `retention`.
 
 - **Keys:** primary (integration, metric)
 - **Links:** (integration) → `noticeos_ref.integrations`
+
+## `noticeos_ref.revenue_sources`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `source` | text | yes | `(source ~ '^[a-z0-9][a-z0-9-]*$')` |
+| `provider` | text | yes | `(provider ~ '^[a-z0-9][a-z0-9-]*$')` |
+| `family` | text | yes | `(family IN ('ads', 'affiliate', 'subs', 'licensing'))` |
+| `display_name` | text | yes | `(length(display_name) >= 1)` |
+| `time_zone` | text | yes | `(length(time_zone) >= 1)` |
+| `time_zone_label` | text | yes | `(length(time_zone_label) >= 1)` |
+| `ready_after_minute` | integer | yes | `((ready_after_minute >= 0) AND (ready_after_minute <= 1439))` |
+
+- **Keys:** primary (source)

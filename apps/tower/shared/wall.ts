@@ -141,11 +141,18 @@ export function portfolioHasData(band: PortfolioBand): boolean {
 
 export type ScheduledLaneOutcome = "ran" | "skipped" | "failed";
 
-/** Latest store-backed firing for one local-runner lane. */
+/** Latest store-backed scheduled firing for one local-runner lane, and its
+ * failures since the lane last ran (`LATEST_JOB_RUNS_SQL`). */
 export interface ScheduledLane {
   job: string;
   outcome: ScheduledLaneOutcome;
   startedAt: string;
+  /** The newest firing that ran, a press included; null when none is on record. */
+  lastRanAt: string | null;
+  /** Scheduled firings that failed after `lastRanAt`, or ever when it is null. */
+  failedRuns: number;
+  /** The first of those failed firings; null when there are none. */
+  failingSince: string | null;
 }
 
 /** System band — what the Wall strip's system state and Home's System tile

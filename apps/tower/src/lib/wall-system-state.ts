@@ -3,8 +3,9 @@
 
 import type { ConnectionReads } from "@shared/connection-status";
 import type { MaterialCondition } from "@shared/materiality";
-import { osReportMissing, type AssetCard, type SystemBand } from "@shared/wall";
-import { scheduledLanePosture } from "@/components/ScheduledLanes";
+import { osReportMissing, type AssetCard, type ScheduledLane, type SystemBand } from "@shared/wall";
+import { schedulerSilent } from "@/components/ScheduledLanes";
+import { backupStatus, isBackupLane, lastGoodCopy } from "@/lib/backups";
 import { compareIssues, failingSources, type WallIssue, type WallIssueCondition } from "@/lib/wall-issues";
 import { SCHEDULED_JOBS, jobRunName } from "@shared/scheduled-jobs";
 
@@ -43,6 +44,10 @@ export function failingSourceCount(
 
 const plural = (count: number, one: string, many: string) => `${count} ${count === 1 ? one : many}`;
 
+/** The failed lanes a job failure names. A backup is judged from its last good
+ * copy instead (`backupStatus`), so one failed night is not a failed job. */
+const failedJobs = (lanes: readonly ScheduledLane[]) => lanes.filter((lane) => lane.outcome === "failed" && !isBackupLane(lane));
+
 /** The one state, worst first. */
 export function wallSystemState(system: SystemBand, sourcesFailing: number, nowMs: number): WallSystemState {
   // Owed and missing, never merely absent: an installation with no OS row has
@@ -50,11 +55,11 @@ export function wallSystemState(system: SystemBand, sourcesFailing: number, nowM
   if (osReportMissing(system)) {
     return { kind: "os-report-missing", severity: "error", label: "OS report missing", conditions: ["os-runner-health"] };
   }
-  const scheduler = scheduledLanePosture(system.scheduledLanes, nowMs);
-  if (scheduler === "failed") {
+  if (failedJobs(system.scheduledLanes).length > 0) {
     return { kind: "job-failed", severity: "error", label: "A scheduled job failed", conditions: ["scheduled-lane-health"] };
   }
-  if (scheduler === "silent") {
+  // Every lane's firing, a backup's included, shows the scheduler alive.
+  if (system.scheduledLanes.length > 0 && schedulerSilent(system.scheduledLanes, nowMs)) {
     return { kind: "jobs-silent", severity: "error", label: "Scheduled jobs silent", conditions: ["scheduled-lane-health"] };
   }
   if (sourcesFailing > 0) {
@@ -108,7 +113,7 @@ export function withSystemIssues(issues: readonly WallIssue[], system: SystemBan
       merged[represented] = { ...issue, severity: state.severity === "error" ? "error" : issue.severity, conditions: [...new Set([...issue.conditions, condition])] };
       continue;
     }
-    const failed = state.kind === "job-failed" ? system.scheduledLanes.filter(lane => lane.outcome === "failed") : [];
+    const failed = state.kind === "job-failed" ? failedJobs(system.scheduledLanes) : [];
     const line = failed.length === 1
       ? `${SCHEDULED_JOBS.find(job => jobRunName(job) === failed[0]!.job)?.label ?? failed[0]!.job} failed`
       : failed.length > 1 ? `${failed.length} scheduled jobs failed` : state.label;
@@ -116,6 +121,15 @@ export function withSystemIssues(issues: readonly WallIssue[], system: SystemBan
     merged.push({
       key: `system-${state.kind}`, severity: state.severity ?? "warn", assets: system.assetId ? [system.assetId] : [],
       site: "OS", line, mark: state.label, since: latest, conditions: [condition],
+    });
+  }
+  // One row however many nights failed; it goes when a backup runs.
+  const backups = backupStatus(system.scheduledLanes);
+  if (backups.state === "failing" && !merged.some((issue) => issue.key === "system-backups-failing")) {
+    merged.push({
+      key: "system-backups-failing", severity: "error", assets: system.assetId ? [system.assetId] : [],
+      site: "OS", line: `Backups failing · ${lastGoodCopy(backups, nowMs)}`, mark: "Backups failing",
+      since: backups.failingSince, conditions: ["scheduled-lane-health"],
     });
   }
   return merged.sort(compareIssues);

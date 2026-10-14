@@ -469,7 +469,8 @@ test('on a disposable Postgres: the migrations apply, workspace isolation holds,
 
       // The shared vocabulary: read by both roles, written by neither.
       const reference = [...privilegesOf('noticeos_app', 'noticeos_ref')];
-      assert.deepEqual(reference.map(([name]) => name).sort(), ['check_kinds', 'integrations', 'metric_kinds']);
+      assert.deepEqual(reference.map(([name]) => name).sort(),
+        Object.keys(definition.reference).filter((name) => name !== '_rule').sort());
       for (const role of ['noticeos_app', 'noticeos_maint']) {
         for (const [name, has] of privilegesOf(role, 'noticeos_ref')) {
           assert.deepEqual(has, { select: true, insert: false, update: false, remove: false }, `${role} on noticeos_ref.${name}`);

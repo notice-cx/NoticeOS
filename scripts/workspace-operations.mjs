@@ -587,12 +587,19 @@ export async function storedResearchReadRequest(request) {
     if (message.method !== 'tools/call')
         return Object.freeze({ method: 'mcp', body, tool: null });
     const params = message.params;
-    if (!['list_properties', 'property_report', 'research_lookup'].includes(params.name))
+    if (!['list_properties', 'property_report', 'property_history', 'research_lookup'].includes(params.name))
         refuse();
     const args = params.arguments === undefined ? {} : record(params.arguments);
-    const allowed = params.name === 'list_properties' ? [] : params.name === 'property_report' ? ['asset'] : ['endpoint', 'params', 'windowDays'];
+    const allowed = params.name === 'list_properties' ? [] : params.name === 'property_report' ? ['asset']
+        : params.name === 'property_history' ? ['asset', 'days', 'months'] : ['endpoint', 'params', 'windowDays'];
     onlyKeys(args, allowed);
-    if (params.name === 'property_report' && (typeof args.asset !== 'string' || args.asset.length === 0 || args.asset.length > 128))
+    const boundedAsset = (value) => typeof value === 'string' && value.length > 0 && value.length <= 128;
+    const whole = (value, min, max) => value === undefined
+        || (typeof value === 'number' && Number.isInteger(value) && value >= min && value <= max);
+    if (params.name === 'property_report' && !boundedAsset(args.asset))
+        refuse();
+    if (params.name === 'property_history' && ((args.asset !== undefined && !boundedAsset(args.asset))
+        || !whole(args.days, 1, 365) || !whole(args.months, 0, 120)))
         refuse();
     if (params.name === 'research_lookup' && (typeof args.endpoint !== 'string' || args.endpoint.length === 0
         || args.endpoint.length > 2048 || !args.params || typeof args.params !== 'object' || Array.isArray(args.params)

@@ -66,6 +66,7 @@ import { useSettings } from "@/hooks/useSettings";
 import { useWall } from "@/hooks/useWall";
 import { useWork } from "@/hooks/useWork";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
+import { backupStatus } from "@/lib/backups";
 import { cn } from "@/lib/utils";
 import { useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
@@ -1195,7 +1196,8 @@ function InstallationSection() {
       <PageSkeleton subject="read:installation" shape="form" />
     );
   }
-  const backup = wall?.system.scheduledLanes.find((lane) => lane.job === "backup") ?? null;
+  const backup = backupStatus(wall?.system.scheduledLanes ?? []);
+  const backupFailed = backup.state === "missed" || backup.state === "failing";
   const update = updateState(facts);
   return (
     <>
@@ -1235,11 +1237,11 @@ function InstallationSection() {
       <SettingsPanel title="Upkeep">
         <KnobRow
           className={PANEL_ROW}
-          label="Last backup"
+          label="Last good backup"
           value={
             <span className="flex items-center gap-2">
-              {backup?.outcome === "failed" ? <StateChip tone="critical" label="Failed" subject="installation:backup" /> : null}
-              <AgeBadge iso={backup?.startedAt ?? null} cadenceHours={24} nowMs={nowMs} />
+              {backupFailed ? <StateChip tone={backup.state === "failing" ? "critical" : "caution"} label="Failed" subject="installation:backup" /> : null}
+              <AgeBadge iso={backup.lastGoodAt} cadenceHours={24} nowMs={nowMs} lastGood={backupFailed} />
             </span>
           }
         />
