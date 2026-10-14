@@ -36,7 +36,7 @@ function deps(overrides: Partial<McpDeps> = {}): McpDeps {
   return {
     now: NOW,
     monthlyCaps: { dataUsd: 25 },
-    flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+    flagDefaults: { alpha: 0.01, max_window_days: 14 },
     operatorRateUsdPerMin: 2,
     counters: { assets: { "meadow.example": { cards: [{ metric: "signups", counter: "profiles", label: "Accounts" }] } } },
     integrations: INTEGRATIONS,

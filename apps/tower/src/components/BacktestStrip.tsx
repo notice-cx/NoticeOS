@@ -162,7 +162,7 @@ function dayTitle(day: RuleBacktestDay): string {
           ? "no report filed"
           : day.reason === "out-of-regime"
             ? "not judged — the metric was outside this rule's volume range"
-            : "not judged — fewer than four matching weekdays behind it";
+            : "not judged — too few earlier reports to compare with";
   return `${day.date}: ${replay}${day.stored ? " · really fired" : ""}`;
 }
 

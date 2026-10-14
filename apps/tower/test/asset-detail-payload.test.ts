@@ -40,7 +40,7 @@ const NOW_MS = NOW.getTime();
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
 
-const FLAG_DEFAULTS = { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 };
+const FLAG_DEFAULTS = { alpha: 0.01, max_window_days: 14 };
 const INTEGRATIONS = {
   catalog: [
     { id: "gsc", label: "Google Search Console", docRef: "docs/11-integrations.md#the-catalog", credential: "shared" as const },

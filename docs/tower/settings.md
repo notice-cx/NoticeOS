@@ -21,7 +21,7 @@ Tabs across the top, the same as on a site's page, open on **General**. Each tab
 
 ### Alert rules
 
-The three thresholds every site is tested against, marked **All sites**: **Anomaly sensitivity** (lower means fewer, surer alerts), **Minimum daily volume to test** (lower-volume metrics are tested over several days) and **Low-volume window** (hours pooled together for lower-volume metrics). A replay over the fields shows what each value would have fired on your own data. Under them, a record shows how often each rule has been tuned.
+The two thresholds every site is tested against, marked **All sites**: **Anomaly sensitivity** (lower means fewer, surer alerts) and **Longest window** (quieter metrics pool up to this many days). Beside **Longest window**, a bar shows the window as a share of four weeks, and a line shows the quietest daily average still tested. A replay over the fields shows what each value would have fired on your own data. Under them, a record shows how often each rule has been tuned.
 
 ### Data collection
 

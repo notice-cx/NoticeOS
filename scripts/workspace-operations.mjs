@@ -569,11 +569,11 @@ export async function storedResearchReadRequest(request) {
             || (body.through !== undefined && (typeof body.through !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(body.through))))
             refuse();
         const config = record(body.config);
-        onlyKeys(config, ['alpha', 'minBaselinePerDay', 'lowVolumeWindowHours']);
-        if (!['alpha', 'minBaselinePerDay', 'lowVolumeWindowHours'].every(key => typeof config[key] === 'number' && Number.isFinite(config[key])))
+        onlyKeys(config, ['alpha', 'maxWindowDays']);
+        if (!['alpha', 'maxWindowDays'].every(key => typeof config[key] === 'number' && Number.isFinite(config[key])))
             refuse();
         return Object.freeze({ method: 'backtestRule', input: {
-                asset: body.asset, ruleId: body.ruleId, config: { alpha: config.alpha, minBaselinePerDay: config.minBaselinePerDay, lowVolumeWindowHours: config.lowVolumeWindowHours },
+                asset: body.asset, ruleId: body.ruleId, config: { alpha: config.alpha, maxWindowDays: config.maxWindowDays },
                 metric: body.metric ?? null,
                 ...(typeof body.through === 'string' ? { through: body.through } : {}),
             } });

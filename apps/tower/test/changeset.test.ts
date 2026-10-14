@@ -11,7 +11,7 @@ import {
 
 describe("resolvePointer (RFC 6901)", () => {
   const doc = {
-    flag_defaults: { alpha: 0.01, min_baseline_per_day: 3 },
+    flag_defaults: { alpha: 0.01, max_window_days: 14 },
     list: [{ url: "https://a.test" }, { url: "https://b.test" }],
     "a/b": 1,
     "m~n": 2,

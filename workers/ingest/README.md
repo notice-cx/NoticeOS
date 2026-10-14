@@ -315,9 +315,12 @@ from "nothing happened".
 On every pulse, the contract's volume-aware rules are evaluated centrally with
 the **OS's** config (`config/constants.json` `flag_defaults`) and central
 history. Every daily metric compares with the mean of its four matching prior
-weekdays. At seasonal baseline ≥ 3/day it uses the single-day Poisson tail
-(`flow-poisson-low`); below that, `flow-lowvol-window` compares a complete 72h
-window with four equivalently aligned historical windows. Any missing cohort
+weekdays. Each metric is judged over the shortest whole-day window, at most
+`max_window_days`, in which a run of zeros could fire: one day uses the
+single-day Poisson tail (`flow-poisson-low`); longer, `flow-lowvol-window`
+compares a complete window with four earlier windows of the same length, ending
+on the same weekday and overlapping neither one another nor the window being
+judged (`seasonalInputsFrom` in `src/db.ts`). Any missing cohort
 keeps the rule unarmed; no code falls back to the envelope's `avg7d`. Each new
 metric reading resolves the prior open central flow event before the current
 one is evaluated, so recovered metrics stop contributing to property health.

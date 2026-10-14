@@ -30,8 +30,7 @@ const FIRST_SEEDED = '2026-05-01';
 
 const DEFAULTS: RuleConfig = {
   alpha: 0.01,
-  minBaselinePerDay: 3,
-  lowVolumeWindowHours: 72,
+  maxWindowDays: 14,
 };
 
 /** Days that break the flat 10/day fixture, and what the asset reported instead. */
@@ -165,17 +164,28 @@ describe('backtestRule — the count moves with the settings', () => {
     ]);
   });
 
-  it('goes silent as the sensitivity is tightened past the deepest dip', async () => {
-    const tighter = await backtest({ config: { ...DEFAULTS, alpha: 0.000001 } });
-    expect(tighter.wouldFire).toBe(0);
-    // Silent is not blind: every day was still judged.
-    expect(tighter.judged).toBe(30);
+  it('moves to a two-day window once the sensitivity is too strict for one empty day', async () => {
+    // At 1 in a million an empty day of an expected 10 (e^-10 ~= 4.5e-5) cannot
+    // fire, so the one-day rule judges no day; two days of an expected 20 can.
+    const strict = { ...DEFAULTS, alpha: 0.000001 };
+    const oneDay = await backtest({ config: strict });
+    expect(oneDay.judged).toBe(0);
+    expect(oneDay.days.every((day) => day.state === 'unjudged')).toBe(true);
+    expect(oneDay.days[0]!.reason).toBe('out-of-regime');
+
+    const twoDays = await backtest({ ruleId: 'flow-lowvol-window', config: strict });
+    expect(twoDays.judged).toBe(30);
+    // 07-01 pairs a zero with a full day (10 of 20); 07-02 and 07-03 are two
+    // empty days; 07-04 and 07-05 hold 4 and 8.
+    expect(
+      twoDays.days.filter((day) => day.state === 'fired').map((day) => day.date),
+    ).toEqual(['2026-07-02', '2026-07-03']);
   });
 
-  it('stands the rule down when the minimum daily volume rises above the baseline', async () => {
-    // Baseline is 10/day; ask for 25 and this rule is out of its regime every
-    // day. That is UNJUDGED, never a zero that reads as "it would never fire".
-    const result = await backtest({ config: { ...DEFAULTS, minBaselinePerDay: 25 } });
+  it('judges no day when even the longest window is too short', async () => {
+    // One day at most, and too strict for one empty day: nothing can fire, and
+    // that is unjudged, never a quiet that reads as "it would never fire".
+    const result = await backtest({ config: { alpha: 0.000001, maxWindowDays: 1 } });
     expect(result.wouldFire).toBe(0);
     expect(result.judged).toBe(0);
     expect(result.days.every((day) => day.state === 'unjudged')).toBe(true);
@@ -235,8 +245,9 @@ describe('backtestRule — what it will not claim', () => {
     for (const config of [
       { ...DEFAULTS, alpha: 0 },
       { ...DEFAULTS, alpha: 1.5 },
-      { ...DEFAULTS, minBaselinePerDay: -1 },
-      { ...DEFAULTS, lowVolumeWindowHours: 0 },
+      { ...DEFAULTS, maxWindowDays: 0 },
+      { ...DEFAULTS, maxWindowDays: 2.5 },
+      { ...DEFAULTS, maxWindowDays: 29 },
     ]) {
       const result = await worker().backtestRule({
         asset: ASSET,

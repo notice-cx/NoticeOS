@@ -63,7 +63,7 @@ function deps(overrides: Partial<SettingsDeps> = {}): SettingsDeps {
     osTimeZone: "America/Los_Angeles",
     monthlyCaps: { dataUsd: 25 },
     operatorRateUsdPerMin: 2,
-    flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+    flagDefaults: { alpha: 0.01, max_window_days: 14 },
     signalPanels,
     pullConfig,
     integrations,
@@ -138,14 +138,25 @@ describe("buildSettingsPayload", () => {
     expect(alertRules.owner).toBe("config/constants.json");
     expect(alertRules.knobs.map((k) => k.key)).toEqual([
       "alpha",
-      "min_baseline_per_day",
-      "low_volume_window_hours",
+      "max_window_days",
     ]);
     const alpha = alertRules.knobs[0]!;
     expect(alpha.pointer).toBe("/flag_defaults/alpha");
     expect(alpha.raw).toBe(0.01);
     expect(alpha.label).toBe("Anomaly sensitivity");
     expect(alpha.explain.length).toBeGreaterThan(0);
+  });
+
+  it("lists no row for a key an older saved document still holds and no rule reads", () => {
+    const { alertRules } = buildSettingsPayload({
+      ...deps(),
+      flagDefaults: { min_baseline_per_day: 5, alpha: 0.02, low_volume_window_hours: 48, max_window_days: 14 },
+    });
+    expect(alertRules.knobs.map((k) => [k.key, k.raw])).toEqual([
+      ["alpha", 0.02],
+      ["max_window_days", 14],
+    ]);
+    expect(alertRules.knobs[1]).toMatchObject({ label: "Longest window", pointer: "/flag_defaults/max_window_days" });
   });
 
   it("resolves every declared knob by its own pointer, and names the pull owner", () => {

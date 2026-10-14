@@ -55,19 +55,29 @@ false positives on low-volume assets: at an average of 4.1/day, a day with
 zero is ordinary Poisson noise, and after a stream of meaningless warnings the
 operator stops reading the alerts, which defeats the purpose of monitoring.
 
-- Model each flow metric as Poisson(seasonal baseline·w). Flag only when
-  `P(observed | baseline) < α` (default α = 0.01) **and** baseline ≥ 3/day.
+- Model each flow metric as Poisson(seasonal baseline·w) over a window of w
+  whole days, and flag only when `P(observed | baseline·w) < α` (default
+  α = 0.01).
+- w is the shortest window, at most `max_window_days` (default 14), in which a
+  run of zeros could fire: the smallest w with `e^(−baseline·w) < α`, which is
+  `⌈ln(1/α) ÷ baseline⌉` days. At α = 0.01 a metric averaging 4.61 a day or more
+  is tested on one day, 3 a day on two, 1.5 on four, 1 on five and 0.5 on ten.
+  Under `ln(1/α) ÷ max_window_days` (0.33 a day by default) no window can fire,
+  and the metric is not tested.
 - Every daily metric uses the mean of its four matching prior weekdays:
   a Saturday is compared with the four prior Saturdays, not Friday or a flat
   seven-day mean. The asset-supplied `avg7d` remains diagnostic wire data and
   never changes the central baseline.
-- Below 3/day, compare a full multi-day window (default 72h) with four
-  equivalently aligned historical windows. A missing observation in any cohort
-  means the rule raises no alert for that metric; it does not switch to a
-  different baseline.
+- A multi-day window is compared with four earlier windows of the same length
+  that end on the same weekday, spaced ⌈w ÷ 7⌉ weeks apart so that none
+  overlaps another or the window being tested. The window grows one day at a
+  time until those four windows hold enough events for a run of zeros to fire.
+  A missing observation in any cohort means the rule raises no alert for that
+  metric; it does not switch to a different baseline.
 - Percentage-drop rules apply only above minimum absolute counts.
-- A rule starts evaluating only after all four comparison observations exist,
-  so a new metric raises no alerts for at least 28 days. The Tower's one-week
+- A rule starts evaluating only after all four comparison windows exist, so a
+  new metric raises no alerts for at least 28 days, and a metric tested over
+  more than a week for at least 8 weeks plus the window. The Tower's one-week
   visual reference is context, not itself an alert threshold.
 - When a new reading arrives, the prior open central flow alert for that
   metric is resolved before the current event is evaluated. If the anomaly

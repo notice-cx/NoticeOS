@@ -75,7 +75,7 @@ The same panel shows **Report endpoint** and **Auth source** for push, **Schedul
 - The ingest returns `201` with `{ "ok": true }` when the report is stored.
 - The site's **Data sources** tab has a **Daily metrics** table: **Metric**, **Latest report · 24h** with its date, **Prior reports · avg / day**, and **History · daily counts** as a small chart. Before the first report it shows **Nothing yet — metrics appear with this site's first nightly report.** Missing days are counted and shown, never drawn as zero.
 - The site's **Overview** can show a totals row from `total`, once you add the cards on the site's **Settings** tab under **Card totals**.
-- **Alerts** fire on a metric only after four matching prior weekdays exist, so NoticeOS raises no alerts on a new metric for at least 28 days. A day is flagged when its count is improbable against that baseline and the baseline is at least three a day. Thresholds are in **Settings** > **Alert rules**.
+- **Alerts** fire on a metric only after four matching prior weekdays exist, so NoticeOS raises no alerts on a new metric for at least 28 days. A metric averaging 4.6 or more a day is tested one day at a time and a quieter one over several days, up to 14; a count is flagged when it is improbable against that baseline. Thresholds are in **Settings** > **Alert rules**.
 
 ## If it didn't work
 

@@ -67,9 +67,9 @@ describe("the record per tune", () => {
     });
     // The same row, tuned again on a different setting.
     await applyFlagAction(store, id, "tune", at(2), null, {
-      setting: "min_baseline_per_day",
-      from: 3,
-      to: 5,
+      setting: "max_window_days",
+      from: 14,
+      to: 7,
     });
 
     const rows = await tuneRows(store);
@@ -86,9 +86,9 @@ describe("the record per tune", () => {
       {
         flag_id: id,
         rule_id: "flow-poisson-low",
-        setting: "min_baseline_per_day",
-        value_from: 3,
-        value_to: 5,
+        setting: "max_window_days",
+        value_from: 14,
+        value_to: 7,
         tuned_at: at(2),
         actor: "operator",
       },
@@ -99,7 +99,7 @@ describe("the record per tune", () => {
     const [flag] = await store.read((tx) =>
       tx.query<{ disposition_note: string }>(`SELECT disposition_note FROM noticeos.flags WHERE flag_number = $1`, [id]),
     );
-    expect(flag!.disposition_note).toBe("Minimum daily volume to test (min_baseline_per_day) 3 → 5");
+    expect(flag!.disposition_note).toBe("Longest window (max_window_days) 14 → 7");
   });
 
   it("makes 'tuned five times this quarter' answerable", async () => {

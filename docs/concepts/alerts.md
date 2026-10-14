@@ -37,18 +37,18 @@ The two labels are kept separate so you can filter by each one on its own. The *
 
 NoticeOS does not use fixed thresholds like "warn when sign-ups drop 50%". On a small site a 50% drop happens on an ordinary low-traffic Tuesday. After a stream of false alarms, people stop reading the page, which is worse than having no page.
 
-Instead, a count-type metric fires only when **both** of these are true:
+Instead, a count-type metric is tested over a window of whole days, and fires when the count in that window is unlikely:
 
-1. **Today's count is unlikely given the recent past.** NoticeOS takes the recent daily average and calculates how probable a day this low would be if nothing had changed. If that probability is under the sensitivity setting (1 in 100 by default), the day is unusual.
-2. **There is enough volume to judge.** A metric that averages fewer than three a day has too few events for a one-day test. For those, NoticeOS pools three days together and runs the same test on the pooled total. If there is not enough history to compare against yet, NoticeOS raises no alert instead of guessing.
+1. **The window is as short as the volume allows.** NoticeOS uses the fewest whole days in which a run of zeros would be unlikely enough to alert on. A metric that averages 4.6 or more a day is tested one day at a time. Quieter metrics are tested over more days: 3 a day over two days, 1.5 a day over four, 1 a day over five, 0.5 a day over ten. The longest window is 14 days, so a metric under 0.33 a day is not tested.
+2. **The count in the window is unlikely given the recent past.** NoticeOS compares the window with four earlier windows of the same length that end on the same weekday, and calculates how probable a count this low would be if nothing had changed. If that probability is under the sensitivity setting (1 in 100 by default), the alert fires. If there is not enough history to compare against yet, NoticeOS raises no alert instead of guessing.
 
-So on `example.com`, recipes saved at 6.2 a day falling to 0 fires: a zero day there has a probability of about 1 in 500. Newsletter sign-ups at 1.5 a day falling to 0 is not tested on one day; it is tested on its three-day total. At that rate even three empty days have a probability of about 1 in 90, so with the default sensitivity they raise no alert.
+So on `example.com`, recipes saved at 6.2 a day falling to 0 fires on the first day: a zero day there has a probability of about 1 in 500. Newsletter sign-ups at 1.5 a day are tested over four days. Four days with no sign-ups fire: at that rate they have a probability of about 1 in 400. One, two or three empty days do not.
 
-![Two bar charts. Recipes saved averages 6.2 a day and today is 0, which raises a Warning anomaly alert. Newsletter sign-ups averages 1.5 a day, so its last 72 hours are tested together: 2 sign-ups against about 4.5 expected raises no alert.](../images/alert-rule.svg)
+![Two bar charts. Recipes saved averages 6.2 a day and today is 0, which raises a Warning anomaly alert. Newsletter sign-ups averages 1.5 a day, so its last four days are tested together: 0 sign-ups against 6 expected raises a Warning anomaly alert.](../images/alert-rule.svg)
 
 A day that a data source has not finished reporting is never tested. If a source has not reported yet, its missing rows are not counted as zeros.
 
-The rule and its three settings are described for people in [doc 02, The signal contract](../02-signal-contract.md).
+The rule and its two settings are described for people in [doc 02, The signal contract](../02-signal-contract.md).
 
 ## The four actions on an alert
 
@@ -57,7 +57,7 @@ Each open alert has four actions. None of them deletes anything; the evidence st
 - **Mark read**: "I have seen this". The alert leaves the open list. If the same condition fires again later, you get a new alert.
 - **Snooze**: "not now". Pick a date within the next 90 days. The alert leaves the open list and is listed under **Snoozed**, and the same alert, with the same evidence, comes back on that date. **Unsnooze** brings it back early.
 - **Resolve**: "the underlying issue is fixed". The alert is finished.
-- **Tune**: "this rule raises too many alerts". Tune opens the three settings behind the rule, shows what each value would have fired on real past days, and saves your change. A tuned alert stays open, because tuning changed the rule, not the condition.
+- **Tune**: "this rule raises too many alerts". Tune opens the two settings behind the rule, shows what each value would have fired on real past days, and saves your change. A tuned alert stays open, because tuning changed the rule, not the condition.
 
 Beside the actions there is **File task**, which creates a task on the site's project with the alert attached, so the work and the alert stay linked. See [Tasks and agents](/concepts/tasks-and-agents).
 
@@ -75,15 +75,14 @@ Settled alerts are listed in **History** with the decision you made and when.
 
 When a number returns to normal on its own, the alert for it closes and the site stops showing the old warning. NoticeOS never reopens a decision you made. If the condition returns, that is a new alert.
 
-## Three settings, on purpose
+## Two settings, on purpose
 
-The whole rule is three numbers, visible under **Settings** and inside **Tune**:
+The whole rule is two numbers, visible under **Settings** and inside **Tune**:
 
-- **Anomaly sensitivity**: lower means fewer alerts, each less likely to be a false alarm.
-- **Minimum daily volume to test**: under this, a metric is tested over several days.
-- **Low-volume window**: how many hours are pooled for those low-volume metrics.
+- **Anomaly sensitivity**: lower means fewer alerts, each less likely to be a false alarm. A lower sensitivity also lengthens each metric's window.
+- **Longest window**: the most days a quiet metric is pooled over. A longer window tests quieter metrics, and shows their drops later.
 
-There are no per-metric thresholds to maintain. If the page shows too many alerts, tune these three and look at the replay before you save.
+There are no per-metric thresholds to maintain. If the page shows too many alerts, tune these two and look at the replay before you save.
 
 ## Related
 

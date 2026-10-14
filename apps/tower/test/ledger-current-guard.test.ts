@@ -37,7 +37,7 @@ const WALL_OPTIONS: BuildOptions = {
 
 const DETAIL_DEPS: AssetDetailDeps = {
   now: NOW,
-  flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+  flagDefaults: { alpha: 0.01, max_window_days: 14 },
   pullConfig: [],
   monthlyCaps: { dataUsd: 25 },
   operatorRateUsdPerMin: 2,

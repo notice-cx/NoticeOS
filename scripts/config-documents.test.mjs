@@ -646,7 +646,7 @@ const BUILT_IN_CONSTANTS = {
   os_time_zone: 'UTC',
   operator_rate_usd_per_min: 2,
   monthly_caps: { data_usd: 25 },
-  flag_defaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+  flag_defaults: { alpha: 0.01, max_window_days: 14 },
 };
 const builtInFrom = (map) => async (file) => structuredClone(map[file] ?? null);
 const setOp = (pointer, expect, value) => ({ kind: 'file-json-set', file: CONSTANTS, pointer, expect, value });
@@ -678,15 +678,15 @@ test('a setting shown from the built-in copy saves: a stored document missing mo
 });
 
 test('a setting shown from the built-in copy saves: a missing flag_defaults key, and a missing flag_defaults', async () => {
-  const lacksKey = { os_time_zone: 'UTC', flag_defaults: { min_baseline_per_day: 5 } };
+  const lacksKey = { os_time_zone: 'UTC', flag_defaults: { max_window_days: 7 } };
   const key = await saveOnto(lacksKey, [setOp('/flag_defaults/alpha', 0.01, 0.02)]);
   assert.deepEqual(key.mismatches, []);
-  assert.deepEqual(key.saved.flag_defaults, { min_baseline_per_day: 5, alpha: 0.02 }, 'the saved key beside the other saved one');
+  assert.deepEqual(key.saved.flag_defaults, { max_window_days: 7, alpha: 0.02 }, 'the saved key beside the other saved one');
 
   const lacksContainer = { os_time_zone: 'UTC' };
-  const container = await saveOnto(lacksContainer, [setOp('/flag_defaults/low_volume_window_hours', 72, 48)]);
+  const container = await saveOnto(lacksContainer, [setOp('/flag_defaults/max_window_days', 14, 7)]);
   assert.deepEqual(container.mismatches, []);
-  assert.deepEqual(container.saved, { os_time_zone: 'UTC', flag_defaults: { low_volume_window_hours: 48 } });
+  assert.deepEqual(container.saved, { os_time_zone: 'UTC', flag_defaults: { max_window_days: 7 } });
 
   const rate = await saveOnto(lacksContainer, [setOp('/operator_rate_usd_per_min', 2, 3)]);
   assert.deepEqual(rate.mismatches, []);

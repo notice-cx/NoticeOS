@@ -34,8 +34,7 @@ import { cn } from "@/lib/utils";
  * name. Anything else in that object is not something these rules read. */
 const CONFIG_FIELD: Record<string, keyof RuleConfig> = {
   alpha: "alpha",
-  min_baseline_per_day: "minBaselinePerDay",
-  low_volume_window_hours: "lowVolumeWindowHours",
+  max_window_days: "maxWindowDays",
 };
 
 /** The settings rows a replay is a picture of. Exported because
@@ -428,12 +427,6 @@ function ruleConfig(
     if (typeof value !== "number" || !Number.isFinite(value)) return null;
     config[field] = value;
   }
-  if (
-    config.alpha === undefined ||
-    config.minBaselinePerDay === undefined ||
-    config.lowVolumeWindowHours === undefined
-  ) {
-    return null;
-  }
+  if (config.alpha === undefined || config.maxWindowDays === undefined) return null;
   return config as RuleConfig;
 }

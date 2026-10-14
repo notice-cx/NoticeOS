@@ -158,10 +158,10 @@ describe("settings a saved constants document lacks", () => {
       applyConfigOps: async () => ({ ok: true as const, applied: 0, documents: [] }),
     };
   }
-  const compiled = { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 };
+  const compiled = { alpha: 0.01, max_window_days: 14 };
   it("shows a flag_defaults key the saved document lacks from the compiled copy, beside the saved ones", async () => {
     const config = await resolveTowerConfig(constantsReader({ flag_defaults: { alpha: 0.02 } }), { ...fallback(), flagDefaults: compiled });
-    expect(config.flagDefaults).toEqual({ alpha: 0.02, min_baseline_per_day: 3, low_volume_window_hours: 72 });
+    expect(config.flagDefaults).toEqual({ alpha: 0.02, max_window_days: 14 });
   });
   it("shows the compiled cap, rate and rules when the saved document has none of them", async () => {
     const config = await resolveTowerConfig(constantsReader({ os_time_zone: "UTC" }), { ...fallback(), flagDefaults: compiled });

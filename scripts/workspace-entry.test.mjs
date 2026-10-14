@@ -381,7 +381,7 @@ test('live panel admission uses fresh facts and truthful browser evidence withou
   }
 });
 
-const storedReplay = { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } };
+const storedReplay = { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, maxWindowDays: 14 } };
 function question(path = '/api/alerts/backtest', body = storedReplay, evidence = {}, workspace = a) {
   return new Request(origin + path, { method: 'POST', headers: {
     'content-type': 'application/json', origin, 'x-noticeos-workspace-id': workspace,
@@ -555,7 +555,7 @@ test('an agent token reaches the MCP read models in each of its person\'s worksp
   const opened = f.calls.opened;
   for (const [original, profile] of [
     [new Request(origin + '/api/config', { headers: { authorization: 'Bearer agent-token-evidence-0001', 'x-noticeos-workspace-id': a } }), 'hosted'],
-    [agentRequest('agent-token-evidence-0001', { path: '/api/alerts/backtest', body: { asset: 'example.com', ruleId: 'r', config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } } }), 'hosted'],
+    [agentRequest('agent-token-evidence-0001', { path: '/api/alerts/backtest', body: { asset: 'example.com', ruleId: 'r', config: { alpha: 0.01, maxWindowDays: 14 } } }), 'hosted'],
     [agentRequest('agent-token-evidence-0001', { workspace: null }), 'demo'],
     [new Request(agentRequest('x'), { headers: { authorization: 'Basic abc', 'content-type': 'application/json', 'x-noticeos-workspace-id': a } }), 'hosted'],
   ]) await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: profile }, original, use, f.adapters));

@@ -12,6 +12,7 @@
 import {
   evaluatePulse,
   isBacktestableRule,
+  MAX_WINDOW_DAYS_LIMIT,
   RULE_BACKTEST_WINDOW_DAYS,
   type PulseEnvelope,
   type RuleBacktest,
@@ -44,7 +45,7 @@ const ASSET_PATTERN = /^[a-z0-9][a-z0-9.-]{0,62}$/;
  * Bounds the replay refuses outright: the Tower's own field bounds, restated
  * because this runtime is the authority and a candidate over the binding was
  * never typed into that field. `alpha` at 0 silences every rule, at 1 fires on
- * every reading, and a non-positive window has no days in it.
+ * every reading, and the longest window is whole days, at least one.
  */
 function configIssues(config: unknown): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -66,8 +67,10 @@ function configIssues(config: unknown): ValidationIssue[] {
     }
   };
   number('config.alpha', c.alpha, 0, 1);
-  number('config.minBaselinePerDay', c.minBaselinePerDay, 0, 100_000);
-  number('config.lowVolumeWindowHours', c.lowVolumeWindowHours, 0, 24 * 90);
+  number('config.maxWindowDays', c.maxWindowDays, 0, MAX_WINDOW_DAYS_LIMIT);
+  if (typeof c.maxWindowDays === 'number' && !Number.isInteger(c.maxWindowDays)) {
+    issues.push({ path: 'config.maxWindowDays', code: 'type', message: 'config.maxWindowDays must be a whole number of days' });
+  }
   return issues;
 }
 
