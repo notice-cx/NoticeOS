@@ -5,6 +5,7 @@ import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BrowserEntry } from "@/BrowserEntry";
 import { NoticeMark } from "@/components/BrandLockup";
+import { THEME_STORAGE_KEY } from "@/hooks/useTheme";
 import { RouteLoadFailure } from "@/components/RouteLoading";
 import {
   BOOT_SPLASH_FADE_MS,
@@ -107,6 +108,34 @@ describe("the splash index.html draws", () => {
 
   it("is outside the head block the demo build rewrites", () => {
     expect(indexHtml.indexOf("<style>")).toBeLessThan(indexHtml.indexOf("<!-- document-head:begin -->"));
+  });
+
+  describe("its theme", () => {
+    const script = page.querySelector("script[data-boot-splash-theme]")!.textContent!;
+    const draw = (theme: string | null, pathname: string) => {
+      const drawn = mountSplash();
+      if (theme === null) localStorage.removeItem(THEME_STORAGE_KEY);
+      else localStorage.setItem(THEME_STORAGE_KEY, theme);
+      window.history.replaceState(null, "", pathname);
+      new Function(script)();
+      return drawn.classList.contains("light");
+    };
+    afterEach(() => {
+      localStorage.removeItem(THEME_STORAGE_KEY);
+      window.history.replaceState(null, "", "/");
+    });
+
+    it("reads the key the theme is stored under", () => {
+      expect(script).toContain(`"${THEME_STORAGE_KEY}"`);
+    });
+
+    it("is light for a light desk, dark on the Wall and by default", () => {
+      expect(draw("light", "/tasks")).toBe(true);
+      splash()?.remove();
+      expect(draw("light", "/wall")).toBe(false);
+      splash()?.remove();
+      expect(draw(null, "/")).toBe(false);
+    });
   });
 });
 
