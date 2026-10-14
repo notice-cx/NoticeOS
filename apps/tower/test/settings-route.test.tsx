@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertRuleStatsPayload } from "@shared/alert-rules";
@@ -33,6 +33,10 @@ const state = vi.hoisted(() => ({
   work: null as WorkPayload | null,
   /** The installation as its host sees it; null is a lane that has not answered. */
   installation: null as InstallationFacts | null,
+  /** A case about repainting runs the real clock; every other case reads one instant. */
+  liveClock: false,
+  /** How many times the page itself rendered (it reads its settings once a render). */
+  pageRenders: 0,
 }));
 
 vi.mock("@/hooks/useInstallation", () => ({
@@ -40,7 +44,7 @@ vi.mock("@/hooks/useInstallation", () => ({
 }));
 
 vi.mock("@/hooks/useSettings", () => ({
-  useSettings: () => ({
+  useSettings: () => (state.pageRenders++, {
     data: state.settings,
     isPending: state.settings === null,
     isError: false,
@@ -55,9 +59,10 @@ vi.mock("@/hooks/useConfigWritable", () => ({
   useConfigWritable: () => state.writable,
 }));
 
-vi.mock("@/hooks/useNow", () => ({
-  useNow: () => Date.parse("2026-09-04T12:00:00.000Z"),
-}));
+vi.mock("@/hooks/useNow", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/hooks/useNow")>();
+  return { useNow: (intervalMs?: number) => state.liveClock ? actual.useNow(intervalMs) : Date.parse("2026-09-04T12:00:00.000Z") };
+});
 
 vi.mock("@/hooks/useWall", () => ({
   useWall: () => ({ data: state.wall }),
@@ -321,6 +326,8 @@ beforeEach(() => {
   state.ruleStatsError = false;
   state.work = null;
   state.installation = null;
+  state.liveClock = false;
+  state.pageRenders = 0;
   toasts.success.mockReset();
   toasts.error.mockReset();
 });
@@ -330,6 +337,23 @@ afterEach(() => {
 });
 
 describe("/settings", () => {
+  it("repaints only its clock and countdown each second, not the page", async () => {
+    vi.useFakeTimers();
+    try {
+      state.liveClock = true;
+      for (const section of ["clock", "tv-dashboard"]) {
+        const { unmount } = renderPage(section);
+        const settled = state.pageRenders;
+        // A second at a time, so each tick is its own update, as in a browser.
+        for (let second = 0; second < 60; second++) await act(async () => { await vi.advanceTimersByTimeAsync(1_000); });
+        expect(state.pageRenders - settled, section).toBeLessThanOrEqual(2);
+        unmount();
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("needs no section help: every section is a title, its fields and their state", () => {
     const calls = stubFetch();
     const { container } = renderPage();

@@ -112,9 +112,6 @@ export function SettingsRoute() {
   const { hash, search } = useLocation();
   const tab = settingsTabFromParam(tabParam, shown);
   const { data, isError, error, isFetching, refetch } = useSettings();
-  // The countdown counts down in minutes; a slower clock would leave a stale
-  // figure sitting under the editor that changes it.
-  const now = useNow(1_000);
 
   // An old section hash lands on its tab; a tab this installation does not
   // show, or a mistyped one, is General.
@@ -139,7 +136,7 @@ export function SettingsRoute() {
         <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
       )
     ) : tab === 'general' ? (
-      <GeneralSection settings={data} nowMs={now} anchor={hash.slice(1)} />
+      <GeneralSection settings={data} anchor={hash.slice(1)} />
     ) : tab === 'alert-rules' ? (
       <AlertRulesSection settings={data} />
     ) : tab === 'data-collection' ? (
@@ -148,7 +145,6 @@ export function SettingsRoute() {
       <TvDashboardSection
         countdown={data.dashboard.countdown}
         refused={data.dashboard.refused?.countdown ?? null}
-        nowMs={now}
       />
     ) : tab === 'ownership' ? (
       <EntitiesSection settings={data} />
@@ -214,11 +210,9 @@ function fileOp(file: EditableFile, pointer: string, expect: JsonValue) {
  * panels. */
 function GeneralSection({
   settings,
-  nowMs,
   anchor,
 }: {
   settings: SettingsPayload;
-  nowMs: number;
   /** The hash the page was opened at: a row's old address scrolls to it. */
   anchor: string;
 }) {
@@ -230,7 +224,7 @@ function GeneralSection({
   return (
     <>
       <SettingsPanel id="clock" title="Clock">
-        <ClockField settings={settings} nowMs={nowMs} />
+        <ClockField settings={settings} />
       </SettingsPanel>
       <SettingsPanel id="budget" title="Budget">
         <BudgetFields settings={settings} />
@@ -247,17 +241,11 @@ function GeneralSection({
  * beside the picker. This device's zone leads the list; Home's first-run
  * proposal (`ClockProposal`) offers the same zone in one press.
  */
-function ClockField({
-  settings,
-  nowMs,
-}: {
-  settings: SettingsPayload;
-  nowMs: number;
-}) {
+function ClockField({ settings }: { settings: SettingsPayload }) {
   const { clock } = settings;
   const [previewZone, setPreviewZone] = useState<string | null>(null);
   return (
-    <FieldWithVisual visual={<ZonePreview timeZone={previewZone ?? clock.timeZone} nowMs={nowMs} />}>
+    <FieldWithVisual visual={<ZonePreview timeZone={previewZone ?? clock.timeZone} />}>
       <KnobEditor
         statesReadOnly={false}
         className="border-0 py-0"
@@ -304,7 +292,9 @@ function zoneDate(nowMs: number, timeZone: string): string | null {
  * in UTC, which is what the charts would fall back to — the field's validator
  * refuses to save such a zone, so this is a belt for a file edited by hand.
  */
-function ZonePreview({ timeZone, nowMs }: { timeZone: string; nowMs: number }) {
+function ZonePreview({ timeZone }: { timeZone: string }) {
+  // Its own clock: only the preview repaints each second, not the page.
+  const nowMs = useNow(1_000);
   const known = zoneDate(nowMs, timeZone) !== null;
   const zone = known ? timeZone : "UTC";
   const today = zoneDate(nowMs, zone) ?? "";
@@ -354,13 +344,15 @@ function ZonePreview({ timeZone, nowMs }: { timeZone: string; nowMs: number }) {
 function TvDashboardSection({
   countdown,
   refused,
-  nowMs,
 }: {
   countdown?: CountdownConfig;
   /** A saved countdown the Tower refused. */
   refused: DashboardRefusal | null;
-  nowMs: number;
 }) {
+  // The countdown counts down in minutes; a slower clock would leave a stale
+  // figure sitting under the editor that changes it. Its own clock, so the
+  // rest of Settings does not repaint with it.
+  const nowMs = useNow(1_000);
   return (
     <>
       <SettingsPanel
