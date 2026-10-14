@@ -14,6 +14,7 @@ import { createTowerRouter } from '@/App';
 import { StatusBanner } from '@/components/surface/StatusBanner';
 import { lazyPart } from '@/lib/lazy-route';
 import { RouteLoadFailure, RouteLoading } from '@/components/RouteLoading';
+import { BootSplashDismiss } from '@/lib/boot-splash';
 import { parseAgentAccessLanding } from '../../../scripts/agent-access.mjs';
 
 const SignInRoute = lazyPart(
@@ -33,7 +34,8 @@ export function BrowserEntry({ createEntry }: { createEntry: () => Entry }) {
     void owned.refresh();
     return () => owned.dispose();
   }, [createEntry]);
-  return entry ? <EntryContent entry={entry} /> : <main className="p-6"><EmptyState title="Checking your session…" /></main>;
+  // Nothing before the entry exists: the boot splash covers this first frame.
+  return entry ? <EntryContent entry={entry} /> : null;
 }
 function EntryContent({ entry }: { entry: Entry }) {
   return <><AppUpdateNotice release={entry.appRelease} /><EntryView entry={entry} /></>;
@@ -105,13 +107,18 @@ function EntryView({ entry }: { entry: Entry }) {
     return <OwnedDesk key={state.runtime.ownerKey} runtime={state.runtime} label={state.label} entry={entry}
       role={state.session?.mode === 'hosted' ? state.session.selectedWorkspace?.role : undefined} />;
   }
+  // The boot splash stays up through the session check and while the sign-in
+  // or agent screen's code arrives (each dismisses it beside its own screen);
+  // every other screen here dismisses it at once.
+  const holdSplash = release === 'current' && (state.phase === 'checking' || state.phase === 'signed-out' || state.phase === 'agent');
   return <main className="mx-auto flex min-h-dvh max-w-md flex-col justify-center gap-6 p-6">
+    {holdSplash ? null : <BootSplashDismiss />}
     <BrandLockup />
     {release !== 'current' ? <EmptyState title="Waiting for app update…" /> : null}
     {state.phase === 'checking' && release === 'current' ? <EmptyState title="Checking your session…" /> : null}
     {state.phase === 'unavailable' && release === 'current' ? <><EmptyState title="Workspace unavailable" /><Button onClick={() => void entry.refresh()}>Retry</Button></> : null}
-    {state.phase === 'signed-out' ? <Suspense fallback={<RouteLoading />}><SignInRoute entry={entry} /></Suspense> : null}
-    {state.phase === 'agent' && release === 'current' ? <Suspense fallback={<RouteLoading />}><AgentAccessRoute entry={entry} state={state} /></Suspense> : null}
+    {state.phase === 'signed-out' ? <Suspense fallback={<RouteLoading />}><SignInRoute entry={entry} /><BootSplashDismiss /></Suspense> : null}
+    {state.phase === 'agent' && release === 'current' ? <Suspense fallback={<RouteLoading />}><AgentAccessRoute entry={entry} state={state} /><BootSplashDismiss /></Suspense> : null}
     {state.phase === 'invitation' ? <>
       <h1 className="text-lg font-semibold">Join workspace</h1>
       {state.label ? <span role="status" data-status-for="invitation" className="text-sm text-error">{state.label}</span> : null}

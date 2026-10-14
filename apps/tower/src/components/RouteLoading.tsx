@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { dismissBootSplash } from "@/lib/boot-splash";
 
 /**
  * Which frame the missing code is drawn in: a whole desk page inside the shell,
@@ -90,6 +91,9 @@ export function RouteLoadFailure({
   openUpdated = openUpdatedApp,
   onDismiss,
 }: RouteLoadFailureProps) {
+  // A screen that cannot draw shows that at once, never behind the boot splash.
+  useEffect(() => dismissBootSplash(), []);
+
   // The palette's box closes on Escape like the palette it stands in for.
   useEffect(() => {
     if (surface !== "palette" || !onDismiss) return;

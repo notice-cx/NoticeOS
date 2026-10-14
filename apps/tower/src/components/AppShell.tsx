@@ -38,6 +38,7 @@ import { useTheme, type Theme } from "@/hooks/useTheme";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
 import { storageKey } from "@/lib/browser-storage";
+import { useBootSplashRelease } from "@/lib/boot-splash";
 
 // The nav list lives in its own module so `CommandPalette`, which the shell
 // mounts, can read it without importing the shell back.
@@ -540,6 +541,9 @@ export function AppShell({
   const { theme, toggle } = useTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // The shell mounts with the first desk page under it, so this is the desk's
+  // first screen drawn.
+  useBootSplashRelease();
 
   useEffect(() => {
     const root = document.documentElement;
