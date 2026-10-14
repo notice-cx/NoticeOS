@@ -596,7 +596,8 @@ export function AppShell({
           </div>
 
           <DemoViewerStatus />
-          <main className="min-w-0 flex-1">
+          {/* `page-arrive`: each page fades in as it replaces the last. */}
+          <main className="page-arrive min-w-0 flex-1">
             <Outlet />
           </main>
         </div>

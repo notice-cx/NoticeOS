@@ -1067,6 +1067,37 @@
   animation: route-loading-reveal 200ms ease-out 400ms both;
 }
 
+/* A navigation under way (`NavigationProgress`): the line creeps towards the
+   end and never reaches it while the next page's code is on its way, then
+   fills and fades (120 ms + 200 ms, `INDICATOR_TIMING.finish`). A transition
+   from `@starting-style` rather than keyframes, so the fill starts from
+   wherever the creep has got to. */
+.nav-progress-bar {
+  transform-origin: left;
+  transform: scaleX(0.9);
+  transition: transform 8s cubic-bezier(0.05, 0.7, 0.1, 1);
+}
+@starting-style {
+  .nav-progress-bar {
+    transform: scaleX(0);
+  }
+}
+.nav-progress[data-navigation-progress="finishing"] {
+  opacity: 0;
+  transition: opacity 200ms ease-out 120ms;
+}
+.nav-progress[data-navigation-progress="finishing"] .nav-progress-bar {
+  transform: scaleX(1);
+  transition: transform 120ms ease-out;
+}
+
+/* A page replacing the last one fades in and rises a few pixels, so the swap
+   reads as one change rather than a cut. Only a newly mounted page animates:
+   a page that stays (a tab or a filter changing its address) does not. */
+.page-arrive > * {
+  animation: viz-arrive 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
 /* A native 4K browser otherwise fits twice as many CSS pixels into the same TV
    as the 1080p Wall it replaces, turning chart labels into fine print. The Wall
    and its asset drill-down share the same distance-readable density: native
@@ -1104,8 +1135,17 @@
   .viz-grow-x,
   .viz-arrive,
   .viz-flow,
-  .viz-breathe {
+  .viz-breathe,
+  .page-arrive > * {
     animation: none;
+  }
+
+  /* The line is drawn whole and still, and leaves at once. */
+  .nav-progress-bar,
+  .nav-progress[data-navigation-progress="finishing"],
+  .nav-progress[data-navigation-progress="finishing"] .nav-progress-bar {
+    transform: none;
+    transition: none;
   }
   .viz-draw {
     stroke-dasharray: none;
