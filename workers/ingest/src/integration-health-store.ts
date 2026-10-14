@@ -1,4 +1,4 @@
-import { INTEGRATION_MONITORS, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
+import { DATAFORSEO_DEPTH_BOUNDED_REPORTS, INTEGRATION_MONITORS, integrationFailureMessage, integrationScopeKey, type IntegrationFailureKind, type IntegrationHealthScope, type IntegrationObservation } from '@noticeos/contract';
 import { javascriptInstant, type Transaction, type WorkspaceStore } from '@noticeos/postgres';
 import { sha256Hex } from './shared.js';
 
@@ -20,6 +20,12 @@ export function healthFailure(code: unknown): { failure: IntegrationFailureKind;
   if (/invalid_response|invalid.report|parse|malformed|not_calendar/.test(value)) return { failure: 'invalid-report', code: 'invalid-report' };
   if (/config|mapping|timezone/.test(value)) return { failure: 'configuration', code: 'configuration' };
   return { failure: 'provider', code: 'provider' };
+}
+
+/** The reports of `integration` whose truncation is their own depth, not an
+ * incomplete report (`DATAFORSEO_DEPTH_BOUNDED_REPORTS`). */
+export function depthBoundedReports(integration: string): readonly string[] {
+  return integration === 'dataforseo' ? DATAFORSEO_DEPTH_BOUNDED_REPORTS : [];
 }
 
 /**

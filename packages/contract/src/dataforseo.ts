@@ -25,6 +25,21 @@ export const DATAFORSEO_WEEKLY_CADENCE_DAYS = 7;
  * collects.
  */
 export const DATAFORSEO_MONTHLY_CADENCE_DAYS = 28;
+/**
+ * How long after a family falls due its collection reads stale. A DataForSEO
+ * family is a snapshot: a missed run is never re-collected by the next one, so
+ * it reads stale a day after it was due instead of after the two missed
+ * cadences other reports are allowed (REPORT_STALE_MULTIPLIER). The day covers
+ * a sweep of about forty minutes and the one retry of a failed firing.
+ */
+export const DATAFORSEO_OVERDUE_GRACE_HOURS = 24;
+
+/**
+ * Families that stop at a depth the collector chose, over a result set that
+ * always continues past it (the panel reads the top 20 of each search). Their
+ * truncation flag is a fact about the rows, never an incomplete report.
+ */
+export const DATAFORSEO_DEPTH_BOUNDED_REPORTS: readonly string[] = Object.freeze([DATAFORSEO_PANEL_REPORT]);
 
 export type DataForSeoReport =
   | (typeof DATAFORSEO_BASE_REPORTS)[number]

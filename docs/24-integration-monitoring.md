@@ -181,7 +181,10 @@ An unmatched newer source attempt invalidates an older green result. A known
 failure remains open until recovery is recorded for the same connection.
 
 Archive histories remain scoped by report and date. Incomplete or truncated
-responses cannot clear a failure. Each property archive read returns at most
+responses cannot clear a failure. A SERP panel stopped at its own tracked depth
+is complete, not truncated in this sense. A DataForSEO report reads stale a day
+after it fell due, because a missed snapshot is never collected later; other
+archive reports read stale after two missed cadences. Each property archive read returns at most
 256 latest report/date outcomes, prioritizing unresolved failures, and shows
 an explicit count and unknown coverage item when additional dates exist.
 Last success is selected by attempt start, independently of the current failure.
