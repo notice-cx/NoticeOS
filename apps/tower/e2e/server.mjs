@@ -19,6 +19,7 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const port = checkedPort(Number(process.env.JOURNEY_PORT ?? 4187));
 let dispatch;
 let changes;
+let changeWatch;
 let builtApp;
 /** Every page runs at JOURNEY_NOW, unless the journey set its own clock:
  * Playwright installs page.clock before any page script as
@@ -143,6 +144,9 @@ dispatch = async (req, res, next) => {
     if (req.headers.host !== `127.0.0.1:${port}` || (req.headers.origin && req.headers.origin !== `http://127.0.0.1:${port}`)) {
       res.statusCode = 403; res.end("Isolated fixture is loopback and same-origin only"); return;
     }
+    // A reset replaces the store: the change stream's own reads must not be on
+    // it when its connections are ended, and the last test's pages are gone.
+    if (pathname === "/__journey/reset") await changeWatch?.stop();
     const chunks = [];
     let size = 0;
     for await (const chunk of req) {
@@ -181,7 +185,8 @@ if (process.env.JOURNEY_BUILT_CLIENT) {
 // load the parallel workers' store with reads.
 {
   const { changeStreamMiddleware, createChangeWatch, topicReader } = await vite.ssrLoadModule("/vite/change-lane.ts");
-  changes = changeStreamMiddleware(createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 3_000));
+  changeWatch = createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 3_000);
+  changes = changeStreamMiddleware(changeWatch);
 }
 await vite.listen();
 console.log(`Isolated journey server: http://127.0.0.1:${port}`);
