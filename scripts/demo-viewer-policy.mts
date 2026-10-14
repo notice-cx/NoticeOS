@@ -33,7 +33,7 @@ export function validateDemoViewer(value: unknown): Readonly<DemoViewerDescripto
 
 export type DemoRequestPolicy = 'ordinary' | 'read' | 'config-capability' | 'task-capability' | 'descriptor' | 'refuse';
 /** Reviewed stored-read tools; adding a tool requires a new explicit review. */
-export const DEMO_MCP_READ_TOOLS: readonly string[] = Object.freeze(['list_properties', 'property_report', 'research_lookup']);
+export const DEMO_MCP_READ_TOOLS: readonly string[] = Object.freeze(['list_properties', 'property_history', 'property_report', 'research_lookup']);
 export function demoMcpRequestAllowed(viewer: DemoViewerDescriptor | null, body: unknown): boolean {
   if (viewer === null) return true;
   if (!body || typeof body !== 'object' || Array.isArray(body)) return false;
