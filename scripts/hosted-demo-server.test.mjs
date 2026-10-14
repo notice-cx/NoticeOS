@@ -183,6 +183,12 @@ function loopbackPort() {
  * once also waits out the runtime's start, which on a busy runner took over
  * 3 s (issue #25); the deadline modes pass their own. */
 const CLOSE_GRACE_MS = 6000;
+/** How long a launch gets to report ready. Readiness waits for Miniflare's
+ * workerd to start; with three launches at once a loaded CI runner took over
+ * 7 s. Every other wait in a launch keeps the short bound. */
+const READY_MS = 20_000;
+/** A launch's whole budget: ready, a normal close, then cleanup. */
+const LAUNCH_MS = READY_MS + CLOSE_GRACE_MS + 10_000;
 
 async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, graceMs = CLOSE_GRACE_MS } = {}) {
   const f = fixture(), trace = path.join(f.root, 'trace.jsonl');
@@ -270,13 +276,14 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
     return lines.map(line=>JSON.parse(line));
   };
   const gone=pid=>{try{process.kill(pid,0);return false}catch(error){assert.equal(error.code,'ESRCH');return true}};
-  const wait=predicate=>new Promise((resolve,reject)=>{
-    const until=setTimeout(()=>{clearInterval(check);reject(new Error('Owned fixture deadline: '+stdout+' '+stderr))},7000);
+  const wait=(predicate,ms=7000)=>new Promise((resolve,reject)=>{
+    const until=setTimeout(()=>{clearInterval(check);reject(new Error('Owned fixture deadline: '+stdout+' '+stderr))},ms);
     const check=setInterval(()=>{if(predicate()){clearTimeout(until);clearInterval(check);resolve()}},10);
   });
   try {
-    if(!['startup-failure','disconnect','disconnect-deadline','unexpected-exit','immediate-stop'].includes(mode)){
-      await wait(()=>stdout.includes(mode==='startup-stop'?'startup-entered':'Demo preview ready.'));
+    const awaitsReady=!['startup-failure','disconnect','disconnect-deadline','unexpected-exit','immediate-stop'].includes(mode);
+    if(awaitsReady){
+      await wait(()=>stdout.includes(mode==='startup-stop'?'startup-entered':'Demo preview ready.'),READY_MS);
       // Readiness arrives on stdout; detached-child custody arrives on IPC.
       // Acquire the recorded child before interrupting either process.
       if(['deadline','orphan-deadline','fixture-failure','detached-normal'].includes(mode))await wait(()=>{
@@ -287,7 +294,8 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
       if(mode==='fixture-failure')assert.fail('Synthetic fixture assertion after acquisition');
       if(mode==='orphan-deadline')child.kill('SIGKILL');else if(group)process.kill(-child.pid,signal);else child.kill(signal);
     }
-    const result=await Promise.race([closed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Supervisor failed to close')),CLOSE_GRACE_MS+4000)})]);clearTimeout(timer);
+    // A launch not awaited ready may still be starting when this bound begins.
+    const result=await Promise.race([closed,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Supervisor failed to close')),(awaitsReady?0:READY_MS)+CLOSE_GRACE_MS+4000)})]);clearTimeout(timer);
     const saved=events();
     for(const record of saved.filter(x=>x.event.startsWith('noticeos-demo-group-')))
       assert.deepEqual(record.keys,['lease','pid','type']);
@@ -338,24 +346,24 @@ async function launchFixture(t, mode, { signal = 'SIGTERM', group = false, grace
 // Each launch owns its fixture folder, port and process groups, so three run
 // at once (issue #25): in series they were 13 launches end to end.
 describe('supervised fixture launches', { concurrency: 3 }, () => {
-  test('real SIGTERM supervisor awaits task, activity and pinned Miniflare closure', {timeout:15000}, t=>launchFixture(t,'normal'));
-  test('terminal-group SIGINT reaches supervisor while isolated runtime closes normally', {timeout:15000}, t=>launchFixture(t,'normal',{signal:'SIGINT',group:true}));
-  test('stop during startup is latched and acquired capabilities close before exit', {timeout:15000}, t=>launchFixture(t,'startup-stop'));
-  test('startup failure retires acquired pinned Worker and task capabilities', {timeout:15000}, t=>launchFixture(t,'startup-failure'));
-  test('cleanup failure remains nonzero after all other capabilities close', {timeout:15000}, t=>launchFixture(t,'close-failure'));
-  test('IPC disconnect initiates awaited runtime closure', {timeout:15000}, t=>launchFixture(t,'disconnect'));
-  test('unexpected runtime exit retires its exact remaining descendant group', {timeout:15000}, t=>launchFixture(t,'unexpected-exit'));
-  test('shutdown deadline retires only the exact runtime group and reports failure', {timeout:15000}, t=>launchFixture(t,'deadline',{graceMs:200}));
+  test('real SIGTERM supervisor awaits task, activity and pinned Miniflare closure', {timeout:LAUNCH_MS}, t=>launchFixture(t,'normal'));
+  test('terminal-group SIGINT reaches supervisor while isolated runtime closes normally', {timeout:LAUNCH_MS}, t=>launchFixture(t,'normal',{signal:'SIGINT',group:true}));
+  test('stop during startup is latched and acquired capabilities close before exit', {timeout:LAUNCH_MS}, t=>launchFixture(t,'startup-stop'));
+  test('startup failure retires acquired pinned Worker and task capabilities', {timeout:LAUNCH_MS}, t=>launchFixture(t,'startup-failure'));
+  test('cleanup failure remains nonzero after all other capabilities close', {timeout:LAUNCH_MS}, t=>launchFixture(t,'close-failure'));
+  test('IPC disconnect initiates awaited runtime closure', {timeout:LAUNCH_MS}, t=>launchFixture(t,'disconnect'));
+  test('unexpected runtime exit retires its exact remaining descendant group', {timeout:LAUNCH_MS}, t=>launchFixture(t,'unexpected-exit'));
+  test('shutdown deadline retires only the exact runtime group and reports failure', {timeout:LAUNCH_MS}, t=>launchFixture(t,'deadline',{graceMs:200}));
 
-  test('lost supervisor leaves bounded orphan cleanup in the exact runtime group', {timeout:15000}, t=>launchFixture(t,'orphan-deadline'));
+  test('lost supervisor leaves bounded orphan cleanup in the exact runtime group', {timeout:LAUNCH_MS}, t=>launchFixture(t,'orphan-deadline'));
 
-  test('TERM immediately after fork remains latched before runtime IPC listener exists', {timeout:15000}, t=>launchFixture(t,'immediate-stop'));
+  test('TERM immediately after fork remains latched before runtime IPC listener exists', {timeout:LAUNCH_MS}, t=>launchFixture(t,'immediate-stop'));
 
-  test('lost runtime IPC starts supervisor deadline even without an OS signal', {timeout:15000}, t=>launchFixture(t,'disconnect-deadline',{graceMs:200}));
+  test('lost runtime IPC starts supervisor deadline even without an OS signal', {timeout:LAUNCH_MS}, t=>launchFixture(t,'disconnect-deadline',{graceMs:200}));
 
-  test('assertion failure after acquisition awaits detached runtime and descendant retirement before fixture removal', {timeout:15000}, async t=>{await assert.rejects(launchFixture(t,'fixture-failure'),/Synthetic fixture assertion after acquisition/)});
+  test('assertion failure after acquisition awaits detached runtime and descendant retirement before fixture removal', {timeout:LAUNCH_MS}, async t=>{await assert.rejects(launchFixture(t,'fixture-failure'),/Synthetic fixture assertion after acquisition/)});
 
-  test('normal shutdown awaits detached executor-shaped command and revokes its custody without secret IPC', {timeout:15000}, t=>launchFixture(t,'detached-normal'));
+  test('normal shutdown awaits detached executor-shaped command and revokes its custody without secret IPC', {timeout:LAUNCH_MS}, t=>launchFixture(t,'detached-normal'));
 });
 
 test("the demo head's absolute URLs are the placeholder the server fills from its configured origin", () => {
