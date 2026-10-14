@@ -19,7 +19,8 @@ export function AgentMark({
   name: string;
   /** The models the worker named; a name that matches no maker is read by these. */
   models?: readonly (string | null)[];
-  size?: "small" | "default";
+  /** `feed` fills the Wall feed's glyph tile, so a row keeps its height. */
+  size?: "small" | "default" | "feed";
   className?: string;
 }) {
   const maker = agentMaker(name, models);

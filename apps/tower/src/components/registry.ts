@@ -58,8 +58,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
   {
     name: "AgentMark",
     file: "components/AgentMark.tsx",
-    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter.",
-    variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default"],
+    purpose: "Locally served, original artwork of the maker whose agent did the work, beside a visible worker name: the name decides, else the models it named. A worker no maker matches, a person included, shows its first letter. On the Wall's live feed it takes the glyph tile's place on a task line, with the kind's glyph as a badge.",
+    variants: ["Anthropic", "OpenAI", "Google", "by model", "first letter", "small", "default", "feed"],
   },
   {
     name: "TaskSourceSection / TaskSourceRows / TaskHubUnavailable",
@@ -98,7 +98,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallFeed / WallFeedWidget",
     file: "components/wall/WallFeed.tsx",
     purpose:
-      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, the kind and site, one sentence, a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
+      "The Wall's live feed column: stored events from GET /api/wall/feed, newest on top, one line each (a glyph tile toned by kind, or a known agent's mark with the kind's glyph as a badge; the kind and the site with its favicon; one sentence; a clock time), new rows sliding in and old rows dropping to muted ink. WallFeedWidget is the Wall widget polling its own 30-second read.",
     variants: ["live rows (every tone)", "aged rows muted", "reconnecting (last rows kept)", "empty window", "arrival and whole-row fit (component test and journey)"],
   },
   {

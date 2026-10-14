@@ -2894,6 +2894,7 @@ export function KitchenSinkRoute() {
             <div className="mt-4 flex items-center gap-4" aria-label="Agent mark sizes">
               <AgentMark name="claude" size="small" />
               <AgentMark name="claude" />
+              <AgentMark name="claude" size="feed" />
               <AgentMark name="Mara" size="small" />
             </div>
           </Section>

@@ -888,6 +888,11 @@
   border-radius: 5px;
   font-size: var(--text-micro);
 }
+.agent-mark[data-size="feed"] {
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: var(--radius-lg);
+}
 .agent-mark__image {
   width: 72%;
   height: 72%;
