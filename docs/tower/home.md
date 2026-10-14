@@ -9,6 +9,8 @@ description: "How the business is doing, what is broken and what needs your atte
 
 Home shows three things, in this order: how the business is doing, what is broken, and what needs your attention.
 
+![The Home page in the synthetic demo: October's revenue so far against its projection, yesterday's revenue and visitors, the data sources by site, and the open problems.](../images/tower-home.webp)
+
 ## What you see
 
 **The summary.** A small grey line shows the greeting, the window since 6 PM yesterday and how many things changed in it. Under it, one sentence sums up the page, such as **October is projected at $1,020, 9% under September. 2 things are broken.**

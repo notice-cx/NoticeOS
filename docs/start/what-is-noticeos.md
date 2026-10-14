@@ -11,6 +11,8 @@ This page describes what NoticeOS does, who it is for, and what it does not do y
 
 NoticeOS is a self-hosted web app you run for your own websites and software products. You install it on your own machine or server, connect the services that already hold your data, and see everything in one place.
 
+![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's sites.](../images/tower-devices.webp)
+
 It shows four things:
 
 - **What needs attention.** Collection failures, unusual traffic and missing evidence show up as alerts.
@@ -23,6 +25,8 @@ It shows four things:
 The **Tower** is the web app you work in, in your browser. Its pages with a sidebar are Home, Workflows, Sites, Alerts, Tasks, Money, System health, Integrations and Settings, and every site you add gets a page of its own. [The Tower](/tower/) describes each one.
 
 The **Wall** is a Tower view built for a TV or a second screen. It fits one 1920×1080 screen with nothing to scroll. Open it at `/wall` and lay it out at `/wall/edit`.
+
+![The Wall on a TV, from the synthetic demo: the loop's five steps, the last 24 hours of problems, one row per site, October's revenue and the live feed.](../images/wall-tv.webp)
 
 Both show the same data. You make changes on the Tower's pages; the Wall only displays data. Terms these docs use without explaining them are defined in the [Glossary](/concepts/glossary).
 

@@ -9,6 +9,8 @@ The **Wall** is the Tower's TV view: one screen at `/wall`, made for a televisio
 
 The Wall shows: the live count at each step of the loop, what is broken and since when, how each site is doing right now, whether the month is on track, and the state of the work.
 
+![The Wall on a TV, from the synthetic demo: the strip with the time and the next meeting, the loop's five steps with their counts, the last 24 hours of problems, one row per site, October's revenue and the live feed.](../images/wall-tv.webp)
+
 ## What you see
 
 The Wall is drawn from a layout you arrange in the Tower. It has no navigation and no controls; the small grey NoticeOS mark in the corner links back to Home. The default layout has six tiles: the strip and the loop across the top, then **Last 24 hours** over **Sites** on the left, beside **Revenue this month** over **Work this week** on the right.
@@ -26,6 +28,8 @@ The Wall is drawn from a layout you arrange in the Tower. It has no navigation a
 **Work this week.** What is waiting for you, what is in progress, done this week and blocked, then one row per project: what got done extends left, what is still open extends right. It shows counts only, never a task's text.
 
 Three more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site), **Live feed** (what happened since last night, newest on top, from stored events only; a line names its site with the site's favicon; a line for a task an agent claimed or closed shows the agent's logo, its name and its model, and a close shows its commit and links) and **Agents** (each agent and the model it named, ranked by tasks closed in the last 7 days, with how many tasks the agents hold now). Add them at `/wall/edit`.
+
+![Rows of the live feed from the synthetic demo: codex and claude claim and close tasks, each line with the agent's logo and a claimed or closed badge, the site's icon and name, the model, and a close's commit and link.](../images/wall-feed.webp)
 
 On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order. On a television the background is true black, so unused pixels emit no light.
 

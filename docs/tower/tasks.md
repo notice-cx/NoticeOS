@@ -9,6 +9,8 @@ A **task** is one piece of work, for a site or for NoticeOS itself, with its sta
 
 The Tasks page shows how big the queue is, and which tasks in it cannot move forward without you.
 
+![The Tasks page in the synthetic demo: three decisions waiting for you, tasks closed and filed a day over 14 days, and work done this week and still open by project.](../images/tower-tasks.webp)
+
 ## What you see
 
 The page starts with a one-line summary: **No decisions for you**, or **3 decisions for you** with **1 needs your approval** and how many tasks are open under it. Three figures follow: **Urgent**, **Blocked** and **Closed this week**.
@@ -20,6 +22,8 @@ The page starts with a one-line summary: **No decisions for you**, or **3 decisi
 **Work by project**, when the board shows more than one project, compares each project's week: done this week extending left, still open extending right, split into in progress, ready to start and blocked, with each project's high-priority count under its name.
 
 **Epic** draws one epic's tasks as a graph: each task in its state (**Done**, **In progress**, **Ready**, **Waiting**, **Blocked**, **Needs attention**, **Parked**) and an arrow from each task to the task it blocks. An arrow from a blocked or parked task is drawn broken; an arrow from a decision of yours is labelled **needs attention**. The epic with the most blocked or parked tasks that block other tasks is shown first.
+
+![An epic drawn as a graph: tasks in their states, a moving dashed arrow from a task in progress to the task it blocks, and an arrow labelled needs attention from a decision.](../images/tasks-flow.webp)
 
 **Filters**: **Project** (**Every project** or one), **Status** (**Any status**, then **Open**, **In progress**, **Blocked**, **Parked**, **Closed this week**, each with its count), **Priority**, **Assignee** and a label. The filters narrow the list, not the charts above it.
 

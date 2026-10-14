@@ -7,6 +7,8 @@ description: "Who did the work: the tasks each agent holds, its closed tasks ove
 
 The Agents page shows what your agents did and how fast they closed tasks.
 
+![The Agents page in the synthetic demo: tasks closed in seven days, eight weeks of velocity split by who closed the tasks, each worker with its models, and the week's ranking of agents and models.](../images/tower-agents.webp)
+
 ## What you see
 
 The top of the page shows the number of tasks closed in the last 7 days, for example **31 tasks closed in 7 days**, and how many more or fewer than the 7 days before. Three figures follow: **In progress** (tasks claimed and not yet closed), **Blocked**, and **Claim to close**, the median time from claiming a task to closing it.

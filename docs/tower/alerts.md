@@ -9,6 +9,8 @@ An **alert** is a record NoticeOS raises when a number on a site, or in NoticeOS
 
 The Alerts page shows what needs attention right now, and how serious it is.
 
+![The Alerts page in the synthetic demo: three open alerts, the last seven days as one row per site, and each open alert against its usual range.](../images/tower-alerts.webp)
+
 ## What you see
 
 The page starts with a one-line summary and a severity dot: **2 open alerts, both warnings**, or **All clear.** Beside it, **Oldest** shows how long the oldest open alert has been open and **Settled this week** counts what was resolved or acknowledged in the last seven days.

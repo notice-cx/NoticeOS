@@ -21,6 +21,8 @@ See traffic, revenue, costs, alerts and work in one place, on your laptop, phone
 
 </div>
 
+![The Tower's Home page on a desktop browser and on a phone, with the synthetic demo's sites: October's revenue against its projection, yesterday's revenue and visitors, the data sources by site and the open problems.](docs/images/tower-devices.webp)
+
 - **Know what needs attention.** See collection failures, unusual traffic and missing evidence.
 - **See what makes money.** Compare recorded revenue and costs, with dates and coverage kept visible.
 - **Keep work moving.** Track owners, blockers, approvals and completion evidence across projects.
@@ -38,6 +40,27 @@ source on a schedule, receives the nightly report your own product sends,
 raises an alert when a day is unlikely to be normal, and keeps every row it
 stores. [How NoticeOS works](https://docs.notice.cx/concepts/how-noticeos-thinks)
 describes the loop that uses those readings.
+
+## The Tower and the Wall
+
+Every screenshot here is the [demo](docs/start/try-the-demo.md): the real app
+with five invented sites and a simulator that keeps adding activity.
+
+<table>
+<tr>
+<td width="50%"><img src="docs/images/tasks-flow.webp" alt="An epic on the Tasks page drawn as a graph: tasks in their states, with a moving dashed arrow from a task in progress to the task it blocks."><br><b>Tasks</b>: one board for people and agents. An epic is drawn as a graph of what blocks what.</td>
+<td width="50%"><img src="docs/images/health-flow.webp" alt="How the System runs on the System health page: providers feed the collectors, the collectors fill the store, the store serves the Tower and Wall; failing parts are outlined in red with their age."><br><b>System health</b>: how the System runs, with each part's state and the broken part outlined.</td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/images/tower-money.webp" alt="The Money page: October's revenue minus cost as the net, the month's days as bars, where the cost goes and each site's revenue, share and net."><br><b>Money</b>: revenue − cost = net for the month, by day and by site.</td>
+<td width="50%"><img src="docs/images/tower-agents.webp" alt="The Agents page: tasks closed in seven days, eight weeks of velocity split by who closed them, each worker with its models and the week's ranking."><br><b>Agents</b>: who closed what, with which model, week by week.</td>
+</tr>
+</table>
+
+![The Wall on a TV: the strip with the time and next meeting, the loop's five steps with their counts, the last 24 hours of problems, one row per site, October's revenue and the live feed.](docs/images/wall-tv.webp)
+
+The **Wall** fits one 1920×1080 screen and updates by itself. More screens are
+in [the Tower's documentation](https://docs.notice.cx/tower/).
 
 ## Install with Docker
 
