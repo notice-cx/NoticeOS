@@ -7,5 +7,5 @@ origin. A site with no file here shows its initial on a muted tile, as any site
 without a favicon does.
 
 The icons are original artwork made for the demo, under the repository's
-license. `noticeos.svg` is the Notice mark on the dark surface colour, for the
-demo's own NoticeOS asset.
+license. The demo's own NoticeOS asset has a generated id and no file here, so
+it shows its initial.

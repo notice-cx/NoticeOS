@@ -7,6 +7,8 @@ description: "The month's net, where revenue and cost come from, and the costs y
 
 The Money page shows this month's net, and where the money comes from and goes. The sidebar calls it **Money**; its address is `/financials`.
 
+![The Money page in the synthetic demo: October's revenue minus cost as the net, the month's days as bars, where the cost goes, and each site's revenue, share and net.](../images/tower-money.webp)
+
 ## What you see
 
 The page starts with the month as one equation: **Revenue − Cost = Net**, with the net as the largest figure. Under it, **Projected** the month's projected revenue and the days left while the month is open, and how much of the month is **confirmed**: backed by a reconciled payment or receipt, the rest estimated. A **Month to date** chip marks an open month. **Accounting period** picks another month.

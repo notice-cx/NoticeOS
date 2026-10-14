@@ -9,6 +9,8 @@ description: "Whether NoticeOS itself is working: its connections, its scheduled
 
 The System health page shows whether NoticeOS is working, and if not, what broke and where.
 
+![The System health page in the synthetic demo: failing backups at the top, the integrations summary, and the diagram of how the System runs.](../images/tower-health.webp)
+
 ## What you see
 
 Two tabs: **Overview** (`/health`) and **Background operations** (`/health/operations`). **Manage integrations** in the header opens Integrations.
@@ -18,6 +20,8 @@ Two tabs: **Overview** (`/health`) and **Background operations** (`/health/opera
 **The status.** One line sums up the page: **Checks are reporting normally**, or the most serious system issue, in the same words Home uses: **Needs attention**, **Current health is unconfirmed** or **Some connections need setup**. The line under it lists the rest, and **Updated** shows how recent the data is. Only the checks that are not fine get a cell of their own: **Scheduler**, **Live execution tracking**, **Execution history** and **Integrations**. Up to three failed background operations follow, each opening its run, and the footer lists what runs in the background, with **View background operations**.
 
 **How the System runs.** One diagram of NoticeOS's own parts: the connected providers feeding the **Collectors**, the collectors filling the **Store**, the store serving the **Tower and Wall** and copied by the **Backups**, and the **Scheduled runs** driving the collectors. The broken part is outlined in red; a part that nothing measures yet is shown as idle, not as healthy.
+
+![How the System runs: Mediavine, Google and Bing feed the collectors, the collectors fill the store, and the store serves the Tower and Wall; moving dashes mark the working connections, and the failing backups and scheduled runs are outlined in red with their age.](../images/health-flow.webp)
 
 **Scheduled jobs · last 7 days.** One row per background job and one cell per day, with a count of runs, failures and missed days. A failure is the one thing coloured red; a missed day is amber; a hatched day is one the history no longer holds; it does not mean the job did not run. When nothing is wrong it shows **Nothing failed or missed**.
 

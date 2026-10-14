@@ -9,6 +9,8 @@ A **site** is one website or product you added to NoticeOS. The **Sites** page c
 
 The Sites page shows which sites need your attention.
 
+![A site's own page in the synthetic demo: Weeknight Pantry's Overview, with ad revenue, visitors, search clicks and recipe saves over 28 days and the ad revenue chart with a logged change marked.](../images/tower-site.webp)
+
 ## What you see
 
 **The Sites page** starts with a one-line summary: **2 of 6 sites need attention**, with their names, or the count of sites that are fine, beside the month's pace and yesterday's visitors against the same day a week before. **Add a site** is in the header. Under the summary, one bar splits the sites by status, worst first: **Off track** in red, **At risk** in amber, the other statuses in grey. Then the sites compared, one row per site:
