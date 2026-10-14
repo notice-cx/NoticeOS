@@ -11,6 +11,8 @@ export function useIntegrationHealth() {
   const pushed = useChangesPushed();
   const query = useQuery({ queryKey: INTEGRATION_HEALTH_KEY, queryFn: ({ signal }) => fetchIntegrationHealth(signal),
     refetchInterval: pushed ? false : 30_000, refetchIntervalInBackground: false, staleTime: 20_000, placeholderData: keepPreviousData, retry: 1 });
-  const now = useNow(5_000);
+  // Status ages at the cadence health is read, not faster: every page that
+  // draws a source's status repaints with this clock.
+  const now = useNow(30_000);
   return { ...query, status: integrationStatus(query.data, query.isError, now) };
 }
