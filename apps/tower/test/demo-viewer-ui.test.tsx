@@ -52,7 +52,8 @@ describe('the synthetic viewer screen state', () => {
       const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
       const view = render(<QueryClientProvider client={client}><Reads /><PropertyFavicon domain="sentinel.example" displayName="Example" /></QueryClientProvider>);
       expect(screen.getByTestId('config-writable')).toHaveTextContent('false');
-      expect(view.container.querySelector('img')).toBeNull();
+      // A site's icon comes from the Tower's own demo folder, never from the site.
+      expect([...view.container.querySelectorAll('img')].map((img) => img.getAttribute('src'))).toEqual(['/demo/favicons/sentinel.example.svg']);
       await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2 * (visitor + 1)));
       view.unmount(); client.clear();
     }
