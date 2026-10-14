@@ -445,7 +445,7 @@ screen in 240 ms (`lib/boot-splash.ts`). The first reads hold it for at most
 2.5 seconds after the screen mounts and nothing holds it past 8 seconds; the
 sign-in screen, the other session screens and a screen whose code could not
 be fetched remove it at once. It never takes a click, and the Wall opens the
-same way.
+same way. It is drawn in the operator's theme, and always dark on the Wall.
 
 **A screen still loading shows its shape, never a value.** While a page's
 first read or its code is on its way, skeleton blocks in the empty-track

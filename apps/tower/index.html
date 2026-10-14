@@ -155,6 +155,16 @@
         <span class="boot-splash-line"></span>
       </div>
     </div>
+    <!-- The operator's light theme (the choice useTheme stores) draws the
+         splash light too, so a light desk never flashes dark; the Wall is
+         always dark. -->
+    <script data-boot-splash-theme>
+      try {
+        if (localStorage.getItem("noticeos:theme") === "light" && !/\/wall\/?$/.test(location.pathname)) {
+          document.getElementById("boot-splash").classList.add("light");
+        }
+      } catch {}
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
