@@ -288,9 +288,13 @@ from start to end when its screen first renders, a bar or span grows from its
 baseline, a new row fades in and slides up, the dashes along a live edge in a
 graph move in the direction of flow, a source being collected has a ring that
 repeatedly expands and fades, a halo marks *now* and a slow pulsing ring marks
-a series still being counted. Nothing repeats unless live data drives it, and
-all of it stops under `prefers-reduced-motion` (the `viz-*` classes in
-`src/index.css`). No photography, 3D renders, glass over numbers, or texture
+a series still being counted. A page replacing the last one fades in and rises
+a few pixels; while a navigation waits for the next page's code, the page
+being left stays on screen and a thin line in the muted ink creeps across the
+top of the window (`NavigationProgress`): nothing for the first 150 ms, at
+least 300 ms once drawn, then it fills and fades. Nothing repeats unless live
+data or a load still in progress drives it, and all of it stops under
+`prefers-reduced-motion` (the `viz-*` classes in `src/index.css`). No photography, 3D renders, glass over numbers, or texture
 that shows no data.
 
 **Interactive where it helps.** A scoped range selector, series keys that
@@ -640,7 +644,7 @@ link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
 `PriorityBar` for a state or a quantity with its icon. `EmptyState`,
 `ReadFailed` and `RouteLoading` so every surface has a designed empty, failed
-and loading state. `InfoTooltip` and `EvidencePopover` for the fact behind the
+and loading state, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the
 figure. On the Wall: `WallStrip`, `RevenueHero`, `NeedsYou`, `SiteRows`,
 `WallFeed`, and `WallCanvas` that composes them.
 

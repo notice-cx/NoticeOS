@@ -146,6 +146,7 @@ import { ReportFreshness } from "@/components/ReportFreshness";
 import { QueryVisibilityRankings } from "@/components/QueryVisibilityRankings";
 import { ReadFailed } from "@/components/ReadFailed";
 import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
+import { NavigationProgress } from "@/components/NavigationProgress";
 import { SeverityDot } from "@/components/SeverityDot";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { SegmentBar } from "@/components/SegmentBar";
@@ -1952,6 +1953,35 @@ function RegistryContents() {
 // Gallery controls never open another app tab.
 const GALLERY_NO_OPEN = () => {};
 
+/** The navigation line in a box of its own: Navigate holds a navigation open
+ * for as long as the slider says, so the delay and the minimum show. */
+function NavigationProgressDemo() {
+  const [busy, setBusy] = useState(false);
+  const [ms, setMs] = useState(1200);
+  useEffect(() => {
+    if (!busy) return;
+    const timer = window.setTimeout(() => setBusy(false), ms);
+    return () => window.clearTimeout(timer);
+  }, [busy, ms]);
+  return (
+    <div className="flex w-full flex-col gap-3">
+      <div className="relative h-16 w-full overflow-hidden rounded-md border border-border bg-background">
+        <NavigationProgress busy={busy} className="absolute" />
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+        <Button type="button" variant="outline" size="sm" disabled={busy} onClick={() => setBusy(true)}>
+          Navigate
+        </Button>
+        <label className="flex items-center gap-2">
+          Load time
+          <input type="range" min={50} max={4000} step={50} value={ms} onChange={(event) => setMs(Number(event.target.value))} />
+          <span className="tabular-nums">{ms} ms</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="flex flex-col gap-3">
@@ -3334,6 +3364,10 @@ export function KitchenSinkRoute() {
                 />
               </div>
             </div>
+          </Section>
+
+          <Section title="NavigationProgress (a navigation under way: the page being left stays)">
+            <NavigationProgressDemo />
           </Section>
 
           <Section title="Home · first run (an empty store: no tiles, no table)">

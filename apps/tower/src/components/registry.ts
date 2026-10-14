@@ -317,6 +317,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     ],
   },
   {
+    name: "NavigationProgress / RouterNavigationProgress",
+    file: "components/NavigationProgress.tsx",
+    purpose:
+      "The thin muted line across the top of the window while a navigation is under way. The page being left stays until the next page's code arrives; the line waits 150 ms, stays at least 300 ms once drawn, then fills and fades. RouterNavigationProgress reads the app's router.",
+    variants: ["a navigation under way", "a navigation shorter than the delay (nothing drawn)", "filling and fading"],
+  },
+  {
     name: "DataSourceIcons",
     file: "components/DataSourceIcons.tsx",
     purpose:

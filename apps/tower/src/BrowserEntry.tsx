@@ -12,6 +12,7 @@ import { demoVisitBase } from '@/lib/demo-visit';
 import { demoViewer } from '@shared/demo-viewer';
 import { createTowerRouter } from '@/App';
 import { StatusBanner } from '@/components/surface/StatusBanner';
+import { RouterNavigationProgress } from '@/components/NavigationProgress';
 import { lazyPart } from '@/lib/lazy-route';
 import { RouteLoadFailure, RouteLoading } from '@/components/RouteLoading';
 import { BootSplashDismiss } from '@/lib/boot-splash';
@@ -160,7 +161,7 @@ function OwnedDesk({ runtime, label, entry, role }: {
     workspaceRole: role, refreshSession: entry.refresh, revalidateSession: entry.revalidate,
     switchWorkspace: runtime.owner.mode === 'hosted' ? entry.switchWorkspace : undefined,
     logout: runtime.owner.mode === 'hosted' ? entry.logout : undefined }}>
-    <QueryClientProvider client={runtime.queries}><RouterProvider router={router} /><AppToaster /></QueryClientProvider>
+    <QueryClientProvider client={runtime.queries}><RouterProvider router={router} /><RouterNavigationProgress router={router} /><AppToaster /></QueryClientProvider>
   </BrowserRuntimeProvider>;
 }
 
