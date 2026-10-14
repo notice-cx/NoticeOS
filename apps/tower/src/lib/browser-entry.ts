@@ -332,7 +332,7 @@ export function createBrowserEntry(options: {
     appRelease,
     snapshot: () => state,
     subscribe(listener: () => void) { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    refresh, choose, loadMore, switchWorkspace, logout, signedIn, joinInvitation,
+    refresh, revalidate, choose, loadMore, switchWorkspace, logout, signedIn, joinInvitation,
     auth: createBrowserAuth(fetch),
     get enrollment() { return landing.kind === 'enrollment' && !enrollmentCompleted ? landing.enrollment : undefined; },
     /** The agent's signed query, while this tab is an agent page. */

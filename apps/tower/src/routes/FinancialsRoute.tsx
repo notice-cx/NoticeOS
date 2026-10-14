@@ -1,5 +1,5 @@
 import { moneyCurrency } from "@noticeos/contract/money";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, LoaderCircle } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
@@ -80,7 +80,9 @@ const SERIES = {
 export default function FinancialsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedPeriod = searchParams.get("period");
-  const { data, isPending, error } = useFinancials(requestedPeriod);
+  const { data, isPending, error, isPlaceholderData } = useFinancials(requestedPeriod);
+  /** The month being read while the previous one stays on screen. */
+  const loadingPeriod = isPlaceholderData && requestedPeriod !== null && requestedPeriod !== data?.period ? requestedPeriod : null;
 
   /** The URL named a month the ledger cannot answer: not the same event as a
    * ledger that failed. */
@@ -115,6 +117,13 @@ export default function FinancialsRoute() {
              the list fires a change. */
           picker ? (
             <span className="flex flex-wrap items-center gap-2">
+              {loadingPeriod ? (
+                <span role="status" data-status-for={`period:${loadingPeriod}`} data-period-loading={loadingPeriod}
+                  className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                  <LoaderCircle className="size-3.5 motion-safe:animate-spin" aria-hidden />
+                  {`Loading ${requestedPeriodLabel(loadingPeriod)}`}
+                </span>
+              ) : null}
               {monthToDate ? (
                 <span data-month-to-date>
                   <StateChip label="Month to date" tone="na" dot="hollow" subject={`period:${picker.period}`} />
@@ -155,7 +164,10 @@ export default function FinancialsRoute() {
       ) : data.empty ? (
         <FirstRun data={data} />
       ) : (
-        <Ledger data={data} />
+        // The shown month, dimmed, until the month being read replaces it.
+        <div aria-busy={loadingPeriod !== null} className={cn("transition-opacity", loadingPeriod !== null && "opacity-60")}>
+          <Ledger data={data} />
+        </div>
       )}
     </div>
   );

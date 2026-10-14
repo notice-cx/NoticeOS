@@ -150,7 +150,7 @@ function OwnedDesk({ runtime, label, entry, role }: {
   }, []);
   if (!router) return <main className="p-6"><EmptyState title="Opening workspace…" /></main>;
   return <BrowserRuntimeProvider value={{ runtime, workspaceLabel: label,
-    workspaceRole: role, refreshSession: entry.refresh,
+    workspaceRole: role, refreshSession: entry.refresh, revalidateSession: entry.revalidate,
     switchWorkspace: runtime.owner.mode === 'hosted' ? entry.switchWorkspace : undefined,
     logout: runtime.owner.mode === 'hosted' ? entry.logout : undefined }}>
     <QueryClientProvider client={runtime.queries}><RouterProvider router={router} /><AppToaster /></QueryClientProvider>
