@@ -6,7 +6,7 @@ import test from 'node:test';
 import { main, prepareProjectContext } from './project-context.mjs';
 import { runCommand } from './run-command.mjs';
 
-const STANZA = '- Work handed off from the NoticeOS Tower carries `noticeos_*` metadata.\n- Read the NoticeOS task-hub contract linked above.';
+const STANZA = '- Tasks and site data come from the `noticeos` MCP server. Call `get_task_guide` before task work.\n- Never run `bd`, `bv` or `br` in this repository.';
 async function fixture(t) {
   const base = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), 'noticeos-context-test-'));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -39,10 +39,9 @@ test('check mode changes no files and explicit preparation copies the canonical 
   assert.equal(prepared.mode, 'prepared');
   const agents = fs.readFileSync(path.join(f.repo, 'AGENTS.md'), 'utf8');
   assert.ok(agents.includes(STANZA));
-  assert.match(agents, /NoticeOS Tower.*noticeos_\*/u);
-  assert.match(agents, /open readback beads for an active measurement window/u);
-  const link = /\[NoticeOS task-hub contract\]\(([^)]+)\)/u.exec(agents)[1];
-  assert.equal(fs.realpathSync(path.resolve(f.repo, decodeURIComponent(link))), path.join(f.sourceRoot, 'config/beads.README.md'));
+  assert.match(agents, /open readback tasks for an active measurement window/u);
+  // A pointer to the server's guide, never a path into a NoticeOS checkout a remote agent does not have.
+  assert.doesNotMatch(agents, /\]\([^)]*beads\.README\.md\)/u);
   assert.equal(fs.existsSync(path.join(f.repo, '.beads')), false);
   assert.equal(fs.existsSync(path.join(f.repo, 'CLAUDE.md')), false);
   assert.deepEqual((await prepareProjectContext(f.repo, { ...f.options, write: true })).files, []);

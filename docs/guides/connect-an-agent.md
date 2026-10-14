@@ -57,6 +57,7 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 | Tools | What they do |
 | --- | --- |
 | `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects |
+| `get_task_guide` | Return the rules for task work as Markdown with a version: the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
 | `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` returns summaries, most urgent first, 50 at a time (`limit`, and `offset` from the response's `nextOffset`). It searches the current tasks: `query` for words, `parent`, `labels`, `type`, `status`, `ready: true` for tasks with no open blockers, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
 | `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. Each response lists what a task still lacks, such as acceptance criteria; a task is not rejected for missing them |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence. Claim and close take `model`, the name of the model doing the work, which the agent passes every time: the task page shows it beside the agent's name, and the **Agents** page ranks models by it |
@@ -67,7 +68,14 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
-The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label and when to use an epic. A repository's own instructions do not need to repeat them.
+The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label and when to use an epic. `get_task_guide` returns the same rules with the full workflow, at any point in a session. A repository's own instructions do not repeat them; they point at the tool:
+
+```md
+- Tasks and site data come from the `noticeos` MCP server. Call `get_task_guide` before task work: it returns the workflow and the rules for filing, claiming and closing a task.
+- Never run `bd`, `bv` or `br` in this repository: the MCP tools are the task interface.
+```
+
+`pnpm project:prepare -- --repo <checkout> --write` adds that pointer to a repository's `AGENTS.md`.
 
 ## What only you control
 

@@ -21,7 +21,7 @@
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { McpToolError, serveMcp } from './mcp-protocol.mjs';
 import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopesSatisfy } from './agent-access.mjs';
-import { TASK_MCP_TOOLS, TASK_QUALITY, taskRefusal } from './hosted-task-mcp.mjs';
+import { TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS } from './panel-mcp.mjs';
 export const MCP_PATH = AGENT_RESOURCE_PATH;
@@ -30,9 +30,6 @@ export const MCP_PATH = AGENT_RESOURCE_PATH;
  * only: the Worker admits the forwarded call like any other. */
 export const READ_MODELS_HEADER = 'x-noticeos-mcp-part';
 const SERVER_INFO = Object.freeze({ name: 'noticeos', version: '1.0.0' });
-const INSTRUCTIONS = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
-/** Said only where the panel tools are offered. */
-const PANEL_INSTRUCTIONS = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
 const BODY_BYTES = 256 * 1024;
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 const WORKSPACE = Object.freeze({ type: 'string', description: 'The workspaceId from list_workspaces.' });
@@ -44,6 +41,13 @@ function inWorkspace(tool) {
 }
 const LIST_WORKSPACES = Object.freeze({ name: 'list_workspaces',
     description: 'List the workspaces you can use here, with your role and what this connection may do in each.',
+    inputSchema: Object.freeze({ type: 'object', properties: {}, required: [], additionalProperties: false }),
+    annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) });
+/** The rules for task work, in any workspace: what a repository's
+ * instructions point at instead of copying them. */
+const GET_TASK_GUIDE = Object.freeze({ name: TASK_GUIDE_TOOL,
+    description: 'The rules for working with NoticeOS tasks, as Markdown with a version: the workflow from list_workspaces to close_task, '
+        + 'how to write and close a task, when a person decides, and how to read site data. Read it before task work.',
     inputSchema: Object.freeze({ type: 'object', properties: {}, required: [], additionalProperties: false }),
     annotations: Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false }) });
 const TASK_TOOLS = TASK_MCP_TOOLS.map(inWorkspace);
@@ -79,10 +83,11 @@ export function createHostedMcp(options) {
         || profile === 'hosted' && (options.demoWorkspaceId !== undefined || options.standaloneWorkspaceId !== undefined || !agents
             || typeof agents.verify !== 'function' || typeof agents.workspaces !== 'function'))
         throw new Error('MCP configuration refused');
-    const tools = Object.freeze([LIST_WORKSPACES, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
+    const tools = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
     const invalid = (message) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } }, { status: 400, headers: { 'cache-control': 'no-store' } });
     const refused = () => taskRefusal(null);
-    const instructions = [panels ? `${INSTRUCTIONS} ${PANEL_INSTRUCTIONS}` : INSTRUCTIONS, '', ...TASK_QUALITY].join('\n');
+    const instructions = taskInstructions(Boolean(panels));
+    const guide = taskGuide(Boolean(panels));
     /** One read-model call, as the Worker's own MCP endpoint answers it. */
     async function readModel(original, name, workspaceId, args) {
         const authorization = original.headers.get('authorization');
@@ -140,6 +145,11 @@ export function createHostedMcp(options) {
         // The parsed body is not forwarded: admission reads only request metadata.
         const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal: original.signal });
         const server = { info: SERVER_INFO, instructions, tools, async call(name, args) {
+                if (name === TASK_GUIDE_TOOL) {
+                    if (Object.keys(args).length)
+                        throw new McpToolError(`invalid arguments: ${TASK_GUIDE_TOOL} takes none`);
+                    return guide;
+                }
                 if (name === 'list_workspaces') {
                     if (Object.keys(args).length)
                         throw new McpToolError('invalid arguments: list_workspaces takes none');

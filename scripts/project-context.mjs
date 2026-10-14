@@ -33,14 +33,12 @@ function contents(file) {
   } finally { fs.closeSync(fd); }
 }
 
-function agentBlock(repo, sourceRoot) {
+function agentBlock(sourceRoot) {
   const contract = fs.readFileSync(path.join(sourceRoot, 'config/beads.README.md'), 'utf8');
   const match = /<!-- spoke-stanza:begin -->\n([\s\S]+?)\n<!-- spoke-stanza:end -->/u.exec(contract);
   if (!match) refuse();
-  const link = path.relative(repo, path.join(sourceRoot, 'config/beads.README.md')).split(path.sep).map(encodeURIComponent).join('/');
   return `${BEGIN}\n## NoticeOS project context\n\n` +
-    `Read the [NoticeOS task-hub contract](${link}) before task work.\n` +
-    'Before changing a measured surface, check the project\'s open readback beads for an active measurement window.\n' +
+    'Before changing a measured surface, check the project\'s open readback tasks for an active measurement window.\n' +
     'Keep this project\'s goals, verification commands, protected operations and dated STATE in its own context pack.\n' +
     'Production reads and writes require the owner\'s explicit approval for the exact target, action and verification.\n' +
     'Provider credentials are connected in NoticeOS. This repository never pulls external analytics about itself.\n\n' +
@@ -72,7 +70,7 @@ export async function projectContextPlan(repo, { run = runCommand, env = process
   const add = (relative, before, text) => {
     if (before?.text !== text) changes.push({ relative, before, text });
   };
-  const block = agentBlock(repo, sourceRoot);
+  const block = agentBlock(sourceRoot);
   for (const name of ['AGENTS.md', 'CLAUDE.md']) {
     const before = contents(path.join(repo, name));
     if (name === 'CLAUDE.md' && before === null) continue;

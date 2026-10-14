@@ -159,21 +159,17 @@ boundaries: changing the client list grants agent CLI access only.
 ### The spoke stanza
 
 Every spoke's `CLAUDE.md` (and its `AGENTS.md`, where it has one) carries the
-same safety stanza, byte-identical, under its own repo-specific intro — the
-invariants that must survive an agent who never opens this file. The canonical
-copy lives here between the markers; `scripts/spoke-stanza.test.mjs` fails when
-any spoke's copy drifts. Change it here first, then re-stamp the spokes
-(pointers over symlinks — a symlink dangles off-machine).
+same stanza, byte-identical, under its own repo-specific intro. It is a pointer,
+not the rules: the rules come from the `noticeos` MCP server's `get_task_guide`
+tool and its instructions, so they reach every agent without a copy to keep in
+step. The canonical stanza lives here between the markers;
+`scripts/spoke-stanza.test.mjs` fails when a spoke's copy drifts. Change it here
+first, then re-stamp the spokes.
 
 <!-- spoke-stanza:begin -->
-- `bd ready` / `bd list` — open work. `bd create` the moment you find new work — never a TODO/follow-up list in docs, notes, or code. `bd update <id> --claim` before building; `bd close <id> -r '<what shipped>'` when done, referencing the bead id in the commit message.
-- `bd` is the ONLY task CLI. Never run `br` (it cannot reach the hub and would fork a private store) or `bv` (retired: stale per-repo cache, unsafe `br` commands, no portfolio view). Use `bd ready` / `bd show` for live spoke truth and the Tower `/work` board for portfolio triage.
-- If the task hub is unavailable, follow its declared service profile in the full task-hub contract linked below. When `NOTICEOS_DOLT_HOME` selects Compose, never start the retired native hub. Never start a private dolt server, never set `sync.remote`, never run `bd dolt push/pull` — each would fork a private store.
-- Beads close the session their work lands: no time-gated acceptance criteria — close on same-day proof, name the recurrence signal in the close reason, and let recurrence file a fresh bead. Too big for one session = a `-t epic` parent with session-sized children.
-- Structure: group 3+ related beads under a `-t epic` parent; `bd dep` only for REAL blocking edges (triage ranking trusts them); `bd update --defer` time-blocked work with a reason.
-- Needs the operator (a decision, credential, admin step)? Label it `human` — `bd human list` is the operator inbox. A step that must block until approval: `bd gate create --type human`; approval is a gate, never an assumption.
-- Work handed off from the NoticeOS Tower arrives as a ready-made `bd create` command carrying `noticeos_*` metadata and labels — run it as given and keep the labels; they are join keys. Older handoffs retain their original metadata.
-- Full contract (quality bar, spoke config standard, conventions): the NoticeOS task-hub contract linked in this repository's context pack — read it before nontrivial filing or closing.
+- Tasks and site data come from the `noticeos` MCP server. Call `get_task_guide` before task work: it returns the workflow and the rules for filing, claiming and closing a task.
+- Never run `bd`, `bv` or `br` in this repository: the MCP tools are the task interface.
+- Work only a person can do carries the `human` label; a step that must wait for approval uses `request_human_approval`.
 <!-- spoke-stanza:end -->
 
 ## Semantics worth knowing

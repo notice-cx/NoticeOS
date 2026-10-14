@@ -5,12 +5,10 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { readablePath } from './installation.mjs';
 
-// The spoke stanza — the beads safety armor every property repo's CLAUDE.md
-// (and nom's AGENTS.md) duplicates on purpose, byte-identical, so the
-// invariants survive an agent who never opens the contract. The canonical copy
-// lives in config/beads.README.md between the markers; this test is what keeps
-// the copies from drifting (same-bytes stanzas plus a pointer, never symlinks:
-// a symlink dangles off this machine).
+// The spoke stanza — the pointer every property repo's CLAUDE.md (and its
+// AGENTS.md) carries, byte-identical, to the task rules the noticeos MCP server
+// returns (get_task_guide). The canonical copy lives in config/beads.README.md
+// between the markers; this test keeps the copies from drifting.
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CONTRACT = path.join(REPO_ROOT, 'config', 'beads.README.md');
@@ -26,9 +24,9 @@ test('the contract carries the canonical stanza between its markers', () => {
   assert.ok(stanza, 'markers missing or empty in config/beads.README.md');
   // The sentences that exist because an operator decided them — if a rewrite
   // loses one, that is a contract change, not a formatting change.
-  assert.match(stanza, /ONLY task CLI/);
-  assert.match(stanza, /Never start a private dolt server/);
-  assert.match(stanza, /close the session their work lands/);
+  assert.match(stanza, /`noticeos` MCP server/);
+  assert.match(stanza, /Call `get_task_guide` before task work/);
+  assert.match(stanza, /Never run `bd`, `bv` or `br`/);
   assert.match(stanza, /`human`/);
 });
 
@@ -45,9 +43,10 @@ test('every checked-out spoke carries the stanza byte-identical', (t) => {
       const file = path.join(repoDir, name);
       if (!existsSync(file)) continue;
       const text = readFileSync(file, 'utf8');
-      // Only files that carry a beads bullet list owe the canonical block —
-      // an AGENTS.md with no beads section owes nothing.
-      if (!text.includes('- `bd ready`')) continue;
+      // Only files that carry a stanza owe the canonical one, and a file still
+      // carrying the retired bd stanza has drifted; an AGENTS.md with neither
+      // owes nothing.
+      if (!text.includes('<!-- spoke-stanza:begin -->') && !text.includes('- `bd ready`')) continue;
       checked += 1;
       assert.ok(
         text.includes(stanza),

@@ -44,6 +44,37 @@ export const TASK_QUALITY = Object.freeze([
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
 ]);
+/** How a session starts, said in every session's instructions. */
+export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
+/** Said only where the panel tools are offered. */
+export const PANEL_RULE = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
+/** The order of task work, in the tools' own names. */
+export const TASK_WORKFLOW = Object.freeze([
+    '1. list_workspaces, then list_projects: a project is one repository or site, and its prefix starts each of its task ids.',
+    '2. list_tasks with ready: true for work nothing blocks; get_task reads one with its comments before you choose.',
+    '3. claim_task the moment you start, naming your model.',
+    '4. comment_on_task with progress and evidence as the work moves.',
+    '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
+    '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
+    '7. A decision, credential or admin step only a person can do: label the task human. A step that must wait for approval: request_human_approval. Only a person answers either, on Tasks in the Tower.',
+    'These tools are the task interface: never run bd, bv or br in a project folder.',
+]);
+/** What get_task_guide names in its description and the instructions point at. */
+export const TASK_GUIDE_TOOL = 'get_task_guide';
+/** The whole guide as Markdown, with a version that changes whenever its
+ * text does. The server's instructions are a part of it (taskInstructions). */
+export function taskGuide(panels) {
+    const body = ['## Start', '', TASK_START, '', '## Workflow', '', ...TASK_WORKFLOW, '', '## Writing a task', '', ...TASK_QUALITY,
+        ...(panels ? ['', '## Site data', '', PANEL_RULE] : [])].join('\n');
+    const version = createHash('sha256').update(body).digest('hex').slice(0, 12);
+    return Object.freeze({ version, guide: `# Working with NoticeOS tasks\n\nGuide version ${version}.\n\n${body}\n` });
+}
+/** Every session's instructions: the guide's start, its panel rule where the
+ * panel tools are offered, and its rules for writing a task. */
+export function taskInstructions(panels) {
+    return [panels ? `${TASK_START} ${PANEL_RULE}` : TASK_START,
+        `${TASK_GUIDE_TOOL} returns these rules with the full workflow, at any time.`, '', ...TASK_QUALITY].join('\n');
+}
 function refuse(message) { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';
 /** A task tool's failure as the caller may read it. Admission, project
