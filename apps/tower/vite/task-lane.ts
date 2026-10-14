@@ -23,6 +23,7 @@ import type {
 } from "../shared/tasks";
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
+import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import {
   DEFAULT_REPO_ROOT,
@@ -486,9 +487,16 @@ function listTasks(spoke: Spoke, statuses: string, opts: Resolved, closedDays = 
     repo: spoke.repo,
     readAt,
     closedSince,
-    tasks: [...tasks.values()],
+    tasks: [...tasks.values()].map(listedText),
     epics: closedOnly ? null : readEpics(spoke, opts),
   };
+}
+
+/** A list carries a task's description and acceptance only when the task waits
+ * on the operator, whose ask shows them on the board; every other task's are
+ * on its own read (`showTask`). They were most of a large project's list. */
+function listedText(task: LiveTask): LiveTask {
+  return waitsOnPerson(task) ? task : { ...task, description: "", acceptance: "" };
 }
 
 function showTask(id: string, spoke: Spoke, opts: Resolved): LiveTaskDetail {
