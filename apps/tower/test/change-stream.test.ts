@@ -77,6 +77,7 @@ function fakePage() {
     EventSource: FakeSource,
     BroadcastChannel: class { onmessage: unknown = null; postMessage() {} close() {} },
     navigator: { locks: { request: (_name: string, _options: unknown, held: () => Promise<void>) => held() } },
+    document: { readyState: 'complete' },
   } as unknown as Window;
 }
 
@@ -115,6 +116,16 @@ describe("a page's change stream", () => {
     expect(source.closed).toBe(true);
     expect(stream.connected()).toBe(false);
     expect(heard).toHaveBeenCalled();
+  });
+
+  it('opens only once the page has loaded', () => {
+    FakeSource.last = null;
+    const page = Object.assign(new EventTarget(), fakePage(), { document: { readyState: 'loading' } }) as unknown as Window;
+    const stream = createChangeStream(new QueryClient(), page);
+    expect(FakeSource.last).toBeNull();
+    page.dispatchEvent(new Event('load'));
+    expect(FakeSource.last).not.toBeNull();
+    stream.close();
   });
 
   it('is not opened where the browser has no event stream', () => {

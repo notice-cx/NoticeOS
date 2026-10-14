@@ -77,7 +77,7 @@ export function createChangeStream(queries: QueryClient, window: Window): Change
   channel.onmessage = (event: MessageEvent<TabMessage>) => apply(event.data);
   const relay = (message: TabMessage) => { apply(message); if (!closed) channel.postMessage(message); };
   const stop = new AbortController();
-  page.navigator.locks.request(CHANNEL, { signal: stop.signal }, () => new Promise<void>((release) => {
+  const holdStream = () => page.navigator.locks.request(CHANNEL, { signal: stop.signal }, () => new Promise<void>((release) => {
     leading = true;
     let reopened = false;
     const source = new page.EventSource(CHANGE_STREAM_PATH);
@@ -102,6 +102,10 @@ export function createChangeStream(queries: QueryClient, window: Window): Change
       release();
     }, { once: true });
   })).catch(() => { /* Closed before this tab held the stream. */ });
+  // After the page has loaded: a browser opens six connections to a host, and
+  // a stream held from the start would take one from the page's own files.
+  if (page.document.readyState === 'complete') void holdStream();
+  else page.addEventListener('load', () => { if (!stop.signal.aborted) void holdStream(); }, { once: true, signal: stop.signal });
   channel.postMessage({ kind: 'ask' } satisfies TabMessage);
   return Object.freeze({
     connected: () => connected,

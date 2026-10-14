@@ -164,10 +164,11 @@ dispatch = async (req, res, next) => {
   }
 };
 // The standalone Tower's change stream, reading the pushed topics through this
-// harness every second so a journey sees a change within its own timeouts.
+// harness every 3 s: soon enough for a journey's timeouts, seldom enough not to
+// load the parallel workers' store with reads.
 {
   const { changeStreamMiddleware, createChangeWatch, topicReader } = await vite.ssrLoadModule("/vite/change-lane.ts");
-  changes = changeStreamMiddleware(createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 1_000));
+  changes = changeStreamMiddleware(createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 3_000));
 }
 await vite.listen();
 console.log(`Isolated journey server: http://127.0.0.1:${port}`);
