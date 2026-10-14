@@ -1421,12 +1421,14 @@ async function fetchProviderSitesRequest(fetch: ApiTransport, provider: string, 
 
 /**
  * Start collecting: the provider's scheduled job step, run now for these
- * assets. Answers once the lane's run has finished; a refusal (paused, already
- * running) is an answer, not a thrown error.
+ * assets, or (DataForSEO) only the named report families. Answers once the
+ * lane's run has finished; a refusal (paused, already running, over the cap)
+ * is an answer, not a thrown error.
  */
-async function collectProviderSitesRequest(fetch: ApiTransport, provider: string, assets: string[]): Promise<CollectNowResult> {
+async function collectProviderSitesRequest(fetch: ApiTransport, provider: string, assets: string[], families?: string[]): Promise<CollectNowResult> {
   const path = `/api/integrations/${encodeURIComponent(provider)}/collect`;
-  const res = await fetch(path, { method: "POST", headers: JSON_WRITE_HEADERS, body: JSON.stringify({ assets }) });
+  const body = families === undefined ? { assets } : { assets, families };
+  const res = await fetch(path, { method: "POST", headers: JSON_WRITE_HEADERS, body: JSON.stringify(body) });
   if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
   return (await res.json()) as CollectNowResult;
 }

@@ -982,6 +982,16 @@ that shows the panel's results:
 - **Panel refresh** — this asset's row on the standing refresh roster
   ([`config/signal-panels.json`](../config/signal-panels.README.md)): on or off,
   the reason, the note, the date.
+- **Collect now** — collects this site's tracked terms immediately, outside
+  the Monday run, for example after a missed week. Pressing it opens the
+  price first: the panel's cost on its last run for this site (**Last run**,
+  or **At most** with what the budget gate reserves for one report family
+  when there is no recorded price) and **This month**, the month's data spend against the cap,
+  read from the stored run records. **Collect** runs only this site's SERP
+  panel, through the same collector and budget gate as the Monday run. When
+  the reserve would cross the monthly data cap, the card shows **Over the
+  monthly data cap** and **Collect** is disabled; a press sent to the ingest
+  anyway starts nothing and buys nothing. No MCP tool starts a collection.
 
 Three things about it are deliberate design decisions:
 

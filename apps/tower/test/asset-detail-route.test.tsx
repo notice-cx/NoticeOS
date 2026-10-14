@@ -5662,6 +5662,99 @@ describe("AssetDetailRoute — Settings manages the tracked panel", () => {
     expect(container.textContent).not.toContain("$0.008");
   });
 
+  /** The month's spend and this site's last panel run, as the spend preview
+   * states them. */
+  const spendWith = (spentUsd: number, panelRuns: Record<string, { reportDate: string; costUsd: number | null }>) => ({
+    discovery: { ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: "2026-10-14T20:00:00.000Z", sites: [] },
+    assets: [],
+    domainMatch: [],
+    spend: { period: "2026-10", spentUsd, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns },
+  });
+  /** The cost read and the press's answer, and every other read as
+   * `stubPanelLanes` answers it. */
+  function stubCollect(detail: AssetDetailPayload, sites: unknown, result: unknown) {
+    const fetchMock = stubPanelLanes(detail);
+    const base = fetchMock.getMockImplementation()!;
+    const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit) =>
+      String(input) === "/api/integrations/dataforseo/sites" ? json(sites)
+        : String(input) === "/api/integrations/dataforseo/collect" ? json(result)
+          : base(input, init));
+    return fetchMock;
+  }
+  const collectCalls = (fetchMock: ReturnType<typeof stubPanelLanes>) =>
+    fetchMock.mock.calls.filter(([input]) => String(input) === "/api/integrations/dataforseo/collect");
+
+  it("prices Collect now from the panel's last run and collects only this site's panel", async () => {
+    const fetchMock = stubCollect(
+      payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
+      spendWith(3.4, { "meadow.example": { reportDate: "2026-10-05", costUsd: 0.124 }, "other.example": { reportDate: "2026-10-05", costUsd: 0.5 } }),
+      {
+        ok: true, provider: "dataforseo", job: "dataforseo", startedAt: "2026-10-14T20:00:00.000Z", finishedAt: "2026-10-14T20:02:00.000Z",
+        sites: [{ asset: "meadow.example", outcome: "collected", code: null, reports: 1, costUsd: 0.118 }],
+      },
+    );
+    const { container, findByText, findByRole } = renderRoute("meadow.example", "", "settings");
+
+    await findByText("Tracked search terms");
+    fireEvent.click(await findByRole("button", { name: "Collect now" }));
+    const estimate = container.querySelector<HTMLElement>("[data-collect-estimate]")!;
+    await waitFor(() => expect(estimate.textContent).toContain("Last run · Oct 5, 2026"));
+    expect(estimate.querySelector("[data-collect-cost]")!.textContent).toBe("≈ $0.12");
+    expect(estimate.querySelector("[data-collect-month]")!.textContent).toContain("$3.40 of $25");
+    expect(collectCalls(fetchMock)).toHaveLength(0);
+
+    await waitFor(() => expect(within(estimate).getByRole("button", { name: "Collect" })).toBeEnabled());
+    fireEvent.click(within(estimate).getByRole("button", { name: "Collect" }));
+    await waitFor(() => expect(collectCalls(fetchMock)).toHaveLength(1));
+    const [, init] = collectCalls(fetchMock)[0]!;
+    expect((init as RequestInit).method).toBe("POST");
+    expect(JSON.parse(String((init as RequestInit).body))).toEqual({ assets: ["meadow.example"], families: ["serp-panel"] });
+    await waitFor(() =>
+      expect(container.querySelector('[data-collect-result="collected"]')?.textContent).toBe("Collected · $0.12"),
+    );
+  });
+
+  it("offers no Collect over the monthly data cap, and bounds a first run by the reserve", async () => {
+    const fetchMock = stubCollect(
+      payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
+      spendWith(24.9, {}),
+      { ok: false, provider: "dataforseo", error: "over-cap", job: "dataforseo" },
+    );
+    const { container, findByText, findByRole } = renderRoute("meadow.example", "", "settings");
+
+    await findByText("Tracked search terms");
+    fireEvent.click(await findByRole("button", { name: "Collect now" }));
+    const estimate = container.querySelector<HTMLElement>("[data-collect-estimate]")!;
+    await waitFor(() => expect(estimate.textContent).toContain("At most"));
+    expect(estimate.querySelector("[data-collect-cost]")!.textContent).toBe("$0.25");
+    expect(estimate.querySelector('[data-collect-refusal="over-cap"]')!.textContent).toContain("Over the monthly data cap");
+    const collect = within(estimate).getByRole("button", { name: "Collect" });
+    expect(collect).toBeDisabled();
+    fireEvent.click(collect);
+    expect(collectCalls(fetchMock)).toHaveLength(0);
+  });
+
+  it("says why the ingest refused a press, and buys nothing", async () => {
+    stubCollect(
+      payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER }, portfolio: CAPPED }),
+      spendWith(1, { "meadow.example": { reportDate: "2026-10-05", costUsd: 0.12 } }),
+      { ok: false, provider: "dataforseo", error: "in-flight", job: "dataforseo" },
+    );
+    const { container, findByText, findByRole } = renderRoute("meadow.example", "", "settings");
+
+    await findByText("Tracked search terms");
+    fireEvent.click(await findByRole("button", { name: "Collect now" }));
+    const estimate = container.querySelector<HTMLElement>("[data-collect-estimate]")!;
+    // Collect waits for the price.
+    expect(within(estimate).getByRole("button", { name: "Collect" })).toBeDisabled();
+    await waitFor(() => expect(within(estimate).getByRole("button", { name: "Collect" })).toBeEnabled());
+    fireEvent.click(within(estimate).getByRole("button", { name: "Collect" }));
+    await waitFor(() =>
+      expect(container.querySelector('[data-collect-refusal="in-flight"]')?.textContent).toContain("Already collecting · try again soon"),
+    );
+  });
+
   it("adds a tracked term as one append inside this asset's own panel", async () => {
     const fetchMock = stubPanelLanes(
       payload({ panelConfig: { trackedQueries: PANEL, roster: ROSTER } }),

@@ -1,4 +1,6 @@
-import { useDemoReadonly } from '@/lib/browser-context';
+import { useDemoReadonly, useOwnerMutation, useTowerApi } from '@/lib/browser-context';
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { CollectNowResult } from "@noticeos/contract";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
@@ -11,6 +13,7 @@ import type {
   RulesInForce,
   Wiring,
 } from "@shared/asset-detail";
+import { COLLECT_REFUSAL_LABEL } from "@shared/site-discovery";
 import { type AssetIntegrations } from "@shared/integrations";
 import {
   FIXED_FIELD_LABEL,
@@ -19,15 +22,19 @@ import {
   rowValue,
 } from "@shared/config-registers";
 import {
+  DATAFORSEO_PANEL_REPORT,
+  MAX_REPORT_COST_USD,
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT,
   SERP_PANEL_TERM_WEEKLY_USD,
+  capReserveExceeded,
 } from "@noticeos/contract/dataforseo";
-import { ArrowRight, ChevronRight, Lock, Pencil } from "lucide-react";
+import { ArrowRight, Check, ChevronRight, Lock, Pencil, TriangleAlert } from "lucide-react";
 import { scheduleLabel, scheduleTimezone } from "@shared/scheduled-jobs";
 import { CollectionEditor } from "@/components/CollectionEditor";
 import { Meter } from "@/components/Meter";
-import { formatInt, formatUsd } from "@/lib/format";
+import { formatCalendarDate, formatInt, formatUsd } from "@/lib/format";
+import { UnknownPriceCount } from "@/components/UnknownPriceCount";
 import {
   entityLabel,
   entityMoveOps,
@@ -681,6 +688,8 @@ function PanelSettings({
             </span>
           </div>
 
+          {tracked > 0 ? <CollectPanelNow assetId={assetId} /> : null}
+
           {/* The rows go behind one press: each tracked term is two inputs and
               two Save buttons, and the decision that costs money is adding a
               term, which the meter and the bill chips above state whether or
@@ -743,6 +752,147 @@ function PanelSettings({
         />
       </div>
     </Panel>
+  );
+}
+
+/**
+ * The tracked terms collected now, priced before the press: the panel's last
+ * run for this site and the month's spend against the cap, read from the OS's
+ * own records when the operator opens it. The press runs only this site's
+ * panel, through the collector and budget gate the Monday run uses. Over the
+ * cap it is not offered, and the ingest refuses it too.
+ */
+function CollectPanelNow({ assetId }: { assetId: string }) {
+  const demoReadonly = useDemoReadonly();
+  const { fetchProviderSites, collectProviderSites } = useTowerApi();
+  const cache = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [ran, setRan] = useState<CollectNowResult | null>(null);
+  // Read each time the estimate opens, never polled: it prices one press.
+  const priced = useQuery({
+    queryKey: ["collect-panel-cost", assetId],
+    queryFn: () => fetchProviderSites("dataforseo"),
+    enabled: open,
+    staleTime: 0,
+    gcTime: 0,
+    retry: 0,
+    refetchOnWindowFocus: false,
+  });
+  const collect = useOwnerMutation({
+    mutationFn: () => collectProviderSites("dataforseo", [assetId], [DATAFORSEO_PANEL_REPORT]),
+    onSuccess: async (result: CollectNowResult) => {
+      setRan(result);
+      setOpen(false);
+      // The panel's board and the site's data sources read the new run.
+      await cache.invalidateQueries({ queryKey: ["asset-detail", assetId] });
+    },
+  });
+
+  if (!open) {
+    return (
+      <div className="flex flex-wrap items-center gap-2" data-collect-now>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={demoReadonly}
+          onClick={() => {
+            setRan(null);
+            collect.reset();
+            setOpen(true);
+          }}
+        >
+          Collect now
+        </Button>
+        {ran ? <CollectedLine assetId={assetId} result={ran} /> : null}
+      </div>
+    );
+  }
+  const spend = priced.data?.spend ?? null;
+  const last = spend?.panelRuns[assetId] ?? null;
+  const estimateUsd = last?.costUsd ?? null;
+  const overCap = spend !== null && capReserveExceeded(spend.spentUsd, 1, spend.capUsd);
+  return (
+    <div className="flex flex-col gap-2 rounded-[10px] border border-border bg-background/40 p-3" data-collect-now data-collect-estimate>
+      {spend ? (
+        <>
+          <Meter
+            value={spend.spentUsd + (estimateUsd ?? MAX_REPORT_COST_USD)}
+            max={spend.capUsd}
+            ariaLabel="This month's data spend with this collection"
+          />
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+            <dt className="text-muted-foreground">
+              {estimateUsd === null || last === null ? "At most" : `Last run · ${formatCalendarDate(last.reportDate)}`}
+            </dt>
+            <dd className="text-end tabular-nums" data-collect-cost>
+              {estimateUsd === null ? formatUsd(MAX_REPORT_COST_USD, { cents: true }) : `≈ ${formatUsd(estimateUsd, { cents: true })}`}
+            </dd>
+            <dt className="text-muted-foreground">This month</dt>
+            <dd className="text-end tabular-nums" data-collect-month>
+              {formatUsd(spend.spentUsd, { cents: true })} of {formatUsd(spend.capUsd)}
+              <UnknownPriceCount count={spend.unknownPrices} />
+            </dd>
+          </dl>
+        </>
+      ) : priced.isError || (priced.data && !spend) ? (
+        <p role="alert" className="m-0 text-sm text-error">
+          Cost not available · try again
+        </p>
+      ) : (
+        <p role="status" className="m-0 text-sm text-muted-foreground">
+          Reading the cost…
+        </p>
+      )}
+      {overCap ? <CollectRefusal error="over-cap" /> : null}
+      {collect.isError ? (
+        <p role="alert" className="m-0 text-sm text-error">
+          Collection failed · try again
+        </p>
+      ) : null}
+      <div className="flex flex-wrap gap-2">
+        <Button type="button" size="sm" disabled={demoReadonly || spend === null || overCap || collect.isPending} onClick={() => collect.mutate()}>
+          {collect.isPending ? "Collecting…" : "Collect"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" disabled={collect.isPending} onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+/** How a press ended, in one line beside Collect now. */
+function CollectedLine({ assetId, result }: { assetId: string; result: CollectNowResult }) {
+  if (!result.ok) return <CollectRefusal error={result.error} />;
+  const site = result.sites.find((entry) => entry.asset === assetId) ?? null;
+  if (site?.outcome === "collected") {
+    return (
+      <span role="status" className="inline-flex items-center gap-1.5 text-sm text-foreground tabular-nums" data-collect-result="collected">
+        <Check className="size-4 shrink-0" aria-hidden />
+        {site.costUsd === undefined ? "Collected" : `Collected · ${formatUsd(site.costUsd, { cents: true })}`}
+      </span>
+    );
+  }
+  const label = site?.outcome === "failed" ? "Collection failed" : site?.outcome === "unmeasured" ? "Not reached" : "Nothing to collect";
+  return (
+    <span role="status" className="text-sm text-error" data-collect-result={site?.outcome ?? "skipped"}>
+      {label}
+    </span>
+  );
+}
+
+function CollectRefusal({ error }: { error: keyof typeof COLLECT_REFUSAL_LABEL }) {
+  return (
+    <p role="status" className="m-0 flex flex-wrap items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
+      <TriangleAlert className="size-4 shrink-0" aria-hidden />
+      {COLLECT_REFUSAL_LABEL[error]}
+      {error === "over-cap" ? (
+        <Link to="/settings#budget" className="text-xs underline underline-offset-4">
+          Data cap
+        </Link>
+      ) : null}
+    </p>
   );
 }
 

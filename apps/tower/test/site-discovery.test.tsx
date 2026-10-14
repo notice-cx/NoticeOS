@@ -239,6 +239,32 @@ describe("the spend a metered provider states before its first collection", () =
     const empty = await loadSpendPreview((await createTestStore()).call, new Date(AT), 25);
     expect(empty.perSiteWeekUsd).toBeNull();
   });
+
+  it("prices each site's panel from its newest successful panel run, never a failed one", async () => {
+    const ctx = await createTestStore();
+    await addSites(ctx, ["a.test", "b.test"].map((id) => ({ id, displayName: id, status: "live" })));
+    const run = (id: string, asset: string, report: string, date: string, cost: number, status: TestArchiveRun["status"] = "success"): TestArchiveRun => ({
+      id, asset, integration: "dataforseo", report, credential_ref: "cred", status,
+      report_date: date, requested_at: `${date}T12:45:00.000Z`, finished_at: `${date}T12:50:00.000Z`,
+      data_state: "provider-snapshot", provider_rows: 30, request_count: 30, object_key: `dumps/${id}.json.gz`,
+      content_sha256: "a".repeat(64), object_bytes: 1024, provider_cost_usd: cost,
+    });
+    await writeArchiveRuns(ctx.call, [
+      run("p1", "a.test", "serp-panel", "2026-09-14", 0.11),
+      run("p2", "a.test", "serp-panel", "2026-09-21", 0.12, "unchanged"),
+      run("p3", "a.test", "serp-panel", "2026-09-22", 0, "error"),
+      run("k1", "a.test", "ranked-keywords", "2026-09-22", 0.2),
+      run("b1", "b.test", "serp-panel", "2026-09-22", 0),
+    ]);
+    const spend = await loadSpendPreview(ctx.call, new Date(AT), 25);
+    expect(spend.panelRuns).toEqual({
+      "a.test": { reportDate: "2026-09-21", costUsd: 0.12 },
+      // Collected, its price not recorded.
+      "b.test": { reportDate: "2026-09-22", costUsd: null },
+    });
+    expect(spend.spentUsd).toBeCloseTo(0.43);
+    expect(spend.unknownPrices).toBe(2);
+  });
 });
 
 describe("the sites and collect routes", () => {
@@ -255,7 +281,7 @@ describe("the sites and collect routes", () => {
     return {
       ingest: binding, store: ctx.call,
       config: async () => ({ integrations: { catalog: [], assets: { "journey.example": { "bing-webmaster": { status: "needs-setup" as const, note: "", since: "2026-09-23", siteUrl: "https://journey.example/" } } } }, capUsd: 25 }),
-      spend: vi.fn(async () => ({ period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5 })),
+      spend: vi.fn(async () => ({ period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: null, perSiteCeilingUsd: 2.5, panelRuns: {} })),
     };
   };
 
@@ -271,7 +297,7 @@ describe("the sites and collect routes", () => {
     expect(body.domainMatch).toEqual(["bing-webmaster"]);
     expect(d.spend).not.toHaveBeenCalled();
     const metered = await handleSitesRequest(new Request("http://t/x"), new URL("http://t/x"), await deps(ingest({ ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: AT, sites: [] })), "dataforseo", "sites");
-    expect(((await metered.json()) as SitesPayload).spend).toMatchObject({ perSiteCeilingUsd: 2.5 });
+    expect(((await metered.json()) as SitesPayload).spend).toMatchObject({ perSiteCeilingUsd: 2.5, panelRuns: {} });
   });
 
   it("passes a press to the ingest and returns its answer, refusals included", async () => {
@@ -283,6 +309,11 @@ describe("the sites and collect routes", () => {
     expect(await res.json()).toEqual({ ok: false, provider: "bing-webmaster", error: "paused", job: "pull" });
     expect(binding.collectNow).toHaveBeenCalledWith({ provider: "bing-webmaster", assets: ["journey.example"] });
     expect((await press({ assets: "journey.example" })).status).toBe(422);
+    await press({ assets: ["journey.example"], families: ["serp-panel"] });
+    expect(binding.collectNow).toHaveBeenLastCalledWith({ provider: "bing-webmaster", assets: ["journey.example"], families: ["serp-panel"] });
+    for (const families of [[], "serp-panel", ["Serp Panel"], [7]]) {
+      expect((await press({ assets: ["journey.example"], families })).status).toBe(422);
+    }
     expect((await press({ assets: ["x"] }, { origin: "http://elsewhere" })).status).toBe(403);
     const unknown = await handleSitesRequest(new Request(url, { method: "POST" }), url, await deps(binding), "nope", "collect");
     expect(unknown.status).toBe(404);
@@ -424,7 +455,7 @@ describe("the picker", () => {
               { lane: "dataforseo", ref: "journey.example", label: "journey.example", host: "journey.example", mapping: {}, asset: "journey.example", ready: true },
             ] },
             assets: [asset("journey.example", { cells: { dataforseo: { status: "needs-setup", mapping: {} } } })],
-            spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5 },
+            spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5, panelRuns: {} },
           }}
           onStart={async () => null}
           onClose={() => {}}
@@ -446,7 +477,7 @@ describe("the picker", () => {
           payload={{
             discovery: { ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: AT, sites: [listed("journey.example"), listed("second.example")] },
             assets: ["journey.example", "second.example"].map((id) => asset(id, { cells: { dataforseo: { status: "needs-setup", note: "", mapping: {} } } })),
-            spend: { period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.5, perSiteCeilingUsd: 2.5 },
+            spend: { period: "2026-09", spentUsd: 0, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.5, perSiteCeilingUsd: 2.5, panelRuns: {} },
           }}
           onStart={async () => null}
           onClose={() => {}}

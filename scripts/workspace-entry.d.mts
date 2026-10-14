@@ -64,6 +64,7 @@ export declare function credentialWriteArguments(input: unknown, request: Reques
 export declare function providerCollectionArguments(input: unknown, request: Request, method: 'collectNow'): Promise<{
     provider: string;
     assets: string[];
+    families?: string[];
 }>;
 export declare function providerCollectionArguments(input: unknown, request: Request, method: 'syncMediavine'): Promise<{
     asset: string;

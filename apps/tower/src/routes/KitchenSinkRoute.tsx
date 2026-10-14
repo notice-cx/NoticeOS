@@ -457,7 +457,7 @@ const SITE_PICKER_DEMOS: { key: string; provider: IntegrationProviderId; payload
     discovery: { ok: true, provider: "bing-webmaster", kind: "account", checkedAt: CONNECT_DEMO_AT,
       sites: [siteDemo("https://journey.example/"), siteDemo("https://shop.example/"), siteDemo("https://blog.journey.example/", false)] } } },
   { key: "dataforseo", provider: "dataforseo", payload: { assets: SITE_DEMO_ASSETS,
-    spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5 },
+    spend: { period: "2026-09", spentUsd: 3.1, unknownPrices: 0, capUsd: 25, perSiteWeekUsd: 0.45, perSiteCeilingUsd: 2.5, panelRuns: {} },
     discovery: { ok: true, provider: "dataforseo", kind: "portfolio", checkedAt: CONNECT_DEMO_AT,
       sites: ["journey.example", "second.example"].map((id) => ({ lane: "dataforseo", ref: id, label: id, host: id, mapping: {}, asset: id, ready: true })) } } },
   { key: "bing-no-answer", provider: "bing-webmaster", payload: { spend: null, assets: SITE_DEMO_ASSETS,

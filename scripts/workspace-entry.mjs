@@ -148,7 +148,8 @@ export async function providerCollectionArguments(input, request, method) {
         refuse();
     await ingestOperation(method, request);
     return parsed.method === 'collectNow'
-        ? { provider: parsed.input.provider, assets: [...parsed.input.assets] }
+        ? { provider: parsed.input.provider, assets: [...parsed.input.assets],
+            ...(parsed.input.families === undefined ? {} : { families: [...parsed.input.families] }) }
         : { ...parsed.input };
 }
 /** Fixed mutation RPC correspondence. Snapshot the candidate before any await;

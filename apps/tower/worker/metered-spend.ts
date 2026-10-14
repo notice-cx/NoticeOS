@@ -6,6 +6,7 @@
 import type { WorkspaceStore } from "@noticeos/postgres";
 import {
   DATAFORSEO_BASE_REPORTS,
+  DATAFORSEO_PANEL_REPORT,
   DATAFORSEO_PERIODIC_REPORTS,
   MAX_REPORT_COST_USD,
   METERED_DATA_PROVIDER,
@@ -89,7 +90,8 @@ const SPEND_PREVIEW_DAYS = 28;
 
 /**
  * What starting a metered provider will cost, shown beside Start before
- * anything is bought. Every figure is the OS's own record: the month's spend
+ * anything is bought, and what collecting one site's panel again will cost.
+ * Every figure is the OS's own record: the month's spend
  * and cap are the reader the cap gate sums (`loadDataForSeoSpend`). The
  * typical week is one site's recorded report costs per report date, averaged
  * over the last four sweeps — null when nothing has been recorded yet, never
@@ -117,6 +119,16 @@ export async function loadSpendPreview(
       ),
     )
   ).map((row) => Number(row.spent) || 0);
+  // Each site's last panel run prices collecting its panel again now.
+  const panelRuns = await store.read((tx) =>
+    tx.query<{ asset: string; report_date: string; cost_usd: string | null }>(
+      `SELECT DISTINCT ON (asset_id) asset_id AS asset, report_date::text AS report_date, cost_usd::text AS cost_usd
+         FROM noticeos.archive_runs
+        WHERE integration = $1 AND report = $2 AND status IN ('success', 'unchanged')
+        ORDER BY asset_id, requested_at DESC, run_seq DESC`,
+      [METERED_DATA_PROVIDER, DATAFORSEO_PANEL_REPORT],
+    ),
+  );
   const families = DATAFORSEO_BASE_REPORTS.length + DATAFORSEO_PERIODIC_REPORTS.length + 1;
   return {
     period: utcMonth(now),
@@ -125,5 +137,9 @@ export async function loadSpendPreview(
     capUsd,
     perSiteWeekUsd: weeks.length === 0 ? null : weeks.reduce((sum, value) => sum + value, 0) / weeks.length,
     perSiteCeilingUsd: families * MAX_REPORT_COST_USD,
+    panelRuns: Object.fromEntries(panelRuns.map((row) => [row.asset, {
+      reportDate: row.report_date,
+      costUsd: row.cost_usd === null ? null : Number(row.cost_usd),
+    }])),
   };
 }
