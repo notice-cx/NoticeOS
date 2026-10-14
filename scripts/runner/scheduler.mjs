@@ -16,6 +16,8 @@ import {
   catchupOutcome,
   catchupStillArmed,
   createCatchupOwnership,
+  retryDelayAfterFailure,
+  retryOutcome,
   scheduledCatchupPolicies,
   scheduledDuringCatchupDecision,
   startupCatchupPlan as cronCatchupPlan,
@@ -74,8 +76,9 @@ export async function readCrons() {
 // (scripts/job-runs.mjs createCatchupOwnership).
 const startupCatchupOwnership = createCatchupOwnership();
 const cronJobs = [];
-// setInterval handles that are not crons (currently only the first-snapshot
-// armer). Cleared on shutdown so a pending one cannot hold the process open.
+// Timers that are not crons: the first-snapshot armer, the status refresh and
+// a failed firing's retry. Cleared on shutdown so a pending one cannot hold the
+// process open; clearInterval clears a setTimeout handle too.
 const oneShotTimers = new Set();
 
 /** Hand the scheduler an interval to clear on shutdown. */
@@ -151,9 +154,18 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
   );
   scheduledJobRunner = createScheduledJobRunner({
     jobs,
-    run: (job) => job.local
-      ? localRuns[job.id]()
-      : runRegularLane(jobRunName(job), () => fireScheduled(job.cron, runtime), (result) => result),
+    run: async (job) => {
+      if (job.local) return localRuns[job.id]();
+      const name = jobRunName(job);
+      const result = await runRegularLane(name, () => fireScheduled(job.cron, runtime), (fired) => fired);
+      retryFailedFiring(name, result, {
+        // A schedule paused since the failure is not fired again.
+        retry: () => scheduledJobRunner?.current(job.id)?.enabled
+          ? runJobLane(name, () => fireScheduled(job.cron, runtime), retryOutcome((fired) => fired))
+          : null,
+      });
+      return result;
+    },
     onReady: () => {
       fireFirstBeadsPoll(runtime, lanes);
       // An initially unavailable store must delay recovery, not discard it.
@@ -182,6 +194,24 @@ export async function startScheduler(runtime, records, { lanes, onPublished }) {
   oneShotTimers.add(refresh);
   log('INFO', `scheduler: ${jobs.length} known jobs; saved schedules refreshed every 15 seconds (UTC)`);
   return scheduledJobRunner;
+}
+
+/**
+ * The one retry a failed firing of `job` earns (scripts/job-runs.mjs
+ * retryDelayAfterFailure): `retry` runs once after the lane's delay, unless the
+ * runner is shutting down by then. A failed retry waits for the next regular
+ * tick. Returns the timer, or null when no retry is due.
+ */
+export function retryFailedFiring(job, result, { retry, schedule = setTimeout, policies } = {}) {
+  const delayMs = retryDelayAfterFailure(job, policies);
+  if (result?.outcome !== 'failed' || delayMs === null) return null;
+  log('WARN', `${job} failed; firing it once more in ${Math.round(delayMs / 60_000)} minute(s)`);
+  const timer = schedule(() => {
+    oneShotTimers.delete(timer);
+    if (!isShuttingDown()) void Promise.resolve(retry()).catch((error) => log('ERROR', `${job} retry failed: ${error?.message ?? error}`));
+  }, delayMs);
+  oneShotTimers.add(timer);
+  return timer;
 }
 
 function runRegularLane(job, fn, outcomeOf = (result) => (result === null ? 'skipped' : 'ran')) {

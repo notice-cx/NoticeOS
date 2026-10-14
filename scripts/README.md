@@ -406,6 +406,12 @@ seed/config apply, restore, kill-switch, app update, auth/billing/consent,
 analytics-pipeline edits, holdout changes and guardrail edits are not
 catch-up lanes at all.
 
+Separately from startup recovery, a failed firing of the weekly DataForSEO
+collection is fired once more ten minutes later (`retryAfterFailureMs` in
+`CRON_CATCHUP_POLICIES`). Its due planner then collects, and pays for, only the
+families the failed firing left missing. Every other lane waits for its next
+regular tick after a failure.
+
 > ⚠️ Cron firing only happens while the app container runs. Its
 > `restart: unless-stopped` policy brings the runner back after a crash or a
 > reboot; a stack stopped with `pnpm os:stop` fires nothing until

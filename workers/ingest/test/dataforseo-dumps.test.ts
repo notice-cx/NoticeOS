@@ -1660,6 +1660,16 @@ describe('tracked-query SERP panel', () => {
     expect(await panelOutcome()).toEqual({ outcome: 'failure', failure: 'incomplete-report' });
   });
 
+  it('a second firing the same day buys only the panels a failed sweep left missing', async () => {
+    const failed = providerFetch({ failPath: SERP_PATH });
+    await runDataForSeoDumps(env, {
+      nowMs: NOW, fetchImpl: failed.fetchImpl, login: 'operator-login', password: 'operator-password', retryBackoffMs: FAST_RETRY,
+    });
+    const { fetchImpl, calls } = providerFetch();
+    const retry = await runDataForSeoDumps(env, {
+      nowMs: NOW + 10 * 60_000, fetchImpl, login: 'operator-login', password: 'operator-password',
+    });
+
     expect(retry).toMatchObject({ attempted: PANEL_ASSETS.length, succeeded: PANEL_ASSETS.length, failed: 0 });
     expect(calls.filter((call) => !call.url.endsWith(SERP_PATH) && !call.url.endsWith(ACCOUNT_PATH))).toEqual([]);
     expect(calls.filter((call) => call.url.endsWith(SERP_PATH))).toHaveLength(PANEL_CALLS);

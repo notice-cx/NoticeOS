@@ -20,6 +20,7 @@ import { stepResult } from './workflow-trace.mjs';
 
 const HOUR_MS = 60 * 60 * 1000;
 const DAY_MS = 24 * HOUR_MS;
+const MINUTE_MS = 60 * 1000;
 
 // ─── The record ──────────────────────────────────────────────────────────────
 
@@ -318,7 +319,10 @@ export async function shipJobRunQueue(record, { state, post = fetch, readToken, 
  * Recovery is explicit per lane. `maxAgeMs` is how long the latest missed
  * obligation remains useful; every lane runs at most once, however many ticks
  * the machine missed. Unknown cron expressions are excluded: the ingest
- * dispatch refuses them as `unknown_cron`.
+ * dispatch refuses them as `unknown_cron`. `retryAfterFailureMs`, where set, is
+ * how long after a failed firing the lane is fired once more
+ * (scripts/runner/scheduler.mjs retryFailedFiring); every other lane waits for
+ * its next regular tick.
  *
  * These are the ingest's own crons (workers/ingest/wrangler.jsonc). The
  * stack's runner adds its host lanes (scripts/runner/scheduler.mjs
@@ -340,7 +344,10 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
   // PostHog product analytics archive: an unchanged window re-archives as
   // `unchanged`, so catching it up is safe.
   { job: 'cron 30 12 * * *', expression: '30 12 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
-  { job: 'cron 45 12 * * 1', expression: '45 12 * * 1', kind: 'cron', maxAgeMs: 8 * DAY_MS },
+  // The weekly DataForSEO sweep: a failed or interrupted firing would
+  // otherwise wait a week. The retry's due planner buys only the families the
+  // failed firing left missing and resumes panel pages already paid for.
+  { job: 'cron 45 12 * * 1', expression: '45 12 * * 1', kind: 'cron', maxAgeMs: 8 * DAY_MS, retryAfterFailureMs: 10 * MINUTE_MS },
   { job: 'cron */15 * * * *', expression: '*/15 * * * *', kind: 'cron', maxAgeMs: HOUR_MS },
 ]);
 
@@ -471,6 +478,21 @@ export function scheduledDuringCatchupDecision(held, job) {
         text: `regular ${job} tick held while startup catch-up still owns that lane's recovery`,
       }
     : { run: true, outcome: null, detail: null, text: null };
+}
+
+/** How long after a failed firing `job` is fired once more, or null when it
+ * waits for its next regular tick. */
+export function retryDelayAfterFailure(job, policies = CRON_CATCHUP_POLICIES) {
+  return policies.find((policy) => policy.job === job)?.retryAfterFailureMs ?? null;
+}
+
+/** A retry firing's outcome, marked as the retry it is. */
+export function retryOutcome(mapper) {
+  return (result) => {
+    const mapped = mapper(result) ?? 'ran';
+    const normalized = typeof mapped === 'string' ? { outcome: mapped, detail: null } : mapped;
+    return { outcome: normalized.outcome, detail: ['retry after a failed firing', normalized.detail].filter(Boolean).join(' · ') };
+  };
 }
 
 /** A catch-up firing's outcome, marked with the obligation it paid. */
