@@ -226,6 +226,7 @@ import { HomeRoute } from "@/routes/HomeRoute";
 import { WallRoute } from "@/routes/WallRoute";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 import { everyTabPayload, viewOf } from "./asset-detail-fixture";
+import { backupLane, backupNight } from "./backup-lanes";
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
@@ -875,6 +876,27 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(container.querySelector("table")).toBeNull();
     expect(screen.queryByRole("button", { name: "Mark alert read" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
+  });
+
+  it("counts backups failing two nights as one broken thing, drawn in the System row that opens System health", () => {
+    const now = Date.parse("2026-07-29T12:05:00.000Z");
+    const backups = (container: HTMLElement) => container.querySelector('[data-health-cell="system:backups"]')!;
+
+    payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 1, backupNight(now, 1))] };
+    const oneNight = renderHome();
+    expect(answerLine(oneNight.container)).toHaveTextContent(/Nothing is broken\.$/);
+    expect(backups(oneNight.container)).toHaveAttribute("data-state", "overdue");
+    oneNight.unmount();
+
+    payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 12, backupNight(now, 12))] };
+    const { container } = renderHome();
+    expect(answerLine(container)).toHaveTextContent(/1 thing is broken\.$/);
+    expect(backups(container)).toHaveAttribute("data-state", "failing");
+    const link = backups(container).querySelector("a")!;
+    expect(link).toHaveAttribute("href", "/health");
+    expect(link).toHaveAccessibleName("System · Backups · Failing since 11d ago · last good copy 12d ago");
+    // The grid draws it, so the problems beside the grid do not repeat it.
+    expect(incidentKeys(container)).not.toContain("system-backups-failing");
   });
 
   it("ranks errors above warnings, newest first, and folds what has been open over a week into one line", () => {

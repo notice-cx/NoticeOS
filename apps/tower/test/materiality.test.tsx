@@ -101,7 +101,7 @@ const system: SystemData = {
   dailyCapUsd: 3,
   ingest: { fresh: 3, stale: 1, notExpected: 1, expected: 4 },
   scheduledLanes: [
-    { job: "backup", outcome: "failed", startedAt: RECENT, lastRanAt: null, failedRuns: 1, failingSince: RECENT },
+    { job: "beads-snapshot", outcome: "failed", startedAt: RECENT, lastRanAt: null, failedRuns: 1, failingSince: RECENT },
   ],
 };
 

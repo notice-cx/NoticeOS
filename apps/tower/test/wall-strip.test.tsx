@@ -6,7 +6,7 @@ import { render } from "./render";
 import { describe, expect, it, vi } from "vitest";
 import type { CalendarUpcoming } from "@noticeos/contract";
 import { NO_READS } from "@shared/connection-status";
-import type { AssetCard, SystemBand } from "@shared/wall";
+import type { AssetCard, ScheduledLane, SystemBand } from "@shared/wall";
 import {
   WallStrip,
   stripClock,
@@ -16,6 +16,7 @@ import {
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { failingSources, wallIssues } from "@/lib/wall-issues";
 import { failingSourceCount, wallSystemState, withSystemIssues, type WallSystemStateKind } from "@/lib/wall-system-state";
+import { backupLane, backupNight, pressedBackupLane } from "./backup-lanes";
 
 const NOW = Date.parse("2026-09-22T12:00:00.000Z");
 const HOUR = 3_600_000;
@@ -33,6 +34,9 @@ const HEALTHY: SystemBand = {
   ingest: { fresh: 5, stale: 0, notExpected: 2, expected: 5 },
   scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * HOUR), lastRanAt: iso(-3 * HOUR), failedRuns: 0, failingSince: null }],
 };
+
+/** A scheduled job other than the backup, failed an hour ago. */
+const FAILED_JOB: ScheduledLane = { job: "beads-snapshot", outcome: "failed", startedAt: iso(-HOUR), lastRanAt: iso(-2 * HOUR), failedRuns: 1, failingSince: iso(-HOUR) };
 
 function site(id: string, uptime: "live" | "degraded" | "skipped" = "live"): AssetCard {
   return {
@@ -87,7 +91,7 @@ describe("the one system state", () => {
   it("names each failure in at most four words, with its tone", () => {
     const cases: [SystemBand, number, WallSystemStateKind, "error" | "warn", string][] = [
       [{ ...HEALTHY, hasPulse: false }, 0, "os-report-missing", "error", "OS report missing"],
-      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }] }, 0, "job-failed", "error", "A scheduled job failed"],
+      [{ ...HEALTHY, scheduledLanes: [FAILED_JOB] }, 0, "job-failed", "error", "A scheduled job failed"],
       [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, 0, "jobs-silent", "error", "Scheduled jobs silent"],
       [HEALTHY, 2, "sources-failing", "error", "2 sources failing"],
       [HEALTHY, 1, "sources-failing", "error", "1 source failing"],
@@ -104,7 +108,7 @@ describe("the one system state", () => {
     const everything: SystemBand = {
       ...HEALTHY,
       hasPulse: false,
-      scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }],
+      scheduledLanes: [FAILED_JOB],
       ingest: { ...HEALTHY.ingest, stale: 2 },
       spendTodayUsd: 9,
     };
@@ -148,10 +152,10 @@ describe("the one system state", () => {
   });
 
   it("keeps simultaneous OS, scheduled-job and spend failures as specific ordered rows", () => {
-    const broken = { ...HEALTHY, hasPulse: false, spendTodayUsd: 9, scheduledLanes: [{ job: "backup", outcome: "failed" as const, startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }] };
+    const broken = { ...HEALTHY, hasPulse: false, spendTodayUsd: 9, scheduledLanes: [FAILED_JOB] };
     const issues = withSystemIssues([], broken, NOW);
     expect(issues.map(issue => issue.key)).toEqual(["system-job-failed", "system-os-report-missing", "system-over-pace"]);
-    expect(issues[0]?.line).toMatch(/backup.*failed/i);
+    expect(issues[0]?.line).toBe("Task board refresh failed");
     const view = render(<NeedsYou issues={[]} system={broken} nowMs={NOW} />);
     for (const condition of ["os-runner-health", "scheduled-lane-health", "budget-guardrail"]) {
       expect(view.container.querySelector(`[data-needs-row][data-material-condition~="${condition}"] svg`)).not.toBeNull();
@@ -176,6 +180,51 @@ describe("the one system state", () => {
     expect(withSystemIssues([], { ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, NOW)[0]?.line).toBe("Scheduled jobs silent");
   });
 
+});
+
+describe("a failing backup in Needs attention", () => {
+  const withBackup = (lane: ScheduledLane): SystemBand => ({ ...HEALTHY, scheduledLanes: [lane] });
+  const backupRows = (lane: ScheduledLane) => withSystemIssues([], withBackup(lane), NOW).filter((issue) => issue.key.startsWith("system-"));
+
+  it("lists nothing after one failed night, and does not call it a failed job", () => {
+    const oneNight = backupLane(NOW, 1, backupNight(NOW, 1));
+    expect(backupRows(oneNight)).toEqual([]);
+    expect(wallSystemState(withBackup(oneNight), 0, NOW).kind).toBe("healthy");
+  });
+
+  it("lists one System row after two failed nights, dated from the first, with the last good copy's age", () => {
+    expect(backupRows(backupLane(NOW, 2, backupNight(NOW, 2)))).toEqual([{
+      key: "system-backups-failing", severity: "error", assets: ["os"], site: "OS",
+      line: "Backups failing · last good copy 2d ago", mark: "Backups failing",
+      since: backupNight(NOW, 1), conditions: ["scheduled-lane-health"],
+    }]);
+  });
+
+  it("keeps one row however many nights failed, and draws it on the Wall's list", () => {
+    const twelve = backupLane(NOW, 12, backupNight(NOW, 12));
+    const rows = backupRows(twelve);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ line: "Backups failing · last good copy 12d ago", since: backupNight(NOW, 11) });
+    expect(withSystemIssues(rows, withBackup(twelve), NOW)).toEqual(rows);
+    const view = render(<NeedsYou issues={[]} system={withBackup(twelve)} nowMs={NOW} />);
+    expect(view.container.querySelectorAll("[data-needs-row]")).toHaveLength(1);
+    expect(view.container.querySelector('[data-needs-row="error"] [data-needs-line]')).toHaveTextContent("Backups failing · last good copy 12d ago");
+  });
+
+  it("goes once a backup runs after the failures, scheduled or pressed", () => {
+    expect(backupRows(backupLane(NOW, 0, backupNight(NOW, 0)))).toEqual([]);
+    expect(backupRows(pressedBackupLane(NOW, iso(-HOUR)))).toEqual([]);
+  });
+
+  it("reads no good copy yet when none was ever made", () => {
+    expect(backupRows(backupLane(NOW, 2, null))).toMatchObject([{ key: "system-backups-failing", line: "Backups failing · no good copy yet" }]);
+  });
+
+  it("stands beside a failed scheduled job as its own row", () => {
+    const rows = withSystemIssues([], { ...HEALTHY, scheduledLanes: [backupLane(NOW, 3, backupNight(NOW, 3)), FAILED_JOB] }, NOW);
+    expect(rows.map((issue) => issue.key)).toEqual(["system-job-failed", "system-backups-failing"]);
+    expect(rows[0]?.line).toBe("Task board refresh failed");
+  });
 });
 
 describe("the strip's time, meeting and countdown", () => {
