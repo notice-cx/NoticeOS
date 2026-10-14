@@ -5,8 +5,9 @@
 //
 //   - a loopback port that is never an owner port (journey-port.mjs): a free
 //     one from the OS, or one the caller pinned;
-//   - an environment holding PATH, that port and the run's throwaway Postgres
-//     (JOURNEY_POSTGRES, below) only — no other URL, no secrets, nothing
+//   - an environment holding PATH, that port, the run's throwaway Postgres
+//     (JOURNEY_POSTGRES, below) and, when the run names one, the built app to
+//     serve (JOURNEY_BUILT_CLIENT) only — no other URL, no secrets, nothing
 //     else inherited from the shell that ran the tests;
 //   - ready only once the server has printed that its isolation guard is armed
 //     and that it listens;
@@ -93,7 +94,8 @@ async function launch(port, timeoutMs) {
   const postgres = await journeyPostgres();
   const child = spawn(process.execPath, [path.join(HERE, "server.mjs")], {
     cwd: path.resolve(HERE, ".."),
-    env: { PATH: process.env.PATH, JOURNEY_PORT: String(port), [JOURNEY_POSTGRES]: JSON.stringify(postgres) },
+    env: { PATH: process.env.PATH, JOURNEY_PORT: String(port), [JOURNEY_POSTGRES]: JSON.stringify(postgres),
+      ...(process.env.JOURNEY_BUILT_CLIENT ? { JOURNEY_BUILT_CLIENT: path.resolve(process.env.JOURNEY_BUILT_CLIENT) } : {}) },
     stdio: ["ignore", "pipe", "pipe", "ipc"],
   });
   // The channel is only a lifeline for the server; it never keeps a runner alive.

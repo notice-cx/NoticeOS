@@ -18,6 +18,11 @@ import { emptyWorkHistory } from "@shared/work";
 
 /** A journey the mobile project does not schedule (playwright.config.ts):
  * it walks its own screen sizes, or what it pins does not depend on one. */
+/** A run against a built app (JOURNEY_BUILT_CLIENT, e2e/server.mjs) serves
+ * bundles, so a journey that names the source modules a page loads skips. */
+const BUILT_APP = Boolean(process.env.JOURNEY_BUILT_CLIENT);
+const NAMES_SOURCE_MODULES = "names the source modules a page loads; a built app serves bundles";
+
 function desktopOnly(reason: string) {
   return { tag: DESKTOP_ONLY, annotation: { type: "desktop only", description: reason } };
 }
@@ -1349,7 +1354,8 @@ test("the TV layout's preview draws the TV dark on a light desk, exactly as the 
 
   expect(preview).toEqual(tv);
   // And the TV's are the dark set, not merely equal to each other.
-  expect(tv.tokens["--background"]).toBe("oklch(0 0 0)");
+  // Black, as source or as a build writes it.
+  expect(tv.tokens["--background"]).toMatch(/^oklch\(0%? 0 0\)$/u);
   await page.goto("/wall/edit");
   await page.locator("[data-wall-preview]").screenshot({ path: testInfo.outputPath("preview-light-desk.png") });
 });
@@ -2756,6 +2762,7 @@ async function openAndList(page: Page, path: string, landmark: (page: Page) => P
 }
 
 test("each main address loads its own screen and no other", async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
 
@@ -2812,6 +2819,7 @@ const WALL_EDITOR_MODULE =
   /pragmatic-drag-and-drop|\/src\/lib\/wall-editor\.ts$|\/src\/components\/wall\/(WallPreview|WallDividers|WallMoveMenu|WallToolbar|WallLibraryPanel|WallWidgetPanel|WallVersions)\.tsx$/;
 
 test("the TV downloads no desk editing or task code, and none of the widgets the Wall retired", async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   const modules = await openAndListModules(page, "/wall", async (p) => {
     await expect(p.locator("[data-wall-strip]")).toBeVisible();
   });
@@ -2875,6 +2883,7 @@ test("an asset's tabs fetch their code when opened, and the palette on its first
 });
 
 test("an asset tab whose code cannot be fetched preserves its panel and recovers explicitly in a new tab", async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   await createAsset(page);
   // A tab opened before a rebuild asks for a file the server no longer has.
   let refused = 0;
@@ -2925,6 +2934,7 @@ test("an asset tab whose code cannot be fetched preserves its panel and recovers
 });
 
 test("a screen whose code cannot be fetched preserves its document and recovers explicitly in a new tab", async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   // A tab opened before a rebuild asks for a file the server no longer has.
   let refused = 0;
   const missing = "**/src/routes/TasksRoute.tsx*";
@@ -2968,6 +2978,7 @@ test("a screen whose code cannot be fetched preserves its document and recovers 
 });
 
 test("the nav fetches a screen's code when the pointer rests on its link", desktopOnly("the phone's nav is a drawer opened by a tap, which is the click"), async ({ page }) => {
+  test.skip(BUILT_APP, NAMES_SOURCE_MODULES);
   await page.goto("/");
   await expect(page.locator("[data-first-run]")).toBeVisible();
   const settings = page.waitForRequest((request) => new URL(request.url()).pathname.endsWith("/src/routes/SettingsRoute.tsx"));
