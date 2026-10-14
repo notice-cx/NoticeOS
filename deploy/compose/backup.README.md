@@ -79,6 +79,11 @@ bindings, database credentials, task selector, task inventory, task project
 configuration and worker/exporter declarations. If a source credential or
 declaration changes during capture, the set is not published.
 
+The offsite copy leaves out `recovery/`; only the local set has it. The copy
+creates every file and folder itself and sets its mode and owner through the
+descriptor it created, so a sync client that hard-links files while uploading
+them does not affect it. Symbolic links and other special files are refused.
+
 The job result the application records names only the first failed stage.
 Every run writes each stage's result and redacted errors to
 `/state/.local/backup-report.json` (the application's state folder), mode

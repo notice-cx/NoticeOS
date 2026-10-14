@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BACKUP_PATHS } from './container-backup-profile.mjs';
 import { writeSecrets } from './postgres-secrets.mjs';
-import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup } from './container-backup-transport.mjs';
+import { dumpContainerPostgres, copyContainerRecovery, verifyContainerRecovery, ownContainerBackup, copyOffsiteBackup } from './container-backup-transport.mjs';
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'noticeos-backup-transport-'));
@@ -67,6 +67,37 @@ test('Postgres dump uses only the fixed private socket and does not inherit netw
   assert.deepEqual(calls[0].args, ['--host=/postgres-socket', '--port=5432', '--username=postgres', '--dbname=noticeos', '--no-password', '--format=custom', `--file=${output}`]);
   for (const name of ['DATABASE_URL', 'PGHOST', 'CLOUDFLARE_API_TOKEN', 'DOCKER_HOST']) assert.equal(calls[0].options.env[name], undefined);
   await assert.rejects(dumpContainerPostgres('/other/noticeos.dump', { run: () => assert.fail('no command may run') }), /no complete backup/u);
+});
+
+test('the offsite copy creates and owns each entry itself, leaves out recovery and tolerates a sync client hard-linking files', async t => {
+  const f = fixture(t);
+  const source = '/state/.local/backups/2026-10-14', output = `${BACKUP_PATHS.offsite}/.backup-copy`;
+  f.write(path.join(source, 'backup.json'), '{"complete":true}');
+  f.write(path.join(source, 'r2/blobs/a'), 'blob-a');
+  f.write(path.join(source, 'beads/recovery/kept'), 'nested name is not the recovery folder');
+  f.write(path.join(source, 'recovery/bootstrap.json'), 'synthetic-secret');
+  fs.mkdirSync(f.map(output), { recursive: true, mode: 0o755 });
+  const ownership = { operatorUid: process.getuid(), operatorGid: process.getgid() };
+  // Drive for Desktop hard-links each new file into its upload area.
+  const uploads = f.map('/sync-client-uploads'); fs.mkdirSync(uploads);
+  const io = { ...f.io, open: async (file, flags, mode) => {
+    const handle = await f.io.open(file, flags, mode);
+    if (flags & fs.constants.O_CREAT) fs.linkSync(f.map(file), path.join(uploads, String(fs.readdirSync(uploads).length)));
+    return handle;
+  } };
+  await copyOffsiteBackup(source, output, ownership, { fs: io, omit: ['recovery'] });
+  assert.equal(fs.existsSync(f.map(path.join(output, 'recovery'))), false);
+  assert.equal(fs.readFileSync(f.map(path.join(output, 'r2/blobs/a')), 'utf8'), 'blob-a');
+  assert.equal(fs.readFileSync(f.map(path.join(output, 'beads/recovery/kept')), 'utf8'), 'nested name is not the recovery folder');
+  assert.equal(fs.statSync(f.map(path.join(output, 'r2/blobs/a'))).nlink, 2);
+  for (const file of ['backup.json', 'r2/blobs/a']) assert.equal(fs.statSync(f.map(path.join(output, file))).mode & 0o777, 0o600);
+  for (const folder of ['', 'r2', 'r2/blobs', 'beads/recovery']) assert.equal(fs.statSync(f.map(path.join(output, folder))).mode & 0o777, 0o700);
+
+  fs.symlinkSync(f.map('/state/task-client.json'), f.map(path.join(source, 'alias')));
+  const again = `${BACKUP_PATHS.offsite}/.backup-again`; fs.mkdirSync(f.map(again));
+  await assert.rejects(copyOffsiteBackup(source, again, ownership, { fs: f.io }), /no complete backup/u);
+  await assert.rejects(copyOffsiteBackup('/state/elsewhere', again, ownership, { fs: f.io }), /no complete backup/u);
+  await assert.rejects(copyOffsiteBackup(source, '/backup-offsite/other', ownership, { fs: f.io }), /no complete backup/u);
 });
 
 test('publication assigns private files and directories to the declared restore identity and refuses aliases', async t => {

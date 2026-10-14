@@ -47,6 +47,50 @@ function outputChecked(output) {
   if (typeof output !== 'string' || !output.startsWith('/state/.local/backups/.backup-') ||
     path.resolve(output) !== output || /[\r\n\0]/u.test(output)) refusal();
 }
+const { O_RDONLY, O_WRONLY, O_CREAT, O_EXCL, O_NOFOLLOW, O_DIRECTORY } = fsSync.constants;
+
+/**
+ * Copy a published set into a fresh offsite working folder. Each entry is
+ * created here and given its mode and owner through its own descriptor: a sync
+ * client hard-links files it is uploading, so nothing is changed by path after
+ * the copy. Top-level names in `omit` stay out of the copy.
+ */
+export async function copyOffsiteBackup(source, output, worker, { fs: io = fs, omit = [] } = {}) {
+  if (typeof source !== 'string' || !/^\/state\/\.local\/backups\/\d{4}-\d{2}-\d{2}$/u.test(source)) refusal();
+  if (typeof output !== 'string' || !output.startsWith(`${BACKUP_PATHS.offsite}/.backup-`) || path.resolve(output) !== output) refusal();
+  const own = async (handle, mode) => {
+    try { await handle.chmod(mode); await handle.chown(worker.operatorUid, worker.operatorGid); }
+    finally { await handle.close(); }
+  };
+  const buffer = Buffer.allocUnsafe(1 << 20);
+  const copy = async (from, to, top) => {
+    await own(await io.open(to, O_RDONLY | O_DIRECTORY | O_NOFOLLOW), 0o700);
+    for (const entry of await io.readdir(from, { withFileTypes: true })) {
+      if (top && omit.includes(entry.name)) continue;
+      if (entry.isSymbolicLink() || (!entry.isDirectory() && !entry.isFile())) refusal();
+      const [next, target] = [path.join(from, entry.name), path.join(to, entry.name)];
+      if (entry.isDirectory()) {
+        await io.mkdir(target, { mode: 0o700 });
+        await copy(next, target, false);
+        continue;
+      }
+      const input = await io.open(next, O_RDONLY | O_NOFOLLOW);
+      try {
+        const written = await io.open(target, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW, 0o600);
+        try {
+          await written.chmod(0o600); await written.chown(worker.operatorUid, worker.operatorGid);
+          for (let position = 0; ;) {
+            const { bytesRead } = await input.read(buffer, 0, buffer.length, position);
+            if (!bytesRead) break;
+            for (let offset = 0; offset < bytesRead;) offset += (await written.write(buffer, offset, bytesRead - offset)).bytesWritten;
+            position += bytesRead;
+          }
+        } finally { await written.close(); }
+      } finally { await input.close(); }
+    }
+  };
+  await copy(source, output, true);
+}
 function sourceCredentials(io) {
   return { root: privateBackupFile('/run/dolt-secrets/root', io).text,
     noticeos: privateBackupFile('/run/dolt-secrets/noticeos', io).text,
@@ -175,10 +219,8 @@ export async function verifyContainerRecovery(output, options = {}) {
   }
 }
 
-export async function ownContainerBackup(output, worker, { fs: io = fs, offsite = false } = {}) {
-  if (offsite) {
-    if (!output.startsWith(`${BACKUP_PATHS.offsite}/.backup-`) || path.resolve(output) !== output) refusal();
-  } else outputChecked(output);
+export async function ownContainerBackup(output, worker, { fs: io = fs } = {}) {
+  outputChecked(output);
   const visit = async directory => {
     const entries = await io.readdir(directory, { withFileTypes: true });
     for (const entry of entries) {
