@@ -101,7 +101,7 @@ const system: SystemData = {
   dailyCapUsd: 3,
   ingest: { fresh: 3, stale: 1, notExpected: 1, expected: 4 },
   scheduledLanes: [
-    { job: "backup", outcome: "failed", startedAt: RECENT },
+    { job: "backup", outcome: "failed", startedAt: RECENT, lastRanAt: null, failedRuns: 1, failingSince: RECENT },
   ],
 };
 
@@ -205,7 +205,7 @@ describe("material current-state fixtures", () => {
     ...system,
     spendTodayUsd: 1,
     ingest: { fresh: 5, stale: 0, notExpected: 0, expected: 5 },
-    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: RECENT }],
+    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: RECENT, lastRanAt: RECENT, failedRuns: 0, failingSince: null }],
   };
   const reportLate = { key: "report-fixture", severity: "warn" as const, assets: ["fixture.example"], site: "Fixture", line: "No nightly report in 62h", mark: "Report late", since: RECENT, conditions: ["signal-freshness" as const] };
   const cases = [
@@ -280,7 +280,7 @@ describe("Needs attention, when a layout places it", () => {
     ...system,
     spendTodayUsd: 1,
     ingest: { fresh: 5, stale: 0, notExpected: 0, expected: 5 },
-    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: RECENT }],
+    scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: RECENT, lastRanAt: RECENT, failedRuns: 0, failingSince: null }],
   };
 
   it.each([

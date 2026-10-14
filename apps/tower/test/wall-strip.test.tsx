@@ -31,7 +31,7 @@ const HEALTHY: SystemBand = {
   spendTodayUsd: 0.41,
   dailyCapUsd: 0.83,
   ingest: { fresh: 5, stale: 0, notExpected: 2, expected: 5 },
-  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * HOUR) }],
+  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * HOUR), lastRanAt: iso(-3 * HOUR), failedRuns: 0, failingSince: null }],
 };
 
 function site(id: string, uptime: "live" | "degraded" | "skipped" = "live"): AssetCard {
@@ -87,8 +87,8 @@ describe("the one system state", () => {
   it("names each failure in at most four words, with its tone", () => {
     const cases: [SystemBand, number, WallSystemStateKind, "error" | "warn", string][] = [
       [{ ...HEALTHY, hasPulse: false }, 0, "os-report-missing", "error", "OS report missing"],
-      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR) }] }, 0, "job-failed", "error", "A scheduled job failed"],
-      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY) }] }, 0, "jobs-silent", "error", "Scheduled jobs silent"],
+      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }] }, 0, "job-failed", "error", "A scheduled job failed"],
+      [{ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, 0, "jobs-silent", "error", "Scheduled jobs silent"],
       [HEALTHY, 2, "sources-failing", "error", "2 sources failing"],
       [HEALTHY, 1, "sources-failing", "error", "1 source failing"],
       [{ ...HEALTHY, ingest: { ...HEALTHY.ingest, fresh: 4, stale: 1 } }, 0, "reports-stale", "warn", "1 report stale"],
@@ -104,7 +104,7 @@ describe("the one system state", () => {
     const everything: SystemBand = {
       ...HEALTHY,
       hasPulse: false,
-      scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR) }],
+      scheduledLanes: [{ job: "backup", outcome: "failed", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }],
       ingest: { ...HEALTHY.ingest, stale: 2 },
       spendTodayUsd: 9,
     };
@@ -119,7 +119,7 @@ describe("the one system state", () => {
     // up is calm, not red.
     expect(state({ ...HEALTHY, assetId: null, hasPulse: false })).toMatchObject({ kind: "healthy", severity: null });
     expect(state({ ...HEALTHY, scheduledLanes: [] }).kind).toBe("healthy");
-    expect(state({ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "skipped", startedAt: iso(-HOUR) }] }).kind).toBe("healthy");
+    expect(state({ ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "skipped", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 0, failingSince: null }] }).kind).toBe("healthy");
     expect(state({ ...HEALTHY, ingest: { ...HEALTHY.ingest, notExpected: 3 } }).kind).toBe("healthy");
   });
 
@@ -148,7 +148,7 @@ describe("the one system state", () => {
   });
 
   it("keeps simultaneous OS, scheduled-job and spend failures as specific ordered rows", () => {
-    const broken = { ...HEALTHY, hasPulse: false, spendTodayUsd: 9, scheduledLanes: [{ job: "backup", outcome: "failed" as const, startedAt: iso(-HOUR) }] };
+    const broken = { ...HEALTHY, hasPulse: false, spendTodayUsd: 9, scheduledLanes: [{ job: "backup", outcome: "failed" as const, startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 1, failingSince: iso(-HOUR) }] };
     const issues = withSystemIssues([], broken, NOW);
     expect(issues.map(issue => issue.key)).toEqual(["system-job-failed", "system-os-report-missing", "system-over-pace"]);
     expect(issues[0]?.line).toMatch(/backup.*failed/i);
@@ -172,8 +172,8 @@ describe("the one system state", () => {
 
   it("keeps new installations and intentionally skipped schedules calm, but shows recorded silence", () => {
     expect(withSystemIssues([], { ...HEALTHY, assetId: null, hasPulse: false, scheduledLanes: [] }, NOW)).toEqual([]);
-    expect(withSystemIssues([], { ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "skipped", startedAt: iso(-HOUR) }] }, NOW)).toEqual([]);
-    expect(withSystemIssues([], { ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY) }] }, NOW)[0]?.line).toBe("Scheduled jobs silent");
+    expect(withSystemIssues([], { ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "skipped", startedAt: iso(-HOUR), lastRanAt: null, failedRuns: 0, failingSince: null }] }, NOW)).toEqual([]);
+    expect(withSystemIssues([], { ...HEALTHY, scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(-3 * DAY), lastRanAt: iso(-3 * DAY), failedRuns: 0, failingSince: null }] }, NOW)[0]?.line).toBe("Scheduled jobs silent");
   });
 
 });

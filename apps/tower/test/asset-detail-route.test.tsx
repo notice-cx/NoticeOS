@@ -778,8 +778,8 @@ describe("AssetDetailRoute — material state on the current screens", () => {
     const data = payload();
     data.asset = { ...data.asset, id: "root-os", displayName: "NoticeOS", domain: null, isOs: true };
     data.scheduledLanes = [
-      { job: "backup", outcome: "failed", startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString() },
-      { job: "beads-snapshot", outcome: "ran", startedAt: new Date(Date.now() - 3_600_000).toISOString() },
+      { job: "backup", outcome: "failed", startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), lastRanAt: null, failedRuns: 1, failingSince: new Date(Date.now() - 2 * 3_600_000).toISOString() },
+      { job: "beads-snapshot", outcome: "ran", startedAt: new Date(Date.now() - 3_600_000).toISOString(), lastRanAt: new Date(Date.now() - 3_600_000).toISOString(), failedRuns: 0, failingSince: null },
     ];
     stubFetch(200, data);
     const { container, findByText } = renderRoute("root-os", "", "sources");

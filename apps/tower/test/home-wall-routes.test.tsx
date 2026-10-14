@@ -33,7 +33,7 @@ const payload = vi.hoisted(
       dailyCapUsd: 2,
       ingest: { fresh: 1, stale: 0, notExpected: 0, expected: 1 },
       scheduledLanes: [
-        { job: "backup", outcome: "ran", startedAt: "2026-07-29T11:00:00.000Z" },
+        { job: "backup", outcome: "ran", startedAt: "2026-07-29T11:00:00.000Z", lastRanAt: "2026-07-29T11:00:00.000Z", failedRuns: 0, failingSince: null },
       ],
     },
     dashboard: {

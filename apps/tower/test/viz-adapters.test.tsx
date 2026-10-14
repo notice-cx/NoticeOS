@@ -5,7 +5,12 @@ import { render, screen } from "./render";
 import { WorkFlow, workQueue, workScale } from "@/components/viz/WorkFlow";
 import { drawnByHealthGrid, incidentsFromIssues, systemHealthRow, workFlowRows } from "@/lib/viz-adapters";
 import type { WallIssue } from "@/lib/wall-issues";
+import { backupLane, backupNight, pressedBackupLane } from "./backup-lanes";
 
+const NOW = Date.parse("2026-10-14T16:00:00.000Z");
+
+// The office installation on 2026-10-14: a good copy on 2026-10-02, then
+// twelve failed nights.
 const SYSTEM: SystemBand = {
   assetId: "os.example",
   hasPulse: true,
@@ -13,8 +18,8 @@ const SYSTEM: SystemBand = {
   dailyCapUsd: 1,
   ingest: { fresh: 1, stale: 0, notExpected: 0, expected: 1 },
   scheduledLanes: [
-    { job: "backup", outcome: "failed", startedAt: "2026-10-11T15:00:00.000Z" },
-    { job: "signals", outcome: "ran", startedAt: "2026-10-11T16:00:00.000Z" },
+    backupLane(NOW, 12, "2026-10-02T04:00:00.000Z"),
+    { job: "signals", outcome: "ran", startedAt: "2026-10-14T15:00:00.000Z", lastRanAt: "2026-10-14T15:00:00.000Z", failedRuns: 0, failingSince: null },
   ],
 };
 
@@ -23,14 +28,32 @@ const issue = (key: string, severity: "error" | "warn" = "error"): WallIssue => 
 });
 
 describe("the system row", () => {
-  it("dates a failed backup from its run and leaves an unrun scheduler unknown", () => {
-    const row = systemHealthRow(SYSTEM);
+  const backups = (lanes: SystemBand["scheduledLanes"]) =>
+    systemHealthRow({ ...SYSTEM, scheduledLanes: lanes }, NOW).cells.find((cell) => cell.column === "backups")!;
+
+  it("dates a backup outage from its first failed night, with the last good copy's age, and leaves an unrun scheduler unknown", () => {
+    const row = systemHealthRow(SYSTEM, NOW);
     const cell = (id: string) => row.cells.find((candidate) => candidate.column === id)!;
-    expect(cell("backups")).toMatchObject({ state: "failing", since: "2026-10-11T15:00:00.000Z" });
+    expect(cell("backups")).toMatchObject({ state: "failing", since: "2026-10-03T04:00:00.000Z", detail: "last good copy 12d ago" });
     expect(cell("jobs").state).toBe("working");
     expect(cell("os-report").state).toBe("working");
-    expect(systemHealthRow({ ...SYSTEM, scheduledLanes: [] }).cells.find((c) => c.column === "jobs")!.state).toBe("unknown");
-    expect(systemHealthRow({ ...SYSTEM, spendTodayUsd: 2 }).cells.find((c) => c.column === "spend")!.state).toBe("overdue");
+    expect(systemHealthRow({ ...SYSTEM, scheduledLanes: [] }, NOW).cells.find((c) => c.column === "jobs")!.state).toBe("unknown");
+    expect(systemHealthRow({ ...SYSTEM, spendTodayUsd: 2 }, NOW).cells.find((c) => c.column === "spend")!.state).toBe("overdue");
+  });
+
+  it("is amber after one failed night and failing after two", () => {
+    expect(backups([backupLane(NOW, 1, backupNight(NOW, 1))])).toMatchObject({ state: "overdue", since: backupNight(NOW, 0), detail: "last good copy 1d ago" });
+    expect(backups([backupLane(NOW, 2, backupNight(NOW, 2))])).toMatchObject({ state: "failing", since: backupNight(NOW, 1), detail: "last good copy 2d ago" });
+  });
+
+  it("is working again once a backup runs after the failures, scheduled or pressed", () => {
+    expect(backups([backupLane(NOW, 0, backupNight(NOW, 0))])).toMatchObject({ state: "working", since: null, detail: "last good copy 12h ago" });
+    expect(backups([pressedBackupLane(NOW, "2026-10-14T14:00:00.000Z")])).toMatchObject({ state: "working", since: null, detail: "last good copy 2h ago" });
+  });
+
+  it("reads no good copy yet when none was ever made", () => {
+    expect(backups([backupLane(NOW, 3, null)])).toMatchObject({ state: "failing", since: backupNight(NOW, 2), detail: "no good copy yet" });
+    expect(backups([])).toMatchObject({ state: "not-connected", detail: "no good copy yet" });
   });
 });
 
