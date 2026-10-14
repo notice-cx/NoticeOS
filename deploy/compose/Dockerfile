@@ -53,7 +53,10 @@ RUN case "$TARGETARCH" in \
 RUN npm install --global pnpm@12.8.1
 WORKDIR /opt/noticeos
 COPY . .
+# The built app a production installation serves (apps/tower/vite/built-client.ts),
+# built before /state exists so the build reads the image's defaults only.
 RUN pnpm install --frozen-lockfile \
+    && pnpm --filter @noticeos/tower run build \
     && chmod 644 node_modules/.pnpm-workspace-state-v1.json \
     && mkdir -p /opt/noticeos/apps/tower/node_modules/.vite-temp \
     && ln -s /state/.local .local && ln -s /state/.wrangler .wrangler \

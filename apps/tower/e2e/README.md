@@ -103,6 +103,20 @@ The HTML report and selected screenshot attachments are written under
 `apps/tower/e2e/playwright-report/`; failure traces use
 `apps/tower/e2e/test-results/`. Both are ignored generated artifacts.
 
+## Against the built app
+
+A production installation serves the Tower as a built bundle
+(`apps/tower/vite/built-client.ts`); the journeys normally run against the
+source modules. To run them against a bundle, build one without its release,
+which the journeys' stubbed reads do not carry, and name its folder:
+
+```sh
+JOURNEY_BUILD=1 pnpm --filter @noticeos/tower exec vite build --outDir /tmp/journey-build
+JOURNEY_BUILT_CLIENT=/tmp/journey-build/client pnpm --filter @noticeos/tower run test:journeys
+```
+
+The journeys that name the source modules a page loads skip in that run.
+
 ## The UX flow walker
 
 `pnpm test:journeys` ends with the flow walker (`flow-gate.mjs`, also

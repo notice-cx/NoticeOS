@@ -38,6 +38,7 @@ import { reconnectPage } from "./vite/reconnect-page";
 import { taskLane } from "./vite/task-lane";
 import { changeLane } from "./vite/change-lane";
 import { compressReplies } from "./vite/compress-replies";
+import { builtClient } from "./vite/built-client";
 import { mcpLane } from "./vite/mcp-lane";
 import { installationLane } from "./vite/installation-lane";
 import { scheduledJobsLane } from "./vite/scheduled-jobs-lane";
@@ -182,6 +183,12 @@ export default defineConfig(({ command }) => {
     // requests before the Cloudflare plugin dispatches them to the Worker.
     ...(serverProfile === "standalone" ? [ingestDoor()] : []),
     appReleaseLane(appRelease),
+    // A production installation's image holds the built app (vite/built-client.ts).
+    builtClient({
+      distClient: path.resolve(rootDir, "dist/client"),
+      release: appRelease,
+      serve: command === "serve" && serverProfile === "standalone" && demoLaunch === null && process.env.NOTICEOS_IMMUTABLE_APP === "1",
+    }),
     documentHeadPlugin(serverProfile, path.join(rootDir, "vite/demo-head.html")),
     ...(demoLaunch === null ? [] : [demoViewerLane(demoLaunch.installation.viewer)]),
     // The local lanes answer only while `vite` serves a standalone profile;
@@ -259,12 +266,22 @@ export default defineConfig(({ command }) => {
             // `sideEffects` answer.
             moduleSideEffects: (id: string) => (CONTRACT_SOURCE.test(id) ? false : undefined),
           },
+          output: {
+            // Every icon became its own file, most under 300 bytes: they ship
+            // as one. The routes' shared modules keep the bundler's own split:
+            // a group of them carries everything they import (642 KB), and
+            // Rolldown's entries-aware grouping built a bundle that failed at
+            // startup.
+            codeSplitting: { groups: [{ name: "icons", test: /lucide/u }] },
+          },
         },
       },
     },
   },
   define: {
-    __NOTICEOS_RELEASE__: JSON.stringify(appRelease),
+    // A journey build (JOURNEY_BUILD=1) leaves the release out, as source
+    // serving does: the journeys answer reads from stubs that carry none.
+    __NOTICEOS_RELEASE__: JSON.stringify(process.env.JOURNEY_BUILD === "1" ? null : appRelease),
     __NOTICEOS_SOURCE_VERSION__: JSON.stringify(appSourceVersion),
     __NOTICEOS_LIVE_SOURCE__: JSON.stringify(Boolean(liveSourceRoot)),
     __DEMO_VIEWER__: JSON.stringify(demoLaunch?.installation.viewer ?? null),
