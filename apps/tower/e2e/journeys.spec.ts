@@ -1976,6 +1976,32 @@ test("an open page hears of a changed task list and new feed events through the 
   expect(reads.filter((read) => !["/api/wall/feed", "/api/wall"].includes(read))).toEqual([]);
 });
 
+test("a page without the change stream polls while it is shown and sends nothing while its tab is hidden", async ({ page }) => {
+  await createAsset(page);
+  // As a hosted workspace: no stream, so the page polls.
+  await page.route("**/api/changes", (route) => route.fulfill({ status: 404, json: { error: "not_found" } }));
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  await page.clock.install({ time: new Date(JOURNEY_NOW) });
+  await page.goto("/");
+  await expect(page.locator("[data-home-brief]")).toHaveCount(1);
+  const polls: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/")) polls.push(url.pathname); });
+  const setHidden = (hidden: boolean) => page.evaluate((value) => {
+    Object.defineProperty(document, "visibilityState", { value: value ? "hidden" : "visible", configurable: true });
+    Object.defineProperty(document, "hidden", { value, configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, hidden);
+
+  await setHidden(true);
+  await page.clock.runFor("03:00");
+  expect(polls).toEqual([]);
+
+  await setHidden(false);
+  await page.clock.runFor("01:05");
+  // Shown again: the session is checked and the sites' read polls again.
+  await expect.poll(() => polls.includes("/api/wall")).toBe(true);
+});
+
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
