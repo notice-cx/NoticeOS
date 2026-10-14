@@ -27,6 +27,11 @@ export function generateDemoDisplay(scenario: DemoScenario) {
   const siteWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'sites');
   if (!siteWidget) throw new Error('The released Wall has no site region.');
   siteWidget.settings = { pulseMetrics: Object.fromEntries(sites.map(asset => [asset.id, [asset.event!]])) };
+  // The live feed takes the work tile's place, so a visitor sees the
+  // simulator's agents claim and close tasks; the loop above keeps the counts.
+  const workWidget = wallLayoutWidgets(layout).find(widget => widget.type === 'work');
+  if (!workWidget) throw new Error('The released Wall has no work region.');
+  Object.assign(workWidget, { id: 'feed', type: 'feed' });
   const labels: Record<string, string> = {
     brief_exports: 'Brief exports', source_saves: 'Source saves', completed_checks: 'Completed checks', recipe_saves: 'Recipe saves', route_downloads: 'Route downloads',
   };
