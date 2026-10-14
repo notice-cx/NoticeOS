@@ -20,6 +20,103 @@
       type="font/woff2"
       crossorigin
     />
+    <!-- The boot splash below #root, styled here so it draws before the app's
+         stylesheet arrives. It shows nothing for its first 180 ms, so a fast
+         boot goes straight to the screen; then the mark wipes in once and,
+         from 700 ms, one line sweeps under it. src/lib/boot-splash.ts fades
+         it out once the first screen is drawn. -->
+    <style>
+      #boot-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 100;
+        display: grid;
+        place-items: center;
+        background: var(--brand-canvas);
+        color: var(--brand-ink);
+        pointer-events: none;
+        transition: opacity 240ms ease-out;
+      }
+      #boot-splash[data-leaving] {
+        opacity: 0;
+      }
+      .boot-splash-lockup {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.25rem;
+        animation: boot-splash-in 240ms ease-out 180ms both;
+      }
+      .boot-splash-name {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.45em;
+        font-family: var(--brand-wordmark-font);
+        font-size: 1.875rem;
+        line-height: 1.2;
+        white-space: nowrap;
+      }
+      .boot-splash-mark {
+        height: 1.4cap;
+        width: auto;
+        aspect-ratio: 354 / 394;
+        animation: boot-splash-wipe 600ms cubic-bezier(0.3, 0.7, 0.2, 1) 180ms both;
+      }
+      .boot-splash-word {
+        font-weight: 600;
+        letter-spacing: -0.04em;
+      }
+      .boot-splash-os {
+        font-weight: 400;
+        color: var(--brand-muted);
+      }
+      .boot-splash-line {
+        position: relative;
+        width: 7.5rem;
+        height: 2px;
+        overflow: hidden;
+        border-radius: 1px;
+        background: var(--brand-line);
+        animation: boot-splash-in 240ms ease-out 700ms both;
+      }
+      .boot-splash-line::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        width: 40%;
+        border-radius: inherit;
+        background: var(--brand-muted);
+        animation: boot-splash-sweep 1.4s ease-in-out 700ms infinite both;
+      }
+      @keyframes boot-splash-in {
+        from { opacity: 0; }
+        to { opacity: 1; }
+      }
+      @keyframes boot-splash-wipe {
+        from { clip-path: inset(0 100% 0 0); }
+        to { clip-path: inset(0 0 0 0); }
+      }
+      @keyframes boot-splash-sweep {
+        from { transform: translateX(-100%); }
+        to { transform: translateX(250%); }
+      }
+      /* Still delayed, since the delay is about a fast boot, not motion; the
+         mark is drawn whole, no line moves and the splash leaves at once. */
+      @media (prefers-reduced-motion: reduce) {
+        #boot-splash {
+          transition: none;
+        }
+        .boot-splash-lockup {
+          animation-duration: 1ms;
+        }
+        .boot-splash-mark {
+          animation: none;
+        }
+        .boot-splash-line {
+          display: none;
+        }
+      }
+    </style>
     <!-- The dark mark for light tab bars, the white one for dark, the dark on
          white for the home screen. -->
     <link rel="icon" type="image/png" sizes="32x32" href="/brand/notice-icon-32.png" />
@@ -43,6 +140,21 @@
   </head>
   <body>
     <div id="root"></div>
+    <div id="boot-splash" role="status" aria-label="Loading NoticeOS" data-status-for="app:boot">
+      <div class="boot-splash-lockup" aria-hidden="true">
+        <span class="boot-splash-name">
+          <svg class="boot-splash-mark" viewBox="0 0 354 394" focusable="false">
+            <path
+              fill-rule="evenodd"
+              fill="currentColor"
+              d="M0 0H354V394H0ZM100 0H237V137ZM117 137H237V257H117ZM117 257V394H254Z"
+            />
+          </svg>
+          <span class="boot-splash-word">Notice<span class="boot-splash-os">OS</span></span>
+        </span>
+        <span class="boot-splash-line"></span>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

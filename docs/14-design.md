@@ -431,6 +431,18 @@ in a navigation list is not repeated as a card title and a back link is not
 repeated as a breadcrumb. Actions are on the row they act on: Snooze and
 Resolve on an alert, Acknowledge and Tune in its expansion.
 
+**Opening the Tower shows the Notice lockup until the first screen is
+drawn.** `index.html` draws the boot splash before any script runs: the mark,
+the NoticeOS wordmark and, under them, a thin line with one segment sweeping
+from left to right. It shows nothing for its first 180 ms, so a fast start
+goes straight to the screen. It stays while the session is checked and the
+first screen's code and first reads arrive, then fades out over the drawn
+screen in 240 ms (`lib/boot-splash.ts`). The first reads hold it for at most
+2.5 seconds after the screen mounts and nothing holds it past 8 seconds; the
+sign-in screen, the other session screens and a screen whose code could not
+be fetched remove it at once. It never takes a click, and the Wall opens the
+same way.
+
 ## The Wall
 
 The TV shows five things, in the order a viewer reads them: the business's
