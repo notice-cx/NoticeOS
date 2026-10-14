@@ -42,6 +42,7 @@ import { OwnerChip } from "@/components/OwnerChip";
 import { Meter } from "@/components/Meter";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SavesPaused } from "@/components/SavesPaused";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
@@ -134,7 +135,7 @@ export function SettingsRoute() {
       isError ? (
         <ReadFailed title="Couldn't load settings" subject="read:settings" error={error} retrying={isFetching} onRetry={() => void refetch()} />
       ) : (
-        <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
+        <PageSkeleton subject="read:settings" shape="form" />
       )
     ) : tab === 'general' ? (
       <GeneralSection settings={data} anchor={hash.slice(1)} />
@@ -1192,7 +1193,7 @@ function InstallationSection() {
     return isError ? (
       <ReadFailed title="Couldn't read the installation" subject="read:installation" error={error} retrying={isFetching} onRetry={() => void refetch()} />
     ) : (
-      <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
+      <PageSkeleton subject="read:installation" shape="form" />
     );
   }
   const backup = backupStatus(wall?.system.scheduledLanes ?? []);

@@ -18,6 +18,7 @@ import { TaskHubUnavailable } from "@/components/TaskSourceSection";
 import { EmptyState } from "@/components/EmptyState";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { TaskComposer } from "@/components/TaskComposer";
 import { FilterBar } from "@/components/surface/FilterBar";
 import { FinishLine } from "@/components/surface/FinishLine";
@@ -291,7 +292,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         isError && !data ? (
           <ReadFailed title="Couldn't load tasks" subject="read:tasks" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
+          <PageSkeleton subject="read:tasks" shape="list" />
         )
       ) : spokes.length === 0 ? (
         // Missing projects are a setup/read problem, never proof of no tasks.

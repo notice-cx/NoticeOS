@@ -35,6 +35,7 @@ import { PRIORITY_BANDS, type WorkItem, type WorkPayload, type WorkProject } fro
 import { EmptyState } from "@/components/EmptyState";
 import { Meter } from "@/components/Meter";
 import { PageHeader } from "@/components/PageHeader";
+import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
@@ -151,9 +152,13 @@ export function TaskRoute() {
       ) : laneError ? (
         <LaneFailed error={detail.error} />
       ) : task === null ? (
-        <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">
-          {detail.isPending ? "Loading…" : "Waiting for the task database…"}
-        </div>
+        detail.isPending ? (
+          <PageSkeleton subject={`task:${id}`} shape="form" />
+        ) : (
+          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">
+            Waiting for the task database…
+          </div>
+        )
       ) : (
         <>
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">

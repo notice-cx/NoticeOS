@@ -15,6 +15,7 @@ import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { PageHeader } from "@/components/PageHeader";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SeverityDot } from "@/components/SeverityDot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -92,7 +93,7 @@ export function HomeRoute() {
         isError && !data ? (
           <ReadFailed title="Couldn't load Home" subject="read:home" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
+          <PageSkeleton subject="read:home" shape="board" />
         )
       ) : guide ? (
         <FirstRun

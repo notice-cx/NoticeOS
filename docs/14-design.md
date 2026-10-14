@@ -447,6 +447,17 @@ sign-in screen, the other session screens and a screen whose code could not
 be fetched remove it at once. It never takes a click, and the Wall opens the
 same way.
 
+**A screen still loading shows its shape, never a value.** While a page's
+first read or its code is on its way, skeleton blocks in the empty-track
+colour (`PageSkeleton`, `RouteLoading`) stand where its summary, chart, rows
+or fields will be drawn, so nothing moves when they arrive, and one faint
+highlight crosses them every 1.6 seconds. They appear after 180 ms, so a fast
+load goes straight to the content, and they hold no digit, chart mark or
+state colour, so a placeholder cannot pass for a reading; screen readers get
+the page's words ("Loading…") at once. Switching pages or an asset's tabs
+keeps the page or tab being left on screen until the next one's code is here;
+the new one then fades in.
+
 ## The Wall
 
 The TV shows five things, in the order a viewer reads them: the business's
@@ -643,8 +654,9 @@ compact shapes. `ListPanel` / `ListRow` for three rows that expand in place or
 link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
 `PriorityBar` for a state or a quantity with its icon. `EmptyState`,
-`ReadFailed` and `RouteLoading` so every surface has a designed empty, failed
-and loading state, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the
+`ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
+designed empty, failed and loading state, `Skeleton` for one block of a
+loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the
 figure. On the Wall: `WallStrip`, `RevenueHero`, `NeedsYou`, `SiteRows`,
 `WallFeed`, and `WallCanvas` that composes them.
 

@@ -207,7 +207,8 @@ export function TabPanel({
       id={id}
       role="tabpanel"
       aria-labelledby={tabId(idBase, activeKey)}
-      className={cn("flex flex-col gap-4", className)}
+      // `page-arrive`: a tab's content fades in when it replaces the last.
+      className={cn("page-arrive flex flex-col gap-4", className)}
     >
       {children}
     </div>

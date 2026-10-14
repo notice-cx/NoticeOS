@@ -305,7 +305,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RouteLoading / RouteLoadFailure",
     file: "components/RouteLoading.tsx",
     purpose:
-      "What stands in for a screen while its code is fetched, and what a screen whose code can no longer be fetched becomes. RouteLoading says only 'Loading' in the space the screen will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette); RouteLoadFailure offers an explicit Open app in new tab action and never reloads by itself.",
+      "What stands in for a screen while its code is fetched, and what a screen whose code can no longer be fetched becomes. RouteLoading draws the screen's shape in skeleton blocks in the space it will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette), with its words for screen readers only; RouteLoadFailure offers an explicit Open app in new tab action, dismisses the boot splash and never reloads by itself.",
     variants: [
       "desk loading",
       "Wall loading (true black)",
@@ -315,6 +315,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "asset tab failure with explicit new-tab action (panel)",
       "palette failure with explicit new-tab action",
     ],
+  },
+  {
+    name: "Skeleton / SkeletonGroup / PageSkeleton",
+    file: "components/Skeleton.tsx",
+    purpose:
+      "Blocks in the empty-track colour, laid out as the content that has not arrived, with one faint highlight crossing them. Never a digit, a chart mark or a state colour, so a placeholder cannot pass for a reading. SkeletonGroup hides them from screen readers and draws them only after 180 ms; PageSkeleton is a page's first read (board, list or form) under its own header, with its words for screen readers.",
+    variants: ["block", "board", "list", "form"],
   },
   {
     name: "NavigationProgress / RouterNavigationProgress",
