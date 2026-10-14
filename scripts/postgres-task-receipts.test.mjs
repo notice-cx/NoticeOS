@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { findPostgres } from './postgres-dev.mjs';
+import { findPostgres, migrationsFrom } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
@@ -29,7 +29,7 @@ test('task operation receipts bind a key to one request and move by compare-and-
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     // An existing store from before 0012 keeps its rows; 0012 and 0013 only add.
     const older = path.join(root, 'older'); mkdirSync(older);
-    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !/^001[2-4]_/u.test(name))) {
+    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => name < '0012_')) {
       copyFileSync(path.join(REPO_ROOT, 'db/postgres/migrations', name), path.join(older, name));
     }
     applyMigrations(owner, { dir: older });
@@ -37,7 +37,7 @@ test('task operation receipts bind a key to one request and move by compare-and-
     for (const [id, slug] of [[a, 'first'], [b, 'second']]) {
       owner.sql(`INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES('${id}','${slug}','${slug}','active')`);
     }
-    assert.deepEqual(applyMigrations(owner).applied, ['0012_task_operation_receipts', '0013_task_receipt_retention', '0014_agent_sign_in']);
+    assert.deepEqual(applyMigrations(owner).applied, migrationsFrom('0012_'));
     store = openStore(owner.applicationLogin().url());
 
     const project = randomUUID(), principal = randomUUID();

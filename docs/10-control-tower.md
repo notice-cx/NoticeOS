@@ -544,8 +544,8 @@ readout and data table. A missing date has no bar, and a reported zero keeps a
 zero mark. When asset coverage is incomplete the average is not shown, rather than
 showing an artificially low daily average. Coverage is measured against currently mapped sources
 and assets with reports in the selected month; it is not a measure of historical connection
-uptime. Provider revisions are read from `mediavine_current_daily` without
-changing stored history.
+uptime. Provider revisions are read from the revenue ledger's current figures
+(`current_revenue`), for every source alike, without changing stored history.
 
 Monthly summaries remain above the daily chart; asset contribution rows link to
 their own Money tabs. The monthly revenue/cost/net trajectory and ledger

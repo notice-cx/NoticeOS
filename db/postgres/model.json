@@ -247,7 +247,7 @@
         "update": [],
         "delete": false
       },
-      "rule": "Append-only; the newest per day is current."
+      "rule": "Append-only. No current release writes it; a row an older release writes reaches revenue_observations too."
     },
     "mediavine_state": {
       "revision": {
@@ -256,6 +256,14 @@
         "delete": true
       },
       "rule": "Retry state."
+    },
+    "revenue_observations": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per site, source, account, day and item is current."
     },
     "integration_connections": {
       "revision": {
@@ -424,11 +432,15 @@
     },
     "financial_ledger": {
       "view": true,
-      "rule": "What financial readers read: money only, never a change entry."
+      "rule": "What financial readers read: money only, never a change entry, with a month of a source's daily figures in place of an imported estimate from the same provider that covers less."
     },
     "mediavine_current_daily": {
       "view": true,
       "rule": "The newest daily fact per site and day."
+    },
+    "current_revenue": {
+      "view": true,
+      "rule": "The newest figure per site, source, account, day and item."
     },
     "hosted_job_occurrences": {
       "revision": {
@@ -573,10 +585,11 @@
     ]
   },
   "reference": {
-    "_rule": "Shared vocabulary in schema noticeos_ref: no workspace_id, no row security, read and never written by the application and maintenance, changed only by migrations. 0001_baseline.sql seeds it.",
+    "_rule": "Shared vocabulary in schema noticeos_ref: no workspace_id, no row security, read and never written by the application and maintenance, changed only by migrations, which seed it.",
     "integrations": "An integration a row may name, and the provider whose connection serves it.",
     "metric_kinds": "A daily metric an integration reports, and the unit of its values.",
-    "check_kinds": "A check the nightly hygiene lane runs."
+    "check_kinds": "A check the nightly hygiene lane runs.",
+    "revenue_sources": "A revenue source a revenue observation may name: its provider, its family, the name readers show and the clock its days are counted on."
   },
   "nullIdentity": {
     "_rule": "Every nullable column that takes part in a unique key or a link, and what its NULL means. In a unique key, 'one' is NULLS NOT DISTINCT (a NULL is one value, so two NULL rows collide), 'many' lets any number of NULL rows coexist, and 'excluded' is a partial index that skips NULL rows. In a link, a NULL means no parent: the link is not checked for that row. scripts/postgres-model.test.mjs compares this list with what Postgres built.",

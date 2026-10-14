@@ -1,6 +1,7 @@
 import { resolveCredential } from './credentials.js';
 import { observeIntegration, tryHealthConnection, type HealthConnection } from './integration-health-context.js';
 import { MediavineClient, MediavineError, dates, pacificDay, shiftDate, type Report, type Session, type Site } from '@noticeos/mediavine';
+import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import type { ConnectFacts, MediavineResult, MediavineSettings, MediavineStatus, MediavineSync, PutCredentialInput, PutCredentialResult, DeleteCredentialResult, ScheduledRunResult } from '@noticeos/contract';
 import { mediavineSyncOn } from '@noticeos/contract';
 import type { FileJsonSetOp, JsonValue } from '../../../scripts/config-documents.mjs';
@@ -190,7 +191,8 @@ export async function mediavineStatus(env: IngestEnv, asset: string): Promise<Me
         `SELECT attempted_at, message, start_date, end_date, summary_minor, daily_minor, difference_minor
            FROM noticeos.mediavine_runs WHERE asset_id = $1 AND outcome = 'success' ORDER BY attempted_at DESC, run_seq DESC LIMIT 1`, [asset]))[0],
       daily: await tx.query<{ date: string; amount_minor: bigint }>(
-        'SELECT report_date AS date, amount_minor FROM noticeos.mediavine_current_daily WHERE asset_id = $1 ORDER BY report_date DESC LIMIT 90', [asset]),
+        `SELECT revenue_date AS date, SUM(amount_minor)::bigint AS amount_minor FROM noticeos.current_revenue
+          WHERE asset_id = $1 AND source = $2 GROUP BY revenue_date ORDER BY revenue_date DESC LIMIT 90`, [asset, MEDIAVINE_REVENUE_SOURCE]),
       state: (await tx.query<{ next_attempt_at: string | null }>(
         'SELECT next_attempt_at FROM noticeos.mediavine_state WHERE asset_id = $1', [asset]))[0],
     })),
@@ -210,7 +212,8 @@ export async function mediavineStatus(env: IngestEnv, asset: string): Promise<Me
     daily: daily.map((day) => ({ date: day.date, amountMinor: cents(day.amount_minor) })).reverse() };
 }
 
-/** One collected report: its run and every changed daily figure, together. */
+/** One collected report: its run and every changed daily figure, together,
+ * each figure into the revenue ledger under Mediavine's source. */
 export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string, report: Report): Promise<string> {
   const runId = crypto.randomUUID();
   const days = report.daily.map((day) => {
@@ -225,20 +228,21 @@ export async function persistReport(env: Pick<IngestEnv, 'STORE'>, asset: string
     await tx.execute(
       'INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING',
       [tx.workspaceId, report.site.id, asset]);
-    const [run] = await tx.query<{ run_seq: bigint }>(
+    await tx.execute(
       `INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome,
                                             summary_minor, daily_minor, difference_minor)
-       VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, 'success', $8, $9, $10)
-       RETURNING run_seq`,
+       VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, 'success', $8, $9, $10)`,
       [tx.workspaceId, runId, asset, report.site.id, report.period.start, report.period.end, report.fetchedAt,
         report.summaryMinor, report.dailyMinor, report.differenceMinor]);
     for (const day of days) {
       await tx.execute(
-        `INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
-         SELECT $1::uuid, $2::bigint, $3::text, $4::text, $5::date, $6::bigint, $7::timestamptz
-          WHERE NOT EXISTS (SELECT 1 FROM noticeos.mediavine_current_daily
-                             WHERE asset_id = $3::text AND site_id = $4::text AND report_date = $5::date AND amount_minor = $6::bigint)`,
-        [tx.workspaceId, run!.run_seq, asset, report.site.id, day.date, day.amountMinor, report.fetchedAt]);
+        `INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+                                                    currency, run_ref, recorded_at)
+         SELECT $1::uuid, $2::text, $3::text, $4::text, $5::date, $6::bigint, 'USD', $7::text, $8::timestamptz
+          WHERE NOT EXISTS (SELECT 1 FROM noticeos.current_revenue
+                             WHERE asset_id = $2::text AND source = $3::text AND account_ref = $4::text
+                               AND revenue_date = $5::date AND item_ref IS NULL AND amount_minor = $6::bigint)`,
+        [tx.workspaceId, asset, MEDIAVINE_REVENUE_SOURCE, report.site.id, day.date, day.amountMinor, runId, report.fetchedAt]);
     }
   });
   return runId;
@@ -265,15 +269,17 @@ export async function syncMediavine(env: IngestEnv, input: MediavineSync, option
       const end = input.end ?? (clock.ready ? clock.yesterday : shiftDate(clock.yesterday, -1));
       if (end > clock.yesterday || (input.start === undefined) !== (input.end === undefined)) throw new MediavineError('invalid', 'Choose both dates, ending no later than yesterday.');
       const [last] = await env.STORE.read((tx) => tx.query<{ day: string | null }>(
-        'SELECT MAX(report_date) AS day FROM noticeos.mediavine_current_daily WHERE asset_id = $1', [input.asset]));
+        'SELECT MAX(revenue_date) AS day FROM noticeos.current_revenue WHERE asset_id = $1 AND source = $2',
+        [input.asset, MEDIAVINE_REVENUE_SOURCE]));
       // First sync fills this month; after an outage, one request covers missed days. The usual run asks only for yesterday.
       const monthStart = `${end.slice(0, 7)}-01`;
       const desiredStart = input.start ?? (last?.day && last.day < monthStart ? shiftDate(last.day, 1) : monthStart);
       const baseline = input.start ?? (desiredStart < shiftDate(end, -365) ? shiftDate(end, -365) : desiredStart);
-      const held = await env.STORE.read((tx) => tx.query<{ report_date: string }>(
-        'SELECT report_date FROM noticeos.mediavine_current_daily WHERE asset_id = $1 AND report_date BETWEEN $2::date AND $3::date',
-        [input.asset, baseline, end]));
-      const heldDates = new Set(held.map(day => day.report_date));
+      const held = await env.STORE.read((tx) => tx.query<{ revenue_date: string }>(
+        `SELECT DISTINCT revenue_date FROM noticeos.current_revenue
+          WHERE asset_id = $1 AND source = $2 AND revenue_date BETWEEN $3::date AND $4::date`,
+        [input.asset, MEDIAVINE_REVENUE_SOURCE, baseline, end]));
+      const heldDates = new Set(held.map(day => day.revenue_date));
       const missing = dates({ start: baseline, end }).filter(day => !heldDates.has(day));
       const start = input.start ?? missing[0] ?? end;
       const period = { start, end }; dates(period);

@@ -83,7 +83,7 @@ it('ordinary chart readers preserve provisional values and missing traffic while
   // The ad network's history is one synthetic run of daily estimates per ad-supported site.
   expect(await fixture.call.read(tx => tx.query('SELECT site_id, asset_id AS asset FROM noticeos.mediavine_sites ORDER BY site_id'))).toEqual(scenario.manifest.adSites.map(site => ({ site_id: site.siteId, asset: site.asset })).sort((a, b) => a.site_id.localeCompare(b.site_id)));
   expect(await fixture.call.read(tx => tx.query('SELECT run_seq FROM noticeos.mediavine_runs'))).toHaveLength(scenario.manifest.adSites.length);
-  const adDays = await fixture.call.read(tx => tx.query<{ days: number; minor: string }>('SELECT count(*)::int AS days, sum(amount_minor)::text AS minor FROM noticeos.mediavine_current_daily'));
+  const adDays = await fixture.call.read(tx => tx.query<{ days: number; minor: string }>('SELECT count(*)::int AS days, sum(amount_minor)::text AS minor FROM noticeos.current_revenue'));
   expect(adDays[0]).toEqual({ days: scenario.adRevenue.length, minor: String(scenario.adRevenue.reduce((sum, day) => sum + day.minor, 0)) });
   const youngMoney = financials.properties.find(p => p.asset === 'freshrows.example')!;
   expect(youngMoney.figure.cost).toBe(60);

@@ -309,10 +309,15 @@ test('bounded JSON parsing preserves the actual handler body and denies authorit
 test('MCP helper selection inspects the bounded actual tool request', async () => {
   assert.equal((await towerOperation(mcp('list_properties'))).action, 'evidence.read');
   assert.equal((await towerOperation(mcp('property_report', { asset: 'example.com' }))).action, 'evidence.read');
+  for (const args of [{}, { asset: 'example.com', days: 365, months: 0 }, { days: 1, months: 120 }]) {
+    assert.equal((await towerOperation(mcp('property_history', args))).action, 'evidence.read', JSON.stringify(args));
+  }
   assert.equal((await ingestOperation('researchLookup', mcp('research_lookup', { endpoint: 'fixture/report', params: {} }))).action, 'evidence.read');
   await assert.rejects(ingestOperation('researchLookup', mcp('list_properties')), OperationRefused);
   for (const [name, args] of [['run_job', {}], ['property_report', {}], ['property_report', { asset: 'example.com', actor: 'owner' }],
-    ['research_lookup', { endpoint: 'fixture/report', params: {}, windowDays: -1 }]]) {
+    ['research_lookup', { endpoint: 'fixture/report', params: {}, windowDays: -1 }],
+    ['property_history', { days: 0 }], ['property_history', { days: 366 }], ['property_history', { months: 1.5 }],
+    ['property_history', { asset: '' }], ['property_history', { asset: 'example.com', actor: 'owner' }]]) {
     await assert.rejects(towerOperation(mcp(name, args)), OperationRefused);
   }
   await assert.rejects(towerOperation(request('/api/mcp', 'POST', { jsonrpc: '2.0', method: 'future' })), OperationRefused);

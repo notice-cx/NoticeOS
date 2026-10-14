@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { CircleDollarSign } from "lucide-react";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
-import { MEDIAVINE_REPORTING_CLOCK } from "@shared/daily-revenue";
 import { DeltaChip } from "@/components/DeltaChip";
 import { ChartArea, ChartDot, ChartLine } from "@/components/surface/ChartMarks";
 import {
@@ -160,7 +159,7 @@ function Yesterday({ total }: { total: YesterdayTotal }) {
     );
   }
   const label = total.basis
-    ? `${formatSeriesDate(total.basis.date)} · ${total.basis.timeZone === MEDIAVINE_REPORTING_CLOCK.timeZone ? MEDIAVINE_REPORTING_CLOCK.label : total.basis.timeZone}`
+    ? `${formatSeriesDate(total.basis.date)} · ${total.basis.label ?? total.basis.timeZone}`
     : "provider days";
   if (total.amount === null) {
     return (

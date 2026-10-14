@@ -6,7 +6,7 @@ import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readd
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
-import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA, migrationsFrom } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
@@ -45,8 +45,7 @@ test('asset and finding audit is atomic, immutable and current-person scoped in 
       await admin.query("INSERT INTO noticeos.assets(workspace_id,asset_id,display_name,status) VALUES($1,'example.test',$2,'live'),($1,'target.test','Target','live')", [id, label]);
       await admin.query("INSERT INTO noticeos.annotations(workspace_id,asset_id,at,kind,note) VALUES($1,'example.test',now(),'deploy','historical unknown')", [id]);
     }
-    assert.deepEqual(applyMigrations(owner).applied, ['0011_workspace_mutation_audit', '0012_task_operation_receipts',
-      '0013_task_receipt_retention', '0014_agent_sign_in']);
+    assert.deepEqual(applyMigrations(owner).applied, migrationsFrom('0011_'));
     assert.equal((await admin.query('SELECT count(*)::int AS n FROM noticeos.workspace_mutation_audit')).rows[0].n, 0);
     const appUrl = owner.applicationLogin().url();
     const runtimeRole = async role => {

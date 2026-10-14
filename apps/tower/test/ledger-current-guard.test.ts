@@ -224,10 +224,10 @@ describe("the money view keeps only current entries, as the explicit guard does"
     // Replaced links, and the Mediavine estimate June's daily rows stand in for.
     for (const gone of [1, 2, 6, 8, 12, 30, 100]) expect(named.has(`fixture:${gone}`), `${gone}`).toBe(false);
     // June's month of daily estimates stands in, under minus its first day's number.
-    const june = view.find((row) => row.external_id === "mediavine:daily/meadow.example/2026-06");
+    const june = view.find((row) => row.external_id === "mediavine-journey:daily/meadow.example/2026-06");
     expect(june?.entry_number).toBeLessThan(0n);
     // April (reconciled) and July (partial) daily rows are not usable months.
-    expect(named.has("mediavine:daily/meadow.example/2026-04") || named.has("mediavine:daily/meadow.example/2026-07")).toBe(false);
+    expect(named.has("mediavine-journey:daily/meadow.example/2026-04") || named.has("mediavine-journey:daily/meadow.example/2026-07")).toBe(false);
   });
 
   it("every builder that reads the ledger returns the explicit guard's payload", async () => {

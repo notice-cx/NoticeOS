@@ -1,6 +1,7 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { dates, type Period } from '@noticeos/mediavine';
+import { dates, MEDIAVINE_REPORTING_CLOCK, type Period } from '@noticeos/mediavine';
+import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { discoverMediavineSites, withMediavineLease } from '../src/mediavine-connection.js';
 import { disconnectMediavine, putMediavineCredential, runMediavine, saveMediavineSettings, syncMediavine } from '../src/mediavine.js';
 import { connectCredential } from '../src/credential-connect.js';
@@ -62,7 +63,7 @@ async function skippedAdRevenue() {
   return Object.entries(body.assets).flatMap(([asset, lanes]) =>
     lanes['ad-network']?.status === 'skipped' ? [{ asset, note: lanes['ad-network'].note ?? '' }] : []);
 }
-async function count(table: 'mediavine_daily' | 'mediavine_runs') {
+async function count(table: 'revenue_observations' | 'mediavine_runs') {
   return storedCount(`SELECT count(*)::int AS n FROM noticeos.${table}`);
 }
 /** The site's revenue as every financial page reads it: its sum in exact cents, and its rows. */
@@ -115,7 +116,22 @@ describe('Mediavine encrypted connection and controls', () => {
     expect((await saveMediavineSettings(env, { asset: ASSET, siteId: SITE.id, enabled: true })).ok).toBe(true);
     expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW })).ok).toBe(true);
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(await count('mediavine_daily')).toBe(8);
+    expect(await count('revenue_observations')).toBe(8);
+  });
+  it('files each day in the revenue ledger under Mediavine Journey, naming the site and the run, on the collector\'s clock', async () => {
+    const fetchImpl = await connect();
+    expect((await syncMediavine(env, { asset: ASSET }, { fetchImpl, nowMs: NOW })).ok).toBe(true);
+    const filed = await env.STORE.read((tx) => tx.query<{ source: string; account_ref: string; run_ref: string; currency: string; item_ref: string | null }>(
+      'SELECT DISTINCT source, account_ref, run_ref, currency, item_ref FROM noticeos.revenue_observations WHERE asset_id = $1', [ASSET]));
+    const runs = await env.STORE.read((tx) => tx.query<{ run_id: string }>(
+      "SELECT run_id FROM noticeos.mediavine_runs WHERE asset_id = $1 AND outcome = 'success'", [ASSET]));
+    expect(filed).toEqual([{ source: MEDIAVINE_REVENUE_SOURCE, account_ref: SITE.id, run_ref: runs[0]!.run_id, currency: 'USD', item_ref: null }]);
+    // The vocabulary row every reader takes the reporting day from is the
+    // clock this collector schedules by.
+    const [row] = await env.STORE.read((tx) => tx.query<{ provider: string; family: string; time_zone: string; ready_after_minute: number }>(
+      'SELECT provider, family, time_zone, ready_after_minute FROM noticeos_ref.revenue_sources WHERE source = $1', [MEDIAVINE_REVENUE_SOURCE]));
+    expect(row).toEqual({ provider: 'mediavine', family: 'ads', time_zone: MEDIAVINE_REPORTING_CLOCK.timeZone,
+      ready_after_minute: MEDIAVINE_REPORTING_CLOCK.readyAfterMinute });
   });
   it('key rotation cannot overwrite a concurrently refreshed session', async () => {
     await connect();
@@ -171,7 +187,7 @@ describe('Mediavine encrypted connection and controls', () => {
       return response;
     });
     await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
-    expect(fetchImpl).toHaveBeenCalledTimes(1); expect(await count('mediavine_daily')).toBe(0);
+    expect(fetchImpl).toHaveBeenCalledTimes(1); expect(await count('revenue_observations')).toBe(0);
   });
   it('stores session encrypted, reuses it across fresh clients, and caches site discovery', async () => {
     const fetchImpl = await connect();
@@ -203,10 +219,10 @@ describe('Mediavine encrypted connection and controls', () => {
     // A pause is the site's Not using, with its reason.
     await declineAdRevenue();
     fetchImpl.mockClear(); await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
-    expect(fetchImpl).not.toHaveBeenCalled(); expect(await count('mediavine_daily')).toBe(8);
+    expect(fetchImpl).not.toHaveBeenCalled(); expect(await count('revenue_observations')).toBe(8);
     await disconnectMediavine(env);
     expect((await resolveCredential(env, 'mediavine')).source).toBe('none');
-    expect(await count('mediavine_daily')).toBe(8);
+    expect(await count('revenue_observations')).toBe(8);
   });
   // Switching a running sync off here would record a decline nobody explained.
   // The settings door starts a sync and never writes `skipped`; stopping is
@@ -247,7 +263,7 @@ describe('daily accounting', () => {
     await connect();
     await syncMediavine(env, { asset: ASSET, start: '2026-09-08', end: '2026-09-08' }, { fetchImpl: transport(), nowMs: NOW });
     expect((await runMediavine(env, { fetchImpl: transport(), nowMs: NOW + 3_600_000 })).outcome).toBe('ran');
-    expect(await count('mediavine_daily')).toBe(8);
+    expect(await count('revenue_observations')).toBe(8);
   });
   it('recognizes a payment under another source through its original estimate', async () => {
     await connect();
@@ -272,7 +288,7 @@ describe('daily accounting', () => {
   it('books current-month coverage once, then fetches only the next yesterday after a refresh', async () => {
     await connect(); const fetchImpl = transport();
     await runMediavine(env, { fetchImpl, nowMs: NOW });
-    expect(await count('mediavine_daily')).toBe(8); expect(await total()).toEqual({ amount: 1000, rows: 1 });
+    expect(await count('revenue_observations')).toBe(8); expect(await total()).toEqual({ amount: 1000, rows: 1 });
     expect((await runMediavine(env, { fetchImpl, nowMs: NOW + 3_600_000 })).outcome).toBe('skipped');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     await runMediavine(env, { fetchImpl, nowMs: NOW + 86_400_000 });
@@ -285,7 +301,7 @@ describe('daily accounting', () => {
     for (const [i, revenue] of [1.25, 1.25, 2, 1.25].entries()) {
       expect((await syncMediavine(env, { asset: ASSET, start: '2026-09-08', end: '2026-09-08' }, { fetchImpl: transport({ revenue }), nowMs: NOW + i * 3_600_000 })).ok).toBe(true);
     }
-    expect(await count('mediavine_daily')).toBe(3);
+    expect(await count('revenue_observations')).toBe(3);
     expect(await total()).toEqual({ amount: 125, rows: 1 });
     expect(await count('mediavine_runs')).toBe(4);
   });
@@ -444,7 +460,7 @@ describe('Mediavine in the connect panel', () => {
     const fetchImpl = transport();
     const run = await runCollectNow(env, { provider: 'mediavine', assets: [SITE_ASSET] }, { fetchImpl, nowMs: NOW });
     expect(run).toMatchObject({ ok: true, job: 'mediavine', sites: [{ asset: SITE_ASSET, outcome: 'collected', code: null }] });
-    expect(await count('mediavine_daily')).toBe(8);
+    expect(await count('revenue_observations')).toBe(8);
     await mapSite(SITE_ASSET, { status: 'skipped', note: 'Not using: Replaced by another tool' });
     const declined = await runCollectNow(env, { provider: 'mediavine', assets: [SITE_ASSET] }, { fetchImpl, nowMs: NOW + 3_600_000 });
     expect(declined).toMatchObject({ ok: false, error: 'no-sites' });

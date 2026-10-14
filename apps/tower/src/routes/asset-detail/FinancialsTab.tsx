@@ -1,6 +1,6 @@
 import { useId } from "react";
 import type { AssetDetailFor } from "@shared/asset-detail-views";
-import { MEDIAVINE_REPORTING_CLOCK, revenueCalendarDate, siteRevenueWindow } from "@shared/daily-revenue";
+import { revenueCalendarDate, revenueNoun, revenueTimeZone, siteRevenueWindow } from "@shared/daily-revenue";
 import { DailyRevenuePanel } from "@/components/DailyRevenuePanel";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { BarStrip } from "@/components/viz/BarStrip";
@@ -22,7 +22,7 @@ import { useRange } from "./useRange";
 export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financials">; nowMs: number }) {
   const { days } = useRange();
   // Ending yesterday on the source's reporting clock.
-  const history = siteRevenueWindow(data.dailyRevenue, nowMs, MEDIAVINE_REPORTING_CLOCK.timeZone, days);
+  const history = siteRevenueWindow(data.dailyRevenue, nowMs, revenueTimeZone(data.dailyRevenue, data.osTimeZone), days);
   // The month in the Overview's own terms (`ledgerMonth`): booked when it
   // has booked rows, its estimates otherwise.
   const money = ledgerMonth(data.ledger);
@@ -39,6 +39,7 @@ export function FinancialsTab({ data, nowMs }: { data: AssetDetailFor<"financial
           forecast={forecastBeside(data, money)}
           days={siteMonthDays(data.dailyRevenue, estimateMonth, history.to, data.asset.id, data.asset.displayName)}
           pace={siteEstimatePace(data.dailyRevenue, estimateMonth, history.to)}
+          noun={revenueNoun(data.dailyRevenue?.bySource)}
           lastMonth={siteLastMonth(data.ledger, equation)}
         />
       ) : (
@@ -77,6 +78,7 @@ function SiteMonth({
   days,
   pace,
   lastMonth,
+  noun,
 }: {
   money: LedgerMonth;
   equation: MonthEquation;
@@ -84,6 +86,8 @@ function SiteMonth({
   days: MonthDays | null;
   pace: EstimatePace | null;
   lastMonth: { period: string; revenue: number | null };
+  /** What the daily figures are called: `revenueNoun` of their sources. */
+  noun: string;
 }) {
   const id = useId();
   const reported = days?.days.filter((day) => day.v !== null).length ?? 0;
@@ -118,14 +122,14 @@ function SiteMonth({
         </div>
         {days && reported >= 3 ? (
           <div className="flex max-w-sm min-w-0 flex-[1_1_16rem] flex-col gap-1.5" data-money-days="">
-            <span className="text-xs font-medium text-muted-foreground">Ad revenue a day · estimates</span>
+            <span className="text-xs font-medium text-muted-foreground">{noun} a day · estimates</span>
             <BarStrip
               data={days.days}
               partial={days.partial}
               tone="text-financial-revenue"
               baseline={days.usualDay !== null ? { value: days.usualDay, label: `usual ${cents(days.usualDay)} a day` } : null}
               format={cents}
-              ariaLabel={`Ad revenue a day, ${formatPeriodMonthLong(days.days[0]!.t.slice(0, 7))}`}
+              ariaLabel={`${noun} a day, ${formatPeriodMonthLong(days.days[0]!.t.slice(0, 7))}`}
               className="h-20"
             />
           </div>
