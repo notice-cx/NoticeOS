@@ -840,11 +840,11 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
           Cost not available · try again
         </p>
       ) : (
-        <p role="status" className="m-0 text-sm text-muted-foreground">
+        <p role="status" data-status-for={`serp-panel-collect:${assetId}`} className="m-0 text-sm text-muted-foreground">
           Reading the cost…
         </p>
       )}
-      {overCap ? <CollectRefusal error="over-cap" /> : null}
+      {overCap ? <CollectRefusal assetId={assetId} error="over-cap" /> : null}
       {collect.isError ? (
         <p role="alert" className="m-0 text-sm text-error">
           Collection failed · try again
@@ -864,11 +864,11 @@ function CollectPanelNow({ assetId }: { assetId: string }) {
 
 /** How a press ended, in one line beside Collect now. */
 function CollectedLine({ assetId, result }: { assetId: string; result: CollectNowResult }) {
-  if (!result.ok) return <CollectRefusal error={result.error} />;
+  if (!result.ok) return <CollectRefusal assetId={assetId} error={result.error} />;
   const site = result.sites.find((entry) => entry.asset === assetId) ?? null;
   if (site?.outcome === "collected") {
     return (
-      <span role="status" className="inline-flex items-center gap-1.5 text-sm text-foreground tabular-nums" data-collect-result="collected">
+      <span role="status" data-status-for={`serp-panel-collect:${assetId}`} className="inline-flex items-center gap-1.5 text-sm text-foreground tabular-nums" data-collect-result="collected">
         <Check className="size-4 shrink-0" aria-hidden />
         {site.costUsd === undefined ? "Collected" : `Collected · ${formatUsd(site.costUsd, { cents: true })}`}
       </span>
@@ -876,15 +876,15 @@ function CollectedLine({ assetId, result }: { assetId: string; result: CollectNo
   }
   const label = site?.outcome === "failed" ? "Collection failed" : site?.outcome === "unmeasured" ? "Not reached" : "Nothing to collect";
   return (
-    <span role="status" className="text-sm text-error" data-collect-result={site?.outcome ?? "skipped"}>
+    <span role="status" data-status-for={`serp-panel-collect:${assetId}`} className="text-sm text-error" data-collect-result={site?.outcome ?? "skipped"}>
       {label}
     </span>
   );
 }
 
-function CollectRefusal({ error }: { error: keyof typeof COLLECT_REFUSAL_LABEL }) {
+function CollectRefusal({ assetId, error }: { assetId: string; error: keyof typeof COLLECT_REFUSAL_LABEL }) {
   return (
-    <p role="status" className="m-0 flex flex-wrap items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
+    <p role="status" data-status-for={`serp-panel-collect:${assetId}`} className="m-0 flex flex-wrap items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
       <TriangleAlert className="size-4 shrink-0" aria-hidden />
       {COLLECT_REFUSAL_LABEL[error]}
       {error === "over-cap" ? (
