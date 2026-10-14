@@ -76,9 +76,9 @@ SELECT o.* FROM noticeos.revenue_observations o
       AND newer.item_ref IS NOT DISTINCT FROM o.item_ref
       AND newer.observation_id > o.observation_id);
 
--- Every Mediavine day already saved, each workspace's in its own transaction
--- scope, in the order it was written so the newest stays current. A day keeps
--- the number readers were shown for it.
+-- Every Mediavine day already saved, workspace by workspace (row security
+-- admits one at a time), in the order it was written so the newest stays
+-- current. A day keeps the number readers were shown for it.
 DO $$
 DECLARE w uuid;
 BEGIN
