@@ -1118,7 +1118,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
     const researchArgs = { endpoint: 'fixture/report', params: { target: 'example.test', country: 1 }, windowDays: 7 };
     const researchQuery = { provider: 'dataforseo', ...researchArgs };
     const replay = { asset: 'example.test', ruleId: 'flow-poisson-low', metric: 'signups', through: '2026-07-05',
-      config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } };
+      config: { alpha: 0.01, maxWindowDays: 14 } };
     const storedInit = (workspace, body, evidence = headers(workspace)) => ({ method: 'POST',
       headers: { ...evidence, 'content-type': 'application/json' }, body: JSON.stringify(body) });
     const stored = (workspace, path, body, evidence = headers(workspace), client = towerFetch) =>

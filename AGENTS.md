@@ -113,7 +113,8 @@ present.
 - **Flags carry severity and kind as separate fields** (doc 02):
   `info|warn|error` × `anomaly|opportunity|milestone`; milestone kind is always
   info severity. Volume-aware rules only: flag when
-  `P(observed | Poisson(avg7d)) < α` and the baseline is at least 3/day
+  `P(observed | Poisson(baseline × days)) < α` over the shortest whole-day
+  window, at most `max_window_days`, in which a run of zeros could fire
   (defaults in `config/constants.json`).
 - **Completion is evidence, not prose.** Every claim carries a machine-checkable
   pointer: a commit hash, a gate command, an artifact path, a URL. Anything

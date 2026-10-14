@@ -14,7 +14,7 @@ const integrations = { catalog: [], assets: {} };
 const counters = { assets: {} };
 const serpPanel = { assets: {} };
 const detail: AssetDetailDeps = { now, osTimeZone: 'Etc/UTC', integrations, counters, serpPanel,
-  flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+  flagDefaults: { alpha: 0.01, max_window_days: 14 },
   pullConfig: [], monthlyCaps: { dataUsd: 25 }, operatorRateUsdPerMin: 2,
   signalPanels: { assets: {} }, valueEvents: { assets: {} }, ga4EventParams: { assets: {} } };
 

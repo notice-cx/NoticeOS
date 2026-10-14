@@ -7,6 +7,7 @@ import {
   evaluatePulse,
   expectsNightlyReport,
   firedFlags,
+  MAX_WINDOW_DAYS_LIMIT,
   PulseEnvelope,
   REPORT_FRESHNESS_RULE_ID,
   REPORT_MAX_AGE_HOURS,
@@ -15,6 +16,7 @@ import {
   type MetricBaseline,
   type ReportingState,
   type RuleConfig,
+  zeroCanFire,
 } from '@noticeos/contract';
 import { noNightlyReportAssets } from '@noticeos/contract/configuration';
 import { javascriptInstant } from '@noticeos/postgres';
@@ -44,13 +46,13 @@ export function ruleConfigFromConstants(stored?: unknown): RuleConfig {
   const d = document.flag_defaults;
   const number = (value: unknown, fallback: number): number =>
     typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+  const days = d?.max_window_days;
   return {
     alpha: number(d?.alpha, DEFAULT_RULE_CONFIG.alpha),
-    minBaselinePerDay: number(d?.min_baseline_per_day, DEFAULT_RULE_CONFIG.minBaselinePerDay),
-    lowVolumeWindowHours: number(
-      d?.low_volume_window_hours,
-      DEFAULT_RULE_CONFIG.lowVolumeWindowHours,
-    ),
+    maxWindowDays:
+      Number.isInteger(days) && (days as number) >= 1 && (days as number) <= MAX_WINDOW_DAYS_LIMIT
+        ? (days as number)
+        : DEFAULT_RULE_CONFIG.maxWindowDays,
   };
 }
 
@@ -126,7 +128,7 @@ export async function writePulse(
   const date = pulseDay(envelope.generatedAt);
 
   // Centrally evaluate against four matching weekdays (or four aligned
-  // low-volume windows), never the asset-supplied flat avg7d. The cohort is
+  // multi-day windows), never the asset-supplied flat avg7d. The cohort is
   // days strictly before this report's own.
   const seasonal = await assembleSeasonalInputs(env, envelope, config);
   const central = firedFlags(
@@ -312,9 +314,10 @@ export async function writePulse(
 
 /**
  * Build a seasonality-aware baseline from the four matching weekdays before
- * the current report. Normal-volume metrics compare day-to-day at a seven-day
- * offset; low-volume metrics compare the current multi-day window with four
- * equivalently aligned windows. Any missing cohort keeps that metric quiet.
+ * the current report. A metric busy enough for a zero day to fire compares
+ * day-to-day at a seven-day offset; a quieter one compares its current
+ * multi-day window with four equivalently aligned windows. Any missing cohort
+ * keeps that metric quiet.
  *
  * A day a reporting-timezone change distorted stays in this cohort: it is
  * built from an asset's own nightly self-report, which a provider property's
@@ -357,10 +360,17 @@ export async function readReportHistory(
 }
 
 /** What {@link seasonalInputsFrom} needs to see behind a pulse: the deepest
- * cohort it reads is the oldest matching weekday's multi-day window. */
+ * cohort it reads is the oldest of the four windows of the longest length. */
 export function seasonalHistorySpanDays(config: RuleConfig): number {
-  const windowDays = Math.max(1, Math.round(config.lowVolumeWindowHours / 24));
-  return SEASONAL_BASELINE_WEEKS * 7 + windowDays - 1;
+  const days = Math.max(1, config.maxWindowDays);
+  return SEASONAL_BASELINE_WEEKS * 7 * cohortSpacingWeeks(days) + days - 1;
+}
+
+/** Weeks between the ends of the four earlier windows: whole weeks keep each
+ * on the current day's weekday, and at least `days` apart keeps them from
+ * overlapping one another or the window being judged. */
+function cohortSpacingWeeks(days: number): number {
+  return Math.ceil(days / 7);
 }
 
 /** Stored `pulses` rows → the date-keyed history the baseline reads. An
@@ -397,75 +407,73 @@ export function seasonalInputsFrom(
   envelope: PulseEnvelope,
   config: RuleConfig,
 ): SeasonalInputs {
-  const windowDays = Math.max(1, Math.round(config.lowVolumeWindowHours / 24));
   const currentDate = pulseDay(envelope.generatedAt);
-
   const baselineByMetric: Record<string, MetricBaseline> = {};
   const windowObservedByMetric: Record<string, number> = {};
-  const comparisonDates = Array.from(
-    { length: SEASONAL_BASELINE_WEEKS },
-    (_, index) => shiftDate(currentDate, -(index + 1) * 7),
-  );
 
   for (const [metric, current] of Object.entries(envelope.metrics)) {
-    const matchingValues = comparisonDates.map(
-      (date) => history.get(date)?.metrics[metric]?.last24h,
-    );
-    if (matchingValues.some((value) => value === undefined)) continue;
-    const sameWeekdayPerDay = mean(matchingValues as number[]);
-
-    if (sameWeekdayPerDay >= config.minBaselinePerDay) {
-      baselineByMetric[metric] = {
-        perDay: sameWeekdayPerDay,
-        source: 'same-weekday-4w',
-        sampleSize: SEASONAL_BASELINE_WEEKS,
-        comparisonDates,
-        windowHours: 24,
-      };
-      continue;
-    }
-
-    const historicalWindowTotals: number[] = [];
-    let complete = true;
-    for (const endDate of comparisonDates) {
-      let total = 0;
-      for (let offset = 0; offset < windowDays; offset++) {
-        const value =
-          history.get(shiftDate(endDate, -offset))?.metrics[metric]?.last24h;
-        if (value === undefined) {
-          complete = false;
-          break;
-        }
-        total += value;
-      }
-      if (!complete) break;
-      historicalWindowTotals.push(total);
-    }
-    if (!complete) continue;
-
-    let observedWindow = current.last24h;
-    for (let offset = 1; offset < windowDays; offset++) {
-      const value =
-        history.get(shiftDate(currentDate, -offset))?.metrics[metric]?.last24h;
-      if (value === undefined) {
-        complete = false;
-        break;
-      }
-      observedWindow += value;
-    }
-    if (!complete) continue;
-
+    const daily = (date: string) => history.get(date)?.metrics[metric]?.last24h;
+    const window = seasonalWindow(daily, current.last24h, currentDate, config);
+    if (!window) continue;
     baselineByMetric[metric] = {
-      perDay: mean(historicalWindowTotals) / windowDays,
+      perDay: window.perDay,
       source: 'same-weekday-4w',
       sampleSize: SEASONAL_BASELINE_WEEKS,
-      comparisonDates,
-      windowHours: config.lowVolumeWindowHours,
+      comparisonDates: window.comparisonDates,
+      windowHours: window.days * 24,
     };
-    windowObservedByMetric[metric] = observedWindow;
+    if (window.days > 1) windowObservedByMetric[metric] = window.observed;
   }
 
   return { baselineByMetric, windowObservedByMetric };
+}
+
+/**
+ * The shortest whole-day window, at most `maxWindowDays`, whose four earlier
+ * windows held enough events that a run of zeros across it would fire, with
+ * their per-day mean and the count in the window ending today. When even the
+ * longest window is too short it is returned all the same, and the rule
+ * records the metric as too quiet to judge. Undefined when a day it needs has
+ * no report.
+ */
+function seasonalWindow(
+  daily: (date: string) => number | undefined,
+  today: number,
+  currentDate: string,
+  config: RuleConfig,
+): { days: number; perDay: number; comparisonDates: string[]; observed: number } | undefined {
+  const longest = Math.max(1, config.maxWindowDays);
+  for (let days = 1; days <= longest; days++) {
+    const spacing = cohortSpacingWeeks(days) * 7;
+    const comparisonDates = Array.from(
+      { length: SEASONAL_BASELINE_WEEKS },
+      (_, index) => shiftDate(currentDate, -(index + 1) * spacing),
+    );
+    const totals = comparisonDates.map((end) => windowTotal(daily, end, days));
+    if (totals.some((total) => total === undefined)) return undefined;
+    const expected = mean(totals as number[]);
+    if (days < longest && !zeroCanFire(expected, config)) continue;
+    const earlier = windowTotal(daily, shiftDate(currentDate, -1), days - 1);
+    if (earlier === undefined) return undefined;
+    return { days, perDay: expected / days, comparisonDates, observed: today + earlier };
+  }
+  return undefined;
+}
+
+/** The sum of `days` daily counts ending on `end`, or undefined when one is
+ * missing. */
+function windowTotal(
+  daily: (date: string) => number | undefined,
+  end: string,
+  days: number,
+): number | undefined {
+  let total = 0;
+  for (let offset = 0; offset < days; offset++) {
+    const value = daily(shiftDate(end, -offset));
+    if (value === undefined) return undefined;
+    total += value;
+  }
+  return total;
 }
 
 function mean(values: number[]): number {

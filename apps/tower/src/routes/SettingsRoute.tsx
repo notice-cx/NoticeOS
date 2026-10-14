@@ -13,6 +13,7 @@ import {
 import { type ReactNode, useEffect, useState } from "react";
 import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { BACKTESTABLE_RULE_IDS } from "@noticeos/contract/rule-backtest";
+import { MAX_WINDOW_DAYS_LIMIT, quietestJudgedPerDay } from "@noticeos/contract/rules";
 import { ruleLabel } from "@shared/alert-rules";
 import type { EditableFile, JsonValue, SettingOp } from "@shared/changeset";
 import type { KnobFact, PortfolioKnob } from "@shared/asset-detail";
@@ -532,9 +533,6 @@ function formatKnobValue(v: JsonValue, unit: PortfolioKnob["unit"]): string {
  * loose rule that will fire often — which is exactly what the meter's over-cap
  * amber is for. */
 const ALPHA_CONVENTIONAL_CEILING = 0.05;
-/** One week of history, the scale a "how much prior history" window is read
- * against. */
-const HOURS_IN_A_WEEK = 168;
 
 function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
   const { alertRules } = settings;
@@ -545,6 +543,8 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
   // preview must be a picture of. `null` while a field holds something the
   // detector would refuse, which the shared hook turns into its own sentence.
   const [drafts, setDrafts] = useState<Record<string, JsonValue | null>>({});
+  const savedAlpha = alertRules.knobs.find((knob) => knob.key === "alpha")?.raw;
+  const alpha = typeof savedAlpha === "number" ? savedAlpha : null;
 
   return (
     <>
@@ -577,7 +577,7 @@ function AlertRulesSection({ settings }: { settings: SettingsPayload }) {
           aside={<StateChip tone="neutral" label="All sites" glyph={<Globe className="size-3" />} subject="alert-rules:portfolio" />}
         >
           {alertRules.knobs.map((knob) => (
-            <FieldWithVisual key={knob.key} visual={alertRuleVisual(knob)}>
+            <FieldWithVisual key={knob.key} visual={alertRuleVisual(knob, alpha)}>
               <KnobEditor
                 statesReadOnly={false}
                 className="border-0 py-0"
@@ -776,7 +776,9 @@ function replayedValue(
   drafts: Record<string, JsonValue | null>,
 ): string {
   const draft = knob.key in drafts ? drafts[knob.key] : undefined;
-  return String(draft ?? knob.raw);
+  const value = String(draft ?? knob.raw);
+  if (knob.key !== "max_window_days") return value;
+  return value === "1" ? "1 day" : `${value} days`;
 }
 
 /**
@@ -791,12 +793,11 @@ function replayableAssets(assets: readonly AssetCard[]): AssetCard[] {
     .sort((a, b) => b.openError + b.openWarn - (a.openError + a.openWarn));
 }
 
-/** Two of these three numbers mean nothing on their own. A probability is read
- * against the conventional 0.05 ceiling and a window in hours is read against a
- * week; a minimum daily count is already the plain number it claims to be, so it
- * gets no bar. What the value would do is the replay's answer, not an estimate
- * from the number alone. */
-function alertRuleVisual(knob: KnobFact) {
+/** Neither number means much on its own. A probability is read against the
+ * conventional 0.05 ceiling; the longest window against four weeks, with the
+ * quietest daily average it still tests, which follows from both. What a value
+ * would do is the replay's answer, not an estimate from the number alone. */
+function alertRuleVisual(knob: KnobFact, alpha: number | null) {
   const n = typeof knob.raw === "number" ? knob.raw : Number(knob.raw);
   if (!Number.isFinite(n)) return undefined;
 
@@ -819,32 +820,36 @@ function alertRuleVisual(knob: KnobFact) {
     );
   }
 
-  if (knob.key === "low_volume_window_hours") {
+  if (knob.key === "max_window_days") {
+    const quietest = alpha === null ? null : quietestJudgedPerDay({ alpha, maxWindowDays: n });
     return (
-      <div data-rule-scale="low-volume-window">
+      <div data-rule-scale="longest-window">
         <div className="flex items-baseline justify-between gap-2 text-xs">
-          <span className="text-muted-foreground">Of one week</span>
+          <span className="text-muted-foreground">Of four weeks</span>
           <span className="shrink-0 tabular-nums text-foreground">
-            {`${n} h · ${formatDays(n)}`}
+            {`${n} ${n === 1 ? "day" : "days"}`}
           </span>
         </div>
         <Meter
           className="mt-1.5"
           value={n}
-          max={HOURS_IN_A_WEEK}
-          ariaLabel="Low-volume history window as a share of one week"
+          max={MAX_WINDOW_DAYS_LIMIT}
+          ariaLabel="Longest window as a share of four weeks"
         />
+        {quietest === null ? null : (
+          <p className="mt-1.5 text-xs text-muted-foreground" data-rule-quietest>
+            Tests metrics above{" "}
+            <span className="tabular-nums text-foreground">
+              {quietest < 1 ? quietest.toFixed(2) : quietest.toFixed(1)}
+            </span>{" "}
+            a day
+          </p>
+        )}
       </div>
     );
   }
 
   return undefined;
-}
-
-function formatDays(hours: number): string {
-  const days = hours / 24;
-  const rounded = Math.round(days * 10) / 10;
-  return `${rounded} ${rounded === 1 ? "day" : "days"}`;
 }
 
 // --- 3. Data collection ----------------------------------------------------

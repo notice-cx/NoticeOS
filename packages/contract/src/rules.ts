@@ -1,6 +1,7 @@
-// Volume-aware anomaly rules (docs/02): at healthy volume a drop is judged by
-// its Poisson tail probability; below that volume a single zero-day is routine
-// noise, so the rule widens to a multi-day window, or stays quiet.
+// Volume-aware anomaly rules (docs/02): a drop is judged by its Poisson tail
+// probability over the shortest whole-day window in which a run of zeros could
+// fire. A busy metric is judged on one day; a quieter one pools more days, up
+// to `maxWindowDays`, and one too quiet for even that is not judged.
 //
 // Every rule is pure and returns a full RuleVerdict, fired or not, so the
 // caller can persist the exact inputs a rule saw as `rule_inputs`.
@@ -11,18 +12,53 @@ import type { FlagKind, FlagSeverity, PulseEnvelope } from './schema.js';
 export interface RuleConfig {
   /** Tail-probability threshold below which a drop fires. docs/02 default 0.01. */
   alpha: number;
-  /** Baseline (per-day) at/above which the single-day Poisson rule applies. Default 3. */
-  minBaselinePerDay: number;
-  /** Window (hours) the low-volume rule aggregates over. Default 72. */
-  lowVolumeWindowHours: number;
+  /** The longest window, in whole days, a quiet metric is pooled over. Default 14. */
+  maxWindowDays: number;
 }
 
 /** docs/02 / config/constants.json `flag_defaults`. */
 export const DEFAULT_RULE_CONFIG: RuleConfig = {
   alpha: 0.01,
-  minBaselinePerDay: 3,
-  lowVolumeWindowHours: 72,
+  maxWindowDays: 14,
 };
+
+/** The most `maxWindowDays` may be. Past four weeks a drop is no longer news,
+ * and the four earlier windows a window is compared with already reach back
+ * more than four months. */
+export const MAX_WINDOW_DAYS_LIMIT = 28;
+
+/**
+ * Whether a run of zeros where `expected` events were due is improbable enough
+ * to fire. It decides how long a window must be before a drop in it can show.
+ */
+export function zeroCanFire(
+  expected: number,
+  config: RuleConfig = DEFAULT_RULE_CONFIG,
+): boolean {
+  return expected > 0 && poissonLowerTail(0, expected) < config.alpha;
+}
+
+/**
+ * The shortest whole-day window, at most `maxWindowDays`, in which a metric
+ * averaging `baselinePerDay` falling to zero would fire; undefined when not
+ * even the longest one would. 1 is the one-day test. At alpha 0.01: 4.61 a day
+ * or more is judged on one day, 3 on two, 1.5 on four, 1 on five, 0.5 on ten.
+ */
+export function windowDaysFor(
+  baselinePerDay: number,
+  config: RuleConfig = DEFAULT_RULE_CONFIG,
+): number | undefined {
+  for (let days = 1; days <= config.maxWindowDays; days++) {
+    if (zeroCanFire(baselinePerDay * days, config)) return days;
+  }
+  return undefined;
+}
+
+/** The daily average a metric must exceed to be judged at all: `zeroCanFire`
+ * solved for the longest window. */
+export function quietestJudgedPerDay(config: RuleConfig = DEFAULT_RULE_CONFIG): number {
+  return Math.log(1 / config.alpha) / config.maxWindowDays;
+}
 
 export interface FiredFlag {
   severity: FlagSeverity;
@@ -49,10 +85,10 @@ function fmtProb(p: number): string {
 }
 
 /**
- * Normal-volume drop detector. Models today's count as Poisson(avg7d) and fires
- * when the lower-tail probability of seeing a count this low is < alpha. Applies
- * only when the baseline clears `minBaselinePerDay` — below that, a zero-day is
- * routine noise and this rule stands down (see flowLowVolumeAnomaly).
+ * One-day drop detector. Models today's count as Poisson(baseline) and fires
+ * when the lower-tail probability of seeing a count this low is < alpha.
+ * Applies only when a zero day alone could fire; a quieter metric is judged
+ * over several days (see flowLowVolumeAnomaly).
  */
 export function flowPoissonAnomaly(
   metric: string,
@@ -66,10 +102,9 @@ export function flowPoissonAnomaly(
     observed,
     baselinePerDay,
     alpha: config.alpha,
-    minBaselinePerDay: config.minBaselinePerDay,
     windowHours: 24,
   };
-  if (baselinePerDay < config.minBaselinePerDay) {
+  if (!zeroCanFire(baselinePerDay, config)) {
     return { ruleId, outcome: 'not-applicable', inputs };
   }
   const lambda = baselinePerDay; // one-day window, weight 1
@@ -93,36 +128,40 @@ export function flowPoissonAnomaly(
 }
 
 /**
- * Low-volume drop detector. Below `minBaselinePerDay` a single-day Poisson test
- * is too noisy, so this compares a multi-day window (default 72h) against
- * `baselinePerDay * windowDays` (docs/02: "last72h vs 3x daily baseline"). The
- * caller assembles `windowObserved` by summing the recent daily counts; when it
- * is undefined (no history yet) the rule stays quiet rather than guess — which
- * is the whole point of being volume-aware.
+ * Multi-day drop detector. Compares the count over the last `windowDays` days
+ * with `baselinePerDay * windowDays`. The caller assembles `windowObserved` by
+ * summing the recent daily counts; when it is undefined (no history yet) the
+ * rule stays quiet rather than guess. A window too short for even a run of
+ * zeros to fire is not judged: no count in it could raise an alert.
  */
 export function flowLowVolumeAnomaly(
   metric: string,
   windowObserved: number | undefined,
   baselinePerDay: number,
+  windowDays: number,
   config: RuleConfig = DEFAULT_RULE_CONFIG,
 ): RuleVerdict {
   const ruleId = 'flow-lowvol-window';
-  const windowDays = config.lowVolumeWindowHours / 24;
+  const windowHours = windowDays * 24;
   const inputs: Record<string, unknown> = {
     metric,
     windowObserved: windowObserved ?? null,
     baselinePerDay,
     alpha: config.alpha,
-    windowHours: config.lowVolumeWindowHours,
+    windowHours,
+    maxWindowDays: config.maxWindowDays,
   };
-  if (baselinePerDay >= config.minBaselinePerDay) {
+  if (windowDays <= 1) {
     return { ruleId, outcome: 'not-applicable', inputs };
   }
-  const lambda = baselinePerDay * windowDays; // 3x daily baseline
+  const lambda = baselinePerDay * windowDays;
   inputs.lambda = lambda;
   inputs.windowDays = windowDays;
-  // No window data to compare, or no baseline established yet -> stay quiet.
-  if (windowObserved === undefined || lambda <= 0) {
+  if (!zeroCanFire(lambda, config)) {
+    inputs.reason = 'too-few-expected';
+    return { ruleId, outcome: 'not-applicable', inputs };
+  }
+  if (windowObserved === undefined) {
     return { ruleId, outcome: 'not-applicable', inputs };
   }
   const pLowerTail = poissonLowerTail(windowObserved, lambda);
@@ -136,7 +175,7 @@ export function flowLowVolumeAnomaly(
         severity: 'warn',
         kind: 'anomaly',
         metric,
-        message: `${windowObserved} in last${config.lowVolumeWindowHours}h (baseline ${lambda.toFixed(1)}, P(<=${windowObserved})~=${fmtProb(pLowerTail)})`,
+        message: `${windowObserved} in last${windowHours}h (baseline ${lambda.toFixed(1)}, P(<=${windowObserved})~=${fmtProb(pLowerTail)})`,
       },
     };
   }
@@ -155,9 +194,10 @@ export interface EvaluateOptions {
    * instead of falling back to the asset-supplied avg7d. */
   requireHistoricalBaseline?: boolean;
   /**
-   * Caller-assembled multi-day window count per metric (sum of the recent daily
-   * `last24h` values over `lowVolumeWindowHours`). Enables the low-volume rule;
-   * metrics absent from this map fall through to 'not-applicable' there.
+   * Caller-assembled multi-day window count per metric: the sum of the recent
+   * daily `last24h` values over the metric's window, which is the one its
+   * central baseline was measured over, or `windowDaysFor` its avg7d. Enables
+   * the multi-day rule; metrics absent from this map are 'not-applicable' there.
    */
   windowObservedByMetric?: Record<string, number>;
 }
@@ -177,14 +217,17 @@ export interface MetricBaseline {
   source: 'same-weekday-4w';
   sampleSize: number;
   comparisonDates: string[];
+  /** The window the baseline was measured over and the metric is judged on;
+   * 24 is the one-day test. */
   windowHours: number;
 }
 
 /**
- * Evaluate a whole pulse envelope: for each metric pick the regime by baseline
- * — Poisson single-day at/above `minBaselinePerDay`, the multi-day window below
- * it — and return every verdict (fired and not). Callers persist the ones whose
- * outcome is 'fired', carrying `rule_id` + `rule_inputs` onto each flag row.
+ * Evaluate a whole pulse envelope: for each metric pick its window — the one
+ * its central baseline was measured over, or else the shortest one its avg7d
+ * needs — run the one-day rule or the multi-day rule on it, and return every
+ * verdict (fired and not). Callers persist the ones whose outcome is 'fired',
+ * carrying `rule_id` + `rule_inputs` onto each flag row.
  */
 export function evaluatePulse(
   envelope: PulseEnvelope,
@@ -208,13 +251,17 @@ export function evaluatePulse(
       continue;
     }
     const baselinePerDay = historical?.perDay ?? series.avg7d;
+    const windowDays = historical
+      ? historical.windowHours / 24
+      : (windowDaysFor(baselinePerDay, config) ?? config.maxWindowDays);
     const verdict =
-      baselinePerDay >= config.minBaselinePerDay
+      windowDays <= 1
         ? flowPoissonAnomaly(metric, series.last24h, baselinePerDay, config)
         : flowLowVolumeAnomaly(
             metric,
             options.windowObservedByMetric?.[metric],
             baselinePerDay,
+            windowDays,
             config,
           );
     if (historical) {

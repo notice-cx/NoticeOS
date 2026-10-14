@@ -22,7 +22,7 @@ const NOW = new Date("2026-07-05T12:00:00.000Z");
 const DAY = 86_400_000;
 const DEPS: AssetDetailDeps = {
   now: NOW,
-  flagDefaults: { alpha: 0.01, min_baseline_per_day: 3, low_volume_window_hours: 72 },
+  flagDefaults: { alpha: 0.01, max_window_days: 14 },
   pullConfig: [],
   monthlyCaps: { dataUsd: 25 },
   operatorRateUsdPerMin: 2,

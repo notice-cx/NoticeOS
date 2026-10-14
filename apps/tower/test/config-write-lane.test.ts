@@ -34,7 +34,7 @@ const installed = (rel: string) => rel.replace(/^config\//, "installation/");
 // the lane must edit such a document without tripping over it.
 const CONSTANTS = {
   monthly_caps: { data_usd: 25, inference_usd: 10 },
-  flag_defaults: { alpha: 0.01, min_baseline_per_day: 3 },
+  flag_defaults: { alpha: 0.01, max_window_days: 14 },
 };
 
 const created: string[] = [];

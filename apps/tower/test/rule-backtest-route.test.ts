@@ -14,7 +14,7 @@ const BACKTEST: RuleBacktest = {
   asset: "northwind.example",
   ruleId: "flow-poisson-low",
   metric: "signups",
-  config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
+  config: { alpha: 0.01, maxWindowDays: 14 },
   windowDays: 2,
   firstDay: "2026-09-03",
   lastDay: "2026-09-04",
@@ -37,7 +37,7 @@ const BODY = {
   asset: "northwind.example",
   ruleId: "flow-poisson-low",
   metric: "signups",
-  config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
+  config: { alpha: 0.01, maxWindowDays: 14 },
 };
 
 function request(body: unknown = BODY, init: RequestInit = {}) {
@@ -72,7 +72,7 @@ describe("POST /api/alerts/backtest", () => {
       asset: "northwind.example",
       ruleId: "flow-poisson-low",
       metric: "signups",
-      config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
+      config: { alpha: 0.01, maxWindowDays: 14 },
     });
     expect(await res.json()).toEqual(BACKTEST);
   });

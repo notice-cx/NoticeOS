@@ -26,8 +26,7 @@ Under **Settings** > **Alert rules** you tune when an anomaly is worth an alert:
 | Setting | Default | What it means |
 | --- | --- | --- |
 | Anomaly sensitivity | 0.01 | How unlikely a reading must be, against its recent average, before it is flagged |
-| Minimum daily volume to test | 3 | A series under this average is not tested one day at a time; its days are pooled over the low-volume window, so low-volume sites do not raise false alarms |
-| Low-volume window | 72 hours | How many hours of counts are pooled for a series under the minimum daily volume |
+| Longest window | 14 days | The most days a quiet series is pooled over. Each series is tested over the fewest whole days in which a run of zeros could raise an alert, so low-volume sites do not raise false alarms; a series too quiet for this many days is not tested |
 
 Alerts are not enforcement. They notify you; they stop nothing.
 

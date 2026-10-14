@@ -39,12 +39,12 @@ Each action is on the row it applies to. On a computer with a mouse, **Snooze** 
 - **Unsnooze**, in the Snoozed panel, returns a snoozed alert to the Open list early.
 - **Resolve** closes it.
 - **Mark read**, after opening the row for the evidence, acknowledges it without closing it.
-- **Tune** adjusts the rule that fired it. Tuning opens the same three settings as **Settings** > **Alert rules** (**Anomaly sensitivity**, **Minimum daily volume to test** and **Low-volume window**), with a replay of what the new value would have fired.
+- **Tune** adjusts the rule that fired it. Tuning opens the same two settings as **Settings** > **Alert rules** (**Anomaly sensitivity** and **Longest window**), with a replay of what the new value would have fired.
 - **File task**, in the opened row, files a task about the condition; the alert stays open until the condition clears.
 - **Open** the site, from the opened row or from the site's heading.
 - The filters narrow the list by site, severity and kind.
 
-A metric is tested against the mean of its four matching prior weekdays, so a Saturday is compared with Saturdays. It fires only when the day's count is improbable against that baseline and the baseline is at least three a day. Lower-volume metrics are tested over a pooled window. A new metric raises no alert until four matching weekdays exist, which takes at least 28 days. An alert that persists stays one alert; a new reading resolves the previous open alert for that metric before the new day is tested.
+A metric is tested against the mean of its four matching prior weekdays, so a Saturday is compared with Saturdays. A metric averaging 4.6 or more a day is tested one day at a time; a quieter one is tested over the fewest whole days in which a run of zeros could fire, up to **Longest window**, against four earlier windows of the same length. It fires only when the count is improbable against that baseline. A new metric raises no alert until four matching weekdays exist, which takes at least 28 days. An alert that persists stays one alert; a new reading resolves the previous open alert for that metric before the new day is tested.
 
 ## States and labels
 

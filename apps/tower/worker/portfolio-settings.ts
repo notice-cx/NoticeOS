@@ -16,21 +16,25 @@ import { OWNER } from "../shared/asset-detail";
  * changed and the field must read the same on `/settings` and in history. */
 const KNOB_META = FLAG_DEFAULT_META;
 
-/** The portfolio anomaly-rule defaults, as editable rows. */
+/** The portfolio anomaly-rule defaults, as editable rows: the settings the
+ * rules read, in their own order. A key an older document still holds and no
+ * rule reads is not a row. */
 export function buildRules(flagDefaults: Record<string, number | string>): RulesInForce {
-  const knobs: KnobFact[] = Object.entries(flagDefaults).map(([key, value]) => {
-    const meta = KNOB_META[key];
-    return {
-      key,
-      label: meta?.label ?? key,
-      jargon: meta?.jargon ?? key,
-      value: String(value),
-      explain: meta?.explain ?? "",
-      owner: OWNER.constants,
-      pointer: `/flag_defaults/${key}`,
-      raw: value,
-    };
-  });
+  const knobs: KnobFact[] = Object.entries(KNOB_META)
+    .filter(([key]) => flagDefaults[key] !== undefined)
+    .map(([key, meta]) => {
+      const value = flagDefaults[key]!;
+      return {
+        key,
+        label: meta.label,
+        jargon: meta.jargon,
+        value: String(value),
+        explain: meta.explain,
+        owner: OWNER.constants,
+        pointer: `/flag_defaults/${key}`,
+        raw: value,
+      };
+    });
   return {
     scope: "portfolio-default",
     hasOverride: false,

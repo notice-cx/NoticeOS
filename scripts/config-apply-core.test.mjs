@@ -70,7 +70,7 @@ function fileOp(overrides = {}) {
 
 const CONSTANTS = {
   monthly_caps: { data_usd: 25, inference_usd: 10 },
-  flag_defaults: { alpha: 0.01, min_baseline_per_day: 3 },
+  flag_defaults: { alpha: 0.01, max_window_days: 14 },
 };
 
 test('pointerGet returns MISSING for an absent segment, and the value for a present null', () => {
@@ -180,7 +180,7 @@ test('applyFileOps writes each touched file once, 2-space JSON with a trailing n
   assert.equal(doc.monthly_caps.data_usd, 40);
   // Untouched keys survive byte-for-byte semantics: this is a read-modify-write
   // of one value, never a re-serialization of somebody's idea of the file.
-  assert.equal(doc.flag_defaults.min_baseline_per_day, 3);
+  assert.equal(doc.flag_defaults.max_window_days, 14);
 });
 
 // config/ holds the product's defaults, the installation folder holds this

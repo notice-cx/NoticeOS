@@ -35,7 +35,7 @@ test('D1 fixed Request edges reject caller-selected URLs, authority, duplicates 
 
 test('stored GET and POST evidence keep semantic action across exact helper edges', async () => {
   assert.equal((await towerOperation(request('/api/wall'))).action, 'evidence.read');
-  const original = request('/api/alerts/backtest', 'POST', { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } });
+  const original = request('/api/alerts/backtest', 'POST', { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, maxWindowDays: 14 } });
   const result = await ingestOperation('backtestRule', original);
   assert.equal(result.action, 'evidence.read');
   await assert.rejects(ingestOperation('ga4Realtime', original), OperationRefused);
@@ -435,7 +435,7 @@ test('live panels admit only their fixed method and bounded original selector', 
   await assert.rejects(ingestOperation('ga4Realtime', request(path)), OperationRefused);
 });
 
-const replay = { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 } };
+const replay = { asset: 'example.test', ruleId: 'pulse_gap', config: { alpha: 0.05, maxWindowDays: 14 } };
 test('stored research grammar binds only named tools and exact candidate replay fields', async () => {
   for (const body of [replay, { ...replay, metric: null, through: '2026-07-05' }]) {
     const parsed = await storedResearchReadRequest(request('/api/alerts/backtest', 'POST', body));

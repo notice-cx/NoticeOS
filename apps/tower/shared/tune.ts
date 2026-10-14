@@ -20,19 +20,14 @@ export const FLAG_DEFAULT_META: Record<string, FlagDefaultMeta> = {
     jargon: "alpha",
     explain: "Lower means fewer, surer alerts",
   },
-  min_baseline_per_day: {
-    label: "Minimum daily volume to test",
-    jargon: "min_baseline_per_day",
-    explain: "Quieter metrics are tested over several days",
-  },
-  low_volume_window_hours: {
-    label: "Low-volume window",
-    jargon: "low_volume_window_hours",
-    explain: "Hours pooled together for quieter metrics",
+  max_window_days: {
+    label: "Longest window",
+    jargon: "max_window_days",
+    explain: "Quieter metrics pool up to this many days",
   },
 };
 
-/** The settings a tune may name. Exactly the three the anomaly rules read — a
+/** The settings a tune may name. Exactly the two the anomaly rules read — a
  * `tune` disposition claiming some other key would be a record of a change that
  * cannot have altered what fires. */
 export const TUNABLE_SETTINGS: readonly string[] = Object.keys(FLAG_DEFAULT_META);

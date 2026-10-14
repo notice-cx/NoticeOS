@@ -9,6 +9,7 @@ import {
   validateTimeZone,
   validateUrl,
   validateUsd,
+  validateWindowDays,
 } from "@/lib/knob-validators";
 
 describe("validateUrl (pull.json scrape endpoint)", () => {
@@ -39,7 +40,7 @@ describe("validateProbability (alpha)", () => {
   });
 });
 
-describe("validatePositiveInt (min baseline / window hours)", () => {
+describe("validatePositiveInt", () => {
   it("accepts whole numbers ≥ 1", () => {
     expect(validatePositiveInt("3")).toEqual({ ok: true, value: 3 });
   });
@@ -48,6 +49,19 @@ describe("validatePositiveInt (min baseline / window hours)", () => {
     expect(validatePositiveInt("2.5").ok).toBe(false);
     expect(validatePositiveInt("0").ok).toBe(false);
     expect(validatePositiveInt("-4").ok).toBe(false);
+  });
+});
+
+describe("validateWindowDays (the longest alert window)", () => {
+  it("accepts whole days from one to four weeks", () => {
+    expect(validateWindowDays("1")).toEqual({ ok: true, value: 1 });
+    expect(validateWindowDays("28")).toEqual({ ok: true, value: 28 });
+  });
+
+  it("rejects fractions, zero and anything past four weeks", () => {
+    expect(validateWindowDays("2.5").ok).toBe(false);
+    expect(validateWindowDays("0").ok).toBe(false);
+    expect(validateWindowDays("29")).toEqual({ ok: false, error: "Must be at most 28." });
   });
 });
 

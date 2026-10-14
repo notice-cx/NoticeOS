@@ -313,20 +313,20 @@ describe("tuning a rule records the tune on the alert it was tuned from", () => 
     expect(await row(id)).toMatchObject({ disposition: null });
   });
 
-  it("may be tuned again — the panel holds three settings", async () => {
+  it("may be tuned again — the panel holds two settings", async () => {
     const id = await insertOpenFlag();
     await applyFlagAction(await store(), id, "tune", NOW, null, TUNED);
     const later = "2026-07-29T22:05:00.000Z";
     expect(
       await applyFlagAction(await store(), id, "tune", later, null, {
-        setting: "min_baseline_per_day",
-        from: 3,
-        to: 5,
+        setting: "max_window_days",
+        from: 14,
+        to: 7,
       }),
     ).toMatchObject({ action: "tune" });
     expect(await row(id)).toMatchObject({
       disposition: "tune",
-      disposition_note: "Minimum daily volume to test (min_baseline_per_day) 3 → 5",
+      disposition_note: "Longest window (max_window_days) 14 → 7",
     });
     expect(await openIds(later)).toEqual([id]);
   });

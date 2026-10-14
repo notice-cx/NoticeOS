@@ -139,24 +139,14 @@ function payload(overrides: Partial<SettingsPayload> = {}): SettingsPayload {
           raw: 0.01,
         },
         {
-          key: "min_baseline_per_day",
-          label: "Minimum daily volume to test",
-          jargon: "min_baseline_per_day",
-          value: "3",
-          explain: "Below this average a single day is too noisy to test.",
+          key: "max_window_days",
+          label: "Longest window",
+          jargon: "max_window_days",
+          value: "14",
+          explain: "Quieter metrics pool up to this many days",
           owner: "config/constants.json",
-          pointer: "/flag_defaults/min_baseline_per_day",
-          raw: 3,
-        },
-        {
-          key: "low_volume_window_hours",
-          label: "Low-volume window",
-          jargon: "low_volume_window_hours",
-          value: "72",
-          explain: "How much prior history the low-volume test needs on hand.",
-          owner: "config/constants.json",
-          pointer: "/flag_defaults/low_volume_window_hours",
-          raw: 72,
+          pointer: "/flag_defaults/max_window_days",
+          raw: 14,
         },
       ],
     },
@@ -1377,7 +1367,7 @@ function backtestBody(asset: string): RuleBacktest {
     asset,
     ruleId: "flow-poisson-low",
     metric: null,
-    config: { alpha: 0.01, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
+    config: { alpha: 0.01, maxWindowDays: 14 },
     windowDays: 30,
     firstDay: days[0]!.date,
     lastDay: days[29]!.date,
@@ -1480,12 +1470,43 @@ describe("/settings/alert-rules — the replay the fields are edited against", (
 
     await waitFor(() => {
       expect(asked[asked.length - 1]).toMatchObject({
-        config: { alpha: 0.05, minBaselinePerDay: 3, lowVolumeWindowHours: 72 },
+        config: { alpha: 0.05, maxWindowDays: 14 },
       });
     });
     expect(container.querySelector("[data-replay-caption]")).toHaveTextContent(
-      "anomaly sensitivity 0.05",
+      "anomaly sensitivity 0.05 · longest window 14 days",
     );
+
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: /Longest window/ }),
+      { target: { value: "7" } },
+    );
+    await waitFor(() => {
+      expect(asked[asked.length - 1]).toMatchObject({
+        config: { alpha: 0.05, maxWindowDays: 7 },
+      });
+    });
+  });
+
+  it("shows the longest window against four weeks, with the quietest average it still tests", () => {
+    state.wall = wall([]);
+    const { container } = renderPage();
+    const scale = container.querySelector('[data-rule-scale="longest-window"]') as HTMLElement;
+    expect(scale).toHaveTextContent("Of four weeks14 days");
+    // ln(100) / 14 days at the saved sensitivity of 0.01.
+    expect(scale.querySelector("[data-rule-quietest]")).toHaveTextContent("Tests metrics above 0.33 a day");
+  });
+
+  it("refuses a longest window past four weeks before a Save sends it", async () => {
+    state.wall = wall([]);
+    const calls = stubFetch();
+    renderPage();
+
+    const field = screen.getByRole("spinbutton", { name: /Longest window/ });
+    fireEvent.change(field, { target: { value: "29" } });
+    fireEvent.click(saveBeside(field));
+    expect(await screen.findByText("Must be at most 28.")).toBeVisible();
+    expect(calls.some((call) => call.method === "PUT")).toBe(false);
   });
 
   it("replays the other rule when the operator picks it", async () => {

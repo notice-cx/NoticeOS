@@ -24,8 +24,7 @@ most of it in place.
 | `explore_sleeve` | Share of effort reserved for exploration | reference value; no code reads it | no |
 | `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
 | `flag_defaults.alpha` | Anomaly sensitivity: the Poisson tail probability an alert must beat | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |
-| `flag_defaults.min_baseline_per_day` | Minimum daily volume before a series is tested at all | the flag rules | yes, **Alert rules** |
-| `flag_defaults.low_volume_window_hours` | How much prior history the low-volume test needs | the flag rules | yes, **Alert rules** |
+| `flag_defaults.max_window_days` | The most whole days a quiet series is pooled over, 1 to 28: each series is tested over the fewest days in which a run of zeros could fire, and one too quiet for this many is not tested | the flag rules | yes, **Alert rules** |
 | `no_nightly_report` | Optional list of asset ids that send no nightly report, so none is owed: no freshness alert, outside the SYSTEM card's "N/M nightly reports fresh", a neutral "No report" on the card. Absent until the first asset declares | the ingest freshness cron and the Tower, store first, through `owesNightlyReport` in `packages/contract/src/reporting.ts` | yes, each asset's **Settings → Nightly report** |
 
 `monthly_caps.inference_usd` no longer exists: no process in this repo calls a
@@ -33,6 +32,12 @@ model, so nothing could measure spend against it. A store seeded while it
 existed still holds the key; every reader ignores it, and the copy loses it
 only on a forced re-seed (`pnpm config:seed --force config/constants.json
 --reason "…"`).
+
+`flag_defaults.min_baseline_per_day` and `flag_defaults.low_volume_window_hours`
+no longer exist: the window each series is tested over follows from `alpha`
+and `max_window_days`. A store seeded while they existed still holds them;
+every reader ignores them, **Alert rules** does not list them, and until
+**Longest window** is saved the rules use the built-in 14 days.
 
 ## `os_time_zone` — the operator's clock
 

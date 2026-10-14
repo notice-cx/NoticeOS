@@ -1,3 +1,4 @@
+import { MAX_WINDOW_DAYS_LIMIT } from "@noticeos/contract/rules";
 import { isIanaTimeZone } from "@noticeos/contract/time-zone-setting";
 import type { JsonValue } from "@shared/changeset";
 import {
@@ -44,13 +45,23 @@ export function validateProbability(raw: string): Validated<number> {
   return { ok: true, value: n };
 }
 
-/** A positive whole number (min baseline/day, low-volume window hours). */
+/** A positive whole number. */
 export function validatePositiveInt(raw: string): Validated<number> {
   const n = parseNumber(raw);
   if (n === null) return { ok: false, error: "Enter a number." };
   if (!Number.isInteger(n)) return { ok: false, error: "Must be a whole number." };
   if (n < 1) return { ok: false, error: "Must be at least 1." };
   return { ok: true, value: n };
+}
+
+/** The longest alert window: whole days, one to the rules' own limit. */
+export function validateWindowDays(raw: string): Validated<number> {
+  const whole = validatePositiveInt(raw);
+  if (!whole.ok) return whole;
+  if (whole.value > MAX_WINDOW_DAYS_LIMIT) {
+    return { ok: false, error: `Must be at most ${MAX_WINDOW_DAYS_LIMIT}.` };
+  }
+  return whole;
 }
 
 /** A non-negative dollar amount (spend caps, operator rate). */
@@ -66,8 +77,7 @@ export function validateUsd(raw: string): Validated<number> {
  * and refused on another. */
 export const FLAG_DEFAULT_VALIDATOR: Record<string, (raw: string) => Validated<number>> = {
   alpha: validateProbability,
-  min_baseline_per_day: validatePositiveInt,
-  low_volume_window_hours: validatePositiveInt,
+  max_window_days: validateWindowDays,
 };
 
 /**
