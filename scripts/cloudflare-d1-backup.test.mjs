@@ -86,6 +86,39 @@ test('only an explicitly disconnected connection skips; unknown, mismatched and 
   const token = randomUUID();
   await assert.rejects(client(async () => { throw new Error(token); }).inventory(), error => !error.message.includes(token));
 });
+test('an unavailable inventory names its cause without forwarding response or error text', async () => {
+  const secret = randomUUID();
+  const cases = [
+    [async () => new Response(`<html>${secret}</html>`, { status: 404 }), 'the app answered 404 without a selection'],
+    [async () => Response.json({ error: 'unreadable_connection', detail: secret }, { status: 409 }), 'the app answered 409 unreadable_connection'],
+    [async () => Response.json({ error: secret }, { status: 500 }), 'the app answered 500'],
+    [async () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error(secret), { code: 'ECONNREFUSED' }) }); }, 'the app could not be reached: ECONNREFUSED'],
+    [async () => Response.json({ ...status(), accountMismatch: true }), 'the saved selection names another Cloudflare account'],
+    [async () => Response.json({ accountId: secret }), 'the app answered an unreadable selection'],
+  ];
+  for (const [fetchImpl, reason] of cases) {
+    await assert.rejects(client(fetchImpl).inventory(), error => error.message.includes(`(${reason})`) && !error.message.includes(secret));
+  }
+  await assert.rejects(client(async () => assert.fail('no request'), { readBootstrap: () => { throw new Error(secret); } }).inventory(),
+    error => error.message.includes('(the app access token could not be read)') && !error.message.includes(secret));
+});
+test('a refused or failed export names its cause without forwarding response text', async () => {
+  const secret = randomUUID();
+  const failed = { ...receipt(), state: 'failed', bytes: null, sha256: null, failure: 'access_denied' };
+  const cases = [
+    [async () => Response.json({ error: 'access_denied', detail: secret }, { status: 409 }), 'the export answered 409 access_denied'],
+    [async () => new Response(secret, { status: 502 }), 'the export answered 502 without a receipt'],
+    [async () => Response.json(failed), 'the export ended failed access_denied'],
+    [async () => Response.json({ ...receipt(), asset: 'foreign.example' }), 'the export answered a receipt for another target'],
+  ];
+  for (const [fetchImpl, reason] of cases) {
+    await assert.rejects(client(fetchImpl).exportTarget(selection, target), error => error.message.includes(`(${reason})`) && !error.message.includes(secret));
+  }
+  const output = path.join(os.tmpdir(), `native-d1-${randomUUID()}`);
+  await assert.rejects(copyCloudflareD1({ client: client(async () => Response.json(failed)), selection, target, output }),
+    error => error.message.includes('(the export ended failed access_denied)'));
+  await assert.rejects(fs.stat(output), { code: 'ENOENT' });
+});
 test('missing or public bootstrap files fail without making a request', async t => {
   const root = await fixture(t); let calls = 0;
   const native = createCloudflareD1BackupClient({ repoRoot: root, env: {}, fetchImpl: async () => { calls++; return Response.json(status()); } });

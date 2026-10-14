@@ -78,6 +78,14 @@ bindings, database credentials, task selector, task inventory, task project
 configuration and worker/exporter declarations. If a source credential or
 declaration changes during capture, the set is not published.
 
+The job result the application records names only the first failed stage.
+Every run writes each stage's result and redacted errors to
+`/state/.local/backup-report.json` (the application's state folder), mode
+`0600` and owned by the worker profile's identity, beside the backups folder and
+never inside a set. A Cloudflare D1 failure there names an HTTP status, an
+error code or the application's error token, never response text. When that
+file cannot be written, the job result says so.
+
 `node deploy/compose/health.mjs` reports application health and whether the declared
 backup worker is ready. A missing declaration is reported explicitly. Container
 health fails when a configured worker stops or its private heartbeat (a regular
