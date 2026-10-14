@@ -139,7 +139,7 @@ const PORTFOLIO = { netTrendCurrency: 'USD', netTrendAllCurrency: 'USD',
 const SYSTEM = {
   assetId: "root-os", hasPulse: true, spendTodayUsd: 0.41, dailyCapUsd: 0.83,
   ingest: { fresh: 5, stale: 0, notExpected: 2, expected: 5 },
-  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(3 * HOUR) }],
+  scheduledLanes: [{ job: "backup", outcome: "ran", startedAt: iso(3 * HOUR), lastRanAt: iso(3 * HOUR), failedRuns: 0, failingSince: null }],
 } as SystemBand;
 
 const ATTENTION = [{

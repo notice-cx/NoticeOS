@@ -96,6 +96,7 @@ A complete set does not prove the offsite copy is synchronized or restorable; a 
 
 ## If it didn't work
 
+- Start with the backup report, `state/.local/backup-report.json` in the installation folder. It lists each part's result and the reason a part failed. Every run replaces it; it is readable only by the installation's owner and is never copied into a backup set.
 - The backup failed on **Offsite handoff**: the folder in `host-backup.json` has no existing parent; usually the sync mount is missing. Fix the mount. The local set is kept.
 - The backup failed on **Task hub**: the task database service was not running. Start it and run `pnpm os:backup`.
 - A concurrent attempt fails before copying: a backup does not run while another is in progress. Wait for it to finish.

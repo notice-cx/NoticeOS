@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { PulseEnvelope, REPORT_MAX_AGE_HOURS, isAllFresh } from "@noticeos/contract";
+import { MANUAL_RUN_DETAIL, PulseEnvelope, REPORT_MAX_AGE_HOURS, isAllFresh } from "@noticeos/contract";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { beforeEach, describe, expect, it } from "vitest";
 import { type AssetDetailDeps, buildAssetDetailPayload } from "../worker/asset-detail-payload";
@@ -762,15 +762,55 @@ describe("buildWallPayload — populated store", () => {
         job: "backup",
         outcome: "ran",
         startedAt: "2026-07-05T09:00:00.000Z",
+        lastRanAt: "2026-07-05T09:00:00.000Z",
+        failedRuns: 0,
+        failingSince: null,
       },
       {
         job: "beads-snapshot",
         outcome: "failed",
         startedAt: "2026-07-05T11:55:00.000Z",
+        lastRanAt: null,
+        failedRuns: 1,
+        failingSince: "2026-07-05T11:55:00.000Z",
       },
     ]);
     expect(systemPage?.scheduledLanes).toEqual(wall.system.scheduledLanes);
     expect(ordinaryPage?.scheduledLanes).toBeNull();
+  });
+
+  it("SYSTEM: each lane carries its last run that ran and the scheduled failures since, a press that ran clearing them", async () => {
+    const night = (day: number) => `2026-07-${String(day).padStart(2, "0")}T04:00:00.000Z`;
+    const insert = (runs: { job: string; at: string; outcome: string; detail?: string }[]) =>
+      ctx.call.write((tx) =>
+        tx.execute(
+          `INSERT INTO noticeos.job_runs (workspace_id, job, started_at, finished_at, outcome, detail, recorded_at)
+           SELECT $1::uuid, r.job, r.started_at, r.started_at + interval '1 minute', r.outcome, r.detail, r.started_at + interval '1 minute'
+             FROM unnest($2::text[], $3::timestamptz[], $4::text[], $5::text[]) AS r(job, started_at, outcome, detail)`,
+          [tx.workspaceId, runs.map((run) => run.job), runs.map((run) => run.at), runs.map((run) => run.outcome), runs.map((run) => run.detail ?? null)],
+        ),
+      );
+    await insert([
+      { job: "backup", at: night(1), outcome: "ran" },
+      ...[2, 3, 4, 5].map((day) => ({ job: "backup", at: night(day), outcome: "failed" })),
+      // A failed press is not a failed night.
+      { job: "backup", at: "2026-07-03T10:00:00.000Z", outcome: "failed", detail: MANUAL_RUN_DETAIL },
+      { job: "panel-refresh", at: night(4), outcome: "failed" },
+      { job: "panel-refresh", at: night(5), outcome: "failed" },
+      // A lane that only ever ran from a press has no scheduled firing to show.
+      { job: "pressed-only", at: night(5), outcome: "ran", detail: MANUAL_RUN_DETAIL },
+    ]);
+    const lanes = async () => (await buildWallPayload(ctx.call, OPTIONS)).system.scheduledLanes;
+
+    expect(await lanes()).toEqual([
+      { job: "backup", outcome: "failed", startedAt: night(5), lastRanAt: night(1), failedRuns: 4, failingSince: night(2) },
+      { job: "panel-refresh", outcome: "failed", startedAt: night(5), lastRanAt: null, failedRuns: 2, failingSince: night(4) },
+    ]);
+
+    await insert([{ job: "backup", at: "2026-07-05T10:00:00.000Z", outcome: "ran", detail: MANUAL_RUN_DETAIL }]);
+    expect((await lanes())[0]).toEqual({
+      job: "backup", outcome: "failed", startedAt: night(5), lastRanAt: "2026-07-05T10:00:00.000Z", failedRuns: 0, failingSince: null,
+    });
   });
 
   // Counted over the asset rows, so a sender that went quiet stays in the

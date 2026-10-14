@@ -1985,6 +1985,19 @@ const portfolioNormal: PortfolioData = { netTrendCurrency: 'USD', netTrendAllCur
   daysIn: 42,
 };
 
+/** A lane whose newest firing is its whole record: one that ran is its own
+ * last good run, one that failed is the first failure since. */
+function scheduledLane(job: string, outcome: ScheduledLane["outcome"], startedAt: string): ScheduledLane {
+  return {
+    job,
+    outcome,
+    startedAt,
+    lastRanAt: outcome === "ran" ? startedAt : null,
+    failedRuns: outcome === "failed" ? 1 : 0,
+    failingSince: outcome === "failed" ? startedAt : null,
+  };
+}
+
 /**
  * The scheduled-run records behind the System band's summary line, as their own
  * fixtures so every posture is visible rather than only the healthy one the
@@ -1993,40 +2006,37 @@ const portfolioNormal: PortfolioData = { netTrendCurrency: 'USD', netTrendAllCur
  * or skipped record to reach it.
  */
 const SCHEDULED_HEALTHY: ScheduledLane[] = [
-  { job: "cron 30 2 * * *", outcome: "ran", startedAt: iso(5 * HOUR) },
-  { job: "backup", outcome: "ran", startedAt: iso(3 * HOUR) },
-  { job: "beads-snapshot", outcome: "ran", startedAt: iso(HOUR) },
+  scheduledLane("cron 30 2 * * *", "ran", iso(5 * HOUR)),
+  scheduledLane("backup", "ran", iso(3 * HOUR)),
+  scheduledLane("beads-snapshot", "ran", iso(HOUR)),
 ];
 
 const SCHEDULED_SKIPPED: ScheduledLane[] = [
   ...SCHEDULED_HEALTHY.slice(1),
-  { job: "cron 45 12 * * 1", outcome: "skipped", startedAt: iso(4 * HOUR) },
+  scheduledLane("cron 45 12 * * 1", "skipped", iso(4 * HOUR)),
 ];
 
 const SCHEDULED_FAILED: ScheduledLane[] = [
   ...SCHEDULED_HEALTHY.slice(1),
-  { job: "cron 0 4 * * *", outcome: "failed", startedAt: iso(6 * HOUR) },
+  scheduledLane("cron 0 4 * * *", "failed", iso(6 * HOUR)),
 ];
 
-const SCHEDULED_SILENT: ScheduledLane[] = SCHEDULED_HEALTHY.map((lane) => ({
-  ...lane,
-  startedAt: iso(3 * DAY),
-}));
+const SCHEDULED_SILENT: ScheduledLane[] = SCHEDULED_HEALTHY.map((healthy) => scheduledLane(healthy.job, healthy.outcome, iso(3 * DAY)));
 
 /** The full matrix asset #0's page draws: a failed job, a skipped one, and the
  * rest of the runner's inventory sorted behind them. */
 const SCHEDULED_MATRIX: ScheduledLane[] = [
-  { job: "cron 0 4 * * *", outcome: "failed", startedAt: iso(6 * HOUR) },
-  { job: "cron 45 12 * * 1", outcome: "skipped", startedAt: iso(4 * HOUR) },
-  { job: "cron 0 * * * *", outcome: "ran", startedAt: iso(40 * 60_000) },
-  { job: "cron 30 2 * * *", outcome: "ran", startedAt: iso(5 * HOUR) },
-  { job: "cron 0 3 * * *", outcome: "ran", startedAt: iso(4.5 * HOUR) },
-  { job: "cron 30 3 * * *", outcome: "ran", startedAt: iso(4 * HOUR) },
-  { job: "cron */15 * * * *", outcome: "ran", startedAt: iso(9 * 60_000) },
-  { job: "panel-refresh", outcome: "ran", startedAt: iso(7 * HOUR) },
-  { job: "beads-hub", outcome: "ran", startedAt: iso(2 * HOUR) },
-  { job: "beads-snapshot", outcome: "ran", startedAt: iso(HOUR) },
-  { job: "backup", outcome: "ran", startedAt: iso(3 * HOUR) },
+  scheduledLane("cron 0 4 * * *", "failed", iso(6 * HOUR)),
+  scheduledLane("cron 45 12 * * 1", "skipped", iso(4 * HOUR)),
+  scheduledLane("cron 0 * * * *", "ran", iso(40 * 60_000)),
+  scheduledLane("cron 30 2 * * *", "ran", iso(5 * HOUR)),
+  scheduledLane("cron 0 3 * * *", "ran", iso(4.5 * HOUR)),
+  scheduledLane("cron 30 3 * * *", "ran", iso(4 * HOUR)),
+  scheduledLane("cron */15 * * * *", "ran", iso(9 * 60_000)),
+  scheduledLane("panel-refresh", "ran", iso(7 * HOUR)),
+  scheduledLane("beads-hub", "ran", iso(2 * HOUR)),
+  scheduledLane("beads-snapshot", "ran", iso(HOUR)),
+  scheduledLane("backup", "ran", iso(3 * HOUR)),
 ];
 
 const systemNormal: SystemData = {
@@ -2036,10 +2046,7 @@ const systemNormal: SystemData = {
   spendTodayUsd: 0.48,
   dailyCapUsd: 0.81,
   ingest: { fresh: 3, stale: 0, notExpected: 1, expected: 3 },
-  scheduledLanes: [
-    { job: "backup", outcome: "ran", startedAt: iso(3 * HOUR) },
-    { job: "beads-snapshot", outcome: "ran", startedAt: iso(HOUR) },
-  ],
+  scheduledLanes: [scheduledLane("backup", "ran", iso(3 * HOUR)), scheduledLane("beads-snapshot", "ran", iso(HOUR))],
 };
 
 // The missing OS report remains explicit; coverage and spend come from the store.

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { claimBackup, BACKUP_OWNER_FAILURE } from './backup-claim.mjs';
 import { beadsDatabaseName, readTaskHost, taskHostFile } from './task-project-config.mjs';
 import { redactLogText } from './os-log.mjs';
@@ -48,12 +49,27 @@ function summary(stages) {
     + (result.errors.length ? ` — ${result.errors[0].detail}` : '')).join(' · ');
 }
 
-function containerSummary(stages, claimIssue) {
+/** The latest run's stage results, beside the backups folder and never inside a set. */
+export const BACKUP_REPORT_FILE = 'backup-report.json';
+
+async function writeBackupReport(io, directory, report, owner) {
+  await io.mkdir(directory, { recursive: true, mode: 0o700 });
+  const temporary = path.join(directory, `.report-${randomUUID()}.tmp`);
+  try {
+    await io.writeFile(temporary, JSON.stringify(report, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+    if (owner) await io.chown(temporary, owner.operatorUid, owner.operatorGid);
+    await io.rename(temporary, path.join(directory, BACKUP_REPORT_FILE));
+  } finally { await io.rm(temporary, { force: true }); }
+}
+
+function containerSummary(stages, claimIssue, reported) {
   if (claimIssue) return BACKUP_OWNER_FAILURE.detail;
   const failed = Object.entries(stages).find(([, result]) => result.status === 'failed')
     ?? Object.entries(stages).find(([, result]) => result.status === 'blocked');
-  if (failed?.[0] === 'preparation') return 'Preparation: failed. Check the backup worker configuration and saved locks before retrying.';
-  if (failed) return `${LABELS[failed[0]]}: failed. Review the private backup report before retrying.`;
+  // The worker's /state is the app's state folder on the host.
+  const where = reported ? `Details: .local/${BACKUP_REPORT_FILE} in the state folder.` : 'Its report could not be saved.';
+  if (failed?.[0] === 'preparation') return `Preparation: failed. ${where} Check the worker configuration and saved locks.`;
+  if (failed) return `${LABELS[failed[0]]}: failed. ${where}`;
   return stages.offsite.status === 'completed'
     ? 'All configured stores backed up; declared offsite handoff completed.'
     : 'All configured stores backed up.';
@@ -606,12 +622,22 @@ export async function runBackup({ repoRoot, retentionDays, offsiteBackupDir, bdB
   }
   // A task hub this installation does not link (`linked`) is not missing.
   const complete = storesComplete() && stages.instructions.status === 'completed';
+  const ok = Object.values(stages).every((result) => ['completed', 'not_configured'].includes(result.status));
+  const backupSet = { path: published ? destination : null, complete: published && complete };
+  let reported = false;
+  try {
+    await writeBackupReport(io, path.dirname(root), {
+      format: 'noticeos-backup-report-v1', startedAt, finishedAt: new Date(now()).toISOString(), ok, backupSet,
+      stages: Object.fromEntries(Object.entries(stages).map(([key, result]) => [key, { label: LABELS[key], ...result }])),
+    }, containerMode ? worker : null);
+    reported = true;
+  } catch { /* The returned verdict says the report is missing. */ }
   return {
-    ok: Object.values(stages).every((result) => ['completed', 'not_configured'].includes(result.status)),
+    ok,
     // Container jobs return only a bounded verdict to the Tower. Full stage
-    // diagnostics remain in the operator's private restore report.
-    detail: containerMode ? containerSummary(stages, claimIssue) : summary(stages), day, startedAt,
-    backupSet: { path: published ? destination : null, complete: published && complete },
+    // diagnostics are in the operator's private backup report.
+    detail: containerMode ? containerSummary(stages, claimIssue, reported) : summary(stages), day, startedAt,
+    backupSet,
     stages,
     // Existing workflow recording projects outcomes, never arbitrary objects.
     // Keep store counts and stage verdicts visible without exposing raw errors.

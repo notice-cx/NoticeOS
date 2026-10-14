@@ -9,6 +9,8 @@ import { createServer as createHttpServer } from 'node:http';
 import { HOST_FACTS, containerCommand, containerEnvironment, main as containerMain } from '../deploy/compose/entrypoint.mjs';
 import { ContainerRefusal } from '../deploy/compose/development.mjs';
 import { containerHealthy } from '../deploy/compose/health.mjs';
+import { BACKUP_APP_ORIGIN } from './container-backup-profile.mjs';
+import { towerAllowedHosts } from '../apps/tower/vite/allowed-hosts.ts';
 
 const profile = { host: 'dolt', port: 3306, user: 'noticeos', credentialsFile: '/state/dolt/credentials', clientHome: '/state/dolt/client-home' };
 function io(defect) {
@@ -23,8 +25,11 @@ test('container startup declares its mounts and internal services and strips amb
   const env = containerEnvironment({ PATH: '/own/bin', DATABASE_URL: 'private', NOTICEOS_HOME: '/other', BEADS_DOLT_PASSWORD: 'private', DOCKER_HOST: 'foreign', OS_UP_HOST: '0', TOWER_ALLOWED_HOSTS: 'office.example' }, { fs: io(), readClient: () => profile });
   assert.equal(env.NOTICEOS_HOME, '/state'); assert.equal(env.NOTICEOS_TASK_CLIENT_PROFILE, '/state/task-client.json');
   assert.equal(env.OS_UP_HOST, '1');
-  assert.equal(env.TOWER_ALLOWED_HOSTS, 'office.example');
-  assert.equal(containerEnvironment({}, { fs: io(), readClient: () => profile }).TOWER_ALLOWED_HOSTS, undefined);
+  // The backup worker's requests reach the app by its service name in every mode.
+  assert.equal(env.TOWER_ALLOWED_HOSTS, 'office.example,noticeos');
+  assert.equal(containerEnvironment({}, { fs: io(), readClient: () => profile }).TOWER_ALLOWED_HOSTS, 'noticeos');
+  assert.equal(containerEnvironment({ NOTICEOS_CONTAINER_MODE: 'development' }, { fs: io(), readClient: () => profile, checkDependencies: () => {} }).TOWER_ALLOWED_HOSTS, 'noticeos');
+  assert.ok(towerAllowedHosts({ hostname: 'container-id', env: { TOWER_ALLOWED_HOSTS: env.TOWER_ALLOWED_HOSTS } }).includes(new URL(BACKUP_APP_ORIGIN).hostname));
   assert.equal(env.NOTICEOS_IMMUTABLE_APP, '1');
   assert.equal(env.NOTICEOS_VITE_CACHE_DIR, '/state/.local/vite-cache');
   assert.equal(env.CLOUDFLARE_CF_FETCH_ENABLED, 'false');
