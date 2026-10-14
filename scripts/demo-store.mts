@@ -1,6 +1,7 @@
 // Typed relational seed behind the native new-installation boundary.
 import { generateDemoScenario, demoScenarioHash, demoProperties, demoSourceValues, shiftDemoDay, type DemoScenario, type DemoPulse } from './demo-scenario.mjs';
 import type { Transaction } from '../packages/postgres/src/store.mjs';
+import { MEDIAVINE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import type { evaluatePulse as PulseEvaluator, MetricBaseline } from '../packages/contract/src/rules.js';
 type Evaluator = typeof PulseEvaluator;
 const HISTORY = ['assets', 'pulses', 'flags', 'annotations', 'ledger_entries', 'measurement_series', 'signal_runs', 'mediavine_sites', 'watch_windows', 'job_runs', 'task_snapshots', 'notifications', 'integration_connections'];
@@ -69,12 +70,14 @@ export async function fillDemo(tx: Transaction, scenario: DemoScenario, { evalua
     if (days.length === 0) continue;
     await tx.execute('INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3)', [ws, site.siteId, site.asset]);
     const total = days.reduce((sum, day) => sum + day.minor, 0);
-    const [run] = await tx.query<{ run_seq: bigint }>(`INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, summary_minor, daily_minor, difference_minor)
-      VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, 'success', $8::bigint, $8::bigint, 0) RETURNING run_seq`,
-    [ws, `${site.siteId}-history`, site.asset, site.siteId, days[0]!.date, days.at(-1)!.date, days.at(-1)!.recordedAt, total]);
-    await tx.execute(`INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
-      SELECT $1::uuid, $2::bigint, $3, $4, v.date, v.minor, v.recorded FROM unnest($5::date[], $6::bigint[], $7::timestamptz[]) AS v(date, minor, recorded)`,
-    [ws, run!.run_seq, site.asset, site.siteId, days.map(day => day.date), days.map(day => day.minor), days.map(day => day.recordedAt)]);
+    const runId = `${site.siteId}-history`;
+    await tx.execute(`INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, summary_minor, daily_minor, difference_minor)
+      VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, 'success', $8::bigint, $8::bigint, 0)`,
+    [ws, runId, site.asset, site.siteId, days[0]!.date, days.at(-1)!.date, days.at(-1)!.recordedAt, total]);
+    await tx.execute(`INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor, currency, run_ref, recorded_at)
+      SELECT $1::uuid, $2, $3, $4, v.date, v.minor, 'USD', $5, v.recorded
+        FROM unnest($6::date[], $7::bigint[], $8::timestamptz[]) WITH ORDINALITY AS v(date, minor, recorded, n) ORDER BY v.n`,
+    [ws, site.asset, MEDIAVINE_REVENUE_SOURCE, site.siteId, runId, days.map(day => day.date), days.map(day => day.minor), days.map(day => day.recordedAt)]);
   }
   const reports = new Map<string, bigint>();
   for (const pulse of scenario.pulses) {

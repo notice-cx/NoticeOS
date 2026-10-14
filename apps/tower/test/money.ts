@@ -7,6 +7,7 @@
 // store assigns the real identity and workspace number, and a correction's link
 // is resolved through those names.
 import { mediavineCoverage } from "@noticeos/contract/ledger-coverage";
+import { MEDIAVINE_REVENUE_SOURCE } from "@noticeos/contract/revenue-sources";
 import type { WorkspaceStore } from "@noticeos/postgres";
 
 /** One ledger row as a fixture writes it: a 'YYYY-MM' period, integer cents. */
@@ -95,7 +96,38 @@ export interface MediavineRunRow {
   recordedAt?: string;
 }
 
-/** Map `siteId` to `asset` (kept when already held), write each run, then its days. */
+/** One figure a revenue source reported, as a collector files it in the
+ * revenue ledger: Mediavine Journey's day total in USD unless it says. */
+export interface RevenueRow {
+  asset: string;
+  date: string;
+  amountMinor: number;
+  source?: string;
+  account?: string;
+  item?: string | null;
+  currency?: string;
+  run?: string;
+  recordedAt?: string;
+}
+
+/** File each figure in the revenue ledger, in order. */
+export async function writeRevenue(store: WorkspaceStore, rows: readonly RevenueRow[]): Promise<void> {
+  await store.write(async (tx) => {
+    for (const row of rows) {
+      await tx.execute(
+        `INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, item_ref, amount_minor,
+                                                    currency, run_ref, recorded_at)
+         VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7, $8, $9, $10::timestamptz)`,
+        [tx.workspaceId, row.asset, row.source ?? MEDIAVINE_REVENUE_SOURCE, row.account ?? `account-${row.asset}`, row.date,
+          row.item ?? null, row.amountMinor, row.currency ?? "USD", row.run ?? "test-run", row.recordedAt ?? new Date(0).toISOString()],
+      );
+    }
+  });
+}
+
+/** As the Mediavine collector writes a report: map `siteId` to `asset` (kept
+ * when already held), write each run, then file its days in the revenue
+ * ledger under the run. */
 export async function writeMediavine(store: WorkspaceStore, runs: readonly MediavineRunRow[]): Promise<void> {
   await store.write(async (tx) => {
     for (const run of runs) {
@@ -103,20 +135,16 @@ export async function writeMediavine(store: WorkspaceStore, runs: readonly Media
         "INSERT INTO noticeos.mediavine_sites (workspace_id, site_id, asset_id) VALUES ($1::uuid, $2, $3) ON CONFLICT DO NOTHING",
         [tx.workspaceId, run.siteId, run.asset],
       );
-      const [written] = await tx.query<{ run_seq: bigint }>(
+      await tx.execute(
         `INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome, message)
-         VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, $8, $9) RETURNING run_seq`,
+         VALUES ($1::uuid, $2, $3, $4, $5::date, $6::date, $7::timestamptz, $8, $9)`,
         [tx.workspaceId, run.id, run.asset, run.siteId, run.start, run.end, run.attemptedAt, run.outcome ?? "success", run.message ?? null],
       );
-      for (const [date, amountMinor] of run.days ?? []) {
-        await tx.execute(
-          `INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
-           VALUES ($1::uuid, $2, $3, $4, $5::date, $6, $7::timestamptz)`,
-          [tx.workspaceId, written!.run_seq, run.asset, run.siteId, date, amountMinor, run.recordedAt ?? run.attemptedAt],
-        );
-      }
     }
   });
+  await writeRevenue(store, runs.flatMap((run) => (run.days ?? []).map(([date, amountMinor]) => ({
+    asset: run.asset, account: run.siteId, date, amountMinor, run: run.id, recordedAt: run.recordedAt ?? run.attemptedAt,
+  }))));
 }
 
 /** Map a Mediavine site to a site of ours, with no report yet. */

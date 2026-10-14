@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { MEDIAVINE_REPORTING_CLOCK } from '../shared/daily-revenue';
+import { MEDIAVINE_REPORTING_CLOCK } from '../../../packages/mediavine/src/index';
 import { describe, expect, it } from 'vitest';
 import { projectRevenue, revenueExpectedThrough, shiftRevenueDate, type RevenueDay, type RevenueHoliday } from '../shared/revenue-projection';
 import type { SignalTrend, PortfolioBand } from '../shared/wall';
@@ -191,12 +191,13 @@ it('derives the Wall projection from current stored revisions without writing pr
     const store = raw.call;
     await seedRevenueHistory(store, 'sample.test', NOW.toISOString(), '2026-09-08');
     const options = { now: NOW, osTimeZone: ZONE.timeZone, constants: { dataUsd: 25 }, integrations: { catalog: [], assets: {} }, pullConfig: [], dashboard: {}, serpPanel: { assets: {} } };
-    const dailyRows = async () => (await store.read((tx) => tx.query<{ count: number }>('SELECT count(*)::int AS count FROM noticeos.mediavine_daily')))[0];
+    const dailyRows = async () => (await store.read((tx) => tx.query<{ count: number }>('SELECT count(*)::int AS count FROM noticeos.revenue_observations')))[0];
     const before = await dailyRows();
     const wall = await buildWallPayload(store, options);
     expect(wall.assets[0]!.revenueProjection).toMatchObject({ status: 'ready', earnedMinor: 12400, projectedMinor: 45600 });
     expect(wall.assets[0]!.forecast.revenue).toBe(124);
-    expect(wall.assets[0]!.dailyRevenue).toEqual({ date: '2026-09-08', amountMinor: 2000, reportedThrough: '2026-09-08', timeZone: ZONE.timeZone });
+    expect(wall.assets[0]!.dailyRevenue).toEqual({ date: '2026-09-08', amountMinor: 2000, reportedThrough: '2026-09-08', timeZone: ZONE.timeZone,
+      timeZoneLabel: ZONE.label });
     expect(await dailyRows()).toEqual(before);
     await writeMediavine(store, [{ id: 'revised-revenue', asset: 'sample.test', siteId: 'forecast-site', start: '2026-09-08', end: '2026-09-08',
       attemptedAt: NOW.toISOString(), days: [['2026-09-08', 2200]] }]);

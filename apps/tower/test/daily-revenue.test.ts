@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { MEDIAVINE_REPORTING_CLOCK, siteRevenueWindow, yesterdayRevenue } from '../shared/daily-revenue';
+import { siteRevenueWindow, yesterdayRevenue } from '../shared/daily-revenue';
+import { MEDIAVINE_REPORTING_CLOCK } from '../../../packages/mediavine/src/index';
 
 /** Explicit source clock; this generic helper never chooses a provider. */
 const ZONE = 'America/Los_Angeles';

@@ -75,7 +75,7 @@ describe('GET /api/capacity', () => {
     expect(inventory.tables.map((t) => t.name).sort()).toEqual(catalogued);
     expect(inventory.store.missingTables).toEqual([]);
     expect(inventory.store.tables).toBe(catalogued.length);
-    expect(inventory.store.views).toEqual(['current_flags', 'current_pulses', 'financial_ledger', 'mediavine_current_daily']);
+    expect(inventory.store.views).toEqual(['current_flags', 'current_pulses', 'current_revenue', 'financial_ledger', 'mediavine_current_daily']);
     expect(inventory.tables.filter((t) => t.shape === 'undeclared')).toEqual([]);
     // Every table whose catalog names an arrival column is dated by it.
     for (const t of inventory.tables) {

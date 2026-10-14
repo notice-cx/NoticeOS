@@ -771,7 +771,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
         const response = await collect(workspace, 'syncMediavine', { asset: 'example.test', start, end });
         assert.equal(response.status, 200, await response.clone().text()); assert.equal((await response.json()).ok, true);
         assert.deepEqual(providerCalls.slice(before).map(call => call.slug), [slug, slug]);
-        const rows = (await admin.query('SELECT sum(amount_minor)::int total FROM noticeos.mediavine_current_daily WHERE workspace_id=$1 AND asset_id=$2 AND site_id=$3', [workspace, 'example.test', 'shared-site'])).rows;
+        const rows = (await admin.query("SELECT sum(amount_minor)::int total FROM noticeos.current_revenue WHERE workspace_id=$1 AND asset_id=$2 AND source='mediavine-journey' AND account_ref=$3", [workspace, 'example.test', 'shared-site'])).rows;
         assert.equal(rows[0].total, total);
         const again = providerCalls.length;
         const busy = await collect(workspace, 'syncMediavine', { asset: 'example.test', start, end });

@@ -225,7 +225,7 @@ export interface YesterdayTotal {
   /** Sites with a revenue source: the ones that owe yesterday a report. */
   sites: number;
   /** One common provider day/clock, never an assumed operator or provider day. */
-  basis: { date: string; timeZone: string } | null;
+  basis: { date: string; timeZone: string; label?: string } | null;
   /** Received reports use incompatible dates/clocks, so no total is valid. */
   mixedBasis?: true;
 }
@@ -249,17 +249,17 @@ export function yesterdayTotal(
   const bases = sources.flatMap(({ dailyRevenue: summary }) => {
     if (!summary) return [];
     const date = yesterdayOn(summary.timeZone, nowMs);
-    return date ? [{ date, timeZone: summary.timeZone }] : [];
+    return date ? [{ date, timeZone: summary.timeZone, ...(summary.timeZoneLabel ? { label: summary.timeZoneLabel } : {}) }] : [];
   });
   const basis = bases[0] && bases.every(value => value.date === bases[0]!.date && value.timeZone === bases[0]!.timeZone) ? bases[0] : null;
-  let reportedBasis: { date: string; timeZone: string } | null = null;
+  let reportedBasis: { date: string; timeZone: string; label?: string } | null = null;
   let mixedBasis = false;
   for (const { dailyRevenue: summary } of sources) {
     if (!summary || summary.amountMinor === null || summary.date !== yesterdayOn(summary.timeZone, nowMs)) continue;
     if (reportedBasis && (reportedBasis.date !== summary.date || reportedBasis.timeZone !== summary.timeZone)) {
       mixedBasis = true;
     }
-    reportedBasis = { date: summary.date, timeZone: summary.timeZone };
+    reportedBasis = { date: summary.date, timeZone: summary.timeZone, ...(summary.timeZoneLabel ? { label: summary.timeZoneLabel } : {}) };
     amountMinor += summary.amountMinor;
     reported += 1;
   }

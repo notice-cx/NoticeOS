@@ -145,17 +145,21 @@ export const FEED_MEDIAVINE_RUNS_SQL = `SELECT m.run_id AS id, m.asset_id AS ass
     ON m.workspace_id = a.workspace_id AND m.asset_id = a.asset_id AND m.attempted_at >= $1::timestamptz
  ORDER BY m.attempted_at DESC, m.run_seq DESC LIMIT $2`;
 
-/** Each successful run's newest report day and what it earned, a day known by
- * its workspace's number. */
-export const FEED_REVENUE_SQL = `SELECT d.daily_number AS id, m.asset_id AS asset, d.report_date AS day, d.amount_minor AS "amountMinor", d.recorded_at AS at
-  FROM noticeos.assets a
-  JOIN noticeos.mediavine_runs m
-    ON m.workspace_id = a.workspace_id AND m.asset_id = a.asset_id AND m.attempted_at >= $1::timestamptz AND m.outcome = 'success'
-  JOIN noticeos.mediavine_daily d
-    ON d.workspace_id = m.workspace_id AND d.run_seq = m.run_seq
-   AND d.report_date = (SELECT MAX(x.report_date) FROM noticeos.mediavine_daily x
-                         WHERE x.workspace_id = m.workspace_id AND x.run_seq = m.run_seq)
- ORDER BY d.recorded_at DESC, d.daily_id DESC LIMIT $2`;
+/** Each revenue run's newest reported day and what it earned, from any
+ * source, a figure known by its workspace's number. Driven from the site list:
+ * each site's figures recorded in the window, newest first down its (site,
+ * recorded) index and at most the feed's cap of them, then one per run. */
+export const FEED_REVENUE_SQL = `SELECT r.id, r.asset, r.day, r."amountMinor", r.at
+  FROM (SELECT DISTINCT ON (n.asset, n.source, n.run_ref) n.id, n.asset, n.day, n."amountMinor", n.at, n.observation_id
+          FROM noticeos.assets a
+         CROSS JOIN LATERAL (
+               SELECT o.observation_number AS id, o.asset_id AS asset, o.source, o.run_ref, o.revenue_date AS day,
+                      o.amount_minor AS "amountMinor", o.recorded_at AS at, o.observation_id
+                 FROM noticeos.revenue_observations o
+                WHERE o.workspace_id = a.workspace_id AND o.asset_id = a.asset_id AND o.recorded_at >= $1::timestamptz
+                ORDER BY o.recorded_at DESC LIMIT $2) n
+         ORDER BY n.asset, n.source, n.run_ref, n.day DESC, n.observation_id DESC) r
+ ORDER BY r.at DESC, r.observation_id DESC LIMIT $2`;
 
 /** Each site's checks since the window's first day through the (site, check,
  * day) index; readings of one instant, newest written first. */

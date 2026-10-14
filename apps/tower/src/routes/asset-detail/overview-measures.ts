@@ -1,7 +1,7 @@
 import type { AssetDetailFor } from "@shared/asset-detail-views";
 import type { FlagRecord, ProductDay, PulseMetric } from "@shared/asset-detail";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
-import { MEDIAVINE_REPORTING_CLOCK, revenueCalendarDate, siteRevenueWindow } from "@shared/daily-revenue";
+import { revenueCalendarDate, revenueNoun, revenueTimeZone, siteRevenueWindow } from "@shared/daily-revenue";
 import { productReportSummary } from "@shared/product-reports";
 import { shiftLabel, type RangeDays } from "@shared/surface";
 import type { SeriesPoint, SignalTrend } from "@shared/wall";
@@ -260,15 +260,17 @@ function searchMeasure(data: AssetDetailFor<"overview">, days: RangeDays): Measu
   return trafficMeasure({ key: "search", name: "Search clicks", unit: "clicks", kind: "sum", sources, days });
 }
 
-/** Ad revenue over the range, ending yesterday on the network's own clock (the
- * Money tab's window), against the same number of days before it. Estimates,
- * and they say so. With no daily revenue, the accounting month stands in. */
+/** Daily revenue over the range, ending yesterday on its sources' own clock
+ * (the Money tab's window), against the same number of days before it.
+ * Estimates, and they say so. With no daily revenue, the accounting month
+ * stands in. */
 function moneyMeasure(data: AssetDetailFor<"overview">, days: RangeDays, nowMs: number): Measure | null {
   const history = data.dailyRevenue;
   if (history && history.days.length > 0) {
-    const window = siteRevenueWindow(history, nowMs, MEDIAVINE_REPORTING_CLOCK.timeZone, days);
+    const window = siteRevenueWindow(history, nowMs, revenueTimeZone(history, data.osTimeZone), days);
+    const noun = revenueNoun(history.bySource);
     const points = history.days.map((day) => ({ t: day.date, v: day.amountMinor / 100 }));
-    const { days: drawn, gaps } = measureDays(calendarDays(window.to, days), [{ name: "Ad revenue", points }]);
+    const { days: drawn, gaps } = measureDays(calendarDays(window.to, days), [{ name: noun, points }]);
     const inWindow = points.filter((point) => point.t >= window.from && point.t <= window.to);
     const priorFrom = shiftLabel(window.from, -days);
     const prior = points.filter((point) => point.t >= priorFrom && point.t < window.from);
@@ -278,7 +280,7 @@ function moneyMeasure(data: AssetDetailFor<"overview">, days: RangeDays, nowMs: 
     const priorTotal = total(prior);
     return {
       key: "money",
-      name: "Ad revenue",
+      name: noun,
       window: `${days} days`,
       value,
       absent: "not reported yet",
@@ -304,7 +306,7 @@ function moneyMeasure(data: AssetDetailFor<"overview">, days: RangeDays, nowMs: 
       normal: null,
       alert: null,
       gaps,
-      sources: ["Ad revenue"],
+      sources: [noun],
       unit: "",
       reported: inWindow.length > 0 && inWindow.length < days ? { days: inWindow.length, of: days } : null,
       metric: null,
@@ -642,10 +644,11 @@ export function sourceHistory(
   const revenue = data.dailyRevenue?.days ?? [];
   if (revenue.length > 0) {
     const dates = new Set(revenue.map((day) => day.date));
+    const noun = revenueNoun(data.dailyRevenue?.bySource);
     rows.push({
       id: "ad-revenue",
-      name: "Ad revenue",
-      label: "Ad revenue",
+      name: noun,
+      label: noun,
       state: null,
       stateLabel: null,
       since: null,

@@ -1280,16 +1280,17 @@ async function loadRecentRevenue(store: WorkspaceStore, cutoffPeriod: string): P
 type MediavineRun = { asset: string; attempted_at: string; outcome: string; message: string | null; reported_through: string | null };
 
 /**
- * Each asset's latest Mediavine attempt and the last day its daily revenue
- * reaches. Driven from the site list, each part a seek: the latest attempt is
- * a LIMIT 1 down `mediavine_runs_asset`, the one written last winning a tie;
- * `reported_through` is the newest `report_date` in `mediavine_daily_latest`,
- * which holds every day the current-daily view does. A site with no attempt
- * has no row.
+ * Each asset's latest Mediavine attempt and the last day its Mediavine revenue
+ * reaches in the revenue ledger. Driven from the site list, each part a seek:
+ * the latest attempt is a LIMIT 1 down `mediavine_runs_asset`, the one written
+ * last winning a tie; `reported_through` is the newest `revenue_date` of the
+ * site's Mediavine sources down `revenue_observations_latest`, which holds
+ * every day `current_revenue` does. A site with no attempt has no row.
  */
 export const MEDIAVINE_RUNS_SQL = `SELECT a.asset_id AS asset, r.attempted_at, r.outcome, r.message,
-         (SELECT MAX(d.report_date) FROM noticeos.mediavine_daily d
-           WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id) AS reported_through
+         (SELECT MAX(d.revenue_date) FROM noticeos.revenue_observations d
+           WHERE d.workspace_id = a.workspace_id AND d.asset_id = a.asset_id
+             AND d.source IN (SELECT s.source FROM noticeos_ref.revenue_sources s WHERE s.provider = 'mediavine')) AS reported_through
     FROM noticeos.assets a
     JOIN LATERAL (
          SELECT x.attempted_at, x.outcome, x.message FROM noticeos.mediavine_runs x

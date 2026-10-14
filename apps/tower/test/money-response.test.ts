@@ -4,7 +4,8 @@ import { createApi } from '@/lib/api';
 import { dailyRevenueHistory, dailyRevenueSummary, portfolioDailyRevenue, revenueProjection, moneyFigureValue, moneyLine,
   decodeFinancials, decodeWallMoney, decodeAssetMoney } from '@/lib/money-response';
 import { projectRevenue } from '@shared/revenue-projection';
-import { yesterdayRevenue, siteRevenueWindow, MEDIAVINE_REPORTING_CLOCK } from '@shared/daily-revenue';
+import { yesterdayRevenue, siteRevenueWindow } from '@shared/daily-revenue';
+import { MEDIAVINE_REPORTING_CLOCK } from '../../../packages/mediavine/src/index';
 
 const now = new Date('2026-10-01T12:00:00.000Z');
 const days = [{ date: '2026-09-30', amountMinor: 0 }];

@@ -10,7 +10,7 @@ import type { ConfigWriteMismatch, JsonValue } from "@noticeos/contract/configur
 import { savedOsTimeZone } from "@noticeos/contract/time-zone-setting";
 import { gateTitle } from "@noticeos/contract/task-gate";
 import { revenueCalendarDate } from "../shared/daily-revenue";
-import { MEDIAVINE_REPORTING_CLOCK } from "../shared/daily-revenue";
+import { MEDIAVINE_REPORTING_CLOCK } from "../../../packages/mediavine/src/index";
 import { revenueExpectedThrough, shiftRevenueDate } from "../shared/revenue-projection";
 import { bookLedger } from '../test/money';
 import { writeInsightSnapshots } from '../test/provider-reports';

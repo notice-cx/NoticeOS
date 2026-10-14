@@ -369,8 +369,8 @@ site was written:
 
 ## The revenue ledger
 
-Every revenue source writes what it reports to one table,
-`revenue_observations`, and is named by one row of
+Every revenue collector writes what its source reports to one table,
+`revenue_observations`, and each source is named by one row of
 `noticeos_ref.revenue_sources`
 ([0015_revenue_ledger.sql](migrations/0015_revenue_ledger.sql)):
 

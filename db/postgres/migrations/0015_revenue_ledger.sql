@@ -54,7 +54,7 @@ CREATE TABLE noticeos.revenue_observations (
 );
 CREATE INDEX revenue_observations_latest ON noticeos.revenue_observations
   (workspace_id, asset_id, source, account_ref, revenue_date, item_ref, observation_id);
-CREATE INDEX revenue_observations_run ON noticeos.revenue_observations (workspace_id, run_ref);
+CREATE INDEX revenue_observations_recorded ON noticeos.revenue_observations (workspace_id, asset_id, recorded_at);
 
 ALTER TABLE noticeos.revenue_observations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE noticeos.revenue_observations FORCE ROW LEVEL SECURITY;

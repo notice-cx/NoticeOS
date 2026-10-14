@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { DailyRevenueHistory } from '@shared/daily-revenue';
-import { MEDIAVINE_REPORTING_CLOCK } from '@shared/daily-revenue';
+import { revenueNoun } from '@shared/daily-revenue';
 import { HeroChart } from '@/components/surface/HeroChart';
 import { Kpi, KpiStrip } from '@/components/surface/KpiStrip';
 import { SectionLabel } from '@/components/surface/SectionLabel';
@@ -35,9 +35,10 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
   const count = history.days.length;
   const latest = history.days.at(-1);
   const currency = (value: number) => formatUsd(value, { cents: true });
+  const noun = revenueNoun(history.bySource);
   return <section aria-labelledby={id} data-daily-revenue className="min-w-0 overflow-hidden rounded-[10px] border border-border bg-card">
-    {/* Ad revenue, not the network's name; the reporting day's clock is one press away. */}
-    <SectionLabel id={id} title={title} caption={<>Ad revenue · estimates <InfoTooltip label="About the reporting day">{`Days end at midnight ${MEDIAVINE_REPORTING_CLOCK.label} time`}</InfoTooltip></>} className="px-4 pt-3">{aside}</SectionLabel>
+    {/* The kind of revenue, not a source's name; the reporting day's clock is one press away. */}
+    <SectionLabel id={id} title={title} caption={<>{noun} · estimates{history.clock ? <> <InfoTooltip label="About the reporting day">{`Days end at midnight ${history.clock.label} time`}</InfoTooltip></> : null}</>} className="px-4 pt-3">{aside}</SectionLabel>
     <p className="px-4 pt-1 text-xs text-muted-foreground">{range === 0 ? 'Reporting has not started for this period.' : <>{formatCalendarDate(history.from)} – {formatCalendarDate(history.to)}</>}</p>
     {context ? <div className="px-4 pt-2 text-xs text-muted-foreground">{context}</div> : null}
     {count > 0 ? <>
@@ -48,7 +49,7 @@ export function DailyRevenuePanel({ history, range, title = 'Daily revenue', con
       </KpiStrip> : null}
       <div id={chartId} className="px-4 pb-4">
         <HeroChart variant="bars" range={range} end={history.to} height={240}
-          series={[{ name: 'Estimated ad revenue', tone: 'revenue', points: history.days.map(day => ({ t: day.date, v: day.amountMinor / 100 })) }]}
+          series={[{ name: `Estimated ${noun.toLowerCase()}`, tone: 'revenue', points: history.days.map(day => ({ t: day.date, v: day.amountMinor / 100 })) }]}
           notesByDate={notesByDate} partialDates={partialDates}
           format={value => formatUsd(value)} formatValue={currency} ariaLabel={`${title} by day`}
           footnote={<>Saved estimates may be revised. Missing dates are gaps, not $0.</>} />
