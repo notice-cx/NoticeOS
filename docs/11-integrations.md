@@ -742,7 +742,10 @@ terms to track:
   stored in the archived request body and comes out as a CSV column. A term the
   provider accepts but returns no result for is archived with the others instead
   of the run being discarded, and a panel whose every term failed is an error, not an
-  empty success.
+  empty success. Every panel run is flagged truncated, because each result page
+  continues past depth 20; the flag stays on the run as a fact and the
+  collection counts as complete. A panel with unanswered terms is recorded as an
+  incomplete report.
 
 Responses use the same immutable gzip-JSON R2 envelope and append-only Postgres
 manifest as the daily provider archive. Every provider response retains its

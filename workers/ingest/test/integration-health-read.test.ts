@@ -13,6 +13,7 @@ import { recordSignalFailure, recordSignalSuccess, SignalError } from '../src/si
 import { resolveGoogleCredential } from '../src/google-oauth.js';
 import { googleTargets, googleCredentialResolver } from '../src/google-signals.js';
 import { getConfigDocument, seedConfigDocuments, forgetConfigCache } from '../src/config-store.js';
+import { dataForSeoCandidates, dataForSeoTarget } from '../src/dataforseo-dumps.js';
 import type { LaneRegister } from '../src/lane-mapping.js';
 const NOW = Date.now();
 const PRIVATE = 'https://calendar.example.test/private-marker/basic.ics';
@@ -129,6 +130,39 @@ it('does not silently accept a malformed calendar configuration', async () => {
   const result = await readIntegrationHealth({ ...env, CALENDAR_FEEDS: '{broken' });
   expect(result.items.find(i => i.provider === 'calendar')?.state).toBe('unknown');
   expect(result.available).toBe(false);
+});
+
+/** A DataForSEO credential with no change time, so a run stored before the
+ * read is this connection's evidence. */
+const dfsEnv = () => ({ ...env, DATAFORSEO_LOGIN: 'op@example.test', DATAFORSEO_PASSWORD: 'fixture-password' });
+/** One stored SERP panel run for meadow.example and its stored health, as
+ * the collector records them. */
+async function storedPanelRun(id: string, at: string, health: { ok: boolean; code?: string }) {
+  const [candidate] = await dataForSeoCandidates(env.STORE, 'meadow.example');
+  const target = dataForSeoTarget(candidate!);
+  const monitoring = beginCollection(env.STORE, await healthConnection(dfsEnv(), 'dataforseo'));
+  const reportDate = at.slice(0, 10);
+  await storeArchiveRun({ id, asset: target.asset, integration: 'dataforseo', report: 'serp-panel', report_date: reportDate, finished_at: at,
+    credential_ref: target.credentialRef, property_ref: target.propertyRef, provider_truncated: true });
+  await recordCollectedHealth({ target, monitoring, attempt: { id, startedAt: at, finishedAt: at, source: 'signal_dump_runs', ...health, report: 'serp-panel', reportDate } });
+  return target;
+}
+const panelItem = async (nowMs: number) => (await readIntegrationHealth(dfsEnv(), nowMs)).items
+  .find(i => i.capability === 'dataforseo-research' && i.asset === 'meadow.example' && i.report === 'serp-panel');
+
+it('reads a SERP panel run stored as incomplete only because it stopped at its own depth as the success it was', async () => {
+  const at = new Date(NOW).toISOString();
+  await storedPanelRun('panel-at-depth', at, { ok: false, code: 'incomplete-report' });
+  const panel = await panelItem(NOW + 1000);
+  expect(panel).toMatchObject({ state: 'healthy', reportDate: at.slice(0, 10), failure: null });
+  expect(panel?.lastSuccessAt).toBe(at);
+});
+
+it('reads a weekly DataForSEO family overdue a day after it fell due, not before', async () => {
+  const hour = 3_600_000;
+  await storedPanelRun('panel-week-old', new Date(NOW).toISOString(), { ok: true });
+  expect((await panelItem(NOW + 7 * 24 * hour + 23 * hour))?.state).toBe('healthy');
+  expect((await panelItem(NOW + 8 * 24 * hour + hour))?.state).toBe('stale');
 });
 
 it('a new environment credential cannot borrow prior collection success', async () => {

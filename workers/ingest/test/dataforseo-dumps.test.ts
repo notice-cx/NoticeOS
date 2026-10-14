@@ -1626,6 +1626,45 @@ describe('DataForSEO weekly archives', () => {
 });
 
 describe('tracked-query SERP panel', () => {
+  /** The panel's newest recorded collection outcome for meadow.example, after
+   * a sweep run off the stored credential (the path that records health). */
+  async function panelOutcome() {
+    const family = JSON.stringify(['serp-panel', '2026-07-27', '', '']);
+    const state = (await storedHealthStates()).find((row) => row.asset === 'meadow.example' && row.family === family);
+    return state && { outcome: state.outcome, failure: state.failure_kind };
+  }
+
+  async function storeCredential(): Promise<void> {
+    await putCredential(env, {
+      provider: 'dataforseo',
+      fields: { DATAFORSEO_LOGIN: 'op@example.test', DATAFORSEO_PASSWORD: 'fixture-password' },
+    });
+  }
+
+  it('records a panel that stopped at its own depth as collected, and keeps the truncation on its run', async () => {
+    await storeCredential();
+    const { fetchImpl } = providerFetch();
+    await runDataForSeoDumps(env, { nowMs: NOW, fetchImpl, scope: { asset: 'meadow.example', families: ['serp-panel'] } });
+
+    expect(await panelOutcome()).toEqual({ outcome: 'success', failure: null });
+    const run = await pgFirst<{ providerTruncated: number }>(`SELECT provider_truncated AS "providerTruncated" FROM ${ARCHIVE_RUNS}
+        WHERE asset = 'meadow.example' AND report = 'serp-panel'`);
+    expect(run?.providerTruncated).toBe(1);
+  });
+
+  it('still records a panel with unanswered calls as an incomplete report', async () => {
+    await storeCredential();
+    const { fetchImpl } = providerFetch({ failSerpKeyword: PANEL_QUERIES[0] });
+    await runDataForSeoDumps(env, { nowMs: NOW, fetchImpl, scope: { asset: 'meadow.example', families: ['serp-panel'] } });
+
+    expect(await panelOutcome()).toEqual({ outcome: 'failure', failure: 'incomplete-report' });
+  });
+
+    expect(retry).toMatchObject({ attempted: PANEL_ASSETS.length, succeeded: PANEL_ASSETS.length, failed: 0 });
+    expect(calls.filter((call) => !call.url.endsWith(SERP_PATH) && !call.url.endsWith(ACCOUNT_PATH))).toEqual([]);
+    expect(calls.filter((call) => call.url.endsWith(SERP_PATH))).toHaveLength(PANEL_CALLS);
+  });
+
   /** The archived page envelope: what the collector stored about one provider
    * call. `body` is the only part that was transmitted. */
   interface ArchivedPage {

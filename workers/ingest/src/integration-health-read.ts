@@ -9,7 +9,7 @@ import { resolveCredential } from './credentials.js';
 import { resolveGoogleCredential } from './google-oauth.js';
 import { googleTargets, googleCredentialResolver } from './google-signals.js';
 import { healthConnection, healthScope, type HealthConnection } from './integration-health-context.js';
-import { HEALTH_STATE_SELECT, healthFailure, healthId, observationFromRow, storedHealthRow, type StoredHealthRow } from './integration-health-store.js';
+import { HEALTH_STATE_SELECT, depthBoundedReports, healthFailure, healthId, observationFromRow, storedHealthRow, type StoredHealthRow } from './integration-health-store.js';
 import { parseFeedTargets } from './calendar.js';
 import { integrationArchivePlan, BING_ARCHIVE_FAMILIES, type Ga4CustomDimensionConfig } from './signal-dumps.js';
 import { loadBingPortfolioCandidates, bingSiteMapping } from './bing-client.js';
@@ -17,11 +17,13 @@ import { dataForSeoCandidates, dataForSeoTarget, dataForSeoFamiliesFor, DATAFORS
 import { clarityCandidates, resolveClarityTokens, CLARITY_REPORT } from './clarity-dumps.js';
 import { POSTHOG_KEY_SLOT, posthogCandidates, resolvePosthogKeys } from './posthog-dumps.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT } from './posthog-account.js';
-import { POSTHOG_FAMILIES, mediavineSyncOn } from '@noticeos/contract';
+import { DATAFORSEO_OVERDUE_GRACE_HOURS, POSTHOG_FAMILIES, mediavineSyncOn } from '@noticeos/contract';
 import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister } from './lane-mapping.js';
 
 type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
-interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string; provider_truncated?: number }
+interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string;
+  /** An archive run whose report is incomplete: truncated where truncation is not the family's own depth. */
+  cut_short?: number }
 interface DumpRow extends Omit<SignalRow, 'started_at'> { requested_at: string; report: string; report_date: string; last_success_at: string | null; scope_count: number; failure_count: number; family_rank: number }
 type EventRow = { workspace_id: string; event_id: string; provider: string; connection_revision: string; capability: string; asset: string; target_id: string; family: string; recorded_at: string; kind: 'failed' | 'changed' | 'recovered' };
 /** `where` over the target `t` and state `s`. A failure first, then the
@@ -191,7 +193,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     payload.items.push(item); currentItems.set(key, item);
   };
   const fromLegacy = async (connection: HealthConnection, capability: string, asset: string, target: string, family: string, source: SignalRow): Promise<IntegrationObservation> => {
-    const failure = source.status === 'error' ? healthFailure(source.error_code) : source.provider_truncated === 1 ? healthFailure('incomplete-report') : null;
+    const failure = source.status === 'error' ? healthFailure(source.error_code) : source.cut_short === 1 ? healthFailure('incomplete-report') : null;
     return { scope: await healthScope(connection, capability, asset, target, family), attemptId: source.id,
       startedAt: source.started_at, finishedAt: source.finished_at, outcome: failure ? 'failure' : 'success',
       failure: failure?.failure ?? null, code: failure?.code ?? null, nextAttemptAt: null };
@@ -202,21 +204,24 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     const history = runs.filter(row => afterEdit(connection, row.started_at));
     await add({ connection, capability, asset, target, detail: lane === 'bing-webmaster' ? target.split('?')[0] : undefined, paused, requiredSince: since(nowMs, hours), lastSuccessAt: success?.finished_at, observations: await Promise.all(history.map(row => fromLegacy(connection, capability, asset, target, '', row))) });
   };
-  const archive = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, plan: { report: string; date?: string; cadenceDays: number }[], paused: boolean) => {
+  const archive = async (connection: HealthConnection, capability: string, asset: string, target: string, lane: string, plan: { report: string; date?: string; cadenceDays: number; staleAfterHours?: number }[], paused: boolean) => {
     // Latest outcome of each exact report/date, plus its last successful attempt.
     // No age cut-off can make an unresolved failed date disappear.
     const dated = plan.filter(item => item.date);
-    const history = (await env.STORE.read(tx => tx.query<Omit<DumpRow, 'provider_truncated'> & { provider_truncated: boolean }>(`SELECT *, (COUNT(*) OVER ())::int AS scope_count, (COUNT(*) FILTER (WHERE status = 'error' OR provider_truncated) OVER ())::int AS failure_count FROM (
+    const bounded = depthBoundedReports(lane);
+    const history = (await env.STORE.read(tx => tx.query<Omit<DumpRow, 'cut_short'> & { cut_short: boolean }>(`SELECT *, (COUNT(*) OVER ())::int AS scope_count, (COUNT(*) FILTER (WHERE status = 'error' OR cut_short) OVER ())::int AS failure_count FROM (
       SELECT *, (ROW_NUMBER() OVER (PARTITION BY report ORDER BY requested_at DESC, report_date DESC, run_seq DESC))::int AS family_rank FROM (
-      SELECT run_id AS id, asset_id AS asset, integration, property_ref, credential_ref, report, report_date, requested_at, finished_at, status, error_code, provider_truncated, run_seq,
-        FIRST_VALUE(CASE WHEN status IN ('success','unchanged') AND NOT provider_truncated THEN finished_at END) OVER (PARTITION BY report, report_date ORDER BY CASE WHEN status IN ('success','unchanged') AND NOT provider_truncated THEN 0 ELSE 1 END, requested_at DESC, run_seq DESC) AS last_success_at,
-        ROW_NUMBER() OVER (PARTITION BY report, report_date ORDER BY requested_at DESC, CASE WHEN status = 'error' OR provider_truncated THEN 0 ELSE 1 END, run_seq DESC) AS rank
-      FROM noticeos.archive_runs WHERE asset_id = $1 AND integration = $2 AND property_ref = $3 AND ($4::timestamptz IS NULL OR requested_at >= $4::timestamptz)
+      SELECT id, asset, integration, property_ref, credential_ref, report, report_date, requested_at, finished_at, status, error_code, cut_short, run_seq,
+        FIRST_VALUE(CASE WHEN status IN ('success','unchanged') AND NOT cut_short THEN finished_at END) OVER (PARTITION BY report, report_date ORDER BY CASE WHEN status IN ('success','unchanged') AND NOT cut_short THEN 0 ELSE 1 END, requested_at DESC, run_seq DESC) AS last_success_at,
+        ROW_NUMBER() OVER (PARTITION BY report, report_date ORDER BY requested_at DESC, CASE WHEN status = 'error' OR cut_short THEN 0 ELSE 1 END, run_seq DESC) AS rank
+      FROM (SELECT run_id AS id, asset_id AS asset, integration, property_ref, credential_ref, report, report_date, requested_at, finished_at, status, error_code, run_seq,
+          provider_truncated AND NOT report = ANY($9::text[]) AS cut_short
+        FROM noticeos.archive_runs WHERE asset_id = $1 AND integration = $2 AND property_ref = $3 AND ($4::timestamptz IS NULL OR requested_at >= $4::timestamptz)) runs
       ) latest WHERE rank = 1 AND report = ANY($5::text[])
-    ) families WHERE status = 'error' OR provider_truncated OR (report, report_date) IN (SELECT * FROM unnest($6::text[], $7::date[])) OR (family_rank = 1 AND report = ANY($8::text[]))
-    ORDER BY CASE WHEN status = 'error' OR provider_truncated THEN 0 ELSE 1 END, requested_at DESC, run_seq DESC LIMIT 256`,
-    [asset, lane, target, connection.changedAt || null, [...new Set(plan.map(item => item.report))], dated.map(item => item.report), dated.map(item => item.date!), plan.filter(item => !item.date).map(item => item.report)])))
-      .map(row => ({ ...row, provider_truncated: row.provider_truncated ? 1 : 0, requested_at: javascriptInstant(row.requested_at), finished_at: javascriptInstant(row.finished_at), last_success_at: row.last_success_at === null ? null : javascriptInstant(row.last_success_at) }));
+    ) families WHERE status = 'error' OR cut_short OR (report, report_date) IN (SELECT * FROM unnest($6::text[], $7::date[])) OR (family_rank = 1 AND report = ANY($8::text[]))
+    ORDER BY CASE WHEN status = 'error' OR cut_short THEN 0 ELSE 1 END, requested_at DESC, run_seq DESC LIMIT 256`,
+    [asset, lane, target, connection.changedAt || null, [...new Set(plan.map(item => item.report))], dated.map(item => item.report), dated.map(item => item.date!), plan.filter(item => !item.date).map(item => item.report), bounded])))
+      .map(row => ({ ...row, cut_short: row.cut_short ? 1 : 0, requested_at: javascriptInstant(row.requested_at), finished_at: javascriptInstant(row.finished_at), last_success_at: row.last_success_at === null ? null : javascriptInstant(row.last_success_at) }));
     // A capped list says so as a value, failures first, and its action opens
     // the full history.
     if ((history[0]?.scope_count ?? 0) > history.length) {
@@ -224,7 +229,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       payload.items.push({ id: await healthId([connection.provider, capability, asset, 'overflow']), provider: connection.provider, capability, label: def.label, asset, report: null, reportDate: null, detail: `256 of ${history[0]!.scope_count} report dates · ${history[0]!.failure_count} unresolved failures`, state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Inspect report history for the full archive.', coverage: 'monitored' });
     }
     const families = new Map(plan.map(item => [item.report, item]));
-    const wanted = new Map<string, { report: string; date: string; cadenceDays: number; row?: DumpRow }>();
+    const wanted = new Map<string, { report: string; date: string; cadenceDays: number; staleAfterHours?: number; row?: DumpRow }>();
     for (const item of plan) {
       // A family with no fixed date is represented by its NEWEST attempt. The
       // history is ordered failures first, so a plain find would stand an old
@@ -237,7 +242,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
     }
     for (const row of history) {
       const planItem = families.get(row.report);
-      if ((row.status === 'error' || row.provider_truncated === 1) && planItem) wanted.set(familyKey(row.report, row.report_date), { ...planItem, date: row.report_date, row });
+      if ((row.status === 'error' || row.cut_short === 1) && planItem) wanted.set(familyKey(row.report, row.report_date), { ...planItem, date: row.report_date, row });
     }
     if (observerAvailable) {
       const scope = await healthScope(connection, capability, asset, target);
@@ -249,6 +254,22 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
         [scope.provider, scope.connection, capability, scope.target, [...wanted.keys()], ...assetParam(asset)], 257));
       if (states.length > 256) {
         payload.items.push({ id: await healthId([connection.provider, capability, asset, target, 'monitor-overflow']), provider: connection.provider, capability, label: definition(connection.provider, capability).label, asset, report: null, reportDate: null, detail: '256 of 257+ current reports and failures', state: 'unknown', lastAttemptAt: null, lastSuccessAt: null, nextAttemptAt: null, failure: 'monitoring', code: 'monitoring', action: 'Review report history for the full backlog.', coverage: 'monitored' });
+      }
+      // Runs of a depth-bounded family recorded before its depth counted as
+      // complete stored an incomplete-report failure against a successful
+      // archive run; they read as the success they were. A partial panel's
+      // failure names its own error run and stays a failure.
+      const recorded = states.filter(row => row.outcome === 'failure' && row.safe_code === 'incomplete-report'
+        && row.evidence_source === 'archive_runs' && bounded.includes(familyReport(row.family) ?? ''));
+      if (recorded.length > 0) {
+        const complete = new Set((await env.STORE.read(tx => tx.query<{ id: string }>(
+          `SELECT run_id::text AS id FROM noticeos.archive_runs WHERE run_id::text = ANY($1::text[]) AND status IN ('success','unchanged')`,
+          [recorded.map(row => row.evidence_id)]))).map(row => row.id));
+        states.forEach((row, index) => {
+          if (recorded.includes(row) && complete.has(row.evidence_id)) {
+            states[index] = { ...row, outcome: 'success', failure_kind: null, safe_code: null, last_success_started_at: row.started_at, last_success_finished_at: row.finished_at };
+          }
+        });
       }
       for (const row of states.slice(0, 256)) {
         observed.set(integrationScopeKey(observationFromRow(row).scope), row);
@@ -288,7 +309,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       const observations = item.row ? [await fromLegacy(connection, capability, asset, target, family, { ...item.row, started_at: item.row.requested_at })] : [];
       await add({ connection, capability, asset, target, family, detail: [item.report, item.date, ...(lane === 'bing-webmaster' ? [target.split('?')[0]] : [])].filter(Boolean).join(' · '),
         report: item.report || undefined, reportDate: /^\d{4}-\d{2}-\d{2}$/.test(item.date) ? item.date : undefined, paused,
-        requiredSince: since(nowMs, item.cadenceDays * 24), observations, lastSuccessAt: item.row?.last_success_at });
+        requiredSince: item.staleAfterHours === undefined ? since(nowMs, item.cadenceDays * 24) : new Date(nowMs - item.staleAfterHours * 3_600_000).toISOString(), observations, lastSuccessAt: item.row?.last_success_at });
     }
   };
 
@@ -346,7 +367,7 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
       } else if (provider === 'dataforseo') {
         await add({ connection, capability: 'dataforseo-credit' });
         for (const target of await dataForSeoCandidates(env.STORE)) await archive(connection, 'dataforseo-research', target.asset, dataForSeoTarget(target, '', register).propertyRef, 'dataforseo',
-          dataForSeoFamiliesFor(target.asset, panel).map(report => ({ report, cadenceDays: DATAFORSEO_REPORT_CADENCE_DAYS[report] ?? 7 })), cellDeclined(register.assets[target.asset]?.dataforseo));
+          dataForSeoFamiliesFor(target.asset, panel).map(report => ({ report, cadenceDays: DATAFORSEO_REPORT_CADENCE_DAYS[report] ?? 7, staleAfterHours: (DATAFORSEO_REPORT_CADENCE_DAYS[report] ?? 7) * 24 + DATAFORSEO_OVERDUE_GRACE_HOURS })), cellDeclined(register.assets[target.asset]?.dataforseo));
       } else if (provider === 'clarity') {
         const tokens = resolveClarityTokens(credential.fields.CLARITY_TOKENS, credential.legacySlots);
         for (const target of await clarityCandidates(env.STORE)) if (tokens.has(target.asset)) await archive(connection, 'clarity-export', target.asset, target.domain, 'clarity', [{ report: CLARITY_REPORT, cadenceDays: 1 }], cellDeclined(register.assets[target.asset]?.clarity));

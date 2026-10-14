@@ -53,7 +53,7 @@ import {
   openEgressLaneRecord,
   watchTransport,
 } from './egress.js';
-import { healthFailure } from './integration-health-store.js';
+import { depthBoundedReports, healthFailure } from './integration-health-store.js';
 import ga4CustomDimensionsJson from '../../../config/ga4-custom-dimensions.json';
 import { arrayField, asRecord, sha256Hex, stringField, wholeUtcDaysBetween } from './shared.js';
 
@@ -1522,12 +1522,13 @@ async function recordDumpSuccess(store: WorkspaceStore, manifest: ManifestSucces
   const id = crypto.randomUUID();
   const finishedAt = new Date().toISOString();
   const cost = storedProviderCost(manifest.target.integration, manifest.providerCostUsd ?? 0);
+  const incomplete = manifest.providerTruncated && !depthBoundedReports(manifest.target.integration).includes(manifest.report);
   await persistCollectionAttempt({
     target: manifest.target,
     monitoring: manifest.monitoring,
     attempt: {
       id, startedAt: manifest.requestedAt, finishedAt,
-      source: 'signal_dump_runs', ok: !manifest.providerTruncated, code: manifest.providerTruncated ? 'incomplete-report' : undefined,
+      source: 'signal_dump_runs', ok: !incomplete, code: incomplete ? 'incomplete-report' : undefined,
       report: manifest.report, reportDate: manifest.reportDate,
     },
   }, () =>
