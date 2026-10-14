@@ -9,6 +9,7 @@ import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFi
 import { WALL_FEED_OS } from "./wall-feed-fixture";
 import { WALL_FEED_LAYOUT, openWall, wallAt, wallScene } from "./wall-scene";
 import { installGoogleConsent } from "./google-consent.mjs";
+import { fetchToRewrite } from "./rewritten-read.mjs";
 import { buildWorkflowHistory } from "../vite/workflow-history";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
@@ -1100,13 +1101,13 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.route("**/api/wall", async (route) => {
     // Keep the actual persisted layout and its write guard, substituting only
     // the synthetic site's readings. Reloads must read what Save wrote.
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const actual = await response.json();
     const fixture = structuredClone(wallFixturePayload("three"));
     const cards = fixture.assets[0]!.counters!.cards;
     cards.find((card) => card.metric === "leads")!.value = 0;
     if (missingSelectedMetric) fixture.assets[0]!.counters!.cards = cards.filter((card) => card.metric !== "plansSaved");
-    await route.fulfill({ response, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+    await route.fulfill({ response, headers, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
   });
   await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "three") }));
   const wall = async (): Promise<WallConfig | undefined> => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
@@ -1223,10 +1224,10 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await createAsset(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   await page.route("**/api/wall", async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const actual = await response.json();
     const fixture = structuredClone(wallFixturePayload("six"));
-    await route.fulfill({ response, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+    await route.fulfill({ response, headers, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
   });
   await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
   const wall = async (): Promise<WallConfig | undefined> => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
@@ -1904,11 +1905,11 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   // read and the integration health answer late: a page that drew as reads
   // landed would show the stale row, then redraw.
   await page.route("**/api/work", async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const work = await response.json() as { projects: { waiting: { id: string }[] }[] };
     const project = work.projects[0]!;
     project.waiting = [...project.waiting, { ...project.waiting[0]!, id: "jt-stale" }];
-    await route.fulfill({ response, json: work });
+    await route.fulfill({ response, headers, json: work });
   });
   const late = async (route: import("@playwright/test").Route) => { await new Promise((resolve) => setTimeout(resolve, 800)); await route.continue(); };
   await page.route(/\/api\/tasks\?project=/u, late);
@@ -2548,14 +2549,14 @@ test("Home first-run actions keep their destinations and phone touch targets in 
   // Saved read responses model collection before its first result. No Connect,
   // Start or provider request is issued to make this presentation state.
   await page.route("**/api/integrations/providers", async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const data = await response.json();
     const provider = data.providers.find((entry: { provider: { id: string } }) => entry.provider.id === "bing-webmaster");
     expect(provider).toBeDefined();
     const at = new Date().toISOString();
     provider.credential = { provider: "bing-webmaster", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null,
       metadata: null, keyVersion: 1, createdAt: at, updatedAt: at, lastUsedAt: at, lastOkAt: at, lastError: null };
-    await route.fulfill({ response, json: data });
+    await route.fulfill({ response, headers, json: data });
   });
   await page.route("**/api/integrations/health", (route) => route.fulfill({ json: {
     generatedAt: new Date().toISOString(), available: true, events: [], items: [{
