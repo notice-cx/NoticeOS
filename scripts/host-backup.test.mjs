@@ -200,14 +200,45 @@ for (const initial of ['disconnected', 'empty']) test(`a native selection added 
   }
 });
 
-test('container job results give a bounded stage verdict without internal worker diagnostics', async t => {
+test('container job results give a bounded stage verdict that points to the private report', async t => {
   const f = await fixture(t);
   const result = await runBackup({ ...f.settings, transport: 'container' }, f.adapters);
   assert.equal(result.ok, false);
   assert.match(result.stages.preparation.errors[0].detail, /fixed worker installation/u);
-  assert.equal(result.detail, 'Preparation: failed. Check the backup worker configuration and saved locks before retrying.');
+  assert.equal(result.detail, 'Preparation: failed. Details: .local/backup-report.json in the state folder. Check the worker configuration and saved locks.');
   assert.ok(result.detail.split(/\s+/u).length <= 18);
   assert.doesNotMatch(result.detail, /worker installation|credential|SQL|\/state/u);
+  const saved = JSON.parse(await fs.readFile(path.join(f.repoRoot, '.local/backup-report.json'), 'utf8'));
+  assert.equal(saved.ok, false);
+  assert.match(saved.stages.preparation.errors[0].detail, /fixed worker installation/u);
+
+  const unsaved = await runBackup({ ...f.settings, transport: 'container' }, { ...f.adapters, fs: { ...fs,
+    writeFile: (file, ...rest) => path.basename(String(file)).startsWith('.report-') ? Promise.reject(new Error('disk full')) : fs.writeFile(file, ...rest) } });
+  assert.equal(unsaved.detail, 'Preparation: failed. Its report could not be saved. Check the worker configuration and saved locks.');
+  assert.deepEqual((await fs.readdir(path.join(f.repoRoot, '.local'))).filter(name => name.startsWith('.report-')), []);
+});
+
+test('a failed run keeps a private report of every stage beside the dated sets and never inside one', async t => {
+  const f = await fixture(t), native = nativeFixture();
+  const report = path.join(f.repoRoot, '.local/backup-report.json');
+  assert.equal((await f.run({ cloudflareD1: native.client })).ok, true);
+  assert.equal(JSON.parse(await fs.readFile(report, 'utf8')).ok, true);
+  const before = await fs.readFile(path.join(f.destination, 'backup.json'));
+  native.control.failure = native.selection.targets[1].databaseId;
+  const result = await f.run({ cloudflareD1: native.client });
+  assert.equal(result.ok, false);
+  const saved = JSON.parse(await fs.readFile(report, 'utf8'));
+  assert.equal(saved.format, 'noticeos-backup-report-v1');
+  assert.equal(saved.ok, false); assert.equal(saved.startedAt, result.startedAt); assert.equal(saved.backupSet.path, null);
+  assert.equal(saved.stages.assets.label, 'Asset databases'); assert.equal(saved.stages.assets.status, 'failed');
+  assert.equal(saved.stages.assets.copied, 2); assert.equal(saved.stages.assets.expected, 3);
+  assert.equal(saved.stages.assets.errors[0].item, native.selection.targets[1].databaseId);
+  assert.match(saved.stages.assets.errors[0].detail, /Cloudflare D1 backup unavailable/u);
+  assert.equal(saved.stages.publication.status, 'blocked');
+  assert.equal((await fs.stat(report)).mode & 0o777, 0o600);
+  assert.deepEqual(await fs.readFile(path.join(f.destination, 'backup.json')), before);
+  for (const folder of [f.backupRoot, f.destination, path.join(f.offsite, DAY), f.offsite]) await absent(path.join(folder, 'backup-report.json'));
+  assert.deepEqual((await fs.readdir(path.join(f.repoRoot, '.local'))).filter(name => name.startsWith('.')), []);
 });
 
 async function assetFixture(f, { script = 'node export.mjs', asset = 'example.com' } = {}) {
