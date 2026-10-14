@@ -4,12 +4,14 @@
 // to spawn). Here: the same-origin check, the JSON check, the capped body
 // read, the repo root and the middleware shell.
 
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { ServerResponse } from "node:http";
 import type { Connect } from "vite";
 import { readProductEnv } from "../../../scripts/product-env.mjs";
+import { ANSWER_TIMES_HEADER, namesValidator, splitAnswerTimes } from "../../../scripts/read-validator.mjs";
 
 /**
  * The nearest ancestor holding the workspace manifest. Walked rather than
@@ -98,12 +100,27 @@ export async function readBody(req: Connect.IncomingMessage): Promise<string | n
   return Buffer.concat(chunks).toString("utf8");
 }
 
-/** Every lane answer is JSON and never cached. */
-export function sendReply(res: ServerResponse, reply: LaneReply): void {
-  res.statusCode = reply.status;
+/** Every lane answer is JSON and never cached. A successful GET carries its
+ * validator and answers 304 to a request that already holds the same content
+ * (`shared/read-validator.ts`; its shared parts are `scripts/read-validator.mts`). */
+export function sendReply(res: ServerResponse, reply: LaneReply, request?: Pick<LaneRequest, "method" | "headers">): void {
+  const body = JSON.stringify(reply.body);
   res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("cache-control", "no-store");
-  res.end(JSON.stringify(reply.body));
+  if (request?.method === "GET" && reply.status === 200) {
+    const { content, times } = splitAnswerTimes(body);
+    const validator = `"${createHash("sha256").update(content).digest("hex").slice(0, 32)}"`;
+    res.setHeader("etag", validator);
+    if (namesValidator(request.headers["if-none-match"], validator)) {
+      res.statusCode = 304;
+      res.removeHeader("content-type");
+      if (Object.keys(times).length > 0) res.setHeader(ANSWER_TIMES_HEADER, JSON.stringify(times));
+      res.end();
+      return;
+    }
+  }
+  res.statusCode = reply.status;
+  res.end(body);
 }
 
 export interface LaneMiddlewareOptions {
@@ -128,16 +145,12 @@ export function laneMiddleware(
     const method = req.method ?? "GET";
     void (async () => {
       const body = method === "GET" || method === "HEAD" ? "" : await readBody(req);
+      const headers = req.headers as Record<string, string | undefined>;
       const reply =
         body === null
           ? { status: 413, body: { error: "payload_too_large" } }
-          : await options.handle({
-              method,
-              headers: req.headers as Record<string, string | undefined>,
-              body,
-              url: raw,
-            });
-      sendReply(res, reply);
+          : await options.handle({ method, headers, body, url: raw });
+      sendReply(res, reply, { method, headers });
     })().catch(() => {
       res.statusCode = 500;
       res.setHeader("content-type", "application/json; charset=utf-8");

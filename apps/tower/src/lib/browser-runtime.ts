@@ -6,6 +6,7 @@ import { captureBrowserOwner, browserOwnerKey } from './browser-owner';
 import { createOwnerStorage } from './browser-storage';
 import { createHostedTaskTransport } from './hosted-task-transport';
 import { createAppRelease, AppReleaseError } from './app-release';
+import { createReadCopies } from './read-copies';
 
 export class BrowserRetiredError extends Error {
   constructor() { super('This browser context is no longer active.'); this.name = 'BrowserRetiredError'; }
@@ -51,6 +52,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     refetchOnWindowFocus: false,
   } } });
 
+  const reads = createReadCopies();
   const fetch: ApiTransport = async (input, init) => {
     assertActive();
     // Named API methods supply product-local paths. There is no raw Response
@@ -73,6 +75,9 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     } else if (expectedSession !== null) throw new Error('This browser mode cannot select a session.');
     url.pathname = `${apiBase}${url.pathname.slice('/api/'.length)}`;
     const signals = [abort.signal, ...(init?.signal ? [init.signal] : [])];
+    const read = (init?.method ?? 'GET').toUpperCase() === 'GET' && !headers.has('if-none-match');
+    const validator = read ? reads.validatorFor(url.href) : null;
+    if (validator !== null) headers.set('if-none-match', validator);
     try {
       const response = await transport(url, { ...init, headers,
         credentials: 'same-origin', mode: 'same-origin', signal: AbortSignal.any(signals) });
@@ -80,7 +85,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
         void response.body?.cancel().catch(() => {});
         assertActive();
       }
-      return response;
+      return read ? await reads.settle(url.href, response) : response;
     } catch (error) {
       assertActive();
       throw error;
@@ -105,6 +110,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     freeze();
     retired = true;
     queries.clear();
+    reads.clear();
     if (page) {
       page.removeEventListener('pagehide', retire);
       if (pageOwners.get(page) === retire) pageOwners.delete(page);

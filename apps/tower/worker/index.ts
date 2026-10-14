@@ -1,5 +1,6 @@
 import { CLOUDFLARE_D1_BACKUP_PATH } from '@noticeos/contract/cloudflare-d1';
 import { withAppRelease } from '../shared/app-release';
+import { withReadValidator } from '../shared/read-validator';
 import { snapshotRpcData } from "./rpc-data";
 // Tower API Worker over the one central store. Reads dominate; the only
 // direct writes are a disposition on an existing flag and the operator's own
@@ -756,7 +757,7 @@ const towerHandler = {
 
 export default {
   ...towerHandler,
-  fetch(request: Request, env: TowerEnv, ctx: CallContext): Promise<Response> {
-    return withAppRelease(request, () => towerHandler.fetch(request, env, ctx));
+  async fetch(request: Request, env: TowerEnv, ctx: CallContext): Promise<Response> {
+    return withReadValidator(request, await withAppRelease(request, () => towerHandler.fetch(request, env, ctx)));
   },
 } satisfies ExportedHandler<Env>;
