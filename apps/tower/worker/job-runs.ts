@@ -6,6 +6,9 @@ type LatestJobRunRow = {
   job: string;
   outcome: string;
   started_at: string;
+  last_ran_at: string | null;
+  failing_since: string | null;
+  failed_runs: number;
 };
 
 function outcomeOf(value: string): ScheduledLaneOutcome {
@@ -22,6 +25,9 @@ export async function readLatestJobRuns(store: WorkspaceStore): Promise<Schedule
       job: row.job,
       outcome: outcomeOf(row.outcome),
       startedAt: javascriptInstant(row.started_at),
+      lastRanAt: row.last_ran_at === null ? null : javascriptInstant(row.last_ran_at),
+      failedRuns: row.failed_runs,
+      failingSince: row.failing_since === null ? null : javascriptInstant(row.failing_since),
     }))
     .sort((a, b) => a.job.localeCompare(b.job));
 }

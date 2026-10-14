@@ -86,7 +86,7 @@ export const MATERIALITY = {
   },
   "scheduled-lane-health": {
     source: "WallPayload.system.scheduledLanes / AssetDetailPayload.scheduledLanes",
-    derivation: "The latest store-backed outcome and age determine scheduler posture.",
+    derivation: "The latest store-backed outcome and age determine scheduler posture; a backup counts its scheduled failures since the last good copy, and two make one Needs you row.",
     priority: "critical",
     wall: { placement: "fixed-horizon", component: "WallTimeline", selector: '[data-material-condition~="scheduled-lane-health"]' },
     asset: { placement: "primary-content", component: "SourcesTab / ScheduledLanesPanel", selector: 'section[aria-label="Scheduled automation"]' },

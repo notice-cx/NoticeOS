@@ -10,6 +10,7 @@ import type { TimelineEvent, TimelineEventKind, TimelineLane, TimelineSpan } fro
 import { healthStateOf, type HealthCell, type HealthColumn, type HealthRow } from "@/components/viz/HealthGrid";
 import type { Incident } from "@/components/viz/IncidentList";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
+import { backupStatus, isBackupLane, lastGoodCopy, type BackupState } from "@/lib/backups";
 import type { WallIssue } from "@/lib/wall-issues";
 
 /** What a source column prints above its cells. */
@@ -74,15 +75,19 @@ function laneLabel(lane: ScheduledLane): string {
   return SCHEDULED_JOBS.find((job) => jobRunName(job) === lane.job)?.label ?? lane.job;
 }
 
-const isBackup = (lane: ScheduledLane) => /backup/i.test(lane.job);
+const BACKUP_CELL: Record<BackupState, HealthCell["state"]> = {
+  none: "not-connected",
+  working: "working",
+  missed: "overdue",
+  failing: "failing",
+};
 
 /** The OS's row: its report, its scheduled jobs, its backups and its spend. */
-export function systemHealthRow(system: SystemBand, href = "/health"): HealthRow {
-  const jobs = system.scheduledLanes.filter((lane) => !isBackup(lane));
-  const backups = system.scheduledLanes.filter(isBackup);
+export function systemHealthRow(system: SystemBand, nowMs: number, href = "/health"): HealthRow {
+  const jobs = system.scheduledLanes.filter((lane) => !isBackupLane(lane));
   const failedJobs = jobs.filter((lane) => lane.outcome === "failed");
-  const failedBackups = backups.filter((lane) => lane.outcome === "failed");
   const latest = (lanes: readonly ScheduledLane[]) => lanes.reduce<string | null>((at, lane) => (at === null || lane.startedAt > at ? lane.startedAt : at), null);
+  const backups = backupStatus(system.scheduledLanes);
   const cells: HealthCell[] = [
     { column: "os-report", state: osReportMissing(system) ? "failing" : system.assetId === null ? "not-using" : "working", href },
     jobs.length === 0
@@ -90,11 +95,7 @@ export function systemHealthRow(system: SystemBand, href = "/health"): HealthRow
       : failedJobs.length > 0
         ? { column: "jobs", state: "failing", since: latest(failedJobs), detail: failedJobs.map(laneLabel).join(", "), href }
         : { column: "jobs", state: "working", href },
-    backups.length === 0
-      ? { column: "backups", state: "not-connected", detail: "No backup has run", href }
-      : failedBackups.length > 0
-        ? { column: "backups", state: "failing", since: latest(failedBackups), href }
-        : { column: "backups", state: "working", href },
+    { column: "backups", state: BACKUP_CELL[backups.state], since: backups.failingSince, detail: lastGoodCopy(backups, nowMs), href },
     {
       column: "spend",
       state: system.dailyCapUsd > 0 && system.spendTodayUsd > system.dailyCapUsd ? "overdue" : "working",
@@ -114,7 +115,7 @@ export function healthGridRows(
   sitePath: (asset: AssetCard) => string,
 ): HealthRow[] {
   const rows = assets.map((asset) => siteHealthRow(asset, connections, nowMs, sitePath(asset)));
-  return system ? [...rows, systemHealthRow(system)] : rows;
+  return system ? [...rows, systemHealthRow(system, nowMs)] : rows;
 }
 
 /** A problem a data-source grid already draws: a failing source, a late

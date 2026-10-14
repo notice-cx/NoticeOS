@@ -10,6 +10,7 @@ import type { IntegrationHealthItem } from "@noticeos/contract/integration-healt
 import { connectionStatus, type ConnectionKind } from "@shared/connection-status";
 import type { SystemBand } from "@shared/wall";
 import { scheduledLanePosture } from "@/components/ScheduledLanes";
+import { backupStatus, lastGoodCopy, type BackupState } from "@/lib/backups";
 import type { FlowEdge, FlowNode, FlowState } from "@/components/viz/FlowGraph";
 import { formatAge } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
@@ -24,6 +25,13 @@ const PROVIDER_STATE: Record<ConnectionKind, FlowState> = {
   "not-connected": "absent",
   "not-using": "absent",
   unknown: "idle",
+};
+
+const BACKUP_NODE: Record<BackupState, FlowState> = {
+  none: "absent",
+  working: "ok",
+  missed: "warn",
+  failing: "error",
 };
 
 const PROVIDER_WORD: Partial<Record<ConnectionKind, string>> = {
@@ -84,9 +92,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
   const lanes = system?.scheduledLanes ?? [];
   const posture = system ? scheduledLanePosture(lanes, nowMs) : "unknown";
   const latestRun = lanes.reduce<string | null>((at, lane) => (at === null || lane.startedAt > at ? lane.startedAt : at), null);
-  const backups = lanes.filter((lane) => /backup/i.test(lane.job));
-  const failedBackup = backups.filter((lane) => lane.outcome === "failed").sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ?? null;
-  const lastBackup = backups.sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0] ?? null;
+  const backups = backupStatus(lanes);
 
   const nodes: FlowNode[] = [
     ...sourceNodes,
@@ -131,9 +137,9 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
       label: "Backups",
       column: 3,
       icon: Archive,
-      state: failedBackup ? "error" : lastBackup ? "ok" : "absent",
-      since: failedBackup?.startedAt ?? null,
-      caption: failedBackup ? "last run failed" : lastBackup ? `last copy ${formatAge(nowMs - Date.parse(lastBackup.startedAt))} ago` : "no backup has run",
+      state: BACKUP_NODE[backups.state],
+      since: backups.failingSince,
+      caption: lastGoodCopy(backups, nowMs),
       href: "/workflows",
     },
   ];
@@ -142,7 +148,7 @@ export function systemFlow({ credentials, items, system, nowMs }: SystemFlowInpu
     { from: "runner", to: "collectors", state: posture === "failed" || posture === "silent" ? "broken" : posture === "healthy" ? "flowing" : "idle" },
     { from: "collectors", to: "store", state: sourceNodes.length === 0 ? "idle" : "flowing" },
     { from: "store", to: "tower", state: system ? "flowing" : "idle" },
-    { from: "store", to: "backups", state: failedBackup ? "broken" : lastBackup ? "flowing" : "idle" },
+    { from: "store", to: "backups", state: backups.state === "failing" ? "broken" : backups.state === "none" ? "idle" : "flowing" },
   ];
   return { nodes, edges };
 }
