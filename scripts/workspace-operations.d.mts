@@ -85,6 +85,7 @@ type ProviderCollectionInput = {
     readonly input: {
         provider: string;
         assets: readonly string[];
+        families?: readonly string[];
     };
 } | {
     readonly method: 'syncMediavine';

@@ -35,6 +35,7 @@ import {
   MAX_REPORT_COST_USD,
   SERP_PANEL_DEVICES,
   SERP_PANEL_QUERY_LIMIT,
+  capReserveExceeded,
   dataForSeoReportsFor,
   loadMeteredDataSpend,
   type DataForSeoReport,
@@ -80,7 +81,8 @@ const SERP_COMPETITORS_LIMIT = 20;
 /** `keyword_ideas` expands by category, not string: without a ceiling the
  * internet's biggest queries fill every slot. */
 const KEYWORD_IDEAS_VOLUME_CEILING = 500_000;
-const DATA_MONTHLY_CAP_USD = constants.monthly_caps.data_usd;
+/** The cap the budget gate enforces when a run names none. */
+export const DATA_MONTHLY_CAP_USD = constants.monthly_caps.data_usd;
 /** Two pages. A property below this records no rank: "not inside the tracked
  * depth", never "not ranking". */
 const SERP_PANEL_DEPTH = 20;
@@ -858,7 +860,7 @@ async function collectDueReports(
   const { spentUsd } = await loadMeteredDataSpend(env.STORE, requestedAt, 'month');
   let monthSpendUsd = spentUsd;
   for (const { target, report } of plan) {
-    if (monthSpendUsd + MAX_REPORT_COST_USD > monthlyCapUsd) {
+    if (capReserveExceeded(monthSpendUsd, 1, monthlyCapUsd)) {
       const outcome = await archiveDumpFailure(env.STORE, {
         monitoring,
         target,

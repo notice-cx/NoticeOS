@@ -6,6 +6,7 @@ import { integrationFailureMessage } from "@noticeos/contract/integration-health
 import type { ConnectionKind, SiteStatus } from "@shared/connection-status";
 import { providerName } from "@shared/connect-panel";
 import {
+  COLLECT_REFUSAL_LABEL,
   chosenSite,
   initialSelection,
   marketOf,
@@ -485,19 +486,11 @@ function StartedCaption({
   return <span className="truncate font-mono text-xs text-muted-foreground">{detail || row.asset.domain || ""}</span>;
 }
 
-const REFUSAL: Record<CollectNowRefusal, string> = {
-  paused: "Schedule paused",
-  "in-flight": "Already collecting · try again soon",
-  "not-connected": "Not connected",
-  "no-sites": "Nothing to collect",
-  "not-supported": "Collects on its schedule",
-};
-
 function Refusal({ error }: { error: CollectNowRefusal }) {
   return (
     <p className="flex items-center gap-2 text-sm text-warn" data-collect-refusal={error}>
       <TriangleAlert className="size-4 shrink-0" aria-hidden />
-      {REFUSAL[error]}
+      {COLLECT_REFUSAL_LABEL[error]}
       {error === "paused" ? (
         <Link to="/health/operations" className="ms-auto text-xs underline underline-offset-4">
           Schedules

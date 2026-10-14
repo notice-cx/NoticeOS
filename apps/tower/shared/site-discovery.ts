@@ -19,12 +19,23 @@
 // A row is an asset with one entry per lane the provider collects; a
 // portfolio provider (DataForSEO) lists its own candidates.
 
-import type { DiscoveredSite, SiteDiscovery, SiteSpendPreview } from "@noticeos/contract/site-discovery";
+import type { CollectNowRefusal, DiscoveredSite, SiteDiscovery, SiteSpendPreview } from "@noticeos/contract/site-discovery";
 import { siteHost } from "@noticeos/contract/site-discovery";
 import { DATAFORSEO_BASELINE } from "./site-markets";
 import type { FileJsonSetOp, JsonValue } from "./changeset";
 import { declineOps } from "./lane-decline";
 import { laneFieldOp } from "./lane-mapping-ops";
+
+/** Why a collect-now press bought nothing, in the words every control that
+ * presses it shows. */
+export const COLLECT_REFUSAL_LABEL: Record<CollectNowRefusal, string> = {
+  paused: "Schedule paused",
+  "in-flight": "Already collecting · try again soon",
+  "not-connected": "Not connected",
+  "no-sites": "Nothing to collect",
+  "not-supported": "Collects on its schedule",
+  "over-cap": "Over the monthly data cap",
+};
 
 /** One portfolio asset as the panel matches it (the `…/sites` route builds it
  * from the assets table and the register). */

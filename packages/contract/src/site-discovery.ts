@@ -84,6 +84,9 @@ export function siteHost(value: string | null | undefined): string | null {
 export interface CollectNowInput {
   provider: string;
   assets: string[];
+  /** DataForSEO only: collect just these report families for each site, even
+   * when they are not due. Absent: every family the site has. */
+  families?: string[];
 }
 
 /**
@@ -129,9 +132,10 @@ export type CollectNowResult =
  * `not-connected` — no credential is stored; `paused` — the operator paused
  * the job on its schedule; `in-flight` — the lane's own lease is held by a
  * run already collecting; `no-sites` — none of the named assets is one the
- * lane collects.
+ * lane collects (or has the named families); `over-cap` — the named families'
+ * reserve would cross the monthly data cap, so nothing was bought.
  */
-export type CollectNowRefusal = 'not-supported' | 'not-connected' | 'paused' | 'in-flight' | 'no-sites';
+export type CollectNowRefusal = 'not-supported' | 'not-connected' | 'paused' | 'in-flight' | 'no-sites' | 'over-cap';
 
 /**
  * A metered provider's spend preview, shown before its first collection
@@ -153,4 +157,8 @@ export interface SiteSpendPreview {
   /** What the budget gate reserves for one site's reports: the most one site's
    * first collection can cost. */
   perSiteCeilingUsd: number;
+  /** Each site's newest successful tracked-panel run: its report date and its
+   * recorded cost (null when the price was not recorded). A site that is not
+   * here has never collected its panel. */
+  panelRuns: Record<string, { reportDate: string; costUsd: number | null }>;
 }

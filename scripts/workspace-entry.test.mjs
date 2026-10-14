@@ -320,6 +320,8 @@ test('collection original fields and fixed methods bind one current workflow act
   for (const [path, method, body, input] of [
     ['/api/integrations/bing-webmaster/collect', 'collectNow', { assets: ['example.test'] },
       { provider: 'bing-webmaster', assets: ['example.test'] }],
+    ['/api/integrations/dataforseo/collect', 'collectNow', { assets: ['example.test'], families: ['serp-panel'] },
+      { provider: 'dataforseo', assets: ['example.test'], families: ['serp-panel'] }],
     ['/api/integrations/mediavine/sync', 'syncMediavine', { asset: 'example.test' }, { asset: 'example.test' }],
     ['/api/integrations/mediavine/sync', 'syncMediavine',
       { asset: 'example.test', start: '2026-09-01', end: '2026-09-02' },
@@ -334,6 +336,11 @@ test('collection original fields and fixed methods bind one current workflow act
     }
     const changed = method === 'collectNow' ? { ...input, assets: ['foreign.test'] } : { ...input, asset: 'foreign.test' };
     await assert.rejects(providerCollectionArguments(changed, proof, method));
+    if (method === 'collectNow') {
+      // The families the message named, exactly: not added, dropped or swapped.
+      await assert.rejects(providerCollectionArguments({ ...input, families: ['ranked-keywords'] }, proof, method));
+      if (input.families) await assert.rejects(providerCollectionArguments({ provider: input.provider, assets: input.assets }, proof, method));
+    }
     await assert.rejects(providerCollectionArguments(input, proof, method === 'collectNow' ? 'syncMediavine' : 'collectNow'));
     f.memberships.set(a, 'viewer');
     await assert.rejects(withWorkspaceEntry(env, proof, use, f.adapters));
@@ -344,7 +351,7 @@ test('collection original fields and fixed methods bind one current workflow act
     await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, make(path, body, demo), use, f.adapters));
     assert.equal(f.calls.opened, opened);
   }
-  assert.deepEqual(f.calls.stores, Array(6).fill(a));
+  assert.deepEqual(f.calls.stores, Array(8).fill(a));
 });
 
 test('live panel admission uses fresh facts and truthful browser evidence without caller provider scope', async () => {

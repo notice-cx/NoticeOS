@@ -103,6 +103,16 @@ export function dataForSeoReportsFor(
 export const MAX_REPORT_COST_USD = 0.25;
 
 /**
+ * Does reserving `reports` families' worth of the cap cross it? The budget
+ * gate asks this before each report (one at a time); a named-family press asks
+ * it for every family it names before anything is bought, so the press starts
+ * only when the gate would let all of them through.
+ */
+export function capReserveExceeded(spentUsd: number, reports: number, capUsd: number): boolean {
+  return spentUsd + reports * MAX_REPORT_COST_USD > capUsd;
+}
+
+/**
  * The devices every tracked query is collected on, in call order. Both,
  * because a phone result page is not a narrower desktop one: click-consuming
  * blocks appear on different queries. The order is not a contract: readers

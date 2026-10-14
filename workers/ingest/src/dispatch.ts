@@ -18,7 +18,7 @@ import type {
   IntegrationProviderId,
   ScheduledRunResult,
 } from '@noticeos/contract';
-import { OS_TIME_ZONE, savedOsTimeZone } from '@noticeos/contract';
+import { OS_TIME_ZONE, capReserveExceeded, loadMeteredDataSpend, savedOsTimeZone } from '@noticeos/contract';
 import { type CountersConfig, runCountersScrape } from './counters.js';
 import {
   type CollectorConfigs,
@@ -28,7 +28,10 @@ import {
 import {
   type DataForSeoCollectScope,
   type SerpPanelConfig,
+  DATAFORSEO_REPORTS,
+  DATA_MONTHLY_CAP_USD,
   dataForSeoCandidates,
+  dataForSeoFamiliesFor,
   runDataForSeoDumps,
   runDataForSeoRecovery,
 } from './dataforseo-dumps.js';
@@ -298,6 +301,11 @@ export async function runCollectNow(
     (asset): asset is string => typeof asset === 'string' && asset !== '',
   ))];
   if (assets.length === 0) return { ok: false, provider, error: 'no-sites', job };
+  // Naming families narrows DataForSEO's run; no other step has families.
+  const families = input.families === undefined ? undefined : namedDataForSeoFamilies(input.families);
+  if (families === null || (families !== undefined && plan.step.step !== 'search')) {
+    return { ok: false, provider, error: 'not-supported', job };
+  }
   const cfg = runConfig(await readCollectorConfigs(env));
   if (jobPaused(cfg, job)) return { ok: false, provider, error: 'paused', job };
   if ((await resolveCredential(env, provider as IntegrationProviderId)).source === 'none') {
@@ -321,13 +329,27 @@ export async function runCollectNow(
     }));
   } else if (plan.step.step === 'search') {
     sites = [];
+    const eligible: string[] = [];
     for (const asset of assets) {
       // The collector's own membership rule, asked per asset as
       // `POST /api/signal-collect` asks it; a declined site is skipped as the
-      // sweep skips it.
+      // sweep skips it, and so is a site without every named family.
       const [candidate] = await dataForSeoCandidates(env.STORE, asset);
       if (!candidate || laneDeclined(asset, 'dataforseo', cfg.laneRegister)) continue;
-      const run = await searchLane(env, cfg, { ...narrow, scope: { asset } });
+      if (families && !families.every((family) => dataForSeoFamiliesFor(asset, cfg.serpPanelConfig).includes(family))) continue;
+      eligible.push(asset);
+    }
+    // A named-family press is priced before it runs: it starts only when the
+    // budget gate would let every family it names through, so a press over the
+    // cap buys nothing and leaves no failed report behind.
+    if (families && eligible.length > 0) {
+      const { spentUsd } = await loadMeteredDataSpend(env.STORE, startedAt, 'month');
+      if (capReserveExceeded(spentUsd, eligible.length * families.length, DATA_MONTHLY_CAP_USD)) {
+        return { ok: false, provider, error: 'over-cap', job };
+      }
+    }
+    for (const asset of eligible) {
+      const run = await searchLane(env, cfg, { ...narrow, scope: families ? { asset, families } : { asset } });
       if (run.refused) {
         // Another run holds the lane: nothing was bought yet, so say so rather
         // than queue a second paid run behind it.
@@ -428,6 +450,14 @@ export async function runCollectNow(
     outcome: manualRunOutcome(sites),
   }, options.nowMs);
   return { ok: true, provider, job, startedAt, finishedAt: new Date().toISOString(), sites };
+}
+
+/** The families a press names, each once and each one DataForSEO collects, or
+ * null when the list names nothing or something else. */
+function namedDataForSeoFamilies(value: unknown): string[] | null {
+  if (!Array.isArray(value) || value.length === 0) return null;
+  if (!value.every((family): family is string => typeof family === 'string' && DATAFORSEO_REPORTS.includes(family))) return null;
+  return [...new Set(value)];
 }
 
 /** A press's sites as one firing's outcome, in the runner's vocabulary: it ran

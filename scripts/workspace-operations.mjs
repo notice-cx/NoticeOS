@@ -193,11 +193,16 @@ export async function providerCollectionInput(request) {
     const asset = (value) => typeof value === 'string'
         && value.length > 0 && value.length <= 253 && value.trim() === value;
     if (parsed.method === 'collectNow') {
-        onlyKeys(body, ['assets']);
+        onlyKeys(body, ['assets', 'families']);
         if (!Array.isArray(body.assets) || body.assets.length > 100 || !body.assets.every(asset))
+            refuse();
+        // Family names only; the collector decides which it has for each site.
+        if (body.families !== undefined && (!Array.isArray(body.families) || body.families.length === 0 || body.families.length > 32
+            || !body.families.every(family => typeof family === 'string' && /^[a-z][a-z0-9-]{0,63}$/u.test(family))))
             refuse();
         return Object.freeze({ method: 'collectNow', input: Object.freeze({
                 provider: parsed.provider, assets: Object.freeze([...body.assets]),
+                ...(body.families === undefined ? {} : { families: Object.freeze([...body.families]) }),
             }) });
     }
     onlyKeys(body, ['asset', 'start', 'end']);

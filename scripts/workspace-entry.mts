@@ -146,7 +146,7 @@ export async function credentialWriteArguments(input: unknown, request: Request,
   return parsed.input;
 }
 
-export function providerCollectionArguments(input: unknown, request: Request, method: 'collectNow'): Promise<{ provider: string; assets: string[] }>;
+export function providerCollectionArguments(input: unknown, request: Request, method: 'collectNow'): Promise<{ provider: string; assets: string[]; families?: string[] }>;
 export function providerCollectionArguments(input: unknown, request: Request, method: 'syncMediavine'): Promise<{ asset: string; start?: string; end?: string }>;
 /** Method and every selector must match the original message. Fresh receiver
  * admission and actual asset ownership still precede collector effects. */
@@ -156,7 +156,8 @@ export async function providerCollectionArguments(input: unknown, request: Reque
   if (parsed.method !== method || !deepEqual(input, parsed.input)) refuse();
   await ingestOperation(method, request);
   return parsed.method === 'collectNow'
-    ? { provider: parsed.input.provider, assets: [...parsed.input.assets] }
+    ? { provider: parsed.input.provider, assets: [...parsed.input.assets],
+      ...(parsed.input.families === undefined ? {} : { families: [...parsed.input.families] }) }
     : { ...parsed.input };
 }
 

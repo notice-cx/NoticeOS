@@ -402,6 +402,13 @@ test('collection workflow effects refuse unknown fields and noncanonical selecto
     { asset: 'example.test', end: 'tomorrow' }, { asset: 'example.test', automatic: true }]) {
     await assert.rejects(towerOperation(request(sync, 'POST', body)), OperationRefused);
   }
+  // A press may name report families; only plain family names, at least one.
+  const named = await providerCollectionInput(request(collect, 'POST', { assets: ['example.test'], families: ['serp-panel'] }));
+  assert.deepEqual(named.input, { provider: 'bing-webmaster', assets: ['example.test'], families: ['serp-panel'] });
+  assert.ok(Object.isFrozen(named.input.families));
+  for (const families of [[], 'serp-panel', ['Serp Panel'], [7], Array(33).fill('serp-panel')]) {
+    await assert.rejects(towerOperation(request(collect, 'POST', { assets: ['example.test'], families })), OperationRefused);
+  }
   assert.equal((await ingestOperation('syncMediavine', request(sync, 'POST', { asset: 'example.test' }))).action, 'workflows.run');
   await assert.rejects(ingestOperation('saveMediavineSettings', request(sync, 'POST', { asset: 'example.test' })), OperationRefused);
 });

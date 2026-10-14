@@ -22,7 +22,7 @@ import { cronRunSuccessValue, latestJobRuns } from '../src/job-runs.js';
 import { bingSites, discoverSites } from '../src/site-discovery.js';
 import { jobRunName, collectNowStep } from '../../../scripts/scheduled-jobs.mjs';
 import { OPERATOR_TOKEN } from './fixtures.js';
-import { ARCHIVE_RUNS, call, emptyTables, pgCount, reset, storedCount, storedHealthStates } from './helpers.js';
+import { ARCHIVE_RUNS, call, emptyTables, pgCount, reset, storeArchiveRun, storedCount, storedHealthStates } from './helpers.js';
 
 const NOW = Date.parse('2026-09-23T15:00:00.000Z');
 const MAPPED = 'https://www.meadow.example/';
@@ -132,6 +132,44 @@ describe('collect now runs the job step for the confirmed sites', () => {
     expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND asset = 'ferns.example'`)).toBe(0);
     const onlyPreLaunch = await runCollectNow(env, { provider: 'dataforseo', assets: ['ferns.example'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
     expect(onlyPreLaunch).toEqual({ ok: false, provider: 'dataforseo', error: 'no-sites', job: 'dataforseo' });
+  });
+
+  it('collects only the named family for the named site, even when it is not due', async () => {
+    const provider = dataForSeo();
+    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example'], families: ['serp-panel'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    expect(result).toMatchObject({ ok: true, job: 'dataforseo', sites: [{ asset: 'northwind.example', outcome: 'collected', code: null, reports: 1 }] });
+    expect(provider.calls.length).toBeGreaterThan(0);
+    expect(provider.calls.every((url) => url.endsWith('/serp/google/organic/live/advanced'))).toBe(true);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND report <> 'serp-panel'`)).toBe(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo' AND report = 'serp-panel' AND asset = 'northwind.example'`)).toBe(1);
+  });
+
+  it('buys nothing for a named-family press the monthly cap cannot hold, and records no failure', async () => {
+    // $24.80 of the $25 cap spent this month: the panel's $0.25 reserve would cross it.
+    await storeArchiveRun({
+      id: 'spent', asset: 'northwind.example', integration: 'dataforseo', report: 'ranked-keywords',
+      report_date: '2026-09-21', finished_at: '2026-09-21T12:46:00.000Z', provider_cost_usd: 24.8,
+    });
+    const provider = dataForSeo();
+    const result = await runCollectNow(env, { provider: 'dataforseo', assets: ['northwind.example'], families: ['serp-panel'] }, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    expect(result).toEqual({ ok: false, provider: 'dataforseo', error: 'over-cap', job: 'dataforseo' });
+    expect(provider.calls).toEqual([]);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'dataforseo'`)).toBe(1);
+    expect(await storedCount(`SELECT count(*)::int AS n FROM noticeos.job_runs`)).toBe(0);
+  });
+
+  it('refuses families another provider does not have, a family DataForSEO does not collect, and a site without the family', async () => {
+    const provider = dataForSeo();
+    const press = (input: { provider: string; assets: string[]; families?: string[] }) => runCollectNow(env, input, { fetchImpl: provider.fetchImpl, nowMs: NOW });
+    expect(await press({ provider: 'bing-webmaster', assets: ['meadow.example'], families: ['serp-panel'] })).toEqual({ ok: false, provider: 'bing-webmaster', error: 'not-supported', job: 'pull' });
+    expect(await press({ provider: 'dataforseo', assets: ['northwind.example'], families: ['gsc-query'] })).toEqual({ ok: false, provider: 'dataforseo', error: 'not-supported', job: 'dataforseo' });
+    expect(await press({ provider: 'dataforseo', assets: ['northwind.example'], families: [] })).toEqual({ ok: false, provider: 'dataforseo', error: 'not-supported', job: 'dataforseo' });
+    // A stored panel that tracks nothing for this site: it has no SERP panel to collect.
+    const seeded = await seedConfigDocuments(env, { documents: { 'config/serp-panel.json': { assets: {} } }, actor: 'config:seed' }, NOW);
+    expect(seeded.ok, JSON.stringify(seeded)).toBe(true);
+    forgetConfigCache();
+    expect(await press({ provider: 'dataforseo', assets: ['northwind.example'], families: ['serp-panel'] })).toEqual({ ok: false, provider: 'dataforseo', error: 'no-sites', job: 'dataforseo' });
+    expect(provider.calls).toEqual([]);
   });
 
   // In its job's run history: the press is one firing of the job's step,

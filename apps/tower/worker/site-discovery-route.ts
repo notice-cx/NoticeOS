@@ -147,13 +147,19 @@ export async function handleCollectRequest(request: Request, url: URL,
   } catch {
     return jsonError("bad_request", 400);
   }
-  const assets = body && typeof body === "object" && !Array.isArray(body) ? (body as { assets?: unknown }).assets : undefined;
+  const fields = body && typeof body === "object" && !Array.isArray(body) ? (body as { assets?: unknown; families?: unknown }) : {};
+  const { assets, families } = fields;
   if (!Array.isArray(assets) || assets.length > COLLECT_MAX_ASSETS || !assets.every((asset) => typeof asset === "string" && asset.length <= 253)) {
     return jsonError("invalid_collect", 422, { field: "assets" });
   }
+  // Report family names; the ingest decides which ones each site has.
+  if (families !== undefined && (!Array.isArray(families) || families.length === 0 || families.length > 32
+    || !families.every((family) => typeof family === "string" && /^[a-z][a-z0-9-]{0,63}$/.test(family)))) {
+    return jsonError("invalid_collect", 422, { field: "families" });
+  }
   let result: CollectNowResult;
   try {
-    result = await ingest.collectNow({ provider, assets: assets as string[] });
+    result = await ingest.collectNow({ provider, assets: assets as string[], ...(families === undefined ? {} : { families: families as string[] }) });
   } catch {
     return jsonError("collect_failed", 500);
   }
