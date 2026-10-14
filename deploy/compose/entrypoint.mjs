@@ -6,6 +6,7 @@ import { readDeclaredTaskClient } from '../../scripts/task-client.mjs';
 import { probeTcp } from '../../scripts/runner/host-tools.mjs';
 import { ContainerRefusal, developmentDependencies } from './development.mjs';
 import { collectJobArgs } from '../../scripts/signal-collect.mjs';
+import { BACKUP_APP_ORIGIN } from '../../scripts/container-backup-profile.mjs';
 
 /** The installation as the host sees it (compose.yaml), shown read-only on the Tower's Settings > Installation. */
 export const HOST_FACTS = ['NOTICEOS_HOST_FOLDER', 'NOTICEOS_HOST_TOWER_ADDRESS', 'NOTICEOS_HOST_TOWER_PORT',
@@ -33,7 +34,9 @@ export function containerEnvironment(env = process.env, { fs: io = fs, readClien
   if (typeof bindings.CREDENTIALS_KEY !== 'string' || !bindings.CREDENTIALS_KEY.trim() ||
     typeof bindings.OPERATOR_TOKEN !== 'string' || !bindings.OPERATOR_TOKEN.trim()) throw new ContainerRefusal('The prepared bootstrap credentials are incomplete.');
   const selected = {};
-  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'TOWER_ALLOWED_HOSTS', ...HOST_FACTS]) if (env[key] !== undefined) selected[key] = env[key];
+  for (const key of ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', ...HOST_FACTS]) if (env[key] !== undefined) selected[key] = env[key];
+  // The backup worker asks this app by its service name; Vite's host guard refuses names it was not given.
+  selected.TOWER_ALLOWED_HOSTS = [env.TOWER_ALLOWED_HOSTS, new URL(BACKUP_APP_ORIGIN).hostname].filter(Boolean).join(',');
   // The standalone runtime serves through Vite; its React transforms need development mode.
   return { ...selected, HOME: '/state/dolt/client-home', TMPDIR: '/tmp', NODE_ENV: 'development',
     // Docker forwards published ports to the container interface, not its loopback.
