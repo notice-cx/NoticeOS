@@ -98,7 +98,8 @@ it('verified hosted demo is read-only before capability arrives and invents no g
   const capability = renderHook(useConfigWritable, { wrapper: Owner });
   expect(capability.result.current.writable).toBe(false);
   renderHook(useCalendarUpcoming, { wrapper: Owner }); renderHook(useGa4Realtime, { wrapper: Owner });
-  expect(document.querySelector('[data-property-favicon] img')).toBeNull();
+  // The demo's site icons come from the Tower itself, never from the site.
+  expect(document.querySelector('[data-property-favicon] img')?.getAttribute('src')).toBe('/demo/favicons/example.com.svg');
   // Both Wall reads are asked for: the hosted demo answers them synthetically.
   await vi.waitFor(() => {
     for (const path of ['/api/ga4/realtime', '/api/calendar/upcoming']) {
