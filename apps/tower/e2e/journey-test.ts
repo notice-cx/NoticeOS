@@ -21,6 +21,11 @@ export const test = base.extend<{ isolationCheck: void; offlineGuard: OfflineGua
   offlineGuard: [async ({ context, fixtureServer, offlineTransport }, use) => {
     const guard = await installOfflineGuard(context, fixtureServer.origin, { transport: offlineTransport });
     try { await use(guard); } finally {
+      // A test's own page route may still be answering a read when its body
+      // ends, such as the re-read a change pushes after a save. It finishes
+      // before the guard closes the context; cut off, it reads a disposed
+      // response and the close fails.
+      for (const page of context.pages()) if (!page.isClosed()) await page.unrouteAll({ behavior: "wait" });
       await guard.close();
       expect(guard.check(), "the browser attempted to leave the fixture").toBeNull();
     }
