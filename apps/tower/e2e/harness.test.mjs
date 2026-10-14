@@ -185,7 +185,8 @@ test("operator UTC and provider Pacific revenue clocks remain distinct without o
   assert.deepEqual([seeded.body.timeZone, seeded.body.today, seeded.body.reportingTimeZone,
     seeded.body.reportingToday, seeded.body.through], ["UTC", "2026-09-06", "America/Los_Angeles", "2026-09-06", "2026-09-04"]);
   const card = (await request("/api/wall")).body.assets.find((row) => row.id === asset);
-  assert.deepEqual(card.dailyRevenue, { date: "2026-09-05", amountMinor: null, reportedThrough: "2026-09-04", timeZone: "America/Los_Angeles" });
+  assert.deepEqual(card.dailyRevenue, { date: "2026-09-05", amountMinor: null, reportedThrough: "2026-09-04", timeZone: "America/Los_Angeles",
+    timeZoneLabel: "Pacific" });
   assert.equal(card.revenueProjection.status, "ready", JSON.stringify(card.revenueProjection));
   assert.equal(card.revenueProjection.reportedThrough, "2026-09-04");
 });
