@@ -143,12 +143,10 @@ END $$;
 DO $$
 DECLARE shown bigint; source_seen text;
 BEGIN
-  INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome)
-  VALUES (noticeos.current_workspace_id(), 'mv-june', 'a.example', 'mv-a', '2026-06-01', '2026-06-30', now(), 'success');
-  INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
-  SELECT noticeos.current_workspace_id(), r.run_seq, 'a.example', 'mv-a', d::date, 100, now()
-    FROM noticeos.mediavine_runs r, generate_series('2026-06-01'::date, '2026-06-30'::date, interval '1 day') AS d
-   WHERE r.run_id = 'mv-june';
+  INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+    currency, run_ref, recorded_at)
+  SELECT noticeos.current_workspace_id(), 'a.example', 'mediavine-journey', 'mv-a', d::date, 100, 'USD', 'mv-june', now()
+    FROM generate_series('2026-06-01'::date, '2026-06-30'::date, interval '1 day') AS d;
   -- An imported estimate that covered only the first 20 days.
   INSERT INTO noticeos.ledger_entries (workspace_id, kind, asset_id, period_month, family, amount_minor, currency,
     source, booking_state, coverage_start, coverage_end, coverage_complete)
@@ -170,14 +168,16 @@ CREATE FUNCTION pg_temp.fl_month(month date) RETURNS text LANGUAGE sql AS $$
     FROM noticeos.financial_ledger
    WHERE asset_id = 'ledger.example' AND period_month = month AND kind = 'revenue'
 $$;
--- A Mediavine run of one site's days `first`..`last` at `amount` each (bar the `gap` day).
-CREATE FUNCTION pg_temp.fl_days(run text, first date, last date, amount bigint, gap date DEFAULT NULL) RETURNS void LANGUAGE sql AS $$
-  INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome)
-  VALUES (noticeos.current_workspace_id(), run, 'ledger.example', 'mv-ledger', first, last, now(), 'success');
-  INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
-  SELECT noticeos.current_workspace_id(), r.run_seq, 'ledger.example', 'mv-ledger', d::date, amount, now()
-    FROM noticeos.mediavine_runs r, generate_series(first, last, interval '1 day') AS d
-   WHERE r.run_id = run AND d::date IS DISTINCT FROM gap;
+-- One run of a source's days `first`..`last` for the site, at `amount` each
+-- (bar the `gap` day); Mediavine Journey unless another source is named.
+CREATE FUNCTION pg_temp.fl_days(run text, first date, last date, amount bigint, gap date DEFAULT NULL,
+                                src text DEFAULT 'mediavine-journey') RETURNS void LANGUAGE sql AS $$
+  INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+    currency, run_ref, recorded_at)
+  SELECT noticeos.current_workspace_id(), 'ledger.example', src, 'mv-ledger', d::date, amount, 'USD', run, now()
+    FROM generate_series(first, last, interval '1 day') AS d
+   WHERE d::date IS DISTINCT FROM gap
+   ORDER BY d;
 $$;
 -- One ledger entry for the site; returns its id.
 CREATE FUNCTION pg_temp.fl_book(month date, family text, amount bigint, source text, state text,
@@ -204,11 +204,11 @@ BEGIN
   ASSERT shown = '3100 in 1: mediavine-journey', format('a daily month alone: %s', shown);
   SELECT entry_id, entry_number, external_id, booking_state INTO synthetic FROM noticeos.financial_ledger
    WHERE asset_id = 'ledger.example' AND period_month = '2025-01-01';
-  ASSERT synthetic.entry_id < 0 AND synthetic.external_id = 'mediavine:daily/ledger.example/2025-01'
+  ASSERT synthetic.entry_id < 0 AND synthetic.external_id = 'mediavine-journey:daily/ledger.example/2025-01'
      AND synthetic.booking_state = 'estimated', format('the synthetic row: %s', synthetic);
-  -- Readers show its number: minus the month's first daily number.
-  ASSERT synthetic.entry_number = -(SELECT min(daily_number) FROM noticeos.mediavine_daily
-                                     WHERE asset_id = 'ledger.example' AND report_date BETWEEN '2025-01-01' AND '2025-01-31'),
+  -- Readers show its number: minus the month's first observation number.
+  ASSERT synthetic.entry_number = -(SELECT min(observation_number) FROM noticeos.revenue_observations
+                                     WHERE asset_id = 'ledger.example' AND revenue_date BETWEEN '2025-01-01' AND '2025-01-31'),
     format('the synthetic row''s number: %s', synthetic.entry_number);
 
   -- An import of unknown coverage gives way only to a month that runs to its
@@ -270,7 +270,7 @@ BEGIN
   shown := pg_temp.fl_month('2025-08-01');
   ASSERT shown = '3400 in 2: mediavine-journey,-', format('a Mediavine estimate beside unrelated ad revenue: %s', shown);
 
-  -- A day fetched again counts once, at its newest amount (mediavine_current_daily).
+  -- A day fetched again counts once, at its newest amount (current_revenue).
   PERFORM pg_temp.fl_days('fl-sep', '2025-09-01', '2025-09-30', 100);
   PERFORM pg_temp.fl_days('fl-sep-again', '2025-09-01', '2025-09-01', 250);
   shown := pg_temp.fl_month('2025-09-01');
@@ -286,6 +286,87 @@ BEGIN
   VALUES (noticeos.current_workspace_id(), 'ledger.example', 'ledger', 'live');
   PERFORM pg_temp.fl_book('2025-01-01', 'ads', 1200, 'mediavine', 'reconciled');
   PERFORM set_config('noticeos.workspace_id', '0000000a-0000-4000-8000-00000000000a', true);
+END $$;
+
+-- ─── The revenue ledger: every source alike ────────────────────────────────
+-- A second provider's source, here a store's subscription sales reported one
+-- sale per row, shares the ledger with Mediavine and never stands in for
+-- Mediavine's estimate. Vocabulary is the owner's to add.
+SET LOCAL ROLE noticeos_owner;
+INSERT INTO noticeos_ref.revenue_sources (source, provider, family, display_name, time_zone, time_zone_label, ready_after_minute)
+VALUES ('edge-store-subs', 'edge-store', 'subs', 'Edge store subscriptions', 'UTC', 'UTC', 0);
+SET LOCAL ROLE noticeos_app;
+DO $$
+DECLARE shown text; current_rows text; n bigint;
+BEGIN
+  -- ACCEPTED: sales as items, one restated; each item's newest figure is current.
+  INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, item_ref,
+    amount_minor, currency, run_ref, recorded_at)
+  VALUES (noticeos.current_workspace_id(), 'ledger.example', 'edge-store-subs', 'store-1', '2025-10-03', 'sale-1', 900, 'USD', 'hook-1', now()),
+         (noticeos.current_workspace_id(), 'ledger.example', 'edge-store-subs', 'store-1', '2025-10-03', 'sale-2', 900, 'USD', 'hook-2', now()),
+         (noticeos.current_workspace_id(), 'ledger.example', 'edge-store-subs', 'store-1', '2025-10-03', 'sale-2', -900, 'USD', 'hook-3', now());
+  SELECT string_agg(item_ref || ':' || amount_minor, ',' ORDER BY item_ref) INTO current_rows
+    FROM noticeos.current_revenue WHERE source = 'edge-store-subs';
+  ASSERT current_rows = 'sale-1:900,sale-2:-900', format('each sale''s newest figure: %s', current_rows);
+
+  -- ACCEPTED: a Mediavine month and another provider's month in one month,
+  -- each under its own source and family, beside a Mediavine import that
+  -- covers more than the days do.
+  PERFORM pg_temp.fl_book('2025-10-01', 'ads', 5000, 'mediavine', 'estimated');
+  PERFORM pg_temp.fl_days('fl-oct', '2025-10-01', '2025-10-30', 100);
+  shown := pg_temp.fl_month('2025-10-01');
+  ASSERT shown = '5000 in 2: edge-store-subs,mediavine', format('another provider''s month never ends a Mediavine import: %s', shown);
+  SELECT string_agg(family || ':' || source || ':' || amount_minor, ',' ORDER BY source) INTO shown
+    FROM noticeos.financial_ledger WHERE asset_id = 'ledger.example' AND period_month = '2025-10-01';
+  ASSERT shown = 'subs:edge-store-subs:0,ads:mediavine:5000', format('each month keeps its source and family: %s', shown);
+
+  -- ACCEPTED: a day an older release writes to mediavine_daily reaches the
+  -- ledger under Mediavine Journey, naming the run that reported it.
+  INSERT INTO noticeos.mediavine_runs (workspace_id, run_id, asset_id, site_id, start_date, end_date, attempted_at, outcome)
+  VALUES (noticeos.current_workspace_id(), 'fl-older-release', 'ledger.example', 'mv-ledger', '2025-11-01', '2025-11-01', now(), 'success');
+  INSERT INTO noticeos.mediavine_daily (workspace_id, run_seq, asset_id, site_id, report_date, amount_minor, recorded_at)
+  SELECT noticeos.current_workspace_id(), run_seq, 'ledger.example', 'mv-ledger', '2025-11-01', 4321, now()
+    FROM noticeos.mediavine_runs WHERE run_id = 'fl-older-release';
+  SELECT string_agg(source || ':' || account_ref || ':' || amount_minor || ':' || run_ref, ',') INTO current_rows
+    FROM noticeos.current_revenue WHERE asset_id = 'ledger.example' AND revenue_date = '2025-11-01';
+  ASSERT current_rows = 'mediavine-journey:mv-ledger:4321:fl-older-release', format('an older release''s day: %s', current_rows);
+
+  -- REFUSED: a source the vocabulary does not name.
+  BEGIN
+    INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+      currency, run_ref, recorded_at)
+    VALUES (noticeos.current_workspace_id(), 'ledger.example', 'not-a-source', 'x', '2025-10-04', 1, 'USD', 'r', now());
+    RAISE EXCEPTION 'an unknown revenue source was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN foreign_key_violation THEN NULL;
+  END;
+  -- REFUSED: an observation that names no account or no run.
+  BEGIN
+    INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, account_ref, revenue_date, amount_minor,
+      currency, run_ref, recorded_at)
+    VALUES (noticeos.current_workspace_id(), 'ledger.example', 'mediavine-journey', '', '2025-10-04', 1, 'USD', 'r', now());
+    RAISE EXCEPTION 'an observation with no account was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  -- REFUSED: rewriting or removing what a source reported.
+  BEGIN
+    UPDATE noticeos.revenue_observations SET amount_minor = 0;
+    RAISE EXCEPTION 'a revenue observation was rewritten' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  BEGIN
+    DELETE FROM noticeos.revenue_observations;
+    RAISE EXCEPTION 'a revenue observation was removed' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  -- REFUSED: the application adding vocabulary.
+  BEGIN
+    INSERT INTO noticeos_ref.revenue_sources (source, provider, family, display_name, time_zone, time_zone_label, ready_after_minute)
+    VALUES ('edge-app', 'edge-app', 'ads', 'App-made', 'UTC', 'UTC', 0);
+    RAISE EXCEPTION 'the application added a revenue source' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN insufficient_privilege THEN NULL;
+  END;
+  SELECT count(*) INTO n FROM noticeos_ref.revenue_sources WHERE source = 'mediavine-journey' AND family = 'ads';
+  ASSERT n = 1, 'Mediavine Journey is an ad revenue source';
 END $$;
 
 -- Maintenance reads every workspace at once, and each workspace's months
@@ -973,8 +1054,8 @@ DECLARE
   numbered text[] := ARRAY[['assets', 'list_position'], ['pulses', 'pulse_number'], ['flags', 'flag_number'], ['annotations', 'annotation_number'],
                            ['research_log', 'research_number'], ['hygiene_checks', 'reading_number'],
                            ['reclamation_targets', 'target_number'], ['ledger_entries', 'entry_number'],
-                           ['mediavine_daily', 'daily_number'], ['config_changes', 'change_number'],
-                           ['job_runs', 'job_run_number']];
+                           ['mediavine_daily', 'daily_number'], ['revenue_observations', 'observation_number'],
+                           ['config_changes', 'change_number'], ['job_runs', 'job_run_number']];
   ws text;
   i int;
   lowest bigint;

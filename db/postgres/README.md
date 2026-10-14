@@ -156,15 +156,19 @@ currency, and a change entry freezes the prediction it shipped with; see
    metric→unit rule are gone, and the series takes its unit from its metric
    kind. The table is `integrations`, not `providers`, because the columns
    that reference it hold `ga4`/`gsc` while *provider* already names the
-   connected account (`google`). The vocabulary has no workspace and
+   connected account (`google`). `revenue_sources` names each revenue
+   source a revenue observation may name ([The revenue ledger](#the-revenue-ledger)).
+   The vocabulary has no workspace and
    no row security; the application and maintenance only read it, and adding a
    source is a migration that inserts its rows. Closed product sets
    (severity, status, outcome, unit, booking state) stay CHECKs.
 2. **Facts reference bigint identities.** `signal_runs` and `archive_runs`
    (`run_seq`), `archive_objects` (`object_seq`) and `mediavine_runs`
-   (`run_seq`) key on an identity; observations, archive runs and daily
-   revenue facts refer to it, and each parent's text id stays a unique
-   column for lookups and imports. `capability_targets` names each monitored
+   (`run_seq`) key on an identity; observations, archive runs and Mediavine's
+   daily facts refer to it, and each parent's text id stays a unique
+   column for lookups and imports. A revenue observation names the run that
+   reported it by the collector's own run id (`run_ref`), since each
+   collector keeps its runs in its own table. `capability_targets` names each monitored
    provider, revision, capability, site, target and family once; state and
    events refer to it by `target_seq`. Connections keep their uuid key (few
    rows, no text key).
@@ -282,8 +286,9 @@ a unique key.
 | `pulses` (and `current_pulses`) | `pulse_number` | `pulse_id` |
 | `annotations` | `annotation_number` | `annotation_id` |
 | `ledger_entries` | `entry_number` | `entry_id` |
-| `financial_ledger` (view) | `entry_number`; a month of Mediavine daily estimates shows minus its first `daily_number` | `entry_id` |
+| `financial_ledger` (view) | `entry_number`; a month of a source's daily figures shows minus its first `observation_number` | `entry_id` |
 | `mediavine_daily` | `daily_number` | `daily_id` |
+| `revenue_observations` | `observation_number`; a Mediavine day moved from `mediavine_daily` keeps its `daily_number` | `observation_id` |
 | `reclamation_targets` | `target_number` | `target_id` |
 | `research_log` | `research_number` | `research_id` |
 | `config_changes` | `change_number` | `change_id` |
@@ -362,6 +367,39 @@ site was written:
 - **The financial view never counts a change**: `financial_ledger` reads
   revenue and cost only, since the revenue a change earns is already booked.
 
+## The revenue ledger
+
+Every revenue source writes what it reports to one table,
+`revenue_observations`, and is named by one row of
+`noticeos_ref.revenue_sources`
+([0015_revenue_ledger.sql](migrations/0015_revenue_ledger.sql)):
+
+| `revenue_sources` column | What it holds |
+|---|---|
+| `source` | The id rows name, such as `mediavine-journey` |
+| `provider` | The connected provider that reports it, as `integration_connections` names it |
+| `family` | Its revenue family: `ads`, `affiliate`, `subs` or `licensing` |
+| `display_name` | The name readers show, such as "Mediavine Journey ad revenue" |
+| `time_zone`, `time_zone_label`, `ready_after_minute` | The clock its days are counted on, the name shown for that clock, and the minute after midnight there from which yesterday's report is complete |
+
+- **An observation is one reported figure for one site:** an account's total
+  for a day (`item_ref` NULL), or one sale or refund on that day (`item_ref`
+  is the source's own id for it). It names the account it was earned in
+  (`account_ref`) and the run that reported it (`run_ref`).
+- **A figure reported again is a new row.** `current_revenue` shows the newest
+  per site, source, account, day and item; nothing is updated or removed.
+- **One month rule for every source.** `financial_ledger` sums each site's
+  current figures per source, currency and month into one estimate. That
+  month replaces an imported estimate from a source of the same provider and
+  family when it covers more, and never replaces a reconciled figure; the
+  edge cases below state each condition.
+- **Adding a source is a migration that inserts its row**, shipped with its
+  collector; no reader changes. 0015 adds `mediavine-journey` and
+  `mediavine`, and moves every saved `mediavine_daily` day into the ledger in
+  the order it was written, keeping its number. `mediavine_daily` stays while
+  a release that writes it can still run: a trigger copies each day it gains
+  into the ledger.
+
 ## Constraints: what the store itself refuses
 
 The full per-table matrix is [`constraints.md`](constraints.md), generated
@@ -385,9 +423,9 @@ per-workspace keys, the baseline guards:
   settles back from the end); a run never finishes before it starts; a
   watch's baseline ends by its registration day; an accounting month is its
   first day.
-- **Shared vocabulary.** An integration, metric or check a row names must be
-  in `noticeos_ref`, and a series or a watch must name a metric its
-  integration reports.
+- **Shared vocabulary.** An integration, metric, check or revenue source a
+  row names must be in `noticeos_ref`, and a series or a watch must name a
+  metric its integration reports.
 - **Same owner.** Every link carries the workspace. A flag cites only its own
   site's report; a daily revenue fact belongs to its own site's run; an
   observation belongs to the series its own successful run measured (same
@@ -470,8 +508,9 @@ by column; retention and maintenance privileges are checked separately.
 | `counter_readings` | insert, update | Current state, replaced in place. |
 | `current_flags` (view) | read-only view | Every alert a retry did not replace, with its severity, message and inputs from its newest flag_evidence reading. |
 | `current_pulses` (view) | read-only view | The newest revision of each day's report, numbered by the day's first revision (day_number). |
+| `current_revenue` (view) | read-only view | The newest figure per site, source, account, day and item. |
 | `egress_checks` | append-only | Append-only. |
-| `financial_ledger` (view) | read-only view | What financial readers read: money only, never a change entry. |
+| `financial_ledger` (view) | read-only view | What financial readers read: money only, never a change entry, with a month of a source's daily figures in place of an imported estimate from the same provider that covers less. |
 | `flag_evidence` | append-only | Append-only. |
 | `flag_tunes` | append-only | Append-only. |
 | `flags` | insert; update only disposition, disposition_at, disposition_note, snooze_until, ack_expiry, hypothesis_ref, incident_ref, resolved_at, replaced_by_pulse_id | The occurrence is fixed; only its disposition and resolution move, or, untouched, a same-day report retry replaces it. |
@@ -488,7 +527,7 @@ by column; retention and maintenance privileges are checked separately.
 | `ledger_entries` | append-only | Immutable; a correction is a new entry. Three kinds, each naming its currency: revenue and cost name money and its booking state; a change names a shipped change by its id and class and the prediction it shipped with (value per month, chance of success, full cost, days to signal), is booked once, books no money, and a correction of it repeats that prediction. |
 | `measurement_series` | append-only | A series, once named, is permanent. |
 | `mediavine_current_daily` (view) | read-only view | The newest daily fact per site and day. |
-| `mediavine_daily` | append-only | Append-only; the newest per day is current. |
+| `mediavine_daily` | append-only | Append-only. No current release writes it; a row an older release writes reaches revenue_observations too. |
 | `mediavine_runs` | append-only | Append-only. |
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
 | `mediavine_state` | insert, update, delete | Retry state. |
@@ -496,6 +535,7 @@ by column; retention and maintenance privileges are checked separately.
 | `pulses` | append-only | A retry is a new revision. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |
 | `research_log` | append-only | Append-only. |
+| `revenue_observations` | append-only | Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per site, source, account, day and item is current. |
 | `signal_observations` | append-only | Append-only; a revised value is a new row under a later run. |
 | `signal_runs` | append-only | Append-only. |
 | `task_daily_counts` | insert, update, delete | One row per project per day, upserted; swept after 400 days. |
@@ -525,8 +565,12 @@ real schema, as the application role unless the case says maintenance:
 | A 20-day imported estimate beside 30 days of daily estimates | The daily month is shown instead |
 | A month of daily estimates with nothing booked | One estimate with a negative id |
 | Daily estimates short of an import's coverage end (or of the month's end, coverage unknown), missing the 1st, or missing a day | The import stays |
-| A reconciled Mediavine figure; a payment under another source correcting a Mediavine estimate | Shown; no daily stand-in |
-| Other ad revenue beside a Mediavine estimate; a day fetched twice | Kept beside the daily month; counted once, at its newest amount |
+| A reconciled figure from the daily source's provider; a payment under another source correcting that provider's estimate | Shown; no daily stand-in |
+| Other ad revenue beside a provider's estimate; a day fetched twice | Kept beside the daily month; counted once, at its newest amount |
+| Sales reported one per item, one of them restated | Each item's newest figure is current |
+| Another provider's daily month beside a Mediavine import | Both shown, each under its own source and family |
+| A day a release before the ledger writes to `mediavine_daily` | Reaches the ledger under `mediavine-journey`, naming its run |
+| A revenue source the vocabulary does not name; an observation with no account; rewriting or removing an observation; the application adding a source | Refused |
 | Maintenance reading every workspace's ledger at once | Each workspace's months stay its own |
 | A change entry with its class, id and prediction, and no money; a cost naming the change it was spent on | Accepted |
 | A change entry without its prediction or any part of it, or with a chance outside 0 to 1 (NaN included), a negative cost or a signal on the day it ships | Refused |

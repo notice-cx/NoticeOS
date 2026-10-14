@@ -39,6 +39,7 @@
     "pulses": { "shape": "history", "arrival": "received_at" },
     "reclamation_targets": { "shape": "history", "arrival": "created_at" },
     "research_log": { "shape": "history", "arrival": "bought_at" },
+    "revenue_observations": { "shape": "history", "arrival": "recorded_at" },
     "signal_observations": {
       "shape": "history",
       "arrival": "finished_at",

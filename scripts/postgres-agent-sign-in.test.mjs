@@ -15,7 +15,7 @@ import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { AGENT_ACCESS_PATHS, AUTHORIZATION_SERVER_METADATA_PATH, PROTECTED_RESOURCE_METADATA_PATH } from './agent-access.mjs';
 import { WORKSPACE_SESSION_HEADER } from './browser-request-policy.mjs';
-import { findPostgres, LOOPBACK_HBA } from './postgres-dev.mjs';
+import { findPostgres, LOOPBACK_HBA, migrationsFrom } from './postgres-dev.mjs';
 import { openOnLoopbackPort } from './postgres-test-cluster.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
 import { applyMigrations } from './postgres-migrate.mjs';
@@ -51,7 +51,7 @@ test('an agent registers, its person approves it once, and its token reaches eac
     admin.on('error', () => undefined);
     // 0014 is exactly what the maintained generator builds for these plugins.
     const before = path.join(root, 'before'); mkdirSync(before);
-    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !name.startsWith('0014_'))) {
+    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => name < '0014_')) {
       copyFileSync(path.join(REPO_ROOT, 'db/postgres/migrations', name), path.join(before, name));
     }
     applyMigrations(owner, { dir: before });
@@ -65,7 +65,7 @@ test('an agent registers, its person approves it once, and its token reaches eac
     const shapes = sql => sql.split('\n').filter(line => /^create (unique )?(table|index)/u.test(line));
     assert.deepEqual(shapes(readFileSync(path.join(REPO_ROOT, 'db/postgres/migrations/0014_agent_sign_in.sql'), 'utf8')), shapes(generated));
     assert.ok(Object.values(AGENT_NAMES.oauth).every(model => /^auth_[a-z_]+$/u.test(model.modelName)));
-    assert.deepEqual(applyMigrations(owner).applied, ['0014_agent_sign_in']);
+    assert.deepEqual(applyMigrations(owner).applied, migrationsFrom('0014_'));
 
     const password = randomBytes(32).toString('base64url');
     await admin.query('ALTER ROLE noticeos_identity LOGIN');
