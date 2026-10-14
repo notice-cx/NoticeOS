@@ -10,7 +10,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -173,7 +175,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -393,7 +397,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -613,7 +619,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -1566,7 +1574,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -2172,7 +2182,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -3060,7 +3072,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -3575,7 +3589,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>
@@ -3753,7 +3769,9 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <div class="flex min-w-0 flex-col gap-1">
 <h1 class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
 <span class="grid shrink-0 place-items-center overflow-hidden text-[10px] font-semibold text-muted-foreground size-7" aria-hidden="true" data-property-favicon="meadow.example">
-<img alt="" aria-hidden="true" class="size-full object-contain" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
+<span aria-hidden="true" data-initial="M" class="[grid-area:1/1] before:content-[attr(data-initial)]">
+</span>
+<img alt="" aria-hidden="true" class="size-full object-contain [grid-area:1/1] opacity-0" decoding="async" loading="lazy" referrerpolicy="no-referrer" src="https://meadow.example/favicon.ico">
 </span>Meadow Board<span title="1 open error alert" data-status-for="asset:meadow.example" class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 border-error/30 bg-error-soft text-error ms-1 align-middle text-xs font-medium normal-case tracking-normal">
 <span aria-hidden="true" class="size-1.5 shrink-0 rounded-full bg-error">
 </span>Off track</span>

@@ -319,8 +319,11 @@ export function createBrowserEntry(options: {
       expiry = setTimeout(() => void refresh(), Math.min(remaining, 2_147_483_647));
     }
   }
-  function hidden() { releaseProbe?.abort(); request?.abort(); ++revision; relinquish(); set({ phase: 'checking', session: null, choices: [], runtime: null, label: null, loadingMore: false }); }
-  const shown = () => void refresh();
+  // A page's first `pageshow` follows its own load, often after the entry has
+  // already read the session; only a page that was hidden reads it again.
+  let wasHidden = false;
+  function hidden() { wasHidden = true; releaseProbe?.abort(); request?.abort(); ++revision; relinquish(); set({ phase: 'checking', session: null, choices: [], runtime: null, label: null, loadingMore: false }); }
+  const shown = () => { if (!wasHidden) return; wasHidden = false; void refresh(); };
   const visible = () => { if (options.page.document.visibilityState === 'visible') void revalidate(); };
   options.page.addEventListener('pagehide', hidden);
   options.page.addEventListener('pageshow', shown);

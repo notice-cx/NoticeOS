@@ -179,8 +179,13 @@ describe("PropertyFavicon source routing", () => {
     );
     const root = container.querySelector("[data-property-favicon]")!;
     expect(root.className).not.toMatch(/rounded|bg-/u);
+    // The initial is drawn while the icon loads and stays when it fails;
+    // it is never text, so the name beside it reads alone.
+    expect(root.querySelector("[data-initial]")?.getAttribute("data-initial")).toBe("M");
     fireEvent.error(root.querySelector("img")!);
-    expect(root.textContent).toBe("M");
+    expect(root.querySelector("img")).toBeNull();
+    expect(root.querySelector("[data-initial]")?.getAttribute("data-initial")).toBe("M");
+    expect(root.textContent).toBe("");
   });
 });
 

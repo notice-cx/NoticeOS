@@ -53,6 +53,7 @@ vi.mock("@/hooks/useTasks", async (importOriginal) => {
   return {
     ...actual,
     useTasksLive: () => state.capabilities,
+    useTasksLiveRead: () => ({ data: state.capabilities, isPending: false, fetchStatus: "idle" }),
     useTasksAcross: (projects: string[]) => {
       state.acrossCalls.push(projects);
       return projects.map((project) => ({

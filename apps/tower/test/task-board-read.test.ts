@@ -137,7 +137,7 @@ describe("task board read", () => {
     const snapshot = payload({ projects: [project(), project({ asset: "northwind.example", name: "Northwind", prefix: "nw", ready: [item({ id: "nw-saved" })], inProgress: [] })] });
     const reads = new Map<string, ProjectTaskRead>([
       ["meadow.example", success(board([liveTask({ id: "md-live" })]))],
-      ["northwind.example", { data: board([liveTask({ id: "nw-cached" })], null, "northwind.example"), isError: true, error: new Error("Unavailable") }],
+      ["northwind.example", { data: undefined, isError: true, error: new Error("Unavailable") }],
     ]);
     const view = read({ snapshot, reads });
     expect(view.rows.map(row => row.id)).toEqual(["md-live", "nw-saved"]);
@@ -151,6 +151,20 @@ describe("task board read", () => {
     expect(recovered.complete).toBe(true);
     expect(recovered.rows.map(row => row.id)).toEqual(["md-live", "nw-current"]);
     expect(recovered.shownAt).toBe("2026-08-01T11:59:30.000Z");
+  });
+
+  it("keeps a project's last read on screen, without actions, when a later refresh fails", () => {
+    const snapshot = payload({ projects: [project(), project({ asset: "northwind.example", name: "Northwind", prefix: "nw", ready: [item({ id: "nw-saved" })], inProgress: [] })] });
+    const reads = new Map<string, ProjectTaskRead>([
+      ["meadow.example", success(board([liveTask({ id: "md-live" })]))],
+      ["northwind.example", { data: board([liveTask({ id: "nw-cached" })], null, "northwind.example"), isError: true, error: new Error("Unavailable") }],
+    ]);
+    const view = read({ snapshot, reads });
+    expect(view.rows.map(row => row.id)).toEqual(["md-live", "nw-cached"]);
+    expect(view.byId.get("meadow.example")?.actionable).toBe(true);
+    expect(view.byId.get("northwind.example")).toMatchObject({ source: "live", actionable: false, laneError: "Unavailable" });
+    expect(view.broken.map(project => project.asset)).toEqual(["northwind.example"]);
+    expect(view.shownAt).toBe("2026-08-01T11:59:30.000Z");
   });
 
   it("keeps complete reported snapshot counts distinct from its limited rows", () => {

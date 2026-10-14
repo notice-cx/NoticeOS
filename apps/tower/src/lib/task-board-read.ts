@@ -357,9 +357,11 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
       : query?.isError ? query.error instanceof Error && query.error.message !== ""
         ? query.error.message : "The local read could not reach this repository."
       : null;
-    const payload = laneError === null ? query?.data ?? null : null;
+    // A failed refresh keeps the rows its last good read drew, without
+    // actions, instead of redrawing the project from the older snapshot.
+    const payload = mismatched ? null : query?.data ?? null;
     const read = buildProject(project, payload, laneError, snapshot?.capturedAt ?? null);
-    return capabilities.writable === false ? { ...read, actionable: false } : read;
+    return capabilities.writable === false || laneError !== null ? { ...read, actionable: false } : read;
   });
   const allTasks = projects.flatMap(project => project.tasks);
   const projectFilter = scope ?? filters.project;

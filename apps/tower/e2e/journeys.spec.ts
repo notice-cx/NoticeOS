@@ -1884,6 +1884,65 @@ test("several approvals are decided in one action: one Undo, each reaches the ta
   await assertNoPageOverflow(page);
 });
 
+/** Every distinct value `read` gives the page from its first paint, recorded
+ * in the page itself on each DOM change, so a value drawn and replaced between
+ * two Playwright polls is still caught. */
+async function recordDraws(page: Page, read: string) {
+  await page.addInitScript((source) => {
+    const values: string[] = [];
+    (window as unknown as { __draws: string[] }).__draws = values;
+    const sample = new Function(`return (${source})()`) as () => string | null;
+    const note = () => { const value = sample(); if (value !== null && values.at(-1) !== value) values.push(value); };
+    new MutationObserver(note).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+  }, read);
+}
+
+test("Home and Tasks draw once from all their reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
+  // The saved snapshot names a task the live read no longer has, and the live
+  // read and the integration health answer late: a page that drew as reads
+  // landed would show the stale row, then redraw.
+  await page.route("**/api/work", async (route) => {
+    const response = await route.fetch();
+    const work = await response.json() as { projects: { waiting: { id: string }[] }[] };
+    const project = work.projects[0]!;
+    project.waiting = [...project.waiting, { ...project.waiting[0]!, id: "jt-stale" }];
+    await route.fulfill({ response, json: work });
+  });
+  const late = async (route: import("@playwright/test").Route) => { await new Promise((resolve) => setTimeout(resolve, 800)); await route.continue(); };
+  await page.route(/\/api\/tasks\?project=/u, late);
+  await page.route("**/api/integrations/health", late);
+  const requests: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/")) requests.push(`${request.method()} ${url.pathname}${url.search}`); });
+
+  // The board's first screen: its answer, counts and the queue of decisions.
+  await recordDraws(page, `() => document.querySelector("[data-tasks-board] [data-surface-hero]")?.innerText ?? null`);
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
+  await page.waitForTimeout(1_500);
+  const tasksDraws = await page.evaluate(() => (window as unknown as { __draws: string[] }).__draws);
+  expect(tasksDraws).toHaveLength(1);
+  expect(tasksDraws[0]).toContain("5 under 7d");
+
+  // Home over six synthetic sites with collected numbers, so it draws the
+  // dashboard rather than the first-run guide.
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  // Home's answer and its data-source grid, which the integration health reads.
+  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-home-health]")
+    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-home-health]").innerText : null`);
+  requests.length = 0;
+  await page.goto("/");
+  await expect(page.locator("[data-home-brief]")).toHaveCount(1);
+  await page.waitForTimeout(6_000);
+  const homeDraws = await page.evaluate(() => (window as unknown as { __draws: string[] }).__draws);
+  expect(homeDraws).toHaveLength(1);
+  // Within its first six seconds a page sends each read once; every poll's
+  // interval is longer.
+  const repeated = requests.filter((request, index) => requests.indexOf(request) !== index);
+  expect(repeated).toEqual([]);
+});
+
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));

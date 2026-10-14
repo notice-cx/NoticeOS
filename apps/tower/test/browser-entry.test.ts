@@ -148,6 +148,15 @@ describe('verified tab entry', () => {
     await vi.waitFor(() => expect(value.snapshot().phase).toBe('ready'));
     expect(value.snapshot().runtime?.ownerKey).not.toBe(old.ownerKey);
   });
+  it("a page's first pageshow keeps the lifetime it already read", async () => {
+    let reads = 0;
+    const value = entry(async () => { reads++; return Response.json({ mode: 'standalone' }); });
+    await value.refresh(); const first = value.snapshot().runtime!;
+    window.dispatchEvent(new Event('pageshow'));
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(value.snapshot().runtime).toBe(first);
+    expect(reads).toBe(1);
+  });
   describe('a tab that becomes visible again', () => {
     let role = 'owner';
     let person = A;

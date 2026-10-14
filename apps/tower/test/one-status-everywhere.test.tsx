@@ -178,8 +178,10 @@ describe("one source, one status, on every screen", () => {
     // Home: no source marks. Each source is a cell of the data-sources grid,
     // a failing one is drawn there rather than repeated in the problems list,
     // and the site's one health word says Off track.
+    // Home draws once its reads have answered; this fixture refuses the feed,
+    // which Home retries once.
     const home = renderAt("/", <HomeRoute />);
-    await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull());
+    await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull(), { timeout: 5_000 });
     const homeMarks = marks(home.container);
     const homeCells = Object.fromEntries(LANES.map((lane) => {
       const cell = home.container.querySelector(`[data-health-cell="${ASSET}:${lane}"]`);
