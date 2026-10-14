@@ -205,14 +205,14 @@ export function AddSitePanel({
 }
 
 /** The site's icon: its favicon once the domain has settled, its initial in
- * the meantime and wherever no favicon answers. */
+ * the meantime and wherever no favicon answers. Only the initial sits on a tile. */
 function SiteMark({ id, name }: { id: string | null; name: string }) {
   return (
-    <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-md border border-border bg-muted text-xs font-semibold text-foreground">
+    <span aria-hidden className="grid size-7 shrink-0 place-items-center text-xs font-semibold text-foreground">
       {id ? (
-        <PropertyFavicon domain={id} displayName={name} className="size-4 text-xs text-foreground" />
+        <PropertyFavicon domain={id} displayName={name} className="size-5 text-xs text-foreground" />
       ) : (
-        name.trim().charAt(0).toUpperCase() || "?"
+        <span className="grid size-5 place-items-center rounded-[22%] bg-muted">{name.trim().charAt(0).toUpperCase() || "?"}</span>
       )}
     </span>
   );

@@ -242,7 +242,7 @@ function SiteName({ asset, favicon, name, mark }: { asset: AssetCard; favicon: s
       <PropertyFavicon
         domain={asset.id}
         displayName={asset.displayName}
-        className={`${favicon} shrink-0 rounded-md bg-muted font-bold text-foreground`}
+        className={`${favicon} shrink-0 font-bold text-foreground`}
       />
       <span className={`min-w-0 flex-1 whitespace-normal wrap-anywhere leading-tight ${name} font-semibold`} title={asset.displayName} data-site-label>
         {asset.displayName}

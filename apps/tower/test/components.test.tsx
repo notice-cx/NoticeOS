@@ -48,6 +48,7 @@ import { PanelReviewLine } from "@/components/PanelReviewLine";
 import {
   PropertyFavicon,
   propertyFaviconUrl,
+  demoFaviconUrl,
 } from "@/components/PropertyFavicon";
 import {
   QueryVisibilityRankings,
@@ -173,6 +174,11 @@ describe("PropertyFavicon source routing", () => {
     }
   });
 
+  it("serves a demo site's icon from the Tower's own origin", () => {
+    expect(demoFaviconUrl("lightbrief.example")).toBe("/demo/favicons/lightbrief.example.svg");
+    expect(demoFaviconUrl("a/b")).toBe("/demo/favicons/a%2Fb.svg");
+  });
+
   it("renders the raw icon without badge chrome and falls back to a letter", () => {
     const { container } = render(
       <PropertyFavicon domain="missing.invalid" displayName="Missing" />,
@@ -186,6 +192,18 @@ describe("PropertyFavicon source routing", () => {
     expect(root.querySelector("img")).toBeNull();
     expect(root.querySelector("[data-initial]")?.getAttribute("data-initial")).toBe("M");
     expect(root.textContent).toBe("");
+  });
+
+  it("puts only the initial on a tile; a loaded icon is drawn bare", () => {
+    const { container } = render(
+      <PropertyFavicon domain="example.com" displayName="Example" />,
+    );
+    const root = container.querySelector("[data-property-favicon]")!;
+    expect(root.querySelector("[data-initial]")).toHaveClass("bg-muted");
+    fireEvent.load(root.querySelector("img")!);
+    expect(root.querySelector("[data-initial]")).toBeNull();
+    expect(root.querySelector("img")).not.toHaveClass("opacity-0");
+    expect(root.querySelector(".bg-muted")).toBeNull();
   });
 });
 

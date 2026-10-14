@@ -464,11 +464,14 @@ function RowHead({ row, problems, at, tabbable, register, onFocusTarget }: RowHe
   const monogram = [...row.name.trim()][0]?.toUpperCase() ?? "?";
   return (
     <div role="rowheader" className="flex min-w-0 items-center gap-2.5 ps-1.5 pe-2">
-      <span
-        aria-hidden
-        className="grid size-6 shrink-0 place-items-center overflow-hidden rounded-md bg-muted text-xs font-semibold text-muted-foreground"
-      >
-        {row.icon ?? (row.kind === "system" ? <ServerCog className="size-3.5" /> : monogram)}
+      {/* A row's own icon is drawn bare; only a glyph or a monogram standing
+          in for one sits on a tile. */}
+      <span aria-hidden className="grid size-6 shrink-0 place-items-center text-xs font-semibold text-muted-foreground">
+        {row.icon ?? (
+          <span className="grid size-5 place-items-center rounded-[22%] bg-muted">
+            {row.kind === "system" ? <ServerCog className="size-3.5" /> : monogram}
+          </span>
+        )}
       </span>
       <span className="grid min-w-0 gap-0.5">
         {row.href ? (
