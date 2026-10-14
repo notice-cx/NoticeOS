@@ -1,5 +1,6 @@
 import { createServer, request as httpRequest, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { Readable } from 'node:stream';
 import { brotliDecompressSync, gunzipSync } from 'node:zlib';
 import { afterEach, describe, expect, it } from 'vitest';
 import { chosenEncoding, compressReply } from '../vite/compress-replies';
@@ -51,6 +52,17 @@ describe('replies from the standalone Tower', () => {
     expect(reply.headers['content-encoding']).toBe('gzip');
     expect(reply.headers['content-length']).toBeUndefined();
     expect(gunzipSync(reply.body).toString()).toBe(json);
+  });
+
+  it('finish a large reply piped through them, as a file or the Worker relay streams it', async () => {
+    const large = 'x'.repeat(4 * 1024 * 1024);
+    const base = await serve((_req, res) => {
+      res.setHeader('content-type', 'text/javascript');
+      Readable.from([large.slice(0, 2_000_000), large.slice(2_000_000)]).pipe(res);
+    });
+    const reply = await get(base, { 'accept-encoding': 'br' });
+    expect(reply.headers['content-encoding']).toBe('br');
+    expect(brotliDecompressSync(reply.body).toString().length).toBe(large.length);
   });
 
   it('leave a 304, a small reply, a non-text reply and the change stream as they are', async () => {

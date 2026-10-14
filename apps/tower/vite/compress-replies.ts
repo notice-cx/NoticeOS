@@ -56,6 +56,9 @@ export function compressReply(req: IncomingMessage, res: ServerResponse): void {
       : createGzip({ level: 6 });
     stream.on("data", (chunk: Buffer) => write(chunk));
     stream.on("end", () => end());
+    // A writer that piped into the reply waits for the reply's own `drain`;
+    // the compressor's full buffer is what it waited on.
+    stream.on("drain", () => res.emit("drain"));
     return stream;
   };
 
