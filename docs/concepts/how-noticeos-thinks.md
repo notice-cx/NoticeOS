@@ -11,6 +11,8 @@ Every screen in NoticeOS is part of the one loop this page describes.
 
 NoticeOS is built to improve the return on a set of websites, and to need less of your attention for each kind of change once changes of that kind have a record of predictions that came true. It does this by running one loop, over and over.
 
+![The five steps of the loop in a circle: Sense, Attribute, Decide, Act and Learn, each with the Tower page where it appears, around the ledger of revenue and cost.](../images/noticeos-loop.svg)
+
 Take `example.com`, a recipe site whose revenue comes from ads.
 
 1. **Sense.** Every night `example.com` sends NoticeOS a short report of the counts its own servers recorded: recipes saved, newsletter sign-ups, comments. NoticeOS also collects the site's data from outside services: Google Analytics, Search Console, Bing, ad revenue. All of it is saved in one store, by site and by day.

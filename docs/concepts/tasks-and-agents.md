@@ -35,6 +35,8 @@ When a step must block until you approve it, the task carries a **gate**. A gate
 
 The reason NoticeOS runs its own task board, instead of linking to a ticket tool, is this chain. The same key is carried unchanged through every step, so a change and the finding that led to it stay linked.
 
+![Seven steps linked by the task id ex-14: a finding, File task, the work, the task closed with a commit, the change logged on the Activity tab, an outcome check, and the verdict posted back onto the task.](../images/finding-to-outcome.svg)
+
 1. **A finding appears** on `example.com`'s site page, say a query that lost its ranking, or an alert. Every such card has a **File task** button.
 2. **File task creates the task** on the site's project, carrying the site, the rule that raised it and the finding's own key. The finding now shows a badge with the task id and whether it is open or closed.
 3. **The work happens** and every commit names the task id.

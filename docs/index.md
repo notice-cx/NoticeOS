@@ -40,3 +40,9 @@ features:
     link: /concepts/attribution-and-measurement
     linkText: Attribution
 ---
+
+## How NoticeOS works
+
+![Data sources on the left feed NoticeOS in the middle, which collects on a schedule, checks for unusual days, stores every row in Postgres and keeps one task database; the Tower, the Wall and coding agents read from it on the right.](./images/noticeos-how-it-works.svg)
+
+Every reading is stored by site and by day. A day a source has not reported stays unknown and is never counted as zero. [How NoticeOS works](/concepts/how-noticeos-thinks) describes the loop that uses these readings.

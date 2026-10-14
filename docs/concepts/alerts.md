@@ -42,7 +42,9 @@ Instead, a count-type metric fires only when **both** of these are true:
 1. **Today's count is unlikely given the recent past.** NoticeOS takes the recent daily average and calculates how probable a day this low would be if nothing had changed. If that probability is under the sensitivity setting (1 in 100 by default), the day is unusual.
 2. **There is enough volume to judge.** A metric that averages fewer than three a day has too few events for a one-day test. For those, NoticeOS pools three days together and runs the same test on the pooled total. If there is not enough history to compare against yet, NoticeOS raises no alert instead of guessing.
 
-So on `example.com`, recipes saved at 6.2 a day falling to 0 fires: a zero day there has a probability of about 1 in 500. Newsletter sign-ups at 1.5 a day falling to 0 does not fire on one day; it would need three days of nothing.
+So on `example.com`, recipes saved at 6.2 a day falling to 0 fires: a zero day there has a probability of about 1 in 500. Newsletter sign-ups at 1.5 a day falling to 0 is not tested on one day; it is tested on its three-day total. At that rate even three empty days have a probability of about 1 in 90, so with the default sensitivity they raise no alert.
+
+![Two bar charts. Recipes saved averages 6.2 a day and today is 0, which raises a Warning anomaly alert. Newsletter sign-ups averages 1.5 a day, so its last 72 hours are tested together: 2 sign-ups against about 4.5 expected raises no alert.](../images/alert-rule.svg)
 
 A day that a data source has not finished reporting is never tested. If a source has not reported yet, its missing rows are not counted as zeros.
 

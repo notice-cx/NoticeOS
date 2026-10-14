@@ -2,21 +2,24 @@
 
 [![A sunlit desk beside a bay window overlooking the city and water.](docs/images/noticeos-bay-window.png)](https://www.notice.cx/bay-window.webp)
 
+<div align="center">
+
 ## Your startup. In clear view.
 
-**A self-hosted app for your websites and software products.**
+**A self-hosted app for your websites and software products.**<br>
 See traffic, revenue, costs, alerts and work in one place, on your laptop, phone or TV.
 
 [![CI](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/notice-cx/NoticeOS/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPLv3-blue.svg)](LICENSE)
-
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React 19](https://img.shields.io/badge/React-19-20232A?logo=react&logoColor=61DAFB)](https://react.dev/)
 [![PostgreSQL 18](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![Dolt 2](https://img.shields.io/badge/Dolt-2-6B45CB)](https://www.dolthub.com/)
 [![Docker Compose](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)](deploy/compose/README.md)
 
-![NoticeOS shows traffic and signals, revenue and costs, tasks and workflows, and changes and outcomes in one place.](docs/images/noticeos-overview.svg)
+**[Documentation](https://docs.notice.cx/)** · **[Install](#install-with-docker)** · **[Try the demo](docs/start/try-the-demo.md)** · **[Contribute](CONTRIBUTING.md)**
+
+</div>
 
 - **Know what needs attention.** See collection failures, unusual traffic and missing evidence.
 - **See what makes money.** Compare recorded revenue and costs, with dates and coverage kept visible.
@@ -25,6 +28,16 @@ See traffic, revenue, costs, alerts and work in one place, on your laptop, phone
 
 The **Tower** is the web app. **Wall** is its TV view.
 Missing data is shown as unknown, never as zero.
+
+## How it works
+
+![Data sources on the left (Google Analytics, Search Console, Bing Webmaster Tools, PostHog and Clarity, Mediavine, revenue and cost files, and your own nightly report) feed NoticeOS in the middle, which collects on a schedule, checks for unusual days, stores every row in Postgres and keeps one task database shared by people and agents. On the right, the Tower, the Wall and coding agents read from it.](docs/images/noticeos-how-it-works.svg)
+
+NoticeOS runs on your own machine as one Docker Compose stack. It reads each
+source on a schedule, receives the nightly report your own product sends,
+raises an alert when a day is unlikely to be normal, and keeps every row it
+stores. [How NoticeOS works](https://docs.notice.cx/concepts/how-noticeos-thinks)
+describes the loop that uses those readings.
 
 ## Install with Docker
 
