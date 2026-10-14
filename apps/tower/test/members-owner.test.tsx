@@ -27,8 +27,9 @@ function roster(input: unknown, init?: RequestInit) {
   return Response.json({ ok: true, collection: command.collection,
     items: command.collection === 'members' ? [member] : [], nextCursor: null });
 }
-function mount(value: ReturnType<typeof runtime>, role: 'owner' | 'operator' | 'viewer' = 'owner', refreshSession = vi.fn(async () => {})) {
-  return render(<BrowserRuntimeProvider value={{ runtime: value, workspaceLabel: 'Generated workspace', workspaceRole: role, refreshSession }}>
+function mount(value: ReturnType<typeof runtime>, role: 'owner' | 'operator' | 'viewer' = 'owner', refreshSession = vi.fn(async () => {}),
+  revalidateSession?: () => Promise<void>) {
+  return render(<BrowserRuntimeProvider value={{ runtime: value, workspaceLabel: 'Generated workspace', workspaceRole: role, refreshSession, revalidateSession }}>
     <QueryClientProvider client={value.queries}><MembersSection /></QueryClientProvider>
   </BrowserRuntimeProvider>);
 }
@@ -57,6 +58,24 @@ it('owner shows required email and safe last-owner controls, while Invite carrie
   expect(JSON.parse(String(init?.body))).toEqual({ kind: 'invite', email: 'guest@example.test', role: 'viewer' });
   expect(new Headers(init?.headers).get(WORKSPACE_SELECTION_HEADER)).toBe(id);
   expect(new Headers(init?.headers).get(WORKSPACE_SESSION_HEADER)).toBe(id);
+});
+it("another member's role change rechecks access without rebuilding the page", async () => {
+  const colleague = { id: other, name: 'Generated operator', email: 'operator@example.test', role: 'operator' };
+  const fetch = vi.fn<ApiTransport>(async (input, init) => {
+    const command = JSON.parse(String(init?.body));
+    if (command.kind === 'list' && command.collection === 'members') return Response.json({ ok: true, collection: 'members', items: [member, colleague], nextCursor: null });
+    return roster(input, init);
+  });
+  const refreshSession = vi.fn(async () => {});
+  const revalidateSession = vi.fn(async () => {});
+  mount(runtime(fetch), 'owner', refreshSession, revalidateSession);
+  await screen.findByText('Generated operator');
+  fireEvent.change(screen.getByLabelText('Role for operator@example.test'), { target: { value: 'viewer' } });
+  const row = screen.getByLabelText('Role for operator@example.test').closest('li')!;
+  fireEvent.click(within(row).getByRole('button', { name: 'Save role' }));
+  await screen.findByText('Access updated.');
+  await vi.waitFor(() => expect(revalidateSession).toHaveBeenCalledTimes(1));
+  expect(refreshSession).not.toHaveBeenCalled();
 });
 it('saved delivery failure clears new-invite draft and Resend reuses the existing invitation ID', async () => {
   let saved = false;

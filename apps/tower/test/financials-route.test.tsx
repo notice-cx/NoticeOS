@@ -18,6 +18,8 @@ const state = vi.hoisted(() => ({
   error: null as unknown,
   /** Every period the route asked the hook for, in order. */
   asked: [] as (string | null | undefined)[],
+  /** The shown payload is the previous month's, kept while the asked month loads. */
+  placeholder: false,
 }));
 
 // Sonner is mocked rather than mounted: the Undo is a callback, and calling it
@@ -33,6 +35,7 @@ vi.mock("@/hooks/useFinancials", () => ({
       isPending: false,
       isError: state.error !== null,
       error: state.error,
+      isPlaceholderData: state.placeholder,
     };
   },
 }));
@@ -293,6 +296,20 @@ describe("/financials — picking a period", () => {
 
     expect(state.asked.at(-1)).toBe("2026-07");
     expect(picker()).toHaveValue("2026-07");
+  });
+
+  it("keeps the shown month whole, dimmed and marked, while the next month loads", () => {
+    state.placeholder = true;
+    try {
+      const { container } = renderPage(payload({ period: "2026-08" }), "/financials?period=2026-07");
+      expect(screen.queryByText("Loading the ledger…")).toBeNull();
+      // The figures and the selector both still say August.
+      expect(picker()).toHaveValue("2026-08");
+      expect(container.querySelector("[data-period-loading=\"2026-07\"]")).toHaveTextContent("Loading July 2026");
+      expect(container.querySelector('[aria-busy="true"] [data-money-ledger]')).not.toBeNull();
+    } finally {
+      state.placeholder = false;
+    }
   });
 
   it("asks for nothing in particular when the URL names no month", () => {
