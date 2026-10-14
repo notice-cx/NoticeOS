@@ -28,9 +28,11 @@ import { PortfolioRows, type PortfolioRow } from "@/components/viz/PortfolioRows
 import { StatTile } from "@/components/viz/StatTile";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { useConnections } from "@/hooks/useConnections";
+import { useFirstDraw } from "@/hooks/useFirstDraw";
 import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
+import { useTasksLive } from "@/hooks/useTasks";
 import { useWork } from "@/hooks/useWork";
 import { useDemoReadonly } from "@/lib/browser-context";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
@@ -61,10 +63,17 @@ import { useAskActions } from "@/routes/tasks/ask-actions";
  * install sees the three steps to a first number instead.
  */
 export function HomeRoute() {
-  const { data, isError, error, isFetching, refetch } = useWall();
+  const wall = useWall();
+  const { data, isError, error, isFetching, refetch } = wall;
   const feed = useWallFeed();
   const now = useNow();
   const connections = useConnections();
+  // Every read the first screen draws from starts now and the screen is drawn
+  // once they have answered, so its counts do not change as reads land. The
+  // task capability read starts with them; it only enables Decide's verbs.
+  const work = useWork();
+  useTasksLive();
+  const drawn = useFirstDraw([wall, feed, connections.providers, connections.monitoring, work]);
   // Setup is done at the first collected number; until then Home is the
   // guide, following the newest site.
   const guide = data ? firstRunSite(data.assets) : null;
@@ -76,11 +85,11 @@ export function HomeRoute() {
         documentTitle={null}
         // The census is a fact about the page, not a control: how old the
         // reading is, in one quiet line at the end of the header row.
-        actions={data && !guide ? <Census assetCount={data.assets.length} generatedAt={data.generatedAt} nowMs={now} /> : null}
+        actions={data && drawn && !guide ? <Census assetCount={data.assets.length} generatedAt={data.generatedAt} nowMs={now} /> : null}
       />
 
-      {!data ? (
-        isError ? (
+      {!data || !drawn ? (
+        isError && !data ? (
           <ReadFailed title="Couldn't load Home" subject="read:home" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
           <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>

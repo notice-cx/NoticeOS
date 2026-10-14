@@ -9,6 +9,7 @@ import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFi
 import { WALL_FEED_OS } from "./wall-feed-fixture";
 import { WALL_FEED_LAYOUT, openWall, wallAt, wallScene } from "./wall-scene";
 import { installGoogleConsent } from "./google-consent.mjs";
+import { fetchToRewrite } from "./rewritten-read.mjs";
 import { buildWorkflowHistory } from "../vite/workflow-history";
 import { captureWorkflowOutput } from "../../../scripts/workflow-output.mjs";
 import type { WorkflowRun, WorkflowsPayload } from "@shared/workflows";
@@ -1100,13 +1101,13 @@ test("the TV layout saves on a fresh install, then saves again on top of it", de
   await page.route("**/api/wall", async (route) => {
     // Keep the actual persisted layout and its write guard, substituting only
     // the synthetic site's readings. Reloads must read what Save wrote.
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const actual = await response.json();
     const fixture = structuredClone(wallFixturePayload("three"));
     const cards = fixture.assets[0]!.counters!.cards;
     cards.find((card) => card.metric === "leads")!.value = 0;
     if (missingSelectedMetric) fixture.assets[0]!.counters!.cards = cards.filter((card) => card.metric !== "plansSaved");
-    await route.fulfill({ response, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+    await route.fulfill({ response, headers, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
   });
   await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "three") }));
   const wall = async (): Promise<WallConfig | undefined> => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
@@ -1223,10 +1224,10 @@ test("the TV layout is arranged by dragging, resizing and the Move menu, each st
   await createAsset(page);
   await page.clock.setFixedTime(new Date(WALL_FIXTURE_NOW));
   await page.route("**/api/wall", async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const actual = await response.json();
     const fixture = structuredClone(wallFixturePayload("six"));
-    await route.fulfill({ response, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
+    await route.fulfill({ response, headers, json: { ...fixture, dashboard: { ...actual.dashboard, countdown: fixture.dashboard.countdown } } });
   });
   await page.route("**/api/ga4/realtime", (route) => route.fulfill({ json: wallFixtureRealtime(20, "six") }));
   const wall = async (): Promise<WallConfig | undefined> => (await (await request.get("/__journey/status")).json()).documents["config/tower.json"].wall;
@@ -1884,6 +1885,126 @@ test("several approvals are decided in one action: one Undo, each reaches the ta
   await assertNoPageOverflow(page);
 });
 
+/** Every distinct value `read` gives the page from its first paint, recorded
+ * in the page itself on each DOM change, so a value drawn and replaced between
+ * two Playwright polls is still caught. */
+async function recordDraws(page: Page, read: string) {
+  await page.addInitScript((source) => {
+    const values: string[] = [];
+    (window as unknown as { __draws: string[] }).__draws = values;
+    const sample = new Function(`return (${source})()`) as () => string | null;
+    const note = () => { const value = sample(); if (value !== null && values.at(-1) !== value) values.push(value); };
+    new MutationObserver(note).observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+  }, read);
+}
+
+test("Home and Tasks draw once from all their reads: no saved rows before the live ones, and no read sent twice", async ({ page }) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/more-decisions"]) expect((await page.request.post(route)).ok()).toBe(true);
+  // The saved snapshot names a task the live read no longer has, and the live
+  // read and the integration health answer late: a page that drew as reads
+  // landed would show the stale row, then redraw.
+  await page.route("**/api/work", async (route) => {
+    const { response, headers } = await fetchToRewrite(route);
+    const work = await response.json() as { projects: { waiting: { id: string }[] }[] };
+    const project = work.projects[0]!;
+    project.waiting = [...project.waiting, { ...project.waiting[0]!, id: "jt-stale" }];
+    await route.fulfill({ response, headers, json: work });
+  });
+  const late = async (route: import("@playwright/test").Route) => { await new Promise((resolve) => setTimeout(resolve, 800)); await route.continue(); };
+  await page.route(/\/api\/tasks\?project=/u, late);
+  await page.route("**/api/integrations/health", late);
+  const requests: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/")) requests.push(`${request.method()} ${url.pathname}${url.search}`); });
+
+  // The board's first screen: its answer, counts and the queue of decisions.
+  await recordDraws(page, `() => document.querySelector("[data-tasks-board] [data-surface-hero]")?.innerText ?? null`);
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
+  await page.waitForTimeout(1_500);
+  const tasksDraws = await page.evaluate(() => (window as unknown as { __draws: string[] }).__draws);
+  expect(tasksDraws).toHaveLength(1);
+  expect(tasksDraws[0]).toContain("5 under 7d");
+
+  // Home over six synthetic sites with collected numbers, so it draws the
+  // dashboard rather than the first-run guide.
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  // Home's answer and its data-source grid, which the integration health reads.
+  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-home-health]")
+    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-home-health]").innerText : null`);
+  requests.length = 0;
+  await page.goto("/");
+  await expect(page.locator("[data-home-brief]")).toHaveCount(1);
+  await page.waitForTimeout(6_000);
+  const homeDraws = await page.evaluate(() => (window as unknown as { __draws: string[] }).__draws);
+  expect(homeDraws).toHaveLength(1);
+  // Within its first six seconds a page sends each read once; every poll's
+  // interval is longer.
+  const repeated = requests.filter((request, index) => requests.indexOf(request) !== index);
+  expect(repeated).toEqual([]);
+});
+
+test("an open page hears of a changed task list and new feed events through the change stream, and reads only what changed", async ({ page }) => {
+  await createAsset(page);
+  expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
+  const reads: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/") && url.pathname !== "/api/changes") reads.push(`${url.pathname}${url.search}`); });
+  const stream = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/changes");
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  expect((await stream).headers()["content-type"]).toContain("text/event-stream");
+  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
+  // The server's first check, which sets what later checks compare with.
+  await page.waitForTimeout(1_500);
+
+  reads.length = 0;
+  expect((await page.request.post("/__journey/more-decisions")).ok()).toBe(true);
+  await expect(page.locator('[data-inbox-row="jt-press"]')).toHaveCount(1, { timeout: 8_000 });
+  // The snapshot, the project's live read, and the sites' read, which carries
+  // each site's task counts; nothing else.
+  expect(new Set(reads)).toEqual(new Set(["/api/work", `/api/tasks?project=${JOURNEY_ASSET}`, "/api/wall"]));
+
+  // New stored events for the live feed, on Home over synthetic sites with
+  // numbers, which draws the feed: its read, and no other, follows.
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  const homeStream = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/changes");
+  await page.goto("/");
+  await homeStream;
+  await expect(page.locator("[data-home-timeline]")).toHaveCount(1);
+  await page.waitForTimeout(1_500);
+  reads.length = 0;
+  const feed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/wall/feed", { timeout: 8_000 });
+  expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
+  await feed;
+  expect(reads).toContain("/api/wall/feed");
+  expect(reads.filter((read) => !["/api/wall/feed", "/api/wall"].includes(read))).toEqual([]);
+});
+
+test("a page without the change stream polls while it is shown and sends nothing while its tab is hidden", async ({ page }) => {
+  await createAsset(page);
+  // As a hosted workspace: no stream, so the page polls.
+  await page.route("**/api/changes", (route) => route.fulfill({ status: 404, json: { error: "not_found" } }));
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  await page.clock.install({ time: new Date(JOURNEY_NOW) });
+  await page.goto("/");
+  await expect(page.locator("[data-home-brief]")).toHaveCount(1);
+  const polls: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/")) polls.push(url.pathname); });
+  const setHidden = (hidden: boolean) => page.evaluate((value) => {
+    Object.defineProperty(document, "visibilityState", { value: value ? "hidden" : "visible", configurable: true });
+    Object.defineProperty(document, "hidden", { value, configurable: true });
+    document.dispatchEvent(new Event("visibilitychange"));
+  }, hidden);
+
+  await setHidden(true);
+  await page.clock.runFor("03:00");
+  expect(polls).toEqual([]);
+
+  await setHidden(false);
+  await page.clock.runFor("01:05");
+  // Shown again: the session is checked and the sites' read polls again.
+  await expect.poll(() => polls.includes("/api/wall")).toBe(true);
+});
+
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
@@ -2430,14 +2551,14 @@ test("Home first-run actions keep their destinations and phone touch targets in 
   // Saved read responses model collection before its first result. No Connect,
   // Start or provider request is issued to make this presentation state.
   await page.route("**/api/integrations/providers", async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const data = await response.json();
     const provider = data.providers.find((entry: { provider: { id: string } }) => entry.provider.id === "bing-webmaster");
     expect(provider).toBeDefined();
     const at = new Date().toISOString();
     provider.credential = { provider: "bing-webmaster", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null,
       metadata: null, keyVersion: 1, createdAt: at, updatedAt: at, lastUsedAt: at, lastOkAt: at, lastError: null };
-    await route.fulfill({ response, json: data });
+    await route.fulfill({ response, headers, json: data });
   });
   await page.route("**/api/integrations/health", (route) => route.fulfill({ json: {
     generatedAt: new Date().toISOString(), available: true, events: [], items: [{

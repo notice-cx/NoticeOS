@@ -5,7 +5,7 @@ description: "The Wall: the summary view for a television, a laptop or a phone, 
 
 # TV dashboard
 
-The **Wall** is the Tower's TV view: one screen at `/wall`, made for a television or a second monitor across the room. The sidebar calls it **TV dashboard**. It shows the same data as the Tower's pages, large enough to read from a distance, and refreshes every minute, so it can stay on all day with nobody touching it.
+The **Wall** is the Tower's TV view: one screen at `/wall`, made for a television or a second monitor across the room. The sidebar calls it **TV dashboard**. It shows the same data as the Tower's pages, large enough to read from a distance, and updates when that data changes, so it can stay on all day with nobody touching it.
 
 The Wall shows: the live count at each step of the loop, what is broken and since when, how each site is doing right now, whether the month is on track, and the state of the work.
 

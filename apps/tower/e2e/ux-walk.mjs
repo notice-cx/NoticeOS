@@ -45,6 +45,7 @@
 // the line it leads with, so an undeclared repeat fails the gate rather than
 // passing as two subjects.
 
+import { fetchToRewrite } from "./rewritten-read.mjs";
 import { JOURNEY_NOW as NOW } from "./fixtures.ts";
 import { installGoogleConsent } from "./google-consent.mjs";
 import path from "node:path";
@@ -813,7 +814,7 @@ const REQUIRED = {
 export async function installSyntheticProviders(context, base) {
   const held = new Map(); // provider -> { assets: string[], tested: boolean }
   await context.route(`${base}/api/integrations/providers`, async (route) => {
-    const response = await route.fetch();
+    const { response, headers } = await fetchToRewrite(route);
     const body = await response.json();
     for (const status of body.providers) {
       const id = status.provider.id;
@@ -827,7 +828,7 @@ export async function installSyntheticProviders(context, base) {
         lastUsedAt: entry.tested ? NOW : null, lastOkAt: entry.tested ? NOW : null, lastError: null,
       };
     }
-    await route.fulfill({ response, json: body });
+    await route.fulfill({ response, headers, json: body });
   });
   await context.route(new RegExp(`^${base}/api/integrations/([a-z-]+)/(credential|test)$`), async (route) => {
     const [, id, what] = route.request().url().match(/integrations\/([a-z-]+)\/(credential|test)$/);

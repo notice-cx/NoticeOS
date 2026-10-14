@@ -1,4 +1,4 @@
-import { useTowerApi } from '@/lib/browser-context';
+import { useChangesPushed, useTowerApi } from '@/lib/browser-context';
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import type { WallPayload } from "@shared/wall";
 
@@ -10,14 +10,16 @@ import type { WallPayload } from "@shared/wall";
  * TanStack's "background" is `document.visibilityState === "hidden"`, not
  * window focus, so the TV keeps its 60s refresh while a desk tab left behind
  * another stops asking. Coming back refetches at once when the held payload
- * is older than `staleTime`.
+ * is older than `staleTime`. While the change stream delivers it, it is read
+ * only when it changed.
  */
 export function useWall() {
   const { fetchWall } = useTowerApi();
+  const pushed = useChangesPushed();
   return useQuery<WallPayload>({
     queryKey: ["wall"],
     queryFn: ({ signal }) => fetchWall(signal),
-    refetchInterval: 60_000,
+    refetchInterval: pushed ? false : 60_000,
     refetchIntervalInBackground: false,
     refetchOnWindowFocus: true,
     placeholderData: keepPreviousData,

@@ -6,6 +6,8 @@ import { captureBrowserOwner, browserOwnerKey } from './browser-owner';
 import { createOwnerStorage } from './browser-storage';
 import { createHostedTaskTransport } from './hosted-task-transport';
 import { createAppRelease, AppReleaseError } from './app-release';
+import { createReadCopies } from './read-copies';
+import { createChangeStream, NO_CHANGE_STREAM } from './change-stream';
 
 export class BrowserRetiredError extends Error {
   constructor() { super('This browser context is no longer active.'); this.name = 'BrowserRetiredError'; }
@@ -51,6 +53,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     refetchOnWindowFocus: false,
   } } });
 
+  const reads = createReadCopies();
   const fetch: ApiTransport = async (input, init) => {
     assertActive();
     // Named API methods supply product-local paths. There is no raw Response
@@ -73,6 +76,9 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     } else if (expectedSession !== null) throw new Error('This browser mode cannot select a session.');
     url.pathname = `${apiBase}${url.pathname.slice('/api/'.length)}`;
     const signals = [abort.signal, ...(init?.signal ? [init.signal] : [])];
+    const read = (init?.method ?? 'GET').toUpperCase() === 'GET' && !headers.has('if-none-match');
+    const validator = read ? reads.validatorFor(url.href) : null;
+    if (validator !== null) headers.set('if-none-match', validator);
     try {
       const response = await transport(url, { ...init, headers,
         credentials: 'same-origin', mode: 'same-origin', signal: AbortSignal.any(signals) });
@@ -80,7 +86,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
         void response.body?.cancel().catch(() => {});
         assertActive();
       }
-      return response;
+      return read ? await reads.settle(url.href, response) : response;
     } catch (error) {
       assertActive();
       throw error;
@@ -91,12 +97,14 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
   }, origin.origin);
   const preferences = createOwnerStorage(owner, options.storage, assertActive, assertReadable);
   let answers: AnswerQueue<Answer> | undefined;
+  const changes = owner.mode === 'standalone' && page ? createChangeStream(queries, page) : NO_CHANGE_STREAM;
   // Irreversible: keep the mounted view and its cached data while session
   // verification is pending, without allowing any old work to complete.
   function freeze() {
     if (!active) return;
     active = false;
     abort.abort();
+    changes.close();
     answers?.retire();
     void queries.cancelQueries();
   }
@@ -105,6 +113,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
     freeze();
     retired = true;
     queries.clear();
+    reads.clear();
     if (page) {
       page.removeEventListener('pagehide', retire);
       if (pageOwners.get(page) === retire) pageOwners.delete(page);
@@ -121,7 +130,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
   // unissued answers. Sharing its page ownership also retires a legacy queue.
   answers = createAnswerQueue<Answer>(owner, (answer, keepalive) => sendAnswer(api, answer, keepalive), page);
   if (!active) answers.retire();
-  return Object.freeze({ owner, ownerKey: browserOwnerKey(owner), api, queries, answers, preferences,
+  return Object.freeze({ owner, ownerKey: browserOwnerKey(owner), api, queries, answers, preferences, changes,
     /** Wrap UI completion/error/optimistic rollback callbacks in this lifetime. */
     guard<Args extends unknown[], Result>(callback: (...args: Args) => Result) {
       return (...args: Args): Result | undefined => active ? callback(...args) : undefined;

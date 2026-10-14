@@ -55,7 +55,11 @@ export function MediavineSettings({ asset }: { asset: string }) {
   async function action(work: () => Promise<MediavineStatus>) {
     if (!writable || !active()) return;
     setBusy(true); setMessage(null);
-    try { const value = await work(); if (active()) { setStatus(value); await cache.invalidateQueries(); } }
+    try { const value = await work(); if (active()) {
+      setStatus(value);
+      // The reads revenue reaches, not every read on the page.
+      await Promise.all([['wall'], ['asset-detail', asset], ['financials']].map(queryKey => cache.invalidateQueries({ queryKey })));
+    } }
     catch (error) { if (active()) setMessage(error instanceof Error ? error.message : 'The action failed. Try again.'); }
     finally { if (active()) setBusy(false); }
   }

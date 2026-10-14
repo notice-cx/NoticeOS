@@ -172,7 +172,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   const queryClient = useQueryClient();
   const {
-    data, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
+    data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
     totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
     closedHistoryState,
@@ -285,10 +285,10 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         />
       ) : null}
 
-      {!data ? (
+      {!data || !drawn ? (
         // No board and nothing pending is a failed read, and it says so with
         // the shared state Home, Sites and Alerts draw.
-        isError ? (
+        isError && !data ? (
           <ReadFailed title="Couldn't load tasks" subject="read:tasks" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
           <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
@@ -362,8 +362,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           />
 
           {/* One banner for projects that could not be read: which, and a way
-              to try again. Their rows stay on the board from the saved
-              snapshot, without actions; the counts carry a `+`. */}
+              to try again. Their rows stay on the board, from the last read or
+              the saved snapshot, without actions; the counts carry a `+`. */}
           <StatusBanner
             open={broken.length > 0}
             subject="tasks:projects"

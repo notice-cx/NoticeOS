@@ -1290,9 +1290,11 @@ describe("Home and Wall phase scoping", () => {
   it("leaves no trace of a panel review on an asset that has no panel", () => {
     for (const Route of [HomeRoute, WallRoute]) {
       const { container, unmount } = render(
-        <MemoryRouter>
-          <Route />
-        </MemoryRouter>,
+        <QueryClientProvider client={new QueryClient()}>
+          <MemoryRouter>
+            <Route />
+          </MemoryRouter>
+        </QueryClientProvider>,
       );
       expect(container.querySelector("[data-panel-review]")).toBeNull();
       expect(container.querySelector('[aria-label*="SERP panel"]')).toBeNull();

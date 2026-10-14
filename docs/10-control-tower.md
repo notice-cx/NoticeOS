@@ -245,9 +245,9 @@ cover the route, refresh, layout document and editor mechanics; doc 14 specifies
 is on the screen.
 
 **One payload, two renderings, two routes.** `/wall` is the TV: full-screen,
-auto-refreshing from one no-cache payload every 60s and its feed
-(`/api/wall/feed`) every 30s, beside the GA4 realtime, calendar and connection
-reads, read-only, dark, and — with
+updated from one payload and its feed (`/api/wall/feed`) when either changes
+(see [how a page loads and stays current](#how-a-page-loads-and-stays-current)),
+beside the GA4 realtime, calendar and connection reads, read-only, dark, and — with
 one exception — without interactive controls. The exception is the
 **Home** link: without it, a browser that opens `/wall` has no way to leave it.
 It is the strip's brand, and there is no header row above the strip.
@@ -463,8 +463,8 @@ rows the operator dispositioned on different days are two decisions the audit
 trail must show separately.
 
 The page reads its own narrow `GET /api/alerts/history` rather than a slice of
-`/api/wall`, because the wall payload is what a TV polls every sixty
-seconds and a paged archive should not be added to it. **Paging is
+`/api/wall`, because the wall payload is what every open page and the TV
+read again whenever it changes, and a paged archive should not be added to it. **Paging is
 offset + limit and shows a total** — `26–27 of 60 settled`, once, with Newer
 and Older showing direction and no numbers of their own. A cursor would suit an
 append-only log better, but this list is ordered by a column that the
@@ -1420,6 +1420,32 @@ the regression most likely to go unnoticed is a class somebody deleted while tid
 horizontal scroller is deliberate and stays: the tab strip.
 
 ## Build notes
+
+### How a page loads and stays current
+
+A page starts every read its first screen draws from at once and draws when
+they have all answered, or after four seconds, whichever comes first
+(`apps/tower/src/hooks/useFirstDraw.ts`); a later read never returns it to its
+loading state. The Tasks page draws each project's live rows, not the saved
+snapshot first and the live rows over it.
+
+Every successful JSON read carries a validator: a hash of its content without
+the time it was made (`generatedAt`, `readAt`, `capturedAt`). A browser that
+sends the validator back and would receive the same content is answered 304
+with no body, and the page uses the copy it holds in memory with the new times
+(`apps/tower/shared/read-validator.ts`). Replies stay `no-store`, so the
+browser's own cache holds none of them.
+
+On a standalone installation, while any page is open, the Tower reads the task
+snapshot, the sites' payload, the live feed and source health every 15 seconds
+and sends every open page the names of the ones that changed, over one event
+stream (`GET /api/changes`, `apps/tower/shared/change-topics.ts`). A page reads
+again only what changed and stops polling those four while the stream is open;
+when the stream drops it polls again, and when the stream returns it reads all
+four once. One browser tab holds the stream and passes its events to the
+Tower's other tabs in that browser. A hosted workspace has no stream and polls.
+
+### What the Tower reads and writes
 
 Tower render data comes from the central store, except two live reads the
 ingest Worker makes on request from the Tower — GA4 realtime (`/api/ga4/realtime`)

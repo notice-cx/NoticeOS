@@ -43,8 +43,15 @@ const ASSUME_SNAPSHOT: TasksCapabilities = { live: false, reason: null };
  */
 export function useTasksLive(): TasksCapabilities {
   const demoReadonly = useDemoReadonly();
+  const { data } = useTasksLiveRead();
+  const capability = data ?? ASSUME_SNAPSHOT;
+  return !demoReadonly ? capability : { ...capability, writable: false };
+}
+
+/** The capability read itself, for a page that draws only once it has answered. */
+export function useTasksLiveRead() {
   const { fetchTasksCapabilities } = useTowerApi();
-  const { data } = useQuery<TasksCapabilities>({
+  return useQuery<TasksCapabilities>({
     queryKey: ["tasks-live"],
     queryFn: ({ signal }) => fetchTasksCapabilities(signal),
     staleTime: Infinity,
@@ -53,8 +60,6 @@ export function useTasksLive(): TasksCapabilities {
     refetchOnMount: false,
     refetchOnWindowFocus: false,
   });
-  const capability = data ?? ASSUME_SNAPSHOT;
-  return !demoReadonly ? capability : { ...capability, writable: false };
 }
 
 /** Catalog names are presentation/selectors; each task request is admitted

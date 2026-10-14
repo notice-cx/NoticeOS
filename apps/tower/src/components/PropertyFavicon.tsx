@@ -22,8 +22,10 @@ export function PropertyFavicon({
   className,
 }: PropertyFaviconProps) {
   const demoReadonly = useDemoReadonly();
-  const [failed, setFailed] = useState(false);
-  useEffect(() => setFailed(false), [domain]);
+  // The initial holds the place until the icon has loaded, so a site without
+  // one never changes and a site with one changes once.
+  const [image, setImage] = useState<"loading" | "loaded" | "failed">("loading");
+  useEffect(() => setImage("loading"), [domain]);
   const initial = displayName.trim().charAt(0).toUpperCase() || "?";
   return (
     <span
@@ -34,20 +36,24 @@ export function PropertyFavicon({
       aria-hidden
       data-property-favicon={domain}
     >
-      {failed || demoReadonly ? (
-        <span aria-hidden>{initial}</span>
-      ) : (
+      {image !== "loaded" || demoReadonly ? (
+        // Drawn, not text: the link it sits in keeps the site's name alone,
+        // and the initial is the same element before and after an icon fails.
+        <span aria-hidden data-initial={initial} className="[grid-area:1/1] before:content-[attr(data-initial)]" />
+      ) : null}
+      {image !== "failed" && !demoReadonly ? (
         <img
           src={propertyFaviconUrl(domain)}
           alt=""
           aria-hidden
-          className="size-full object-contain"
+          className={cn("size-full object-contain [grid-area:1/1]", image === "loaded" ? null : "opacity-0")}
           decoding="async"
           loading="lazy"
           referrerPolicy="no-referrer"
-          onError={() => setFailed(true)}
+          onLoad={() => setImage("loaded")}
+          onError={() => setImage("failed")}
         />
-      )}
+      ) : null}
     </span>
   );
 }

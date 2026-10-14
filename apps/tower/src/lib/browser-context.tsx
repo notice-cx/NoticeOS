@@ -1,5 +1,6 @@
 import { toast } from 'sonner';
 import { createContext, useContext, useMemo, useSyncExternalStore, type ReactNode } from 'react';
+import { NO_CHANGE_STREAM } from './change-stream';
 
 import type { BrowserEntry, BrowserUiRuntime } from './browser-entry';
 import type { WorkspaceChoice } from './browser-session';
@@ -35,6 +36,12 @@ export function useVerifiedDemoMode() { return useContext(BrowserContext)?.runti
  * presentation restrictions. Server admission remains the write authority. */
 export function useDemoReadonly() { return useVerifiedDemoMode() || demoViewer() !== null; }
 export function useTowerApi(): TowerApi { return useBrowserRuntime().api; }
+/** Whether the change stream is delivering this page's pushed reads now
+ * (`shared/change-topics.ts`); their polling stops while it is. */
+export function useChangesPushed(): boolean {
+  const changes = useBrowserRuntime().changes ?? NO_CHANGE_STREAM;
+  return useSyncExternalStore(changes.subscribe, changes.connected, changes.connected);
+}
 /** Mutation callbacks include optimistic rollback and per-call UI handlers.
  * They are captured with the same owner as the issuing request. */
 export function useOwnerMutation<Data = unknown, Failure = DefaultError, Variables = void, Optimistic = unknown>(
