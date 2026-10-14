@@ -826,7 +826,7 @@ describe("buildAssetDetailPayload", () => {
     const p = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(p.rules.scope).toBe("portfolio-default");
     expect(p.rules.hasOverride).toBe(false);
-    expect(p.rules.knobs).toHaveLength(3);
+    expect(p.rules.knobs.map((k) => k.key)).toEqual(["alpha", "max_window_days"]);
     const alpha = p.rules.knobs.find((k) => k.key === "alpha")!;
     expect(alpha.value).toBe("0.01");
     expect(alpha.jargon).toBe("alpha");
