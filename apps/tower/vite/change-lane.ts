@@ -48,9 +48,23 @@ export function createChangeWatch(read: TopicRead, checkMs = CHANGE_CHECK_MS) {
     return checking;
   }
 
+  const quiet = () => {
+    for (const timer of timers) clearInterval(timer);
+    timers = [];
+    validators.clear();
+  };
+
   return {
     clients,
     check,
+    /** Ends every open stream and resolves once no read of a topic is under
+     * way: a store about to be replaced has no reader left on it. */
+    async stop() {
+      for (const client of [...clients]) client.end();
+      clients.clear();
+      quiet();
+      await checking?.catch(() => undefined);
+    },
     open(res: ServerResponse) {
       res.statusCode = 200;
       res.setHeader("content-type", "text/event-stream; charset=utf-8");
@@ -66,10 +80,7 @@ export function createChangeWatch(read: TopicRead, checkMs = CHANGE_CHECK_MS) {
       }
       res.on("close", () => {
         clients.delete(res);
-        if (clients.size > 0) return;
-        for (const timer of timers) clearInterval(timer);
-        timers = [];
-        validators.clear();
+        if (clients.size === 0) quiet();
       });
     },
   };

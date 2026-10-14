@@ -19,7 +19,10 @@ export function MembersSection() {
 /** Administration uses the captured runtime; bootstrap role only hides controls.
  * Saved invitations survive mail failure and are retried by their existing ID. */
 function OwnerMembers() {
-  const { runtime, refreshSession } = useBrowserContext();
+  const { runtime, refreshSession, revalidateSession } = useBrowserContext();
+  // Another member's change leaves this page as it is; a change to the
+  // operator's own access rebuilds it with the access the server now grants.
+  const recheckAccess = revalidateSession ?? refreshSession;
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<MemberRole>('viewer');
   const [busy, setBusy] = useState(false);
@@ -44,7 +47,7 @@ function OwnerMembers() {
       if (saved) {
         update(() => { if (command.kind === 'invite') setEmail(''); });
         if (runtime.guard(() => true)() === true) await runtime.queries.invalidateQueries({ queryKey: QUERY });
-        if ((command.kind === 'change-role' || command.kind === 'remove') && runtime.guard(() => true)() === true) await refreshSession?.();
+        if ((command.kind === 'change-role' || command.kind === 'remove') && runtime.guard(() => true)() === true) await recheckAccess?.();
       }
       issuing.current = false; update(() => setBusy(false));
     }
@@ -67,7 +70,7 @@ function OwnerMembers() {
   }
   const oneOwner = read.data?.members.nextCursor === null && read.data.members.items.filter(member => member.role === 'owner').length === 1;
   return <>
-    <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void refreshSession?.()}>Refresh access</Button>}>
+    <SettingsPanel title="Invite" aside={<Button variant="ghost" size="sm" disabled={busy} onClick={() => void recheckAccess?.()}>Refresh access</Button>}>
       <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void execute({ kind: 'invite', email, role }); }}>
         <div className="min-w-0 flex-[2] basis-52 space-y-1.5">
           <label htmlFor="invite-email" className="block text-sm font-medium">Email *</label>

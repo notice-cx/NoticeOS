@@ -59,6 +59,30 @@ describe("the server's one check for every open page", () => {
     await vi.advanceTimersByTimeAsync(5_000);
     expect(reads).toHaveLength(8);
   });
+
+  it('stops: ends every stream, reads no more, and resolves only once a read under way has finished', async () => {
+    vi.useFakeTimers();
+    let finish!: () => void;
+    let reads = 0;
+    const read: TopicRead = async () => {
+      reads++;
+      if (reads === 1) await new Promise<void>((resolve) => { finish = resolve; });
+      return { status: 200, validator: '"a"', times: {} };
+    };
+    const watch = createChangeWatch(read, 1_000);
+    const page = Object.assign(client(), { ended: false, end() { page.ended = true; } });
+    watch.open(page as unknown as ServerResponse);
+    let stopped = false;
+    const stopping = watch.stop().then(() => { stopped = true; });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(page.ended).toBe(true);
+    expect(stopped).toBe(false);
+    finish();
+    await stopping;
+    const after = reads;
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(reads).toBe(after);
+  });
 });
 
 /** A browser's stream: a fake EventSource the test drives, a channel between

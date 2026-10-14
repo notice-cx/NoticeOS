@@ -17,6 +17,9 @@ interface BrowserContextValue {
   /** Captured bootstrap presentation; every administration request reauthorizes. */
   readonly workspaceRole?: WorkspaceChoice['role'];
   readonly refreshSession?: BrowserEntry['refresh'];
+  /** Reads the session again and keeps this runtime and its cache unless the
+   * person's own access changed (their role, their workspace, their session). */
+  readonly revalidateSession?: BrowserEntry['revalidate'];
   readonly switchWorkspace?: BrowserEntry['switchWorkspace'];
   readonly logout?: BrowserEntry['logout'];
 }

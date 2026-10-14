@@ -100,7 +100,9 @@ export function WallEditRoute() {
   const upcoming = useCalendarUpcoming();
   const realtime = useGa4Realtime();
   const { credentials, items } = useConnections();
-  const now = useNow(1_000);
+  // The canvas ticks its own clock and countdown every second (WallSeconds);
+  // everything else here reads in minutes, as on the TV.
+  const now = useNow();
   const save = useConfigSave();
   const { writable } = useConfigWritable();
 

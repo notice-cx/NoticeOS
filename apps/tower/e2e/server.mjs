@@ -19,6 +19,18 @@ const root = fileURLToPath(new URL("../", import.meta.url));
 const port = checkedPort(Number(process.env.JOURNEY_PORT ?? 4187));
 let dispatch;
 let changes;
+let changeWatch;
+let builtApp;
+/** Every page runs at JOURNEY_NOW, unless the journey set its own clock:
+ * Playwright installs page.clock before any page script as
+ * globalThis.__pwClock, and that clock must win over this pin. */
+const clockPin = () => `if (!globalThis.__pwClock) {
+      const ActualDate = Date;
+      globalThis.Date = class extends ActualDate {
+        constructor(...args) { super(...(args.length ? args : [${JSON.stringify(fixedNow)}])); }
+        static now() { return ActualDate.parse(${JSON.stringify(fixedNow)}); }
+      };
+    }`;
 let fixedNow;
 // The ingest modules and the contract package import this repo's own config
 // files as their compiled fallback copies. This process answers every import
@@ -50,22 +62,14 @@ const vite = await createTestViteServer(createServer, {
       return `export default ${JSON.stringify(syntheticConfig[file])};`;
     },
   }, { name: "isolated-journey-api", transformIndexHtml() {
-    // Every page runs at JOURNEY_NOW, unless the journey set its own clock:
-    // Playwright installs page.clock before any page script as
-    // globalThis.__pwClock, and that clock must win over this pin.
-    return [{ tag: "script", injectTo: "head-prepend", children: `if (!globalThis.__pwClock) {
-      const ActualDate = Date;
-      globalThis.Date = class extends ActualDate {
-        constructor(...args) { super(...(args.length ? args : [${JSON.stringify(fixedNow)}])); }
-        static now() { return ActualDate.parse(${JSON.stringify(fixedNow)}); }
-      };
-    }` }];
+    return [{ tag: "script", injectTo: "head-prepend", children: clockPin() }];
   }, configureServer(server) {
     server.middlewares.use((_req, res, next) => {
       res.setHeader("Content-Security-Policy", "connect-src 'self'; form-action 'self'");
       next();
     });
     server.middlewares.use((req, res, next) => changes ? changes(req, res, next) : next());
+    server.middlewares.use((req, res, next) => builtApp ? builtApp(req, res, next) : next());
     server.middlewares.use((req, res, next) => dispatch ? dispatch(req, res, next) : next());
   } }, react(), tailwindcss()],
   resolve: { alias: { "@": path.join(root, "src"), "@shared": path.join(root, "shared") } },
@@ -140,6 +144,9 @@ dispatch = async (req, res, next) => {
     if (req.headers.host !== `127.0.0.1:${port}` || (req.headers.origin && req.headers.origin !== `http://127.0.0.1:${port}`)) {
       res.statusCode = 403; res.end("Isolated fixture is loopback and same-origin only"); return;
     }
+    // A reset replaces the store: the change stream's own reads must not be on
+    // it when its connections are ended, and the last test's pages are gone.
+    if (pathname === "/__journey/reset") await changeWatch?.stop();
     const chunks = [];
     let size = 0;
     for await (const chunk of req) {
@@ -163,12 +170,23 @@ dispatch = async (req, res, next) => {
     res.end(`Isolated journey handler failed: ${reason}`);
   }
 };
+// JOURNEY_BUILT_CLIENT names a `vite build` output (apps/tower/dist/client),
+// built with JOURNEY_BUILD=1: the journeys then run against the built app a
+// production installation serves, with the same clock pin, instead of the
+// source modules.
+if (process.env.JOURNEY_BUILT_CLIENT) {
+  const { builtClientMiddleware } = await vite.ssrLoadModule("/vite/built-client.ts");
+  builtApp = builtClientMiddleware(path.resolve(process.env.JOURNEY_BUILT_CLIENT), {
+    page: (html) => html.replace("<head>", `<head><script>${clockPin()}</script>`),
+  });
+}
 // The standalone Tower's change stream, reading the pushed topics through this
 // harness every 3 s: soon enough for a journey's timeouts, seldom enough not to
 // load the parallel workers' store with reads.
 {
   const { changeStreamMiddleware, createChangeWatch, topicReader } = await vite.ssrLoadModule("/vite/change-lane.ts");
-  changes = changeStreamMiddleware(createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 3_000));
+  changeWatch = createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 3_000);
+  changes = changeStreamMiddleware(changeWatch);
 }
 await vite.listen();
 console.log(`Isolated journey server: http://127.0.0.1:${port}`);

@@ -40,7 +40,9 @@ export interface TaskDependency {
 /** One task as the lane reads it live: everything `WorkItem` has, plus what
  * a task page and a filterable index need. */
 export interface LiveTask extends WorkItem {
-  /** Empty string when the task carries none. */
+  /** Empty string when the task carries none. A project's list read carries
+   * these only on a task that waits on the operator; a task's own read
+   * (`LiveTaskDetail`) always carries them. */
   description: string;
   acceptance: string;
   labels: string[];

@@ -1423,6 +1423,14 @@ horizontal scroller is deliberate and stays: the tab strip.
 
 ### How a page loads and stays current
 
+A production installation's image builds the Tower once (`vite build`), and its
+server sends a browser that bundle: React's production build, the app's code
+bundled by page and its icons in one file (`apps/tower/vite/built-client.ts`). It serves the bundle only when the bundle
+was built from the source the server runs; a development stack, which follows
+a checkout, serves the source modules. Every reply of 1 KB or more in JSON,
+JavaScript, CSS, HTML or SVG is compressed with Brotli or gzip, except the
+event stream below (`apps/tower/vite/compress-replies.ts`).
+
 A page starts every read its first screen draws from at once and draws when
 they have all answered, or after four seconds, whichever comes first
 (`apps/tower/src/hooks/useFirstDraw.ts`); a later read never returns it to its

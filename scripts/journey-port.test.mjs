@@ -90,9 +90,9 @@ test('every runner starts its server through fixture-server.mjs, each worker its
   }
 });
 
-test("a started server gets PATH, its port and the run's throwaway Postgres only, and refuses to start without its isolation guard", () => {
+test("a started server gets PATH, its port, the run's throwaway Postgres and, when the run names one, the built app only, and refuses to start without its isolation guard", () => {
   const starter = read('fixture-server.mjs');
-  assert.match(starter, /env: \{ PATH: process\.env\.PATH, JOURNEY_PORT: String\(port\), \[JOURNEY_POSTGRES\]: JSON\.stringify\(postgres\) \}/);
+  assert.match(starter, /env: \{ PATH: process\.env\.PATH, JOURNEY_PORT: String\(port\), \[JOURNEY_POSTGRES\]: JSON\.stringify\(postgres\),\s+\.\.\.\(process\.env\.JOURNEY_BUILT_CLIENT \? \{ JOURNEY_BUILT_CLIENT: path\.resolve\(process\.env\.JOURNEY_BUILT_CLIENT\) \} : \{\}\) \}/);
   assert.match(starter, /includes\(ARMED_MARK\)/);
 });
 

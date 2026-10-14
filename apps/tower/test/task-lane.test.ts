@@ -394,7 +394,9 @@ describe("the reads", () => {
       expect(task.issueType).toBe("gate");
       expect(task.awaitType).toBe(task.id === "ro-timer" ? "timer" : "human");
       expect(task.ready).toBe(false);
-      expect(task.description).toBe("Reason: Confirm the decision.");
+      // Only the open human gate waits on the operator, so only its ask's text
+      // rides the list; the others' is on their own read.
+      expect(task.description).toBe(task.id === "ro-human" ? "Reason: Confirm the decision." : "");
     }
     const lists = (await spawned()).filter((argv) => argv[2] === "list");
     expect(lists).toHaveLength(status === undefined ? 2 : 1);
@@ -409,6 +411,21 @@ describe("the reads", () => {
       expect(closed?.[closed.indexOf("--closed-after") + 1]).toBe("2026-08-28");
       expect(closed?.[closed.indexOf("--closed-before") + 1]).toBe("2026-09-04T12:00:00.000Z");
     }
+  });
+
+  it("carries a task's description and acceptance in a list only when it waits on the operator; its own read always does", async () => {
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({
+      ...CANNED,
+      list: JSON.stringify([LIST_ROW, { ...LIST_ROW, id: "ro-ask", labels: ["human"], description: "Pick the launch date", acceptance_criteria: "A date is chosen" }]),
+      ready: JSON.stringify([{ id: "ro-aaa" }, { id: "ro-ask" }]),
+    });
+    const list = await ask("GET", "/api/tasks?project=root-os&status=open");
+    const tasks = list.body.tasks as { id: string; description: string; acceptance: string }[];
+    expect(tasks.find((task) => task.id === "ro-aaa")).toMatchObject({ description: "", acceptance: "" });
+    expect(tasks.find((task) => task.id === "ro-ask")).toMatchObject({ description: "Pick the launch date", acceptance: "A date is chosen" });
+    const own = await ask("GET", "/api/tasks/ro-aaa");
+    expect((own.body as unknown as { task: { description: string } }).task.description).toBe("why");
   });
 
   it("returns one task with its conversation", async () => {
