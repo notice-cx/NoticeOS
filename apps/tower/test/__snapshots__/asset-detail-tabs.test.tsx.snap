@@ -57,7 +57,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-activity" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-activity" class="page-arrive flex flex-col gap-4">
 <div class="flex flex-col gap-3.5">
 <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3" data-page-answer="" data-activity-answer="logged">
 <div class="flex min-w-0 flex-col gap-1">
@@ -222,7 +222,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-alerts" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-alerts" class="page-arrive flex flex-col gap-4">
 <div class="flex flex-col gap-3.5">
 <div class="flex flex-wrap items-end justify-between gap-x-6 gap-y-3" data-page-answer="" data-site-alerts-answer="error">
 <div class="flex min-w-0 flex-col gap-1">
@@ -452,7 +452,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-financials" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-financials" class="page-arrive flex flex-col gap-4">
 <div class="flex min-w-0 flex-col gap-5">
 <section aria-labelledby="_rID_" data-surface-hero="" data-site-money-answer="booked" class="@container relative flex min-w-0 flex-col gap-5 overflow-hidden rounded-xl bg-card p-5 shadow-raised ring-1 ring-border/70 @md:p-6">
 <span aria-hidden="true" class="pointer-events-none absolute -end-24 -top-32 size-80 rounded-full bg-financial-revenue/10 blur-3xl">
@@ -674,7 +674,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-growth" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-growth" class="page-arrive flex flex-col gap-4">
 <div id="growth-evidence" class="@container flex scroll-mt-4 flex-col gap-5">
 <section id="growth-moves" data-surface-hero="" aria-label="Which way it went · last 28 days" class="grid scroll-mt-4 gap-5 @5xl:grid-cols-2">
 <section aria-label="Visitors" data-change-rows="" class="@container flex min-w-0 scroll-mt-4 flex-col rounded-xl bg-card ring-1 ring-border/70 h-full">
@@ -1629,7 +1629,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-overview" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-overview" class="page-arrive flex flex-col gap-4">
 <div class="@container flex flex-col gap-5" data-site-overview="">
 <div class="flex flex-wrap items-center gap-x-2 text-sm text-foreground" data-verdict-line="true">
 <span class="tabular-nums">Jun net +$498</span>
@@ -2229,7 +2229,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-search" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-search" class="page-arrive flex flex-col gap-4">
 <div id="search-evidence" class="@container flex scroll-mt-4 flex-col gap-5">
 <span class="text-xs tabular-nums text-muted-foreground" data-analysis-evidence="true">
 <button type="button" aria-label="About this saved analysis" aria-expanded="false" data-info-tooltip-trigger="true" class="relative inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 cursor-help underline decoration-dotted decoration-muted-foreground/50 underline-offset-4">Analysis 2h ago</button>
@@ -3119,7 +3119,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="true" aria-controls="asset-tab-panel" tabindex="0" aria-current="page" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-primary font-medium text-primary active" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-settings" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-settings" class="page-arrive flex flex-col gap-4">
 <div id="configuration" class="flex w-full max-w-4xl scroll-mt-4 flex-col gap-4">
 <div data-surface-hero="">
 <section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Identity">
@@ -3636,7 +3636,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-sources" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-sources" class="page-arrive flex flex-col gap-4">
 <div class="flex flex-col gap-3.5">
 <div data-surface-hero="">
 <div id="integrations" class="flex scroll-mt-4 flex-col gap-2">
@@ -3816,7 +3816,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <a id="asset-tab-settings" role="tab" aria-selected="false" aria-controls="asset-tab-panel" tabindex="-1" class="inline-flex shrink-0 items-center gap-1.5 rounded-t-md border-b-2 px-3 py-2 text-sm outline-none max-sm:min-h-11 focus-visible:ring-[3px] focus-visible:ring-ring border-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground" href="/assets/meadow.example/settings" data-discover="true">Settings</a>
 </div>
 </div>
-<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-tasks" class="flex flex-col gap-4">
+<div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-tasks" class="page-arrive flex flex-col gap-4">
 <div id="tasks" class="scroll-mt-4">
 <div class="flex w-full flex-col gap-3.5" data-tasks-board="meadow.example">
 <div class="flex flex-wrap items-center justify-end gap-2">
@@ -3842,7 +3842,39 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </div>
 </div>
-<div class="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
+<div role="status" aria-live="polite" data-status-for="read:tasks" class="flex min-h-[40vh] flex-1 flex-col">
+<span class="sr-only">Loading…</span>
+<div aria-hidden="true" data-skeleton="" class="skeleton-group flex flex-col gap-5">
+<div class="flex flex-col gap-2">
+<div aria-hidden="true" class="skeleton rounded-md h-4 w-48 max-w-full">
+</div>
+<div aria-hidden="true" class="skeleton rounded-md h-8 w-[36rem] max-w-full">
+</div>
+</div>
+<div class="flex flex-col gap-3">
+<div class="flex gap-2">
+<div aria-hidden="true" class="skeleton rounded-md h-9 w-32">
+</div>
+<div aria-hidden="true" class="skeleton rounded-md h-9 w-32">
+</div>
+</div>
+<div class="flex flex-col gap-px overflow-hidden rounded-lg">
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+<div aria-hidden="true" class="skeleton h-14 rounded-none">
+</div>
+</div>
+</div>
+</div>
+</div>
 </div>
 </div>
 </div>

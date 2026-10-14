@@ -17,6 +17,7 @@ import {
 } from "@shared/wall-layout";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { SavesPaused } from "@/components/SavesPaused";
 import { SiteOrder } from "./wall-edit/SiteOrder";
 import { WallLibraryPanel } from "@/components/wall/WallLibraryPanel";
@@ -309,7 +310,7 @@ export function WallEditRoute() {
         isError ? (
           <ReadFailed title="Couldn't load the TV layout" subject="read:tv-layout" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] place-items-center text-sm text-muted-foreground">Loading…</div>
+          <PageSkeleton subject="read:tv-layout" shape="board" />
         )
       ) : (
         <>

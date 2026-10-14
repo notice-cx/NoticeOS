@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { viewCovers, type AssetDetailResponse } from "@shared/asset-detail-views";
 import type { WatchSeed } from "@shared/watch-windows";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { RouteLoading } from "@/components/RouteLoading";
 import { TabPanel } from "@/components/Tabs";
 import { RecommendationEvidenceProvider } from "@/components/AnalysisEvidence";
@@ -114,9 +115,7 @@ export function AssetDetailRoute() {
         error ? (
           <ReadFailed title="Couldn't load this site" subject="read:site" detail={<span className="font-mono">{id}</span>} error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">
-            Loading…
-          </div>
+          <PageSkeleton subject="read:site" shape="board" />
         )
       ) : (
         <>

@@ -147,6 +147,7 @@ import { QueryVisibilityRankings } from "@/components/QueryVisibilityRankings";
 import { ReadFailed } from "@/components/ReadFailed";
 import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
 import { NavigationProgress } from "@/components/NavigationProgress";
+import { PageSkeleton, Skeleton } from "@/components/Skeleton";
 import { SeverityDot } from "@/components/SeverityDot";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { SegmentBar } from "@/components/SegmentBar";
@@ -3361,6 +3362,21 @@ export function KitchenSinkRoute() {
 
           <Section title="NavigationProgress (a navigation under way: the page being left stays)">
             <NavigationProgressDemo />
+          </Section>
+
+          <Section title="Skeleton / PageSkeleton (a page's first read: board, list, form)">
+            <div className="grid w-full gap-4 md:grid-cols-3">
+              <div className="overflow-hidden rounded-md border border-border p-4">
+                <PageSkeleton subject="read:gallery-board" shape="board" />
+              </div>
+              <div className="overflow-hidden rounded-md border border-border p-4">
+                <PageSkeleton subject="read:gallery-list" shape="list" />
+              </div>
+              <div className="overflow-hidden rounded-md border border-border p-4">
+                <PageSkeleton subject="read:gallery-form" shape="form" />
+              </div>
+            </div>
+            <Skeleton className="h-10 w-64" />
           </Section>
 
           <Section title="Home · first run (an empty store: no tiles, no table)">

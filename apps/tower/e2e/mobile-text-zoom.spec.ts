@@ -36,7 +36,8 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
           const main = page.getByRole('main');
           const heading = main.getByRole('heading', { level: 1 });
           await expect(heading).toBeVisible();
-          const answer = state === 'loading' ? main.getByText('Loading…', { exact: true })
+          // Loading is the page's skeleton: a status whose words are for screen readers.
+          const answer = state === 'loading' ? main.getByRole('status').filter({ hasText: 'Loading…' }).first()
             : state === 'error' ? main.locator('[data-read-failed]')
             : state === 'empty' ? main.locator({ home: '[data-first-run]', sites: '[data-assets-empty]',
               alerts: '[data-surface-hero]', tasks: '[data-task-hub-unavailable]' }[name])

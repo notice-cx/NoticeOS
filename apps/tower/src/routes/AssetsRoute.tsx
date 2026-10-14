@@ -9,6 +9,7 @@ import { AddSiteButton } from "@/components/AddSite";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { FilterControls, FilterFold, FilterToggle } from "@/components/surface/FilterBar";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { fieldClass } from "@/components/ui/field";
@@ -134,7 +135,7 @@ export function AssetsRoute() {
         isError ? (
           <ReadFailed title="Couldn't load your sites" subject="read:sites" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
+          <PageSkeleton subject="read:sites" shape="list" />
         )
       ) : assets.length === 0 ? (
         <section data-surface-hero data-assets-empty className="rounded-[10px] border border-border bg-card px-4 py-3">

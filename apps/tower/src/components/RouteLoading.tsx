@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { AnswerBlocks, BoardBlocks, Skeleton, SkeletonGroup } from "@/components/Skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { dismissBootSplash } from "@/lib/boot-splash";
@@ -12,12 +13,13 @@ import { dismissBootSplash } from "@/lib/boot-splash";
 export type RouteSurface = "desk" | "wall" | "panel" | "palette";
 
 /**
- * What stands in for a screen while its code is still arriving: one word in
- * the space the screen will take. No skeleton or number, because a placeholder
- * must never pass for a reading. The label waits before it shows
- * (`.route-loading-label`) so a fast load does not flash; a screen reader gets
- * it at once. The palette draws nothing, since an empty search box would be a
- * control that does not work.
+ * What stands in for a screen while its code is still arriving: the screen's
+ * shape in skeleton blocks, in the space the screen will take, and its words
+ * for screen readers. Blocks only, never a digit, a chart mark or a state
+ * colour, because a placeholder must never pass for a reading. The blocks wait
+ * before they show (`SkeletonGroup`) so a fast load does not flash; a screen
+ * reader gets the words at once. The palette draws nothing, since an empty
+ * search box would be a control that does not work.
  */
 export function RouteLoading({ surface = "desk" }: { surface?: RouteSurface }) {
   if (surface === "palette") return null;
@@ -30,9 +32,10 @@ export function RouteLoading({ surface = "desk" }: { surface?: RouteSurface }) {
         data-status-for="route:panel"
         className="flex min-h-[50vh] w-full flex-col"
       >
-        <span className="route-loading-label flex min-h-7 items-center text-sm text-muted-foreground">
-          Loading this section…
-        </span>
+        <span className="sr-only">Loading this section…</span>
+        <SkeletonGroup className="gap-5">
+          <BoardBlocks />
+        </SkeletonGroup>
       </div>
     );
   }
@@ -43,9 +46,12 @@ export function RouteLoading({ surface = "desk" }: { surface?: RouteSurface }) {
         aria-live="polite"
         data-route-loading="wall"
         data-status-for="route:wall"
-        className="wall-root grid min-h-screen place-items-center bg-background text-muted-foreground"
+        className="wall-root flex min-h-screen flex-col bg-background p-2 md:px-wall-inset-x md:py-wall-inset-y"
       >
-        <span className="route-loading-label">Loading the Wall…</span>
+        <span className="sr-only">Loading the Wall…</span>
+        <SkeletonGroup className="flex-1 gap-wall-region">
+          <WallBlocks />
+        </SkeletonGroup>
       </div>
     );
   }
@@ -57,10 +63,30 @@ export function RouteLoading({ surface = "desk" }: { surface?: RouteSurface }) {
       data-status-for="route:desk"
       className="mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[1400px] flex-col p-4 md:min-h-screen md:p-6"
     >
-      <span className="route-loading-label flex min-h-7 items-center text-sm text-muted-foreground">
-        Loading this page…
-      </span>
+      <span className="sr-only">Loading this page…</span>
+      <SkeletonGroup className="gap-5">
+        <Skeleton className="h-7 w-40" />
+        <AnswerBlocks />
+        <BoardBlocks />
+      </SkeletonGroup>
     </div>
+  );
+}
+
+/** The TV's frame: the strip, then the money band and the site rows beside
+ * the feed, at the Wall's own gaps. */
+function WallBlocks() {
+  return (
+    <>
+      <Skeleton className="h-24 rounded-lg" />
+      <div className="grid flex-1 gap-wall-region md:grid-cols-12 md:gap-wall-region-x">
+        <div className="flex flex-col gap-wall-region md:col-span-8">
+          <Skeleton className="h-wall-band rounded-lg" />
+          <Skeleton className="min-h-48 flex-1 rounded-lg" />
+        </div>
+        <Skeleton className="min-h-48 rounded-lg md:col-span-4" />
+      </div>
+    </>
   );
 }
 

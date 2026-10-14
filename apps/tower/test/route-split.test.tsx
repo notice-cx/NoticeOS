@@ -273,9 +273,21 @@ describe("RouteLoading", () => {
     expectNothingDataLike(container);
   });
 
-  it("delays the visible word rather than flashing it on every load", () => {
-    render(<RouteLoading />);
-    expect(screen.getByText("Loading this page…")).toHaveClass("route-loading-label");
+  it.each([
+    ["desk", "Loading this page…"],
+    ["wall", "Loading the Wall…"],
+    ["panel", "Loading this section…"],
+  ] as const)("%s: draws the screen's shape in blocks after a delay, and its words for screen readers only", (surface, words) => {
+    render(<RouteLoading surface={surface} />);
+    expect(screen.getByText(words)).toHaveClass("sr-only");
+    const status = screen.getByRole("status");
+    const group = status.querySelector("[data-skeleton]")!;
+    // The delay is the group's (`.skeleton-group` in index.css), so a fast
+    // load never draws a block.
+    expect(group).toHaveClass("skeleton-group");
+    expect(group).toHaveAttribute("aria-hidden", "true");
+    expect(group.querySelectorAll(".skeleton").length).toBeGreaterThan(2);
+    expect(group.textContent).toBe("");
   });
 });
 

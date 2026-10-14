@@ -22,6 +22,7 @@ import { SeverityDot } from "@/components/SeverityDot";
 import { FinishLine, readingAge } from "@/components/surface/FinishLine";
 import { PageAnswer, type AnswerFigure } from "@/components/surface/PageAnswer";
 import { ReadFailed } from "@/components/ReadFailed";
+import { PageSkeleton } from "@/components/Skeleton";
 import { FilterBar } from "@/components/surface/FilterBar";
 import { TabPanel, Tabs, type TabSpec } from "@/components/Tabs";
 import { Badge } from "@/components/ui/badge";
@@ -188,7 +189,7 @@ export function AlertsRoute() {
         isError ? (
           <ReadFailed title="Couldn't load alerts" subject="read:alerts" error={error} retrying={isFetching} onRetry={() => void refetch()} />
         ) : (
-          <div className="grid min-h-[40vh] flex-1 place-items-center text-muted-foreground">Loading…</div>
+          <PageSkeleton subject="read:alerts" shape="list" />
         )
       ) : (
         <>
@@ -506,7 +507,7 @@ function HistoryView({
       ) : isError ? (
         <ReadFailed title="Couldn't load alert history" subject="read:alert-history" error={error} retrying={isFetching} onRetry={() => void refetch()} />
       ) : !data ? (
-        <div className="grid min-h-[30vh] place-items-center text-muted-foreground">Loading…</div>
+        <PageSkeleton subject="read:alert-history" shape="list" className="min-h-[30vh]" />
       ) : data.rows.length === 0 ? (
         filtering ? (
           <EmptyState
