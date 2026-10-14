@@ -1,4 +1,4 @@
-import { useTowerApi } from '@/lib/browser-context';
+import { useChangesPushed, useTowerApi } from '@/lib/browser-context';
 import { useQuery } from "@tanstack/react-query";
 import type { WorkPayload } from "@shared/work";
 
@@ -9,16 +9,18 @@ import type { WorkPayload } from "@shared/work";
  * hub every minute, so a 30s poll keeps the board within one snapshot of the
  * truth without ever being the reason it is stale. The last-good payload is
  * kept on a failed poll, so the board ages its age chip rather than blanking.
+ * While the change stream delivers it, it is read only when it changed.
  *
  * `enabled: false` where the surface asking draws nothing without a task source
  * connected, so an installation with none never polls for a board.
  */
 export function useWork({ enabled = true }: { enabled?: boolean } = {}) {
   const { fetchWork } = useTowerApi();
+  const pushed = useChangesPushed();
   return useQuery<WorkPayload>({
     queryKey: ["work"],
     queryFn: ({ signal }) => fetchWork(signal),
-    refetchInterval: 30_000,
+    refetchInterval: pushed ? false : 30_000,
     staleTime: 15_000,
     enabled,
   });

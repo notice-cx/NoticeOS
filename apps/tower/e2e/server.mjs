@@ -18,6 +18,7 @@ const isolation = installIsolationGuard();
 const root = fileURLToPath(new URL("../", import.meta.url));
 const port = checkedPort(Number(process.env.JOURNEY_PORT ?? 4187));
 let dispatch;
+let changes;
 let fixedNow;
 // The ingest modules and the contract package import this repo's own config
 // files as their compiled fallback copies. This process answers every import
@@ -64,6 +65,7 @@ const vite = await createTestViteServer(createServer, {
       res.setHeader("Content-Security-Policy", "connect-src 'self'; form-action 'self'");
       next();
     });
+    server.middlewares.use((req, res, next) => changes ? changes(req, res, next) : next());
     server.middlewares.use((req, res, next) => dispatch ? dispatch(req, res, next) : next());
   } }, react(), tailwindcss()],
   resolve: { alias: { "@": path.join(root, "src"), "@shared": path.join(root, "shared") } },
@@ -161,6 +163,12 @@ dispatch = async (req, res, next) => {
     res.end(`Isolated journey handler failed: ${reason}`);
   }
 };
+// The standalone Tower's change stream, reading the pushed topics through this
+// harness every second so a journey sees a change within its own timeouts.
+{
+  const { changeStreamMiddleware, createChangeWatch, topicReader } = await vite.ssrLoadModule("/vite/change-lane.ts");
+  changes = changeStreamMiddleware(createChangeWatch(topicReader((request) => harness.fetch(request), () => `http://127.0.0.1:${port}`), 1_000));
+}
 await vite.listen();
 console.log(`Isolated journey server: http://127.0.0.1:${port}`);
 let closing;

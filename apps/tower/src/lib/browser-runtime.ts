@@ -7,6 +7,7 @@ import { createOwnerStorage } from './browser-storage';
 import { createHostedTaskTransport } from './hosted-task-transport';
 import { createAppRelease, AppReleaseError } from './app-release';
 import { createReadCopies } from './read-copies';
+import { createChangeStream, NO_CHANGE_STREAM } from './change-stream';
 
 export class BrowserRetiredError extends Error {
   constructor() { super('This browser context is no longer active.'); this.name = 'BrowserRetiredError'; }
@@ -96,12 +97,14 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
   }, origin.origin);
   const preferences = createOwnerStorage(owner, options.storage, assertActive, assertReadable);
   let answers: AnswerQueue<Answer> | undefined;
+  const changes = owner.mode === 'standalone' && page ? createChangeStream(queries, page) : NO_CHANGE_STREAM;
   // Irreversible: keep the mounted view and its cached data while session
   // verification is pending, without allowing any old work to complete.
   function freeze() {
     if (!active) return;
     active = false;
     abort.abort();
+    changes.close();
     answers?.retire();
     void queries.cancelQueries();
   }
@@ -127,7 +130,7 @@ export function createBrowserRuntime<Answer>(identity: unknown, options: Browser
   // unissued answers. Sharing its page ownership also retires a legacy queue.
   answers = createAnswerQueue<Answer>(owner, (answer, keepalive) => sendAnswer(api, answer, keepalive), page);
   if (!active) answers.retire();
-  return Object.freeze({ owner, ownerKey: browserOwnerKey(owner), api, queries, answers, preferences,
+  return Object.freeze({ owner, ownerKey: browserOwnerKey(owner), api, queries, answers, preferences, changes,
     /** Wrap UI completion/error/optimistic rollback callbacks in this lifetime. */
     guard<Args extends unknown[], Result>(callback: (...args: Args) => Result) {
       return (...args: Args): Result | undefined => active ? callback(...args) : undefined;

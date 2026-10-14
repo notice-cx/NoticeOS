@@ -1943,6 +1943,39 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   expect(repeated).toEqual([]);
 });
 
+test("an open page hears of a changed task list and new feed events through the change stream, and reads only what changed", async ({ page }) => {
+  await createAsset(page);
+  expect((await page.request.post("/__journey/task-source")).ok()).toBe(true);
+  const reads: string[] = [];
+  page.on("request", (request) => { const url = new URL(request.url()); if (url.pathname.startsWith("/api/") && url.pathname !== "/api/changes") reads.push(`${url.pathname}${url.search}`); });
+  const stream = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/changes");
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  expect((await stream).headers()["content-type"]).toContain("text/event-stream");
+  await expect(page.locator('[data-inbox-row="jt-review"]')).toHaveCount(1);
+  // Two of the server's one-second checks: what it compares with is set.
+  await page.waitForTimeout(2_500);
+
+  reads.length = 0;
+  expect((await page.request.post("/__journey/more-decisions")).ok()).toBe(true);
+  await expect(page.locator('[data-inbox-row="jt-press"]')).toHaveCount(1, { timeout: 5_000 });
+  // The snapshot, the project's live read, and the sites' read, which carries
+  // each site's task counts; nothing else.
+  expect(new Set(reads)).toEqual(new Set(["/api/work", `/api/tasks?project=${JOURNEY_ASSET}`, "/api/wall"]));
+
+  // New stored events for the live feed, on Home over synthetic sites with
+  // numbers, which draws the feed: its read, and no other, follows.
+  await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
+  await page.goto("/");
+  await expect(page.locator("[data-home-timeline]")).toHaveCount(1);
+  await page.waitForTimeout(2_500);
+  reads.length = 0;
+  const feed = page.waitForResponse((response) => new URL(response.url()).pathname === "/api/wall/feed", { timeout: 5_000 });
+  expect((await page.request.post("/__journey/wall-feed")).ok()).toBe(true);
+  await feed;
+  expect(reads).toContain("/api/wall/feed");
+  expect(reads.filter((read) => !["/api/wall/feed", "/api/wall"].includes(read))).toEqual([]);
+});
+
 test("a new site raises no nightly-report warning anywhere, and the System fraction does not count it", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
