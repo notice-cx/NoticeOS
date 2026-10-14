@@ -37,6 +37,7 @@ import { lucideIcons } from "./vite/lucide-icons";
 import { reconnectPage } from "./vite/reconnect-page";
 import { taskLane } from "./vite/task-lane";
 import { changeLane } from "./vite/change-lane";
+import { compressReplies } from "./vite/compress-replies";
 import { mcpLane } from "./vite/mcp-lane";
 import { installationLane } from "./vite/installation-lane";
 import { scheduledJobsLane } from "./vite/scheduled-jobs-lane";
@@ -174,6 +175,8 @@ export default defineConfig(({ command }) => {
     ws: process.env.NOTICEOS_IMMUTABLE_APP === '1' ? false : undefined,
   },
   plugins: [
+    // Before every middleware that writes a reply (vite/compress-replies.ts).
+    compressReplies(),
     ...(liveSourceRoot ? [liveSource({sourceRoot:liveSourceRoot,codeRoot:path.resolve(rootDir,'../..')})] : []),
     // First, and `enforce: "pre"`: the door mark must be stripped off LAN
     // requests before the Cloudflare plugin dispatches them to the Worker.
