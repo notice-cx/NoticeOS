@@ -14,7 +14,9 @@
 //   "Reconnecting" — never an empty feed that reads as "nothing happened".
 //
 // Read-only on the TV: nothing here is a control. Colour is tokens only, and the
-// glyph carries the kind, so colour is never alone.
+// glyph carries the kind, so colour is never alone. A task line by a known
+// agent draws that agent's mark in the glyph's place, with the glyph as a badge
+// on its corner; a line about a site draws the site's favicon beside its name.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from "react";
 import {
@@ -45,8 +47,10 @@ import {
   type WallFeedPayload,
   type WallFeedTone,
 } from "@shared/wall-feed";
+import { AgentMark } from "@/components/AgentMark";
+import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { useWallFeed } from "@/hooks/useWallFeed";
-import { evidenceParts } from "@/lib/agent-work";
+import { agentMaker, evidenceParts } from "@/lib/agent-work";
 import { cn } from "@/lib/utils";
 
 /** One glyph per kind: the shape says what happened, the tone how it went. */
@@ -70,15 +74,15 @@ const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
 };
 
 /** Tokens only: ink for the kind label and glyph, a soft tile behind
- * the glyph, and the arrival tint. */
-const TONE: Record<WallFeedTone, { ink: string; tile: string; tint: string }> = {
-  healthy: { ink: "text-healthy", tile: "bg-healthy/15", tint: "bg-healthy/10" },
-  error: { ink: "text-error", tile: "bg-error/15", tint: "bg-error/10" },
-  warn: { ink: "text-warn", tile: "bg-warn/15", tint: "bg-warn/10" },
-  info: { ink: "text-info", tile: "bg-info/15", tint: "bg-info/10" },
-  revenue: { ink: "text-financial-revenue", tile: "bg-financial-revenue/15", tint: "bg-financial-revenue/10" },
-  cost: { ink: "text-financial-cost", tile: "bg-financial-cost/15", tint: "bg-financial-cost/10" },
-  neutral: { ink: "text-muted-foreground", tile: "bg-muted-foreground/15", tint: "bg-muted-foreground/10" },
+ * the glyph, a solid badge on an agent's mark, and the arrival tint. */
+const TONE: Record<WallFeedTone, { ink: string; tile: string; badge: string; tint: string }> = {
+  healthy: { ink: "text-healthy", tile: "bg-healthy/15", badge: "bg-healthy", tint: "bg-healthy/10" },
+  error: { ink: "text-error", tile: "bg-error/15", badge: "bg-error", tint: "bg-error/10" },
+  warn: { ink: "text-warn", tile: "bg-warn/15", badge: "bg-warn", tint: "bg-warn/10" },
+  info: { ink: "text-info", tile: "bg-info/15", badge: "bg-info", tint: "bg-info/10" },
+  revenue: { ink: "text-financial-revenue", tile: "bg-financial-revenue/15", badge: "bg-financial-revenue", tint: "bg-financial-revenue/10" },
+  cost: { ink: "text-financial-cost", tile: "bg-financial-cost/15", badge: "bg-financial-cost", tint: "bg-financial-cost/10" },
+  neutral: { ink: "text-muted-foreground", tile: "bg-muted-foreground/15", badge: "bg-muted-foreground", tint: "bg-muted-foreground/10" },
 };
 
 const CLOCK = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
@@ -227,6 +231,7 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
           {visible.map((item, index) => {
             const tone = TONE[item.tone];
             const Glyph = GLYPH[item.kind];
+            const maker = item.who ? agentMaker(item.who, [item.model ?? null]) : null;
             const atMs = Date.parse(item.at);
             const aged = nowMs - atMs > WALL_FEED_AGED_MS;
             const tinted = arrived.has(item.id);
@@ -253,13 +258,37 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
                       className={cn("wall-feed-tint pointer-events-none absolute inset-0 rounded-xl", tone.tint)}
                     />
                   ) : null}
-                  <span className={cn("relative grid size-[1.875rem] place-items-center rounded-lg", tone.tile, tone.ink)}>
-                    <Glyph className="size-4" aria-hidden />
-                  </span>
+                  {maker && item.who ? (
+                    <span className="relative" data-feed-agent={maker}>
+                      <AgentMark name={item.who} models={[item.model ?? null]} size="feed" />
+                      <span
+                        data-feed-badge
+                        className={cn("absolute -bottom-1 -right-1 grid size-4 place-items-center rounded-full text-background ring-2 ring-background", tone.badge)}
+                      >
+                        <Glyph className="size-2.5" aria-hidden />
+                      </span>
+                    </span>
+                  ) : (
+                    <span className={cn("relative grid size-[1.875rem] place-items-center rounded-lg", tone.tile, tone.ink)}>
+                      <Glyph className="size-4" aria-hidden />
+                    </span>
+                  )}
                   <span className="relative flex min-w-0 flex-col gap-0.5">
                     <span className="truncate text-wall-list-label font-semibold" data-feed-label>
                       <span className={cn("uppercase tracking-[0.05em]", tone.ink)}>{item.label}</span>
-                      {item.site ? <span className="text-muted-foreground"> · {item.site}</span> : null}
+                      {item.site ? (
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          {item.asset ? (
+                            <PropertyFavicon
+                              domain={item.asset}
+                              displayName={item.site}
+                              className="mr-1.5 -my-[0.25em] inline-grid size-[1.45em] align-middle text-[0.8em] font-bold text-foreground"
+                            />
+                          ) : null}
+                          {item.site}
+                        </span>
+                      ) : null}
                     </span>
                     <span
                       className={cn("line-clamp-2 text-wall-list-line", aged ? "text-muted-foreground" : "text-foreground")}
