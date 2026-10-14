@@ -6,6 +6,23 @@ import { McpToolError } from './mcp-protocol.mjs';
  * AGENTS.md and config/beads.README.md point here. Lint checks the shape;
  * this is the content. */
 export declare const TASK_QUALITY: readonly string[];
+/** How a session starts, said in every session's instructions. */
+export declare const TASK_START = "NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.";
+/** Said only where the panel tools are offered. */
+export declare const PANEL_RULE = "For a site's search, traffic and product data, use get_panel then query_panel, never a provider's API, and cite the panel version you read.";
+/** The order of task work, in the tools' own names. */
+export declare const TASK_WORKFLOW: readonly string[];
+/** What get_task_guide names in its description and the instructions point at. */
+export declare const TASK_GUIDE_TOOL = "get_task_guide";
+/** The whole guide as Markdown, with a version that changes whenever its
+ * text does. The server's instructions are a part of it (taskInstructions). */
+export declare function taskGuide(panels: boolean): {
+    readonly version: string;
+    readonly guide: string;
+};
+/** Every session's instructions: the guide's start, its panel rule where the
+ * panel tools are offered, and its rules for writing a task. */
+export declare function taskInstructions(panels: boolean): string;
 /** A task tool's failure as the caller may read it. Admission, project
  * selection and command refusals share one answer: which of them refused is
  * not the caller's to learn. A person's decision is named, since the task's

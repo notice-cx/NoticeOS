@@ -498,11 +498,14 @@ file's `receiptsConnectionString`, without which a keyed write answers 503
 
 **One MCP connection.** A hosted or demo deployment answers `POST /api/mcp`
 ([`hosted-mcp.mts`](hosted-mcp.mts)) with every NoticeOS tool:
-`list_workspaces`, the task tools, and the Tower's read-model tools
+`list_workspaces`, `get_task_guide`, the task tools, and the Tower's read-model tools
 ([`read-model-tools.mts`](read-model-tools.mts)). Every tool but
-`list_workspaces` takes a `workspace` argument, checked against the person's
-membership and role on each call ([`mcp-protocol.mts`](mcp-protocol.mts) is
-the transport).
+`list_workspaces` and `get_task_guide` takes a `workspace` argument, checked
+against the person's membership and role on each call
+([`mcp-protocol.mts`](mcp-protocol.mts) is the transport). `get_task_guide`
+returns the task workflow and rules as Markdown with a version; the server's
+instructions are built from the same lines (`taskGuide` and `taskInstructions`
+in [`hosted-task-mcp.mts`](hosted-task-mcp.mts)).
 
 **Agent sign-in** ([`agent-access.mts`](agent-access.mts)). The MCP endpoint
 is an OAuth 2.1 protected resource whose authorization server is

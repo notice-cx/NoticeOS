@@ -8,7 +8,7 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY } from './hosted-task-mcp.mjs';
+import { TASK_QUALITY, TASK_WORKFLOW, taskGuide } from './hosted-task-mcp.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
@@ -98,7 +98,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
-  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
+  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
   for (const name of ['claim_task', 'close_task']) {
@@ -108,7 +108,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   }
   for (const tool of tools) {
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
-    assert.equal(tool.inputSchema.required.includes('workspace'), tool.name !== 'list_workspaces', `${tool.name} names its workspace`);
+    assert.equal(tool.inputSchema.required.includes('workspace'), !['list_workspaces', 'get_task_guide'].includes(tool.name), `${tool.name} names its workspace`);
     assert.doesNotMatch(JSON.stringify(tool), /\bbeads?\b|\bbd\b|\bissue/iu, `${tool.name} speaks in tasks`);
   }
   // No human decision is a tool: write access never answers its own question.
@@ -125,6 +125,31 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   ]) assert.equal((await f.mcp(request)).status, status);
   assert.equal((await (await f.mcp(post({ jsonrpc: '2.0', id: 5, method: 'resources/list' }))).json()).error.code, -32601);
   assert.deepEqual(f.calls, [], 'no transport refusal reaches a task command');
+});
+
+test('get_task_guide returns the whole guide with a version, and the instructions are lines of it', async () => {
+  for (const [profile, panels] of [['hosted', false], ['demo', false]]) {
+    const f = fixture({ profile });
+    const bearer = profile === 'demo' ? null : READER;
+    const instructions = (await (await f.mcp(post({ jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }, { bearer }))).json()).result.instructions;
+    const reply = await call(f, 'get_task_guide', {}, { bearer });
+    const { version, guide } = reply.structuredContent;
+    assert.deepEqual(reply.structuredContent, taskGuide(panels), profile);
+    assert.match(version, /^[0-9a-f]{12}$/u);
+    assert.match(guide, new RegExp(`Guide version ${version}`, 'u'));
+    for (const line of [...TASK_WORKFLOW, ...TASK_QUALITY]) assert.ok(guide.includes(line), line);
+    // One source: every instruction line but the pointer to the guide is a line of the guide.
+    for (const line of instructions.split('\n').filter(line => line && !line.startsWith('get_task_guide returns'))) {
+      assert.ok(guide.includes(line), `${profile}: ${line}`);
+    }
+    assert.match(instructions, /get_task_guide returns these rules/u);
+    assert.match((await call(f, 'get_task_guide', { workspace: A }, { bearer })).content[0].text, /takes none/u);
+    assert.deepEqual(f.calls, [], 'the guide reaches no task command');
+  }
+  // Where the panel tools are offered, so is the rule for reading them.
+  assert.match(taskGuide(true).guide, /## Site data\n\nFor a site's search, traffic and product data, use get_panel then query_panel/u);
+  assert.notEqual(taskGuide(true).version, taskGuide(false).version);
 });
 
 test('list_workspaces shows every workspace with what this connection may do there', async () => {
