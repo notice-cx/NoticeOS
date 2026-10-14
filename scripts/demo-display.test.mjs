@@ -22,6 +22,8 @@ test('saved demo settings select actual nightly totals and a future fictional re
     assert.equal(tower.countdown.label, 'Quarterly portfolio review');
     assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff) + 60 * 86_400_000);
     assert.ok(Date.parse(tower.countdown.targetAt) > Date.parse(cutoff));
+    const types = wallLayoutWidgets(tower.wall.layout).map(widget => widget.type);
+    assert.ok(types.includes('feed') && !types.includes('work'), 'the demo Wall shows the live feed in the work tile\'s place');
     const selection = wallLayoutWidgets(tower.wall.layout).find(widget => widget.type === 'sites').settings.pulseMetrics;
     assert.deepEqual(Object.keys(selection), scenario.assets.filter(asset => !asset.isOs).map(asset => asset.id));
     for (const [asset, metrics] of Object.entries(selection)) {
