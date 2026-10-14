@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { test } from 'node:test';
+
+import { readJobRuns, retryOutcome, runRecordedLane } from './job-runs.mjs';
 
 import { hostLanes } from './os-up.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
@@ -8,6 +13,7 @@ import {
   HOST_CATCHUP_LANES,
   STARTUP_CATCHUP_POLICIES,
   readCrons,
+  retryFailedFiring,
   scheduledUrl,
   startupCatchupPlan,
   stopScheduler,
@@ -72,4 +78,39 @@ test('a tracked interval never fires after the scheduler stops', async () => {
   stopScheduler();
   await new Promise((resolve) => setTimeout(resolve, 80));
   assert.equal(fired, 0);
+});
+
+test('a failed weekly DataForSEO firing is fired once more ten minutes later, and both firings are recorded', async (t) => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'scheduler-retry-'));
+  t.after(() => fs.rm(dir, { recursive: true, force: true }));
+  const file = path.join(dir, 'job-runs.jsonl');
+  const job = 'cron 45 12 * * 1';
+  // The door answers 500 while the app restarts, then the sweep runs.
+  const answers = [{ outcome: 'failed', detail: 'HTTP 500' }, { outcome: 'ran', detail: 'HTTP 200' }];
+  const record = { file, emit: () => {}, ship: async () => {} };
+  const fire = (outcomeOf) => runRecordedLane(job, async () => answers.shift(), outcomeOf, record);
+
+  const scheduled = [];
+  let retried = null;
+  const first = await fire((fired) => fired);
+  retryFailedFiring(job, first, {
+    retry: () => (retried = fire(retryOutcome((fired) => fired))),
+    schedule: (fn, ms) => { scheduled.push({ fn, ms }); return setTimeout(() => {}, 0); },
+  });
+  assert.equal(scheduled.length, 1);
+  assert.equal(scheduled[0].ms, 10 * 60_000);
+  scheduled[0].fn();
+  await retried;
+
+  const records = await readJobRuns(file);
+  assert.deepEqual(records.map((entry) => entry.outcome), ['failed', 'ran']);
+  assert.match(records[1].detail, /^retry after a failed firing/);
+});
+
+test('only a failed firing of a lane that earns a retry schedules one', () => {
+  const schedule = () => assert.fail('nothing should be scheduled');
+  assert.equal(retryFailedFiring('cron 45 12 * * 1', { outcome: 'ran' }, { retry: () => {}, schedule }), null);
+  assert.equal(retryFailedFiring('cron 45 12 * * 1', null, { retry: () => {}, schedule }), null);
+  // A daily lane's failure waits for its next regular tick.
+  assert.equal(retryFailedFiring('cron 15 12 * * *', { outcome: 'failed' }, { retry: () => {}, schedule }), null);
 });
