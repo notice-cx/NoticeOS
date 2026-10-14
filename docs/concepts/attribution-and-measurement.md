@@ -40,6 +40,8 @@ On the final check day, NoticeOS compares the days after the change with the bas
 
 The checks before the final one are interim readings. They show the numbers and close nothing.
 
+![A line chart of daily Search Console clicks: 28 baseline days, titles rewritten on day 0, interim readings on days 7 and 14, and a final reading on day 28 above the +5% threshold set in advance, which closes the check as Improvement confirmed.](../images/outcome-check.svg)
+
 The verdict is posted as a comment on the task you named, so the result is recorded on the task that caused the change.
 
 ## What a measurement window is
