@@ -147,8 +147,8 @@ describe("the unmeasured rule", () => {
   });
 
   it("adds up and names only the unused parts the report measured", () => {
-    expect(unusedParts({ unused_files: 9, unused_exports: 28 })).toBe("9 files, 28 exports");
-    expect(unusedParts({ unused_files: 1, unused_exports: 1, unused_dependencies: 3 })).toBe("1 file, 1 export, 3 packages");
+    expect(unusedParts({ unused_files: 9, unused_exports: 28 })).toBe("9 files, 28 shared pieces");
+    expect(unusedParts({ unused_files: 1, unused_exports: 1, unused_dependencies: 3 })).toBe("1 file, 1 shared piece, 3 packages");
     expect(unusedParts({})).toBeNull();
     const widgets = codebaseWidgets(codebaseSlice(ASSET, TODAY));
     expect(widgets.find((widget) => widget.key === "unused")?.value).toBe(53);

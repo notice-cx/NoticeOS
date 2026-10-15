@@ -2419,7 +2419,7 @@ test("the Codebase tab answers how the code changed, and before a first report s
   await expect(page.locator("[data-codebase-setup]")).toHaveCount(0);
   await expect(page.locator("[data-kpi]")).toHaveCount(5);
   await expect(page.locator('[data-kpi="Lines of code"]')).toContainText("48,210");
-  await expect(page.locator('[data-kpi="Unused code"]')).toContainText("9 files, 44 exports");
+  await expect(page.locator('[data-kpi="Unused code"]')).toContainText("9 files, 44 shared pieces");
   await expect(page.locator("[data-codebase-chart] [data-hero-chart]")).toHaveCount(1);
   await expect(page.locator("[data-codebase-findings]").getByRole("button", { name: "Make a task for src/a.ts and src/b.ts" })).toBeVisible();
   await assertNoPageOverflow(page);

@@ -556,7 +556,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 </span>
 <span class="text-xs text-muted-foreground">No change in 28 days</span>
-<span class="text-xs tabular-nums text-muted-foreground">9 files, 44 exports</span>
+<span class="text-xs tabular-nums text-muted-foreground">9 files, 44 shared pieces</span>
 <button type="button" aria-label="About Unused code" aria-expanded="false" data-info-tooltip-trigger="true" class="inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm text-xs font-normal normal-case tracking-normal text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring max-sm:min-h-11 max-sm:min-w-11 absolute end-1 top-1">
 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info size-3.5" aria-hidden="true">
 <circle cx="12" cy="12" r="10">
@@ -956,7 +956,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 <span class="text-sm text-foreground break-words line-clamp-2 max-sm:line-clamp-none">
 <span class="font-mono">helper</span>
 </span>
-<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Export in src/u.ts</span>
+<span class="text-xs text-muted-foreground max-sm:whitespace-normal max-sm:wrap-anywhere truncate">Shared piece in src/u.ts</span>
 </span>
 </div>
 </div>

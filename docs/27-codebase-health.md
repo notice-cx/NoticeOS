@@ -151,7 +151,7 @@ with no `..` segment, backslash or control character. Every list is bounded
 (20 repeated blocks of at most 10 files, 20 functions, 50 unused items, 10
 largest files, 12 languages) and the body is at most 256 KiB.
 
-The store needs to show where to look, not what the code says. Keeping code
+Findings name where to look and hold none of the code itself. Keeping code
 out of the store means a report from a private repository puts no source in the
 installation's database, its backups or the demo, and a report's size stays
 bounded however large the repository is.
@@ -170,10 +170,10 @@ report ([doc 11](11-integrations.md#credential-naming--the-asset_token-conventio
 | Central pull | the installation, on a schedule | not built |
 
 The Tower does not receive reports at its own address. A standalone installation
-answers `POST /api/pulse` and `POST /api/codebase-report` only on the app
+receives `POST /api/pulse` and `POST /api/codebase-report` only on the app
 container's loopback, so a GitHub Action can reach it only when the installation
-publishes an ingest address of its own; otherwise the local command is the way
-in. The setup on the tab therefore reads the address from a repository secret
+publishes an ingest address of its own; otherwise the local command sends the
+report. The setup on the tab therefore reads the address from a repository secret
 instead of printing the Tower's address.
 
 ## Central pull

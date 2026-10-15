@@ -72,7 +72,7 @@ const measure = (key: CodebaseMeasureKey) => (measures: CodebaseMeasures) => mea
 
 const UNUSED_KEYS = ["unused_files", "unused_exports", "unused_dependencies"] as const;
 
-/** Unused files, exports and packages added together: whichever of the three
+/** Unused files, shared pieces and packages added together: whichever of the three
  * the report measured. None measured is unmeasured, never zero. */
 function unusedTotal(measures: CodebaseMeasures): number | null {
   const parts = UNUSED_KEYS.map((key) => measures[key]).filter((value): value is number => value !== undefined);
@@ -92,7 +92,7 @@ export const WIDGETS: readonly WidgetSpec[] = [
   },
   {
     key: "unused", label: "Unused code",
-    meaning: "Files, exports and packages nothing uses. Each still needs upkeep.",
+    meaning: "Files, shared pieces and packages nothing uses. Each still needs upkeep.",
     unit: "count", improvement: "down", keys: UNUSED_KEYS, pick: unusedTotal,
   },
   {
@@ -291,7 +291,7 @@ export function codebaseWidgets(slice: CodebaseSlice): CodebaseWidget[] {
 export function unusedParts(measures: CodebaseMeasures): string | null {
   const nouns: Record<(typeof UNUSED_KEYS)[number], [string, string]> = {
     unused_files: ["file", "files"],
-    unused_exports: ["export", "exports"],
+    unused_exports: ["shared piece", "shared pieces"],
     unused_dependencies: ["package", "packages"],
   };
   const parts = UNUSED_KEYS.flatMap((key) => {

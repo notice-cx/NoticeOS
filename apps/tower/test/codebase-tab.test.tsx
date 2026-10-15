@@ -60,7 +60,7 @@ describe("Codebase tab with reports", () => {
     expect(lines.textContent).toContain("48,210");
     expect(within(lines).getByLabelText("5.2% up vs Jun 7, 28 days before")).toBeInTheDocument();
     const unused = container.querySelector<HTMLElement>('[data-kpi="Unused code"]')!;
-    expect(unused.textContent).toContain("9 files, 44 exports");
+    expect(unused.textContent).toContain("9 files, 44 shared pieces");
     expect(container.querySelector('[data-kpi="Test coverage by size"]')!.textContent).toContain("1.0×the code");
     fireEvent.click(within(container.querySelector<HTMLElement>('[data-kpi="Repeated code"]')!).getByRole("button", { name: "About Repeated code" }));
     expect(await screen.findByText("Code copied in more than one place. Each copy needs fixing.")).toBeInTheDocument();

@@ -332,7 +332,7 @@ function Findings({ slice, report, assetId }: { slice: CodebaseSlice; report: Co
               key={index}
               glyph="△"
               title={<span className="font-mono">{item.kind === "file" ? item.path : item.name}</span>}
-              caption={item.kind === "file" ? "File" : item.kind === "export" ? `Export in ${item.path}` : "Package"}
+              caption={item.kind === "file" ? "File" : item.kind === "export" ? `Shared piece in ${item.path}` : "Package"}
               rowActions={task(unusedTaskTitle(item), item.kind === "file" ? item.path : item.name)}
               marks={{ "data-codebase-unused": item.kind }}
             />
