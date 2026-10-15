@@ -230,6 +230,7 @@ export const ASSET_PAYLOAD_INVENTORY = {
   reclamation: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "ReclamationSection" },
   hygiene: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "SiteHealthSection" },
   fetchFailures: { class: "supporting-evidence", placement: "progressive-disclosure", destination: "FetchFailuresPanel" },
+  codebase: { class: "material-current", placement: "primary-content", destination: "CodebaseTab" },
   integrations: { class: "material-current", placement: "first-viewport", destination: "AssetHeader / DataSourceIcons; SourcesTab source rows" },
   ga4Config: { class: "configuration", placement: "progressive-disclosure", destination: "Sources tab GA4 lane card" },
   panelReview: { class: "material-current", placement: "primary-content", destination: "ActivityTab / PanelReviewLine" },

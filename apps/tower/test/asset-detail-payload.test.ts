@@ -28,6 +28,7 @@ import { storeChange, storeChanges, storeWatchWindow } from "./change-rows";
 import { bookLedger, bookedNumber, writeMediavine } from "./money";
 
 import { addSites } from "./sites";
+import { storeCodebaseReports, weeklyStoredReports } from "./codebase-fixture";
 import {
   insertDataForSeoCollection,
   panelReviewBead,
@@ -3224,6 +3225,7 @@ const SECTION_FIELD_SPEC: Record<string, string[]> = {
   reclamation: ["reclamation"],
   hygiene: ["hygiene"],
   fetchFailures: ["fetchFailures"],
+  codebase: ["codebase"],
 };
 
 /** Something on every section, so "present" and "absent" both mean something. */
@@ -3246,6 +3248,7 @@ async function seedEverySection(ctx: TestStore) {
   await insertPullFailure(ctx, "meadow.example", null, [
     { at: "2026-07-05T02:30:00.000Z", status: 503, providerError: "unconfigured", error: "503 unconfigured — set CF_ACCOUNT_ID" },
   ]);
+  await storeCodebaseReports(ctx.call, weeklyStoredReports("meadow.example", "2026-07-05", 3));
 }
 
 /** The money sections of `seedEverySection` (the ledger and the daily revenue,
@@ -3409,7 +3412,7 @@ describe("buildAssetDetailView — one read per tab", () => {
     }
     const response = alerts as AssetDetailResponse;
     expect(viewCovers(response, "tasks")).toBe(true);
-    for (const other of ["overview", "growth", "financials", "search", "activity", "sources", "settings"] as const) {
+    for (const other of ["overview", "growth", "financials", "search", "codebase", "activity", "sources", "settings"] as const) {
       expect(viewCovers(response, other), other).toBe(false);
     }
     const overview = (await buildAssetDetailView(ctx.call, "meadow.example", DEPS, "overview"))! as AssetDetailResponse;

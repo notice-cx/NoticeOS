@@ -28,6 +28,7 @@ import {
   ActivityTab,
   AlertsTab,
   AssetSettingsPanel,
+  CodebaseTab,
   FinancialsTab,
   GrowthTab,
   OverviewTab,
@@ -237,6 +238,8 @@ function tabContent(tab: AssetTab, data: AssetDetailResponse, handlers: TabHandl
           <SearchTab data={data} nowMs={nowMs} onWatch={onWatch} />
         </RecommendationEvidenceProvider>
       ) : null;
+    case "codebase":
+      return viewCovers(data, "codebase") ? <CodebaseTab data={data} nowMs={nowMs} /> : null;
     case "alerts":
       return viewCovers(data, "alerts") ? <AlertsTab data={data} nowMs={nowMs} /> : null;
     case "tasks":

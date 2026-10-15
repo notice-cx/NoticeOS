@@ -19,6 +19,7 @@ export const ASSET_DETAIL_VIEWS = [
   "growth",
   "financials",
   "search",
+  "codebase",
   "alerts",
   "tasks",
   "activity",
@@ -57,6 +58,8 @@ interface SectionFields {
   hygiene: Pick<AssetDetailPayload, "hygiene">;
   /** The site's recent failed nightly-report fetches. */
   fetchFailures: Pick<AssetDetailPayload, "fetchFailures">;
+  /** The codebase reports' history and the newest report. */
+  codebase: Pick<AssetDetailPayload, "codebase">;
 }
 
 export type AssetDetailSection = keyof SectionFields;
@@ -69,6 +72,9 @@ export const ASSET_VIEW_SECTIONS = {
   // `performance`: until a site tracks terms, its Search tab leads with its
   // search clicks and impressions.
   search: ["performance", "executive", "decisions", "tasks", "annotations"],
+  // `performance` for the visitors the code is set beside, `annotations` for
+  // the deploys marked on its chart.
+  codebase: ["codebase", "performance", "annotations"],
   alerts: [],
   tasks: [],
   activity: ["annotations", "watchHistory", "reclamation", "tasks"],
@@ -91,6 +97,7 @@ export const ASSET_SECTION_FIELDS: { [S in AssetDetailSection]: readonly (keyof 
   reclamation: ["reclamation"],
   hygiene: ["hygiene"],
   fetchFailures: ["fetchFailures"],
+  codebase: ["codebase"],
 };
 
 /** Every section: what the whole page carries. */

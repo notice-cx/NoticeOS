@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { PulseEnvelope, evaluatePulse } from '@noticeos/contract';
+import { DEFAULT_CODEBASE_RULE_THRESHOLDS, PulseEnvelope, evaluateCodebaseRules, evaluatePulse, pickComparisonReport } from '@noticeos/contract';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo, demoPulseVerdicts } from '../../../scripts/demo-store.mjs';
 import { buildFinancialsPayload } from '../worker/financials-payload';
@@ -24,7 +24,7 @@ const detail: AssetDetailDeps = {
 let fixture: TestStore;
 beforeAll(async () => {
   fixture = await createTestStore({ scope: 'suite' });
-  await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
 }, 30_000);
 afterAll(async () => {
   await fixture?.close();
@@ -109,7 +109,7 @@ it('pulse validation and the unchanged seasonal evaluator explain the current fa
 
 it('a second seed refuses and leaves every previously seeded fact unchanged', async () => {
   const before = await fixture.call.read(tx => tx.query('SELECT count(*) AS count, sum(value) AS total FROM noticeos.signal_observations'));
-  await expect(fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }))).rejects.toThrow('already holding data');
+  await expect(fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }))).rejects.toThrow('already holding data');
   expect(await fixture.call.read(tx => tx.query('SELECT count(*) AS count, sum(value) AS total FROM noticeos.signal_observations'))).toEqual(before);
   expect(demoScenarioHash(generateDemoScenario(INPUT))).toBe(demoScenarioHash(scenario));
 });
@@ -117,7 +117,7 @@ it('a second seed refuses and leaves every previously seeded fact unchanged', as
 it.each(['2026-10-01T07:00:00.000Z', '2026-10-16T12:00:00.000Z'])('current recorded income agrees across Home, Wall and Financials at %s', async cutoff => {
   const own = await createTestStore();
   const facts = generateDemoScenario({ ...INPUT, cutoff });
-  await own.call.write(tx => fillDemo(tx, facts, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await own.call.write(tx => fillDemo(tx, facts, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
   const now = new Date(cutoff);
   const period = cutoff.slice(0, 7);
   const income = facts.ledger.filter(row => row.period === period && row.kind === 'revenue');

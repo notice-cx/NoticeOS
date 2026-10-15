@@ -122,6 +122,7 @@ import { InlineSaveState } from "@/components/InlineSaveState";
 import { SavesPaused } from "@/components/SavesPaused";
 import { FunnelListEditor } from "@/components/FunnelListEditor";
 import { ConnectBlockers } from "@/components/ConnectBlockers";
+import { CopyCommand } from "@/components/CopyCommand";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { PageAnswer } from "@/components/surface/PageAnswer";
 import { FinishLine } from "@/components/surface/FinishLine";
@@ -4631,6 +4632,13 @@ export function KitchenSinkRoute() {
                 the top of the connect panel's last demo above. */}
             <div className="flex w-full flex-col gap-2">
               <ConnectBlockers blockers={connectBlockers({ blockers: ["key-invalid"], keyPresent: true })} />
+              {/* The block form: a file pasted whole, its lines kept. */}
+              <CopyCommand
+                block
+                label="the workflow file"
+                mark={{ "data-demo-copy-block": "" }}
+                command={"name: Codebase report\non:\n  push:\n    branches: [main]\njobs:\n  measure:\n    runs-on: ubuntu-latest"}
+              />
             </div>
           </Section>
 

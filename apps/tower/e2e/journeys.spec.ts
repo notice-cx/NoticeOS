@@ -2395,6 +2395,43 @@ for (const minutesAgo of [10, 40]) {
   });
 }
 
+// A site's Codebase tab, from reports stored as the ingest stores them, and
+// before its first report the ways to send one, filled in for this site.
+test("the Codebase tab answers how the code changed, and before a first report shows how to send one", async ({ page, baseURL }, testInfo) => {
+  await createAsset(page);
+  await page.goto(`/assets/${JOURNEY_ASSET}/codebase`);
+  const answer = page.locator("[data-codebase-answer] h2");
+  await expect(answer).toHaveText("The code has not been measured yet.");
+  const setup = page.locator("[data-codebase-setup]");
+  await expect(setup).toBeVisible();
+  await expect(setup.locator("[data-codebase-workflow]")).toContainText(`asset: "${JOURNEY_ASSET}"`);
+  await expect(setup.locator("[data-codebase-workflow]")).toContainText(`ingest-url: "${baseURL}/api/codebase-report"`);
+  await expect(setup.getByRole("button", { name: "Central pull · coming later" })).toBeDisabled();
+  await setup.getByRole("button", { name: "Local command", exact: true }).click();
+  await expect(setup.locator("[data-codebase-command]")).toHaveText(`pnpm os:codebase-report -- --asset ${JOURNEY_ASSET} --repo /path/to/your/code`);
+  await assertNoPageOverflow(page);
+  await testInfo.attach("codebase-setup", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
+
+  const seeded = await page.request.post("/__journey/codebase-report");
+  expect(seeded.ok(), await seeded.text()).toBe(true);
+  await page.reload();
+  await expect(answer).toHaveText("The code grew 5.2% in 28 days.");
+  await expect(page.locator("[data-codebase-setup]")).toHaveCount(0);
+  await expect(page.locator("[data-kpi]")).toHaveCount(5);
+  await expect(page.locator('[data-kpi="Lines of code"]')).toContainText("48,210");
+  await expect(page.locator('[data-kpi="Unused code"]')).toContainText("9 files, 44 exports");
+  await expect(page.locator("[data-codebase-chart] [data-hero-chart]")).toHaveCount(1);
+  await expect(page.locator("[data-codebase-findings]").getByRole("button", { name: "Make a task for src/a.ts and src/b.ts" })).toBeVisible();
+  await assertNoPageOverflow(page);
+  await testInfo.attach("codebase-report", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
+  await page.evaluate(() => localStorage.setItem("noticeos:theme", "light"));
+  await page.reload();
+  await expect(page.locator("html")).toHaveClass(/light/);
+  await expect(answer).toHaveText("The code grew 5.2% in 28 days.");
+  await assertNoPageOverflow(page);
+  await testInfo.attach("codebase-report-light", { body: await page.screenshot({ fullPage: true, animations: "disabled" }), contentType: "image/png" });
+});
+
 // Uptime needs no account and no connect step. The OS checks each site's home
 // page itself every hour (the production ingest lane, over the fixture store;
 // only the site's answer is the fixture's). The Data sources row reads Up

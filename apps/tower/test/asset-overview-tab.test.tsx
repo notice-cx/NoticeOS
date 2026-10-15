@@ -236,6 +236,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     reclamation: null,
     hygiene: null,
     fetchFailures: [],
+    codebase: { history: [], latest: null },
     integrations: {
       sources: [],
       lanes: [],

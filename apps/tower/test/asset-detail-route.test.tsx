@@ -413,6 +413,7 @@ function payload(over: Partial<AssetDetailPayload> = {}): AssetDetailPayload {
     reclamation: null,
     hygiene: null,
     fetchFailures: [],
+    codebase: { history: [], latest: null },
     integrations: {
       sources: [],
       lanes: [],
@@ -1183,6 +1184,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       "Growth",
       "Money",
       "Search",
+      "Codebase",
       "Alerts",
       "Tasks",
       "Activity",
@@ -1194,6 +1196,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       "/assets/meadow.example/growth",
       "/assets/meadow.example/financials",
       "/assets/meadow.example/search",
+      "/assets/meadow.example/codebase",
       "/assets/meadow.example/alerts",
       "/assets/meadow.example/tasks",
       "/assets/meadow.example/activity",
@@ -1210,9 +1213,11 @@ describe("AssetDetailRoute — executive page identity", () => {
       "false",
       "false",
       "false",
+      "false",
     ]);
     expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual([
       "0",
+      "-1",
       "-1",
       "-1",
       "-1",
@@ -1356,8 +1361,9 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs[1]!.textContent).toBe("Growth");
     expect(tabs[2]!.textContent).toBe("Money");
     expect(tabs[3]!.textContent).toBe("Search");
-    expect(tabs[5]!.textContent).toBe("Tasks");
-    expect(tabs[6]!.textContent).toBe("Activity");
+    expect(tabs[4]!.textContent).toBe("Codebase");
+    expect(tabs[6]!.textContent).toBe("Tasks");
+    expect(tabs[7]!.textContent).toBe("Activity");
   });
 
   it.each([undefined, null, "not-a-date"])("never shows a provider's source Working in the header before its reads answer (observation: %s)", async (observedAt) => {

@@ -22,6 +22,9 @@ const financials = lazyPart(() =>
 const search = lazyPart(() =>
   import("@/routes/asset-detail/SearchTab").then((module) => module.SearchTab),
 );
+const codebase = lazyPart(() =>
+  import("@/routes/asset-detail/CodebaseTab").then((module) => module.CodebaseTab),
+);
 const alerts = lazyPart(() =>
   import("@/routes/asset-detail/AlertsTab").then((module) => module.AlertsTab),
 );
@@ -42,6 +45,7 @@ export const OverviewTab = overview.Component;
 export const GrowthTab = growth.Component;
 export const FinancialsTab = financials.Component;
 export const SearchTab = search.Component;
+export const CodebaseTab = codebase.Component;
 export const AlertsTab = alerts.Component;
 export const TasksTab = tasks.Component;
 export const ActivityTab = activity.Component;
@@ -53,6 +57,7 @@ const PRELOAD: Record<AssetTab, () => Promise<boolean>> = {
   growth: growth.preload,
   financials: financials.preload,
   search: search.preload,
+  codebase: codebase.preload,
   alerts: alerts.preload,
   tasks: tasks.preload,
   activity: activity.preload,

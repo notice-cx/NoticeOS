@@ -525,8 +525,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "CopyCommand",
     file: "components/CopyCommand.tsx",
     purpose:
-      "One command, verbatim, with Copy beside it: the press for a state only the operator's own terminal clears (the credentials table's migration, a bootstrap key, the legacy-env import).",
-    variants: ["a migration command", "a key command beside its binding", "copied"],
+      "One command, verbatim, with Copy beside it: the press for a state only the operator's own terminal clears (the credentials table's migration, a bootstrap key, the legacy-env import). `block` keeps a file's own lines with Copy above it, for a file pasted whole (the codebase report's workflow).",
+    variants: ["a migration command", "a key command beside its binding", "copied", "a file, as a block"],
   },
   {
     name: "ConnectBlockers",

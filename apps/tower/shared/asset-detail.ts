@@ -23,6 +23,7 @@ import type { AssetIntegrations } from "./integrations";
 import type { JsonValue } from "./changeset";
 import type { WatchSeriesHistory } from "./watch-windows";
 import type { WorkItem } from "./work";
+import type { CodebaseSlice } from "./codebase";
 import type { WatchScopeInput } from "@noticeos/contract/create-watch-window";
 import type { SearchMarket } from "@noticeos/contract/dataforseo";
 import { LIFECYCLE_ANNOTATION_KIND, LIFECYCLE_REF_PREFIX } from "@noticeos/contract/configuration";
@@ -1529,6 +1530,9 @@ export interface AssetDetailPayload {
   /** Latest exact-family archive attempts, separate from the saved analysis's
    * generation clock. Missing on older payloads means unavailable. */
   recommendationEvidence?: RecommendationSourceEvidence | null;
+  /** The site's codebase reports: the last 90 days of measures and the newest
+   * report in full (`worker/codebase-history.ts`). */
+  codebase: CodebaseSlice;
   /** The 30 newest nightly reports, per metric. A site's stock totals are
    * `counters` below, resolved to their freshest lane. */
   metrics: PulseMetric[];
