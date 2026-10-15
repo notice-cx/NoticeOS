@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
-import { demoAdPayment, demoAdRevenueMinor, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
 const DAY = 86_400_000;
@@ -222,6 +222,10 @@ export function createDemoActivity(input) {
         }
         return reports;
     };
+    // Each reporting site keeps its weekly measurement day after the last
+    // report the seed stored; the site still setting up sends none.
+    const codebaseSites = scenario.assets.filter(asset => demoCodebaseReporting(asset)).map(asset => ({ asset, weekday: demoCodebaseWeekday(asset),
+        after: scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)?.date ?? referenceDate }));
     const day = (date) => {
         const ordinal = dateNumber(date) - anchor;
         if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor)
@@ -323,7 +327,10 @@ export function createDemoActivity(input) {
         // Every Monday, each site's search report: this week's queries against
         // last week's, from the same daily impressions the signals carry.
         const reports = dayIndex >= 0 && dayIndex % 7 === 0 ? searchReports(date) : [];
-        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports };
+        const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+        const codebase = codebaseSites.filter(site => site.weekday === weekday && date > site.after)
+            .map(site => demoCodebaseEnvelope(seed, site.asset, referenceDate, date));
+        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports, codebase };
     };
     /** Today so far: each provisional count is the finished day's count scaled
      * by the share of the day already counted, so the quarter-hour refreshes

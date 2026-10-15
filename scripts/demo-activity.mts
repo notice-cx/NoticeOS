@@ -3,8 +3,8 @@
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
-import { demoAdPayment, demoAdRevenueMinor, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle,
-  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS, type DemoScenario } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle,
+  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS, type DemoCodebaseEnvelope, type DemoScenario } from './demo-scenario.mjs';
 
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -178,6 +178,8 @@ export interface DemoActivityDay {
   tasks: DemoTaskIntention[];
   changes: DemoChange[];
   reports: DemoSearchReport[];
+  /** Each reporting site's weekly codebase report, sent to `POST /api/codebase-report`. */
+  codebase: DemoCodebaseEnvelope[];
 }
 function refuse(): never { throw new Error('Demo activity requires its fixed scenario and a bounded dated interval.'); }
 function dateNumber(value: unknown): number {
@@ -366,6 +368,10 @@ export function createDemoActivity(input: DemoScenario): {
     }
     return reports;
   };
+  // Each reporting site keeps its weekly measurement day after the last
+  // report the seed stored; the site still setting up sends none.
+  const codebaseSites = scenario.assets.filter(asset => demoCodebaseReporting(asset)).map(asset => ({ asset, weekday: demoCodebaseWeekday(asset),
+    after: scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)?.date ?? referenceDate }));
   const day = (date: string): DemoActivityDay => {
     const ordinal = dateNumber(date) - anchor;
     if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor) refuse();
@@ -465,7 +471,10 @@ export function createDemoActivity(input: DemoScenario): {
     // Every Monday, each site's search report: this week's queries against
     // last week's, from the same daily impressions the signals carry.
     const reports = dayIndex >= 0 && dayIndex % 7 === 0 ? searchReports(date) : [];
-    return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports };
+    const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
+    const codebase = codebaseSites.filter(site => site.weekday === weekday && date > site.after)
+      .map(site => demoCodebaseEnvelope(seed, site.asset, referenceDate, date));
+    return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports, codebase };
   };
   /** Today so far: each provisional count is the finished day's count scaled
    * by the share of the day already counted, so the quarter-hour refreshes

@@ -5,7 +5,9 @@ import path from 'node:path';
 import test from 'node:test';
 import { createDemoInstallation, demoTargetRefusal, evaluateDemoWatch, fillDemo, main, markDemoDevelopment, recordDemoOsObservation, REQUIRED_DEMO_ENTRIES, verifyDemoRelease } from './demo-seed.mjs';
 import { runCommand } from './run-command.mjs';
-import { generateDemoScenario } from './demo-scenario.mjs';
+import { generateDemoScenario, demoCodebaseReports } from './demo-scenario.mjs';
+import { demoCodebaseVerdicts } from './demo-store.mjs';
+import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
 const root = path.resolve(import.meta.dirname, '..');
 const scenario = () => generateDemoScenario({ seed: 'refusal-proof', cutoff: '2025-10-16T12:00:00.000Z', release: '1'.repeat(40) });
@@ -180,19 +182,65 @@ test('a database without the development mark or with any held data receives no 
   for (const mark of [null, 'installation']) {
     const sent = [];
     const tx = { workspaceId: '11111111-1111-4111-8111-111111111111', query: async sql => { sent.push(sql); return [{ profile: mark }]; }, execute: async () => { throw new Error('unexpected insert'); } };
-    await assert.rejects(fillDemo(tx, scenario(), { evaluatePulse: () => [] }), /not marked for development/u);
+    await assert.rejects(fillDemo(tx, scenario(), { evaluatePulse: () => [], codebaseRules }), /not marked for development/u);
     assert.equal(sent.length, 2);
   }
-  for (const heldTable of ['assets', 'pulses', 'ledger_entries', 'integration_connections']) {
+  for (const heldTable of ['assets', 'pulses', 'codebase_reports', 'ledger_entries', 'integration_connections']) {
     let inserted = false;
     const tx = { workspaceId: '11111111-1111-4111-8111-111111111111', query: async sql => {
       if (sql.includes('current_setting')) return [{ profile: 'development' }];
       if (sql.includes('count(*)')) return [Object.fromEntries([...sql.matchAll(/AS (\w+)/gu)].map(([, table]) => [table, table === heldTable ? 1 : 0]))];
       return [];
     }, execute: async () => { inserted = true; } };
-    await assert.rejects(fillDemo(tx, scenario(), { evaluatePulse: () => [] }), /already holding data/u);
+    await assert.rejects(fillDemo(tx, scenario(), { evaluatePulse: () => [], codebaseRules }), /already holding data/u);
     assert.equal(inserted, false);
   }
+});
+
+test('the seed stores every codebase report as revision 1 and the codebase flags its rules raised', async () => {
+  const facts = scenario();
+  const executed = [];
+  const returning = { run_seq: 1n, series_id: 1n, entry_id: 1n, pulse_id: 1n };
+  let reportNumber = 40;
+  const tx = { workspaceId: facts.manifest.workspaceId,
+    query: async (sql, args) => {
+      if (sql.includes('current_setting')) return [{ profile: 'development' }];
+      if (sql.includes('count(*)')) return [Object.fromEntries([...sql.matchAll(/AS (\w+)/gu)].map(([, table]) => [table, 0]))];
+      if (sql.includes('INSERT INTO noticeos.codebase_reports')) { executed.push({ sql, args }); return [{ report_number: String(reportNumber += 1) }]; }
+      const key = Object.keys(returning).find(name => sql.includes(`RETURNING ${name}`));
+      return key ? [{ [key]: returning[key] }] : [];
+    },
+    execute: async (sql, args) => { executed.push({ sql, args }); } };
+  await assert.rejects(fillDemo(tx, facts, { evaluatePulse: () => [] }), /released codebase rules are required/u);
+  assert.equal(executed.length, 0);
+  const counts = await fillDemo(tx, facts, { evaluatePulse: () => [], codebaseRules });
+  const reports = executed.filter(({ sql }) => sql.includes('INSERT INTO noticeos.codebase_reports'));
+  const seeded = demoCodebaseReports(facts);
+  assert.equal(reports.length, seeded.length);
+  assert.equal(counts.codebaseReports, seeded.length);
+  assert.match(reports[0].sql, /\(workspace_id, asset_id, report_date, revision, commit, ref, generated_at, received_at, envelope\)\s+VALUES \(\$1::uuid, \$2, \$3::date, 1, .*RETURNING report_number/su);
+  reports.forEach(({ args }, i) => {
+    const report = seeded[i];
+    const [workspace, asset, date, commit, ref, generatedAt, receivedAt, envelope] = args;
+    assert.deepEqual([workspace, asset, date, commit, ref, generatedAt, receivedAt], [facts.manifest.workspaceId, report.asset, report.date, report.envelope.repository.commit, 'main', report.envelope.generatedAt, report.receivedAt]);
+    assert.deepEqual(JSON.parse(envelope), report.envelope);
+    assert.equal(date, generatedAt.slice(0, 10));
+    assert.ok(receivedAt > generatedAt);
+  });
+  // The flags carry the numbers the store handed the reports.
+  const expected = demoCodebaseVerdicts(seeded, codebaseRules, seeded.map((_, i) => 41 + i));
+  assert.ok(expected.every(flag => flag.inputs.report.reportNumber > 40));
+  const flags = executed.filter(({ sql, args }) => sql.includes('INSERT INTO noticeos.flags') && String(args[7]).startsWith('codebase-'));
+  assert.equal(flags.length, expected.length);
+  assert.equal(counts.codebaseFlags, expected.length);
+  assert.ok(expected.length > 0 && expected.some(flag => flag.resolvedAt === null) && expected.some(flag => flag.resolvedAt !== null));
+  flags.forEach(({ args }, i) => {
+    const flag = expected[i];
+    assert.deepEqual(args, [facts.manifest.workspaceId, flag.asset, flag.firedAt, flag.severity, flag.kind, flag.metric, flag.message, flag.ruleId, JSON.stringify(flag.inputs), flag.resolvedAt]);
+  });
+  // No report of the site still setting up, and the cleanup that ended Pinwell's unused packages is on its timeline.
+  assert.ok(!reports.some(({ args }) => args[1] === 'freshrows.example'));
+  assert.ok(executed.some(({ sql, args }) => sql.includes('unused files left by a library swap') && args[1] === facts.manifest.dependencyCleanup.asset && args[2] === facts.manifest.dependencyCleanup.annotationAt));
 });
 
 test('facts changed independently of the manifest refuse before any database query', async () => {

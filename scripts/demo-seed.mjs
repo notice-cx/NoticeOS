@@ -35,12 +35,14 @@ export async function releaseEvaluator({ root, release }) {
         const after = await verifyDemoRelease(root, release);
         if (after.tree !== source.tree)
             throw new Error('The demo source changed during its build.');
-        const files = ['rules.js', 'poisson.js'];
+        const files = ['rules.js', 'poisson.js', 'codebase-measures.js'];
         const artifacts = Object.fromEntries(files.map(name => [name, createHash('sha256').update(readFileSync(path.join(output, 'packages/contract/src', name))).digest('hex')]));
         const loaded = await import(pathToFileURL(path.join(output, 'packages/contract/src/rules.js')).href);
-        if (typeof loaded.evaluatePulse !== 'function')
+        const codebase = await import(pathToFileURL(path.join(output, 'packages/contract/src/codebase-measures.js')).href);
+        if (typeof loaded.evaluatePulse !== 'function' || typeof codebase.evaluateCodebaseRules !== 'function')
             throw new Error('The verified demo evaluator is absent.');
-        return { evaluatePulse: loaded.evaluatePulse, ...workers, provenance: { ...source, artifacts, workers: workers.provenance } };
+        const codebaseRules = { evaluateCodebaseRules: codebase.evaluateCodebaseRules, pickComparisonReport: codebase.pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS: codebase.DEFAULT_CODEBASE_RULE_THRESHOLDS };
+        return { evaluatePulse: loaded.evaluatePulse, codebaseRules, ...workers, provenance: { ...source, artifacts, workers: workers.provenance } };
     } finally { rmSync(output, { recursive: true, force: true }); }
 }
 const TARGET_VARIABLES = ['DATABASE_URL', 'NOTICEOS_POSTGRES_SECRETS', 'NOTICEOS_POSTGRES_PORT', 'NOTICEOS_HOME', 'NOTICEOS_INSTALLATION_DIR', 'NOTICEOS_DOLT_HOME'];
@@ -67,8 +69,8 @@ export function demoTargetRefusal(plan, env = {}) {
     }
     return null;
 }
-export function fillDemo(tx, scenario, { evaluatePulse }) {
-    return fillStore(tx, scenario, { evaluatePulse, developmentProfile: { setting: PROFILE_SETTING, value: DEVELOPMENT } });
+export function fillDemo(tx, scenario, { evaluatePulse, codebaseRules }) {
+    return fillStore(tx, scenario, { evaluatePulse, codebaseRules, developmentProfile: { setting: PROFILE_SETTING, value: DEVELOPMENT } });
 }
 
 export async function markDemoDevelopment(own, plan, scenario, store, env, run = runCommand) {
@@ -234,7 +236,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         throw new Error('Demo facts differ from their declared scenario.');
     // Resolve the release's built contract before creating any resources.
     const helpers = await loadEvaluator({ root, release: scenario.manifest.release });
-    const { evaluatePulse, provenance } = helpers;
+    const { evaluatePulse, codebaseRules, provenance } = helpers;
     const setup = await prepare(plan, { env, workspace: { slug: 'demo', displayName: 'Synthetic demo', workspaceId: scenario.manifest.workspaceId } });
     if (!setup.ok || !('created' in setup) || !setup.created || !setup.schema)
         throw new Error('Demo setup did not prove a new database; preserve its folder for review.');
@@ -259,7 +261,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const workspace = await store.onlyWorkspace();
         if (workspace !== scenario.manifest.workspaceId)
             throw new Error('Demo workspace differs from its new installation.');
-        const counts = await store.inWorkspace(workspace, tx => fillDemo(tx, scenario, { evaluatePulse }));
+        const counts = await store.inWorkspace(workspace, tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules }));
         const watch = await evaluateDemoWatch(store, scenario, helpers.runWatchWindows);
         const joins = await demoFlagJoins(watch.capability, scenario);
         const freshness = await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);

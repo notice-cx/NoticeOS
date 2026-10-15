@@ -218,10 +218,11 @@ export async function setupHostedDemo(input: HostedDemoSetupRequest): Promise<{ 
     phase = 'signal_seed';
     store = openStore(urls.noticeos_app!);
     const helpers = await buildDemoWorkerHelpers(root, { activity: true });
-    if (typeof helpers.evaluatePulse !== 'function') refuse();
+    const codebaseRules = helpers.codebaseRules;
+    if (typeof helpers.evaluatePulse !== 'function' || !codebaseRules) refuse();
     const counts = await store.inWorkspace(workspaceId, async tx => {
       await tx.query("SELECT set_config('noticeos.synthetic_setup','demo',true)");
-      return fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.synthetic_setup', value: 'demo' } });
+      return fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules, developmentProfile: { setting: 'noticeos.synthetic_setup', value: 'demo' } });
     });
     const watch = await evaluateDemoWatch(store, scenario, helpers.runWatchWindows);
     const joins = await demoFlagJoins(watch.capability, scenario);

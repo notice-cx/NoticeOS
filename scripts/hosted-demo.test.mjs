@@ -87,7 +87,7 @@ test("the demo's outcome check runs the release's evaluator over the demo's own 
     store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
     await store.write(async tx => {
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
-      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
@@ -127,7 +127,7 @@ test("the demo's hourly lane reads each fictional home page with the release's o
     store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
     await store.write(async tx => {
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
-      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
     const untouched = new Proxy({}, { get() { throw new Error('unexpected I/O'); } });
     const demo = createHostedDemo({ workspaceId: workspace, serviceId: randomUUID(), scenario, projects, store: untouched, grant: untouched,
@@ -181,7 +181,7 @@ test("a new demo's Workflows page shows three workflows with real runs from its 
     seedStore = openStore(appUrl);
     await seedStore.inWorkspace(workspace, async tx => {
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
-      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
     await evaluateDemoWatch(seedStore, scenario, helpers.runWatchWindows);
     const constants = JSON.parse(readFileSync(path.join(REPO_ROOT, 'workers/ingest/test/fixture-config/constants.json'), 'utf8'));
@@ -330,7 +330,7 @@ test('persistent demo uses ordinary Postgres writers and actual scoped Beads wit
     const seedStore = openStore();
     await seedStore.write(async tx => {
       await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
-      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
     });
     const taskGrant = openGrant();
     const admission = createWorkspaceAdmission({ kind: 'service', profile: Symbol('synthetic simulator'), authority: () => taskGrant.facts() });

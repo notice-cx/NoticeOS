@@ -3,7 +3,7 @@
 // estimates of real businesses.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 7;
+export const SCENARIO_VERSION = 8;
 const DAY_MS = 86_400_000;
 /** Five sites with their own shapes: a steady subscription product, a
  * licensed tool, a recipe site growing into its season, an outdoor guide
@@ -127,6 +127,268 @@ function allocate(total, weights) {
     for (let n = total - result.reduce((a, b) => a + b, 0), i = 0; i < n; i++)
         result[order[i].i] = result[order[i].i] + 1;
     return result;
+}
+/** Pinwell's library swap left the old libraries' wrapper files unused from
+ * `DEMO_LIBRARY_SWAP_AGE` until the cleanup deploy `DEMO_DEPENDENCY_CLEANUP_AGE`
+ * days from the reference day. */
+export const DEMO_LIBRARY_SWAP_AGE = -152;
+export const DEMO_DEPENDENCY_CLEANUP_AGE = -122;
+/** Weeknight Pantry's code grows 45% over its last `DEMO_CODE_SURGE_DAYS`
+ * days before the reference day, most of it copied components. */
+export const DEMO_CODE_SURGE_DAYS = 60;
+/** The jscpd release before this many days from the reference day was older;
+ * the envelope's tools record the change. */
+const JSCPD_UPGRADE_AGE = -120;
+/** The measurement engine's reasons for an absent measure
+ * (`REASONS` in deploy/codebase-report/measure.mjs), quoted as it sends them. */
+const UNMEASURED = Object.freeze({
+    deadCodeLanguages: 'Unused code is checked in JavaScript, TypeScript and Python only.',
+    unusedDependencies: 'Unused packages are not measured yet.',
+    noManifest: 'No package list (package.json, requirements.txt, go.mod or Cargo.toml) was found.',
+});
+// The redesign shipped in the afternoon, after that day's measurement ran.
+const REDESIGN = DEMO_REDESIGN_AGE, REDESIGNED = DEMO_REDESIGN_AGE + 1, SURGE = -DEMO_CODE_SURGE_DAYS, SWAP = DEMO_LIBRARY_SWAP_AGE;
+const CODEBASE_PROFILES = {
+    lb: { repo: 'lightbrief/app', languages: [['Ruby', 0.7], ['HTML', 0.16], ['CSS', 0.08], ['YAML', 0.06]],
+        fileLines: 88, functionLines: 11, commentShare: 0.09, blockLines: 34, touchedPerCommit: 2.6,
+        duplicates: [[['app/services/exports/pdf_renderer.rb', 'app/services/exports/docx_renderer.rb'], 46], [['app/views/briefs/_export_header.html.erb', 'app/views/templates/_export_header.html.erb'], 38],
+            [['app/controllers/briefs_controller.rb', 'app/controllers/templates_controller.rb'], 31], [['app/views/briefs/_editor.html.erb', 'app/views/templates/_editor.html.erb'], 28],
+            [['app/mailers/subscription_mailer.rb', 'app/mailers/trial_mailer.rb'], 22], [['app/models/brief.rb', 'app/models/template.rb'], 19]],
+        complex: [['app/services/exports/pdf_renderer.rb', 'render_sections'], ['app/models/subscription.rb', 'renewal_state'], ['app/services/briefs/importer.rb', 'parse_outline'],
+            ['app/controllers/briefs_controller.rb', 'update'], ['app/services/exports/docx_renderer.rb', 'layout_table'], ['lib/brief_markdown.rb', 'to_blocks'],
+            ['app/models/brief.rb', 'sync_sections'], ['app/services/billing/proration.rb', 'amount_for'], ['app/jobs/export_job.rb', 'perform'], ['app/helpers/brief_helper.rb', 'section_badge'],
+            ['app/services/briefs/sharing.rb', 'permitted_viewers'], ['app/models/workspace.rb', 'seat_limit']],
+        unusedFiles: [], unusedExports: [],
+        largest: [['app/services/exports/pdf_renderer.rb', 0.031], ['app/models/brief.rb', 0.024], ['app/controllers/briefs_controller.rb', 0.019], ['app/views/briefs/show.html.erb', 0.017],
+            ['app/services/briefs/importer.rb', 0.015], ['lib/brief_markdown.rb', 0.013], ['app/models/subscription.rb', 0.012], ['app/assets/stylesheets/briefs.css', 0.011], ['app/services/exports/docx_renderer.rb', 0.01], ['config/routes.rb', 0.006]] },
+    pw: { repo: 'pinwell/pinwell', paths: ['app', 'desktop'], languages: [['TypeScript', 0.52], ['Svelte', 0.26], ['Rust', 0.12], ['CSS', 0.07], ['HTML', 0.03]],
+        fileLines: 96, functionLines: 17, commentShare: 0.11, blockLines: 40, touchedPerCommit: 2.6,
+        duplicates: [[['app/src/lib/citations/apa.ts', 'app/src/lib/citations/mla.ts', 'app/src/lib/citations/chicago.ts'], 52], [['app/src/lib/sources/SourceCard.svelte', 'app/src/lib/collections/CollectionCard.svelte'], 44],
+            [['app/src/lib/api/sources.ts', 'app/src/lib/api/collections.ts'], 37], [['app/src/routes/sources/+page.svelte', 'app/src/routes/collections/+page.svelte'], 33],
+            [['desktop/src/commands/export.rs', 'desktop/src/commands/backup.rs'], 29], [['app/src/lib/clipper/readability.ts', 'app/src/lib/clipper/metadata.ts'], 24]],
+        complex: [['app/src/lib/clipper/readability.ts', 'extractMainContent'], ['app/src/lib/citations/format.ts', 'formatCitation'], ['app/src/lib/sync/merge.ts', 'mergeCollections'],
+            ['desktop/src/commands/import.rs', 'import_bookmarks'], ['app/src/lib/search/query.ts', 'parseQuery'], ['app/src/lib/licence/check.ts', 'validateLicence'],
+            ['app/src/lib/clipper/metadata.ts', 'readMetaTags'], ['app/src/routes/sources/[id]/+page.ts', 'load'], ['app/src/lib/sources/dedupe.ts', 'findDuplicateSource'],
+            ['desktop/src/sync/conflict.rs', 'resolve_conflict'], ['app/src/lib/collections/sort.ts', 'compareSources'], ['app/src/lib/api/client.ts', 'request'],
+            ['app/src/lib/export/bibtex.ts', 'toBibtex'], ['desktop/src/storage/migrate.rs', 'migrate_store'], ['app/src/lib/clipper/pdf.ts', 'readPdfOutline'],
+            ['app/src/lib/sync/queue.ts', 'flushPending'], ['app/src/routes/settings/+page.svelte', 'saveSettings'], ['desktop/src/updater.rs', 'check_for_update']],
+        // The library swap left the old libraries' wrappers behind until the cleanup.
+        unusedFiles: [['app/src/lib/legacy/tooltip.ts'], ['app/src/routes/settings/old-sync/+page.svelte'], ['app/src/lib/dates/moment-format.ts', SWAP], ['app/src/lib/api/axios-client.ts', SWAP],
+            ['app/src/lib/api/axios-retry.ts', SWAP], ['app/src/lib/legacy/popover.ts', SWAP], ['app/src/lib/legacy/tippy-actions.ts', SWAP], ['app/src/lib/dates/moment-locale.ts', SWAP],
+            ['app/src/lib/api/interceptors.ts', SWAP], ['app/src/lib/dates/timezone.ts', SWAP], ['app/src/lib/legacy/debounce.ts', SWAP], ['app/src/lib/legacy/throttle.ts', SWAP]],
+        unusedExports: [['app/src/lib/sources/dedupe.ts', 'normalizeTitle'], ['app/src/lib/api/client.ts', 'retryDelay'], ['app/src/lib/citations/format.ts', 'formatAuthorList'], ['app/src/lib/search/query.ts', 'tokenize'],
+            ['app/src/lib/collections/sort.ts', 'byCreated'], ['app/src/lib/clipper/metadata.ts', 'readOpenGraph'], ['app/src/lib/export/bibtex.ts', 'escapeBibtex'], ['app/src/lib/licence/check.ts', 'licenceGraceDays'],
+            ['app/src/lib/sync/queue.ts', 'MAX_BATCH'], ['app/src/lib/clipper/pdf.ts', 'pageLabel'], ['app/src/lib/dates/format.ts', 'relativeDay'], ['app/src/lib/api/sources.ts', 'sourceUrl']],
+        largest: [['app/src/lib/clipper/readability.ts', 0.034], ['app/src/routes/sources/+page.svelte', 0.026], ['desktop/src/commands/import.rs', 0.022], ['app/src/lib/sync/merge.ts', 0.019],
+            ['app/src/lib/citations/format.ts', 0.017], ['app/src/routes/sources/[id]/+page.svelte', 0.015], ['app/src/lib/search/query.ts', 0.013], ['desktop/src/sync/conflict.rs', 0.012], ['app/src/app.css', 0.011], ['app/src/lib/api/client.ts', 0.009]] },
+    wp: { repo: 'weeknightpantry/site', languages: [['TSX', 0.44], ['TypeScript', 0.3], ['CSS', 0.14], ['Markdown', 0.08], ['JavaScript', 0.04]],
+        fileLines: 104, functionLines: 21, commentShare: 0.07, blockLines: 44, touchedPerCommit: 2.8,
+        duplicates: [[['app/recipes/[slug]/RecipeCard.tsx', 'app/collections/[slug]/RecipeCard.tsx', 'app/search/RecipeCard.tsx', 'app/meal-plans/[week]/RecipeCard.tsx'], 186, SURGE + 4],
+            [['components/nutrition/NutritionPanel.tsx', 'app/recipes/[slug]/NutritionFacts.tsx', 'app/meal-plans/[week]/NutritionSummary.tsx'], 142, SURGE + 11],
+            [['lib/nutrition/calculate.ts', 'app/meal-plans/[week]/nutrition.ts', 'app/api/nutrition/route.ts'], 118, SURGE + 18],
+            [['app/recipes/[slug]/IngredientList.tsx', 'app/meal-plans/[week]/IngredientList.tsx'], 96, SURGE + 25],
+            [['app/collections/[slug]/RecipeGrid.tsx', 'app/search/RecipeGrid.tsx', 'app/cuisines/[cuisine]/RecipeGrid.tsx'], 88, SURGE + 32],
+            [['app/recipes/[slug]/page.tsx', 'app/meal-plans/[week]/[day]/page.tsx'], 74, SURGE + 39],
+            [['app/recipes/[slug]/ShoppingListButton.tsx', 'app/meal-plans/[week]/ShoppingListButton.tsx'], 61, SURGE + 46],
+            [['app/cuisines/[cuisine]/page.tsx', 'app/collections/[slug]/page.tsx'], 57, SURGE + 53],
+            [['lib/units/convert.ts', 'lib/units/scale.ts'], 41], [['app/api/saves/route.ts', 'app/api/collections/route.ts'], 36],
+            [['components/layout/Header.tsx', 'components/layout/MobileHeader.tsx'], 32], [['styles/recipe.module.css', 'styles/collection.module.css'], 27],
+            [['app/recipes/[slug]/StarRating.tsx', 'app/search/StarRating.tsx'], 48, SURGE + 57]],
+        complex: [['lib/nutrition/calculate.ts', 'calculateNutrition'], ['app/recipes/[slug]/page.tsx', 'RecipePage'], ['lib/units/scale.ts', 'scaleIngredient'],
+            ['app/meal-plans/[week]/planner.ts', 'buildWeekPlan', SURGE + 9], ['app/recipes/[slug]/RecipeCard.tsx', 'RecipeCard', SURGE + 16], ['app/search/search.ts', 'rankRecipes'],
+            ['app/collections/[slug]/RecipeCard.tsx', 'RecipeCard', SURGE + 23], ['app/meal-plans/[week]/NutritionSummary.tsx', 'NutritionSummary', SURGE + 30],
+            ['lib/recipes/parse-ingredients.ts', 'parseIngredientLine'], ['app/api/saves/route.ts', 'POST'], ['lib/seo/recipe-schema.ts', 'recipeJsonLd'],
+            ['app/search/RecipeCard.tsx', 'RecipeCard', SURGE + 37], ['app/meal-plans/[week]/RecipeCard.tsx', 'RecipeCard', SURGE + 44], ['lib/units/convert.ts', 'toMetric'],
+            ['app/api/nutrition/route.ts', 'GET', SURGE + 51], ['components/print/PrintCard.tsx', 'PrintCard'], ['lib/search/facets.ts', 'buildFacets'],
+            ['app/collections/[slug]/page.tsx', 'CollectionPage'], ['lib/images/srcset.ts', 'recipeSrcSet'], ['app/sitemap.ts', 'sitemap'], ['lib/recipes/timers.ts', 'parseDuration']],
+        unusedFiles: [['app/recipes/[slug]/RecipeCardOld.tsx'], ['components/legacy/Rating.tsx'], ['app/beta/page.tsx'], ['lib/analytics/old-events.ts'], ['components/nutrition/MacroDonut.tsx', SURGE]],
+        unusedExports: [['lib/units/convert.ts', 'toImperial'], ['lib/nutrition/calculate.ts', 'roundMacro'], ['components/nutrition/NutritionPanel.tsx', 'NutritionRow'], ['lib/search/facets.ts', 'facetLabel'],
+            ['app/recipes/[slug]/RecipeCard.tsx', 'RecipeCardSkeleton'], ['app/collections/[slug]/RecipeCard.tsx', 'RecipeCardSkeleton'], ['app/search/RecipeCard.tsx', 'formatMinutes'],
+            ['lib/recipes/parse-ingredients.ts', 'FRACTIONS'], ['app/meal-plans/[week]/nutrition.ts', 'dailyTotals'], ['lib/seo/recipe-schema.ts', 'nutritionJsonLd'], ['lib/images/srcset.ts', 'blurData'], ['app/meal-plans/[week]/planner.ts', 'shuffleWeek']],
+        largest: [['lib/nutrition/calculate.ts', 0.024], ['app/recipes/[slug]/page.tsx', 0.021], ['app/meal-plans/[week]/planner.ts', 0.018], ['app/recipes/[slug]/RecipeCard.tsx', 0.015],
+            ['app/collections/[slug]/RecipeCard.tsx', 0.014], ['app/search/RecipeCard.tsx', 0.014], ['app/meal-plans/[week]/NutritionSummary.tsx', 0.013], ['styles/globals.css', 0.012], ['app/search/search.ts', 0.011], ['lib/units/convert.ts', 0.009]] },
+    tn: { repo: 'trailnotes/site', languages: [['Astro', 0.42], ['TypeScript', 0.28], ['TSX', 0.12], ['CSS', 0.12], ['JavaScript', 0.06]],
+        fileLines: 82, functionLines: 16, commentShare: 0.08, blockLines: 36, touchedPerCommit: 2.5,
+        duplicates: [[['src/layouts/TrailPage.astro', 'src/components/legacy/TrailPageV1.tsx'], 128, REDESIGNED], [['src/components/trail/ElevationChart.tsx', 'src/components/legacy/ElevationChartOld.tsx'], 96, REDESIGNED],
+            [['src/components/TrailCard.astro', 'src/components/RouteCard.astro'], 44], [['src/pages/trails/[slug].astro', 'src/pages/routes/[slug].astro'], 39],
+            [['src/components/trail/ConditionsPanel.tsx', 'src/components/legacy/Conditions.tsx'], 71, REDESIGNED], [['src/lib/gpx/parse.ts', 'src/lib/gpx/simplify.ts'], 27], [['src/styles/trail.css', 'src/styles/legacy/trail.css'], 58, REDESIGNED]],
+        complex: [['src/components/trail/TrailMap.ts', 'renderElevationProfile', REDESIGNED], ['src/lib/gpx/parse.ts', 'parseTrackPoints'], ['src/components/trail/TrailMap.ts', 'fitBoundsToRoute', REDESIGNED],
+            ['src/lib/difficulty.ts', 'gradeTrail'], ['src/lib/conditions/merge.ts', 'mergeConditionReports', REDESIGNED], ['src/lib/gpx/simplify.ts', 'simplifyTrack'],
+            ['src/components/trail/ElevationChart.tsx', 'ElevationChart', REDESIGNED], ['src/lib/search/filter.ts', 'filterTrails'], ['src/components/trail/ConditionsPanel.tsx', 'ConditionsPanel', REDESIGNED],
+            ['src/lib/parking.ts', 'parkingSummary'], ['src/components/trail/PhotoGallery.tsx', 'PhotoGallery', REDESIGNED], ['src/lib/seasons.ts', 'bestMonths'],
+            ['src/components/trail/RouteSteps.tsx', 'RouteSteps', REDESIGNED], ['src/lib/weather.ts', 'forecastWindow'], ['src/components/trail/TrailMap.ts', 'drawWaypoints', REDESIGNED],
+            ['src/lib/gpx/stats.ts', 'elevationGain'], ['src/pages/api/conditions.ts', 'GET', REDESIGNED], ['src/components/legacy/TrailPageV1.tsx', 'TrailPageV1', REDESIGNED], ['src/lib/gpx/split.ts', 'splitSegments'],
+            ['src/lib/units.ts', 'formatDistance'], ['src/components/trail/ShareSheet.tsx', 'ShareSheet', REDESIGNED]],
+        unusedFiles: [['src/pages/draft-gear.astro'], ['src/lib/old-weather.ts'], ['src/components/legacy/TrailPageV1.tsx', REDESIGNED], ['src/components/legacy/RoutePageV1.tsx', REDESIGNED], ['src/components/legacy/ElevationChartOld.tsx', REDESIGNED],
+            ['src/components/legacy/Conditions.tsx', REDESIGNED], ['src/components/legacy/TrailHeader.tsx', REDESIGNED], ['src/components/legacy/PhotoStrip.tsx', REDESIGNED], ['src/components/legacy/ParkingNotes.tsx', REDESIGNED],
+            ['src/components/legacy/MapEmbed.tsx', REDESIGNED], ['src/styles/legacy/trail.css', REDESIGNED], ['src/styles/legacy/route.css', REDESIGNED], ['src/components/legacy/DifficultyBadge.tsx', REDESIGNED],
+            ['src/components/legacy/WeatherBox.tsx', REDESIGNED], ['src/components/legacy/ShareBar.tsx', REDESIGNED], ['src/components/legacy/Breadcrumbs.tsx', REDESIGNED], ['src/lib/legacy/map-tiles.ts', REDESIGNED], ['src/lib/legacy/elevation.ts', REDESIGNED]],
+        unusedExports: [['src/lib/gpx/parse.ts', 'readExtensions'], ['src/lib/difficulty.ts', 'GRADE_LABELS'], ['src/lib/units.ts', 'toFeet'], ['src/lib/seasons.ts', 'monthName'], ['src/lib/weather.ts', 'windChill'],
+            ['src/components/trail/TrailMap.ts', 'tileUrl'], ['src/lib/conditions/merge.ts', 'staleAfterDays'], ['src/lib/parking.ts', 'formatFee'], ['src/lib/gpx/stats.ts', 'paceMinutes'],
+            ['src/components/trail/RouteSteps.tsx', 'stepIcon'], ['src/lib/search/filter.ts', 'byRegion'], ['src/pages/api/conditions.ts', 'CACHE_SECONDS']],
+        largest: [['src/components/trail/TrailMap.ts', 0.028], ['src/layouts/TrailPage.astro', 0.022], ['src/components/legacy/TrailPageV1.tsx', 0.019, REDESIGNED], ['src/lib/gpx/parse.ts', 0.016],
+            ['src/styles/trail.css', 0.015], ['src/components/trail/ElevationChart.tsx', 0.013], ['src/styles/legacy/trail.css', 0.012, REDESIGNED], ['src/pages/trails/[slug].astro', 0.011], ['src/lib/conditions/merge.ts', 0.01], ['src/lib/difficulty.ts', 0.008]] },
+    // Shaped on this repository's own measurement (deploy/codebase-report/sample).
+    no: { repo: 'noticeos/noticeos', languages: [['TypeScript', 0.763], ['JavaScript', 0.184], ['HTML', 0.017], ['JSON', 0.013], ['SQL', 0.01], ['CSS', 0.005], ['YAML', 0.004], ['Shell', 0.003]],
+        fileLines: 176, functionLines: 14.2, commentShare: 0.2, blockLines: 10.4, touchedPerCommit: 6.9,
+        duplicates: [[['apps/tower/src/routes/asset-detail/OverviewTab.tsx', 'apps/tower/src/routes/portfolio/PortfolioOverview.tsx'], 41], [['workers/ingest/src/routes/pulse.ts', 'workers/ingest/src/routes/revenue.ts'], 36],
+            [['scripts/stack-start.mts', 'scripts/stack-restart.mts'], 33], [['apps/tower/worker/flag-records.ts', 'apps/tower/worker/task-records.ts'], 29],
+            [['packages/contract/src/ga4-realtime.ts', 'packages/contract/src/posthog.ts'], 26], [['scripts/backup-run.mts', 'scripts/restore-run.mts'], 24], [['apps/tower/src/components/StatTile.tsx', 'apps/tower/src/components/KpiStrip.tsx'], 21]],
+        complex: [['workers/ingest/src/db.ts', 'ingestPulseEnvelope'], ['packages/contract/src/rules.ts', 'evaluatePulse'], ['scripts/stack-control.mts', 'planUpdate'],
+            ['workers/ingest/src/watch-windows.ts', 'evaluateWindow'], ['apps/tower/worker/read-model.ts', 'assetDetail'], ['scripts/hosted-task-operations.mts', 'applyOperation'],
+            ['workers/ingest/src/notifier.ts', 'composeDigest'], ['packages/contract/src/schema.ts', 'parseReport'], ['scripts/schema-check.mts', 'compareSchema'],
+            ['apps/tower/src/routes/tasks/TaskBoard.tsx', 'TaskBoard'], ['workers/ingest/src/signal-store.ts', 'recordSignalSuccess'], ['scripts/backup-run.mts', 'runBackup'],
+            ['workers/ingest/src/mediavine.ts', 'persistReport'], ['apps/tower/worker/flag-records.ts', 'parseRuleInputs'], ['scripts/scheduled-jobs.mts', 'nextOccurrence'],
+            ['packages/contract/src/ledger-coverage.mts', 'coverageGaps'], ['apps/tower/src/routes/asset-detail/OverviewTab.tsx', 'OverviewTab'], ['workers/ingest/src/hygiene.ts', 'runUptimeChecks'],
+            ['scripts/hosted-job-runner.mts', 'runStep'], ['apps/tower/worker/wall.ts', 'wallSnapshot']],
+        unusedFiles: [['scripts/legacy/convert-d1.mts'], ['apps/tower/src/components/legacy/OldSparkline.tsx'], ['workers/ingest/src/legacy/pulse-v1.ts'], ['packages/contract/src/legacy/flags-v1.ts'], ['apps/tower/src/routes/dev/Scratch.tsx'],
+            ['scripts/legacy/import-d1.mts'], ['apps/tower/src/components/legacy/OldKpi.tsx'], ['workers/ingest/src/legacy/signals-v1.ts'], ['apps/tower/shared/legacy/asset-v1.ts']],
+        unusedExports: [['packages/contract/src/money.ts', 'formatCents'], ['workers/ingest/src/db.ts', 'PULSE_LIMIT'], ['apps/tower/worker/read-model.ts', 'assetSummary'], ['scripts/stack-control.mts', 'composeArgs'],
+            ['packages/contract/src/poisson.ts', 'logFactorial'], ['apps/tower/src/lib/format.ts', 'formatPercentDelta'], ['workers/ingest/src/notifier.ts', 'channelLabel'], ['scripts/backup-run.mts', 'BACKUP_PREFIX'],
+            ['packages/contract/src/schema.ts', 'MetricShape'], ['apps/tower/worker/wall.ts', 'WALL_ROWS'], ['scripts/scheduled-jobs.mts', 'jobLabel'], ['workers/ingest/src/hygiene.ts', 'HOME_TIMEOUT_MS'],
+            ['apps/tower/src/lib/format.ts', 'formatBytes'], ['apps/tower/worker/flag-records.ts', 'FLAG_COLUMNS'], ['workers/ingest/src/watch-windows.ts', 'windowLabel'], ['scripts/stack-control.mts', 'STACK_SERVICES'],
+            ['packages/contract/src/rules.ts', 'RULE_VERSION'], ['apps/tower/src/routes/tasks/TaskBoard.tsx', 'columnTitle'], ['workers/ingest/src/signal-store.ts', 'seriesKey'], ['scripts/hosted-job-runner.mts', 'STEP_TIMEOUT_MS'],
+            ['apps/tower/worker/wall.ts', 'wallTheme'], ['packages/contract/src/ledger-coverage.mts', 'monthDays'], ['workers/ingest/src/mediavine.ts', 'reportWindow'], ['apps/tower/src/lib/format.ts', 'formatHours'],
+            ['scripts/backup-run.mts', 'backupLabel'], ['workers/ingest/src/notifier.ts', 'digestTitle'], ['apps/tower/worker/read-model.ts', 'portfolioTotals'], ['packages/contract/src/schema.ts', 'FlagShape']],
+        largest: [['workers/ingest/src/db.ts', 0.019], ['packages/contract/src/rules.ts', 0.014], ['apps/tower/worker/read-model.ts', 0.013], ['scripts/stack-control.mts', 0.012],
+            ['apps/tower/src/routes/tasks/TaskBoard.tsx', 0.01], ['workers/ingest/src/watch-windows.ts', 0.009], ['scripts/hosted-task-operations.mts', 0.009], ['apps/tower/src/index.css', 0.008], ['db/postgres/migrations/0001_baseline.sql', 0.008], ['workers/ingest/src/notifier.ts', 0.007]] },
+};
+const round1 = (value) => Math.round(value * 10) / 10;
+const round2 = (value) => Math.round(value * 100) / 100;
+function codebaseCore(prefix, age, noise) {
+    const jitter = (key, spread) => (noise(key) - 0.5) * spread;
+    const t = age + 400;
+    if (prefix === 'lb') {
+        // A Ruby codebase with no package list the engine reads: its unused code
+        // and its packages are unmeasured, never zero.
+        const commits = 38 + Math.round(noise('commits') * 18);
+        return { lines: Math.round((31000 + 18.5 * t) * (1 + jitter('lines', 0.006))), repeated: Math.min(3, Math.max(2, round1(2.5 + 0.35 * Math.sin(2 * Math.PI * t / 170) + jitter('repeated', 0.2)))),
+            complex: Math.min(12, 6 + Math.floor(Math.max(0, t) / 200)), maxComplexity: Math.min(30, 24 + Math.floor(Math.max(0, t) / 100)), meanComplexity: round1(2.8 + noise('mean') * 0.2),
+            testRatio: round2(0.35 + 0.012 * Math.sin(2 * Math.PI * t / 97) + jitter('tests', 0.01)), commits, large: Math.floor(noise('large') * 3) };
+    }
+    if (prefix === 'pw') {
+        const swapped = age >= DEMO_LIBRARY_SWAP_AGE && age <= DEMO_DEPENDENCY_CLEANUP_AGE, cleaned = age > DEMO_DEPENDENCY_CLEANUP_AGE;
+        const week = Math.min(4, Math.floor((age - DEMO_LIBRARY_SWAP_AGE) / 7));
+        return { lines: Math.round((21500 + 13 * t + (swapped ? 650 : cleaned ? 250 : 0)) * (1 + jitter('lines', 0.006))),
+            repeated: round1(3.6 + 0.3 * Math.sin(2 * Math.PI * t / 130) + jitter('repeated', 0.2)), complex: Math.min(18, 11 + Math.floor(Math.max(0, t) / 150)),
+            maxComplexity: 29 + Math.min(6, Math.floor(Math.max(0, t) / 160)), meanComplexity: round1(3.1 + noise('mean') * 0.2), testRatio: round2(0.27 + jitter('tests', 0.02)),
+            unusedFiles: swapped ? [6, 9, 12, 12, 12][week] : 2, unusedExports: 8 + Math.floor(noise('exports') * 4),
+            dependencies: 41 + (swapped ? 10 : cleaned ? -1 : 0) + Math.min(6, Math.floor(Math.max(0, t) / 200)),
+            commits: swapped ? 64 + Math.round(noise('commits') * 10) : 30 + Math.round(noise('commits') * 14), large: swapped ? 4 : Math.floor(noise('large') * 2) };
+    }
+    if (prefix === 'wp') {
+        const base = (a) => 41000 + 8.5 * (a + 400);
+        const surge = age <= SURGE ? 0 : Math.min(1, (age - SURGE) / DEMO_CODE_SURGE_DAYS);
+        const atCutoff = base(SURGE) * 1.45;
+        // Most of the surge lands late, so the last month alone grows past a
+        // quarter; afterwards growth slows towards a plateau.
+        const lines = age <= SURGE ? base(age) : age <= 0 ? base(SURGE) * (1 + 0.45 * surge ** 2) : atCutoff * (1 + 0.1 * (1 - Math.exp(-age / 21))) + 9 * age;
+        const testLines = age <= SURGE ? 0.22 * lines : age <= 0 ? 0.22 * base(SURGE) * (1 + 0.06 * surge) : 0.22 * base(SURGE) * 1.06 * (1 + 0.0006 * age);
+        const commits = age <= SURGE ? 40 + noise('commits') * 15 : age <= 0 ? 40 + 120 * surge + noise('commits') * 10 : 45 + 160 * Math.exp(-age / 30) + noise('commits') * 10;
+        const large = age <= SURGE ? Math.floor(noise('large') * 3) : age <= 0 ? Math.round(14 * surge) + Math.floor(noise('large') * 2) : Math.round(14 * Math.exp(-age / 30)) + Math.floor(noise('large') * 2);
+        return { lines: Math.round(lines * (1 + jitter('lines', 0.004))),
+            repeated: round1(age <= SURGE ? 3 + jitter('repeated', 0.3) : age <= 0 ? 3 + 6.5 * surge + jitter('repeated', 0.2) : 9.5 + 0.8 * (1 - Math.exp(-age / 45)) + jitter('repeated', 0.2)),
+            complex: age <= SURGE ? Math.min(14, 12 + Math.floor(Math.max(0, age + 400) / 170)) : age <= 0 ? 14 + Math.round(6 * surge) : Math.min(30, 20 + Math.floor(age / 60)),
+            maxComplexity: age <= SURGE ? 31 : age <= 0 ? 31 + Math.round(16 * surge) : Math.min(60, 47 + Math.floor(age / 90)), meanComplexity: round1(3.3 + 0.9 * (age <= 0 ? surge : 1) + noise('mean') * 0.1),
+            testRatio: round2(testLines / lines), unusedFiles: age <= SURGE ? 4 : 5, unusedExports: age <= SURGE ? 7 : 7 + Math.round(5 * surge),
+            dependencies: 48 + Math.min(4, Math.floor(Math.max(0, age + 400) / 150)) + (age <= SURGE ? 0 : Math.round(9 * surge)), commits: Math.round(commits), large };
+    }
+    if (prefix === 'tn') {
+        const redesigned = age >= REDESIGNED, since = age - REDESIGN;
+        const near = age >= REDESIGN - 10 && age <= REDESIGN + 30;
+        return { lines: Math.round((24500 + 6 * t) * (redesigned ? 1.3 : 1) * (1 + jitter('lines', 0.004))),
+            repeated: round1(redesigned ? 5.4 + jitter('repeated', 0.3) : 4.2 + 0.25 * Math.sin(2 * Math.PI * t / 110) + jitter('repeated', 0.2)),
+            complex: redesigned ? Math.min(24, 19 + Math.floor(since / 120)) : 9 + Math.min(1, Math.floor(Math.max(0, t) / 200)), maxComplexity: redesigned ? 52 : 26,
+            meanComplexity: round1((redesigned ? 3.9 : 3.0) + noise('mean') * 0.2), testRatio: round2((redesigned ? 0.07 : 0.09) + jitter('tests', 0.006)),
+            unusedFiles: redesigned ? Math.min(18, 3 + Math.round(since * 0.36)) : 2,
+            unusedExports: redesigned ? Math.min(12, 6 + Math.round(since * 0.15)) : 5, dependencies: 31 + (redesigned ? 6 : 0) + Math.min(2, Math.floor(Math.max(0, t) / 200)),
+            commits: near ? 110 + Math.round(noise('commits') * 20) : 22 + Math.round(noise('commits') * 10), large: near ? 9 + Math.floor(noise('large') * 3) : Math.floor(noise('large') * 2) };
+    }
+    // At the reference day about 176,000 lines, 1% repeated, 421 hard-to-change
+    // functions and more test lines than code, growing steadily.
+    return { lines: Math.round((140000 + 90 * t) * (1 + jitter('lines', 0.004))), repeated: round1(1 + 0.1 * Math.sin(2 * Math.PI * t / 90) + jitter('repeated', 0.1)),
+        complex: 388 + Math.floor(Math.max(0, t) / 12), maxComplexity: 200 + Math.floor(Math.max(0, t) / 13), meanComplexity: round1(3.4 + noise('mean') * 0.2),
+        testRatio: round2(1.03 + jitter('tests', 0.03)), unusedFiles: 7 + Math.floor(noise('files') * 3), unusedExports: 24 + Math.floor(noise('exports') * 5),
+        dependencies: 38 + Math.min(12, Math.floor(Math.max(0, t) / 50)), commits: 140 + Math.round(noise('commits') * 34), large: 22 + Math.floor(noise('large') * 12) };
+}
+/** The sites that send a codebase report: every site but the one still
+ * setting up, whose Codebase tab shows how to send its first. */
+export function demoCodebaseReporting(asset) {
+    return asset.prefix in CODEBASE_PROFILES;
+}
+/** The UTC weekday each site's weekly measurement runs on, Sunday 0. */
+export function demoCodebaseWeekday(asset) {
+    return (DEMO_ASSETS.findIndex(entry => entry.prefix === asset.prefix) + 1) % 7;
+}
+/** An instant to the second, as the measurement engine writes it. */
+const isoSeconds = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+/** When a report generated on `date` was measured and when the store received it. */
+export function demoCodebaseTimes(seed, asset, date) {
+    const second = 3 * 3600 + Math.floor(draw(seed, `${asset.id}/codebase/${date}/time`) * 3600);
+    const generated = Date.parse(`${date}T00:00:00.000Z`) + second * 1000;
+    return { generatedAt: isoSeconds(generated), receivedAt: new Date(generated + (120 + Math.floor(draw(seed, `${asset.id}/codebase/${date}/received`) * 240)) * 1000).toISOString() };
+}
+/** The envelope a site's measurement sends on `date`, the same whether the
+ * seed stores it or the simulator posts it later. */
+export function demoCodebaseEnvelope(seed, asset, referenceDate, date) {
+    const profile = CODEBASE_PROFILES[asset.prefix];
+    if (!profile)
+        throw new Error('Only a reporting demo site sends a codebase report.');
+    const age = Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${referenceDate}T00:00:00Z`)) / DAY_MS);
+    const noise = (key) => draw(seed, `${asset.id}/codebase/${date}/${key}`);
+    const stable = (key) => draw(seed, `${asset.id}/codebase/${key}`);
+    const core = codebaseCore(asset.prefix, age, noise);
+    const { lines } = core;
+    const duplicatedLines = Math.round(lines * core.repeated / 100);
+    const files = Math.round(lines / profile.fileLines);
+    const testLines = Math.round(lines * core.testRatio);
+    const languageLines = allocate(lines, profile.languages.map(([, share]) => share));
+    const languageFiles = allocate(files, profile.languages.map(([, share]) => share));
+    const byLanguage = profile.languages.map(([language], i) => ({ language, files: languageFiles[i], code_lines: languageLines[i] }))
+        .sort((a, b) => b.code_lines - a.code_lines || a.language.localeCompare(b.language));
+    const present = (from) => from === undefined || age >= from;
+    // Larger codebases repeat larger blocks: a finding's length scales with the code.
+    const scale = lines / codebaseCore(asset.prefix, -400, () => 0.5).lines;
+    const duplicateBlocks = Math.round(duplicatedLines / profile.blockLines);
+    const duplicates = profile.duplicates.filter(entry => present(entry[2])).slice(0, Math.min(20, duplicateBlocks))
+        .map(([paths, length]) => ({ lines: Math.round(length * Math.min(scale, 1.6)), files: paths.slice(0, 10).map(path => ({ path, startLine: 8 + Math.floor(stable(`dup/${path}`) * 220) })) }))
+        .sort((a, b) => b.lines - a.lines || a.files[0].path.localeCompare(b.files[0].path));
+    const listed = profile.complex.filter(entry => present(entry[2])).slice(0, Math.min(20, core.complex));
+    const complexFunctions = listed.map(([path, name], i) => ({ path, name, line: 12 + Math.floor(stable(`fn/${path}/${name}`) * 400),
+        complexity: Math.max(16, Math.round(16 + (core.maxComplexity - 16) * (1 - i / listed.length) ** 1.6)),
+        length: 60 + Math.floor(stable(`fn-length/${path}/${name}`) * 140) + Math.round((core.maxComplexity - 16) * (1 - i / listed.length) * 2) }));
+    const unused = [
+        ...profile.unusedFiles.filter(entry => present(entry[1])).slice(0, core.unusedFiles ?? 0).map(([path]) => ({ kind: 'file', path })),
+        ...profile.unusedExports.slice(0, core.unusedExports ?? 0).map(([path, name]) => ({ kind: 'export', path, name })),
+    ].slice(0, 50);
+    const largestFiles = profile.largest.filter(entry => present(entry[2]))
+        .map(([path, share]) => ({ path, code_lines: Math.round(lines * share * (0.97 + stable(`size/${path}`) * 0.06)) }))
+        .sort((a, b) => b.code_lines - a.code_lines || a.path.localeCompare(b.path)).slice(0, 10);
+    const measures = {
+        code_lines: lines, comment_lines: Math.round(lines * profile.commentShare), files, languages: byLanguage.length,
+        duplicated_lines: duplicatedLines, duplication_percent: round1(duplicatedLines / lines * 100), duplicate_blocks: duplicateBlocks,
+        ...(core.unusedFiles === undefined ? {} : { unused_files: core.unusedFiles }),
+        ...(core.unusedExports === undefined ? {} : { unused_exports: core.unusedExports }),
+        ...(core.dependencies === undefined ? {} : { dependencies_direct: core.dependencies }), functions: Math.round(lines / profile.functionLines), complex_functions: core.complex,
+        max_function_complexity: core.maxComplexity, mean_function_complexity: core.meanComplexity, test_lines: testLines, test_ratio: round2(testLines / lines),
+        commits_30d: core.commits, files_touched_30d: Math.round(core.commits * profile.touchedPerCommit * (0.85 + noise('touched') * 0.3)) + core.large * 24, large_commits_30d: core.large,
+    };
+    const { generatedAt } = demoCodebaseTimes(seed, asset, date);
+    const unmeasured = {
+        ...(core.unusedFiles === undefined ? { unused_files: UNMEASURED.deadCodeLanguages, unused_exports: UNMEASURED.deadCodeLanguages } : {}),
+        unused_dependencies: UNMEASURED.unusedDependencies,
+        ...(core.dependencies === undefined ? { dependencies_direct: UNMEASURED.noManifest } : {}),
+    };
+    const jscpd = age < JSCPD_UPGRADE_AGE ? '5.3.2' : '5.4.0';
+    const host = asset.domain ? `git.${asset.domain}` : 'git.noticeos.example';
+    return {
+        asset: asset.id, generatedAt,
+        repository: { remote: `${host}/${profile.repo}`, ref: 'main', commit: createHash('sha1').update(`${seed}\0${asset.id}/codebase/${date}/commit`).digest('hex'),
+            committedAt: isoSeconds(Date.parse(generatedAt) - (3600 + Math.floor(noise('committed') * 20 * 3600)) * 1000) },
+        ...(profile.paths ? { paths: [...profile.paths] } : {}),
+        tools: { scc: '3.7.0', jscpd, lizard: '1.24.0' },
+        measures, unmeasured, byLanguage, findings: { duplicates, complexFunctions, unused, largestFiles },
+    };
 }
 /** All identities, times, traffic and money originate in this manifest. */
 export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }) {
@@ -266,6 +528,23 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             pulses.push({ asset: asset.id, date: row.date, generatedAt: `${row.date}T23:30:00.000Z`, capabilities: [asset.event], metrics: { [asset.event]: { last24h: row.events, avg7d: recent.reduce((sum, r) => sum + r.events, 0) / recent.length, total } } });
         });
     }
+    // Each reporting site's weekly measurement over its whole history, and the
+    // latest one before the cutoff, so the Codebase tab opens on a current report.
+    const codebaseRuns = [];
+    for (const asset of assets.filter(entry => demoCodebaseReporting(entry))) {
+        const weekday = demoCodebaseWeekday(asset);
+        const dates = [];
+        for (let age = -asset.days; age < 0; age++) {
+            const date = shiftDemoDay(referenceDate, age);
+            if (new Date(`${date}T12:00:00Z`).getUTCDay() === weekday)
+                dates.push(date);
+        }
+        const nearest = demoCodebaseTimes(seed, asset, referenceDate).receivedAt <= cutoff ? referenceDate : shiftDemoDay(referenceDate, -1);
+        if (!dates.includes(nearest))
+            dates.push(nearest);
+        for (const date of dates)
+            codebaseRuns.push({ asset: asset.id, date, receivedAt: demoCodebaseTimes(seed, asset, date).receivedAt });
+    }
     const taskFacts = generateDemoTaskFacts({ assets, seed, referenceDate, cutoff });
     const site = (prefix) => assets.find(asset => asset.prefix === prefix);
     const day = (offset, time) => `${shiftDemoDay(referenceDate, offset)}T${time}.000Z`;
@@ -288,7 +567,10 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     const fix = { asset: site('pw').id, ref: taskFacts.storyIds.problem, annotationAt: new Date(Date.parse(cutoff) - 4 * 3_600_000).toISOString() };
     const reportGap = { asset: site('lb').id, from: shiftDemoDay(referenceDate, -DEMO_REPORT_GAP_DAYS) };
     const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
-    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship, slide, dip, fix, reportGap }, assets, daily, ledger, adRevenue, pulses, tasks: taskFacts.tasks };
+    // Pinwell's cleanup deploy removed the packages its library swap left behind;
+    // the next weekly report reads them gone.
+    const dependencyCleanup = { asset: site('pw').id, annotationAt: day(DEMO_DEPENDENCY_CLEANUP_AGE, '16:00:00') };
+    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship, slide, dip, fix, reportGap, dependencyCleanup }, assets, daily, ledger, adRevenue, pulses, codebaseRuns, tasks: taskFacts.tasks };
 }
 /** A day's counts as each source reports them. */
 export function demoSourceValues(row, integration) {
@@ -297,6 +579,13 @@ export function demoSourceValues(row, integration) {
     if (integration === 'gsc')
         return { clicks: row.clicks, impressions: row.impressions, ctr: row.ctr, position: row.position };
     return { clicks: Math.round(row.clicks * DEMO_BING_SHARE), impressions: Math.round(row.impressions * DEMO_BING_SHARE) };
+}
+/** The seeded codebase reports with their envelopes. The scenario keeps only
+ * when each ran: every envelope derives from the seed, so the scenario stays
+ * small enough for the demo's runtime file. */
+export function demoCodebaseReports(scenario) {
+    const { seed, referenceDate } = scenario.manifest;
+    return scenario.codebaseRuns.map(run => ({ ...run, envelope: demoCodebaseEnvelope(seed, scenario.assets.find(asset => asset.id === run.asset), referenceDate, run.date) }));
 }
 export function demoScenarioHash(scenario) {
     return createHash('sha256').update(JSON.stringify(scenario)).digest('hex');
