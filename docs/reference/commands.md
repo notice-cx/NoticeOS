@@ -32,6 +32,7 @@ Every command is a `pnpm` script in the repository's `package.json`. Run one fro
 | `os:capacity` | The store's size and growth per table; `-- --json` for the raw inventory. | `scripts/stack-control.mjs capacity` |
 | `os:mcp` | The MCP server an agent on this machine starts, over stdio; at a terminal it prints how to connect it. | `scripts/stack-control.mjs mcp` |
 | `os:bd` | Run bd in the installation's task project; `--project <prefix>` picks one of several. | `scripts/stack-control.mjs bd` |
+| `os:codebase-report` | Measure one site's codebase with the codebase report image and send the report to this installation's ingest. | `scripts/codebase-report.mjs` |
 
 ### Change the database
 

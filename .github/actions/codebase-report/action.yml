@@ -1,0 +1,74 @@
+name: NoticeOS codebase report
+description: Measure this repository's code with the NoticeOS codebase report image and send the report to a NoticeOS installation.
+inputs:
+  asset:
+    description: The site's id in NoticeOS, as the Tower's site page shows it, such as example.com.
+    required: true
+  ingest-url:
+    description: The installation's ingest address, such as https://ingest.example.com. With token, the report is sent there; without either, it is kept as a workflow artifact.
+    required: false
+    default: ''
+  token:
+    description: The site's token from the Tower's site page. Pass it from a repository secret, never as plain text.
+    required: false
+    default: ''
+  paths:
+    description: Folders to measure, separated by commas, such as apps/site. Empty measures the whole repository.
+    required: false
+    default: ''
+  image-tag:
+    description: The tag of the published measurement image.
+    required: false
+    default: main
+  image:
+    description: A whole image reference that replaces the published image, such as one built earlier in the same job.
+    required: false
+    default: ''
+outputs:
+  report:
+    description: The path of the report file on the runner.
+    value: ${{ steps.measure.outputs.report }}
+runs:
+  using: composite
+  steps:
+    - id: measure
+      shell: bash
+      env:
+        IMAGE_REPOSITORY: ghcr.io/notice-cx/noticeos-codebase-report
+        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_OVERRIDE: ${{ inputs.image }}
+        ASSET: ${{ inputs.asset }}
+        INGEST_URL: ${{ inputs.ingest-url }}
+        NOTICEOS_ASSET_TOKEN: ${{ inputs.token }}
+        MEASURE_PATHS: ${{ inputs.paths }}
+      # Inputs reach the script as environment variables, never pasted into
+      # it, so no input can change the command. The token is passed to the
+      # container by name with `--env`, so it never appears in a command line.
+      run: |
+        set -euo pipefail
+        image="${IMAGE_OVERRIDE:-$IMAGE_REPOSITORY:$IMAGE_TAG}"
+        if ! docker image inspect "$image" >/dev/null 2>&1; then docker pull --quiet "$image" >/dev/null; fi
+        digest="$(docker image inspect --format '{{if .RepoDigests}}{{index .RepoDigests 0}}{{end}}' "$image")"
+        out="$RUNNER_TEMP/noticeos-codebase-report"
+        mkdir -p "$out" && chmod 0777 "$out"
+        args=(--asset "$ASSET" --repo /repo --out /out/codebase-report.json --ref "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}")
+        if [ -n "$MEASURE_PATHS" ]; then args+=(--paths "$MEASURE_PATHS"); fi
+        if [ -n "$INGEST_URL" ] && [ -n "$NOTICEOS_ASSET_TOKEN" ]; then
+          args+=(--post "$INGEST_URL")
+          echo "posted=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "posted=false" >> "$GITHUB_OUTPUT"
+          echo "No ingest-url and token: the report is kept as the workflow artifact noticeos-codebase-report."
+        fi
+        docker run --rm --read-only --tmpfs /tmp --cap-drop ALL --security-opt no-new-privileges \
+          --mount "type=bind,source=$GITHUB_WORKSPACE,target=/repo,readonly" \
+          --mount "type=bind,source=$out,target=/out" \
+          --env NOTICEOS_ASSET_TOKEN --env NOTICEOS_CODEBASE_IMAGE="$digest" \
+          "$image" "${args[@]}"
+        echo "report=$out/codebase-report.json" >> "$GITHUB_OUTPUT"
+    - if: steps.measure.outputs.posted == 'false'
+      uses: actions/upload-artifact@v4
+      with:
+        name: noticeos-codebase-report
+        path: ${{ steps.measure.outputs.report }}
+        retention-days: 30

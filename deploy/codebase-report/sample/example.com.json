@@ -1,0 +1,717 @@
+{
+  "asset": "example.com",
+  "generatedAt": "2026-10-15T01:16:17Z",
+  "repository": {
+    "remote": "github.com/notice-cx/NoticeOS",
+    "ref": "main",
+    "commit": "7ec5ee9da706d4fd5c4eb3333989aae9927fd750",
+    "committedAt": "2026-10-14T23:53:33Z"
+  },
+  "tools": {
+    "scc": "3.7.0",
+    "jscpd": "5.4.0",
+    "lizard": "1.24.0"
+  },
+  "measures": {
+    "code_lines": 175743,
+    "comment_lines": 35370,
+    "files": 1000,
+    "languages": 10,
+    "duplicated_lines": 2156,
+    "duplication_percent": 1,
+    "duplicate_blocks": 208,
+    "unused_files": 9,
+    "unused_exports": 28,
+    "dependencies_direct": 46,
+    "functions": 12366,
+    "complex_functions": 421,
+    "max_function_complexity": 230,
+    "mean_function_complexity": 3.5,
+    "test_lines": 180298,
+    "test_ratio": 1.03,
+    "commits_30d": 157,
+    "files_touched_30d": 1769,
+    "large_commits_30d": 29
+  },
+  "unmeasured": {
+    "unused_dependencies": "Unused packages are not measured yet."
+  },
+  "byLanguage": [
+    {
+      "language": "TypeScript",
+      "files": 754,
+      "code_lines": 134092
+    },
+    {
+      "language": "JavaScript",
+      "files": 153,
+      "code_lines": 32300
+    },
+    {
+      "language": "HTML",
+      "files": 5,
+      "code_lines": 3025
+    },
+    {
+      "language": "JSON",
+      "files": 44,
+      "code_lines": 2249
+    },
+    {
+      "language": "SQL",
+      "files": 14,
+      "code_lines": 1834
+    },
+    {
+      "language": "CSS",
+      "files": 2,
+      "code_lines": 895
+    },
+    {
+      "language": "YAML",
+      "files": 15,
+      "code_lines": 693
+    },
+    {
+      "language": "Shell",
+      "files": 10,
+      "code_lines": 537
+    },
+    {
+      "language": "Vue",
+      "files": 1,
+      "code_lines": 60
+    },
+    {
+      "language": "JSONC",
+      "files": 2,
+      "code_lines": 58
+    }
+  ],
+  "findings": {
+    "duplicates": [
+      {
+        "lines": 32,
+        "files": [
+          {
+            "path": "apps/tower/src/routes/FinancialsRoute.tsx",
+            "startLine": 336
+          },
+          {
+            "path": "apps/tower/src/routes/HealthRoute.tsx",
+            "startLine": 494
+          }
+        ]
+      },
+      {
+        "lines": 30,
+        "files": [
+          {
+            "path": "apps/tower/shared/config-registers.ts",
+            "startLine": 7
+          },
+          {
+            "path": "apps/tower/shared/config-registers.ts",
+            "startLine": 57
+          }
+        ]
+      },
+      {
+        "lines": 27,
+        "files": [
+          {
+            "path": "apps/tower/src/routes/asset-detail/LaneConfig.tsx",
+            "startLine": 259
+          },
+          {
+            "path": "apps/tower/src/routes/asset-detail/LaneConfig.tsx",
+            "startLine": 339
+          }
+        ]
+      },
+      {
+        "lines": 21,
+        "files": [
+          {
+            "path": "apps/tower/worker/annotation-route.ts",
+            "startLine": 30
+          },
+          {
+            "path": "apps/tower/worker/watch-window-route.ts",
+            "startLine": 31
+          }
+        ]
+      },
+      {
+        "lines": 21,
+        "files": [
+          {
+            "path": "scripts/tower-viewport-audit.mjs",
+            "startLine": 4
+          },
+          {
+            "path": "scripts/wall-fit-check.mjs",
+            "startLine": 32
+          }
+        ]
+      },
+      {
+        "lines": 20,
+        "files": [
+          {
+            "path": "apps/tower/src/lib/page-decision-markdown.ts",
+            "startLine": 123
+          },
+          {
+            "path": "apps/tower/src/lib/query-decision-markdown.ts",
+            "startLine": 202
+          }
+        ]
+      },
+      {
+        "lines": 20,
+        "files": [
+          {
+            "path": "scripts/config-documents.mts",
+            "startLine": 262
+          },
+          {
+            "path": "scripts/config-documents.mts",
+            "startLine": 304
+          }
+        ]
+      },
+      {
+        "lines": 20,
+        "files": [
+          {
+            "path": "workers/ingest/src/beads-snapshots.ts",
+            "startLine": 227
+          },
+          {
+            "path": "workers/ingest/src/job-runs.ts",
+            "startLine": 88
+          }
+        ]
+      },
+      {
+        "lines": 19,
+        "files": [
+          {
+            "path": "apps/tower/src/routes/TaskRoute.tsx",
+            "startLine": 987
+          },
+          {
+            "path": "apps/tower/src/routes/TaskRoute.tsx",
+            "startLine": 1040
+          }
+        ]
+      },
+      {
+        "lines": 19,
+        "files": [
+          {
+            "path": "packages/contract/src/create-watch-window.ts",
+            "startLine": 167
+          },
+          {
+            "path": "workers/ingest/src/watch-windows.ts",
+            "startLine": 99
+          }
+        ]
+      },
+      {
+        "lines": 18,
+        "files": [
+          {
+            "path": "apps/tower/src/components/ChartEventMarkers.tsx",
+            "startLine": 167
+          },
+          {
+            "path": "apps/tower/src/components/InfoTooltip.tsx",
+            "startLine": 63
+          }
+        ]
+      },
+      {
+        "lines": 18,
+        "files": [
+          {
+            "path": "apps/tower/src/components/PageDecisions.tsx",
+            "startLine": 404
+          },
+          {
+            "path": "apps/tower/src/components/QueryVisibilityRankings.tsx",
+            "startLine": 495
+          }
+        ]
+      },
+      {
+        "lines": 18,
+        "files": [
+          {
+            "path": "apps/tower/worker/annotation-route.ts",
+            "startLine": 33
+          },
+          {
+            "path": "apps/tower/worker/asset-column-route.ts",
+            "startLine": 52
+          }
+        ]
+      },
+      {
+        "lines": 17,
+        "files": [
+          {
+            "path": "apps/tower/src/components/FunnelListEditor.tsx",
+            "startLine": 433
+          },
+          {
+            "path": "apps/tower/src/routes/asset-detail/LaneConfig.tsx",
+            "startLine": 261
+          }
+        ]
+      },
+      {
+        "lines": 17,
+        "files": [
+          {
+            "path": "apps/tower/src/hooks/useConfigSave.ts",
+            "startLine": 147
+          },
+          {
+            "path": "apps/tower/src/hooks/useConfigSave.ts",
+            "startLine": 346
+          }
+        ]
+      },
+      {
+        "lines": 16,
+        "files": [
+          {
+            "path": "apps/tower/src/components/ConnectPanel.tsx",
+            "startLine": 339
+          },
+          {
+            "path": "apps/tower/src/components/ConnectPanel.tsx",
+            "startLine": 415
+          }
+        ]
+      },
+      {
+        "lines": 16,
+        "files": [
+          {
+            "path": "apps/tower/src/routes/KitchenSinkRoute.tsx",
+            "startLine": 4794
+          },
+          {
+            "path": "apps/tower/src/routes/KitchenSinkRoute.tsx",
+            "startLine": 4818
+          }
+        ]
+      },
+      {
+        "lines": 16,
+        "files": [
+          {
+            "path": "apps/tower/worker/annotation-route.ts",
+            "startLine": 33
+          },
+          {
+            "path": "apps/tower/worker/decision-route.ts",
+            "startLine": 38
+          }
+        ]
+      },
+      {
+        "lines": 16,
+        "files": [
+          {
+            "path": "apps/tower/worker/integrations-route.ts",
+            "startLine": 200
+          },
+          {
+            "path": "apps/tower/worker/integrations-route.ts",
+            "startLine": 280
+          }
+        ]
+      },
+      {
+        "lines": 16,
+        "files": [
+          {
+            "path": "workers/ingest/src/routes/research-log.ts",
+            "startLine": 58
+          },
+          {
+            "path": "workers/ingest/src/routes/research-log.ts",
+            "startLine": 99
+          }
+        ]
+      }
+    ],
+    "complexFunctions": [
+      {
+        "path": "apps/tower/src/routes/TaskRoute.tsx",
+        "name": "taskReturnPath",
+        "line": 190,
+        "complexity": 230,
+        "length": 1516
+      },
+      {
+        "path": "apps/tower/src/routes/WorkflowsRoute.tsx",
+        "name": "WorkflowIndex",
+        "line": 74,
+        "complexity": 173,
+        "length": 164
+      },
+      {
+        "path": "scripts/demo-viewer-installation.mts",
+        "name": "stable",
+        "line": 19,
+        "complexity": 151,
+        "length": 209
+      },
+      {
+        "path": "apps/tower/src/components/CollectionEditor.tsx",
+        "name": "nextOrder",
+        "line": 692,
+        "complexity": 148,
+        "length": 539
+      },
+      {
+        "path": "scripts/ux-gate.mjs",
+        "name": "judge",
+        "line": 518,
+        "complexity": 106,
+        "length": 143
+      },
+      {
+        "path": "scripts/hosted-task-operations.mts",
+        "name": "canonical",
+        "line": 95,
+        "complexity": 99,
+        "length": 223
+      },
+      {
+        "path": "apps/tower/src/components/PageDecisions.tsx",
+        "name": "PageDecisionTable",
+        "line": 283,
+        "complexity": 94,
+        "length": 653
+      },
+      {
+        "path": "apps/tower/src/routes/health/ServiceOverview.tsx",
+        "name": "ServiceOverview",
+        "line": 14,
+        "complexity": 92,
+        "length": 59
+      },
+      {
+        "path": "scripts/dolt-migration-state.mjs",
+        "name": "captureTargetState",
+        "line": 32,
+        "complexity": 87,
+        "length": 95
+      },
+      {
+        "path": "apps/tower/src/components/wall/RevenueHero.tsx",
+        "name": "PaceLine",
+        "line": 103,
+        "complexity": 84,
+        "length": 422
+      },
+      {
+        "path": "apps/tower/src/components/ProviderCard.tsx",
+        "name": "ProviderCard",
+        "line": 138,
+        "complexity": 82,
+        "length": 372
+      },
+      {
+        "path": "apps/tower/src/components/wall/SiteRows.tsx",
+        "name": "TodayVsLastWeek",
+        "line": 443,
+        "complexity": 79,
+        "length": 515
+      },
+      {
+        "path": "scripts/workspace-operations.mts",
+        "name": "towerOperation",
+        "line": 549,
+        "complexity": 79,
+        "length": 98
+      },
+      {
+        "path": "scripts/hosted-tasks-api.mts",
+        "name": "(anonymous)",
+        "line": 62,
+        "complexity": 79,
+        "length": 61
+      },
+      {
+        "path": "scripts/surface-audit.mjs",
+        "name": "describe",
+        "line": 590,
+        "complexity": 78,
+        "length": 320
+      },
+      {
+        "path": "apps/tower/src/components/wall/WallStrip.tsx",
+        "name": "stripClock",
+        "line": 42,
+        "complexity": 77,
+        "length": 230
+      },
+      {
+        "path": "scripts/hosted-demo-setup.mts",
+        "name": "setupHostedDemo",
+        "line": 126,
+        "complexity": 73,
+        "length": 238
+      },
+      {
+        "path": "apps/tower/src/routes/asset-detail/SettingsTab.tsx",
+        "name": "AlertRulesCard",
+        "line": 559,
+        "complexity": 70,
+        "length": 338
+      },
+      {
+        "path": "workers/ingest/src/dispatch.ts",
+        "name": "runCollectNow",
+        "line": 291,
+        "complexity": 68,
+        "length": 163
+      },
+      {
+        "path": "apps/tower/src/components/AppShell.tsx",
+        "name": "Sidebar",
+        "line": 148,
+        "complexity": 65,
+        "length": 594
+      }
+    ],
+    "unused": [
+      {
+        "kind": "file",
+        "path": "scripts/hosted-demo-setup.mts"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/dolt-migration-inspect.mjs"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/hosted-task-server.mts"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/dolt-migration-inventory.mjs"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/worker-entry-test-fixture.mjs"
+      },
+      {
+        "kind": "file",
+        "path": "workers/ingest/src/crons.ts"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/script-tests-global.mjs"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/hosted-task-serve.mjs"
+      },
+      {
+        "kind": "file",
+        "path": "scripts/signal-panel-fixture.mjs"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "MATERIALITY"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/demo-activity.ts",
+        "name": "writeDemoActivity"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "ASSET_PAYLOAD_INVENTORY"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/demo-activity.ts",
+        "name": "writeDemoAdRevenue"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/demo-activity.ts",
+        "name": "writeDemoCollection"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "WALL_PAYLOAD_INVENTORY"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/operator-posture.ts",
+        "name": "operatorLabel"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "MaterialConditionContract"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/annotations.ts",
+        "name": "ANNOTATION_KINDS"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "MaterialDestination"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/demo-activity.ts",
+        "name": "writeDemoOutcomeChecks"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/demo-activity.ts",
+        "name": "writeDemoTaskSnapshot"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/wall-feed.ts",
+        "name": "feedWordCount"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "useAnswerQueue"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/portfolio-headline.ts",
+        "name": "portfolioHeadlineWord"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/isolate-state.ts",
+        "name": "heldIsolateState"
+      },
+      {
+        "kind": "export",
+        "path": "workers/ingest/src/isolate-state.ts",
+        "name": "registeredIsolateState"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/annotations.ts",
+        "name": "ANNOTATION_REF_MAX"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "PayloadConcern"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/materiality.ts",
+        "name": "VisualPriority"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/shared/wall-feed.ts",
+        "name": "WALL_FEED_SLIDE_MS"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/components/ui/popover.tsx",
+        "name": "PopoverAnchor"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "answerHides"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "flushAnswers"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "scheduleAnswer"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "undoAnswer"
+      },
+      {
+        "kind": "export",
+        "path": "apps/tower/src/lib/answer-queue.ts",
+        "name": "undoLatestAnswer"
+      },
+      {
+        "kind": "export",
+        "path": "scripts/read-model-tools.mts",
+        "name": "READ_MODEL_TOOL_NAMES"
+      }
+    ],
+    "largestFiles": [
+      {
+        "path": "apps/tower/src/routes/KitchenSinkRoute.tsx",
+        "code_lines": 6581
+      },
+      {
+        "path": "scripts/signal-insights.mjs",
+        "code_lines": 4712
+      },
+      {
+        "path": "apps/tower/public/design-system.html",
+        "code_lines": 2794
+      },
+      {
+        "path": "workers/ingest/src/signal-dumps.ts",
+        "code_lines": 1643
+      },
+      {
+        "path": "apps/tower/worker/asset-detail-payload.ts",
+        "code_lines": 1622
+      },
+      {
+        "path": "scripts/creds-check.mjs",
+        "code_lines": 1573
+      },
+      {
+        "path": "apps/tower/src/routes/TaskRoute.tsx",
+        "code_lines": 1540
+      },
+      {
+        "path": "workers/ingest/src/dataforseo-dumps.ts",
+        "code_lines": 1454
+      },
+      {
+        "path": "apps/tower/src/components/registry.ts",
+        "code_lines": 1323
+      },
+      {
+        "path": "workers/ingest/src/hygiene.ts",
+        "code_lines": 1313
+      }
+    ]
+  }
+}

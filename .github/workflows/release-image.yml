@@ -98,3 +98,79 @@ jobs:
           subject-name: ${{ steps.repository.outputs.name }}
           subject-digest: ${{ steps.index.outputs.digest }}
           push-to-registry: true
+
+  # The codebase report's measurement image (deploy/codebase-report), built
+  # and published the same way as the app image, under the app image's name
+  # with -codebase-report. The codebase report action runs its main tag;
+  # scripts/codebase-report.mjs derives the same name.
+  codebase-report-build:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+            runner: ubuntu-24.04
+          - platform: linux/arm64
+            arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - id: repository
+        run: echo "name=$(node --input-type=module -e "const m = await import('./scripts/published-image.mjs'); console.log(m.RELEASE_REPOSITORY)")" >> "$GITHUB_OUTPUT"
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      - env:
+          REPOSITORY: ${{ steps.repository.outputs.name }}-codebase-report
+        run: |
+          docker build --platform ${{ matrix.platform }} --label "org.opencontainers.image.revision=$COMMIT" --label "org.opencontainers.image.source=https://github.com/${{ github.repository }}" --tag "$REPOSITORY:$COMMIT-${{ matrix.arch }}" deploy/codebase-report
+          docker push "$REPOSITORY:$COMMIT-${{ matrix.arch }}"
+
+  codebase-report-publish:
+    needs: codebase-report-build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    env:
+      COMMIT: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.21.0
+      - id: repository
+        run: echo "name=$(node --input-type=module -e "const m = await import('./scripts/published-image.mjs'); console.log(m.RELEASE_REPOSITORY)")" >> "$GITHUB_OUTPUT"
+      - env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ACTOR: ${{ github.actor }}
+        run: echo "$TOKEN" | docker login ghcr.io --username "$ACTOR" --password-stdin
+      - id: index
+        env:
+          REPOSITORY: ${{ steps.repository.outputs.name }}-codebase-report
+        run: |
+          docker buildx imagetools create --tag "$REPOSITORY:$COMMIT" --tag "$REPOSITORY:main" \
+            --annotation "index:org.opencontainers.image.revision=$COMMIT" "$REPOSITORY:$COMMIT-amd64" "$REPOSITORY:$COMMIT-arm64"
+          echo "digest=$(docker buildx imagetools inspect "$REPOSITORY:$COMMIT" --format '{{json .Manifest}}' | jq -r .digest)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ steps.repository.outputs.name }}-codebase-report
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: true
