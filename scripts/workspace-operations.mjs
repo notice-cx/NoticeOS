@@ -344,7 +344,7 @@ const evidence = operation('evidence.read', [configRead]);
 const publicRead = operation(null, [], 'public');
 const standalone = operation(null, [], 'standalone-only');
 const ingestHttp = Object.freeze({
-    '/api/pulse': ['POST'], '/api/revenue': ['POST'], '/api/annotations': ['POST'],
+    '/api/pulse': ['POST'], '/api/codebase-report': ['POST'], '/api/revenue': ['POST'], '/api/annotations': ['POST'],
     '/api/reclamation-targets': ['GET', 'POST'], '/api/watch-windows': ['POST'],
     '/api/watch-readbacks': ['GET', 'POST'], '/api/credentials/rotate-key': ['POST'],
     '/api/config-documents': ['GET'], '/api/config-documents/seed': ['POST'], '/api/config-documents/apply': ['POST'],

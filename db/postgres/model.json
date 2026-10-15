@@ -265,6 +265,14 @@
       },
       "rule": "Append-only; every revenue source's reported figures, a day's total or one sale per row, each naming its source, account and the run that reported it. The newest per site, source, account, day and item is current."
     },
+    "codebase_reports": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; a same-day resend of a site's codebase report is a new revision."
+    },
     "integration_connections": {
       "revision": {
         "insert": true,
@@ -441,6 +449,10 @@
     "current_revenue": {
       "view": true,
       "rule": "The newest figure per site, source, account, day and item."
+    },
+    "current_codebase_reports": {
+      "view": true,
+      "rule": "The newest revision of each site's codebase report per day, numbered by the day's first revision (day_number)."
     },
     "hosted_job_occurrences": {
       "revision": {

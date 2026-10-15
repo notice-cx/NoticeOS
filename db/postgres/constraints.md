@@ -178,6 +178,26 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, target_seq); unique (workspace_id, provider, connection_revision, capability, asset_id, target_id, family), NULLs not distinct
 - **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
 
+## `codebase_reports`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `report_id` | bigint, identity | yes |  |
+| `report_number` | bigint | yes | `(report_number >= 1)` |
+| `asset_id` | text | yes |  |
+| `report_date` | date | yes |  |
+| `revision` | integer | yes | `(revision >= 1)` |
+| `commit` | character(40) | yes | `(commit ~ '^[0-9a-f]{40}$')` |
+| `ref` | text | yes | `(ref <> '')` |
+| `generated_at` | timestamp with time zone | yes |  |
+| `received_at` | timestamp with time zone | yes |  |
+| `envelope` | json | yes | `(json_typeof(envelope) = 'object')` |
+
+- **Keys:** primary (workspace_id, report_id); unique (workspace_id, asset_id, report_date, revision); unique (workspace_id, report_number)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+- **Triggers:** `number_in_workspace` (before insert)
+
 ## `config_changes`
 
 | Column | Type | Required | Checks |

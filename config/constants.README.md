@@ -25,7 +25,18 @@ most of it in place.
 | `monthly_caps.data_usd` | Hard monthly ceiling on metered data spend | the DataForSEO budget gate (`workers/ingest/src/dataforseo-dumps.ts`), fail-closed | yes, **General → Budget** |
 | `flag_defaults.alpha` | Anomaly sensitivity: the Poisson tail probability an alert must beat | the flag rules (`packages/contract/src/rules.ts`) | yes, **Alert rules** |
 | `flag_defaults.max_window_days` | The most whole days a quiet series is pooled over, 1 to 28: each series is tested over the fewest days in which a run of zeros could fire, and one too quiet for this many is not tested | the flag rules | yes, **Alert rules** |
+| `codebase_rules.growth_percent_30d` | The codebase growth alert fires when lines of code rose at least this percent over the site's codebase report nearest 30 days back (28 to 45 days back). Default 25 | the codebase rules (`workers/ingest/src/codebase.ts`, `packages/contract/src/codebase-measures.ts`), store first, on every codebase report | no |
+| `codebase_rules.growth_min_lines` | The codebase growth alert also needs the code to have grown by at least this many lines. Default 500 | the codebase rules | no |
+| `codebase_rules.duplication_percent` | The repeated-code alert fires when at least this percent of the code is repeated. Default 8 | the codebase rules | no |
+| `codebase_rules.unused_items` | The unused-code alert fires when unused files plus unused packages reach this many. Default 10 | the codebase rules | no |
+| `codebase_rules.complex_functions_added_30d` | The hard-to-change functions alert fires when at least this many more functions became hard to change since the comparison report. Default 5 | the codebase rules | no |
 | `no_nightly_report` | Optional list of asset ids that send no nightly report, so none is owed: no freshness alert, outside the SYSTEM card's "N/M nightly reports fresh", a neutral "No report" on the card. Absent until the first asset declares | the ingest freshness cron and the Tower, store first, through `owesNightlyReport` in `packages/contract/src/reporting.ts` | yes, each asset's **Settings → Nightly report** |
+
+The `codebase_rules` thresholds are read per key: a stored copy that lacks
+the block or one of its keys, or holds a value that is not a number of 0 or
+more, uses the compiled copy's value for that key. The rules and the
+sentences their alerts show are in
+[`packages/contract/src/codebase-measures.ts`](../packages/contract/src/codebase-measures.ts).
 
 `monthly_caps.inference_usd` no longer exists: no process in this repo calls a
 model, so nothing could measure spend against it. A store seeded while it

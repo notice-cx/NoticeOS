@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, expect, it } from 'vitest';
-import { evaluatePulse } from '@noticeos/contract';
+import { DEFAULT_CODEBASE_RULE_THRESHOLDS, evaluateCodebaseRules, evaluatePulse, pickComparisonReport } from '@noticeos/contract';
 import { generateDemoScenario, demoScenarioHash } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo } from '../../../scripts/demo-store.mjs';
 import { generateDemoWorkflows } from '../../../scripts/demo-workflows.mjs';
@@ -12,7 +12,7 @@ const scenario = generateDemoScenario({ seed: 'workflow-store', cutoff: '2026-09
 beforeEach(async () => {
   await reset();
   await asOwner('DELETE FROM noticeos.assets');
-  await env.STORE.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await env.STORE.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
 });
 it('the released writer mirrors generated runs and the actual final watch reading without changing money', async () => {
   const ledger = () => env.STORE.read(tx => tx.query('SELECT to_jsonb(l)::text AS row FROM noticeos.ledger_entries l ORDER BY entry_id'));
