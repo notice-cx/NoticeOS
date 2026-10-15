@@ -66,6 +66,9 @@ const WORK = {
         task('Move the newsletter signup below recipes', ['The newsletter signup interrupts recipes before the ingredients.', 'Move the signup below each recipe; compare weekly signups.', 'Placement drafted; waits for the holiday pages.', ''], { status: 'open', opened: -9 }),
         task('Plan the December cookie series', ['December cookie searches peak in the second week.', 'Outline twelve cookie posts with dates and photos.', 'Outline started from last year’s best cookie posts.', ''], { status: 'open', opened: -5 }),
         task('Add cooking times to recipe cards', ['Recipe cards lack cooking times in search results.', 'Recipe cards carry valid cooking time and rating data.', 'Waiting for the page speed verification first.', ''], { status: 'blocked', opened: -5, dependsOn: 3 }),
+        // The two findings the Codebase tab leads with for this site's growth.
+        task('Merge the repeated recipe card components', ['The recipe card is copied in four places.', 'One shared card replaces the four; none listed as repeated.', 'The copies differ only in image size.', ''], { status: 'open', opened: -4 }),
+        task('Split the recipe page’s largest function', ['RecipePage has so many branches each change risks another.', 'RecipePage split into parts; off the hard-to-change list.', 'Start with the ingredient and nutrition branches.', ''], { status: 'open', opened: -3 }),
     ],
     tn: [
         task('Ship the trail page redesign', ['Trail pages looked dated beside newer guide sites.', 'Ship the redesigned trail pages; record the changed routes.', 'The redesign covers trail, region and map pages.', 'Redesign live; comparison registered on sessions.'], { status: 'closed', opened: -50, started: -40, finished: -36, priority: 1 }),
@@ -79,6 +82,8 @@ const WORK = {
         task('Fix broken links in trail guides', ['Trail guides link to closed park pages.', 'Replace or remove every broken outbound link.', 'Two hundred links checked; thirty-one are broken.', 'Every broken outbound link replaced or removed.'], { status: 'closed', opened: -12, started: '44h', finished: '20h', check: 'no broken links in 200 checked' }),
         task('Speed up the trail map pages', ['Map pages became the slowest pages after the redesign.', 'Map pages load in under three seconds on phones.', 'Map scripts load before the page text.', ''], { status: 'open', opened: -9 }),
         task('Add trail difficulty filters', ['Readers ask to filter trails by difficulty.', 'Ship difficulty filters on every region page.', 'Difficulty labels exist on most trails already.', ''], { status: 'open', opened: -12 }),
+        // The redesign's leftovers, which the Codebase tab lists as unused files.
+        task('Remove the old templates left in legacy/', ['The redesign left old trail templates unused in legacy/.', 'Unused legacy/ files deleted; the next codebase report lists none.', 'A rollback needs these files; waits for that decision.', ''], { status: 'blocked', opened: -6, dependsOn: 2 }),
     ],
     fr: [
         task('Check CSV input handling', ['CSV input handling needs verification before more examples.', 'Check empty, zero, and numeric inputs; record concrete failures.', 'Start with inputs; more examples cannot repair rejected values.', ''], { status: 'in_progress', opened: -22, started: -3 }),

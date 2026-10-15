@@ -63,7 +63,7 @@ describe("Codebase tab with reports", () => {
     expect(unused.textContent).toContain("9 files, 44 exports");
     expect(container.querySelector('[data-kpi="Test coverage by size"]')!.textContent).toContain("1.0×the code");
     fireEvent.click(within(container.querySelector<HTMLElement>('[data-kpi="Repeated code"]')!).getByRole("button", { name: "About Repeated code" }));
-    expect(await screen.findByText("Repeated code: the same lines in more than one place. Every copy has to be fixed separately.")).toBeInTheDocument();
+    expect(await screen.findByText("Code copied in more than one place. Each copy needs fixing.")).toBeInTheDocument();
   });
 
   it("shows Not measured with the report's own reason", async () => {
@@ -104,7 +104,7 @@ describe("Codebase tab with reports", () => {
 });
 
 describe("Codebase tab before the first report", () => {
-  it("names the ways to send one, filled in for this site and this installation", async () => {
+  it("names the ways to send one, filled in for this site", async () => {
     const payload = everyTabPayload();
     payload.codebase = NO_CODEBASE;
     const { container } = renderCodebase(payload);
@@ -113,7 +113,7 @@ describe("Codebase tab before the first report", () => {
     expect(container.querySelectorAll("[data-kpi]")).toHaveLength(0);
     const workflow = container.querySelector("[data-codebase-workflow]")!.textContent!;
     expect(workflow).toContain('asset: "meadow.example"');
-    expect(workflow).toContain(`ingest-url: "${window.location.origin}/api/codebase-report"`);
+    expect(workflow).toContain("ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}");
     expect(screen.getByRole("button", { name: "Central pull · coming later" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Local command" }));
     expect(container.querySelector("[data-codebase-command]")?.textContent)

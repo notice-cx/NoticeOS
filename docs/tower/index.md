@@ -38,7 +38,7 @@ At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil be
 
 ## A site's own page
 
-A **site** is one website or product you added. Its name on Home or Sites opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. Most of what concerns one site happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Sites](/tower/sites).
+A **site** is one website or product you added. Its name on Home or Sites opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. Most of what concerns one site happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Sites](/tower/sites).
 
 ## How to read a page
 

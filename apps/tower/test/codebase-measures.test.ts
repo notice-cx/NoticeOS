@@ -8,7 +8,6 @@ import {
   changeAgainst,
   changeText,
   codebaseAnswer,
-  codebaseIngestUrl,
   codebaseWidgets,
   dayNotes,
   formatFigure,
@@ -167,7 +166,7 @@ describe("the five widgets", () => {
     expect(widgets[0]!.change?.change).toBe(2_400);
     expect(widgets[0]!.spark).toHaveLength(85);
     expect(widgets[0]!.spark.at(-1)).toEqual({ t: TODAY, v: 48_210 });
-    expect(widgets[1]!.meaning).toBe("Repeated code: the same lines in more than one place. Every copy has to be fixed separately.");
+    expect(widgets[1]!.meaning).toBe("Code copied in more than one place. Each copy needs fixing.");
     expect(widgets[3]!.change?.change).toBe(4);
   });
 
@@ -262,12 +261,11 @@ describe("the chart, languages and findings", () => {
 });
 
 describe("the first report", () => {
-  it("fills the workflow file and the command with the site and this installation's address", () => {
-    const url = codebaseIngestUrl("https://tower.example/");
-    expect(url).toBe("https://tower.example/api/codebase-report");
-    const workflow = actionWorkflow(ASSET, url);
+  it("fills the workflow file and the command with the site, and reads the address and token from secrets", () => {
+    const workflow = actionWorkflow(ASSET);
     expect(workflow).toContain('asset: "meadow.example"');
-    expect(workflow).toContain('ingest-url: "https://tower.example/api/codebase-report"');
+    expect(workflow).toContain("ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}");
+    expect(workflow).not.toContain("/api/codebase-report");
     expect(workflow).toContain("token: ${{ secrets.NOTICEOS_ASSET_TOKEN }}");
     expect(workflow).toContain("fetch-depth: 0");
     expect(localCommand(ASSET)).toBe("pnpm os:codebase-report -- --asset meadow.example --repo /path/to/your/code");

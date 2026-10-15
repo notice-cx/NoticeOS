@@ -5,17 +5,22 @@
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import {
+  CodebaseComplexFunction as ComplexFunctionRow,
+  CodebaseDuplicate as DuplicateRow,
+  CodebaseLanguage as LanguageRow,
+  CodebaseLargestFile as LargestFileRow,
+  CodebaseMeasuresSchema,
+  CodebaseReport as CodebaseEnvelope,
+  CodebaseUnusedItem as UnusedRow,
+} from "@noticeos/contract/codebase";
+import {
   CODEBASE_HISTORY_DAYS,
   CODEBASE_MEASURE_KEYS,
-  type CodebaseComplexFunction,
-  type CodebaseDuplicate,
   type CodebaseHistoryPoint,
-  type CodebaseLanguage,
   type CodebaseMeasureKey,
   type CodebaseMeasures,
   type CodebaseReport,
   type CodebaseSlice,
-  type CodebaseUnusedItem,
 } from "../shared/codebase";
 
 /** `$1` the asset, `$2` the clock, `$3` the days. Oldest first. */
@@ -88,18 +93,17 @@ function record(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
 }
 
-const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
 const text = (value: unknown): value is string => typeof value === "string";
 
-/** Only known keys with a non-negative number cross; anything else reads as
- * unmeasured, never as zero. */
+/** Only known keys with a number the contract accepts for them cross;
+ * anything else reads as unmeasured, never as zero. */
 export function parseMeasures(value: unknown): CodebaseMeasures {
   const source = record(value);
   const out: CodebaseMeasures = {};
   if (!source) return out;
   for (const key of CODEBASE_MEASURE_KEYS) {
-    const measure = source[key];
-    if (finite(measure)) out[key] = measure;
+    const measure = CodebaseMeasuresSchema.shape[key].safeParse(source[key]);
+    if (measure.success && measure.data !== undefined) out[key] = measure.data;
   }
   return out;
 }
@@ -127,22 +131,45 @@ function parseTools(value: unknown): CodebaseReport["tools"] {
   };
 }
 
-function list<T>(value: unknown, parse: (item: Record<string, unknown>) => T | null): T[] {
+/** One of the contract's row schemas, as far as `list` uses it. */
+type RowSchema<T> = { safeParse(value: unknown): { success: true; data: T } | { success: false } };
+
+/** The rows of a list the contract accepts; a row it rejects is dropped. */
+function list<T>(value: unknown, row: RowSchema<T>): T[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((item) => {
-    const row = record(item);
-    const parsed = row ? parse(row) : null;
-    return parsed === null ? [] : [parsed];
+    const parsed = row.safeParse(item);
+    return parsed.success ? [parsed.data] : [];
   });
 }
 
+/** A valid envelope with its optional lists and reasons read as empty. */
+function readShape(envelope: CodebaseEnvelope): CodebaseReport {
+  const { unmeasured, byLanguage, findings, ...rest } = envelope;
+  return {
+    ...rest,
+    unmeasured: unmeasured ?? {},
+    byLanguage: byLanguage ?? [],
+    findings: {
+      duplicates: findings?.duplicates ?? [],
+      complexFunctions: findings?.complexFunctions ?? [],
+      unused: findings?.unused ?? [],
+      largestFiles: findings?.largestFiles ?? [],
+    },
+  };
+}
+
 /**
- * The stored envelope as the page reads it. The ingest validated it on the
- * way in; this only keeps a malformed row from breaking the page, dropping a
- * finding it cannot read rather than the report.
+ * The stored envelope as the page reads it. The ingest validated it with the
+ * contract on the way in, so a row normally passes whole; one that does not
+ * (stored under an older contract, or edited) is read part by part, dropping
+ * a finding the contract rejects rather than the report.
  */
 export function parseCodebaseReport(json: string): CodebaseReport | null {
-  const root = record(parseJson(json));
+  const value = parseJson(json);
+  const valid = CodebaseEnvelope.safeParse(value);
+  if (valid.success) return readShape(valid.data);
+  const root = record(value);
   const repository = record(root?.repository);
   if (!root || !repository || !text(root.asset) || !text(root.generatedAt) || !text(repository.commit) || !text(repository.ref)) {
     return null;
@@ -162,28 +189,12 @@ export function parseCodebaseReport(json: string): CodebaseReport | null {
     tools: parseTools(root.tools),
     measures: parseMeasures(root.measures),
     unmeasured: parseUnmeasured(root.unmeasured),
-    byLanguage: list<CodebaseLanguage>(root.byLanguage, (row) =>
-      text(row.language) && finite(row.files) && finite(row.code_lines)
-        ? { language: row.language, files: row.files, code_lines: row.code_lines }
-        : null),
+    byLanguage: list(root.byLanguage, LanguageRow),
     findings: {
-      duplicates: list<CodebaseDuplicate>(findings.duplicates, (row) => {
-        const files = list(row.files, (file) =>
-          text(file.path) && finite(file.startLine) ? { path: file.path, startLine: file.startLine } : null);
-        return finite(row.lines) && files.length > 0 ? { lines: row.lines, files } : null;
-      }),
-      complexFunctions: list<CodebaseComplexFunction>(findings.complexFunctions, (row) =>
-        text(row.path) && text(row.name) && finite(row.line) && finite(row.complexity) && finite(row.length)
-          ? { path: row.path, name: row.name, line: row.line, complexity: row.complexity, length: row.length }
-          : null),
-      unused: list<CodebaseUnusedItem>(findings.unused, (row) => {
-        if (row.kind === "file" && text(row.path)) return { kind: "file", path: row.path };
-        if (row.kind === "export" && text(row.path) && text(row.name)) return { kind: "export", path: row.path, name: row.name };
-        if (row.kind === "dependency" && text(row.name)) return { kind: "dependency", name: row.name };
-        return null;
-      }),
-      largestFiles: list(findings.largestFiles, (row) =>
-        text(row.path) && finite(row.code_lines) ? { path: row.path, code_lines: row.code_lines } : null),
+      duplicates: list(findings.duplicates, DuplicateRow),
+      complexFunctions: list(findings.complexFunctions, ComplexFunctionRow),
+      unused: list(findings.unused, UnusedRow),
+      largestFiles: list(findings.largestFiles, LargestFileRow),
     },
   };
 }

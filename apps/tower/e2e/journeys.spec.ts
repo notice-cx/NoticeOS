@@ -2397,7 +2397,7 @@ for (const minutesAgo of [10, 40]) {
 
 // A site's Codebase tab, from reports stored as the ingest stores them, and
 // before its first report the ways to send one, filled in for this site.
-test("the Codebase tab answers how the code changed, and before a first report shows how to send one", async ({ page, baseURL }, testInfo) => {
+test("the Codebase tab answers how the code changed, and before a first report shows how to send one", async ({ page }, testInfo) => {
   await createAsset(page);
   await page.goto(`/assets/${JOURNEY_ASSET}/codebase`);
   const answer = page.locator("[data-codebase-answer] h2");
@@ -2405,7 +2405,7 @@ test("the Codebase tab answers how the code changed, and before a first report s
   const setup = page.locator("[data-codebase-setup]");
   await expect(setup).toBeVisible();
   await expect(setup.locator("[data-codebase-workflow]")).toContainText(`asset: "${JOURNEY_ASSET}"`);
-  await expect(setup.locator("[data-codebase-workflow]")).toContainText(`ingest-url: "${baseURL}/api/codebase-report"`);
+  await expect(setup.locator("[data-codebase-workflow]")).toContainText("ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}");
   await expect(setup.getByRole("button", { name: "Central pull · coming later" })).toBeDisabled();
   await setup.getByRole("button", { name: "Local command", exact: true }).click();
   await expect(setup.locator("[data-codebase-command]")).toHaveText(`pnpm os:codebase-report -- --asset ${JOURNEY_ASSET} --repo /path/to/your/code`);

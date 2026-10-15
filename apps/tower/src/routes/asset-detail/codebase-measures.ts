@@ -1,8 +1,8 @@
 import {
-  CODEBASE_COMPARISON_MAX_DAYS,
-  CODEBASE_COMPARISON_MIN_DAYS,
   CODEBASE_COMPARISON_TARGET_DAYS,
   CODEBASE_MEASURES,
+  daysBetween,
+  pickComparisonReport,
   type CodebaseDuplicate,
   type CodebaseComplexFunction,
   type CodebaseHistoryPoint,
@@ -32,13 +32,6 @@ export const CHANGE_DAYS = CODEBASE_COMPARISON_TARGET_DAYS;
 
 export const CODEBASE_RANGES = [30, 90] as const;
 export type CodebaseRange = (typeof CODEBASE_RANGES)[number];
-
-const DAY_MS = 86_400_000;
-
-/** Whole days from `from` to `to`, both `YYYY-MM-DD`. */
-export function daysBetween(from: string, to: string): number {
-  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / DAY_MS);
-}
 
 /** The first seven characters of a commit: what a person can match in git. */
 export function shortCommit(commit: string): string {
@@ -89,22 +82,22 @@ function unusedTotal(measures: CodebaseMeasures): number | null {
 export const WIDGETS: readonly WidgetSpec[] = [
   {
     key: "size", label: specOf("code_lines").label,
-    meaning: "Lines of code, without comments or tests. More code is more to read and fix.",
+    meaning: "Code without comments or tests. More code is more to fix.",
     unit: "count", improvement: "none", keys: ["code_lines"], pick: measure("code_lines"),
   },
   {
     key: "repeated", label: specOf("duplication_percent").label,
-    meaning: "Repeated code: the same lines in more than one place. Every copy has to be fixed separately.",
+    meaning: "Code copied in more than one place. Each copy needs fixing.",
     unit: "percent", improvement: "down", keys: ["duplication_percent"], pick: measure("duplication_percent"),
   },
   {
     key: "unused", label: "Unused code",
-    meaning: "Unused code: files, exports and packages nothing uses. Each still needs upkeep.",
+    meaning: "Files, exports and packages nothing uses. Each still needs upkeep.",
     unit: "count", improvement: "down", keys: UNUSED_KEYS, pick: unusedTotal,
   },
   {
     key: "complex", label: specOf("complex_functions").label,
-    meaning: "Hard-to-change functions: so many branches that one change can break another.",
+    meaning: "So many branches that one change can break another.",
     unit: "count", improvement: "down", keys: ["complex_functions"], pick: measure("complex_functions"),
   },
   {
@@ -160,19 +153,10 @@ export function baselineReport(
   latest: string,
   pick: (measures: CodebaseMeasures) => number | null,
 ): CodebaseHistoryPoint | null {
-  let best: CodebaseHistoryPoint | null = null;
-  let bestDistance = Infinity;
-  for (const point of history) {
-    const back = daysBetween(point.date, latest);
-    if (back < CODEBASE_COMPARISON_MIN_DAYS || back > CODEBASE_COMPARISON_MAX_DAYS || pick(point.measures) === null) continue;
-    const distance = Math.abs(back - CHANGE_DAYS);
-    // History is oldest first, so a strict `<` keeps the older of a tie.
-    if (distance < bestDistance) {
-      best = point;
-      bestDistance = distance;
-    }
-  }
-  return best;
+  const measured = history
+    .filter((point) => pick(point.measures) !== null)
+    .map((point) => ({ reportDate: point.date, point }));
+  return pickComparisonReport(latest, measured)?.point ?? null;
 }
 
 /** The newest report's figure against the comparison report's, or null when
@@ -440,23 +424,26 @@ export function findingSource(slice: CodebaseSlice): string {
 
 // --- sending the first report ---------------------------------------------------
 
-/** Where a report is sent: the installation's own address, which is also where
- * its nightly reports go (`POST /api/pulse`). */
-export function codebaseIngestUrl(origin: string): string {
-  return `${origin.replace(/\/+$/, "")}/api/codebase-report`;
-}
-
 /** The repository secret the workflow reads the site's report token from. */
 export const TOKEN_SECRET = "NOTICEOS_ASSET_TOKEN";
+
+/**
+ * The repository secret the workflow reads the installation's ingest address
+ * from. The Tower's own address does not receive reports: the ingest answers
+ * `POST /api/pulse` and `POST /api/codebase-report` at an address of its own,
+ * and a standalone installation answers them only on its app container's
+ * loopback, so this page cannot fill the address in.
+ */
+export const INGEST_SECRET = "NOTICEOS_INGEST_URL";
 
 /** The workflow file, filled in for one site: on every push to main, every
  * Monday, and on demand. The full history is checked out because the report
  * counts the last 30 days of changes. */
-export function actionWorkflow(asset: string, ingestUrl: string): string {
+export function actionWorkflow(asset: string): string {
   // The action's inputs by their names in its action.yml.
   const inputs: [string, string][] = [
     ["asset", JSON.stringify(asset)],
-    ["ingest-url", JSON.stringify(ingestUrl)],
+    ["ingest-url", "${{ secrets." + INGEST_SECRET + " }}"],
     ["token", "${{ secrets." + TOKEN_SECRET + " }}"],
   ];
   return [
@@ -467,6 +454,8 @@ export function actionWorkflow(asset: string, ingestUrl: string): string {
     "  schedule:",
     "    - cron: \"17 4 * * 1\"",
     "  workflow_dispatch:",
+    "permissions:",
+    "  contents: read",
     "jobs:",
     "  codebase-report:",
     "    runs-on: ubuntu-latest",

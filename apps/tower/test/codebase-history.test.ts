@@ -36,7 +36,7 @@ const DEPS: AssetDetailDeps = {
 
 describe("a stored envelope, read", () => {
   it("keeps only known measures with a non-negative number, so anything else is unmeasured", () => {
-    expect(parseMeasures({ code_lines: 10, duplication_percent: 4.5, unknown: 3, files: -1, functions: "12", test_ratio: null }))
+    expect(parseMeasures({ code_lines: 10, duplication_percent: 4.5, unknown: 3, files: -1, functions: "12", test_ratio: null, languages: 2.5, duplicate_blocks: Infinity }))
       .toEqual({ code_lines: 10, duplication_percent: 4.5 });
     expect(parseMeasures(null)).toEqual({});
     expect(parseMeasures([1, 2])).toEqual({});
@@ -48,14 +48,18 @@ describe("a stored envelope, read", () => {
       ...report,
       byLanguage: undefined,
       findings: {
-        duplicates: [{ lines: 4, files: [{ path: "a.ts", startLine: 1 }] }, { lines: "x", files: [] }],
+        duplicates: [
+          { lines: 4, files: [{ path: "a.ts", startLine: 1 }, { path: "b.ts", startLine: 9 }] },
+          { lines: 4, files: [{ path: "a.ts", startLine: 1 }] },
+          { lines: "x", files: [] },
+        ],
         complexFunctions: [{ path: "x.ts", name: "f", line: 1 }],
         unused: [{ kind: "file", path: "old.ts" }, { kind: "export", path: "u.ts" }, { kind: "dependency", name: "pad" }, { kind: "other" }],
       },
     };
     const read = parseCodebaseReport(JSON.stringify(stored))!;
     expect(read.byLanguage).toEqual([]);
-    expect(read.findings.duplicates).toEqual([{ lines: 4, files: [{ path: "a.ts", startLine: 1 }] }]);
+    expect(read.findings.duplicates).toEqual([{ lines: 4, files: [{ path: "a.ts", startLine: 1 }, { path: "b.ts", startLine: 9 }] }]);
     expect(read.findings.complexFunctions).toEqual([]);
     expect(read.findings.unused).toEqual([{ kind: "file", path: "old.ts" }, { kind: "dependency", name: "pad" }]);
     expect(read.findings.largestFiles).toEqual([]);

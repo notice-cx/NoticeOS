@@ -29,6 +29,7 @@ design library: why the product works the way it does. Build the site with
 | [23 — Configuration ownership](23-configuration-ownership.md) | Where each setting lives, and what accounts would need |
 | [24 — Integration monitoring](24-integration-monitoring.md) | How each data source's health is observed |
 | [26 — Storage capacity](26-storage-capacity.md) | How big the store is, how fast it grows, and how that sizes the move to Postgres |
+| [27 — Codebase health](27-codebase-health.md) | What the codebase report measures and why, the unmeasured rule, the alert rules, and how a report reaches the store |
 
 Doc numbers never change: a retired doc's number stays unused and the other
 docs keep theirs. Git history contains the retired docs.

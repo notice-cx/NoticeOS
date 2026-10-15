@@ -105,6 +105,7 @@ export default defineConfig({
           { text: 'Connect a task project', link: '/guides/connect-a-task-project' },
           { text: 'Connect an agent', link: '/guides/connect-an-agent' },
           { text: 'Send your own report', link: '/guides/send-your-own-report' },
+          { text: 'Measure your codebase', link: '/guides/measure-your-codebase' },
           { text: 'Record revenue and costs', link: '/guides/record-revenue-and-costs' },
           { text: 'Arrange the Wall', link: '/guides/arrange-the-wall' },
         ],

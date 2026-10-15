@@ -24,9 +24,9 @@ import { startHostedScheduler } from './hosted-scheduler.mjs';
 import { evaluateDemoWatch } from './demo-seed.mjs';
 import { demoSchedules } from './demo-display.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
-import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
+import { demoCodebaseReports, generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { createDemoActivity } from './demo-activity.mjs';
-import { fillDemo } from './demo-store.mjs';
+import { demoCodebaseVerdicts, fillDemo } from './demo-store.mjs';
 import { trackFixturePool } from './test-fixtures/postgres-pool.mjs';
 import { proveHostedDemoBrowser } from './test-fixtures/hosted-demo-browser.mjs';
 import { skipWithoutPostgres } from './test/postgres-skip.mjs';
@@ -149,6 +149,63 @@ test("the demo's hourly lane reads each fictional home page with the release's o
     const back = await run(new Date(Date.parse(outage.checkAt) + 3_600_000).toISOString());
     assert.deepEqual({ checked: back.checked, retried: back.retried, resolved: back.resolved }, { checked: assets.length, retried: 0, resolved: 1 });
     assert.deepEqual(await open(), []);
+  } finally {
+    await store?.close(); await closeAdmin?.(); owner?.close();
+    assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("the demo's codebase reports and alerts seed into the store, and the simulator's next week goes through the ordinary writer", { timeout: 300000 }, async t => {
+  const tools = findPostgres();
+  const root = mkdtempSync(path.join(os.tmpdir(), 'n-demo-codebase-'));
+  let owner, closeAdmin, store;
+  try {
+    owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
+    applyMigrations(owner);
+    const admin = new Pool({ host: owner.socketDir, port: owner.loopbackPort, database: 'noticeos_dev', user: 'postgres', max: 1 });
+    closeAdmin = trackFixturePool(admin);
+    await admin.query("INSERT INTO noticeos.workspaces(workspace_id,slug,display_name,status) VALUES($1,'demo-codebase','Demo codebase','active')", [workspace]);
+    const helpers = await buildDemoWorkerHelpers(REPO_ROOT, { activity: true, configurationRoot: path.join(REPO_ROOT, 'workers/ingest/test/fixture-config') });
+    store = openWorkspaceStore(owner.applicationLogin().url(), { workspaceId: workspace });
+    await store.write(async tx => {
+      await tx.query("SELECT set_config('noticeos.test_demo','synthetic',true)");
+      await fillDemo(tx, scenario, { evaluatePulse: helpers.evaluatePulse, codebaseRules: helpers.codebaseRules, developmentProfile: { setting: 'noticeos.test_demo', value: 'synthetic' } });
+    });
+    const seeded = demoCodebaseReports(scenario);
+    const [stored] = await store.read(tx => tx.query(`SELECT (SELECT count(*)::int FROM noticeos.codebase_reports) AS reports,
+      (SELECT count(*)::int FROM noticeos.current_codebase_reports) AS current, (SELECT min(report_number)::int FROM noticeos.codebase_reports) AS first,
+      (SELECT count(*)::int FROM noticeos.flags WHERE rule_id LIKE 'codebase-%') AS flags,
+      (SELECT count(*)::int FROM noticeos.flags WHERE rule_id LIKE 'codebase-%' AND resolved_at IS NULL) AS open`));
+    // One stored report per seeded run, each the only revision of its day.
+    assert.equal(stored.reports, seeded.length);
+    assert.equal(stored.current, seeded.length);
+    // The seeded alerts are the ones the released rules raise over those reports, in arrival order.
+    const expected = demoCodebaseVerdicts(seeded, helpers.codebaseRules, seeded.map((_, i) => stored.first + i));
+    assert.equal(stored.flags, expected.length);
+    assert.equal(stored.open, expected.filter(flag => flag.resolvedAt === null).length);
+    const [newest] = await store.read(tx => tx.query('SELECT envelope::text AS envelope FROM noticeos.codebase_reports ORDER BY report_number DESC LIMIT 1'));
+    assert.deepEqual(JSON.parse(newest.envelope), seeded.at(-1).envelope);
+
+    // The simulator's next eight days, written as the hosted demo writes them:
+    // each weekly codebase report through the ingest's own writer and rules.
+    const activity = createDemoActivity(scenario);
+    const scoped = Object.freeze({ where: 'demo-codebase', workspaceId: async () => workspace, read: work => store.read(work), write: work => store.write(work) });
+    let sent = 0;
+    for (let i = 0; i < 8; i++) {
+      const day = activity.day(shiftDemoDay(scenario.manifest.referenceDate, i));
+      sent += day.codebase.length;
+      await helpers.writeDemoActivity(scoped, day);
+    }
+    assert.ok(sent > 0);
+    const [after] = await store.read(tx => tx.query(`SELECT count(*)::int AS reports, max(revision)::int AS revision,
+      count(*) FILTER (WHERE envelope->>'asset' <> asset_id)::int AS mismatched FROM noticeos.codebase_reports`));
+    assert.deepEqual(after, { reports: seeded.length + sent, revision: 1, mismatched: 0 });
+    const open = await store.read(tx => tx.query("SELECT asset_id, rule_id FROM noticeos.flags WHERE rule_id LIKE 'codebase-%' AND resolved_at IS NULL ORDER BY asset_id, rule_id"));
+    // A new report resolves its rule's earlier alert before raising another, so each site holds at most one per rule.
+    assert.equal(new Set(open.map(row => `${row.asset_id}/${row.rule_id}`)).size, open.length);
+    assert.ok(open.some(row => row.asset_id === 'weeknightpantry.example' && row.rule_id === 'codebase-duplication'));
+    assert.ok(open.some(row => row.asset_id === 'trailnotes.example' && row.rule_id === 'codebase-unused'));
   } finally {
     await store?.close(); await closeAdmin?.(); owner?.close();
     assert.equal(existsSync(path.join(root, 'pg/data/postmaster.pid')), false);

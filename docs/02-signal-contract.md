@@ -104,6 +104,61 @@ operator stops reading the alerts, which defeats the purpose of monitoring.
   its own cohort; `distortedDays()` in
   `workers/ingest/src/time-zone-change.ts` returns those days.
 
+### Codebase report
+
+A second report an asset sends about itself: one measurement of its
+repository at one commit, sent to `POST /api/codebase-report` with the same
+`ASSET_TOKENS` bearer as the nightly report and stored in
+`noticeos.codebase_reports`. The schema is `CodebaseReport` in
+`packages/contract/src/codebase.ts`; the measures, their labels and the four
+rules are in `packages/contract/src/codebase-measures.ts`. Why these measures
+and these rules: [doc 27](27-codebase-health.md).
+
+```jsonc
+{
+  "asset": "example.com",
+  "generatedAt": "2026-10-15T03:12:44Z",
+  "repository": { "remote": "github.com/example/site", "ref": "main",
+                  "commit": "0123456789abcdef0123456789abcdef01234567",
+                  "committedAt": "2026-10-14T22:01:00Z" },
+  "paths": ["apps/site"],
+  "tools": { "image": "ghcr.io/notice-cx/noticeos-codebase-report@sha256:…",
+             "scc": "3.7.0", "jscpd": "5.4.0", "lizard": "1.24.0" },
+  "measures": { "code_lines": 48210, "duplication_percent": 4.0, "unused_files": 9,
+                "complex_functions": 23, "test_ratio": 0.19, "commits_30d": 84 },
+  "unmeasured": { "unused_dependencies": "Unused packages are not measured yet." },
+  "byLanguage": [ { "language": "TypeScript", "files": 300, "code_lines": 40000 } ],
+  "findings": {
+    "duplicates": [ { "lines": 48, "files": [ { "path": "src/a.ts", "startLine": 10 },
+                                              { "path": "src/b.ts", "startLine": 88 } ] } ],
+    "complexFunctions": [ { "path": "src/x.ts", "name": "render", "line": 120, "complexity": 41, "length": 210 } ],
+    "unused": [ { "kind": "file", "path": "src/old.ts" } ],
+    "largestFiles": [ { "path": "src/big.ts", "code_lines": 2400 } ]
+  }
+}
+```
+
+- **Every measure is optional, and an absent measure is unmeasured.** It is
+  never stored or read as 0; `unmeasured` may give the reason the Tower shows
+  beside "Not measured", and a rule whose input is absent does not run.
+- **Paths, never source text.** Findings carry repository-relative paths, line
+  numbers and function names. Lists are bounded (20 repeated blocks of at most
+  10 files, 20 functions, 50 unused items, 10 largest files, 12 languages, 20
+  measured paths), a path is at most 512 characters with no `..`, and the body
+  is at most 256 KiB.
+- **Units are checked.** Counts are whole numbers of 0 or more, a percent is 0
+  to 100, a ratio or an average is 0 or more.
+- **A resend appends.** A second report on the same UTC day is the next
+  revision of that day; `noticeos.current_codebase_reports` is the newest
+  revision of each site and day.
+- **Tool versions travel with the numbers.** `tools` names the versions that
+  produced them, so a step on a version change reads as the tools, not the code.
+- **Four rules run on each report**, with the thresholds in
+  `config/constants.json` `codebase_rules`: `codebase-growth` (warn, anomaly),
+  `codebase-duplication` (warn, opportunity), `codebase-unused` (info,
+  opportunity) and `codebase-complexity` (info, opportunity). Each first
+  resolves its open alert for the site, as the volume-aware rules do.
+
 ## Central signals
 
 GSC, GA4, DataForSEO ranking/SERP/LLM signals, backlinks and CrUX, pulled by

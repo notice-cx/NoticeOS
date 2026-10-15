@@ -99,7 +99,8 @@ it('pulse validation and the unchanged seasonal evaluator explain the current fa
   const verdict = demoPulseVerdicts(scenario, broken, evaluatePulse).find(v => v.outcome === 'fired')!;
   expect(verdict.ruleId).toBe('flow-poisson-low');
   expect(verdict.inputs.baselineSampleSize).toBe(4);
-  const rows = await fixture.call.read(tx => tx.query<{ rule: string; inputs: string; resolved: string | null }>('SELECT rule_id AS rule, rule_inputs AS inputs, resolved_at AS resolved FROM noticeos.flags WHERE asset_id = $1', [problem.asset]));
+  // The site's report alerts; its codebase alerts carry no report and are proven in scripts/hosted-demo.test.mjs.
+  const rows = await fixture.call.read(tx => tx.query<{ rule: string; inputs: string; resolved: string | null }>('SELECT rule_id AS rule, rule_inputs AS inputs, resolved_at AS resolved FROM noticeos.flags WHERE asset_id = $1 AND pulse_id IS NOT NULL', [problem.asset]));
   expect(rows).toHaveLength(1);
   expect(rows[0]!.resolved).toBeNull();
   expect(JSON.parse(rows[0]!.inputs)).toEqual(verdict.inputs);

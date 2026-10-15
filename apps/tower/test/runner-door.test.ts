@@ -225,6 +225,8 @@ describe("door path rewriting", () => {
     ["/__scheduled?cron=0+*+*+*+*", `${RUNNER_SCHEDULED_PATH}?cron=0+*+*+*+*`],
     ["/healthz", `${RUNNER_INGEST_PREFIX}/healthz`],
     ["/api/beads-snapshot", `${RUNNER_INGEST_PREFIX}/api/beads-snapshot`],
+    ["/api/pulse", `${RUNNER_INGEST_PREFIX}/api/pulse`],
+    ["/api/codebase-report", `${RUNNER_INGEST_PREFIX}/api/codebase-report`],
     ["/api/backup/cloudflare-d1", "/api/backup/cloudflare-d1"],
     ["/api/backup/cloudflare-d1?view=artifact", "/api/backup/cloudflare-d1?view=artifact"],
     ["/api/backup/cloudflare-d1/other", `${RUNNER_INGEST_PREFIX}/api/backup/cloudflare-d1/other`],

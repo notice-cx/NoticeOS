@@ -44,26 +44,26 @@ export type CodebaseMeasureKey = (typeof CODEBASE_MEASURE_KEYS)[number];
 
 /** Every measure a report may carry, in the order the Tower lists them. */
 export const CODEBASE_MEASURES: readonly CodebaseMeasure[] = [
-  { key: 'code_lines', unit: 'count', label: 'Lines of code', meaning: 'Lines that hold code, in every language, not counting blank lines, comments or tests.' },
+  { key: 'code_lines', unit: 'count', label: 'Lines of code', meaning: 'Code lines in every language, without blank lines, comments or tests.' },
   { key: 'comment_lines', unit: 'count', label: 'Comment lines', meaning: 'Lines that hold only comments.' },
   { key: 'files', unit: 'count', label: 'Files', meaning: 'Files of code that were measured.' },
   { key: 'languages', unit: 'count', label: 'Languages', meaning: 'Programming languages found in the code.' },
   { key: 'duplicated_lines', unit: 'count', label: 'Repeated lines', meaning: 'Lines that appear, copied, in more than one place.' },
-  { key: 'duplication_percent', unit: 'percent', label: 'Repeated code', meaning: 'The share of the code that is copied from somewhere else in it.' },
+  { key: 'duplication_percent', unit: 'percent', label: 'Repeated code', meaning: 'The share of the code copied from elsewhere in it.' },
   { key: 'duplicate_blocks', unit: 'count', label: 'Repeated blocks', meaning: 'Blocks of code that appear in more than one place.' },
   { key: 'unused_files', unit: 'count', label: 'Unused files', meaning: 'Files of code that nothing else uses.' },
-  { key: 'unused_exports', unit: 'count', label: 'Unused shared pieces', meaning: 'Pieces of code offered to the rest of the code that nothing uses.' },
+  { key: 'unused_exports', unit: 'count', label: 'Unused shared pieces', meaning: 'Shared pieces of code that nothing else uses.' },
   { key: 'unused_dependencies', unit: 'count', label: 'Unused packages', meaning: 'Outside packages the project installs but never uses.' },
   { key: 'dependencies_direct', unit: 'count', label: 'Packages', meaning: 'Outside packages the project installs by name.' },
   { key: 'functions', unit: 'count', label: 'Functions', meaning: 'Functions found in the code.' },
-  { key: 'complex_functions', unit: 'count', label: 'Hard-to-change functions', meaning: 'Functions with so many branches that a change to them is likely to break something.' },
+  { key: 'complex_functions', unit: 'count', label: 'Hard-to-change functions', meaning: 'Functions so branched that a change is likely to break something.' },
   { key: 'max_function_complexity', unit: 'count', label: 'Most branches in one function', meaning: 'The number of paths through the most tangled function.' },
   { key: 'mean_function_complexity', unit: 'mean', label: 'Average branches per function', meaning: 'The average number of paths through a function.' },
   { key: 'test_lines', unit: 'count', label: 'Lines of tests', meaning: 'Lines of code that check the rest of the code.' },
   { key: 'test_ratio', unit: 'ratio', label: 'Test coverage by size', meaning: 'Lines of tests for each line of code.' },
   { key: 'commits_30d', unit: 'count', label: 'Changes in 30 days', meaning: 'Changes saved to the code in the last 30 days.' },
   { key: 'files_touched_30d', unit: 'count', label: 'Files changed in 30 days', meaning: 'Different files those changes touched.' },
-  { key: 'large_commits_30d', unit: 'count', label: 'Large changes in 30 days', meaning: 'Changes in the last 30 days that each touched 20 files or more.' },
+  { key: 'large_commits_30d', unit: 'count', label: 'Large changes in 30 days', meaning: 'Changes in 30 days that each touched 20 files or more.' },
 ];
 
 /** Each report's measures: every key optional, and an absent key is unmeasured. */

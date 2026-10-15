@@ -65,7 +65,7 @@ test('only the two exact private GET readers pass; neighboring runner paths and 
     for (const method of ['HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) assert.equal(demoRequestPolicy(viewer, method, path), 'refuse');
     for (const suffix of ['/', '/seed', '/apply', '%2Fseed']) assert.equal(demoRequestPolicy(viewer, 'GET', path + suffix), 'refuse');
   }
-  for (const path of ['/api/runner/scheduled', '/api/runner/ingest/api/pulse', '/api/runner/ingest/healthz', '/api/runner/ingest/api/config-documents-other']) {
+  for (const path of ['/api/runner/scheduled', '/api/runner/ingest/api/pulse', '/api/runner/ingest/api/codebase-report', '/api/runner/ingest/healthz', '/api/runner/ingest/api/config-documents-other']) {
     assert.equal(demoRequestPolicy(viewer, 'GET', path), 'refuse');
   }
 });

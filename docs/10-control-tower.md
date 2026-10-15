@@ -939,8 +939,8 @@ in [the Tower's README](../apps/tower/README.md).
 ### The page is tabbed, and each tab has its own URL
 
 `/assets/:id` is **Overview**, and `/assets/:id/growth`, `/financials`,
-`/search`, `/alerts`, `/tasks`, `/activity`, `/sources`, `/settings` are the
-other eight (`apps/tower/src/routes/asset-detail/AssetTabs.tsx`; Tasks only once
+`/search`, `/codebase`, `/alerts`, `/tasks`, `/activity`, `/sources`, `/settings` are the
+other nine (`apps/tower/src/routes/asset-detail/AssetTabs.tsx`; Tasks only once
 a task source is connected). Above the bar, on every tab: the page header
 (identity, source marks, the page-wide range). Below it, **only the active tab's
 sections are mounted**, each tab reading its own view.
@@ -951,6 +951,7 @@ sections are mounted**, each tab reading its own view.
 | **Growth** | Audience and search charts over the range, what else is collected, and product use |
 | **Money** | This asset's ledger and P&L |
 | **Search** | The tracked-panel board, query decisions, page decisions and the search context |
+| **Codebase** | One sentence on how the code changed in 30 days beside the site's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), lines of code over time with deploys marked, the languages, and the latest report's findings, each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
 | **Alerts** | Open alerts, those no longer current, and history |
 | **Tasks** | The Tasks board pinned to this asset's project |
 | **Activity** | The timeline with its event composer and outcome-check composer, the Watches strip, link outreach — what happened on this asset |

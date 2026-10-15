@@ -19,13 +19,13 @@ import { formatCompact, formatInt, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   CODEBASE_RANGES,
+  INGEST_SECRET,
   TOKEN_SECRET,
   actionWorkflow,
   alignedSeries,
   changeAgainst,
   changeText,
   codebaseAnswer,
-  codebaseIngestUrl,
   codebaseWidgets,
   complexTaskTitle,
   dayNotes,
@@ -303,7 +303,7 @@ function Findings({ slice, report, assetId }: { slice: CodebaseSlice; report: Co
             <span className="inline-flex items-center gap-1">
               {findings.complexFunctions.length > 0 ? shownOf(findings.complexFunctions.length, measures.complex_functions) : null}
               <InfoTooltip label="About complexity">
-                Complexity counts the paths through a function. Above 15 is hard to change.
+                Complexity counts paths through a function. Above 15 is hard to change.
               </InfoTooltip>
             </span>
           }
@@ -349,7 +349,6 @@ type Way = "action" | "local";
 
 function CodebaseSetup({ assetId }: { assetId: string }) {
   const [way, setWay] = useState<Way>("action");
-  const ingestUrl = codebaseIngestUrl(window.location.origin);
   const choice = (key: Way, label: string) => (
     <button type="button" aria-pressed={way === key} onClick={() => setWay(key)}
       className={cn(pillChoiceClass, pillChoiceStateClass(way === key))}>
@@ -369,17 +368,17 @@ function CodebaseSetup({ assetId }: { assetId: string }) {
         <div className="grid gap-3" data-codebase-way="action">
           <Steps steps={[
             <>
-              Add the site's token to the repository's secrets as <code className="font-mono text-xs">{TOKEN_SECRET}</code>.
-              It is the token the site's nightly report uses; whoever runs this installation has it.
+              Add repository secrets <code className="font-mono text-xs">{TOKEN_SECRET}</code>, the site's token, and{" "}
+              <code className="font-mono text-xs">{INGEST_SECRET}</code>, the ingest address.
             </>,
             <>
               <span>Save this as <code className="font-mono text-xs break-all">.github/workflows/codebase-report.yml</code>.</span>
-              <CopyCommand block label="the workflow file" command={actionWorkflow(assetId, ingestUrl)} mark={{ "data-codebase-workflow": "" }} />
+              <CopyCommand block label="the workflow file" command={actionWorkflow(assetId)} mark={{ "data-codebase-workflow": "" }} />
             </>,
             "Push to main. A report runs on every push and every Monday.",
           ]} />
           <p className="m-0 text-xs text-muted-foreground">
-            GitHub must be able to reach <span className="font-mono break-all">{ingestUrl}</span>.
+            If GitHub cannot reach this installation, use the local command.
           </p>
         </div>
       ) : (

@@ -19,9 +19,9 @@ lists what each number counts and which files are left out.
   entry in `ASSET_TOKENS`, and gives it to you.
 - **The ingest address.** The address at which the installation receives
   reports, for example `https://ingest.example.com`. The person who runs the
-  installation gives it to you. Before the first report, the site's
-  **Codebase** tab shows the workflow below with the site id and this address
-  filled in. An installation that runs on one computer and is not reachable
+  installation gives it to you. It is not the Tower's address: the Tower does
+  not receive reports. Before the first report, the site's **Codebase** tab
+  shows the workflow below with the site id filled in. An installation that runs on one computer and is not reachable
   from the internet cannot receive reports from GitHub; leave the address and
   token out, and the report is kept as a file on the workflow run instead
   (see [Without an installation to send to](#without-an-installation-to-send-to)).
