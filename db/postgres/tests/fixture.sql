@@ -132,6 +132,10 @@ INSERT INTO noticeos.revenue_observations (workspace_id, asset_id, source, accou
 VALUES (:'ws', :'site', 'mediavine-journey', 'mv-' || :'slug', '2026-09-02', 600, 'USD', 'mv-run-2',
   '2026-09-03T05:00:00Z');
 
+INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, commit, ref, generated_at, envelope)
+VALUES (:'ws', :'site', '2026-09-02', repeat('0', 40), 'main', '2026-09-02T03:00:00Z',
+  '{"asset":"x","measures":{"code_lines":1200}}');
+
 INSERT INTO noticeos.integration_connections (workspace_id, connection_id, provider, scope, created_at, updated_at)
 VALUES (:'ws', gen_random_uuid(), 'dataforseo', 'shared', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z');
 

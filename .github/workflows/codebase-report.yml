@@ -1,0 +1,37 @@
+name: Codebase report
+
+# This repository measures itself with its own codebase report action, on
+# every push to main and every Monday. The image is built from this commit's
+# deploy/codebase-report, so the measurement never waits for the release
+# workflow and every push to main also builds the Dockerfile. The report is
+# sent only when the repository has both secrets; otherwise it is kept as the
+# run's artifact.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '17 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: codebase-report-${{ github.ref }}
+
+jobs:
+  measure:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The change counts read the last 30 days of history.
+          fetch-depth: 0
+      - run: docker build --tag noticeos-codebase-report:local deploy/codebase-report
+      - uses: ./.github/actions/codebase-report
+        with:
+          asset: ${{ vars.NOTICEOS_ASSET || github.event.repository.name }}
+          ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}
+          token: ${{ secrets.NOTICEOS_ASSET_TOKEN }}
+          image: noticeos-codebase-report:local

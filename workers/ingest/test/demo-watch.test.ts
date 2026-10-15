@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:test';
 import { beforeEach, expect, it } from 'vitest';
-import { evaluatePulse } from '@noticeos/contract';
+import { DEFAULT_CODEBASE_RULE_THRESHOLDS, evaluateCodebaseRules, evaluatePulse, pickComparisonReport } from '@noticeos/contract';
 import { generateDemoScenario } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo } from '../../../scripts/demo-store.mjs';
 import { runWatchWindows } from '../src/watch-windows';
@@ -12,7 +12,7 @@ beforeEach(async () => {
   // The suite's invented sites are replaced only in this file's disposable
   // copy. The next file starts from its normal clean template again.
   await asOwner('DELETE FROM noticeos.assets');
-  await env.STORE.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await env.STORE.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
 });
 
 it('the unchanged sweep derives the repair outcome from its registration and real observations', async () => {
@@ -35,7 +35,7 @@ it('the unchanged sweep derives the repair outcome from its registration and rea
   expect(JSON.parse(rows[0]!.post).days).toBe(28);
   expect(Date.parse(rows[0]!.checked)).toBe(Date.parse(scenario.manifest.cutoff));
   expect(await ledger()).toEqual(moneyBefore);
-  const problem = await env.STORE.read(tx => tx.query<{ resolved: string | null }>('SELECT resolved_at AS resolved FROM noticeos.flags WHERE asset_id = $1', [scenario.manifest.stories.problem.asset]));
+  const problem = await env.STORE.read(tx => tx.query<{ resolved: string | null }>(`SELECT resolved_at AS resolved FROM noticeos.flags WHERE asset_id = $1 AND rule_id NOT LIKE 'codebase-%'`, [scenario.manifest.stories.problem.asset]));
   expect(problem).toHaveLength(1);
   expect(problem[0]!.resolved).toBeNull();
   const repeated = await runWatchWindows(bound, Date.parse(scenario.manifest.cutoff));

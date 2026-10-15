@@ -125,7 +125,7 @@ describe('the actual demo Worker entry points', () => {
     vi.stubGlobal('__DEMO_VIEWER__', descriptor);
     for (const path of ['/api/runner/ingest/api/config-documents', '/api/runner/ingest/api/job-runs',
       '/api/runner/ingest/api/config-documents/seed', '/api/runner/ingest/api/config-documents/apply',
-      '/api/runner/ingest/api/pulse', '/api/runner/scheduled', '/api/runner/ingest/healthz']) {
+      '/api/runner/ingest/api/pulse', '/api/runner/ingest/api/codebase-report', '/api/runner/scheduled', '/api/runner/ingest/healthz']) {
       for (const method of ['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']) {
         const req = request(path, method);
         if (demoViewerResponse(req, descriptor) === null) continue;

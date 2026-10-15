@@ -5,6 +5,7 @@ import type { WorkspaceStore } from '@noticeos/postgres';
 import type { DemoActivityCollection, DemoActivityDay } from '../../../scripts/demo-activity.mjs';
 import type { BeadsSnapshotInput } from '@noticeos/contract/task-snapshot';
 import { ingestPulseEnvelope, runAssetZeroPulse } from './db.js';
+import { ingestCodebaseReport } from './codebase.js';
 import { recordSignalFailure, recordSignalSuccess, SignalError } from './signal-store.js';
 import { importLedgerRows } from './routes/revenue.js';
 import { persistReport } from './mediavine.js';
@@ -72,6 +73,11 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
   for (const report of day.reports) {
     const result = await writeInsightSnapshot(ingest, JSON.stringify(report), clockMs);
     if (!result.ok) throw new Error('Synthetic search report rejected by the ordinary writer.');
+    written++;
+  }
+  for (const envelope of day.codebase) {
+    const result = await ingestCodebaseReport(env, envelope);
+    if (!result.ok) throw new Error('Synthetic codebase report rejected by the ordinary writer.');
     written++;
   }
   // Observe the actual stored inputs at execution time. Catch-up never forges

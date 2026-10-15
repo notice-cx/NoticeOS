@@ -331,7 +331,10 @@ to notice a sign-in with the wrong Google account.
 `ASSET_TOKEN` — it gates that asset's metrics/self-report endpoint and
 authenticates that asset's pushes to the ingest Worker — and the ingest Worker
 holds ONE map, `ASSET_TOKENS` `{ "<asset-id>": "<token>" }`, which it checks
-inbound pushes against and sends as the bearer on outbound pulls. **No other
+inbound pushes against and sends as the bearer on outbound pulls. The inbound
+pushes are the nightly report (`POST /api/pulse`) and the codebase report
+(`POST /api/codebase-report`, [doc 27](27-codebase-health.md)); the same
+token authenticates both. **No other
 credential names exist between an asset and NoticeOS.** A third-party provider
 credential (GA4, Bing, Clarity, DataForSEO) is a different thing entirely and
 keeps its own slot; this section covers only the tokens NoticeOS and its own
@@ -339,7 +342,7 @@ properties use with each other.
 
 **One token per asset covering *both* directions is deliberate**, not an
 oversight. The accepted tradeoff: a leaked `ASSET_TOKEN` lets the holder forge
-that asset's nightly reports as well as read its counts-grade metrics. That
+that asset's nightly and codebase reports as well as read its counts-grade metrics. That
 risk is accepted — the possible damage is limited to one property's counts and
 one property's ledger of daily numbers, both re-derivable from the property
 itself, and the flags a forged report could raise are visible to the operator

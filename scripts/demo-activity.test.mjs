@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
-import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
+import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
+import { demoCodebaseVerdicts } from './demo-store.mjs';
+import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
 const input = { seed: 'continuing-portfolio', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 const scenario = generateDemoScenario(input);
@@ -354,4 +356,38 @@ test('each day one fictional home page is down briefly, across the hourly check 
   const at = (hour) => `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T${hour}:00:00.000Z`;
   assert.equal(await (await activity.homeFetch(at('00'))(home)).text(), await (await activity.homeFetch(at('23'))(home)).text());
   assert.equal((await activity.homeFetch(at('00'))('https://example.org/')).status, 404);
+});
+
+test('each reporting site keeps its weekly codebase report after the seed, with the same stories, and the young site stays silent', () => {
+  const sites = scenario.assets.filter(asset => asset.prefix !== 'fr');
+  const seededLast = new Map(sites.map(asset => [asset.id, scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)]));
+  const sent = new Map(sites.map(asset => [asset.id, []]));
+  for (let i = 0; i < 120; i++) {
+    const day = activity.day(shiftDemoDay(scenario.manifest.referenceDate, i));
+    assert.deepEqual(createDemoActivity(generateDemoScenario(input)).day(day.date).codebase, day.codebase);
+    for (const envelope of day.codebase) {
+      assert.ok(sent.has(envelope.asset), envelope.asset);
+      assert.ok(day.date > seededLast.get(envelope.asset).date);
+      assert.equal(envelope.generatedAt.slice(0, 10), day.date);
+      assert.deepEqual(envelope, demoCodebaseEnvelope(scenario.manifest.seed, scenario.assets.find(asset => asset.id === envelope.asset), scenario.manifest.referenceDate, day.date));
+      sent.get(envelope.asset).push({ asset: envelope.asset, date: day.date, receivedAt: envelope.generatedAt, envelope });
+    }
+  }
+  for (const [asset, reports] of sent) {
+    assert.ok(reports.length >= 17 && reports.length <= 18, asset);
+    const gaps = reports.slice(1).map((report, i) => (Date.parse(report.date) - Date.parse(reports[i].date)) / 86_400_000);
+    assert.ok(gaps.every(gap => gap === 7), asset);
+    assert.ok(reports.every(report => report.envelope.measures.code_lines > 0 && report.envelope.findings.largestFiles.length > 0));
+  }
+  // The released rules over the seed and its continuation, as ingest runs them after each report.
+  const flags = demoCodebaseVerdicts([...demoCodebaseReports(scenario), ...[...sent.values()].flat()], codebaseRules);
+  const after = flags.filter(flag => flag.date > scenario.manifest.referenceDate);
+  const of = (prefix, ruleId) => after.filter(flag => flag.asset === `${prefix}.example` && flag.ruleId === ruleId);
+  // The recipe site's surge slows: its growth flag stops within weeks while its
+  // repeated code stays above the line; the guide's old templates stay behind.
+  assert.ok(of('weeknightpantry', 'codebase-growth').length <= 2);
+  assert.ok(of('weeknightpantry', 'codebase-duplication').length >= 15);
+  assert.ok(of('trailnotes', 'codebase-unused').length >= 15);
+  assert.ok(after.every(flag => ['weeknightpantry.example', 'trailnotes.example'].includes(flag.asset)));
+  assert.ok(!JSON.stringify(after).includes('freshrows'));
 });

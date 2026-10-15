@@ -32,6 +32,7 @@ import { readFlagReadings, readingsOf, readSiteFetchFailures } from "./flag-evid
 import { loadNotifiedAt, openFlagsSql, settledAtSql, settledFlagsSql, snoozedFlagsSql } from "./flag-scope";
 import { readWatchWindows } from "./watch-window-reader";
 import { readPulseCoverage } from "./pulse-history";
+import { readCodebaseSlice } from "./codebase-history";
 import { cents } from "./ledger-history";
 import {
   ALL_ASSET_DETAIL_SECTIONS,
@@ -1525,6 +1526,7 @@ async function assembleAssetDetail(
     scheduledLanes,
     dailyRevenue,
     counterReadings,
+    codebase,
   ] = await Promise.all([
     // One read and evidence selection supplies both rows and condition counts.
     (async () => {
@@ -1654,6 +1656,7 @@ async function assembleAssetDetail(
     wants("counters") && (counters.assets[id]?.cards?.length ?? 0) > 0
       ? readCounterReadings(store, id).then((map) => map.get(id) ?? new Map<string, CounterReading>())
       : null,
+    wants("codebase") ? readCodebaseSlice(store, id, now) : null,
   ]);
 
   const { rows: openFlagRows, reviewed } = openRead;
@@ -1851,6 +1854,7 @@ async function assembleAssetDetail(
     ...(wants("reclamation") ? { reclamation } : {}),
     ...(wants("hygiene") ? { hygiene } : {}),
     ...(wants("fetchFailures") ? { fetchFailures } : {}),
+    ...(codebase ? { codebase } : {}),
     integrations: integrationsSection,
     ga4Config: {
       valueEvents: stringListEntry(valueEvents.assets[id]?.valueEvents),

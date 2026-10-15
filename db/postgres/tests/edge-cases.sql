@@ -717,6 +717,40 @@ BEGIN
   END;
 END $$;
 
+-- ─── A same-day codebase report is a new revision, not an overwrite ────────
+DO $$
+DECLARE current_revision integer; first_number bigint; shown_number bigint;
+BEGIN
+  INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, commit, ref, generated_at, envelope)
+  VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-10', repeat('a', 40), 'main', '2026-09-10T03:00:00Z', '{}')
+  RETURNING report_number INTO first_number;
+  INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, revision, commit, ref, generated_at, envelope)
+  VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-10', 2, repeat('b', 40), 'main', '2026-09-10T09:00:00Z', '{}');
+  SELECT revision, day_number INTO current_revision, shown_number FROM noticeos.current_codebase_reports
+   WHERE asset_id = 'a.example' AND report_date = '2026-09-10';
+  ASSERT current_revision = 2, 'the newest revision is the current codebase report';
+  ASSERT shown_number = first_number, 'the day keeps its first revision''s number';
+  BEGIN
+    INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, revision, commit, ref, generated_at, envelope)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-10', 2, repeat('c', 40), 'main', now(), '{}');
+    RAISE EXCEPTION 'a codebase report revision number was reused' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN unique_violation THEN NULL;
+  END;
+  -- REFUSED: a commit that is not 40 lowercase hex digits, and an empty ref.
+  BEGIN
+    INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, commit, ref, generated_at, envelope)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-11', repeat('G', 40), 'main', now(), '{}');
+    RAISE EXCEPTION 'a malformed commit was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO noticeos.codebase_reports (workspace_id, asset_id, report_date, commit, ref, generated_at, envelope)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-11', repeat('a', 40), '', now(), '{}');
+    RAISE EXCEPTION 'an empty ref was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+
 -- ─── A retry replaces its earlier revision's untouched alerts ───────────────
 DO $$
 DECLARE first_rev bigint; second_rev bigint; touched bigint; untouched bigint; shown integer; day integer;
@@ -1055,6 +1089,7 @@ DECLARE
                            ['research_log', 'research_number'], ['hygiene_checks', 'reading_number'],
                            ['reclamation_targets', 'target_number'], ['ledger_entries', 'entry_number'],
                            ['mediavine_daily', 'daily_number'], ['revenue_observations', 'observation_number'],
+                           ['codebase_reports', 'report_number'],
                            ['config_changes', 'change_number'], ['job_runs', 'job_run_number']];
   ws text;
   i int;

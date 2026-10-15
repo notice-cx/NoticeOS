@@ -236,6 +236,9 @@ Fixture-only HTTP controls are available on **that isolated port**:
 - `POST /__journey/finding`: save one analysis finding (`journey-sitemap-drop`)
   on the created asset, so its Overview's What matters has a finding to file a
   task from.
+- `POST /__journey/codebase-report`: store thirteen weekly codebase reports on
+  the created asset, the newest on the fixture's day, so its Codebase tab has
+  a history, a 30-day change and findings.
 - `POST /__journey/serp-panel?market=2826-en`: save one analysis with a tracked
   search panel on the created asset, in the market `<location>-<language>`
   names, or none without `?market=`.

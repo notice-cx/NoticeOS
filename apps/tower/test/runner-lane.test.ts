@@ -147,6 +147,31 @@ describe("proxying the ingest's own routes", () => {
     await expect(forwarded.json()).resolves.toEqual({ projects: [] });
   });
 
+  // A site's own reports: the nightly report and the codebase report take the
+  // one path, and the site's token reaches the ingest's per-site check as sent.
+  it.each(["/api/pulse", "/api/codebase-report"])("carries a site's %s and its token to the ingest unchanged", async (path) => {
+    const seen: Request[] = [];
+    const ingest = stubIngest({
+      fetch: vi.fn(async (request: Request) => {
+        seen.push(request);
+        return new Response(JSON.stringify({ ok: true }), { status: 201 });
+      }),
+    });
+    const body = JSON.stringify({ asset: "example.com" });
+    const { request, url } = doorRequest(`${RUNNER_INGEST_PREFIX}${path}`, {
+      method: "POST",
+      headers: { authorization: "Bearer site-token", "content-type": "application/json" },
+      body,
+    });
+    const response = await handleRunnerRequest(request, url, ingest);
+    expect(response.status).toBe(201);
+    const forwarded = seen[0]!;
+    expect(new URL(forwarded.url).pathname).toBe(path);
+    expect(forwarded.method).toBe("POST");
+    expect(forwarded.headers.get("authorization")).toBe("Bearer site-token");
+    await expect(forwarded.text()).resolves.toBe(body);
+  });
+
   it("keeps the query string a read route depends on", async () => {
     const seen: Request[] = [];
     const ingest = stubIngest({

@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
-import { evaluatePulse } from '@noticeos/contract';
+import { DEFAULT_CODEBASE_RULE_THRESHOLDS, evaluateCodebaseRules, evaluatePulse, pickComparisonReport } from '@noticeos/contract';
 import { generateDemoScenario } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo } from '../../../scripts/demo-store.mjs';
 import { generateDemoDisplay, seedDemoDisplay } from '../../../scripts/demo-display.mjs';
@@ -46,7 +46,7 @@ beforeAll(async () => {
   helpers = await evaluator.buildDemoWorkerHelpers(root);
   recordDemoOsObservation = seed.recordDemoOsObservation;
   fixture = await createTestStore({ scope: 'suite' });
-  await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
+  await fixture.call.write(tx => fillDemo(tx, scenario, { evaluatePulse, codebaseRules: { evaluateCodebaseRules, pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS }, developmentProfile: { setting: 'noticeos.profile', value: 'development' } }));
   capability = evaluator.demoStoreCapability(fixture.store, fixture.workspaceId);
 }, 30_000);
 

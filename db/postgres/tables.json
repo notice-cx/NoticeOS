@@ -9,6 +9,7 @@
     "asset_insight_snapshots": { "shape": "cache", "arrival": "created_at" },
     "assets": { "shape": "state", "arrival": "created_at" },
     "capability_targets": { "shape": "state", "arrival": null },
+    "codebase_reports": { "shape": "history", "arrival": "received_at" },
     "config_changes": { "shape": "history", "arrival": "changed_at" },
     "config_documents": { "shape": "state", "arrival": "updated_at" },
     "connection_daily_counts": { "shape": "cache", "arrival": "day" },

@@ -14,6 +14,7 @@ import { MEDIAVINE_REPORTING_CLOCK } from "../../../packages/mediavine/src/index
 import { revenueExpectedThrough, shiftRevenueDate } from "../shared/revenue-projection";
 import { bookLedger } from '../test/money';
 import { writeInsightSnapshots } from '../test/provider-reports';
+import { storeCodebaseReports, weeklyStoredReports } from '../test/codebase-fixture';
 import { seedRevenueHistory, syntheticRevenueDay, syntheticRevenueHolidays } from '../test/revenue-fixture';
 import { MISSING, applyDocumentOps, configDocumentKey, resolveOps, validateSchemaAndSafety, type Changeset, type Mismatch } from "../../../scripts/config-documents.mjs";
 import { attachTestCluster, type TestClusterHandle } from "../../../scripts/postgres-test-copies.mjs";
@@ -1302,6 +1303,16 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
           window_end: "2026-09-05", payload: JSON.stringify(journeyFindingSnapshot()),
         }]);
         response = Response.json({ seeded: true, key: JOURNEY_FINDING_KEY });
+      }
+    } else if (url.pathname === "/__journey/codebase-report" && request.method === "POST") {
+      // Thirteen weekly codebase reports on the fixture asset, the newest on
+      // the fixture's own day, stored as the ingest stores them.
+      if (!await siteStored(JOURNEY_ASSET)) {
+        response = Response.json({ error: "Create the fixture asset first." }, { status: 409 });
+      } else {
+        const reports = weeklyStoredReports(JOURNEY_ASSET, JOURNEY_NOW.slice(0, 10));
+        await storeCodebaseReports(postgres.current().store, reports);
+        response = Response.json({ seeded: reports.length, newest: reports.at(-1)!.date });
       }
     } else if (url.pathname === "/__journey/costs" && request.method === "POST") {
       // Booked monthly costs for a site the wizard created,

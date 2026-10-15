@@ -10,7 +10,8 @@ import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
 
 // --- the tabs --------------------------------------------------------------
 /** The asset tabs, in the operator's reading order: what state is this asset
- * in, which way the numbers went, which term and page, what is wrong, what is
+ * in, which way the numbers went, which term and page, how the code behind it
+ * is changing, what is wrong, what is
  * being done, what has happened, where the numbers come from, how it is set
  * up. `overview` is the index tab: it has no segment of its own, so
  * `/assets/:id` is the Overview. */
@@ -19,6 +20,7 @@ export const ASSET_TABS = [
   "growth",
   "financials",
   "search",
+  "codebase",
   "alerts",
   "tasks",
   "activity",
@@ -33,6 +35,7 @@ const TAB_LABEL: Record<AssetTab, string> = {
   growth: "Growth",
   financials: "Money",
   search: "Search",
+  codebase: "Codebase",
   alerts: "Alerts",
   tasks: "Tasks",
   activity: "Activity",
@@ -90,6 +93,7 @@ export const HASH_TAB: Record<string, AssetTab> = {
   "#query-visibility": "search",
   "#page-decisions": "search",
   "#search-context": "search",
+  "#codebase-setup": "codebase",
   // The panel's register editors are on Settings, so the hash follows them.
   "#tracked-panels": "settings",
   // The nightly report's address and its No report switch, where the setup

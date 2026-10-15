@@ -289,6 +289,7 @@ a unique key.
 | `financial_ledger` (view) | `entry_number`; a month of a source's daily figures shows minus its first `observation_number` | `entry_id` |
 | `mediavine_daily` | `daily_number` | `daily_id` |
 | `revenue_observations` | `observation_number`; a Mediavine day moved from `mediavine_daily` keeps its `daily_number` | `observation_id` |
+| `codebase_reports` (and `current_codebase_reports`) | `report_number`; a day's report shows its first revision's number (`day_number`) | `report_id` |
 | `reclamation_targets` | `target_number` | `target_id` |
 | `research_log` | `research_number` | `research_id` |
 | `config_changes` | `change_number` | `change_id` |
@@ -500,12 +501,14 @@ by column; retention and maintenance privileges are checked separately.
 | `asset_insight_snapshots` | append-only | Append-only for the application; republishing identical content is a no-op. Older snapshots move as maintenance. |
 | `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again. |
 | `capability_targets` | append-only | A monitored target, once named, is permanent; state and events refer to it by target_seq. |
+| `codebase_reports` | append-only | Append-only; a same-day resend of a site's codebase report is a new revision. |
 | `config_changes` | append-only | Append-only. |
 | `config_documents` | insert; update only body, version, updated_at, updated_by | Versioned; every change also appends config_changes. |
 | `connection_daily_counts` | insert, update, delete | One row per source per day, upserted; swept after 400 days. |
 | `connection_secrets` | insert, delete | A rotation writes the next version and removes the old one; ciphertext is never rewritten in place. |
 | `connection_status_daily_counts` | insert, update, delete | One row per day, upserted; swept after 400 days. |
 | `counter_readings` | insert, update | Current state, replaced in place. |
+| `current_codebase_reports` (view) | read-only view | The newest revision of each site's codebase report per day, numbered by the day's first revision (day_number). |
 | `current_flags` (view) | read-only view | Every alert a retry did not replace, with its severity, message and inputs from its newest flag_evidence reading. |
 | `current_pulses` (view) | read-only view | The newest revision of each day's report, numbered by the day's first revision (day_number). |
 | `current_revenue` (view) | read-only view | The newest figure per site, source, account, day and item. |

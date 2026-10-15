@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoProperties, shiftDemoDay, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { createRequire } from 'node:module';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { demoCodebaseVerdicts } from './demo-store.mjs';
+import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
 const options = { seed: 'portfolio-v1', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 
@@ -160,7 +167,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 7);
+  assert.equal(scenario.manifest.scenarioVersion, 8);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],
@@ -265,4 +272,202 @@ test('each source names the property the register maps', () => {
     assert.equal(properties.bing, ['wp', 'tn'].includes(site.prefix) ? `https://${site.id}/` : null);
   }
   assert.equal(new Set(sites.map(site => demoProperties(site).ga4)).size, sites.length);
+});
+
+// The contract's own schema, bundled from source as the release's Worker
+// helpers are, so every envelope the demo stores or posts is one the ingest
+// route accepts.
+const esbuild = createRequire(createRequire(new URL('../workers/ingest/package.json', import.meta.url)).resolve('wrangler/package.json'))('esbuild');
+async function contractSchema() {
+  const out = mkdtempSync(path.join(tmpdir(), 'demo-codebase-contract-'));
+  try {
+    await esbuild.build({ entryPoints: [new URL('../packages/contract/src/codebase.ts', import.meta.url).pathname], outfile: path.join(out, 'codebase.mjs'), bundle: true, platform: 'node', format: 'esm', logLevel: 'silent' });
+    return (await import(pathToFileURL(path.join(out, 'codebase.mjs')).href)).CodebaseReport;
+  } finally { rmSync(out, { recursive: true, force: true }); }
+}
+/** What the schema cannot check: the envelope agrees with itself. */
+function assertConsistent(envelope) {
+  const { measures, byLanguage, findings } = envelope;
+  assert.equal(measures.languages, byLanguage.length);
+  assert.equal(byLanguage.reduce((n, row) => n + row.code_lines, 0), measures.code_lines);
+  assert.equal(byLanguage.reduce((n, row) => n + row.files, 0), measures.files);
+  assert.ok(byLanguage.every((row, i, rows) => i === 0 || rows[i - 1].code_lines >= row.code_lines));
+  assert.ok(envelope.repository.committedAt < envelope.generatedAt);
+  assert.equal(measures.duplication_percent, Math.round(measures.duplicated_lines / measures.code_lines * 1000) / 10);
+  assert.ok(findings.duplicates.reduce((n, block) => n + block.lines, 0) <= measures.duplicated_lines);
+  assert.ok(findings.duplicates.every((block, i, rows) => i === 0 || rows[i - 1].lines >= block.lines));
+  assert.ok(findings.complexFunctions.length <= measures.complex_functions);
+  assert.ok(findings.complexFunctions.every(fn => fn.complexity > 15 && fn.complexity <= measures.max_function_complexity));
+  assert.ok(findings.unused.filter(item => item.kind === 'file').length <= (measures.unused_files ?? 0));
+  assert.ok(findings.unused.filter(item => item.kind === 'dependency').length <= (measures.unused_dependencies ?? 0));
+  // An absent measure carries the engine's reason; a measured one carries none.
+  assert.ok(Object.keys(envelope.unmeasured).every(key => !(key in measures)));
+  assert.ok(['unused_files', 'unused_exports', 'unused_dependencies', 'dependencies_direct'].every(key => key in measures || typeof envelope.unmeasured[key] === 'string'));
+  // Times to the second, as the engine writes them.
+  assert.match(envelope.generatedAt, /T\d\d:\d\d:\d\dZ$/u);
+  assert.match(envelope.repository.committedAt, /T\d\d:\d\d:\d\dZ$/u);
+  assert.ok(findings.unused.filter(item => item.kind === 'export').length <= (measures.unused_exports ?? 0));
+  assert.ok(findings.largestFiles.every((file, i, rows) => i === 0 || rows[i - 1].code_lines >= file.code_lines));
+}
+
+const codebase = generateDemoScenario(options);
+const seededCodebase = demoCodebaseReports(codebase);
+const reportsOf = prefix => seededCodebase.filter(report => report.asset === codebase.assets.find(asset => asset.prefix === prefix).id);
+const codebaseFlags = demoCodebaseVerdicts(seededCodebase, codebaseRules);
+const flagsOf = (prefix, ruleId) => codebaseFlags.filter(flag => flag.asset === codebase.assets.find(asset => asset.prefix === prefix).id && (!ruleId || flag.ruleId === ruleId));
+const ageOf = date => Math.round((Date.parse(`${date}T00:00:00Z`) - Date.parse(`${codebase.manifest.referenceDate}T00:00:00Z`)) / 86_400_000);
+const nearestTo = (reports, age) => reports.reduce((best, report) => Math.abs(ageOf(report.date) - age) < Math.abs(ageOf(best.date) - age) ? report : best);
+
+test('codebase reports are reproduced byte for byte and each is a valid envelope sent weekly through the cutoff', async () => {
+  const CodebaseReport = await contractSchema();
+  assert.equal(JSON.stringify(demoCodebaseReports(generateDemoScenario(options))), JSON.stringify(seededCodebase));
+  // The scenario keeps only when each report ran, so the demo's runtime file stays bounded.
+  assert.ok(JSON.stringify(codebase.codebaseRuns).length < 40_000 && JSON.stringify(codebase).length < 1_500_000);
+  const other = demoCodebaseReports(generateDemoScenario({ ...options, seed: 'portfolio-v2' }));
+  assert.notEqual(other[0].envelope.repository.commit, seededCodebase[0].envelope.repository.commit);
+  assert.equal(new Set(seededCodebase.map(report => report.envelope.repository.commit)).size, seededCodebase.length);
+  for (const asset of codebase.assets) {
+    const reports = seededCodebase.filter(report => report.asset === asset.id);
+    if (asset.prefix === 'fr') { assert.equal(reports.length, 0); continue; }
+    assert.ok(reports.length >= 57, asset.prefix);
+    assert.ok(ageOf(reports[0].date) - -asset.days < 7);
+    const gaps = reports.slice(1).map((report, i) => ageOf(report.date) - ageOf(reports[i].date));
+    assert.ok(gaps.slice(0, -1).every(gap => gap === 7), asset.prefix);
+    assert.ok(gaps.at(-1) >= 1 && gaps.at(-1) <= 7);
+    assert.equal(reports.at(-1).date, codebase.manifest.referenceDate);
+    for (const report of reports) {
+      const parsed = CodebaseReport.safeParse(report.envelope);
+      assert.ok(parsed.success, JSON.stringify(parsed.error?.issues?.slice(0, 3)));
+      assert.deepEqual(parsed.data, report.envelope);
+      assertConsistent(report.envelope);
+      assert.equal(report.envelope.asset, asset.id);
+      assert.equal(report.date, report.envelope.generatedAt.slice(0, 10));
+      const lag = Date.parse(report.receivedAt) - Date.parse(report.envelope.generatedAt);
+      assert.ok(lag >= 120_000 && lag < 360_000 && report.receivedAt <= options.cutoff);
+      assert.equal(report.envelope.repository.remote.split('/')[0], asset.domain ? `git.${asset.domain}` : 'git.noticeos.example');
+    }
+  }
+  // The envelopes the simulator posts after the cutoff follow the same contract.
+  for (const asset of codebase.assets.filter(entry => entry.prefix !== 'fr')) {
+    for (let age = 1; age <= 400; age += 9) {
+      const envelope = demoCodebaseEnvelope(options.seed, asset, codebase.manifest.referenceDate, shiftDemoDay(codebase.manifest.referenceDate, age));
+      assert.ok(CodebaseReport.safeParse(envelope).success, `${asset.prefix} ${age}`);
+      assertConsistent(envelope);
+    }
+  }
+  assert.throws(() => demoCodebaseEnvelope(options.seed, codebase.assets.find(asset => asset.prefix === 'fr'), codebase.manifest.referenceDate, codebase.manifest.referenceDate));
+  // A cutoff before that day's measurement ends the history the day before.
+  const early = generateDemoScenario({ ...options, cutoff: '2026-10-16T00:01:00.000Z' });
+  assert.ok(early.codebaseRuns.every(run => run.date < '2026-10-16' && run.receivedAt <= early.manifest.cutoff));
+  assert.ok(early.assets.filter(asset => asset.prefix !== 'fr').every(asset => early.codebaseRuns.filter(run => run.asset === asset.id).at(-1).date === '2026-10-15'));
+});
+
+test('Light Brief grows slowly with little repeated code, its unused code unmeasured, and raises no codebase flag', () => {
+  const reports = reportsOf('lb');
+  const first = reports[0].envelope.measures, last = reports.at(-1).envelope.measures;
+  assert.ok(last.code_lines / first.code_lines > 1.15 && last.code_lines / first.code_lines < 1.3);
+  assert.ok(reports.every(report => report.envelope.measures.duplication_percent >= 2 && report.envelope.measures.duplication_percent <= 3));
+  assert.ok(reports.every(report => report.envelope.measures.complex_functions <= 10));
+  assert.ok(reports.every(report => Math.abs(report.envelope.measures.test_ratio - 0.35) <= 0.03));
+  // A Ruby codebase: the unused-code check does not read it and the engine reads no Gemfile, so
+  // those measures are absent with the engine's reasons, never zero.
+  for (const { envelope } of reports) {
+    assert.ok(['unused_files', 'unused_exports', 'unused_dependencies', 'dependencies_direct'].every(key => !(key in envelope.measures)) && envelope.findings.unused.length === 0);
+    assert.deepEqual(envelope.unmeasured, { unused_files: 'Unused code is checked in JavaScript, TypeScript and Python only.', unused_exports: 'Unused code is checked in JavaScript, TypeScript and Python only.',
+      unused_dependencies: 'Unused packages are not measured yet.', dependencies_direct: 'No package list (package.json, requirements.txt, go.mod or Cargo.toml) was found.' });
+  }
+  assert.equal(reports.at(-1).envelope.byLanguage[0].language, 'Ruby');
+  assert.deepEqual(flagsOf('lb'), []);
+});
+
+test('Pinwell carries a library swap\'s unused files for a month, flagged until its cleanup deploy', () => {
+  const reports = reportsOf('pw');
+  const peak = Math.max(...reports.map(report => report.envelope.measures.unused_files));
+  assert.equal(peak, 12);
+  const raised = reports.filter(report => report.envelope.measures.unused_files > 2);
+  assert.ok(raised.every(report => ageOf(report.date) >= DEMO_LIBRARY_SWAP_AGE && ageOf(report.date) <= DEMO_DEPENDENCY_CLEANUP_AGE));
+  assert.ok(raised.length >= 4 && raised.length <= 5);
+  const flags = flagsOf('pw');
+  assert.ok(flags.length >= 3 && flags.every(flag => flag.ruleId === 'codebase-unused' && flag.severity === 'info' && flag.kind === 'opportunity' && flag.resolvedAt !== null));
+  const { dependencyCleanup } = codebase.manifest;
+  assert.equal(dependencyCleanup.asset, 'pinwell.example');
+  const after = reports.find(report => report.envelope.generatedAt > dependencyCleanup.annotationAt);
+  assert.equal(after.envelope.measures.unused_files, 2);
+  assert.equal(flags.at(-1).resolvedAt, after.receivedAt);
+  assert.match(flags.find(flag => flag.inputs.unused_files === 12).message, /^12 files are not used\.$/u);
+  assert.ok(reports.find(report => report.envelope.measures.unused_files === 12).envelope.findings.unused.some(item => item.kind === 'file' && item.path === 'app/src/lib/dates/moment-format.ts'));
+  assert.ok(after.envelope.findings.unused.every(item => !/moment|axios|tippy/u.test(item.path ?? '')));
+  assert.deepEqual(reports[0].envelope.paths, ['app', 'desktop']);
+});
+
+test('Weeknight Pantry\'s code balloons with repeated recipe and nutrition components, its growth and repetition flags open at the cutoff', () => {
+  const reports = reportsOf('wp');
+  const last = reports.at(-1).envelope.measures;
+  const before = nearestTo(reports, -60).envelope.measures, month = nearestTo(reports, -30).envelope.measures;
+  assert.ok(last.code_lines / before.code_lines > 1.4 && last.code_lines / before.code_lines < 1.5);
+  assert.ok(last.code_lines / month.code_lines >= 1.25);
+  assert.ok(before.duplication_percent <= 3.3 && last.duplication_percent >= 9 && last.duplication_percent <= 10);
+  const firstOver = reports.find(report => report.envelope.measures.duplication_percent >= 8);
+  assert.ok(ageOf(firstOver.date) >= -21 && ageOf(firstOver.date) <= -3);
+  assert.ok(last.complex_functions > before.complex_functions);
+  assert.ok(last.test_ratio < before.test_ratio);
+  const open = flagsOf('wp').filter(flag => flag.resolvedAt === null);
+  assert.deepEqual(open.map(flag => flag.ruleId).sort(), ['codebase-duplication', 'codebase-growth']);
+  assert.ok(open.every(flag => flag.severity === 'warn' && flag.date === codebase.manifest.referenceDate));
+  assert.match(open.find(flag => flag.ruleId === 'codebase-growth').message, /^The code grew \d+% in \d\d days \(\d{2},\d{3} → \d{2},\d{3} lines\)\.$/u);
+  assert.match(open.find(flag => flag.ruleId === 'codebase-duplication').message, /^\d\.\d% of the code is repeated\.$/u);
+  assert.ok(flagsOf('wp', 'codebase-duplication').some(flag => flag.resolvedAt !== null));
+  assert.deepEqual(flagsOf('wp', 'codebase-complexity'), []);
+  const paths = reports.at(-1).envelope.findings.duplicates.flatMap(block => block.files.map(file => file.path));
+  assert.ok(paths.filter(path => /RecipeCard\.tsx$/u.test(path)).length >= 3 && paths.some(path => /Nutrition/u.test(path)));
+  assert.ok(nearestTo(reports, -60).envelope.findings.duplicates.every(block => block.files.every(file => !/RecipeCard/u.test(file.path))));
+});
+
+test('Trail Notes\' redesign is a step in its code, its hard-to-change functions and, afterwards, its unused files', () => {
+  const reports = reportsOf('tn');
+  const { slide } = codebase.manifest;
+  const stepIndex = reports.findIndex(report => report.envelope.generatedAt > slide.annotationAt);
+  const before = reports[stepIndex - 1].envelope.measures, after = reports[stepIndex].envelope.measures;
+  assert.ok(after.code_lines / before.code_lines >= 1.28 && after.code_lines / before.code_lines <= 1.32);
+  assert.ok(after.complex_functions - before.complex_functions >= 5);
+  assert.ok(reports.at(-1).envelope.measures.unused_files >= 14 && before.unused_files <= 3);
+  assert.ok(reports.at(-1).envelope.findings.unused.some(item => item.kind === 'file' && item.path.includes('/legacy/')));
+  const complexity = flagsOf('tn', 'codebase-complexity'), growth = flagsOf('tn', 'codebase-growth');
+  assert.ok(complexity.length >= 1 && growth.length >= 1);
+  assert.equal(complexity[0].date, reports[stepIndex].date);
+  assert.ok([...complexity, ...growth].every(flag => flag.resolvedAt !== null));
+  assert.match(complexity[0].message, /^\d+ more functions became hard to change in \d\d days\.$/u);
+  const unused = flagsOf('tn', 'codebase-unused');
+  assert.equal(unused.filter(flag => flag.resolvedAt === null).length, 1);
+  assert.ok(unused.every(flag => flag.date > slide.annotationAt.slice(0, 10)));
+});
+
+test('Fresh Rows sends no codebase report and NoticeOS measures itself steadily, at its own repository\'s scale', () => {
+  assert.deepEqual(reportsOf('fr'), []);
+  const reports = reportsOf('no');
+  const last = reports.at(-1).envelope.measures;
+  // This repository's own measurement: about 176k lines, 1% repeated, 421 hard-to-change functions, tests outnumbering code.
+  assert.ok(Math.abs(last.code_lines - 176_000) < 2_000 && last.complex_functions === 421 && last.test_ratio > 1);
+  assert.ok(last.unused_files <= 9 && last.unused_exports <= 28 && last.commits_30d >= 140 && last.commits_30d <= 174);
+  assert.ok(reports.every(report => report.envelope.measures.duplication_percent <= 1.3 && report.envelope.byLanguage[0].language === 'TypeScript'));
+  assert.ok(reports.every(report => report.envelope.unmeasured.unused_dependencies === 'Unused packages are not measured yet.' && !('unused_dependencies' in report.envelope.measures)));
+  assert.equal(reports[0].envelope.paths, undefined);
+  assert.deepEqual(flagsOf('no'), []);
+});
+
+test('every codebase rule fires somewhere, open and resolved, with no flag before its comparison report', () => {
+  const flags = codebaseFlags;
+  const states = new Set(flags.map(flag => `${flag.ruleId}/${flag.resolvedAt === null ? 'open' : 'resolved'}`));
+  for (const state of ['codebase-growth/open', 'codebase-growth/resolved', 'codebase-duplication/open', 'codebase-duplication/resolved', 'codebase-unused/open', 'codebase-unused/resolved', 'codebase-complexity/resolved']) assert.ok(states.has(state), state);
+  for (const flag of flags) {
+    assert.ok(flag.resolvedAt === null || flag.resolvedAt > flag.firedAt);
+    if (flag.ruleId === 'codebase-growth' || flag.ruleId === 'codebase-complexity') assert.ok(flag.inputs.comparison.days >= 28 && flag.inputs.comparison.days <= 45);
+    assert.equal(flag.inputs.report.reportDate, flag.date);
+  }
+  // One open flag per site and rule at most.
+  const open = flags.filter(flag => flag.resolvedAt === null).map(flag => `${flag.asset}/${flag.ruleId}`);
+  assert.equal(new Set(open).size, open.length);
+  // The very first report of a site has nothing to compare and holds no 30-day flag.
+  const single = demoCodebaseVerdicts(reportsOf('tn').slice(-1), codebaseRules);
+  assert.ok(single.every(flag => flag.ruleId !== 'codebase-growth' && flag.ruleId !== 'codebase-complexity'));
 });

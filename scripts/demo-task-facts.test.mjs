@@ -1,14 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
+import { demoCodebaseReports, generateDemoScenario, shiftDemoDay } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
 
 const input = { seed: 'synthetic-work-v2', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
 test('one scenario names six real task projects and all cross-store story identities', () => {
   const scenario = generateDemoScenario(input);
-  assert.equal(scenario.manifest.scenarioVersion, 7);
+  assert.equal(scenario.manifest.scenarioVersion, 8);
   assert.equal(scenario.manifest.taskProjects.length, 6);
-  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 217);
+  assert.equal(scenario.tasks.filter(task => task.issueType === 'task').length, 220);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'epic').length, 6);
   assert.equal(scenario.tasks.filter(task => task.issueType === 'gate').length, 3);
   assert.equal(new Set(scenario.tasks.map(task => task.id)).size, scenario.tasks.length);
@@ -211,4 +211,27 @@ test('a task is filed only after what it depends on, so no dated import loses an
       }
     }
   }
+});
+
+test('the codebase findings the Codebase tab leads with already have tasks on the sites they name', () => {
+  const scenario = generateDemoScenario(input);
+  const latest = asset => demoCodebaseReports(scenario).filter(report => report.asset === asset).at(-1).envelope;
+  const issues = demoTaskIssuesAt(scenario.tasks, input.cutoff);
+  const taskOn = (prefix, title) => issues.find(issue => issue.id.startsWith(`${prefix}-`) && issue.title === title);
+  const pantry = scenario.assets.find(asset => asset.prefix === 'wp');
+  const trails = scenario.assets.find(asset => asset.prefix === 'tn');
+
+  const cards = taskOn('wp', 'Merge the repeated recipe card components');
+  assert.equal(cards.status, 'open');
+  assert.ok(latest(pantry.id).findings.duplicates.some(block => block.files.filter(file => file.path.endsWith('/RecipeCard.tsx')).length === 4));
+  const split = taskOn('wp', 'Split the recipe page’s largest function');
+  assert.equal(split.status, 'open');
+  assert.ok(latest(pantry.id).findings.complexFunctions.some(fn => fn.name === 'RecipePage' && fn.path === 'app/recipes/[slug]/page.tsx'));
+
+  // The old templates wait on the rollback question: rolling back would need them.
+  const legacy = taskOn('tn', 'Remove the old templates left in legacy/');
+  assert.equal(legacy.status, 'blocked');
+  const rollback = taskOn('tn', 'Roll back the trail page redesign?');
+  assert.ok(legacy.dependencies.some(edge => edge.type === 'blocks' && edge.depends_on_id === rollback.id));
+  assert.ok(latest(trails.id).findings.unused.filter(item => item.kind === 'file' && item.path.includes('/legacy/')).length >= 10);
 });

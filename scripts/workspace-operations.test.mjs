@@ -254,6 +254,10 @@ test('public liveness and standalone runner/import are distinct from workspace a
   assert.deepEqual(await towerOperation(request('/api/health')), { kind: 'public', action: null, rpcMethods: [] });
   assert.equal((await ingestOperation('runScheduled', request('/api/runner/scheduled?cron=fixture'))).kind, 'standalone-only');
   assert.equal((await ingestOperation('fetch', request('/api/runner/ingest/api/pulse', 'POST'))).kind, 'standalone-only');
+  // A codebase report takes the nightly report's path: the same door, the same per-site token check in the ingest.
+  assert.deepEqual(await ingestOperation('fetch', request('/api/runner/ingest/api/codebase-report', 'POST')),
+    await ingestOperation('fetch', request('/api/runner/ingest/api/pulse', 'POST')));
+  await assert.rejects(towerOperation(request('/api/runner/ingest/api/codebase-report')), OperationRefused);
   assert.equal((await towerOperation(request('/api/integrations/import-env'))).kind, 'standalone-only');
   await assert.rejects(ingestOperation('fetch', request('/api/runner/scheduled')), OperationRefused);
   await assert.rejects(towerOperation(request('/api/runner/ingest/api/future')), OperationRefused);

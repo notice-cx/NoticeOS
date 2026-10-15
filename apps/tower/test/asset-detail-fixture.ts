@@ -6,6 +6,7 @@ import {
   type AssetDetailResponse,
   type AssetDetailView,
 } from "@shared/asset-detail-views";
+import { codebaseSlice } from "./codebase-fixture";
 
 /**
  * One asset report with something on every tab, shared by the suites that
@@ -547,6 +548,7 @@ export function everyTabPayload(): AssetDetailPayload {
     reclamation: null,
     hygiene: null,
     fetchFailures: [],
+    codebase: codebaseSlice("meadow.example", "2026-07-05"),
     integrations: {
       sources: [],
       lanes: [gscLane],

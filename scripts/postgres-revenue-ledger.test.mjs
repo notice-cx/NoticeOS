@@ -59,7 +59,8 @@ test('the revenue ledger keeps every Mediavine day an existing store saved, and 
   try {
     owner = await skipWithoutPostgres(t, () => openOnLoopbackPort(path.join(root, 'pg'), tools)); if (!owner) return;
     const older = path.join(root, 'older'); mkdirSync(older);
-    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => !/^0015_/u.test(name))) {
+    // The store as it was before the ledger: every migration numbered below it.
+    for (const name of readdirSync(path.join(REPO_ROOT, 'db/postgres/migrations')).filter(name => name < '0015_')) {
       copyFileSync(path.join(REPO_ROOT, 'db/postgres/migrations', name), path.join(older, name));
     }
     applyMigrations(owner, { dir: older });
@@ -71,7 +72,7 @@ test('the revenue ledger keeps every Mediavine day an existing store saved, and 
         d.report_date::text AS day, d.amount_minor::text AS amount, r.run_id
       FROM noticeos.mediavine_daily d JOIN noticeos.mediavine_runs r USING (workspace_id, run_seq) ORDER BY d.daily_id`));
 
-    assert.deepEqual(applyMigrations(owner).applied, ['0015_revenue_ledger']);
+    assert.equal(applyMigrations(owner).applied[0], '0015_revenue_ledger');
 
     // Every saved day, in each workspace, in the order it was written, under
     // the number readers were shown, naming the run that reported it.

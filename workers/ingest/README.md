@@ -9,6 +9,7 @@ The pulse-ingest and ledger Worker, its collectors and its scheduled lanes
 | Route | Auth | Purpose |
 |---|---|---|
 | `POST /api/pulse` | Bearer, per-asset (`env.ASSET_TOKENS`) | Ingest one asset pulse: validate the envelope, write the `(asset,date)` row, explode envelope flags, evaluate the central volume-aware rules. |
+| `POST /api/codebase-report` | Bearer, per-asset (`env.ASSET_TOKENS`) | Ingest one codebase report: validate the `CodebaseReport` envelope, append it as the `(asset,date)` row's next revision in `noticeos.codebase_reports`, run the four codebase rules — see [Codebase reports](#codebase-reports). |
 | `POST /api/revenue` | Bearer, operator (`env.OPERATOR_TOKEN`) | Ledger lane: accept CSV or JSON ledger rows, validate against the CHECK constraints, append-only insert keyed on a stable `external_id`, per-row results. Re-uploading the same export books the money once — see [Revenue idempotency](#revenue-idempotency--the-same-export-books-once). |
 | `POST /api/annotations` | Bearer, operator | Timeline events: `{asset, kind, at?, ref?, note?}`. Backdating allowed, future `at` rejected; an identical `(asset, at, kind, ref)` re-post returns the existing row instead of duplicating it. |
 | `POST /api/watch-windows` | Bearer, operator | Register a pre-registered outcome check — see [Watch windows](#watch-windows-pre-registered-outcome-checks). |
@@ -75,12 +76,12 @@ only by the Control Tower.
 
 ### Status codes
 
-`401` unauthorized · `400` unparseable body · `409` a concurrent revenue upload
+`401` unauthorized · `400` unparseable body · `413` a codebase report body over 256 KiB, refused before it is parsed · `409` a concurrent revenue upload
 lost the race to the ledger's unique index · `422` authenticated-but-invalid
-envelope (pulse), no revenue row accepted at all, or a rejected field / unknown
+envelope (pulse, codebase report), no revenue row accepted at all, or a rejected field / unknown
 asset (annotations, watch windows, asset state), or a rejected field (beads
 snapshot), with per-issue / per-row detail ·
-`201` pulse written, annotation created, watch registered, snapshot stored ·
+`201` pulse or codebase report written (`{ok, reportNumber, reportDate, revision}` for a codebase report), annotation created, watch registered, snapshot stored ·
 `200` revenue processed (per-row results; partial success is a 200, and so is an
 upload whose rows were all already imported), an idempotent annotation re-post
 (the existing row, `created: false`), an asset-state column moved (a row that
@@ -326,6 +327,39 @@ metric reading resolves the prior open central flow event before the current
 one is evaluated, so recovered metrics stop contributing to property health.
 Each fired flag stores `rule_id` + `rule_inputs` (including comparison dates)
 for auditability.
+
+## Codebase reports
+
+`POST /api/codebase-report` takes one `CodebaseReport`
+(`packages/contract/src/codebase.ts`): the commit measured, the tool
+versions, the measures and bounded lists of findings (paths only, never
+source text). A measure the report leaves out was not measured, and no rule
+reads it as 0; `unmeasured` may give the reason, in the sentence the Tower
+shows beside "Not measured". A findings list a tool did not produce is left
+out, which is not the same as an empty list.
+
+A same-day resend appends the next revision; `noticeos.current_codebase_reports`
+shows the newest per site and day, and `reportNumber` stays the day's first
+revision's number. In the same transaction the four rules
+(`packages/contract/src/codebase-measures.ts`) run with the thresholds in
+`config/constants.json` `codebase_rules`, store first:
+
+| Rule | Severity, kind | Fires when |
+|---|---|---|
+| `codebase-growth` | warn, anomaly | `code_lines` rose by at least `growth_percent_30d` percent and `growth_min_lines` lines over the comparison report |
+| `codebase-duplication` | warn, opportunity | `duplication_percent` is at least `duplication_percent` |
+| `codebase-unused` | info, opportunity | `unused_files` plus `unused_dependencies` is at least `unused_items` |
+| `codebase-complexity` | info, opportunity | `complex_functions` rose by at least `complex_functions_added_30d` over the comparison report |
+
+The comparison report is the site's current report nearest 30 days back, 28
+to 45 days back; with none, the growth and complexity rules do not run. A
+rule runs only when the report measured its inputs. When it runs, it first
+resolves the rule's open alert for the site, then writes a new alert if it
+fires, with the numbers it used in `rule_inputs`. Resolution skips an alert
+the operator acknowledged, tuned, opened an incident or a hypothesis for; a
+snoozed alert is resolved only when the rule no longer fires, and while the
+snooze lasts the rule writes no new alert. Codebase alerts carry no
+`pulse_id`.
 
 ## Annotations (the timeline writer)
 

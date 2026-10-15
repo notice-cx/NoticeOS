@@ -147,7 +147,15 @@ Haiku 5.5 for quick fixes, Sonnet 5.5 for the rest), and closes each task with
 its commit and the page where the change appears, after `codex` checks it;
 `codex` also checks each day's changes. The Agents page shows eight weeks of
 their earlier work, and the last 7 days rank the four agent models within a
-few points of each other. The release's own
+few points of each other. Each site except the weeks-old product sends a
+weekly codebase report, and the simulator sends the next one on the same
+weekday: the recipe site's code grew 45% in its last 60 days, much of it
+copied recipe-card and nutrition components; the outdoor guide's redesign
+added 30% to its code in one week and left its old templates unused; the
+licensed tool carried a month of unused packages after a library swap, until a
+cleanup deploy removed them; the subscription product is written in Ruby, so
+its unused code is not measured. The weeks-old product's Codebase tab shows how
+to send a first report. The release's own
 evaluators produce every alert and verdict from
 the synthetic history; none is seeded as a finished result.
 Visitor writes and provider actions are rejected. A passing health check does

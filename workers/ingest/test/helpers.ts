@@ -42,6 +42,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'hygiene_checks',
   'reclamation_targets',
   'pulses',
+  'codebase_reports',
   'flags',
   'flag_evidence',
   'flag_tunes',

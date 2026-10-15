@@ -658,7 +658,7 @@ test('original config HTTP and private RPC select fresh authorized workspaces in
       assert.equal(outside, 0, JSON.stringify(outsideDetails));
     });
     await t.test('asset details and every tab retain one workspace for identical asset IDs', async () => {
-      const views = ['', 'overview', 'growth', 'financials', 'search', 'alerts', 'tasks', 'activity', 'sources', 'settings'];
+      const views = ['', 'overview', 'growth', 'financials', 'search', 'codebase', 'alerts', 'tasks', 'activity', 'sources', 'settings'];
       for (const [client, workspace, marker] of [[towerFetch, a, 'tenant-a'], [towerFetch, b, 'tenant-b'], [demoFetch, demo, 'demo']]) {
         const evidence = client === demoFetch ? { cookie: otherCookie } : headers(workspace);
         for (const view of views) {

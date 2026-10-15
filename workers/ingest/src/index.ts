@@ -115,6 +115,7 @@ import {
   handleSignalArchives,
 } from './routes/panel-source.js';
 import { handlePulse } from './routes/pulse.js';
+import { handleCodebaseReport } from './routes/codebase-report.js';
 import { handleRotateCredentialKey } from './routes/rotate-key.js';
 import { handleRevenue } from './routes/revenue.js';
 import {
@@ -148,6 +149,9 @@ async function route(request: Request, env: IngestEnv): Promise<Response> {
 
   if (request.method === 'POST' && pathname === '/api/pulse') {
     return handlePulse(request, env);
+  }
+  if (request.method === 'POST' && pathname === '/api/codebase-report') {
+    return handleCodebaseReport(request, env);
   }
   if (request.method === 'POST' && pathname === '/api/revenue') {
     return handleRevenue(request, env);
