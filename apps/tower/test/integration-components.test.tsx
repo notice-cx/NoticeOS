@@ -213,7 +213,7 @@ describe("IntegrationMatrix — the derived lane leads and reads as derived", ()
           matrix={{
             ...MATRIX,
             assets: [
-              { id: "root-os", displayName: "NoticeOS", isOs: true },
+              { id: "root-os", displayName: "System", isOs: true },
               { id: "meadow.example", displayName: "Meadow Board", isOs: false },
             ],
             cells: { "root-os": [], "meadow.example": [DECLARED_CELL] },

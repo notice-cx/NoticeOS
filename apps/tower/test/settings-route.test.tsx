@@ -1005,7 +1005,7 @@ function workBoard(...waiting: WorkItem[]): WorkPayload {
       {
         asset: "root-os",
         prefix: "ro",
-        name: "NoticeOS",
+        name: "System",
         ok: true,
         error: null,
         counts: {

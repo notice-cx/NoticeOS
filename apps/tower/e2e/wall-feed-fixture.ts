@@ -9,7 +9,7 @@ import { writeArchiveRuns, writeInsightSnapshots } from "../test/provider-report
 import { wallFixturePayload } from "./wall-fixture";
 
 /** The OS itself: the asset an OS deploy is recorded against. Its row stores
- * a name of its own; the feed still calls it NoticeOS. */
+ * a name of its own; the feed still calls it System. */
 export const WALL_FEED_OS: readonly [id: string, storedName: string] = ["os.example.com", "Stored name, never shown"];
 
 // No saved layout here: the default places the feed beside the column.

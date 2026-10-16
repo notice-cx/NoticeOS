@@ -3029,8 +3029,8 @@ describe("buildWallPayload — the current month has no ledger row yet", () => {
   });
 });
 
-describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", () => {
-  it("names the OS's alerts and parked alerts by the product, and every site by its own name", async () => {
+describe("the OS's own row is called System on the Wall, whatever it stores", () => {
+  it("names the OS's alerts and parked alerts System, and every site by its own name", async () => {
     const ctx = await createTestStore();
     await insertAsset(ctx, "os-row", "ReindexOS", "live", 0, 1);
     await insertAsset(ctx, "meadow.example", "Meadow Board", "live", 0, 0);
@@ -3054,9 +3054,9 @@ describe("the OS's own row is called NoticeOS on the Wall, whatever it stores", 
 
     expect(p.attention.map((row) => [row.asset, row.assetDisplayName]).sort()).toEqual([
       ["meadow.example", "Meadow Board"],
-      ["os-row", "NoticeOS"],
+      ["os-row", "System"],
     ]);
-    expect(p.snoozed.map((row) => [row.asset, row.assetDisplayName])).toEqual([["os-row", "NoticeOS"]]);
+    expect(p.snoozed.map((row) => [row.asset, row.assetDisplayName])).toEqual([["os-row", "System"]]);
     expect(p.system.assetId).toBe("os-row");
     expect(JSON.stringify(p)).not.toContain("ReindexOS");
   });

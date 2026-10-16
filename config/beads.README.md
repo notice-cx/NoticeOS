@@ -77,7 +77,7 @@ exactly; a mismatched link leaves that project unavailable while others run.
 project with the same guarded write, Undo toast and refusals as every other
 register on that page; a duplicate prefix or database is refused before the
 request is made, and the asset column offers the assets no project has
-claimed. Fresh setup creates the NoticeOS project before any user site exists.
+claimed. Fresh setup creates the System's project before any user site exists.
 Hosted builds show the map read-only and omit host paths and connection
 details. Adding a row does not provision a database or checkout: the local
 page supplies the setup steps left for the host. Editing an export has no

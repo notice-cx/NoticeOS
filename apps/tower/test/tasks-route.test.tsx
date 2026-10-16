@@ -403,7 +403,7 @@ describe("/tasks — the board is one table", () => {
           project({
             asset: "root-os",
             prefix: "ro",
-            name: "NoticeOS",
+            name: "System",
             ready: [item({ id: "ro-9zz", title: "Somebody else's queue" })],
             inProgress: [],
           }),
@@ -414,7 +414,7 @@ describe("/tasks — the board is one table", () => {
     expect(container.querySelectorAll("table")).toHaveLength(1);
     expect(row(container, "md-1w2")).toBeInTheDocument();
     expect(row(container, "ro-9zz")).toBeInTheDocument();
-    expect(within(row(container, "ro-9zz")).getByText("NoticeOS")).toBeInTheDocument();
+    expect(within(row(container, "ro-9zz")).getByText("System")).toBeInTheDocument();
   });
 
   it("leads with what is urgent, then with what has gone longest untouched", () => {
@@ -1529,7 +1529,7 @@ describe("the asset page's Tasks tab", () => {
       project({
         asset: "root-os",
         prefix: "ro",
-        name: "NoticeOS",
+        name: "System",
         ready: [item({ id: "ro-9zz", title: "Somebody else's queue" })],
         inProgress: [],
       }),

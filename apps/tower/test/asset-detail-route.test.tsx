@@ -777,7 +777,7 @@ function materialAsset(container: HTMLElement, condition: MaterialCondition): HT
 describe("AssetDetailRoute — material state on the current screens", () => {
   it("lists every scheduled job on Sources, with the failed one marked", async () => {
     const data = payload();
-    data.asset = { ...data.asset, id: "root-os", displayName: "NoticeOS", domain: null, isOs: true };
+    data.asset = { ...data.asset, id: "root-os", displayName: "System", domain: null, isOs: true };
     data.scheduledLanes = [
       { job: "backup", outcome: "failed", startedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(), lastRanAt: null, failedRuns: 1, failingSince: new Date(Date.now() - 2 * 3_600_000).toISOString() },
       { job: "beads-snapshot", outcome: "ran", startedAt: new Date(Date.now() - 3_600_000).toISOString(), lastRanAt: new Date(Date.now() - 3_600_000).toISOString(), failedRuns: 0, failingSince: null },
@@ -5363,7 +5363,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
 
   it("offers no name field on the OS's own row, and keeps the rest of its settings", async () => {
     const data = payload();
-    data.asset = { ...data.asset, id: "root-os", displayName: "NoticeOS", domain: null, isOs: true };
+    data.asset = { ...data.asset, id: "root-os", displayName: "System", domain: null, isOs: true };
     stubFetch(200, data);
     const { container, findByText, queryByLabelText } = renderRoute("root-os", "", "settings");
 

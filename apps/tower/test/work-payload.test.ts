@@ -150,7 +150,7 @@ describe("buildWorkPayload", () => {
 
     expect(payload.projects[1]).toMatchObject({
       asset: "root-os",
-      name: "NoticeOS",
+      name: "System",
       ok: false,
     });
     expect(payload.projects[1]!.error).toMatch(/no beads project found/);
@@ -352,7 +352,7 @@ describe("buildWorkPayload over a real stored row", () => {
     expect(os).toEqual({
       asset: "root-os",
       prefix: "zz",
-      name: "NoticeOS",
+      name: "System",
       ok: true,
       error: null,
       counts: { open: 3, highPriority: 2, ready: 2, inProgress: 1, blocked: 1, closedRecent: 1, deferred: 1, waiting: 0 },

@@ -508,7 +508,7 @@ describe("buildFinancialsPayload — each asset's own months", () => {
     const os = payload.properties.find((p) => p.isOs)!;
 
     expect(os.months.map((month) => month.figure?.net ?? null)).toEqual([-200, -205]);
-    expect(os.displayName).toBe("NoticeOS");
+    expect(os.displayName).toBe("System");
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
   });
 });

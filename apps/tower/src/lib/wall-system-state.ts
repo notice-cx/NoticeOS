@@ -1,6 +1,7 @@
 // System posture and its specific Needs you rows. The header carries time and
 // obligations; these concerns remain in the action list.
 
+import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
 import type { ConnectionReads } from "@shared/connection-status";
 import type { MaterialCondition } from "@shared/materiality";
 import { osReportMissing, type AssetCard, type ScheduledLane, type SystemBand } from "@shared/wall";
@@ -85,7 +86,7 @@ export function wallSystemState(system: SystemBand, sourcesFailing: number, nowM
   return {
     kind: "healthy",
     severity: null,
-    label: "System",
+    label: SYSTEM_NAME,
     conditions: ["os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"],
   };
 }
@@ -120,7 +121,7 @@ export function withSystemIssues(issues: readonly WallIssue[], system: SystemBan
     const latest = failed.length > 0 ? failed.reduce((time, lane) => lane.startedAt > time ? lane.startedAt : time, "") : null;
     merged.push({
       key: `system-${state.kind}`, severity: state.severity ?? "warn", assets: system.assetId ? [system.assetId] : [],
-      site: "OS", line, mark: state.label, since: latest, conditions: [condition],
+      site: SYSTEM_NAME, line, mark: state.label, since: latest, conditions: [condition],
     });
   }
   // One row however many nights failed; it goes when a backup runs.
@@ -128,7 +129,7 @@ export function withSystemIssues(issues: readonly WallIssue[], system: SystemBan
   if (backups.state === "failing" && !merged.some((issue) => issue.key === "system-backups-failing")) {
     merged.push({
       key: "system-backups-failing", severity: "error", assets: system.assetId ? [system.assetId] : [],
-      site: "OS", line: `Backups failing · ${lastGoodCopy(backups, nowMs)}`, mark: "Backups failing",
+      site: SYSTEM_NAME, line: `Backups failing · ${lastGoodCopy(backups, nowMs)}`, mark: "Backups failing",
       since: backups.failingSince, conditions: ["scheduled-lane-health"],
     });
   }

@@ -169,7 +169,7 @@ function work(items: WorkItem[] = []): WorkPayload {
       {
         asset: "root-os",
         prefix: "ro",
-        name: "NoticeOS",
+        name: "System",
         ok: true,
         error: null,
         counts: {
@@ -432,7 +432,7 @@ describe("the task page", () => {
 
     await screen.findByText("Blocks");
     const facts = container.querySelector("[data-task-facts]") as HTMLElement;
-    expect(within(facts).getByRole("link", { name: /NoticeOS/ })).toHaveAttribute(
+    expect(within(facts).getByRole("link", { name: /System/ })).toHaveAttribute(
       "href",
       "/assets/root-os",
     );

@@ -164,7 +164,7 @@ describe("the settled-alert read", () => {
 
     expect(payload.rows.map((row) => row.asset)).toEqual([
       { id: "northwind.example", domain: "northwind.example", displayName: "Northwind" },
-      { id: "root-os", domain: null, displayName: "NoticeOS" },
+      { id: "root-os", domain: null, displayName: "System" },
     ]);
     expect(JSON.stringify(payload)).not.toContain("ReindexOS");
   });

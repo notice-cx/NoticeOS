@@ -31,7 +31,7 @@ source, or builds `main` into the image when none is published (`-- --build`
 always builds). It writes the folder and new secrets, creates the two data
 volumes, starts the databases, and runs the steps that need psql and Beads
 inside a one-off app container (`entrypoint.mjs setup`: the frozen schema and one workspace on a
-database it proves empty, the NoticeOS asset and its task project). It then
+database it proves empty, the System's asset and its task project). It then
 starts the app and the backup worker, loads the default settings
 (`entrypoint.mjs seed-settings`) and writes `.local/stack.json`. It stops
 without making anything when the folder already has content or a project
@@ -451,7 +451,7 @@ customer's workspace API. What a hosted service may do is set by
 The disposable proof creates new database volumes, a synthetic core task
 project and prepared settings, runs the application on ports 5750–5799, tests task
 detail/create/complete and snapshot recording, and restarts only the app. Its
-synthetic roster contains only NoticeOS, with no provider connections. Before the app starts, the
+synthetic roster contains only the System, with no provider connections. Before the app starts, the
 proof recreates only its owned network as internal and verifies that flag;
 API and store assertions run inside the exact app container. Cleanup removes only its own
 project and volumes. The proof's preparation uses a declared compatible host

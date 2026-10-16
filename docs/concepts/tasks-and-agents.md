@@ -9,7 +9,7 @@ This page covers the **Tasks** page, how a piece of work stays linked to its cau
 
 ## One shared task board
 
-NoticeOS keeps one task database. Every site gets its own project in it, and NoticeOS itself has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
+NoticeOS keeps one task database. Every site gets its own project in it, and the **System** (this installation's own NoticeOS) has one too. People and AI agents file, claim, comment on and close tasks in the same place, with the same fields: status, priority, owner, what blocks what, and the evidence that closed it.
 
 The **Tasks** page shows all projects together. At the top is **Your decisions**: decisions that only you can make. Under it, **Next up** is work that is ready with nothing blocking it, then **Urgent**, **Blocked** and **Closed this week**. Filters narrow it by project, status, priority, label and owner, and any task opens to its history and comments.
 

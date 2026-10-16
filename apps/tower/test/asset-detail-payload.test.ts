@@ -729,9 +729,9 @@ describe("buildAssetDetailPayload", () => {
     expect(p.countersConfig).toBeNull();
   });
 
-  it("names the OS's own row NoticeOS whatever its stored name, and every site by its own", async () => {
+  it("names the OS's own row System whatever its stored name, and every site by its own", async () => {
     const os = (await buildAssetDetailPayload(ctx.call, "root-os", DEPS))!;
-    expect(os.asset).toMatchObject({ isOs: true, displayName: "NoticeOS" });
+    expect(os.asset).toMatchObject({ isOs: true, displayName: "System" });
     expect(JSON.stringify(os)).not.toContain("ReindexOS");
     const site = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!;
     expect(site.asset.displayName).toBe("Meadow Board");

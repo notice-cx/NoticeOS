@@ -204,7 +204,7 @@ describe('POST /api/asset-state — what it will edit', () => {
     expect(status).toBe(422);
     expect(body.error).toBe('validation');
     expect(body.issues).toEqual([
-      { path: 'column', code: 'fixed', message: 'The OS is always called NoticeOS; its name is not a setting' },
+      { path: 'column', code: 'fixed', message: 'This row is always called System; its name is not a setting' },
     ]);
     expect(await stored(os!.id)).toEqual(before);
   });

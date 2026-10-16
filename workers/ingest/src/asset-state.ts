@@ -9,7 +9,7 @@
 // exact match against the allowlist. Nothing here writes a migration; what it
 // inserts and changes is rows.
 
-import { PRODUCT_NAME, SITE_ORDER, STORE_COLUMNS } from '@noticeos/contract';
+import { SITE_ORDER, STORE_COLUMNS, SYSTEM_NAME } from '@noticeos/contract';
 import type {
   AssetRowSummary,
   AssetStateRead,
@@ -188,14 +188,14 @@ export async function writeAssetColumn(
       `SELECT ${SITE_ROW} FROM noticeos.assets WHERE asset_id = $1 FOR UPDATE`, [asset],
     );
     if (!target) return { ok: false, error: 'unknown_asset', asset };
-    // The OS has no name to set: its row is the product, always called
-    // PRODUCT_NAME, and a write there would be a change nobody could see.
+    // The OS has no name to set: its row is always called SYSTEM_NAME, and a
+    // write there would be a change nobody could see.
     if (column === 'display_name') {
       if (target.is_os === true) {
         return {
           ok: false,
           error: 'validation',
-          issues: [{ path: 'column', code: 'fixed', message: `The OS is always called ${PRODUCT_NAME}; its name is not a setting` }],
+          issues: [{ path: 'column', code: 'fixed', message: `This row is always called ${SYSTEM_NAME}; its name is not a setting` }],
         };
       }
     }
