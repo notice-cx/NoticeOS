@@ -44,7 +44,11 @@ export interface SitePickerProps {
   payload: SitesPayload | undefined;
   /** The read itself failed (the Tower could not ask). */
   failed?: boolean;
+  /** Read the account's sites again: Try again after a failure, and Read
+   * again under the list once a missing site has been granted. */
   onRetry?: () => void;
+  /** The list is being read again. */
+  reading?: boolean;
   /** The asset the panel was opened from: it leads the list, ticked. */
   preselect?: string | null;
   /** Save the confirmed mapping (and any Not using) and collect. Resolves with
@@ -92,6 +96,7 @@ export function SitePicker({
   payload,
   failed = false,
   onRetry,
+  reading = false,
   preselect = null,
   onStart,
   siteStatus,
@@ -231,7 +236,9 @@ export function SitePicker({
   const notUsing = tally("not-using");
   const undecided = tally("undecided");
   const others = unclaimedSites(plan, selection);
-  const grants = listingGrants(plan, selection, discovery);
+  // A reload would close the panel, so the grant's last step is the read
+  // under it.
+  const grants = listingGrants(plan, selection, discovery, onRetry ? `press ${READ_AGAIN}` : "reload this page");
   const metered = payload?.spend ?? null;
   const verb = metered ? "Start weekly reports" : "Start collecting";
   const count = siteCount(confirmed.length);
@@ -300,12 +307,20 @@ export function SitePicker({
         </ul>
       )}
       {grants.length > 0 ? (
-        <div className="flex flex-col gap-1" data-site-grants>
+        <div className="flex flex-col items-start gap-2" data-site-grants>
           {grants.map((grant) => (
             <p key={grant.lane} className="break-words text-xs leading-snug text-muted-foreground" data-site-grant={grant.lane}>
               {grant.text}
             </p>
           ))}
+          {/* Not disabled while reading: focus stays on it rather than
+              falling to Start when the new list arrives. */}
+          {onRetry ? (
+            <Button type="button" size="sm" variant="outline" onClick={onRetry} aria-busy={reading} data-sites-read-again>
+              {reading ? <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden /> : null}
+              {READ_AGAIN}
+            </Button>
+          ) : null}
         </div>
       ) : null}
       {others.length > 0 ? (
@@ -342,6 +357,9 @@ const LANE_PICK: Record<string, { name: string; pick: string }> = {
 };
 
 const NOT_IN_ACCOUNT = "Not in this account";
+/** The control under a Google list that reads the account again, named by
+ * the grant line beside it. */
+const READ_AGAIN = "Read again";
 
 const EXCLUSION: Record<SiteExclusion, string> = {
   "not-using": "Not using",
@@ -474,18 +492,19 @@ function rowDetail(row: SiteRow, selection: SiteSelection, kind: "account" | "po
 
 /** Under a Google list, once per kind of site some collectable row's account
  * lists nothing for: whose access the list shows and the grant that adds it,
- * in the Data sources tab's own words. None when the listing names no
- * credential. */
+ * in the Data sources tab's own words, ending with `then`. None when the
+ * listing names no credential. */
 function listingGrants(
   plan: SitePlan,
   selection: SiteSelection,
   discovery: SiteDiscovery | undefined,
+  then: string,
 ): { lane: "ga4" | "gsc"; text: string }[] {
   if (plan.kind !== "account" || !discovery?.ok) return [];
   return (["ga4", "gsc"] as const).flatMap((lane) => {
     const missing = plan.rows.some((row) =>
       row.excluded === null && row.lanes.some((entry) => entry.lane === lane && notListed(row, entry, selection)));
-    const text = missing ? googleListingGrant(lane, discovery) : null;
+    const text = missing ? googleListingGrant(lane, discovery, then) : null;
     return text === null ? [] : [{ lane, text }];
   });
 }

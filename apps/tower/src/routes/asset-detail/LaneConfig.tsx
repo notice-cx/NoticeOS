@@ -431,7 +431,7 @@ function lanePicker(
         : options.length === 0
           ? `No ${label}`
           : null;
-  const grant = loading || query.isError ? null : googleListingGrant(lane, payload);
+  const grant = loading || query.isError ? null : googleListingGrant(lane, payload, "reload this page");
   return { lane, loading, options, unavailable, grant };
 }
 

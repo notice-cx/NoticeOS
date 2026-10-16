@@ -73,13 +73,15 @@ export function replaceLabel(provider: Pick<IntegrationProvider, "fields"> & Par
 /**
  * The line under a site's GA4 or Search Console picker: whose access the list
  * shows, and what makes a missing one appear. A service account is granted at
- * Google, with the role each collector needs (docs/11-integrations.md); a
- * sign-in is replaced by one that can read it. Null when the listing named no
- * credential.
+ * Google, with the role each collector needs (docs/11-integrations.md), and
+ * the list shows it once it is read again: `then` names that step on the
+ * screen the line is on ("reload this page"). A sign-in is replaced by one
+ * that can read it. Null when the listing named no credential.
  */
 export function googleListingGrant(
   kind: "ga4" | "gsc",
   listing: { auth?: unknown; account?: unknown } | undefined,
+  then: string,
 ): string | null {
   const account = typeof listing?.account === "string" ? listing.account.trim() : "";
   if (account === "") return null;
@@ -91,7 +93,7 @@ export function googleListingGrant(
   const grant = kind === "ga4"
     ? "In Google Analytics, add this account as Viewer on that GA4 property or its account"
     : "In Search Console, add this account as a Full user on that site";
-  return `Listed for the service account ${account}. Missing ${missing}? ${grant}, then reload this page.`;
+  return `Listed for the service account ${account}. Missing ${missing}? ${grant}, then ${then}.`;
 }
 
 // --- a list of named feeds (calendar feeds) -----------------------------------
