@@ -23,16 +23,22 @@ async function drain(pid) {
   }
 }
 
-async function fixture(t, mode = 'ready') {
+async function fixture(t, mode = 'ready', { startDelayMs = 0 } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-audit-proof-'));
   const binary = path.join(root, 'browser');
+  const script = startDelayMs ? path.join(root, 'browser-script') : binary;
   const trace = path.join(root, 'trace.json');
   t.after(async () => {
     try { await drain(JSON.parse(await fs.readFile(trace, 'utf8')).pid); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     await fs.rm(root, { recursive: true, force: true });
   });
-  await fs.writeFile(binary, `#!${process.execPath}
+  // A slow start, as on a loaded runner; exec keeps the launcher's recorded pid.
+  if (startDelayMs) await fs.writeFile(binary, `#!/bin/sh
+sleep ${startDelayMs / 1000}
+exec ${JSON.stringify(script)} "$@"
+`, { mode: 0o700 });
+  await fs.writeFile(script, `#!${process.execPath}
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -49,7 +55,11 @@ setInterval(() => {}, 1000);
 }
 
 async function retired(trace) {
-  const { pid, profile } = JSON.parse(await fs.readFile(trace, 'utf8'));
+  const recorded = await fs.readFile(trace, 'utf8').catch(error => {
+    if (error.code === 'ENOENT') assert.fail('The fixture browser was stopped before it started, so it never recorded its pid.');
+    throw error;
+  });
+  const { pid, profile } = JSON.parse(recorded);
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
   await assert.rejects(fs.stat(profile), { code: 'ENOENT' });
 }
@@ -73,12 +83,15 @@ test('an explicit installed cache is honored and --chrome is a deliberate overri
 });
 
 for (const mode of ['exit', 'timeout']) {
-  test(`startup ${mode} awaits process retirement and removes only its profile`, async t => {
-    const { binary, trace, root } = await fixture(t, mode);
-    await assert.rejects(launchAuditBrowser(binary, { width: 390, height: 844 }, { launchMs: 400, stopMs: 500 }), /never opened/);
-    await retired(trace);
-    assert.equal((await fs.stat(root)).isDirectory(), true);
-  });
+  for (const startDelayMs of [0, 500]) {
+    test(`startup ${mode}${startDelayMs ? ` after a ${startDelayMs} ms browser start` : ''} awaits process retirement and removes only its profile`, async t => {
+      const { binary, trace, root } = await fixture(t, mode, { startDelayMs });
+      // The deadline outlasts the fixture's start on a loaded runner; one that expires first kills it before it records its pid.
+      await assert.rejects(launchAuditBrowser(binary, { width: 390, height: 844 }, { launchMs: 2_000, stopMs: 500 }), /never opened/);
+      await retired(trace);
+      assert.equal((await fs.stat(root)).isDirectory(), true);
+    });
+  }
 }
 
 test('a child ignoring TERM is escalated once, awaited, and repeated cleanup is idempotent', async t => {
