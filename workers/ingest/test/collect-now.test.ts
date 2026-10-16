@@ -14,7 +14,7 @@ import { siteHost } from '@noticeos/contract';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import constantsJson from './fixture-config/constants.json';
 import integrationsJson from './fixture-config/integrations.json';
-import { normalizeBingHost } from '../src/bing-client.js';
+import { bingSiteMapping, getBingVerifiedSites } from '../src/bing-client.js';
 import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
 import { runDataForSeoDumps } from '../src/dataforseo-dumps.js';
 import { manualRunOutcome, runCollectNow } from '../src/dispatch.js';
@@ -272,12 +272,22 @@ describe('discoverSites lists what the connected account holds', () => {
     expect(await discoverSites(env, 'calendar', { nowMs: NOW })).toMatchObject({ ok: false, reason: 'not-supported' });
   });
 
-  it('matches by the same host rule the Bing collector has always used', () => {
-    for (const value of ['https://www.Meadow.example/path?x=1', 'http://northwind.example', 'northwind.example', 'https://sub.example.com:8443/', 'www.example.org']) {
-      expect(siteHost(value)).toBe(normalizeBingHost(value));
-    }
-    expect(siteHost('sc-domain:meadow.example')).toBe('meadow.example');
-    expect(siteHost('')).toBeNull();
+  it('matches a www. Bing site and a Search Console domain property to the bare stored site', async () => {
+    const stored = 'example.com';
+    const listsWww = (async () => Response.json({ d: [{ Url: 'https://www.example.com/', IsVerified: true }] })) as typeof fetch;
+
+    // The connect panel ticks a listed site whose host equals the stored site's.
+    const found = await discoverSites(env, 'bing-webmaster', { fetchImpl: listsWww, nowMs: NOW });
+    expect(found.ok).toBe(true);
+    if (!found.ok) return;
+    expect(found.sites.map((site) => site.host)).toEqual([siteHost(stored)]);
+    // The Bing collector asks for the www. site the account holds.
+    expect(bingSiteMapping(stored, stored, await getBingVerifiedSites('bing-key', listsWww))).toEqual({
+      value: 'https://www.example.com/', source: 'domain-match',
+    });
+    // Google lists a domain property with this host (`discoverGoogleSites`).
+    expect(siteHost('sc-domain:example.com')).toBe(siteHost(stored));
+    expect(siteHost(stored)).toBe('example.com');
     expect(bingSites(['https://northwind.example/', 'https://northwind.example/'])).toHaveLength(1);
   });
 });

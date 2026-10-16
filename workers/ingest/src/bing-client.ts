@@ -6,7 +6,7 @@
 // returned to callers or written into an archive request descriptor.
 
 import type { WorkspaceStore } from '@noticeos/postgres';
-import { SITE_ORDER } from '@noticeos/contract';
+import { SITE_ORDER, siteHost } from '@noticeos/contract';
 import { SignalError, boundedResponseJson, type SignalTarget } from './signal-store.js';
 import {
   type LaneRegister,
@@ -81,7 +81,8 @@ export function bingSiteMapping(
   sites: Map<string, string> | null,
   register?: LaneRegister,
 ): ResolvedMapping<string> | null {
-  const matched = sites === null ? null : sites.get(normalizeBingHost(domain)) ?? null;
+  const host = siteHost(domain);
+  const matched = sites === null || host === null ? null : sites.get(host) ?? null;
   return resolveLaneRef(
     asset,
     'bing-webmaster',
@@ -105,8 +106,8 @@ export async function getBingVerifiedSites(
       stringField(record, 'url') ??
       (typeof value === 'string' ? value : null);
     if (!siteUrl) continue;
-    const host = normalizeBingHost(siteUrl);
-    if (host) sites.set(host, siteUrl);
+    const host = siteHost(siteUrl);
+    if (host !== null) sites.set(host, siteUrl);
   }
   return sites;
 }
@@ -165,17 +166,6 @@ export function parseBingDate(
     errorCode,
     'Bing Webmaster returned a malformed date.',
   );
-}
-
-export function normalizeBingHost(value: string): string {
-  try {
-    const withProtocol = /^[a-z][a-z\d+.-]*:\/\//i.test(value)
-      ? value
-      : `https://${value}`;
-    return new URL(withProtocol).hostname.toLowerCase().replace(/^www\./, '');
-  } catch {
-    return '';
-  }
 }
 
 function hasProviderError(body: unknown): boolean {

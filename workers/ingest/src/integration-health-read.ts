@@ -17,7 +17,7 @@ import { dataForSeoCandidates, dataForSeoTarget, dataForSeoFamiliesFor, DATAFORS
 import { clarityCandidates, resolveClarityTokens, CLARITY_REPORT } from './clarity-dumps.js';
 import { POSTHOG_KEY_SLOT, posthogCandidates, resolvePosthogKeys } from './posthog-dumps.js';
 import { POSTHOG_ACCOUNT_KEY_SLOT } from './posthog-account.js';
-import { DATAFORSEO_OVERDUE_GRACE_HOURS, POSTHOG_FAMILIES, mediavineSyncOn } from '@noticeos/contract';
+import { DATAFORSEO_OVERDUE_GRACE_HOURS, POSTHOG_FAMILIES, mediavineSyncOn, siteHost } from '@noticeos/contract';
 import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister } from './lane-mapping.js';
 
 type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
@@ -353,9 +353,11 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           const mapped = bingSiteMapping(target.asset, target.domain, null, register)?.value;
           const saved = mapped ? [] : await savedBingProperties(env, target.asset);
           const refs = new Set<string>(mapped ? [mapped] : []);
+          const host = siteHost(target.domain);
           for (const row of saved) {
             if (row.property_ref === target.domain) { refs.add(row.property_ref); continue; }
-            try { if (new URL(row.property_ref).hostname.replace(/^www\./, '') === target.domain.replace(/^www\./, '')) refs.add(row.property_ref); } catch { /* Invalid source identity is not inventory. */ }
+            // A ref siteHost cannot read is not inventory.
+            if (host !== null && siteHost(row.property_ref) === host) refs.add(row.property_ref);
           }
           if (!refs.size) refs.add(target.domain);
           const paused = cellDeclined(register.assets[target.asset]?.['bing-webmaster']);

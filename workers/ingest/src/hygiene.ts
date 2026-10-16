@@ -200,6 +200,40 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
   }
 }
 
+/**
+ * The home page as this run reached it. A stored domain is the bare host, and
+ * some sites answer only at `www.`: when the bare host does not answer, the
+ * `www.` address is asked once. A redirect from the bare host is followed by
+ * {@link fetchDoc}, so it counts as an answer.
+ */
+interface HomeFetch {
+  /** The host that answered, and the one this run reads robots.txt and the
+   * sitemap from; the stored domain when neither answered. */
+  host: string;
+  response: FetchOutcome;
+  /** The `www.` address's outcome when it did not answer either; `response`
+   * is then the bare host's. */
+  wwwTry?: FetchOutcome;
+}
+
+/** No response, or a 404: no site at this host, as opposed to a site that errs. */
+function noAnswer(outcome: FetchOutcome): boolean {
+  return outcome.status === null || outcome.status === 404;
+}
+
+async function fetchHome(fetchImpl: typeof fetch, domain: string): Promise<HomeFetch> {
+  const bare = await fetchDoc(fetchImpl, `https://${domain}/`, 'text/html');
+  if (!noAnswer(bare) || domain.startsWith('www.')) return { host: domain, response: bare };
+  const wwwHost = `www.${domain}`;
+  const www = await fetchDoc(fetchImpl, `https://${wwwHost}/`, 'text/html');
+  return noAnswer(www) ? { host: domain, response: bare, wwwTry: www } : { host: wwwHost, response: www };
+}
+
+/** A failed GET in a flag message: its status, or the transport error. */
+function failureText(outcome: FetchOutcome): string {
+  return outcome.status === null ? (outcome.error ?? 'no response') : `HTTP ${outcome.status}`;
+}
+
 // --- check a: html-depth ----------------------------------------------------
 
 /** Elements whose contents are never visible text a crawler would read. */
@@ -918,7 +952,8 @@ async function confirmHomeFailures(
   await waitMs(waitForMs);
   for (const { entry, firstTry } of unconfirmed) {
     try {
-      const outcome = await checkHtmlDepth(env, entry, fetchImpl, gate, at, today, { firstTry });
+      const home = await fetchHome(fetchImpl, entry.domain);
+      const outcome = await checkHtmlDepth(env, entry, home, gate, at, today, { firstTry });
       if (outcome) outcomes.push(outcome);
     } catch (error) {
       failed.push({ asset: entry.asset, error: error instanceof Error ? error.message.slice(0, 500) : String(error) });
@@ -954,21 +989,22 @@ async function eligibleAssets(env: IngestEnv): Promise<HygieneAsset[]> {
  *
  * A home page that fails to load records a NULL count and no depth flag; it is
  * instead the trigger for {@link HOME_UNREACHABLE_RULE_ID}, fired here because
- * this check already fetches the page. On the run's first GET such a failure is
- * only held (`attempt.retryOwed`, returns null); only the confirming retry
- * ({@link confirmHomeFailures}) writes the failing reading and files the alert.
+ * this check reads the page ({@link fetchHome}). On the run's first GET such a
+ * failure is only held (`attempt.retryOwed`, returns null); only the confirming
+ * retry ({@link confirmHomeFailures}) writes the failing reading and files the
+ * alert.
  */
 async function checkHtmlDepth(
   env: IngestEnv,
   entry: HygieneAsset,
-  fetchImpl: typeof fetch,
+  home: HomeFetch,
   gate: EgressGate,
   at: string,
   today: string,
   attempt: HomeAttempt,
 ): Promise<HygieneCheckOutcome | null> {
-  const url = `https://${entry.domain}/`;
-  const response = await fetchDoc(fetchImpl, url, 'text/html');
+  const { response, wwwTry } = home;
+  const url = response.url;
   const firstTry = 'firstTry' in attempt ? attempt.firstTry : null;
 
   if (!response.ok) {
@@ -987,6 +1023,7 @@ async function checkHtmlDepth(
       url,
       http_status: response.status,
       error: response.error,
+      ...(wwwTry ? { www_url: wwwTry.url, www_http_status: wwwTry.status, www_error: wwwTry.error } : {}),
       ...(oursNotTheirs ? { unsupported: true } : {}),
       ...(egressDown ? { egress_down: true } : {}),
       // Two GETs, the confirmed failure's pair.
@@ -1005,9 +1042,11 @@ async function checkHtmlDepth(
       entry.asset,
       HOME_UNREACHABLE_RULE_ID,
       'html-depth',
-      status === 'unreachable'
-        ? `home page unreachable at ${url} (${response.error ?? 'no response'})`
-        : `home page did not serve: ${url} answered HTTP ${response.status}`,
+      wwwTry
+        ? `home page unreachable at ${url} (${failureText(response)}) and at ${wwwTry.url} (${failureText(wwwTry)})`
+        : status === 'unreachable'
+          ? `home page unreachable at ${url} (${response.error ?? 'no response'})`
+          : `home page did not serve: ${url} answered HTTP ${response.status}`,
       { ...detail, reading_status: status },
       at,
       'error',
@@ -1027,6 +1066,7 @@ async function checkHtmlDepth(
 
   const detail = {
     url,
+    served_host: home.host,
     http_status: response.status,
     bytes: response.bytes,
     words,
@@ -1387,6 +1427,7 @@ async function countSitemapUrls(
 async function checkSitemap(
   env: IngestEnv,
   entry: HygieneAsset,
+  host: string,
   robots: FetchOutcome,
   roster: PageRoster,
   fetchImpl: typeof fetch,
@@ -1395,7 +1436,7 @@ async function checkSitemap(
   today: string,
 ): Promise<HygieneCheckOutcome> {
   const declared = robots.ok ? sitemapUrlsFromRobots(robots.body) : [];
-  const url = declared[0] ?? `https://${entry.domain}/sitemap.xml`;
+  const url = declared[0] ?? `https://${host}/sitemap.xml`;
   const source = declared.length > 0 ? 'robots.txt' : 'convention';
   const response = await fetchDoc(fetchImpl, url, 'application/xml');
 
@@ -1682,7 +1723,10 @@ export async function runHygieneChecks(
   const retryOwed: UnconfirmedHome[] = [];
 
   for (const entry of entries) {
-    const robots = await fetchDoc(fetchImpl, `https://${entry.domain}/robots.txt`, 'text/plain');
+    // The home page first: robots.txt and the sitemap are read from the host
+    // that answered it.
+    const home = await fetchHome(fetchImpl, entry.domain);
+    const robots = await fetchDoc(fetchImpl, `https://${home.host}/robots.txt`, 'text/plain');
 
     const roster: PageRoster = { urls: [], source: 'none' };
     // Filled by the directive check and read by the structure check, so the
@@ -1690,8 +1734,8 @@ export async function runHygieneChecks(
     const sample: PageSample = { pages: [], source: 'none', egressDown: false };
 
     const checks: [HygieneCheckId, () => Promise<HygieneCheckOutcome | null>][] = [
-      ['sitemap', () => checkSitemap(env, entry, robots, roster, fetchImpl, gate, at, today)],
-      ['html-depth', () => checkHtmlDepth(env, entry, fetchImpl, gate, at, today, { retryOwed })],
+      ['sitemap', () => checkSitemap(env, entry, home.host, robots, roster, fetchImpl, gate, at, today)],
+      ['html-depth', () => checkHtmlDepth(env, entry, home, gate, at, today, { retryOwed })],
       ['robots-ai-access', () => checkRobotsAiAccess(env, entry, robots, roster, sample, fetchImpl, gate, at, today)],
       ['page-structure', () => checkPageStructure(env, entry, sample, gate, at, today)],
     ];
@@ -1798,7 +1842,8 @@ export async function runUptimeChecks(
         result.skipped += 1;
         continue;
       }
-      const outcome = await checkHtmlDepth(env, entry, fetchImpl, gate, at, today, { retryOwed });
+      const home = await fetchHome(fetchImpl, entry.domain);
+      const outcome = await checkHtmlDepth(env, entry, home, gate, at, today, { retryOwed });
       result.checked += 1;
       if (outcome) count(outcome);
     } catch (error) {

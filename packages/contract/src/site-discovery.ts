@@ -62,8 +62,9 @@ export type SiteDiscoveryFailure = 'not-connected' | 'refused' | 'unreachable' |
  * The one host rule: what "matches by domain" means, everywhere. Lowercased
  * hostname, a leading `www.` dropped, any scheme, port, path or query ignored;
  * a Search Console domain property (`sc-domain:example.com`) reads as its
- * domain. A test pins it equal to the Bing collector's `normalizeBingHost`.
- * Anything unparseable is null: a guess is never a match.
+ * domain. Every provider match in the ingest Worker calls it rather than
+ * stripping `www.` itself. Anything unparseable is null, and so is a bare
+ * `www`: a guess is never a match.
  */
 export function siteHost(value: string | null | undefined): string | null {
   if (typeof value !== 'string') return null;
@@ -75,7 +76,8 @@ export function siteHost(value: string | null | undefined): string | null {
   const authority = (domain ?? trimmed).replace(/^[a-z][a-z\d+.-]*:\/\//i, '').split(/[/?#]/, 1)[0] ?? '';
   const host = authority.slice(authority.lastIndexOf('@') + 1).replace(/:\d*$/, '').toLowerCase();
   if (!/^[a-z0-9-]+(\.[a-z0-9-]+)*$/.test(host)) return null;
-  return host.replace(/^www\./, '');
+  const bare = host.replace(/^www\./, '');
+  return bare === 'www' ? null : bare;
 }
 
 // --- collect now --------------------------------------------------------------

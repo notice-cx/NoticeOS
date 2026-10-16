@@ -38,6 +38,7 @@ import {
   capReserveExceeded,
   dataForSeoReportsFor,
   loadMeteredDataSpend,
+  siteHost,
   type DataForSeoReport,
 } from '@noticeos/contract';
 import type { CredentialSource } from '@noticeos/contract';
@@ -1103,7 +1104,7 @@ export function dataForSeoTarget(
     asset: candidate.asset,
     integration: 'dataforseo',
     credentialRef,
-    propertyRef: normalizeDomain(candidate.domain),
+    propertyRef: siteHost(candidate.domain) ?? candidate.domain,
     locationCode: scope.locationCode,
     languageCode: scope.languageCode,
     mappingSource: scope.source,
@@ -1735,20 +1736,6 @@ function basicAuthorization(login: string, password: string): string {
   let binary = '';
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return `Basic ${btoa(binary)}`;
-}
-
-function normalizeDomain(value: string): string {
-  try {
-    const parsed = new URL(
-      value.includes('://') ? value : `https://${value}`,
-    );
-    return parsed.hostname.replace(/^www\./i, '').toLowerCase();
-  } catch {
-    return value
-      .replace(/^https?:\/\//i, '')
-      .replace(/^www\./i, '')
-      .split('/')[0]!;
-  }
 }
 
 function providerCost(error: unknown): number {
