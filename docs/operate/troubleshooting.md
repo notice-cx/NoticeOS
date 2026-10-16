@@ -263,6 +263,9 @@ Standalone keeps a hostname allowlist. Add your alias to `TOWER_ALLOWED_HOSTS` i
 **Another device cannot reach the Tower.**
 The Tower listens on `127.0.0.1` unless `NOTICEOS_TOWER_BIND` sets another address. See [Open the Tower to your network](/start/run-with-docker#open-the-tower-to-your-network).
 
+**The Wall shows only the NoticeOS mark.**
+The app's code did not arrive, usually because the stack restarted while the page loaded. The page reloads itself 30 seconds after it opened, and waits longer after each reload in a row, up to 10 minutes.
+
 **After an update, the Wall still shows the old release.**
 A browser running code from before the update prompt existed needs one manual refresh. After that the Wall reloads itself.
 
