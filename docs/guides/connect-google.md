@@ -71,7 +71,7 @@ You decide which GA4 property and Search Console site belong to each of your sit
 
 The two lists show only what the connected Google credential can read, and the line under each list names that credential. When a GA4 property or Search Console site is missing:
 
-- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that site. Then reload the page.
+- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that site. Then select **Read again** under the list in the panel, or reload the **Data sources** tab.
 - **Sign-in**: on **Integrations**, sign in with a Google account that can read it.
 
 ## Verify

@@ -624,10 +624,12 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     const today = NOW.toISOString().slice(0, 10);
     const fresh = mergeLane("needs-setup", "ga4", ev, today);
     expect(fresh.effective).toBe("needs-setup");
-    expect(fresh.evidence[0]).toEqual({ polarity: "against", source: "GA4 collector", detail: "No run yet", at: null });
+    // Owed no run yet, so an info line rather than a warning.
+    expect(fresh.evidence[0]).toEqual({ polarity: "supporting", source: "GA4 collector", detail: "No run yet", at: null });
 
     const old = new Date(NOW_MS - (SIGNAL_EVIDENCE_FLOOR_DAYS + 1) * 24 * HOUR).toISOString().slice(0, 10);
     expect(mergeLane("needs-setup", "ga4", ev, old).evidence[0]).toMatchObject({
+      polarity: "against",
       source: "GA4 collector has no recent run",
       detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
     });
@@ -642,7 +644,7 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
       archiveRuns: [],
       nowMs: NOW_MS,
     }, NOW.toISOString().slice(0, 10));
-    expect(r.evidence[1]).toEqual({ polarity: "against", source: "Nightly archive", detail: "No run yet", at: null });
+    expect(r.evidence[1]).toEqual({ polarity: "supporting", source: "Nightly archive", detail: "No run yet", at: null });
   });
 
   it("keeps a needs-setup revenue lane needs-setup but surfaces the manual lane", () => {
@@ -862,7 +864,7 @@ describe("buildIntegrationsMatrix", () => {
     const nomGsc = m.cells["northwind.example"]![0]!;
     expect(nomGsc.effective).toBe("needs-setup");
     expect(nomGsc.evidence[0]).toMatchObject({
-      polarity: "against",
+      polarity: "supporting",
       source: "Search Console collector",
       detail: "No run yet",
       at: null,
@@ -931,7 +933,7 @@ describe("buildIntegrationsMatrix", () => {
     const m = await buildIntegrationsMatrix(ctx.call, deps(addedToday));
 
     const gsc = m.cells["meadow.example"]![0]!;
-    expect(gsc.evidence[0]).toEqual({ polarity: "against", source: "Search Console collector", detail: "No run yet", at: null });
+    expect(gsc.evidence[0]).toEqual({ polarity: "supporting", source: "Search Console collector", detail: "No run yet", at: null });
     expect(JSON.stringify(gsc.evidence)).not.toContain("0 runs in");
   });
 

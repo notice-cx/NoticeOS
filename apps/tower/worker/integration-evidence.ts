@@ -469,12 +469,12 @@ function dueEvery(hours: number): string {
  * form: a source that has never collected, and one whose last attempt is older
  * than `SIGNAL_EVIDENCE_FLOOR_DAYS`; it states the span it looked over instead
  * of claiming nothing ever happened. A cell recorded inside that span (`since`)
- * was owed no run before it existed, so it reads No run yet rather than being
- * charged for the whole span.
+ * was owed no run before it existed, so it reads No run yet, as supporting
+ * evidence, rather than being charged for the whole span.
  */
 function noRunEvidence(label: string, since: string, nowMs: number): IntegrationEvidence {
   if (/^\d{4}-\d{2}-\d{2}$/.test(since) && since >= signalEvidenceFloor(nowMs).slice(0, 10)) {
-    return { polarity: "against", source: label, detail: "No run yet", at: null };
+    return { polarity: "supporting", source: label, detail: "No run yet", at: null };
   }
   return {
     polarity: "against",

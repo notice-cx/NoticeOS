@@ -2044,7 +2044,7 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
       catalog: { ...gscLane.catalog, id: "ga4", label: "Google Analytics (GA4)" },
       cell: {
         ...gscLane.cell, laneId: "ga4", since: "2026-07-05", mapped: true,
-        evidence: [{ polarity: "against" as const, source: "GA4 collector", detail: "No run yet", at: null }],
+        evidence: [{ polarity: "supporting" as const, source: "GA4 collector", detail: "No run yet", at: null }],
       },
       mapping: [{ name: "propertyId", value: "123456789" }],
       mappingSource: "register" as const,
@@ -2086,6 +2086,12 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     const heading = view.getByRole("heading", { name: /Meadow Board/u, level: 1 });
     expect(headerStatuses(heading)).toEqual(["Google Analytics: Collecting", "Google Search Console: Not connected"]);
     expect(view.container.querySelector('[data-sources-answer]')).toHaveTextContent("1 of 2 sources connected");
+
+    // Its evidence is an info mark, not a warning: nothing is wrong before the first run.
+    openLane("Google Analytics");
+    const evidence = rowOf("Google Analytics").querySelector("[data-evidence-trigger]");
+    expect(evidence).not.toHaveClass("text-warn");
+    expect(evidence).toHaveClass("text-info");
   });
 
   it("shows a source nothing connects with its evidence, and no Connect or dead link", async () => {

@@ -625,24 +625,55 @@ describe("Google's two kinds of site on one row", () => {
       [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() })],
     );
     const SERVICE_ACCOUNT = { account: "signals@example.test", auth: "service-account" } as const;
-    const renderGoogle = (sites: SitesPayload) => render(
+    const picker = (sites: SitesPayload, over: { onRetry?: () => void; reading?: boolean } = {}) => (
       <MemoryRouter>
-        <SitePicker provider={GOOGLE} payload={sites} onStart={async () => null} onClose={() => {}} />
-      </MemoryRouter>,
+        <SitePicker provider={GOOGLE} payload={sites} onStart={async () => null} onClose={() => {}} onRetry={() => {}} {...over} />
+      </MemoryRouter>
     );
+    const renderGoogle = (sites: SitesPayload) => render(picker(sites));
     const grants = () => [...document.querySelectorAll("[data-site-grant]")];
 
-    it("names the service account and the Full user grant once, under the list", () => {
+    it("names the service account and the Full user grant once, under the list, ending with the control beside it", () => {
       renderGoogle(listedFor(noSearchConsole, SERVICE_ACCOUNT));
       expect(grants()).toHaveLength(1);
       const grant = grants()[0]!;
       expect(grant.getAttribute("data-site-grant")).toBe("gsc");
       expect(grant.textContent).toBe(
-        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that site, then reload this page.",
+        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that site, then press Read again.",
       );
       const list = screen.getByRole("list", { name: "Sites" });
       expect(list.contains(grant)).toBe(false);
       expect(list.compareDocumentPosition(grant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(grant.parentElement!.contains(screen.getByRole("button", { name: "Read again" }))).toBe(true);
+    });
+
+    it("reads the account again on Read again, and lists the newly granted site without leaving the panel", () => {
+      const onRetry = vi.fn();
+      const view = render(picker(listedFor(noSearchConsole, SERVICE_ACCOUNT), { onRetry }));
+      fireEvent.click(screen.getByRole("button", { name: "Read again" }));
+      expect(onRetry).toHaveBeenCalledTimes(1);
+
+      // While the read is out the control stays where focus is, marked busy.
+      view.rerender(picker(listedFor(noSearchConsole, SERVICE_ACCOUNT), { onRetry, reading: true }));
+      const control = screen.getByRole("button", { name: "Read again" });
+      expect(control).toHaveAttribute("aria-busy", "true");
+      expect(control).toBeEnabled();
+
+      // The account now holds both Search Console sites.
+      view.rerender(picker(listedFor(payload(
+        [ga4("538680421", "journey.example"), ga4("538680422", "second.example"),
+          gsc("sc-domain:journey.example", "journey.example"), gsc("sc-domain:second.example", "second.example")],
+        [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() })],
+      ), SERVICE_ACCOUNT), { onRetry }));
+      expect(grants()).toHaveLength(0);
+      expect(screen.queryByRole("button", { name: "Read again" })).toBeNull();
+      expect(document.querySelector('[data-site-row="journey.example"] [data-site-detail]')?.textContent).toBe("GA4 538680421 · sc-domain:journey.example");
+    });
+
+    it("ends with reloading the page where nothing reads the list again", () => {
+      render(picker(listedFor(noSearchConsole, SERVICE_ACCOUNT), { onRetry: undefined }));
+      expect(grants()[0]!.textContent).toMatch(/, then reload this page\.$/u);
+      expect(screen.queryByRole("button", { name: "Read again" })).toBeNull();
     });
 
     it("asks a sign-in for an account that can read it", () => {

@@ -245,7 +245,9 @@ function ProviderSites({
       provider={provider}
       payload={sites.data}
       failed={sites.isError}
-      onRetry={() => void sites.refetch()}
+      // A second press while a read is out joins it: the provider is asked once.
+      onRetry={() => void sites.refetch({ cancelRefetch: false })}
+      reading={sites.isFetching}
       preselect={preselect}
       onStart={start}
       onStarted={onStarted}
