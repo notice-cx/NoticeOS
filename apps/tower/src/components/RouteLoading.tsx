@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { isRouteErrorResponse, useRouteError } from "react-router-dom";
 import { AnswerBlocks, BoardBlocks, Skeleton, SkeletonGroup } from "@/components/Skeleton";
 import { Button } from "@/components/ui/button";
+import { storageKey } from "@/lib/browser-storage";
 import { cn } from "@/lib/utils";
 import { dismissBootSplash } from "@/lib/boot-splash";
 
@@ -106,6 +108,15 @@ const FAILURE_TITLE: Record<RouteSurface, string> = {
   palette: "Search didn't load",
 };
 
+/** The space a message takes in each frame: the screen's own, or the
+ * palette's box. */
+const FRAME_CLASS: Record<RouteSurface, string> = {
+  desk: "mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[1400px] flex-col p-4 md:min-h-screen md:p-6",
+  wall: "wall-root grid min-h-screen place-items-center bg-background p-6 text-center",
+  panel: "flex min-h-[50vh] w-full flex-col",
+  palette: "relative w-full max-w-xl rounded-xl border border-border bg-card p-4 shadow-xl",
+};
+
 function openUpdatedApp() {
   window.open(window.location.href, '_blank', 'noopener,noreferrer');
 }
@@ -137,19 +148,7 @@ export function RouteLoadFailure({
   // under the page heading that did load, so it is one level down.
   const Heading = surface === "desk" || wall ? "h1" : "h2";
   const message = (
-    <div
-      role="alert"
-      data-route-load-failure={surface}
-      className={cn(
-        wall
-          ? "wall-root grid min-h-screen place-items-center bg-background p-6 text-center"
-          : surface === "desk"
-            ? "mx-auto flex min-h-[calc(100vh-3rem)] w-full max-w-[1400px] flex-col p-4 md:min-h-screen md:p-6"
-            : surface === "panel"
-              ? "flex min-h-[50vh] w-full flex-col"
-              : "relative w-full max-w-xl rounded-xl border border-border bg-card p-4 shadow-xl",
-      )}
-    >
+    <div role="alert" data-route-load-failure={surface} className={FRAME_CLASS[surface]}>
       <div className={cn("flex max-w-prose flex-col gap-2", wall ? "items-center" : "items-start")}>
         <Heading
           className={cn("font-semibold text-foreground", wall ? "text-2xl" : surface === "desk" ? "text-xl" : "text-base")}
@@ -191,4 +190,103 @@ export function RouteLoadFailure({
     </div>,
     document.body,
   );
+}
+
+/** What a screen that threw is called, in the frame it stood in. */
+const ERROR_TITLE: Record<"desk" | "wall", string> = {
+  desk: "This page ran into an error",
+  wall: "The Wall ran into an error",
+};
+
+/** The browser's own words for what went wrong. */
+function errorMessage(error: unknown): string {
+  if (isRouteErrorResponse(error)) return [error.status, error.statusText].filter(Boolean).join(" ");
+  if (error instanceof Error) return error.message || error.name;
+  return String(error);
+}
+
+function reloadDocument() {
+  window.location.reload();
+}
+
+export interface RouteErrorFrameProps {
+  surface?: "desk" | "wall";
+  error: unknown;
+  reload?: () => void;
+  /** When the Wall reloads by itself, in milliseconds from now. */
+  reloadsIn?: number | null;
+}
+
+/** A screen that threw, in that screen's frame: what broke, in the browser's
+ * words, and Reload. Unlike missing code, the code in this document may be
+ * what broke, so reloading the document is the way back. */
+export function RouteErrorFrame({ surface = "desk", error, reload = reloadDocument, reloadsIn = null }: RouteErrorFrameProps) {
+  useEffect(() => dismissBootSplash(), []);
+  const wall = surface === "wall";
+  return (
+    <div role="alert" data-route-error={surface} className={FRAME_CLASS[surface]}>
+      <div className={cn("flex max-w-prose flex-col gap-2", wall ? "items-center" : "items-start")}>
+        <h1 className={cn("font-semibold text-foreground", wall ? "text-2xl" : "text-xl")}>{ERROR_TITLE[surface]}</h1>
+        <p className={cn("break-words font-mono text-muted-foreground", wall ? "text-base" : "text-sm")}>{errorMessage(error)}</p>
+        {reloadsIn !== null ? (
+          <p className="text-sm text-muted-foreground">Reloads by itself in {Math.max(1, Math.round(reloadsIn / 60_000))} min</p>
+        ) : null}
+        <div className="mt-1 flex flex-wrap gap-2">
+          <Button type="button" variant={wall ? "ghost" : "outline"} size="sm" onClick={reload}>
+            Reload
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** The error frame a route draws when its screen throws (`lazyPage`). The
+ * Wall has nobody to press Reload, so it reloads by itself. */
+export function RouteError({ surface = "desk", reload = reloadDocument }: { surface?: "desk" | "wall"; reload?: () => void }) {
+  const error = useRouteError();
+  const [reloadsIn] = useState(() => (surface === "wall" ? wallErrorReloadWait() : null));
+  useEffect(() => {
+    if (reloadsIn === null) return;
+    const timer = window.setTimeout(() => {
+      recordWallErrorReload();
+      reload();
+    }, reloadsIn);
+    return () => window.clearTimeout(timer);
+  }, [reloadsIn, reload]);
+  return <RouteErrorFrame surface={surface} error={error} reload={reload} reloadsIn={reloadsIn} />;
+}
+
+/** This tab's run of Wall reloads after an error: how many in a row, and when
+ * the last one was. */
+const WALL_ERROR_RELOADS = storageKey("wall-error-reloads");
+const FIRST_WAIT_MS = 60_000;
+const LONGEST_WAIT_MS = 10 * 60_000;
+
+function wallErrorRun(now: number): number {
+  const stored: unknown = JSON.parse(window.sessionStorage.getItem(WALL_ERROR_RELOADS) ?? "null");
+  if (stored === null || typeof stored !== "object" || !("at" in stored) || !("run" in stored)) return 0;
+  const { at, run } = stored;
+  if (typeof at !== "number" || typeof run !== "number" || !Number.isSafeInteger(run) || run < 0) return 0;
+  return now - at < 2 * LONGEST_WAIT_MS ? run : 0;
+}
+
+/** A minute, doubling with each reload in a row up to ten minutes, so a Wall
+ * that keeps failing is not reloaded every minute. A run ends once the Wall
+ * has gone twice the longest wait without one. Without tab storage the run
+ * cannot be counted, so the wait is the longest. */
+export function wallErrorReloadWait(now = Date.now()): number {
+  try {
+    return Math.min(FIRST_WAIT_MS * 2 ** wallErrorRun(now), LONGEST_WAIT_MS);
+  } catch {
+    return LONGEST_WAIT_MS;
+  }
+}
+
+function recordWallErrorReload(now = Date.now()): void {
+  try {
+    window.sessionStorage.setItem(WALL_ERROR_RELOADS, JSON.stringify({ at: now, run: wallErrorRun(now) + 1 }));
+  } catch {
+    // The wait falls back to the longest.
+  }
 }

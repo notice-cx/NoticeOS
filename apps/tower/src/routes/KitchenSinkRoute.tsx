@@ -146,7 +146,7 @@ import { validateDemoViewer } from "@shared/demo-viewer";
 import { ReportFreshness } from "@/components/ReportFreshness";
 import { QueryVisibilityRankings } from "@/components/QueryVisibilityRankings";
 import { ReadFailed } from "@/components/ReadFailed";
-import { RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
+import { RouteErrorFrame, RouteLoadFailure, RouteLoading } from "@/components/RouteLoading";
 import { NavigationProgress } from "@/components/NavigationProgress";
 import { PageSkeleton, Skeleton } from "@/components/Skeleton";
 import { SeverityDot } from "@/components/SeverityDot";
@@ -1952,8 +1952,9 @@ function RegistryContents() {
   );
 }
 
-// Gallery controls never open another app tab.
+// Gallery controls never open another app tab or reload this one.
 const GALLERY_NO_OPEN = () => {};
+const GALLERY_SCREEN_ERROR = new Error("Invalid hook call. Hooks can only be called inside of the body of a function component.");
 
 /** The navigation line in a box of its own: Navigate holds a navigation open
  * for as long as the slider says, so the delay and the minimum show. */
@@ -3334,7 +3335,7 @@ export function KitchenSinkRoute() {
             </div>
           </Section>
 
-          <Section title="RouteLoading / RouteLoadFailure (a screen's or a tab's code arriving, and gone after a rebuild)">
+          <Section title="RouteLoading / RouteLoadFailure / RouteErrorFrame (a screen's or a tab's code arriving, gone after a rebuild, or throwing)">
             {/* Clip the four frames for comparison; the gallery's action
                 stays inert instead of opening another browser tab. */}
             <div className="grid w-full gap-4 md:grid-cols-2">
@@ -3364,6 +3365,13 @@ export function KitchenSinkRoute() {
                   surface="panel"
                   openUpdated={GALLERY_NO_OPEN}
                 />
+              </div>
+              {/* A screen that threw: the gallery's Reload stays inert. */}
+              <div className="h-48 overflow-hidden rounded-md border border-border">
+                <RouteErrorFrame error={GALLERY_SCREEN_ERROR} reload={GALLERY_NO_OPEN} />
+              </div>
+              <div className="h-48 overflow-hidden rounded-md border border-border">
+                <RouteErrorFrame surface="wall" error={GALLERY_SCREEN_ERROR} reload={GALLERY_NO_OPEN} reloadsIn={60_000} />
               </div>
             </div>
           </Section>
