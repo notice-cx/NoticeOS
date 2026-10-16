@@ -150,19 +150,19 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  *   14:20 task done      Feed folds runs
  *   14:15 task done      Score table loads
  *   14:00 source failed  Money (a failed PostHog report, no health event)
- *   13:00 cost           Booked $12.00 infra cost (NoticeOS)
+ *   13:00 cost           Booked $12.00 infra cost (System)
  *   12:00 setting saved
  *   11:05 job failed     Backups
  *   11:00 collected      Site checks · Recipes
  *   10:00 nightly report 4 sites
  *   03:00 change         Medley (an incident annotation)
- *   02:40 deployed       NoticeOS (7:40 PM yesterday, inside the window)
+ *   02:40 deployed       System (7:40 PM yesterday, inside the window)
  *
  * And outside it (00:30, before 6 PM PDT yesterday): an alert, a task, a
  * report, a deploy.
  */
 async function seed(raw: TestStore): Promise<void> {
-  // The OS row's stored name is one every line still reads as NoticeOS.
+  // The OS row's stored name is one every line still reads as System.
   await asset(raw, "os.example.com", "ReindexOS", 1);
   await asset(raw, "recipes.example.com", "Recipes");
   await asset(raw, "medley.example.com", "Medley");
@@ -382,17 +382,17 @@ needsPostgres("buildWallFeed", () => {
       "15:30 cost Recipes · DataForSEO · $0.12 for 1 lookup",
       "15:02 collected - · DataForSEO · 2 sites, none failed",
       "15:02 cost - · DataForSEO · $0.41 for 2 reports",
-      "14:25 task-done NoticeOS · Feed reads the store",
-      "14:20 task-done NoticeOS · Feed folds runs",
+      "14:25 task-done System · Feed reads the store",
+      "14:20 task-done System · Feed folds runs",
       "14:15 task-done Lantern · Score table loads",
       "14:00 source-failed Money · PostHog report failed",
-      "13:00 cost NoticeOS · Booked $12.00 infra cost for September",
+      "13:00 cost System · Booked $12.00 infra cost for September",
       "12:00 setting-saved - · Moved the feed to the right",
       "11:05 job-failed - · Backups failed",
       "11:00 collected Recipes · Site checks · 1 site, none failed",
       "10:00 report - · Nightly reports from 4 sites",
       "03:00 change Medley · Checkout outage",
-      "02:40 deployed NoticeOS · New version abc1234def is live",
+      "02:40 deployed System · New version abc1234def is live",
     ]);
     expect(new Set(feed.items.map((item) => item.kind))).toEqual(new Set(WALL_FEED_KINDS));
     const times = feed.items.map((item) => Date.parse(item.at));
@@ -479,7 +479,7 @@ needsPostgres("buildWallFeed", () => {
       ["19:03", "Rolled back", "The OS went back to the previous version", "neutral", 1],
       ["19:02", "Deploy failed", "An OS update did not come back healthy", "error", 1],
     ]);
-    expect(moves.every((item) => item.site === "NoticeOS")).toBe(true);
+    expect(moves.every((item) => item.site === "System")).toBe(true);
     expect(JSON.stringify(items)).not.toContain("ReindexOS");
   });
 
@@ -497,7 +497,7 @@ needsPostgres("buildWallFeed", () => {
     const { items } = await buildWallFeed(pg.call, DEPS);
     const deploys = items.filter((item) => item.kind === "deployed");
     expect(deploys.map((item) => [item.at.slice(11, 16), item.site, item.text, item.count])).toEqual([
-      ["19:26", "NoticeOS", "5 times since last night", 5],
+      ["19:26", "System", "5 times since last night", 5],
       ["18:20", "Recipes", "New version bbbbbbbbbbbb is live", 1],
       ["17:00", "Medley", "New version aaaaaaaaaaaa is live", 1],
     ]);
@@ -547,7 +547,7 @@ needsPostgres("buildWallFeed", () => {
       expect(feedWordCount(item.text), item.text).toBeLessThanOrEqual(12);
       if (item.asset) expect(item.site).toBeTruthy();
     }
-    const names = new Map([["recipes.example.com", "Recipes"], ["medley.example.com", "Medley"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "NoticeOS"], ["lantern.example.com", "Lantern"]]);
+    const names = new Map([["recipes.example.com", "Recipes"], ["medley.example.com", "Medley"], ["codes.example.com", "Codes"], ["money.example.com", "Money"], ["os.example.com", "System"], ["lantern.example.com", "Lantern"]]);
     for (const item of items.filter((i) => i.asset)) expect(item.site).toBe(names.get(item.asset!));
   });
 

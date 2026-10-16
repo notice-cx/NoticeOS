@@ -73,8 +73,10 @@ export async function createFreshOsAsset(address, { store = openStore, id = `os-
     const workspace = await db.onlyWorkspace();
     await db.inWorkspace(workspace, async tx => {
       if ((await tx.query('SELECT asset_id FROM noticeos.assets')).length) throw new Error('Fresh installation already has assets.');
+      // Screens call this row SYSTEM_NAME (packages/contract/src/asset-name.ts)
+      // whatever it stores; storing the same name keeps a raw read in step.
       await tx.execute(`INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status, is_os)
-        VALUES ($1, $2, NULL, 'NoticeOS', 'live', true)`, [workspace, id]);
+        VALUES ($1, $2, NULL, 'System', 'live', true)`, [workspace, id]);
     });
     return id;
   } finally { await db.close(); }

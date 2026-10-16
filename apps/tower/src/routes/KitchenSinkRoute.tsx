@@ -277,7 +277,7 @@ const FEED_DEMO_ITEMS: WallFeedItem[] = (
     [120, "alert", "Alert", "Recipes", "Plans saved well below normal", "warn"],
     [195, "revenue", "Revenue", null, "2 sites reported $55.25 for Sep 21", "revenue"],
     [268, "cost", "Cost", null, "DataForSEO · $0.41 for 12 reports", "cost"],
-    [780, "deployed", "Deployed", "NoticeOS", "The OS moved to a newer version", "neutral"],
+    [780, "deployed", "Deployed", "System", "The OS moved to a newer version", "neutral"],
   ] as const
 ).map(([minutes, kind, label, site, text, tone]) => ({
   id: `demo-${kind}`,
@@ -2692,7 +2692,7 @@ const demoMatrix: IntegrationsMatrix = {
   undeclared: [],
   derivedLanes: [demoEgressLane, demoDerivedLane],
   assets: [
-    { id: "home-os", displayName: "NoticeOS", isOs: true },
+    { id: "home-os", displayName: "System", isOs: true },
     { id: "plume.example.com", displayName: "Plume", isOs: false },
     { id: "monarch.example.org", displayName: "Monarch", isOs: false },
   ],

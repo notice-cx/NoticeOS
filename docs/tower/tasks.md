@@ -5,7 +5,7 @@ description: "The shared board of work across your projects: what is waiting for
 
 # Tasks
 
-A **task** is one piece of work, for a site or for NoticeOS itself, with its status, owner, blockers and the evidence it was closed with. People and AI agents share the same tasks, each site in its own project. The **Tasks** page shows every project at once. How tasks connect to changes and outcomes is in [Tasks and agents](/concepts/tasks-and-agents).
+A **task** is one piece of work, for a site or for the **System** (this installation's own NoticeOS), with its status, owner, blockers and the evidence it was closed with. People and AI agents share the same tasks, each site in its own project. The **Tasks** page shows every project at once. How tasks connect to changes and outcomes is in [Tasks and agents](/concepts/tasks-and-agents).
 
 The Tasks page shows how big the queue is, and which tasks in it cannot move forward without you.
 
@@ -31,7 +31,7 @@ The page starts with a one-line summary: **No decisions for you**, or **3 decisi
 
 **All tasks** is the table: **Id**, **Project**, **Who** (the agent or person holding it, or **nobody**), **Age** and **State**. Each row opens its task page at `/tasks/<id>`, with the full description and the evidence attached when it was closed.
 
-The board works on a new installation because it ships with its own NoticeOS project.
+The board works on a new installation because it ships with the **System** project.
 
 ## What you can do
 

@@ -125,7 +125,7 @@ describe('what the OS interrupts the operator about', () => {
     expect(await notified()).toEqual([]);
   });
 
-  it("names an alert on the OS's own row NoticeOS, whatever the row stores", async () => {
+  it("names an alert on the OS's own row System, whatever the row stores", async () => {
     await connectDiscord();
     // The notifier names a flag's site from the site list, joined to its
     // alerts (both on Postgres).
@@ -137,7 +137,7 @@ describe('what the OS interrupts the operator about', () => {
       await insertFlag({ asset: row!.id, message: 'the runner stopped' });
       const discord = discordFetch();
       await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl });
-      expect(discord.posts[0]!.content).toContain('NoticeOS — pulse: the runner stopped');
+      expect(discord.posts[0]!.content).toContain('System — pulse: the runner stopped');
       expect(discord.posts[0]!.content).not.toContain(storedName);
       expect(discord.posts[0]!.content).not.toContain(row!.id);
     } finally {

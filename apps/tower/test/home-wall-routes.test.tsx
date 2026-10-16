@@ -1031,7 +1031,7 @@ describe("Home — Decide", () => {
   it("puts an open gate above a higher-priority ask, with its verb on the row", () => {
     workState.data = workPayload([
       project("Meadow Board", [waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" })]),
-      project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the spend cap" })]),
+      project("System", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the spend cap" })]),
     ]);
 
     renderHome();
@@ -1042,7 +1042,7 @@ describe("Home — Decide", () => {
     expect(rows.map((row) => row.getAttribute("data-queue-item"))).toEqual(["ro-3z7", "md-9k1"]);
     expect(rows[0]).toHaveTextContent("Approve the spend cap");
     expect(within(rows[0]!).getByLabelText("Approval")).toBeInTheDocument();
-    expect(rows[0]).toHaveTextContent("NoticeOS");
+    expect(rows[0]).toHaveTextContent("System");
     expect(rows[0]!.textContent).not.toContain("· gate");
     expect(rows[0]!.textContent).not.toContain("ro-3z7");
     expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
@@ -1120,7 +1120,7 @@ describe("Home — Decide", () => {
   it("states known totals as a lower bound when one project is unreadable", () => {
     const known = project("Meadow Board", [waiting()]);
     known.counts.waiting = 12;
-    const failed = project("NoticeOS", []);
+    const failed = project("System", []);
     failed.ok = false;
     failed.counts.waiting = 99;
     workState.data = workPayload([known, failed]);
@@ -1154,7 +1154,7 @@ describe("Home — Decide", () => {
 
   it("gives every row the ask face — warn at every priority, a gate's triangle", () => {
     workState.data = workPayload([
-      project("NoticeOS", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
+      project("System", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the cap" })]),
       project("Meadow Board", [
         waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" }),
         waiting({ id: "md-2b4", priority: 1, title: "High-priority ask" }),

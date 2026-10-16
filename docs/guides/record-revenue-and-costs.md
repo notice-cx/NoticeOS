@@ -37,10 +37,10 @@ A recurring cost is a fixed monthly subscription that no service reports to Noti
 
 1. Open **Money** and open **Declared costs**.
 2. In **Recurring costs**, select **Add**.
-3. Fill in **Id** (lowercase with dashes, such as `claude-code`), **Label** (what the statement calls it), **Site** (the site the cost belongs to, or the NoticeOS site for anything shared), **Family** (`inference`, `api`, `infra`, `operator` or `os-overhead`), **USD / month**, **From** (the first month, as `YYYY-MM`) and, if it has ended, **To**. **Note** is optional and is copied onto each month.
+3. Fill in **Id** (lowercase with dashes, such as `claude-code`), **Label** (what the statement calls it), **Site** (the site the cost belongs to, or the System for anything shared), **Family** (`inference`, `api`, `infra`, `operator` or `os-overhead`), **USD / month**, **From** (the first month, as `YYYY-MM`) and, if it has ended, **To**. **Note** is optional and is copied onto each month.
 4. Save the row. It saves with **Undo** beside it, and the month totals recompute.
 
-Assign a subscription used by one site to that site. Assign shared tools and hosting to the NoticeOS site, so each site's margin includes only its own costs and shared overhead is not split between sites by estimate.
+Assign a subscription used by one site to that site. Assign shared tools and hosting to the System, so each site's margin includes only its own costs and shared overhead is not split between sites by estimate.
 
 ## Add a domain order
 

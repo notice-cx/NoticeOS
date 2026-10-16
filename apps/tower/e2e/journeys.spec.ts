@@ -1601,12 +1601,12 @@ test("the Wall's live feed shows the stored events newest first, and a new one a
   expect(cut).toBe(0);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-after.png") });
 
-  // The OS's own deploy reads NoticeOS, though its row stores another name.
+  // The OS's own deploy reads System, though its row stores another name.
   // It is the window's oldest line, so a taller TV shows it.
   await page.setViewportSize({ width: 1920, height: 1600 });
   const deployed = rows.filter({ hasText: "The OS moved to a newer version" });
   await expect(deployed).toBeVisible();
-  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed · NoticeOS");
+  await expect(deployed.locator("[data-feed-label]")).toHaveText("Deployed · System");
   await expect(feed).not.toContainText(WALL_FEED_OS[1]);
   await feed.screenshot({ path: testInfo.outputPath("wall-feed-os-deploy.png") });
 });
@@ -3062,7 +3062,7 @@ test("core Tasks creates, opens and completes work before any user site", async 
   expect((await request.post("/__journey/core-tasks")).ok()).toBe(true);
   expect((await (await request.get("/api/wall")).json()).assets).toEqual([]);
   const projects = (await (await request.get("/api/work")).json()).projects;
-  expect(projects).toEqual([expect.objectContaining({ asset: JOURNEY_CORE_PROJECT.asset, name: "NoticeOS", ok: true })]);
+  expect(projects).toEqual([expect.objectContaining({ asset: JOURNEY_CORE_PROJECT.asset, name: "System", ok: true })]);
   // Keep the independent snapshot connection unanswered; the live lane and
   // its real stored project still own whether filing/reading is available.
   await page.route("**/api/task-source", (route) => route.fulfill({ json: {
@@ -3073,7 +3073,7 @@ test("core Tasks creates, opens and completes work before any user site", async 
   await page.getByRole("button", { name: "New task", exact: true }).click();
   const composer = page.getByRole("dialog", { name: "File a task" });
   await expect(composer.locator("[data-composer-project]")).toHaveValue(JOURNEY_CORE_PROJECT.asset);
-  await expect(composer.getByRole("option", { name: "NoticeOS (no-)" })).toHaveCount(1);
+  await expect(composer.getByRole("option", { name: "System (no-)" })).toHaveCount(1);
   await composer.locator("[data-composer-title]").fill("Verify the synthetic core task");
   await composer.locator("[data-composer-submit]").click();
   await expect(composer).toHaveCount(0);

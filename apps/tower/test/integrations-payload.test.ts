@@ -804,7 +804,7 @@ describe("buildIntegrationsMatrix", () => {
       "ferns.example",
     ]);
     expect(m.assets[0]!.isOs).toBe(true);
-    expect(m.assets[0]!.displayName).toBe("NoticeOS");
+    expect(m.assets[0]!.displayName).toBe("System");
     expect(m.assets[1]!.displayName).toBe("Meadow Board");
     expect(JSON.stringify(m)).not.toContain("ReindexOS");
   });

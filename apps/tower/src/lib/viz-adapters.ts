@@ -2,6 +2,7 @@
 // that draws them (Home, the Wall). Each function only re-reads what the
 // payload and the connection reads already say; a state nobody recorded stays
 // unknown and an onset nobody recorded stays null.
+import { SYSTEM_NAME } from "@noticeos/contract/asset-name";
 import { connectionLabel, sourceReadings, type ConnectionReads, type SourceReading } from "@shared/connection-status";
 import { SCHEDULED_JOBS, jobRunName } from "@shared/scheduled-jobs";
 import { osReportMissing, type AssetCard, type ScheduledLane, type SystemBand } from "@shared/wall";
@@ -103,7 +104,7 @@ export function systemHealthRow(system: SystemBand, nowMs: number, href = "/heal
       href,
     },
   ];
-  return { id: SYSTEM_ROW_ID, name: "System", kind: "system", href, columns: SYSTEM_COLUMNS, cells };
+  return { id: SYSTEM_ROW_ID, name: SYSTEM_NAME, kind: "system", href, columns: SYSTEM_COLUMNS, cells };
 }
 
 /** Every site's row, then the System's. */
@@ -134,7 +135,7 @@ export function incidentsFromIssues(issues: readonly WallIssue[], options: { bes
       key: issue.key,
       severity: issue.severity,
       title: issue.line,
-      site: issue.site === "OS" ? "System" : issue.site,
+      site: issue.site,
       since: issue.since,
       to: options.to?.(issue),
     }));
@@ -165,7 +166,7 @@ export function timelineFromWall(
 ): { lanes: TimelineLane[]; spans: TimelineSpan[]; events: TimelineEvent[] } {
   const lanes: TimelineLane[] = [
     ...assets.map((asset) => ({ id: asset.id, label: asset.displayName, href: sitePath(asset) })),
-    { id: SYSTEM_ROW_ID, label: "System", href: "/health" },
+    { id: SYSTEM_ROW_ID, label: SYSTEM_NAME, href: "/health" },
   ];
   const known = new Set(assets.map((asset) => asset.id));
   const laneOf = (ids: readonly string[]) => ids.find((id) => known.has(id)) ?? SYSTEM_ROW_ID;

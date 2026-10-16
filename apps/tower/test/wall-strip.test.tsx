@@ -164,7 +164,7 @@ describe("the one system state", () => {
   });
 
   it("does not duplicate source/report rows or an already represented OS condition", () => {
-    const existing = { key: "report-os", severity: "warn" as const, assets: ["os"], site: "OS", line: "No nightly report in 62h", mark: "Report late", since: iso(-HOUR), conditions: [] };
+    const existing = { key: "report-os", severity: "warn" as const, assets: ["os"], site: "System", line: "No nightly report in 62h", mark: "Report late", since: iso(-HOUR), conditions: [] };
     expect(withSystemIssues([existing], { ...HEALTHY, hasPulse: false, ingest: { ...HEALTHY.ingest, stale: 2 } }, NOW)).toEqual([
       { ...existing, severity: "error", conditions: ["os-runner-health"] },
     ]);
@@ -194,7 +194,7 @@ describe("a failing backup in Needs attention", () => {
 
   it("lists one System row after two failed nights, dated from the first, with the last good copy's age", () => {
     expect(backupRows(backupLane(NOW, 2, backupNight(NOW, 2)))).toEqual([{
-      key: "system-backups-failing", severity: "error", assets: ["os"], site: "OS",
+      key: "system-backups-failing", severity: "error", assets: ["os"], site: "System",
       line: "Backups failing · last good copy 2d ago", mark: "Backups failing",
       since: backupNight(NOW, 1), conditions: ["scheduled-lane-health"],
     }]);

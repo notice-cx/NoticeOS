@@ -169,11 +169,14 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 **Store**
 : The installation's own database, in Postgres: every report, reading, ledger row and setting. It keeps history; nothing in it is truncated.
 
+**System**
+: The row for this installation's own NoticeOS, listed beside the sites: its scheduled jobs, backups and data spend, the shared costs no site carries (**Overhead** on the Money page) and its own task project. Every page shows it as System, whatever name the store holds for it.
+
 **System health**
 : The page that shows whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend.
 
 **Task**
-: A piece of work on the shared board, for a site or for NoticeOS itself, with status, owner, priority, blockers and the evidence that closed it. Closing a task records a decision, never a business result.
+: A piece of work on the shared board, for a site or for the System, with status, owner, priority, blockers and the evidence that closed it. Closing a task records a decision, never a business result.
 
 **Task database**
 : The one database that holds every project's tasks, run by Dolt inside the stack. Its task model comes from Beads, and `bd` is its command-line tool.

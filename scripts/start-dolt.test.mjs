@@ -147,7 +147,7 @@ test('OS bootstrap is workspace scoped, creates no user site, and refuses all ex
     inWorkspace: async (workspace, work) => work({ query: async () => [], execute: async (sql, values) => calls.push({ workspace, sql, values }) }) });
   assert.equal(await createFreshOsAsset('synthetic', { store, id: 'os-0123456789abcdef' }), 'os-0123456789abcdef');
   assert.equal(calls[0].workspace, 'own-workspace');
-  assert.equal(calls[0].sql.includes("NULL, 'NoticeOS', 'live', true"), true);
+  assert.equal(calls[0].sql.includes("NULL, 'System', 'live', true"), true);
   assert.equal(calls[0].sql.includes('list_position'), false);
   let wrote = false;
   await assert.rejects(createFreshOsAsset('synthetic', { store: () => ({ onlyWorkspace: async () => 'own', close: async () => {},
@@ -173,7 +173,7 @@ test('actual application-role OS bootstrap uses numbering trigger and leaves the
     await db.inWorkspace(workspace, async tx => {
       const initial = await tx.query('SELECT asset_id, is_os, domain, display_name, list_position FROM noticeos.assets ORDER BY list_position');
       assert.equal(initial.length, 1);
-      assert.deepEqual(initial[0], { asset_id: osAsset, is_os: true, domain: null, display_name: 'NoticeOS', list_position: 1n });
+      assert.deepEqual(initial[0], { asset_id: osAsset, is_os: true, domain: null, display_name: 'System', list_position: 1n });
       await tx.execute("INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status) VALUES ($1, 'fixture-site', 'example.com', 'Fixture', 'live')", [workspace]);
       const positions = await tx.query('SELECT is_os, list_position FROM noticeos.assets ORDER BY list_position');
       assert.deepEqual(positions, [{ is_os: true, list_position: 1n }, { is_os: false, list_position: 2n }]);

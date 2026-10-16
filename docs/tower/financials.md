@@ -22,7 +22,7 @@ Beside the equation:
 Then:
 
 - **Where the cost goes** — each cost line, largest first: what it is, its amount, its share of the month's cost, its family, and where the figure comes from (**Subscription**, **Usage**, **Prepaid yearly**, **No source**).
-- **By site** — every site ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the site's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead** carried by the NoticeOS site is its own row, and **Total net** is the sites' nets less that overhead. On a narrow screen each row shows the site, its revenue and its net; the other columns are hidden before a name is cut short.
+- **By site** — every site ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the site's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the sites' nets less that overhead. On a narrow screen each row shows the site, its revenue and its net; the other columns are hidden before a name is cut short.
 - **Month by month** — revenue, cost and net for every month to the shown one, the open month marked.
 
 Three panels open one at a time underneath:

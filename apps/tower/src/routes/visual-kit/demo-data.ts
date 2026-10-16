@@ -60,9 +60,9 @@ export const INCIDENTS: Incident[] = [
 
 const ageDays = (days: number) => days;
 export const QUEUE: QueueItem[] = [
-  { id: "ro-5n5", kind: "approval", title: "Add the Ahrefs key and approve its data-source migration", project: "NoticeOS", ageDays: ageDays(67), to: "#" },
+  { id: "ro-5n5", kind: "approval", title: "Add the Ahrefs key and approve its data-source migration", project: "System", ageDays: ageDays(67), to: "#" },
   { id: "mp-g1", kind: "approval", title: "Approve: publish the new plan builder to everyone", project: "Plume Studio", ageDays: ageDays(16), to: "#" },
-  { id: "ro-30du", kind: "approval", title: "Approve one export of the Plume Studio database after the Wrangler repair", project: "NoticeOS", ageDays: ageDays(10), to: "#" },
+  { id: "ro-30du", kind: "approval", title: "Approve one export of the Plume Studio database after the Wrangler repair", project: "System", ageDays: ageDays(10), to: "#" },
   { id: "nom-q1", kind: "question", title: "Which onboarding email should go out first?", project: "Mosaic Finder", ageDays: ageDays(4), to: "#" },
   { id: "pts-q2", kind: "question", title: "Keep the old certification pages or redirect them?", project: "Summit", ageDays: ageDays(2), to: "#" },
   ...Array.from({ length: 30 }, (_, index) => ({
