@@ -3404,6 +3404,7 @@ describe("kitchen sink covers the registry", () => {
       "Timeline",
       "Tabs",
       "TaskComposer / File task",
+      "TaskHead / EpicTaskList",
       "DataSourceIcons",
     ]) {
       expect(

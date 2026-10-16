@@ -156,6 +156,7 @@ import { TuneRate } from "@/components/TuneRate";
 import { StateChip } from "@/components/StateChip";
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
 import { TaskStatusChip } from "@/routes/tasks/task-face";
+import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
 import { Tabs } from "@/components/Tabs";
@@ -4329,6 +4330,13 @@ export function KitchenSinkRoute() {
             <TaskStatusChip subject="demo:task-deferred" status="deferred" />
             <TaskStatusChip subject="demo:task-closed" status="closed" />
             <TaskStatusChip subject="demo:task-marinating" status="marinating" />
+          </Section>
+
+          {/* The task page's header: type word and id over the title, the
+              state, priority, holder, progress and ask beside it, the primary
+              action first; an epic's tasks by state under it. */}
+          <Section title="TaskHead / EpicTaskList (/tasks/:id: an epic, a held task, two decisions, a closed task)">
+            <TaskHeadDemo />
           </Section>
 
           {/* The pair, side by side: booked and forecast money are told apart

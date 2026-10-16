@@ -196,13 +196,13 @@ function work(items: WorkItem[] = []): WorkPayload {
   };
 }
 
-function renderTask(id = ID, query = '') {
+function renderTask(id = ID, query = '', state?: { returnTo: string }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/tasks/${id}${query}`]}>
+      <MemoryRouter initialEntries={[{ pathname: `/tasks/${id}`, search: query, state }]}>
         <Routes>
           <Route path="/tasks/:id" element={<TaskRoute />} />
         </Routes>
@@ -372,7 +372,7 @@ describe('live task details in a read-only demo', () => {
     }
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'Back to tasks' })).toHaveAttribute('href', '/tasks');
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/tasks');
     expect(api.fetchTask).toHaveBeenCalledWith(ID, expect.any(AbortSignal));
     expect(api.updateTask).not.toHaveBeenCalled(); expect(api.closeTask).not.toHaveBeenCalled();
     expect(api.commentOnTask).not.toHaveBeenCalled(); expect(api.resolveGate).not.toHaveBeenCalled();
@@ -436,7 +436,8 @@ describe("the task page", () => {
       "href",
       "/assets/root-os",
     );
-    expect(within(facts).getByText("task")).toBeInTheDocument();
+    // The type is a word in the header, beside the id.
+    expect(within(header).getByText("Task")).toHaveAttribute("data-task-type", "task");
     expect(within(facts).getByText("tower")).toBeInTheDocument();
 
     expect(within(facts).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
@@ -717,7 +718,7 @@ describe("the task page", () => {
     renderTask("ro-nope");
 
     expect(await screen.findByText("No task with this id")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to tasks" })).toHaveAttribute(
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "Tasks" })).toHaveAttribute(
       "href",
       "/tasks",
     );
@@ -849,6 +850,125 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     expect(approve).toBeDisabled();
     expect(approve).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
     expect(headerButtons()).toEqual(["Approve"]);
+  });
+});
+
+// The header states what the item is, where it sits, where it stands and the
+// one thing to do next, before any prose.
+describe("the header reads in one look", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const crumbs = () => within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+  const firstAction = () => within(header()).getAllByRole("button")[0]!;
+
+  it("states a task's type, id, state, priority, holder and model with the claim's age, and leads with Close", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ metadata: { noticeos_claimed_model: "Opus 5.5" } }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    await waitFor(() => expect(crumbs().getByRole("link", { name: "Tasks are managed in the Tower" })).toHaveAttribute("href", "/tasks/ro-l1ed"));
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+    expect(crumbs().getByRole("link", { name: /System/ })).toHaveAttribute("href", "/tasks?project=root-os");
+
+    const head = within(header());
+    expect(head.getByRole("heading", { level: 1 })).toHaveTextContent("A task has a page");
+    expect(head.getByText("Task")).toHaveAttribute("data-task-type", "task");
+    expect(head.getByText(ID)).toBeInTheDocument();
+    expect(head.getByText("In progress")).toBeInTheDocument();
+    expect(head.getByText("high priority")).toBeInTheDocument();
+    const holder = header().querySelector("[data-task-holder]") as HTMLElement;
+    expect(holder).toHaveTextContent("claude/task-page-agent· Opus 5.5· claimed 2h ago");
+    // Somebody holds it, so closing it with its evidence is what comes next.
+    expect(firstAction()).toHaveTextContent("Close");
+    expect(firstAction()).toHaveAttribute("data-primary-action");
+  });
+
+  it("states an epic's type and its closed of total, and leads with Claim while nobody holds it", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ id: "ro-l1ed", title: "Tasks are managed in the Tower", issueType: "epic",
+      parent: null, status: "open", assignee: null, startedAt: null, dependencies: [] }), comments: [] }));
+    renderTask("ro-l1ed");
+    await waitFor(() => expect(within(header()).queryByRole("progressbar")).not.toBeNull());
+    const head = within(header());
+    expect(head.getByText("Epic")).toHaveAttribute("data-task-type", "epic");
+    expect(head.getByText("Open")).toBeInTheDocument();
+    expect(head.getByText("2 of 5 closed")).toBeInTheDocument();
+    expect(header().querySelector("[data-task-holder]")).toBeNull();
+    expect(within(header()).getAllByRole("button").map((button) => button.textContent?.trim())).toEqual(["Claim", "Close"]);
+    expect(firstAction()).toHaveAttribute("data-primary-action");
+  });
+
+  it("states what a decision asks of the operator, and leads with that answer", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: "gate", awaitType: "human", status: "open", assignee: null, labels: ["human"], startedAt: null }) }));
+    const { unmount } = renderTask();
+    await within(header()).findByRole("button", { name: "Approve" });
+    expect(within(header()).getByText("Approval")).toHaveAttribute("data-task-type", "gate");
+    expect(within(header()).getByText("Needs your approval")).toHaveAttribute("data-task-ask", "approve");
+    expect(firstAction()).toHaveTextContent("Approve");
+    unmount();
+
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, labels: ["human"], ready: true, startedAt: null }) }));
+    renderTask();
+    await within(header()).findByRole("button", { name: "Answer" });
+    expect(within(header()).getByText("Needs your answer")).toHaveAttribute("data-task-ask", "answer");
+    expect(firstAction()).toHaveTextContent("Answer");
+  });
+
+  it("puts a closed task's reason and closer directly under the header, offers no action, and wears no green", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({
+      status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Facts render · abc1234",
+      metadata: { noticeos_closed_by: "claude", noticeos_closed_model: "Opus 5.5", noticeos_closed_at: "2026-09-04T11:30:00Z" },
+    }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    const closed = header().querySelector("[data-task-closed]") as HTMLElement;
+    expect(closed).not.toBeNull();
+    expect(within(closed).getByText("Facts render · abc1234")).toBeInTheDocument();
+    expect(within(closed).getByText("claude · Opus 5.5")).toBeInTheDocument();
+    expect(within(closed).getByText("30m ago")).toBeInTheDocument();
+    expect(within(header()).getByText("Closed")).toHaveAttribute("data-task-status", "closed");
+    expect(within(header()).queryAllByRole("button")).toHaveLength(0);
+    // A holder is for open work; who closed it is the reason's line.
+    expect(header().querySelector("[data-task-holder]")).toBeNull();
+    for (const node of [closed, ...header().querySelectorAll("[data-status-for]")]) {
+      expect(node.className).not.toMatch(/healthy|milestone|success/);
+    }
+  });
+
+  it("keeps the board's filters on the Tasks crumb, and keeps one way back to Home or a site", async () => {
+    const { unmount } = renderTask(ID, "", { returnTo: "/tasks?status=open" });
+    await screen.findByText("A task has a page");
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks?status=open");
+    expect(screen.queryByRole("link", { name: /^Back to/ })).toBeNull();
+    unmount();
+
+    renderTask(ID, "", { returnTo: "/?range=7" });
+    await screen.findByText("A task has a page");
+    expect(screen.getByRole("link", { name: "Back to Home" })).toHaveAttribute("href", "/?range=7");
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+  });
+
+  it("reaches the primary action, then the facts, then the comment box, in that order", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    const { container } = renderTask();
+    const claim = await screen.findByRole("button", { name: "Claim" });
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    const description = container.querySelector('[data-task-field="Description"]') as HTMLElement;
+    const comment = screen.getByRole("textbox", { name: "Add a comment" });
+    const follows = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    // Facts come first after the header, which is the order a phone stacks.
+    expect(follows(claim, facts)).toBe(true);
+    expect(follows(facts, description)).toBe(true);
+    expect(follows(description, comment)).toBe(true);
+    for (const node of [claim, comment]) expect(node).not.toHaveAttribute("tabindex", "-1");
+  });
+
+  it("states a deployed task's type and holder from the snapshot", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    state.work = work([snapshotItem({ status: "in_progress", assignee: "claude" })]);
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(within(header()).getByText("Task")).toHaveAttribute("data-task-type", "task");
+    expect(header().querySelector("[data-task-holder]")).toHaveTextContent("claude");
+    expect(firstAction()).toHaveTextContent("Close");
+    expect(firstAction()).toBeDisabled();
   });
 });
 
