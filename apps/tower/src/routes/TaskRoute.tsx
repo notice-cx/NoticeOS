@@ -24,20 +24,20 @@ import {
   claimedModel,
   closeAttribution,
   TASK_PROJECTS_PATH,
+  TASKS_CLOSED_WINDOW_DAYS,
   type LiveEpic,
   type LiveTask,
   type TaskComment,
   type TaskDependency,
   type TaskActor,
+  type LiveTasksPayload,
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
-import { PRIORITY_BANDS, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import { EmptyState } from "@/components/EmptyState";
-import { Meter } from "@/components/Meter";
-import { PageHeader } from "@/components/PageHeader";
+import type { PageHeaderCrumb } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
-import { StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -59,9 +59,14 @@ import { ApiError, type TaskEdit } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { useOwnerAnswers } from "@/lib/browser-context";
-import { TASK_STATUSES, askVerb, inboxAsk, type InboxAsk } from "@/lib/task-board-read";
+import { TASK_STATUSES, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask } from "@/lib/task-board-read";
+import { epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { formatInt } from "@/lib/format";
+import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
+import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
+import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { PriorityMark, TaskStatusChip, TaskStatusGlyph, priorityFace } from "@/routes/tasks/task-face";
+import { TaskStatusGlyph } from "@/routes/tasks/task-face";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
 /**
@@ -111,18 +116,73 @@ export function TaskRoute() {
     : findInSnapshot(snapshot.data, id, capability.projectSelection ? selectedProject : undefined), [snapshot.data, id, capability.projectSelection, selectedProject]);
   const spoke = fromSnapshot?.project ?? (capability.projectSelection ? null : projectByPrefix(snapshot.data, id));
 
-  const head: HeadFacts | null = task
-    ? { title: task.title, status: task.status, priority: task.priority, assignee: task.assignee, ask: inboxAsk(task) }
+  // Every row of the project's live read, epics included: this task's own
+  // children and its siblings come from here.
+  const read = useMemo(() => (board.data ? liveRows(board.data, { containers: true }) : []), [board.data]);
+  const epicView = task && board.data
+    ? liveEpicView(board.data, read, task, epicOf(board.data.epics, task.id))
+    : !live && fromSnapshot ? snapshotEpicView(fromSnapshot.project, id, fromSnapshot.epic) : null;
+  const siblings = task?.parent ? read.filter((row) => row.parent === task.parent && row.id !== task.id) : [];
+  const nextReady = epicTaskGroups(siblings, read).find((group) => group.word === "Ready")?.tasks[0] ?? null;
+  const actors = detail.data?.actors;
+  const taskHref = useTaskHref();
+
+  const head: TaskHeadFacts | null = task
+    ? {
+        title: task.title,
+        issueType: task.issueType,
+        awaitType: task.awaitType,
+        status: task.status,
+        priority: task.priority,
+        holder: task.status !== "closed" && task.assignee
+          ? { name: taskActorLabel(task.assignee, actors), model: claimedModel(task), since: task.startedAt }
+          : null,
+        ask: inboxAsk(task),
+        progress: epicView?.progress ?? null,
+      }
     : fromSnapshot
       ? {
           title: fromSnapshot.item.title,
+          issueType: fromSnapshot.item.issueType,
+          awaitType: fromSnapshot.item.issueType === "gate" ? "human" : null,
           status: fromSnapshot.item.status,
           priority: fromSnapshot.item.priority,
-          assignee: fromSnapshot.item.assignee,
+          holder: fromSnapshot.item.status !== "closed" && fromSnapshot.item.assignee
+            ? { name: fromSnapshot.item.assignee, model: null, since: null }
+            : null,
           // The photograph carries no labels, but its `waiting` list is the
           // poller's own answer to "is this in the operator's inbox".
           ask: fromSnapshot.waiting ? askVerb(fromSnapshot.item) : null,
+          progress: epicView?.progress ?? null,
         }
+      : null;
+
+  // Where the page sits: the board (with the filters it was opened from), the
+  // project's tasks, and the epic it hangs off.
+  const projectKey = capability.projectSelection ? selectedProject ?? null : project ?? spoke?.asset ?? null;
+  const projectName = (capability.projectSelection
+    ? catalog.data?.find((row) => row.logicalKey === selectedProject)?.displayName
+    : spoke?.name) ?? projectKey ?? "";
+  const parentId = task ? task.parent : fromSnapshot?.item.parent ?? null;
+  const parentTitle = parentId === null ? null
+    : epicOf(board.data?.epics ?? null, parentId)?.title
+      ?? read.find((row) => row.id === parentId)?.title
+      ?? fromSnapshot?.project.epics?.find((epic) => epic.id === parentId)?.title
+      ?? null;
+  const crumbs: PageHeaderCrumb[] = [
+    { label: "Tasks", to: returnTo.startsWith("/tasks") ? returnTo : "/tasks" },
+    ...(projectKey ? [{
+      label: projectName,
+      to: `/tasks?${new URLSearchParams({ project: projectKey })}`,
+      icon: <PropertyFavicon domain={projectKey} displayName={projectName} className="size-4" />,
+    }] : []),
+    ...(parentId ? [{ label: parentTitle ?? parentId, to: taskHref(parentId) }] : []),
+  ];
+
+  const closedSummary = task?.status === "closed"
+    ? <LiveClosedSummary task={task} nowMs={now} />
+    : !live && fromSnapshot?.item.status === "closed"
+      ? <SnapshotClosedSummary item={fromSnapshot.item} project={fromSnapshot.project} nowMs={now} />
       : null;
 
   const notFound = detail.error instanceof ApiError && detail.error.status === 404;
@@ -130,13 +190,19 @@ export function TaskRoute() {
 
   return (
     <TaskWritePermission.Provider value={writable}>
-    <TaskActors.Provider value={detail.data?.actors}>
+    <TaskActors.Provider value={actors}>
     <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
-      <Link to={returnTo} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-        <ArrowLeft className="size-4" aria-hidden />
-        {returnTo.startsWith("/assets/") ? "Back to site" : returnTo === "/" || returnTo.startsWith("/?") ? "Back to Home" : "Back to tasks"}
-      </Link>
-      <TaskHeader id={id} head={head} writable={writable} readAt={detail.data?.readAt ?? null} />
+      {/* The breadcrumb leads back to the board; a page opened from Home or a
+          site keeps one link back to where it was opened. */}
+      {returnTo.startsWith("/tasks") ? null : (
+        <Link to={returnTo} className="inline-flex min-h-11 w-fit items-center gap-2 rounded-md text-sm text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <ArrowLeft className="size-4" aria-hidden />
+          {returnTo.startsWith("/assets/") ? "Back to site" : "Back to Home"}
+        </Link>
+      )}
+      <TaskHeader id={id} head={head} crumbs={crumbs} writable={writable} readAt={detail.data?.readAt ?? null} nowMs={now}>
+        {closedSummary}
+      </TaskHeader>
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
         className={cn(fieldClass, 'w-fit max-w-full')} onChange={event => {
           const next = new URLSearchParams(params); next.set('project', event.target.value); setParams(next, { replace: true });
@@ -146,7 +212,7 @@ export function TaskRoute() {
       </select> : null}
 
       {!live ? (
-        <ReadOnly row={fromSnapshot?.item ?? null} project={spoke} />
+        <ReadOnly row={fromSnapshot?.item ?? null} project={spoke} epicView={epicView} />
       ) : notFound ? (
         <NotFound id={id} />
       ) : laneError ? (
@@ -160,27 +226,31 @@ export function TaskRoute() {
           </div>
         )
       ) : (
-        <>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
-            <div className="flex min-w-0 flex-col gap-4">
-              <Body task={task} />
-              <Comments
-                id={task.id}
-                comments={detail.data?.comments ?? []}
-                nowMs={now}
-              />
-            </div>
-            <Facts
-              task={task}
-              project={project}
-              projectName={spoke?.name ?? project ?? ""}
-              epic={epicOf(board.data?.epics ?? null, task.parent)}
-              blocks={blockedByThis(board.data?.tasks ?? [], task.id)}
+        // A laptop reads the work on the left and its facts on the right; a
+        // phone reads the facts first, in the same order the keyboard visits.
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start">
+          <Facts
+            className="lg:col-start-2 lg:row-start-1"
+            task={task}
+            project={project}
+            projectName={spoke?.name ?? project ?? ""}
+            epic={epicOf(board.data?.epics ?? null, task.parent)}
+            parentTitle={parentTitle}
+            nextReady={nextReady}
+            blocks={blockedByThis(board.data?.tasks ?? [], task.id)}
+            nowMs={now}
+          />
+          <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
+            <Body task={task} />
+            {epicView ? <EpicTasks view={epicView} /> : null}
+            <Comments
+              id={task.id}
+              comments={detail.data?.comments ?? []}
               nowMs={now}
             />
+            <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
           </div>
-          <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
-        </>
+        </div>
       )}
     </div>
     </TaskActors.Provider>
@@ -196,42 +266,41 @@ export function taskReturnPath(state: unknown): string {
   return typeof path === "string" && /^\/(?:assets(?:\/|\?|$)|tasks(?:\?|$)|\?|$)/.test(path) ? path : "/tasks";
 }
 
-// --- The header: identity, state, and the two primary actions ---------------
-
-interface HeadFacts {
-  title: string;
-  status: string;
-  priority: number;
-  assignee: string | null;
-  /** What the operator's inbox asks of this task, or null when it is not
-   * waiting on the operator. */
-  ask: InboxAsk | null;
-}
+// --- The header: identity, state, and the actions, the primary one first ----
 
 /**
  * A task waiting on the operator offers its inbox row's verbs
  * (`routes/tasks/ask-actions`), never Close: that would run `bd close` instead
  * of the command the gate or ask was waiting for. Once answered, the header
  * offers nothing until the task is read again; the toast holds the Undo.
+ * Otherwise Claim leads while nobody holds the task, and Close leads once
+ * somebody does.
  */
 function TaskHeader({
   id,
   head,
+  crumbs,
   writable,
   readAt,
+  nowMs,
+  children,
 }: {
   id: string;
-  head: HeadFacts | null;
+  head: TaskHeadFacts | null;
+  crumbs: PageHeaderCrumb[];
   writable: boolean;
   /** When the live read the page shows was taken: an answer sent after it
    * hides the verbs until the next read. */
   readAt: string | null;
+  nowMs: number;
+  /** What sits directly under the header: a closed task's reason. */
+  children?: ReactNode;
 }) {
   const demoReadonly = useDemoReadonly();
   const capabilities = useTasksLive();
   const [closing, setClosing] = useState(false);
   const { hides: answerHides } = useOwnerAnswers();
-  const claimable = head !== null && head.status === "open" && head.assignee === null;
+  const claimable = head !== null && head.status === "open" && head.holder === null;
   const closed = head?.status === "closed";
   const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
@@ -245,26 +314,11 @@ function TaskHeader({
   const waitsOnOperator = (head?.ask ?? null) !== null;
 
   return (
-    // No breadcrumb: the back link above it already names the way back.
-    <PageHeader
-      documentTitle={head?.title ?? "Task"}
-      title={
-        <>
-          <span className="min-w-0">{head?.title ?? "Task"}</span>
-          {/* The id is beside the title, not above it: it is the string the
-              operator quotes in a commit and types to `bd`, and it identifies
-              this page as much as the sentence does. */}
-          <span className="font-mono text-sm font-normal text-muted-foreground">{id}</span>
-        </>
-      }
-      meta={
-        head ? (
-          <>
-            <TaskStatusChip status={head.status} subject={`task:${id}`} />
-            <PriorityChip priority={head.priority} subject={`task:${id}`} />
-          </>
-        ) : null
-      }
+    <TaskHead
+      id={id}
+      facts={head}
+      crumbs={crumbs}
+      nowMs={nowMs}
       actions={
         waitsOnOperator ? (
           ask.buttons
@@ -276,10 +330,12 @@ function TaskHeader({
             {closed || !head ? null : (
               <Button
                 type="button"
-                variant="outline"
+                variant={claimable ? "outline" : "default"}
                 size="sm"
                 disabled={blocked !== null}
                 title={blocked ?? undefined}
+                aria-expanded={closing}
+                data-primary-action={claimable ? undefined : ""}
                 onClick={() => setClosing((open) => !open)}
               >
                 Close
@@ -289,10 +345,11 @@ function TaskHeader({
         )
       }
     >
+      {children}
       {waitsOnOperator ? ask.box : closing ? (
         <CloseForm id={id} onDone={() => setClosing(false)} onCancel={() => setClosing(false)} />
       ) : null}
-    </PageHeader>
+    </TaskHead>
   );
 }
 
@@ -303,6 +360,7 @@ function ClaimAction({ id, disabledReason }: { id: string; disabledReason: strin
     <Button
       type="button"
       size="sm"
+      data-primary-action=""
       disabled={disabledReason !== null || claim.isPending}
       title={disabledReason ?? "Assign it to you and mark it in progress."}
       onClick={() => {
@@ -374,28 +432,6 @@ function CloseForm({
         </Button>
       </div>
     </div>
-  );
-}
-
-// --- Priority, on a chip; the status chip is the shared `TaskStatusChip` ----
-
-/**
- * Priority as the operator's word, led by the board row's own priority mark:
- * ink weight, never a severity hue, because a top task is not a failure. A
- * single task page shows the default band too: the absence of a priority chip
- * would read as a fact nobody recorded.
- */
-function PriorityChip({ priority, subject }: { priority: number; subject: StatusSubject }) {
-  const { band } = priorityFace(priority);
-  const tone: StateTone = priority <= 2 ? "neutral" : "na";
-  return (
-    <StateChip
-      tone={tone}
-      glyph={<PriorityMark priority={priority} size="chip" />}
-      label={`${band} priority`}
-      title={`P${priority}`}
-      subject={subject}
-    />
   );
 }
 
@@ -518,11 +554,7 @@ function LongTextField({
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <span className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground">
-      {children}
-    </span>
-  );
+  return <span className={eyebrowClass}>{children}</span>;
 }
 
 // --- Comments ---------------------------------------------------------------
@@ -618,17 +650,26 @@ function Comments({
 // --- The right column: the facts, most of them editable in place ------------
 
 function Facts({
+  className,
   task,
   project,
   projectName,
   epic,
+  parentTitle,
+  nextReady,
   blocks,
   nowMs,
 }: {
+  className?: string;
   task: LiveTask;
   project: string | null;
   projectName: string;
   epic: LiveEpic | null;
+  /** The parent's title from the board read, when it is not an epic the
+   * board's progress read covers. */
+  parentTitle: string | null;
+  /** The first sibling ready to be claimed. */
+  nextReady: BoardTask | null;
   blocks: LiveTask[];
   nowMs: number;
 }) {
@@ -647,7 +688,7 @@ function Facts({
   });
 
   return (
-    <Card className="lg:sticky lg:top-4">
+    <Card className={className}>
       <CardContent className="flex flex-col pt-4" data-task-facts>
         {project ? (
           <Fact label="Project">
@@ -661,14 +702,64 @@ function Facts({
           </Fact>
         ) : null}
 
-        <Fact label="Type">
-          <span className="text-sm">{task.issueType}</span>
-          {task.awaitType ? (
-            <span className="ml-2 text-xs text-muted-foreground">
-              waits on {task.awaitType}
-            </span>
-          ) : null}
+        <Fact label="Parent epic">
+          {task.parent ? (
+            <div className="flex flex-col gap-1">
+              <Link
+                to={taskHref(task.parent)}
+                className={cn("text-sm hover:underline", !epic && !parentTitle && "font-mono")}
+              >
+                {epic?.title ?? parentTitle ?? task.parent}
+              </Link>
+              {/* The epic's all-time child progress (`bd epic status`): the only
+                  honest denominator, since a list read is a window. */}
+              {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
+              {nextReady ? (
+                <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
+                  Next ready:{" "}
+                  <Link to={taskHref(nextReady.id)} className="text-foreground hover:underline">
+                    <span className="font-mono">{nextReady.id}</span> {nextReady.title}
+                  </Link>
+                </span>
+              ) : null}
+            </div>
+          ) : (
+            <span className="text-sm text-muted-foreground">Hangs off nothing</span>
+          )}
+          <div className="mt-1.5">
+            <TextEditor
+              name="Parent epic"
+              value={task.parent ?? ""}
+              placeholder="A task id, or empty to un-parent"
+              mono
+              onCommit={(next) =>
+                save({
+                  label: "the parent",
+                  edit: { parent: next },
+                  undo: { parent: task.parent ?? "" },
+                })
+              }
+            />
+          </div>
         </Fact>
+
+        {blockedBy.length > 0 ? (
+          <Fact label="Blocked by">
+            <DependencyList items={blockedBy.map((dep) => dependencyRow(dep))} />
+          </Fact>
+        ) : null}
+
+        {blocks.length > 0 ? (
+          <Fact label="Blocks">
+            <DependencyList
+              items={blocks.map((other) => ({
+                id: other.id,
+                title: other.title,
+                status: other.status,
+              }))}
+            />
+          </Fact>
+        ) : null}
 
         <Fact label="Status">
           <SelectEditor
@@ -754,71 +845,6 @@ function Facts({
           />
         </Fact>
 
-        <Fact label="Parent epic">
-          {epic ? (
-            <div className="flex flex-col gap-1">
-              <Link
-                to={taskHref(epic.id)}
-                className="text-sm hover:underline"
-              >
-                {epic.title}
-              </Link>
-              {/* The epic's all-time child progress (`bd epic status`): the only
-                  honest denominator, since a list read is a window. */}
-              <Meter
-                value={epic.closed}
-                max={epic.total}
-                ariaLabel={`${epic.closed} of ${epic.total} children closed`}
-              />
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {epic.closed} of {epic.total} closed
-              </span>
-            </div>
-          ) : task.parent ? (
-            <Link
-              to={taskHref(task.parent)}
-              className="font-mono text-sm hover:underline"
-            >
-              {task.parent}
-            </Link>
-          ) : (
-            <span className="text-sm text-muted-foreground">Hangs off nothing</span>
-          )}
-          <div className="mt-1.5">
-            <TextEditor
-              name="Parent epic"
-              value={task.parent ?? ""}
-              placeholder="A task id, or empty to un-parent"
-              mono
-              onCommit={(next) =>
-                save({
-                  label: "the parent",
-                  edit: { parent: next },
-                  undo: { parent: task.parent ?? "" },
-                })
-              }
-            />
-          </div>
-        </Fact>
-
-        {blockedBy.length > 0 ? (
-          <Fact label="Blocked by">
-            <DependencyList items={blockedBy.map((dep) => dependencyRow(dep))} />
-          </Fact>
-        ) : null}
-
-        {blocks.length > 0 ? (
-          <Fact label="Blocks">
-            <DependencyList
-              items={blocks.map((other) => ({
-                id: other.id,
-                title: other.title,
-                status: other.status,
-              }))}
-            />
-          </Fact>
-        ) : null}
-
         {origin ? <CameFrom origin={origin} /> : null}
 
         <Fact label="Ages">
@@ -845,9 +871,7 @@ function Fact({
 }) {
   return (
     <div className="flex flex-col gap-1 border-b border-border py-2.5 first:pt-0 last:border-0">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-        {label}
-      </span>
+      <span className={eyebrowClass}>{label}</span>
       <div className="min-w-0">{children}</div>
     </div>
   );
@@ -1361,10 +1385,13 @@ function Age({ iso, nowMs }: { iso: string | null; nowMs: number }) {
 function ReadOnly({
   row,
   project,
+  epicView,
 }: {
   row: WorkItem | null;
   project: WorkProject | null;
+  epicView: EpicView | null;
 }) {
+  const parent = row?.parent ? project?.epics?.find((epic) => epic.id === row.parent) ?? null : null;
   return (
     <div className="flex flex-col gap-4" data-task-readonly>
       <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
@@ -1388,12 +1415,17 @@ function ReadOnly({
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
               <dt className="text-muted-foreground">Assignee</dt>
               <dd>{row.assignee ?? "nobody"}</dd>
-              <dt className="text-muted-foreground">Type</dt>
-              <dd>{row.issueType}</dd>
               {row.parent ? (
                 <>
                   <dt className="text-muted-foreground">Parent</dt>
-                  <dd className="font-mono text-xs">{row.parent}</dd>
+                  {parent ? (
+                    <dd className="flex flex-col gap-1">
+                      <span>{parent.title}</span>
+                      {parent.total > 0 ? <EpicProgress closed={parent.closed} total={parent.total} /> : null}
+                    </dd>
+                  ) : (
+                    <dd className="font-mono text-xs">{row.parent}</dd>
+                  )}
                 </>
               ) : null}
               {row.deferUntil ? (
@@ -1406,8 +1438,46 @@ function ReadOnly({
           )}
         </CardContent>
       </Card>
+      {epicView ? <EpicTasks view={epicView} /> : null}
     </div>
   );
+}
+
+/** A closed task's evidence from the live read: the closer NoticeOS recorded
+ * for this close, and the reason. */
+function LiveClosedSummary({ task, nowMs }: { task: LiveTask; nowMs: number }) {
+  const actors = useContext(TaskActors);
+  const closer = closeAttribution(task);
+  return (
+    <ClosedSummary by={closer ? taskActorLabel(closer.by, actors) : null} model={closer?.model ?? null} at={task.closedAt} nowMs={nowMs}>
+      {task.closeReason ? (
+        <MarkdownText source={task.closeReason} />
+      ) : (
+        <span className="text-sm text-muted-foreground">No close reason recorded</span>
+      )}
+    </ClosedSummary>
+  );
+}
+
+/** The same from the saved snapshot, whose recent closes carry their evidence. */
+function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; project: WorkProject; nowMs: number }) {
+  const close = project.recentWork?.find((event) => event.kind === "closed" && event.taskId === item.id) ?? null;
+  return (
+    <ClosedSummary by={close?.by ?? null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}>
+      {close?.evidence ? (
+        <MarkdownText source={close.evidence} />
+      ) : (
+        <span className="text-sm text-muted-foreground">Close reason not in the saved snapshot</span>
+      )}
+    </ClosedSummary>
+  );
+}
+
+/** The epic's task list, opening each task the way every link on this page
+ * does. */
+function EpicTasks({ view }: { view: EpicView }) {
+  const taskHref = useTaskHref();
+  return <EpicTaskList groups={view.groups} missing={view.missing} graphHref={view.graphHref} taskHref={taskHref} />;
 }
 
 /** A dead end's one way out, as a link rather than a sentence about it. */
@@ -1469,11 +1539,12 @@ function epicOf(epics: LiveEpic[] | null, parent: string | null): LiveEpic | nul
   return epics.find((epic) => epic.id === parent) ?? null;
 }
 
+/** The snapshot's lists leave epics out; its epic rollup carries them. */
 function findInSnapshot(
   payload: WorkPayload | undefined,
   id: string,
   selectedProject?: string,
-): { item: WorkItem; project: WorkProject; waiting: boolean } | null {
+): { item: WorkItem; project: WorkProject; waiting: boolean; epic: WorkEpic | null } | null {
   if (!payload) return null;
   for (const project of payload.projects) {
     if (selectedProject !== undefined && project.asset !== selectedProject) continue;
@@ -1486,10 +1557,65 @@ function findInSnapshot(
     ];
     for (const list of lists) {
       const found = list.find((item) => item.id === id);
-      if (found) return { item: found, project, waiting: list === project.waiting };
+      if (found) return { item: found, project, waiting: list === project.waiting, epic: null };
+    }
+    const epic = project.epics?.find((row) => row.id === id);
+    if (epic) {
+      return {
+        item: {
+          id: epic.id, title: epic.title, status: epic.status, priority: epic.priority, issueType: "epic",
+          assignee: null, updatedAt: null, closedAt: null, parent: null, deferUntil: null,
+        },
+        project,
+        waiting: false,
+        epic,
+      };
     }
   }
   return null;
+}
+
+/** An epic's place on its own page: its tasks by state, its closed of total,
+ * the tasks the read leaves out, and the board's graph when it draws one. */
+interface EpicView {
+  groups: EpicTaskGroup[];
+  progress: { closed: number; total: number } | null;
+  missing: string | null;
+  graphHref: string | null;
+}
+
+/** From the live read. Every unfinished task is in it; closed ones only from
+ * the closed window, so the epic's all-time count names the rest. */
+function liveEpicView(payload: LiveTasksPayload, read: BoardTask[], task: LiveTask, epic: LiveEpic | null): EpicView | null {
+  const children = read.filter((row) => row.parent === task.id);
+  if (task.issueType !== "epic" && children.length === 0) return null;
+  const earlier = epic ? Math.max(0, epic.total - children.length) : 0;
+  return {
+    groups: epicTaskGroups(children, read),
+    progress: epic && epic.total > 0
+      ? { closed: epic.closed, total: epic.total }
+      : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null,
+    missing: earlier === 0 ? null
+      : `${formatInt(earlier)} ${children.length > 0 ? "more" : earlier === 1 ? "task" : "tasks"}, closed over ${TASKS_CLOSED_WINDOW_DAYS} days ago`,
+    graphHref: epic && epicDrawsGraph(liveRows(payload), task.id) ? `/tasks?epic=${encodeURIComponent(task.id)}` : null,
+  };
+}
+
+/** From the saved snapshot: its capped lists name some of the epic's tasks,
+ * and its waiting list, not labels, says which ask for the operator. */
+function snapshotEpicView(project: WorkProject, id: string, epic: WorkEpic | null): EpicView | null {
+  const rows = snapshotRows(project);
+  const children = rows.filter((row) => row.parent === id);
+  if (epic === null && children.length === 0) return null;
+  const asks = new Set(project.waiting.map((item) => item.id));
+  const unlisted = Math.max(0, (epic?.total ?? children.length) - children.length);
+  return {
+    groups: epicTaskGroups(children, rows, (row) => (asks.has(row.id) ? askVerb(row) : null)),
+    progress: epic && epic.total > 0 ? { closed: epic.closed, total: epic.total } : null,
+    missing: unlisted === 0 ? null
+      : `${formatInt(unlisted)} ${children.length > 0 ? "more" : unlisted === 1 ? "task" : "tasks"} not in the saved snapshot`,
+    graphHref: null,
+  };
 }
 
 /** The spoke a task id belongs to, from its prefix, which is not derivable

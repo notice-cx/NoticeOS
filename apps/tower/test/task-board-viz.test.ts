@@ -2,8 +2,8 @@
 import { describe, expect, it } from "vitest";
 import type { LiveTask, LiveTasksPayload } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
-import { readTaskBoard, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
-import { boardInOut, boardWorkRows, epicGraphs, inOutDrawn, netFlow, queueItem, stripTotals } from "@/lib/task-board-viz";
+import { liveRows, readTaskBoard, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
+import { boardInOut, boardWorkRows, epicDrawsGraph, epicGraphs, epicTaskGroups, inOutDrawn, netFlow, queueItem, stripTotals } from "@/lib/task-board-viz";
 
 // The board's reads as the kit's shapes. Built through `readTaskBoard`, so the
 // projects these functions see are the ones the board itself renders.
@@ -181,6 +181,20 @@ describe("one epic's dependencies", () => {
     expect(graphsOf(snapshot, {}, false)).toEqual([]);
     const flat = tasks.map((task) => ({ ...task, dependencies: [] }));
     expect(graphsOf(snapshot, { "meadow.example": ok(board(flat, "meadow.example", epic)) })).toEqual([]);
+  });
+
+  it("groups an epic's tasks by the graph's own state words, and says whether the board draws its graph", () => {
+    const rows = liveRows(board(tasks, "meadow.example", epic), { containers: true });
+    const groups = epicTaskGroups(rows.filter((row) => row.parent === "md-e"), rows);
+    expect(groups.map((group) => [group.word, group.tasks.map((task) => task.id)])).toEqual([
+      ["In progress", ["md-e.2"]],
+      ["Ready", ["md-e.5"]],
+      ["Waiting", ["md-e.4"]],
+      ["Blocked", ["md-e.3"]],
+      ["Done", ["md-e.1"]],
+    ]);
+    expect(epicDrawsGraph(liveRows(board(tasks)), "md-e")).toBe(true);
+    expect(epicDrawsGraph(liveRows(board(tasks.map((task) => ({ ...task, dependencies: [] })))), "md-e")).toBe(false);
   });
 
   it("leads with the epic most stuck", () => {

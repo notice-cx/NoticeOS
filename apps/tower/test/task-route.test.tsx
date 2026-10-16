@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
-import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
+import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
 import { validateDemoViewer } from '@shared/demo-viewer';
 
 // `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
@@ -196,13 +196,13 @@ function work(items: WorkItem[] = []): WorkPayload {
   };
 }
 
-function renderTask(id = ID, query = '') {
+function renderTask(id = ID, query = '', state?: { returnTo: string }) {
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
   });
   return render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/tasks/${id}${query}`]}>
+      <MemoryRouter initialEntries={[{ pathname: `/tasks/${id}`, search: query, state }]}>
         <Routes>
           <Route path="/tasks/:id" element={<TaskRoute />} />
         </Routes>
@@ -372,7 +372,7 @@ describe('live task details in a read-only demo', () => {
     }
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeDisabled();
     expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
-    expect(screen.getByRole('link', { name: 'Back to tasks' })).toHaveAttribute('href', '/tasks');
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/tasks');
     expect(api.fetchTask).toHaveBeenCalledWith(ID, expect.any(AbortSignal));
     expect(api.updateTask).not.toHaveBeenCalled(); expect(api.closeTask).not.toHaveBeenCalled();
     expect(api.commentOnTask).not.toHaveBeenCalled(); expect(api.resolveGate).not.toHaveBeenCalled();
@@ -436,7 +436,8 @@ describe("the task page", () => {
       "href",
       "/assets/root-os",
     );
-    expect(within(facts).getByText("task")).toBeInTheDocument();
+    // The type is a word in the header, beside the id.
+    expect(within(header).getByText("Task")).toHaveAttribute("data-task-type", "task");
     expect(within(facts).getByText("tower")).toBeInTheDocument();
 
     expect(within(facts).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
@@ -717,7 +718,7 @@ describe("the task page", () => {
     renderTask("ro-nope");
 
     expect(await screen.findByText("No task with this id")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Back to tasks" })).toHaveAttribute(
+    expect(within(screen.getByRole("navigation", { name: "Breadcrumb" })).getByRole("link", { name: "Tasks" })).toHaveAttribute(
       "href",
       "/tasks",
     );
@@ -849,5 +850,231 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     expect(approve).toBeDisabled();
     expect(approve).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
     expect(headerButtons()).toEqual(["Approve"]);
+  });
+});
+
+// The header states what the item is, where it sits, where it stands and the
+// one thing to do next, before any prose.
+describe("the header reads in one look", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const crumbs = () => within(screen.getByRole("navigation", { name: "Breadcrumb" }));
+  const firstAction = () => within(header()).getAllByRole("button")[0]!;
+
+  it("states a task's type, id, state, priority, holder and model with the claim's age, and leads with Close", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ metadata: { noticeos_claimed_model: "Opus 5.5" } }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    await waitFor(() => expect(crumbs().getByRole("link", { name: "Tasks are managed in the Tower" })).toHaveAttribute("href", "/tasks/ro-l1ed"));
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+    expect(crumbs().getByRole("link", { name: /System/ })).toHaveAttribute("href", "/tasks?project=root-os");
+
+    const head = within(header());
+    expect(head.getByRole("heading", { level: 1 })).toHaveTextContent("A task has a page");
+    expect(head.getByText("Task")).toHaveAttribute("data-task-type", "task");
+    expect(head.getByText(ID)).toBeInTheDocument();
+    expect(head.getByText("In progress")).toBeInTheDocument();
+    expect(head.getByText("high priority")).toBeInTheDocument();
+    const holder = header().querySelector("[data-task-holder]") as HTMLElement;
+    expect(holder).toHaveTextContent("claude/task-page-agent· Opus 5.5· claimed 2h ago");
+    // Somebody holds it, so closing it with its evidence is what comes next.
+    expect(firstAction()).toHaveTextContent("Close");
+    expect(firstAction()).toHaveAttribute("data-primary-action");
+  });
+
+  it("states an epic's type and its closed of total, and leads with Claim while nobody holds it", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ id: "ro-l1ed", title: "Tasks are managed in the Tower", issueType: "epic",
+      parent: null, status: "open", assignee: null, startedAt: null, dependencies: [] }), comments: [] }));
+    renderTask("ro-l1ed");
+    await waitFor(() => expect(within(header()).queryByRole("progressbar")).not.toBeNull());
+    const head = within(header());
+    expect(head.getByText("Epic")).toHaveAttribute("data-task-type", "epic");
+    expect(head.getByText("Open")).toBeInTheDocument();
+    expect(head.getByText("2 of 5 closed")).toBeInTheDocument();
+    expect(header().querySelector("[data-task-holder]")).toBeNull();
+    expect(within(header()).getAllByRole("button").map((button) => button.textContent?.trim())).toEqual(["Claim", "Close"]);
+    expect(firstAction()).toHaveAttribute("data-primary-action");
+  });
+
+  it("states what a decision asks of the operator, and leads with that answer", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: "gate", awaitType: "human", status: "open", assignee: null, labels: ["human"], startedAt: null }) }));
+    const { unmount } = renderTask();
+    await within(header()).findByRole("button", { name: "Approve" });
+    expect(within(header()).getByText("Approval")).toHaveAttribute("data-task-type", "gate");
+    expect(within(header()).getByText("Needs your approval")).toHaveAttribute("data-task-ask", "approve");
+    expect(firstAction()).toHaveTextContent("Approve");
+    unmount();
+
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, labels: ["human"], ready: true, startedAt: null }) }));
+    renderTask();
+    await within(header()).findByRole("button", { name: "Answer" });
+    expect(within(header()).getByText("Needs your answer")).toHaveAttribute("data-task-ask", "answer");
+    expect(firstAction()).toHaveTextContent("Answer");
+  });
+
+  it("puts a closed task's reason and closer directly under the header, offers no action, and wears no green", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({
+      status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Facts render · abc1234",
+      metadata: { noticeos_closed_by: "claude", noticeos_closed_model: "Opus 5.5", noticeos_closed_at: "2026-09-04T11:30:00Z" },
+    }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    const closed = header().querySelector("[data-task-closed]") as HTMLElement;
+    expect(closed).not.toBeNull();
+    expect(within(closed).getByText("Facts render · abc1234")).toBeInTheDocument();
+    expect(within(closed).getByText("claude · Opus 5.5")).toBeInTheDocument();
+    expect(within(closed).getByText("30m ago")).toBeInTheDocument();
+    expect(within(header()).getByText("Closed")).toHaveAttribute("data-task-status", "closed");
+    expect(within(header()).queryAllByRole("button")).toHaveLength(0);
+    // A holder is for open work; who closed it is the reason's line.
+    expect(header().querySelector("[data-task-holder]")).toBeNull();
+    for (const node of [closed, ...header().querySelectorAll("[data-status-for]")]) {
+      expect(node.className).not.toMatch(/healthy|milestone|success/);
+    }
+  });
+
+  it("keeps the board's filters on the Tasks crumb, and keeps one way back to Home or a site", async () => {
+    const { unmount } = renderTask(ID, "", { returnTo: "/tasks?status=open" });
+    await screen.findByText("A task has a page");
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks?status=open");
+    expect(screen.queryByRole("link", { name: /^Back to/ })).toBeNull();
+    unmount();
+
+    renderTask(ID, "", { returnTo: "/?range=7" });
+    await screen.findByText("A task has a page");
+    expect(screen.getByRole("link", { name: "Back to Home" })).toHaveAttribute("href", "/?range=7");
+    expect(crumbs().getByRole("link", { name: "Tasks" })).toHaveAttribute("href", "/tasks");
+  });
+
+  it("reaches the primary action, then the facts, then the comment box, in that order", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    const { container } = renderTask();
+    const claim = await screen.findByRole("button", { name: "Claim" });
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    const description = container.querySelector('[data-task-field="Description"]') as HTMLElement;
+    const comment = screen.getByRole("textbox", { name: "Add a comment" });
+    const follows = (a: Node, b: Node) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    // Facts come first after the header, which is the order a phone stacks.
+    expect(follows(claim, facts)).toBe(true);
+    expect(follows(facts, description)).toBe(true);
+    expect(follows(description, comment)).toBe(true);
+    for (const node of [claim, comment]) expect(node).not.toHaveAttribute("tabindex", "-1");
+  });
+
+  it("states a deployed task's type and holder from the snapshot", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    state.work = work([snapshotItem({ status: "in_progress", assignee: "claude" })]);
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(within(header()).getByText("Task")).toHaveAttribute("data-task-type", "task");
+    expect(header().querySelector("[data-task-holder]")).toHaveTextContent("claude");
+    expect(firstAction()).toHaveTextContent("Close");
+    expect(firstAction()).toBeDisabled();
+  });
+});
+
+// An epic's page lists what it holds, from the project's live read; a task's
+// page shows where it stands among its siblings.
+describe("an epic's page and its tasks", () => {
+  const EPIC = "ro-l1ed";
+  const epicTask = () => task({ id: EPIC, title: "Tasks are managed in the Tower", issueType: "epic", parent: null, status: "open",
+    assignee: null, startedAt: null, dependencies: [], metadata: null });
+  const child = (over: Partial<LiveTask>) => task({ status: "open", assignee: null, startedAt: null, parent: EPIC, dependencies: [], metadata: null, ...over });
+  function epicBoard(): LiveTasksPayload {
+    const base = board();
+    return {
+      ...base,
+      tasks: [
+        epicTask(),
+        ...base.tasks,
+        child({ id: "ro-l1ed.5", title: "Fields are edited where they are read", ready: true, priority: 2 }),
+        child({ id: "ro-l1ed.6", title: "Approve the close form wording", ready: true, labels: ["human"] }),
+        child({ id: "ro-l1ed.1", title: "A local task lane", status: "closed", closedAt: "2026-09-03T10:00:00.000Z" }),
+      ],
+      epics: [{ ...base.epics![0]!, total: 6, closed: 2 }],
+    };
+  }
+  const rollup = (over: Partial<WorkEpic> = {}): WorkEpic => ({ id: EPIC, title: "Tasks are managed in the Tower", status: "open", priority: 1,
+    total: 4, closed: 1, counts: { open: 2, inProgress: 1, blocked: 0, deferred: 0 }, priorities: [0, 1, 2, 0, 0], ...over });
+
+  it("lists its tasks under the board's state words, each opening its page, with closed of total in the header", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask(EPIC);
+
+    await waitFor(() => expect(container.querySelector("[data-epic-tasks]")).not.toBeNull());
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    const groups = [...list.querySelectorAll("[data-epic-group]")].map((group) => [
+      group.getAttribute("data-epic-group"),
+      [...group.querySelectorAll("[data-epic-task]")].map((row) => row.getAttribute("data-epic-task")),
+    ]);
+    expect(groups).toEqual([
+      ["Needs attention", ["ro-l1ed.6"]],
+      ["In progress", [ID]],
+      ["Ready", ["ro-l1ed.5"]],
+      ["Waiting", ["ro-l1ed.4"]],
+      ["Done", ["ro-l1ed.1"]],
+    ]);
+    const ready = within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement);
+    expect(ready.getByRole("link", { name: /ro-l1ed\.5/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    // Who holds a task in progress is on its row.
+    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText(/claude\/task-page-agent/)).toBeInTheDocument();
+    // The read holds a week of closes; the epic's all-time count names the rest.
+    expect(within(list).getByText("1 more, closed over 7 days ago")).toBeInTheDocument();
+    expect(within(list).getByRole("link", { name: "Epic graph →" })).toHaveAttribute("href", `/tasks?epic=${EPIC}`);
+
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    expect(within(header).getByRole("progressbar")).toHaveAttribute("aria-label", "2 of 6 children closed");
+    expect(within(header).getByText("2 of 6 closed")).toBeInTheDocument();
+  });
+
+  it("offers no Epic graph link where the board draws no graph for the epic", async () => {
+    const flat = epicBoard();
+    flat.tasks = flat.tasks.map((row) => ({ ...row, dependencies: [] }));
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(flat);
+    const { container } = renderTask(EPIC);
+    await waitFor(() => expect(container.querySelector("[data-epic-tasks]")).not.toBeNull());
+    expect(screen.queryByRole("link", { name: "Epic graph →" })).toBeNull();
+  });
+
+  it("shows a child's epic as closed of total and names the next sibling ready to claim", async () => {
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-next-ready]")).not.toBeNull());
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    expect(within(facts).getByText("2 of 6 closed")).toBeInTheDocument();
+    const next = facts.querySelector("[data-next-ready]") as HTMLElement;
+    expect(next).toHaveAttribute("data-next-ready", "ro-l1ed.5");
+    expect(within(next).getByRole("link", { name: /Fields are edited where they are read/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+  });
+
+  it("draws a deployed epic from the snapshot's rollup and counts the tasks the snapshot does not hold", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work();
+    snapshot.projects[0]!.epics = [rollup()];
+    state.work = snapshot;
+    const { container } = renderTask(EPIC);
+
+    expect(await screen.findByText("Tasks are managed in the Tower")).toBeInTheDocument();
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    expect(within(header).getByText("1 of 4 closed")).toBeInTheDocument();
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    expect(list.querySelectorAll("[data-epic-task]")).toHaveLength(0);
+    expect(within(list).getByText("4 tasks not in the saved snapshot")).toBeInTheDocument();
+    expect(api.fetchTask).not.toHaveBeenCalled();
+  });
+
+  it("lists the epic's tasks the deployed snapshot does hold, and counts the rest", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work([snapshotItem({ id: "ro-l1ed.5", title: "Fields are edited where they are read", parent: EPIC })]);
+    snapshot.projects[0]!.epics = [rollup()];
+    state.work = snapshot;
+    const { container } = renderTask(EPIC);
+
+    await screen.findByText("Tasks are managed in the Tower");
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    expect(within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement).getByRole("link", { name: /ro-l1ed\.5/ }))
+      .toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    expect(within(list).getByText("3 more not in the saved snapshot")).toBeInTheDocument();
   });
 });

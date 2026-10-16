@@ -46,6 +46,26 @@ export function markRingClass(size: "row" | "chip"): string {
   );
 }
 
+/**
+ * Priority as the operator's word, led by the board row's own priority mark:
+ * ink weight, never a severity hue, because a top task is not a failure. A
+ * single task page shows the default band too: the absence of a priority chip
+ * would read as a fact nobody recorded.
+ */
+export function PriorityChip({ priority, subject }: { priority: number; subject: StatusSubject }) {
+  const { band } = priorityFace(priority);
+  const tone: StateTone = priority <= 2 ? "neutral" : "na";
+  return (
+    <StateChip
+      tone={tone}
+      glyph={<PriorityMark priority={priority} size="chip" />}
+      label={`${band} priority`}
+      title={`P${priority}`}
+      subject={subject}
+    />
+  );
+}
+
 /** A task's priority as its mark. */
 export function PriorityMark({ priority, size = "row", className }: { priority: number; size?: "row" | "chip"; className?: string }) {
   const face = priorityFace(priority);
@@ -77,6 +97,24 @@ export function UrgentCount({ count }: { count: number }) {
       {count} urgent
     </span>
   );
+}
+
+// --- Type: what kind of item it is, as a word ---------------------------------
+
+const TYPE_WORDS: Readonly<Record<string, string>> = {
+  task: "Task",
+  bug: "Bug",
+  feature: "Feature",
+  chore: "Chore",
+  epic: "Epic",
+  decision: "Decision",
+};
+
+/** A task's type as the operator's word. A human gate is an approval, the
+ * board's word for it; a type this build does not know is shown as itself. */
+export function taskTypeWord(issueType: string, awaitType: string | null = null): string {
+  if (issueType === "gate") return (awaitType ?? "human") === "human" ? "Approval" : "Gate";
+  return TYPE_WORDS[issueType] ?? (issueType.charAt(0).toUpperCase() + issueType.slice(1));
 }
 
 // --- An ask: a row waiting on the operator ----------------------------------

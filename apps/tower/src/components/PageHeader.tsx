@@ -6,6 +6,8 @@ import { useDocumentTitle } from "@/lib/document-title";
 export interface PageHeaderCrumb {
   label: string;
   to: string;
+  /** A decorative mark before the label, such as a project's favicon. */
+  icon?: ReactNode;
 }
 
 export interface PageHeaderProps {
@@ -16,6 +18,8 @@ export interface PageHeaderProps {
   description?: ReactNode;
   /** Where this page sits, above the title. Rendered small, separated by `/`. */
   breadcrumb?: PageHeaderCrumb[];
+  /** What kind of thing the page is about, on one short line over the title. */
+  eyebrow?: ReactNode;
   /** Right-aligned page-level controls; wraps under the title on narrow widths. */
   actions?: ReactNode;
   /** A fact about the page rather than a control — an age badge, a period —
@@ -38,6 +42,7 @@ export function PageHeader({
   title,
   description,
   breadcrumb,
+  eyebrow,
   actions,
   meta,
   children,
@@ -59,8 +64,12 @@ export function PageHeader({
                 to={crumb.to}
                 // A crumb is a nav target, so the 44px phone floor covers it;
                 // the negative margin hands the height back to the layout.
-                className="underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center"
+                className={cn(
+                  "underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:text-foreground focus-visible:underline max-sm:-my-3.5 max-sm:inline-flex max-sm:min-h-11 max-sm:min-w-11 max-sm:items-center",
+                  crumb.icon !== undefined && "inline-flex items-center gap-1.5",
+                )}
               >
+                {crumb.icon}
                 {crumb.label}
               </Link>
             </Fragment>
@@ -70,6 +79,7 @@ export function PageHeader({
 
       <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-col gap-1">
+          {eyebrow ? <div className="flex flex-wrap items-center gap-x-2 gap-y-1">{eyebrow}</div> : null}
           <h1 className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-xl font-semibold">
             {title}
           </h1>
