@@ -67,8 +67,8 @@ export interface WallFeedItem {
   /** How many stored events the line folds; 1 for a single event. */
   count: number;
   tone: WallFeedTone;
-  /** A task line's worker, when the snapshot named who claimed or closed it:
-   * the line reads "claude closed …", with the model beside the name. */
+  /** A task line's worker, when the snapshot named who filed, claimed or
+   * closed it: the line reads "claude closed …", with the model beside the name. */
   who?: string;
   model?: string | null;
   /** A close's evidence as the closer gave it: its commit and links become chips. */

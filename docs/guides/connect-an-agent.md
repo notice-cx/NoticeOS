@@ -44,13 +44,13 @@ claude mcp add --scope user noticeos -- ~/noticeos/noticeos mcp --actor claude  
 
 ### Name the model
 
-The server's instructions ask the agent to pass `model`, the name of the model it runs as, on every `claim_task` and `close_task`. To make sure it does, put the same request in the agent's own instructions, for example a line in the repository's `CLAUDE.md` or `AGENTS.md`:
+The server's instructions ask the agent to pass `model`, the name of the model it runs as, on every `create_task`, `create_tasks`, `claim_task` and `close_task`. To make sure it does, put the same request in the agent's own instructions, for example a line in the repository's `CLAUDE.md` or `AGENTS.md`:
 
 ```md
-When you claim or close a NoticeOS task, pass `model` with the name of the model you run as.
+When you file, claim or close a NoticeOS task, pass `model` with the name of the model you run as.
 ```
 
-The task records the model beside the agent's name, and the [Agents](/tower/agents) page ranks agents and models by it. Work closed without a model still counts on **Tasks** and **Agents**, but it is not ranked and does not appear in the TV's **Agents** widget or on Home.
+The task records the model beside the agent's name, the Wall's **Live feed** shows it on the agent's lines, and the [Agents](/tower/agents) page ranks agents and models by it. Work closed without a model still counts on **Tasks** and **Agents**, but it is not ranked and does not appear in the TV's **Agents** widget or on Home.
 
 ## What the agent can do
 
@@ -59,7 +59,7 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 | `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its site's name, and its `projectId` stays the same when the project moves to another site |
 | `get_task_guide` | Return the rules for task work as Markdown with a version: the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
 | `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` returns summaries, most urgent first, 50 at a time (`limit`, and `offset` from the response's `nextOffset`). It searches the current tasks: `query` for words, `parent`, `labels`, `type`, `status`, `ready: true` for tasks with no open blockers, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
-| `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. Each response lists what a task still lacks, such as acceptance criteria; a task is not rejected for missing them |
+| `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. `create_task` and `create_tasks` take `model`, and the task records the agent and the model that filed it. Each response lists what a task still lacks, such as acceptance criteria; a task is not rejected for missing them |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence. Claim and close take `model`, the name of the model doing the work, which the agent passes every time: the task page shows it beside the agent's name, and the **Agents** page ranks models by it |
 | `add_dependency`, `remove_dependency` | Record what blocks what. A `blocks` dependency keeps a task out of the ready list until the other closes; it does not stop the task from being closed. An open approval does: `close_task` refuses a task while an approval it waits on is open |
 | `request_human_approval` | Request your approval before work on a task continues. The request is listed under **Your decisions**, and the task stays out of the ready list until you approve it; the response reports this. Calling it again with the same reason returns the same request |

@@ -232,7 +232,8 @@ function command(input) {
             break;
         }
         case 'create':
-            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'operationId']);
+            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'model',
+                'operationId', 'filedBy']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
                 argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
@@ -254,9 +255,12 @@ function command(input) {
                 argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-            if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
+            // In the create itself, so a task and its filer land together.
+            if (['metadata', 'operationId', 'filedBy', 'model'].some(key => Object.hasOwn(op, key))) {
                 const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
-                    ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}) };
+                    ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
+                    ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
+                    ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}) };
                 argv.push(`--metadata=${JSON.stringify(metadata)}`);
             }
             argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');

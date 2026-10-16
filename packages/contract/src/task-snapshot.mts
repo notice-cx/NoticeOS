@@ -21,6 +21,10 @@ export interface BeadsIssueInput {
   /** When the bead was filed. Optional: an older poller sends none, and the
    * store then keeps no key rather than a guess. */
   createdAt?: string | null;
+  /** Who filed it and the model they named, on `recentlyCreated` rows only.
+   * Absent when the task names no filer, and from an older poller. */
+  filedBy?: string | null;
+  filedModel?: string | null;
 }
 
 /** One epic container plus what its children are doing. Entirely optional on
@@ -74,7 +78,8 @@ export interface BeadsProjectInput {
   ready: BeadsIssueInput[];
   inProgress: BeadsIssueInput[];
   recentlyClosed: BeadsIssueInput[];
-  /** Newest-filed work, newest first. Optional under the same rule. */
+  /** Newest-filed work, newest first, each with its filer when known.
+   * Optional under the same rule. */
   recentlyCreated?: BeadsIssueInput[] | null;
   /** Parked work, soonest wake-up first. Optional under the same rule. */
   deferred?: BeadsIssueInput[] | null;

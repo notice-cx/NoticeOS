@@ -268,6 +268,20 @@ test('a create carries the server operation identity as metadata; a caller canno
   assert.throws(() => plan(A, { projectId: 'shared', operation: { kind: 'update', taskId: 'tt-a', title: 'x', operationId } }));
 });
 
+test('a create names its filer and the filer\'s model in the same write', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const metadataOf = operation => JSON.parse(plan(A, request(operation)).argv.find(arg => arg.startsWith('--metadata=')).slice(11));
+  assert.deepEqual(metadataOf({ kind: 'create', title: 'Task', filedBy: 'claude', model: 'Opus 5.5' }),
+    { noticeos_filed_by: 'claude', noticeos_filed_model: 'Opus 5.5' });
+  assert.deepEqual(metadataOf({ kind: 'create', title: 'Task', filedBy: 'claude' }), { noticeos_filed_by: 'claude' });
+  assert.equal(plan(A, request({ kind: 'create', title: 'Task' })).argv.some(arg => arg.startsWith('--metadata=')), false);
+  for (const operation of [
+    { kind: 'create', title: 'Task', filedBy: 'claude', model: 'two\nlines' },
+    { kind: 'create', title: 'Task', filedBy: 'claude', model: ' padded' },
+    { kind: 'create', title: 'Task', filedBy: '' },
+  ]) denied(() => plan(A, request(operation)));
+});
+
 test('a claim keeps its model in the same write; only the server records who closed a task', () => {
   const plan = createHostedTaskPlanner(entries);
   const claim = plan(A, request({ kind: 'update', taskId: 'tt-a', claim: true, model: 'Opus 5.5' }));
@@ -287,7 +301,7 @@ test('a claim keeps its model in the same write; only the server records who clo
     { kind: 'close', taskId: 'tt-a', reason: 'Done', model: '' },
     { kind: 'attribute', taskId: 'tt-a', closedBy: 'claude', closedAt: 'yesterday' },
     { kind: 'attribute', taskId: 'tt-a', closedAt: '2026-10-15T16:00:00Z' },
-    ...['noticeos_closed_by', 'noticeos_closed_model', 'noticeos_closed_at', 'noticeos_claimed_model']
+    ...['noticeos_closed_by', 'noticeos_closed_model', 'noticeos_closed_at', 'noticeos_claimed_model', 'noticeos_filed_by', 'noticeos_filed_model']
       .map(name => ({ kind: 'create', title: 'Task', metadata: { [name]: 'forged' } })),
   ]) denied(() => plan(A, request(operation)));
 });

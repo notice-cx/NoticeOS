@@ -27,7 +27,7 @@ The Wall is drawn from a layout you arrange in the Tower. It has no navigation a
 
 **Work this week.** What is waiting for you, what is in progress, done this week and blocked, then one row per project: what got done extends left, what is still open extends right. It shows counts only, never a task's text.
 
-Three more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site), **Live feed** (what happened since last night, newest on top, from stored events only; a line names its site with the site's favicon; a line for a task an agent claimed or closed shows the agent's logo, its name and its model, and a close shows its commit and links) and **Agents** (each agent and the model it named, ranked by tasks closed in the last 7 days, with how many tasks the agents hold now). Add them at `/wall/edit`.
+Three more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site), **Live feed** (what happened since last night, newest on top, from stored events only; a line names its site with the site's favicon; a line for a task an agent filed, claimed or closed shows the agent's logo, its name and its model, and a close shows its commit and links) and **Agents** (each agent and the model it named, ranked by tasks closed in the last 7 days, with how many tasks the agents hold now). Add them at `/wall/edit`.
 
 ![Rows of the live feed from the synthetic demo: codex and claude claim and close tasks, each line with the agent's logo and a claimed or closed badge, the site's icon and name, the model, and a close's commit and link.](../images/wall-feed.webp)
 

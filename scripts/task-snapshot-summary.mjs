@@ -274,6 +274,14 @@ function beadsModel(row, closed) {
   return (closed ? beadsText(row?.metadata?.[TASK_METADATA.closedModel.name]) : '')
     || beadsText(row?.metadata?.[TASK_METADATA.claimedModel.name]) || null;
 }
+/** Who filed a task and the model it named, as the task tools recorded them;
+ * no keys when they recorded none. `bd`'s own `created_by` is no filer: the
+ * runner's lanes leave their internal actor names there. */
+export function beadsFiler(row) {
+  const by = beadsText(row?.metadata?.[TASK_METADATA.filedBy.name]);
+  const model = beadsText(row?.metadata?.[TASK_METADATA.filedModel.name]);
+  return by === '' ? {} : { filedBy: by, ...(model === '' ? {} : { filedModel: model }) };
+}
 
 /** Each worker and model's closed and held work, and the newest claims and
  * closes. Rows here are the raw reads, which still carry the metadata the
@@ -430,6 +438,10 @@ export function summarizeBeadsProject(project, results) {
 
   const work = (issues) => issues.filter((issue) => issue.issueType !== BEADS_CONTAINER_TYPE);
   const agentWork = beadsWork(parsed.active, parsed.closed);
+  // The raw rows still carry the metadata that names a task's filer.
+  const rawById = new Map([parsed.active, parsed.deferred, parsed.closed]
+    .flatMap((rows) => (Array.isArray(rows) ? rows : []))
+    .map((row) => [beadsText(row?.id), row]));
   const active = work(beadsIssues(parsed.active));
   const ready = work(beadsIssues(parsed.ready));
   const blocked = work(beadsIssues(parsed.blocked));
@@ -564,7 +576,8 @@ export function summarizeBeadsProject(project, results) {
     recentlyCreated: [...new Map([...active, ...deferred, ...closed].map((issue) => [issue.id, issue])).values()]
       .filter((issue) => issue.createdAt !== null && issue.issueType !== 'gate')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, BEADS_CREATED_LIMIT),
+      .slice(0, BEADS_CREATED_LIMIT)
+      .map((issue) => ({ ...issue, ...beadsFiler(rawById.get(issue.id)) })),
     // Soonest wake-up first: a deferral's whole meaning is when it comes back.
     ...(sawDeferred
       ? {

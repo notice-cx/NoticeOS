@@ -352,7 +352,7 @@ export function createHostedTaskOperations(options) {
             // The planner's grammar validates the operation and names its action.
             const action = hostedTaskAction(request.operation);
             const kind = request.operation.kind;
-            if (kind === 'create' && Object.hasOwn(request.operation, 'operationId'))
+            if (kind === 'create' && (Object.hasOwn(request.operation, 'operationId') || Object.hasOwn(request.operation, 'filedBy')))
                 invalid();
             if (idempotencyKey !== undefined) {
                 if (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY.test(idempotencyKey) || !RECEIPTED.includes(kind))
@@ -369,8 +369,12 @@ export function createHostedTaskOperations(options) {
                     await attribute(proof, workspaceId, planned, value, context.principalId);
                     return answer(value);
                 };
+                // A new task's filer is the admitted actor, as a close's closer is.
+                const filed = kind === 'create'
+                    ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation, filedBy: context.principalId }) })
+                    : request;
                 if (idempotencyKey === undefined || !receipts) {
-                    return { status: 'done', value: await effect(request), replayed: false };
+                    return { status: 'done', value: await effect(filed), replayed: false };
                 }
                 const identity = Object.freeze({ principalId: context.principalId,
                     operation: kind, idempotencyKey });
@@ -398,7 +402,7 @@ export function createHostedTaskOperations(options) {
                     receipt = next;
                 }
                 const planned = kind === 'create'
-                    ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...request.operation, operationId: receipt.operationId }) })
+                    ? Object.freeze({ projectId: request.projectId, operation: Object.freeze({ ...filed.operation, operationId: receipt.operationId }) })
                     : request;
                 let value;
                 try {

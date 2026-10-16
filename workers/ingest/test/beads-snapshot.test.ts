@@ -930,6 +930,16 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     expect('workers' in older || 'recentWork' in older).toBe(false);
   });
 
+  it('stores who filed a new task and the model they named, and nothing for a task that names no filer', async () => {
+    const stored = await storedProject({ projects: [project({ recentlyCreated: [
+      issue({ id: 'md-n1', createdAt: '2026-08-01T09:00:00Z', filedBy: 'claude', filedModel: 'Opus 5.5' }),
+      issue({ id: 'md-n2', createdAt: '2026-08-01T08:00:00Z' }),
+    ] })] });
+    const created = stored.recentlyCreated as Record<string, unknown>[];
+    expect(created[0]).toMatchObject({ id: 'md-n1', filedBy: 'claude', filedModel: 'Opus 5.5' });
+    expect('filedBy' in created[1]! || 'filedModel' in created[1]!).toBe(false);
+  });
+
   // All four surfaces the emitter writes: a surface missing from this list
   // 422s every snapshot from a property carrying one of its beads.
   it('stores every surface that can file work, page and alert included', async () => {
@@ -1223,6 +1233,18 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
     const [newest] = await storedRows();
     expect(newest!.captured_at).toBe(SECOND_TICK);
     expect(JSON.parse(newest!.payload).projects[0]).toHaveProperty('ready');
+  });
+
+  // The Wall's feed reads a new task's line from the oldest photograph that held it.
+  it('keeps a new task\'s filer and model, and adds none where the poller sent none', () => {
+    const payload = JSON.stringify({ projects: [project({ recentlyCreated: [
+      issue({ id: 'md-n1', createdAt: '2026-08-01T09:00:00.000Z', filedBy: 'claude', filedModel: 'Opus 5.5' }),
+      issue({ id: 'md-n2', createdAt: '2026-08-01T08:00:00.000Z' }),
+    ] })] });
+    expect(JSON.parse(supersededPayload(payload)).projects[0].recentlyCreated).toEqual([
+      { id: 'md-n1', title: 'Fix the recipe schema', createdAt: '2026-08-01T09:00:00.000Z', filedBy: 'claude', filedModel: 'Opus 5.5' },
+      { id: 'md-n2', title: 'Fix the recipe schema', createdAt: '2026-08-01T08:00:00.000Z' },
+    ]);
   });
 
   it('leaves an unreadable payload exactly as it is', () => {

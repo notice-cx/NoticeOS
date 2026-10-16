@@ -93,24 +93,29 @@ async function health(pg: TestStore, eventId: string, provider: string, capabili
   });
 }
 
+/** A filed task: its id, title and time, and who filed it with which model when the snapshot names them. */
+type Filed = [id: string, title: string, createdAt: string, filedBy?: string, filedModel?: string];
+
 /** A task-hub photograph. */
 async function snapshot(
   store: WorkspaceStore,
   capturedAt: string,
   closed: Record<string, [string, string, string][]>,
-  created: Record<string, [string, string, string][]> = {},
+  created: Record<string, Filed[]> = {},
   work: Record<string, { kind: "claimed" | "closed"; taskId: string; title: string; by: string; model?: string; evidence?: string; at: string }[]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
   // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
-  // lists the feed reads, each item its id, title and time. The newest one
-  // also names who claimed and closed work (`recentWork`).
+  // lists the feed reads, each item its id, title and time, and a new task's
+  // filer and model. The newest one also names who claimed and closed work
+  // (`recentWork`).
   const projects = [...new Set([...Object.keys(closed), ...Object.keys(created), ...Object.keys(work)])].map((a) => ({
     asset: a, ok: true,
     counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: closed[a]?.length ?? 0 },
     recentlyClosed: (closed[a] ?? []).map(([id, title, closedAt]) => ({ id, title, closedAt })),
     ...(created[a]
-      ? { recentlyCreated: created[a].map(([id, title, createdAt]) => ({ id, title, createdAt })) }
+      ? { recentlyCreated: created[a].map(([id, title, createdAt, filedBy, filedModel]) => ({ id, title, createdAt,
+          ...(filedBy ? { filedBy } : {}), ...(filedModel ? { filedModel } : {}) })) }
       : {}),
     ...(work[a] ? { recentWork: work[a] } : {}),
   }));
@@ -413,6 +418,24 @@ needsPostgres("buildWallFeed", () => {
     await snapshot(pg.call, at("19:28"), {}, { "unknown.example.com": [["un-1", "Stray task", at("19:27")]] });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ kind: "task-filed", asset: null, site: null, text: "Stray task" });
+  });
+
+  it("names who filed a task and its model, and leaves a filing that names nobody as a plain New task", async () => {
+    await snapshot(pg.call, at("19:28"), {}, {
+      "medley.example.com": [
+        ["mn-8", "Listings show opening hours", at("19:27"), "claude", "Opus 5.5"],
+        ["mn-9", "Listings show delivery prices", at("19:26"), "Mara"],
+        ["mn-7", "Catalog import skips closed stores", at("19:11")],
+      ],
+    });
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    const filed = items.filter((item) => item.kind === "task-filed");
+    expect(filed.map((item) => [item.id, item.label, item.who, item.model, item.text])).toEqual([
+      ["task-filed:mn-8", "New task", "claude", "Opus 5.5", "Listings show opening hours"],
+      ["task-filed:mn-9", "New task", "Mara", null, "Listings show delivery prices"],
+      ["task-filed:mn-7", "New task", undefined, undefined, "Catalog import skips closed stores"],
+    ]);
+    expect("who" in filed[2]!).toBe(false);
   });
 
   it("names who claimed and closed a task, with the model and the close's evidence", async () => {
