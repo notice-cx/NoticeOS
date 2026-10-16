@@ -479,10 +479,12 @@ export function assumedTimeZoneEvent(
  * one door the two Google lanes share. The credential blob's entries are parsed
  * first (with the register overriding each ref it holds), then the register's
  * own mapped assets are added for anything the blob did not cover, so nothing
- * collects twice. Google not connected at all is no work. No blob and no
- * sign-in is still `config_missing` with its old sentence: an install on
- * service accounts must not start reading "sign in" at it. A sign-in with no
- * blob returns whatever the register maps.
+ * collects twice. Those are authenticated by the sign-in, or with no sign-in by
+ * one of the blob's service accounts (`serviceAccountRegisterTargets`). Google
+ * not connected at all is no work. No blob and no sign-in is still
+ * `config_missing` with its old sentence: an install on service accounts must
+ * not start reading "sign in" at it. A sign-in with no blob returns whatever
+ * the register maps.
  */
 export function googleTargets(
   credential: { accounts: string | undefined; oauth: GoogleOAuthGrant | null; connected?: boolean },
@@ -493,10 +495,10 @@ export function googleTargets(
   assumedTimeZone: string = DEFAULT_GA4_TIME_ZONE,
 ): GooglePropertyTarget[] {
   if (credential.connected === false && credential.accounts === undefined && credential.oauth === null) return [];
-  const fromCredential =
+  const fromCredential: GoogleAccountMap =
     credential.accounts === undefined && credential.oauth !== null
-      ? []
-      : parseGoogleTargets(
+      ? { accounts: [], targets: [] }
+      : parseGoogleAccountMap(
           credential.accounts,
           resolveCredential,
           source,
@@ -504,16 +506,39 @@ export function googleTargets(
           register,
           assumedTimeZone,
         );
-  if (credential.oauth === null) return fromCredential;
   const covered = new Set(
-    fromCredential.map((target) => `${target.asset}\0${target.integration}`),
+    fromCredential.targets.map((target) => `${target.asset}\0${target.integration}`),
   );
+  const uncovered = (target: { asset: string; integration: GoogleIntegrationId }) =>
+    !covered.has(`${target.asset}\0${target.integration}`);
+  if (credential.oauth === null) {
+    return [
+      ...fromCredential.targets,
+      ...serviceAccountRegisterTargets(
+        fromCredential,
+        registerMappings(register).filter(uncovered),
+        source,
+        assumedTimeZone,
+      ),
+    ];
+  }
   return [
-    ...fromCredential,
-    ...registerGoogleTargets(credential.oauth, source, register, assumedTimeZone).filter(
-      (target) => !covered.has(`${target.asset}\0${target.integration}`),
-    ),
+    ...fromCredential.targets,
+    ...registerGoogleTargets(credential.oauth, source, register, assumedTimeZone).filter(uncovered),
   ];
+}
+
+/** One account entry of the blob and the auth it resolved to. */
+interface GoogleMapAccount {
+  account: string;
+  auth: GoogleAuth;
+}
+
+/** The blob parsed: every account entry in file order, and the targets its
+ * `properties` route. An entry with no properties still names an account. */
+interface GoogleAccountMap {
+  accounts: GoogleMapAccount[];
+  targets: GooglePropertyTarget[];
 }
 
 /**
@@ -528,6 +553,18 @@ export function parseGoogleTargets(
   register?: LaneRegister,
   assumedTimeZone: string = DEFAULT_GA4_TIME_ZONE,
 ): GooglePropertyTarget[] {
+  return parseGoogleAccountMap(raw, resolveCredential, source, oauth, register, assumedTimeZone)
+    .targets;
+}
+
+function parseGoogleAccountMap(
+  raw: string | undefined,
+  resolveCredential: GoogleCredentialResolver | undefined,
+  source: CredentialSource,
+  oauth: GoogleOAuthGrant | null,
+  register: LaneRegister | undefined,
+  assumedTimeZone: string,
+): GoogleAccountMap {
   if (!raw) throw new SignalError('config_missing', 'GOOGLE_SIGNAL_ACCOUNTS is not configured.');
   let parsed: unknown;
   try {
@@ -553,6 +590,7 @@ export function parseGoogleTargets(
     gsc: credentialPropertyMapNeeded(named, 'gsc', register),
   };
 
+  const accounts: GoogleMapAccount[] = [];
   const targets: GooglePropertyTarget[] = [];
   const seen = new Set<string>();
   for (const [account, value] of Object.entries(root)) {
@@ -585,6 +623,7 @@ export function parseGoogleTargets(
           : `Google account "${account}" needs service_account_b64 and a properties object.`,
       );
     }
+    accounts.push({ account, auth });
     for (const [asset, propertyValue] of Object.entries(properties)) {
       const property = asRecord(propertyValue);
       if (!property) {
@@ -645,7 +684,7 @@ export function parseGoogleTargets(
       }
     }
   }
-  return targets;
+  return { accounts, targets };
 }
 
 /**
@@ -724,22 +763,98 @@ export function registerGoogleTargets(
   register?: LaneRegister,
   assumedTimeZone: string = DEFAULT_GA4_TIME_ZONE,
 ): GooglePropertyTarget[] {
-  const auth: GoogleAuth = { kind: 'oauth', grant: oauth };
-  const targets: GooglePropertyTarget[] = [];
-  for (const integration of ['ga4', 'gsc'] as const) {
-    for (const { asset, ref } of registerMappedAssets(integration, register)) {
-      targets.push({
-        account: GOOGLE_OAUTH_ACCOUNT,
-        asset,
-        integration,
-        credentialRef: sourcedCredentialRef(GOOGLE_OAUTH_ACCOUNT, source),
-        propertyRef: ref,
-        timeZone: assumedTimeZone,
-        timeZoneAssumed: true,
-        auth,
-        mappingSource: 'register',
-      });
-    }
+  const signIn: GoogleMapAccount = {
+    account: GOOGLE_OAUTH_ACCOUNT,
+    auth: { kind: 'oauth', grant: oauth },
+  };
+  return registerMappings(register).map((mapping) =>
+    registerTarget(mapping, signIn, source, assumedTimeZone),
+  );
+}
+
+/** One (asset, data source) the register maps, and the property it names. */
+interface RegisterMapping {
+  asset: string;
+  integration: GoogleIntegrationId;
+  ref: string;
+}
+
+/** Every mapping the register holds on the two Google lanes, GA4 first, each
+ * lane in file order. */
+function registerMappings(register?: LaneRegister): RegisterMapping[] {
+  return (['ga4', 'gsc'] as const).flatMap((integration) =>
+    registerMappedAssets(integration, register).map(({ asset, ref }) => ({
+      asset,
+      integration,
+      ref,
+    })),
+  );
+}
+
+/** A register mapping as a target: no entry of its own names a zone, so the
+ * day boundary is the OS clock, announced as an assumption. */
+function registerTarget(
+  mapping: RegisterMapping,
+  { account, auth }: GoogleMapAccount,
+  source: CredentialSource,
+  assumedTimeZone: string,
+): GooglePropertyTarget {
+  return {
+    account,
+    asset: mapping.asset,
+    integration: mapping.integration,
+    credentialRef: sourcedCredentialRef(account, source),
+    propertyRef: mapping.ref,
+    timeZone: assumedTimeZone,
+    timeZoneAssumed: true,
+    auth,
+    mappingSource: 'register',
+  };
+}
+
+interface RegisterAccountChoiceEvent {
+  event: 'google_register_account_chosen';
+  /** Each register mapping the blob does not name, and the account entry that
+   * authenticates it. */
+  choices: { asset: string; integration: GoogleIntegrationId; account: string }[];
+}
+
+/**
+ * With no sign-in, a register mapping the blob does not name is authenticated
+ * by one of the blob's service accounts, and `credentialRef` names that
+ * account's key. One account is the answer. With several, the first account
+ * that already reads that data source is chosen (it is the one most likely to
+ * hold the grant), else the first account, and the choices are printed as one
+ * `google_register_account_chosen` warning. A blob with no account has no key
+ * to offer, so the register adds nothing.
+ */
+function serviceAccountRegisterTargets(
+  map: GoogleAccountMap,
+  mappings: RegisterMapping[],
+  source: CredentialSource,
+  assumedTimeZone: string,
+): GooglePropertyTarget[] {
+  const serviceAccounts = map.accounts.filter((entry) => entry.auth.kind === 'service-account');
+  const first = serviceAccounts[0];
+  if (first === undefined || mappings.length === 0) return [];
+  const targets = mappings.map((mapping) =>
+    registerTarget(
+      mapping,
+      serviceAccounts.find((entry) =>
+        map.targets.some(
+          (target) => target.account === entry.account && target.integration === mapping.integration,
+        ),
+      ) ?? first,
+      source,
+      assumedTimeZone,
+    ),
+  );
+  if (serviceAccounts.length > 1) {
+    const event: RegisterAccountChoiceEvent = {
+      event: 'google_register_account_chosen',
+      choices: targets.map(({ asset, integration, account }) => ({ asset, integration, account })),
+    };
+    console.warn(JSON.stringify(event));
   }
   return targets;
 }
