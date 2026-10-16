@@ -481,6 +481,32 @@ export function guardedWrite(operation, row, actor) {
     const kept = row.pinned === true || status === 'pinned' || row.is_template === true;
     return blockers.length && !kept ? Object.freeze({ ...operation, force: true }) : operation;
 }
+/** What the task's state, read again after the store refused a write, says
+ * refused it, or null when it explains nothing: the rules guardedWrite checks
+ * before a write (another caller can win a claim between that read and the
+ * write), and an edge the write would retype, which the task client never does. */
+export function refusalFromState(operation, row, actor) {
+    if (operation.kind === 'depend') {
+        const edge = rowsOf(row.dependencies).find(entry => entry.id === operation.dependsOn);
+        const type = stringOf(edge?.dependency_type);
+        return edge && type !== operation.type
+            ? new TaskStateRefused(operation.taskId, 'other', { kind: 'linked', dependsOn: operation.dependsOn, type, wanted: operation.type }) : null;
+    }
+    if (!stateGuarded(operation))
+        return null;
+    // Closed with this very reason: the refused close may itself have landed, which a retry with its key confirms.
+    if (operation.kind === 'close' && row.status === 'closed' && row.close_reason === operation.reason)
+        return null;
+    try {
+        guardedWrite(operation, row, actor);
+        return null;
+    }
+    catch (error) {
+        if (error instanceof TaskStateRefused)
+            return error;
+        throw error;
+    }
+}
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export function hostedTaskAction(operation) {

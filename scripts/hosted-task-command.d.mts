@@ -207,6 +207,13 @@ export type TaskStateReason = {
     readonly kind: 'not-open';
     readonly status: string;
     readonly blockers: readonly string[];
+}
+/** A dependency asked for with one type where an edge of another already stands. */
+ | {
+    readonly kind: 'linked';
+    readonly dependsOn: string;
+    readonly type: string;
+    readonly wanted: string;
 } | {
     readonly kind: 'missing';
     readonly project: TaskProjectName;
@@ -241,6 +248,11 @@ export declare function guardReadArgs(operation: HostedTaskOperation, taskId: st
  * the causes the task client would refuse it for, so the refusal can name
  * them. */
 export declare function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation;
+/** What the task's state, read again after the store refused a write, says
+ * refused it, or null when it explains nothing: the rules guardedWrite checks
+ * before a write (another caller can win a claim between that read and the
+ * write), and an edge the write would retype, which the task client never does. */
+export declare function refusalFromState(operation: HostedTaskOperation, row: Record<string, unknown>, actor: string): TaskStateRefused | null;
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export declare function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide';

@@ -109,6 +109,8 @@ function stateRefusal({ taskId: id, attempted, reason }: TaskStateRefused): stri
       ? `refused: ${id} waits on approval ${listed(reason.gates)}, which is still open. Close ${id} after a person approves it on Tasks in the Tower.`
       : `refused: ${id} waits on gate ${listed(reason.gates)}, which is still open. Close ${id} after it resolves.`;
     case 'children': return `refused: ${id} has open children: ${listed(reason.children)}. Close them first, or give them another parent with update_task.`;
+    case 'linked': return `refused: ${id} already depends on ${reason.dependsOn} as ${reason.type}, and a dependency keeps the type it was `
+      + `added with. To record it as ${reason.wanted}, remove_dependency first, then add it again.`;
   }
 }
 /** A call naming a project the catalog does not hold, or another project's

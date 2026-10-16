@@ -395,6 +395,8 @@ export type TaskStateReason =
   | { readonly kind: 'children'; readonly children: readonly string[] }
   /** A claim of a task whose status is not open, with the open tasks it depends on. */
   | { readonly kind: 'not-open'; readonly status: string; readonly blockers: readonly string[] }
+  /** A dependency asked for with one type where an edge of another already stands. */
+  | { readonly kind: 'linked'; readonly dependsOn: string; readonly type: string; readonly wanted: string }
   | { readonly kind: 'missing'; readonly project: TaskProjectName };
 /** What the refused call tried, so its refusal can say what to do instead. */
 export type TaskAttempt = 'close' | 'claim' | 'reassign' | 'other';
@@ -482,6 +484,25 @@ export function guardedWrite(operation: HostedTaskOperation, row: Record<string,
   // A pinned or template task keeps the task client's own refusal, which force would skip.
   const kept = row.pinned === true || status === 'pinned' || row.is_template === true;
   return blockers.length && !kept ? Object.freeze({ ...operation, force: true as const }) : operation;
+}
+/** What the task's state, read again after the store refused a write, says
+ * refused it, or null when it explains nothing: the rules guardedWrite checks
+ * before a write (another caller can win a claim between that read and the
+ * write), and an edge the write would retype, which the task client never does. */
+export function refusalFromState(operation: HostedTaskOperation, row: Record<string, unknown>, actor: string): TaskStateRefused | null {
+  if (operation.kind === 'depend') {
+    const edge = rowsOf(row.dependencies).find(entry => entry.id === operation.dependsOn);
+    const type = stringOf(edge?.dependency_type);
+    return edge && type !== operation.type
+      ? new TaskStateRefused(operation.taskId, 'other', { kind: 'linked', dependsOn: operation.dependsOn, type, wanted: operation.type }) : null;
+  }
+  if (!stateGuarded(operation)) return null;
+  // Closed with this very reason: the refused close may itself have landed, which a retry with its key confirms.
+  if (operation.kind === 'close' && row.status === 'closed' && row.close_reason === operation.reason) return null;
+  try { guardedWrite(operation, row, actor); return null; } catch (error) {
+    if (error instanceof TaskStateRefused) return error;
+    throw error;
+  }
 }
 
 /** Semantic action classification after the same strict command validation.

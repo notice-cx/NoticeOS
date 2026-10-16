@@ -25,7 +25,7 @@ const origin = 'http://localhost';
  * killed after its commit would. */
 function store() {
   const tasks = new Map(), edges = [], commands = [];
-  let failOnce = null, slow = null;
+  let failOnce = null, slow = null, rival = null;
   const put = (id, fields = {}) => tasks.set(id, { id, title: id, status: 'open', priority: 2, issue_type: 'task', labels: [], assignee: '', ...fields });
   const link = (from, to, type = 'blocks') => edges.push({ from, to, type });
   const embed = (id, type) => ({ ...tasks.get(id), dependency_type: type });
@@ -42,6 +42,8 @@ function store() {
     const id = argv.at(-1), flag = name => words.find(word => word.startsWith(`--${name}=`))?.slice(name.length + 3);
     const verb = words[0];
     if (slow === verb) { slow = null; return { code: 1, stdout: '', timedOut: true }; }
+    // Another caller's write lands between this caller's read and its own write.
+    if (rival?.verb === verb && !words.includes('show')) { const land = rival.land; rival = null; land(); }
     if (verb === 'show') return tasks.has(id) ? ok([detail(id, words.includes('--include-dependents'))]) : no;
     if (verb === 'ready') return ok([...tasks.values()].filter(task => task.status === 'open' && !live(task.id).length).map(task => ({ id: task.id })));
     if (verb === 'comments' && words[1] !== 'add' || verb === 'epic') return ok([]);
@@ -55,7 +57,10 @@ function store() {
       const named = argv.slice(argv.indexOf('--') + 1);
       if (verb === 'comments') return tasks.has(named[0]) ? ok({ id: 'c-1', issue_id: named[0], author: actor, text: named[1] }) : no;
       if (!tasks.has(named[0]) || !tasks.has(named[1])) return no;
-      if (words[1] === 'add') link(named[0], named[1], flag('type'));
+      // One edge per pair, never retyped: adding it again with its own type changes nothing.
+      const standing = edges.find(edge => edge.from === named[0] && edge.to === named[1]);
+      if (words[1] === 'add' && standing && standing.type !== flag('type')) return no;
+      if (words[1] === 'add' && !standing) link(named[0], named[1], flag('type'));
       return ok({ issue_id: named[0], depends_on_id: named[1], status: words[1] === 'add' ? 'added' : 'removed' });
     }
     if (!tasks.has(id)) return no;
@@ -88,7 +93,8 @@ function store() {
     if (failOnce === verb) { failOnce = null; return no; }
     return ok(result);
   };
-  return { tasks, edges, commands, put, link, run, failNext: verb => { failOnce = verb; }, slowNext: verb => { slow = verb; } };
+  return { tasks, edges, commands, put, link, run, failNext: verb => { failOnce = verb; }, slowNext: verb => { slow = verb; },
+    rivalFirst: (verb, land) => { rival = { verb, land }; } };
 }
 
 function fixture({ admit = () => true } = {}) {
@@ -258,4 +264,24 @@ test('an argument past its limit names the limit, and a reused key says how to r
   assert.equal(await f.refusal('update_task', inProject({ task: 'ex-mine', title: 'Second', idempotency_key: 'title-mine-0001' })),
     'conflict: this idempotency_key was first used for a different change. Resend that call unchanged to read its result, '
     + 'or choose a new key for this one.');
+});
+
+test('a write the task store refuses is named from the task as it stands after: a lost race or an edge of another type', async () => {
+  const f = fixture();
+  f.put('ex-race'); f.put('ex-held', { status: 'in_progress', assignee: AGENT }); f.put('ex-lead'); f.put('ex-follow');
+  // Another caller's claim lands after this caller's read and before its own claim.
+  f.rivalFirst('update', () => Object.assign(f.tasks.get('ex-race'), { status: 'in_progress', assignee: 'rival' }));
+  assert.equal(await f.refusal('claim_task', inProject({ task: 'ex-race', idempotency_key: 'claim-race-0001' })),
+    'refused: ex-race is held by rival. Choose another task, or reach rival with comment_on_task.');
+  f.rivalFirst('close', () => { f.tasks.get('ex-held').assignee = 'rival'; });
+  assert.equal(await f.refusal('close_task', inProject({ task: 'ex-held', reason: 'Done in abc123', idempotency_key: 'close-race-0001' })),
+    'refused: ex-held is held by rival, and only its holder closes it. Reach rival with comment_on_task, or ask a person to close it on Tasks in the Tower.');
+  // The task client keeps one edge per pair and never retypes it.
+  const link = { task: 'ex-follow', depends_on: 'ex-lead' };
+  assert.deepEqual((await f.call('add_dependency', inProject(link))).structuredContent, { task: 'ex-follow', dependsOn: 'ex-lead', type: 'blocks' });
+  assert.equal((await f.call('add_dependency', inProject(link))).isError, undefined, 'the same edge again changes nothing');
+  assert.equal(await f.refusal('add_dependency', inProject({ ...link, type: 'related' })),
+    'refused: ex-follow already depends on ex-lead as blocks, and a dependency keeps the type it was added with. '
+    + 'To record it as related, remove_dependency first, then add it again.');
+  assert.deepEqual(f.edges.filter(edge => edge.from === 'ex-follow').map(edge => edge.type), ['blocks']);
 });

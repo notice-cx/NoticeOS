@@ -267,7 +267,9 @@ test('dependencies and human approval decide what is ready; lint advises on ever
   const error = async (name, args, options) => (await call(f, name, args, options)).content[0].text;
   assert.match(await error('add_dependency', { ...link, depends_on: 'tt-1' }), /cannot depend on itself/u);
   assert.match(await error('add_dependency', { ...link, type: 'parent-child' }), /^invalid arguments: type/u);
-  assert.match(await error('add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'related' }), /^refused:/u, 'an edge is never retyped');
+  assert.equal(await error('add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'related' }),
+    'refused: tt-2 already depends on tt-1 as discovered-from, and a dependency keeps the type it was added with. '
+    + 'To record it as related, remove_dependency first, then add it again.', 'an edge is never retyped, and the refusal names the one that stands');
   assert.match(await error('request_human_approval', { ...ask, reason: 'x'.repeat(401) }), /^invalid arguments: reason/u);
   assert.match(await error('add_dependency', { ...link, workspace: B }), /^refused:/u);
   assert.equal((await call(f, 'request_human_approval', ask, { bearer: READER, status: 403 })).headers.get('www-authenticate').includes('scope="tasks:write"'), true);

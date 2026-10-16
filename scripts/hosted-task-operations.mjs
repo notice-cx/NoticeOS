@@ -10,7 +10,7 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES } from '../packages/postgres
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, TaskStateRefused } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, refusalFromState, TaskStateRefused } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export class HostedTaskReceiptsUnavailable extends Error {
@@ -137,8 +137,9 @@ export function createHostedTaskOperations(options) {
         return project;
     }
     /** Names a refused call's cause when the store shows one: a task it names
-     * is not in the project. Any other failure stands as it was. */
-    async function explained(proof, workspaceId, projectId, taskIds, work) {
+     * is not in the project, or, for a write, its task as it stands now breaks
+     * a rule the write is held to. Any other failure stands as it was. */
+    async function explained(proof, workspaceId, projectId, taskIds, work, operation) {
         try {
             return await work();
         }
@@ -146,18 +147,24 @@ export function createHostedTaskOperations(options) {
             if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskStateRefused, TaskProjectRefused,
                 HostedTaskReceiptsUnavailable].some(kind => error instanceof kind))
                 throw error;
-            let missing = null;
+            let cause = null;
             try {
-                missing = await admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => {
+                cause = await admitted(proof, workspaceId, 'tasks.read', async (context, catalog) => {
                     const project = await selected(workspaceId, catalog, projectId);
-                    const found = new Set(rows(await executor.execute(proof, workspaceId, { projectId, operation: { kind: 'find', taskIds } }))
-                        .map(row => record(row).id));
+                    const read = (step) => executor.execute(proof, workspaceId, { projectId, operation: step });
+                    const found = new Set(rows(await read({ kind: 'find', taskIds })).map(row => record(row).id));
                     const absent = taskIds.find(id => !found.has(id));
-                    return absent === undefined ? null : new TaskStateRefused(absent, 'other', { kind: 'missing', project: named(project) });
+                    if (absent !== undefined)
+                        return new TaskStateRefused(absent, 'other', { kind: 'missing', project: named(project) });
+                    if (operation === undefined || !('taskId' in operation))
+                        return null;
+                    // Read after the refusal, so it sees whatever another caller wrote first.
+                    const shown = await read({ kind: 'show', taskId: operation.taskId });
+                    return refusalFromState(operation, record(Array.isArray(shown) ? shown[0] : shown), context.principalId);
                 });
             }
             catch { /* The diagnosis is advice; the call's own failure stands. */ }
-            throw missing ?? error;
+            throw cause ?? error;
         }
     }
     /** One project's reads under one aggregate deadline, as the Tower draws them. */
@@ -412,7 +419,7 @@ export function createHostedTaskOperations(options) {
                 }
                 catch { /* See above. */ }
                 return { status: 'done', value, replayed: false };
-            }));
+            }), request.operation);
         },
     });
 }

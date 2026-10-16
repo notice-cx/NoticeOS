@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision,
-  TaskStateRefused, writeGuardReads } from './hosted-task-command.mjs';
+  refusalFromState, TaskStateRefused, writeGuardReads } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -373,4 +373,20 @@ test('a claim or a change of assignee is refused for the causes the task client 
   for (const row of [shown({ assignee: 'agent-1' }), shown({ status: 'open', assignee: 'alice' }), shown({ assignee: 'bob' })]) {
     assert.equal(guardedWrite(giving, row, 'agent-1'), giving, 'its holder, an unstarted task, or the same assignee again');
   }
+});
+
+test('after the store refuses a write, the task as it stands names the cause, or nothing when it explains nothing', () => {
+  const depend = type => ({ kind: 'depend', taskId: 'tt-a', dependsOn: 'tt-b', type });
+  const linked = shown({ dependencies: [edge('tt-b')] });
+  assert.deepEqual(refusalFromState(depend('related'), linked, 'agent-1')?.reason,
+    { kind: 'linked', dependsOn: 'tt-b', type: 'blocks', wanted: 'related' }, 'an edge the write would retype');
+  assert.equal(refusalFromState(depend('blocks'), linked, 'agent-1'), null, 'the same edge again explains nothing');
+  assert.equal(refusalFromState(depend('blocks'), shown(), 'agent-1'), null);
+  const claim = { kind: 'update', taskId: 'tt-a', claim: true };
+  assert.deepEqual(refusalFromState(claim, shown({ assignee: 'rival' }), 'agent-1')?.reason, { kind: 'held', holder: 'rival' }, 'a claim lost to another caller');
+  assert.equal(refusalFromState(claim, shown(), 'agent-1'), null, 'its own claim landed: nothing to name');
+  assert.equal(refusalFromState(closing, shown({ status: 'closed', close_reason: closing.reason }), 'agent-1'), null,
+    'closed with this reason: the refused close may itself have landed');
+  assert.deepEqual(refusalFromState(closing, shown({ status: 'closed', close_reason: 'Earlier' }), 'agent-1')?.reason, { kind: 'closed' });
+  assert.equal(refusalFromState({ kind: 'comment', taskId: 'tt-a', text: 'Note' }, shown(), 'agent-1'), null);
 });
