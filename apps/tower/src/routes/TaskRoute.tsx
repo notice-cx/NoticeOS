@@ -1,6 +1,6 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
-import { type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   ArrowLeft,
   CircleHelp,
@@ -45,7 +45,7 @@ import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { STATE_TONE } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
 import { refusalMessage } from "@/hooks/useConfigSave";
 import { useNow } from "@/hooks/useNow";
@@ -221,7 +221,9 @@ export function TaskRoute() {
   return (
     <TaskWritePermission.Provider value={writable}>
     <TaskActors.Provider value={actors}>
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+    {/* Every button on the page gives under a press, as the board's rows and
+        the fact chips do; under reduced motion it holds still. */}
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6 motion-safe:[&_button:not(:disabled):active]:translate-y-px" data-task-page="">
       {/* The breadcrumb leads back to the board; a page opened from Home or a
           site keeps one link back to where it was opened. */}
       {returnTo.startsWith("/tasks") ? null : (
@@ -258,7 +260,7 @@ export function TaskRoute() {
       ) : (
         // A laptop reads the work on the left and its facts on the right; a
         // phone reads the facts first, in the same order the keyboard visits.
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start lg:gap-6">
           <Facts
             className="lg:col-start-2 lg:row-start-1"
             task={task}
@@ -274,14 +276,16 @@ export function TaskRoute() {
             nowMs={now}
           />
           <TaskTextRefsProvider value={textRefs}>
-            <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
+            {/* The page's one content card, its sections divided inside it;
+                the facts beside it are a rail, not a second box. */}
+            <Card className="viz-arrive min-w-0 divide-y divide-border/70 shadow-raised lg:col-start-1 lg:row-start-1" style={{ "--viz-i": 1 } as CSSProperties} data-task-content="">
               <Body task={task} />
               {blockers.length > 0 || blocked.length > 0 ? (
                 <Dependencies task={task} blockers={blockers} blocked={blocked} />
               ) : null}
-              {epicView ? <EpicTasks view={epicView} /> : null}
+              {epicView ? <EpicTasks view={epicView} className={CONTENT_SECTION} /> : null}
               <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
-            </div>
+            </Card>
           </TaskTextRefsProvider>
         </div>
       )}
@@ -455,7 +459,7 @@ function CloseForm({
   const ready = reason.trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+    <div className="flex flex-col gap-2" data-task-form="close">
       <label htmlFor={`close-${id}`} className="text-sm font-medium">
         What shipped, and the commit
       </label>
@@ -504,29 +508,30 @@ function CloseForm({
 function Body({ task }: { task: LiveTask }) {
   const save = useFieldSave(task.id);
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-5 pt-4">
-        <LongTextField
-          label="Description"
-          addLabel="Add a description"
-          value={task.description}
-          onCommit={(next) =>
-            save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
-          }
-        />
-        <LongTextField
-          // The board's word for the same field (TasksBoard's "Done when").
-          label="Done when"
-          addLabel="Add when it is done"
-          value={task.acceptance}
-          onCommit={(next) =>
-            save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
-          }
-        />
-      </CardContent>
-    </Card>
+    <div className={cn(CONTENT_SECTION, "gap-6")}>
+      <LongTextField
+        label="Description"
+        addLabel="Add a description"
+        value={task.description}
+        onCommit={(next) =>
+          save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
+        }
+      />
+      <LongTextField
+        // The board's word for the same field (TasksBoard's "Done when").
+        label="Done when"
+        addLabel="Add when it is done"
+        value={task.acceptance}
+        onCommit={(next) =>
+          save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
+        }
+      />
+    </div>
   );
 }
+
+/** One section of the page's one content card; the card draws the dividers. */
+const CONTENT_SECTION = "flex min-w-0 flex-col gap-3 p-4 md:p-5";
 
 /** One Markdown field, read in place and edited in place: the rendered text
  * with a quiet Edit beside its eyebrow, or — when there is none — one Add
@@ -686,20 +691,16 @@ function Activity({
   }, [task, comments, actors]);
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        <SectionLabelRow title="Activity" caption={comments.length > 0 ? `${formatInt(comments.length)} ${comments.length === 1 ? "comment" : "comments"}` : undefined} />
-      </CardHeader>
-      <CardContent>
-        <TaskTimeline
-          entries={entries}
-          nowMs={nowMs}
-          age={(at) => <Age iso={at} nowMs={nowMs} />}
-          composer={<CommentBox id={task.id} />}
-          ariaLabel="What happened to this task"
-        />
-      </CardContent>
-    </Card>
+    <section className={CONTENT_SECTION} data-task-activity-section="">
+      <SectionLabelRow title="Activity" caption={comments.length > 0 ? `${formatInt(comments.length)} ${comments.length === 1 ? "comment" : "comments"}` : undefined} />
+      <TaskTimeline
+        entries={entries}
+        nowMs={nowMs}
+        age={(at) => <Age iso={at} nowMs={nowMs} />}
+        composer={<CommentBox id={task.id} />}
+        ariaLabel="What happened to this task"
+      />
+    </section>
   );
 }
 
@@ -816,10 +817,13 @@ function Facts({
   const parentName = epic?.title ?? parentTitle ?? task.parent;
 
   return (
-    <Card className={className}>
-      <CardContent className="pt-4">
+    <aside
+      aria-label="Facts"
+      className={cn("viz-arrive min-w-0 px-1 max-lg:border-b max-lg:border-border/70 max-lg:pb-4 lg:border-s lg:border-border/70 lg:ps-5", className)}
+      style={{ "--viz-i": 2 } as CSSProperties}
+    >
         {/* A phone reads the facts as one wrapped row under the header; a
-            laptop as a column beside the work. */}
+            laptop as a rail beside the work. */}
         <dl className="m-0 flex flex-wrap gap-x-5 gap-y-3 lg:flex-col lg:flex-nowrap lg:gap-0" data-task-facts>
           {project ? (
             <Fact label="Project">
@@ -959,8 +963,7 @@ function Facts({
             </span>
           </Fact>
         </dl>
-      </CardContent>
-    </Card>
+    </aside>
   );
 }
 
@@ -1078,18 +1081,16 @@ function Dependencies({ task, blockers, blocked }: { task: LiveTask; blockers: T
     edge,
   });
   return (
-    <Card data-task-dependencies="">
-      <CardContent className="pt-4">
-        <DependencyGraph
-          subject={{ id: task.id, caption: "This task", mark: <TaskStatusGlyph status={task.status} /> }}
-          before={blockers.map((row) => node(row, blockerEdgeState(row.status)))}
-          after={blocked.map((row) => node(row, blockerEdgeState(task.status)))}
-          beforeLabel="Blocked by"
-          afterLabel="Blocks"
-          ariaLabel={`What ${task.id} waits on and what waits on it`}
-        />
-      </CardContent>
-    </Card>
+    <section className={CONTENT_SECTION} data-task-dependencies="">
+      <DependencyGraph
+        subject={{ id: task.id, caption: "This task", mark: <TaskStatusGlyph status={task.status} /> }}
+        before={blockers.map((row) => node(row, blockerEdgeState(row.status)))}
+        after={blocked.map((row) => node(row, blockerEdgeState(task.status)))}
+        beforeLabel="Blocked by"
+        afterLabel="Blocks"
+        ariaLabel={`What ${task.id} waits on and what waits on it`}
+      />
+    </section>
   );
 }
 
@@ -1271,9 +1272,19 @@ function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; proje
 
 /** The epic's task list, opening each task the way every link on this page
  * does. */
-function EpicTasks({ view }: { view: EpicView }) {
+function EpicTasks({ view, className }: { view: EpicView; className?: string }) {
   const taskHref = useTaskHref();
-  return <EpicTaskList groups={view.groups} missing={view.missing} graphHref={view.graphHref} taskHref={taskHref} />;
+  return (
+    <EpicTaskList
+      groups={view.groups}
+      missing={view.missing}
+      graphHref={view.graphHref}
+      taskHref={taskHref}
+      // Inside the content card a section; on its own (a deployed build) a card.
+      frame={className ? "none" : "card"}
+      className={className}
+    />
+  );
 }
 
 /** A dead end's one way out, as a link rather than a sentence about it. */

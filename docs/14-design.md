@@ -403,6 +403,17 @@ week as the Wall's `WorkFlow` chart, and the most stuck epic as a `FlowGraph`
 whose blocked edges are drawn as broken lines. The full task table follows, with each task's
 assignee on its row.
 
+**A task's page shows one task whole**: a header band in its type's surface
+(the alert tint for an open bug, the neutral one for every other type) with
+the type's mark beside the title, the state, priority and holder chips, an
+epic's tasks as one segment each, and the actions; under it one raised card
+whose sections are divided inside it (the description in the task guide's
+labelled sections, **Done when** as a checklist, a `DependencyGraph` when the
+task waits on others or others wait on it, an epic's tasks, and a
+`TaskTimeline` ending in the comment box); and beside the card a rail of
+facts, each a `FactChip` that edits in place with an Undo. On a phone the
+facts wrap as one row of chips under the header.
+
 **Agents shows who did the work**: the tasks closed in the last seven days
 against the seven days before, eight weeks of closed tasks as `StackedWeeks`
 split by who closed them, one row per worker (the task it holds, its last
@@ -659,7 +670,9 @@ event marks and keyboard inspection; `Sparkline` and `MinutePulse` for the
 compact shapes. `ListPanel` / `ListRow` for three rows that expand in place or
 link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
-`PriorityBar` for a state or a quantity with its icon. `EmptyState`,
+`PriorityBar` for a state or a quantity with its icon. `FactChip` for a
+record's fact that edits where it is read; `DependencyGraph` and
+`TaskTimeline` for one task's neighbours and its history. `EmptyState`,
 `ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
 designed empty, failed and loading state, `Skeleton` for one block of a
 loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the

@@ -1,4 +1,21 @@
-import { Ban, Check, Circle, CircleDot, CircleHelp, Snowflake, type LucideIcon } from "lucide-react";
+import {
+  Ban,
+  Bug,
+  Check,
+  Circle,
+  CircleDot,
+  CircleHelp,
+  Hourglass,
+  Layers,
+  Scale,
+  Snowflake,
+  Sparkles,
+  Square,
+  Stamp,
+  Ticket,
+  Wrench,
+  type LucideIcon,
+} from "lucide-react";
 import { PRIORITY_BANDS } from "@shared/work";
 import { STATE_TONE, StateChip, type StateTone, type StatusSubject } from "@/components/StateChip";
 import { TASK_STATUSES, isGate } from "@/lib/task-board-read";
@@ -116,6 +133,63 @@ const TYPE_WORDS: Readonly<Record<string, string>> = {
 export function taskTypeWord(issueType: string, awaitType: string | null = null): string {
   if (issueType === "gate") return (awaitType ?? "human") === "human" ? "Approval" : "Gate";
   return TYPE_WORDS[issueType] ?? (issueType.charAt(0).toUpperCase() + issueType.slice(1));
+}
+
+const TYPE_ICONS: Readonly<Record<string, LucideIcon>> = {
+  task: Ticket,
+  bug: Bug,
+  feature: Sparkles,
+  chore: Wrench,
+  epic: Layers,
+  decision: Scale,
+};
+
+/**
+ * A type as its mark: a shape per type, in neutral ink, because a type is
+ * not a state. An open bug is the one problem among them, so its mark and
+ * its page's header band wear the alert surface; closed, it is ink again.
+ */
+export interface TypeFace {
+  word: string;
+  icon: LucideIcon;
+  /** The header band's surface kind (`Card`'s kinds). */
+  surface: "alert" | "neutral";
+  /** The mark's tile. */
+  tile: string;
+}
+
+export function typeFace(issueType: string, awaitType: string | null = null, status: string | null = null): TypeFace {
+  const word = taskTypeWord(issueType, awaitType);
+  const icon = issueType === "gate" ? ((awaitType ?? "human") === "human" ? Stamp : Hourglass) : TYPE_ICONS[issueType] ?? Square;
+  const problem = issueType === "bug" && status !== "closed";
+  return {
+    word,
+    icon,
+    surface: problem ? "alert" : "neutral",
+    tile: problem
+      ? "bg-error-soft text-error ring-error/40"
+      : status === "closed" ? "bg-muted text-muted-foreground ring-border" : "bg-card text-foreground ring-border",
+  };
+}
+
+/** A type's mark in its tile, beside a page's title. */
+export function TypeMark({ issueType, awaitType = null, status = null, className }: {
+  issueType: string;
+  awaitType?: string | null;
+  status?: string | null;
+  className?: string;
+}) {
+  const face = typeFace(issueType, awaitType, status);
+  const Icon = face.icon;
+  return (
+    <span
+      aria-hidden
+      data-task-type-mark={issueType}
+      className={cn("grid size-9 shrink-0 place-items-center rounded-lg ring-1 ring-inset", face.tile, className)}
+    >
+      <Icon className="size-[1.125rem]" strokeWidth={2} />
+    </span>
+  );
 }
 
 // --- An ask: a row waiting on the operator ----------------------------------

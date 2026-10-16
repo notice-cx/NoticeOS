@@ -513,6 +513,78 @@ describe("the work reads as labelled sections, and what happened as a timeline",
   });
 });
 
+// Each type has its own mark and header band; every control answers a hover,
+// a press and focus; the page's motion is the Wall's, and stops under reduced
+// motion.
+describe("the page carries its type's identity and the Wall's states", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const band = () => document.querySelector<HTMLElement>("[data-task-band]")!;
+
+  it.each([
+    ["epic", null, "Epic"],
+    ["task", null, "Task"],
+    ["bug", null, "Bug"],
+    ["feature", null, "Feature"],
+    ["chore", null, "Chore"],
+    ["decision", null, "Decision"],
+    ["gate", "human", "Approval"],
+  ])("draws a %s's word and mark in its header", async (issueType, awaitType, word) => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType, awaitType, status: "open", assignee: null, startedAt: null, labels: issueType === "gate" ? ["human"] : [] }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(within(header()).getByText(word)).toHaveAttribute("data-task-type", issueType);
+    const mark = header().querySelector(`[data-task-type-mark="${issueType}"]`) as HTMLElement;
+    expect(mark).not.toBeNull();
+    expect(mark.querySelector("svg")).not.toBeNull();
+    // A type is not a state: only an open bug wears the alert surface.
+    expect(band()).toHaveAttribute("data-surface-kind", issueType === "bug" ? "alert" : "neutral");
+    expect(mark.className).toMatch(issueType === "bug" ? /\btext-error\b/ : /\btext-foreground\b/);
+  });
+
+  it("draws a closed bug's band and mark in plain ink, never green", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: "bug", status: "closed", closedAt: "2026-09-04T11:30:00Z" }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(band()).toHaveAttribute("data-surface-kind", "neutral");
+    const mark = header().querySelector('[data-task-type-mark="bug"]') as HTMLElement;
+    expect(mark.className).not.toMatch(/error|healthy|milestone|success/);
+  });
+
+  it("gives every link and button on the page a hover and a focus state, and every button a press", async () => {
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-dependency-graph]")).not.toBeNull());
+    const page = container.querySelector("[data-task-page]") as HTMLElement;
+    expect(page.className).toContain("motion-safe:[&_button:not(:disabled):active]:translate-y-px");
+    const controls = [...page.querySelectorAll<HTMLElement>("a, button")].filter((node) => !node.closest("[data-event-timeline]"));
+    expect(controls.length).toBeGreaterThan(10);
+    for (const node of controls) {
+      const name = `${node.tagName} ${node.textContent?.trim() || node.getAttribute("aria-label")}`;
+      expect(node.className, name).toMatch(/hover:/);
+      // Focus is either drawn as a ring or left to the browser's own outline.
+      expect(/focus-visible:/.test(node.className) || !/outline-none/.test(node.className), name).toBe(true);
+    }
+  });
+
+  it("moves only with the Wall's motion, all of which stops under reduced motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const css = readFileSync(path.resolve(import.meta.dirname, "../src/index.css"), "utf8");
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    const stilled = reduced.slice(0, reduced.indexOf("}", reduced.indexOf(".viz-draw,")));
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-epic-segments]")).not.toBeNull());
+    const classes = new Set([...container.querySelectorAll<HTMLElement | SVGElement>("*")]
+      .flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/)));
+    const motion = [...classes].filter((name) => /^viz-(arrive|breathe|grow-x|grow-y|draw|flow)$/.test(name));
+    // The page's entrance, the bar growing, a live edge's flow and the
+    // holder's slow ring for work still under way.
+    expect(motion).toEqual(expect.arrayContaining(["viz-arrive", "viz-grow-y", "viz-breathe"]));
+    for (const name of motion) expect(stilled, name).toContain(`.${name}`);
+    // Any other animation runs only where motion is allowed.
+    for (const name of classes) if (/animate-/.test(name)) expect(name, name).toMatch(/^motion-safe:/);
+  });
+});
+
 // A row is one target: the whole row is the link, named by its id and title.
 // Blocked by and Blocks are the dependency graph's cards, one target each.
 describe("every task row opens its task from anywhere on the row", () => {

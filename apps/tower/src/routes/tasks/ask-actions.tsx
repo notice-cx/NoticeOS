@@ -109,7 +109,7 @@ export function useAskActions({
       ref={form}
       className={cn(
         "flex items-start gap-2 max-sm:flex-wrap",
-        placement === "row" ? "pb-2 pe-2 ps-9" : "rounded-lg border border-border bg-muted/30 p-3",
+        placement === "row" ? "pb-2 pe-2 ps-9" : null,
       )}
       data-task-form="answer"
       onSubmit={(event) => {

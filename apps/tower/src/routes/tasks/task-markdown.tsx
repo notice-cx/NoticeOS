@@ -303,7 +303,7 @@ function inline(text: string, keyPrefix: string, chips: Chips | null): ReactNode
       if (href === null) return <span key={key}>{part}</span>;
       if (href.startsWith("/")) {
         return (
-          <Link key={key} to={href} className="underline underline-offset-2">
+          <Link key={key} to={href} className="underline underline-offset-2 hover:decoration-2 hover:text-foreground">
             {label}
           </Link>
         );
@@ -314,7 +314,7 @@ function inline(text: string, keyPrefix: string, chips: Chips | null): ReactNode
           href={href}
           target="_blank"
           rel="noreferrer noopener"
-          className="underline underline-offset-2"
+          className="underline underline-offset-2 hover:decoration-2 hover:text-foreground"
         >
           {label}
         </a>

@@ -115,7 +115,7 @@ export function EpicSegments({ segments, label, closed, total }: { segments: rea
             className={cn(
               "viz-grow-y block h-2 w-full rounded-[2px]",
               SEGMENT_FILL[segment.state],
-              segment.self && "ring-2 ring-foreground ring-offset-1 ring-offset-card",
+              segment.self && "outline-2 outline-offset-1 outline-foreground",
             )}
             style={{ "--viz-i": index } as CSSProperties}
           />
@@ -137,6 +137,7 @@ export function EpicTaskList({
   missing,
   graphHref,
   taskHref,
+  frame = "card",
   className,
 }: {
   groups: readonly EpicTaskGroup[];
@@ -144,19 +145,20 @@ export function EpicTaskList({
   /** The board's Epic graph with this epic chosen, when the board draws one. */
   graphHref: string | null;
   taskHref: (id: string) => string;
+  /** Its own card, or a section of a card around it. */
+  frame?: "card" | "none";
   className?: string;
 }) {
   const listed = groups.reduce((sum, group) => sum + group.tasks.length, 0);
-  return (
-    <Card className={className} data-epic-tasks="">
-      <CardHeader className="pb-2">
-        <SectionLabel
-          title="Tasks"
-          caption={listed > 0 ? formatInt(listed) : undefined}
-          action={graphHref ? { label: "Epic graph →", to: graphHref } : undefined}
-        />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-4">
+  const label = (
+    <SectionLabel
+      title="Tasks"
+      caption={listed > 0 ? formatInt(listed) : undefined}
+      action={graphHref ? { label: "Epic graph →", to: graphHref } : undefined}
+    />
+  );
+  const list = (
+      <>
         {groups.map((group) => (
           <section key={group.word} aria-label={group.word} data-epic-group={group.word} className="flex min-w-0 flex-col gap-1">
             <h3 className="m-0 flex items-baseline gap-2 text-xs font-medium text-foreground">
@@ -173,7 +175,20 @@ export function EpicTaskList({
         {missing ? (
           <p className="m-0 text-xs text-muted-foreground" data-epic-missing="">{missing}</p>
         ) : null}
-      </CardContent>
+      </>
+  );
+  if (frame === "none") {
+    return (
+      <section className={cn("flex flex-col gap-4", className)} data-epic-tasks="">
+        {label}
+        {list}
+      </section>
+    );
+  }
+  return (
+    <Card className={className} data-epic-tasks="">
+      <CardHeader className="pb-2">{label}</CardHeader>
+      <CardContent className="flex flex-col gap-4">{list}</CardContent>
     </Card>
   );
 }

@@ -159,7 +159,7 @@ function Entry({ entry, nowMs, age, index, latest, last }: {
           )}
         </div>
         {entry.body ? (
-          <div className={cn("min-w-0 text-sm", entry.kind === "comment" && "rounded-lg bg-muted/40 px-3 py-2")}>{entry.body}</div>
+          <div className={cn("min-w-0 text-sm", entry.kind === "comment" && "border-s-2 border-border ps-3")}>{entry.body}</div>
         ) : null}
         {pointers.length > 0 ? (
           <span className="flex flex-wrap gap-1.5" data-entry-evidence="">

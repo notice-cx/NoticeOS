@@ -115,7 +115,7 @@ export function DependencyGraph({ subject, before, after, beforeLabel, afterLabe
           <div
             ref={register(SUBJECT)}
             data-dependency-subject={subject.id}
-            className="viz-arrive relative flex min-w-0 flex-col gap-1 rounded-lg border border-foreground/25 bg-muted/60 px-3 py-2.5 shadow-raised"
+            className="viz-arrive relative flex min-w-0 flex-col gap-1 rounded-lg border border-foreground/25 bg-muted/60 px-3 py-2.5 ring-4 ring-foreground/5"
             style={{ "--viz-i": before.length } as CSSProperties}
           >
             <span className={eyebrowClass}>{subject.caption}</span>

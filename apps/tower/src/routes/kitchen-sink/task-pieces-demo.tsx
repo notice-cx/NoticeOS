@@ -62,7 +62,7 @@ export function TaskTimelineDemo() {
           { id: "c1", at: at(4), kind: "comment", who: { name: "Example Operator", model: null }, label: <>Comment from <b className="font-semibold">Example Operator</b></>, said: "Comment from Example Operator", body: <p className="m-0">Ship the facts first; the timeline can follow.</p> },
           { id: "closed", at: at(1), kind: "closed", who: { name: "claude", model: "Opus 5.5" }, label: <>Closed by <b className="font-semibold">claude</b><span className="text-muted-foreground"> · Opus 5.5</span></>, said: "Closed by claude · Opus 5.5", body: <p className="m-0">The page draws its facts</p>, evidence: "The page draws its facts · 1a2b3c4" },
         ]}
-        composer={<textarea aria-label="Add a comment" rows={2} placeholder="What you found, decided, or need." className={fieldClass} />}
+        composer={<textarea aria-label="Add a comment" rows={2} placeholder="What you found, decided, or need." className={`${fieldClass} w-full`} />}
       />
       <div className="flex flex-col gap-2">
         <span className="text-xs text-muted-foreground">A task among its epic's tasks: two closed before the read's window, this task ringed, the next ready one dotted.</span>

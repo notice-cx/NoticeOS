@@ -75,6 +75,33 @@ export function TaskHeadDemo() {
           actions={<><Button size="sm"><Reply aria-hidden />Answer</Button><Button size="sm" variant="ghost">Dismiss</Button></>}
         />
       </div>
+      {/* One header per remaining type: an open bug wears the alert band, the
+          others the neutral one, each with its own mark. */}
+      <TaskHead
+        id="os-8f7p.6"
+        facts={{ ...base, title: "A hover hint covers the Claim button", issueType: "bug", priority: 0 }}
+        crumbs={crumbs("Tasks are managed in the Tower")}
+        nowMs={now}
+        actions={<><Button size="sm">Claim</Button><Button size="sm" variant="outline">Close</Button></>}
+      />
+      <TaskHead
+        id="os-8f7p.8"
+        facts={{ ...base, title: "Facts edit in place as chips", issueType: "feature" }}
+        crumbs={crumbs("Tasks are managed in the Tower")}
+        nowMs={now}
+      />
+      <TaskHead
+        id="os-8f7p.9"
+        facts={{ ...base, title: "Move the Markdown renderer into its own module", issueType: "chore", priority: 3 }}
+        crumbs={crumbs("Tasks are managed in the Tower")}
+        nowMs={now}
+      />
+      <TaskHead
+        id="os-8f7p.10"
+        facts={{ ...base, title: "Which epic holds the timeline work?", issueType: "decision" }}
+        crumbs={crumbs("Tasks are managed in the Tower")}
+        nowMs={now}
+      />
       <div className="border-t border-border pt-4">
         <TaskHead
           id="os-8f7p.1"

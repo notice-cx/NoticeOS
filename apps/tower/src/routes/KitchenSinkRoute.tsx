@@ -4355,7 +4355,7 @@ export function KitchenSinkRoute() {
           {/* The task page's header: type word and id over the title, the
               state, priority, holder, progress and ask beside it, the primary
               action first; an epic's tasks by state under it. */}
-          <Section title="TaskHead / EpicTaskList (/tasks/:id: an epic, a held task, two decisions, a closed task)">
+          <Section title="TaskHead / EpicTaskList (/tasks/:id: one header per type, an epic with its tasks, a held task, two decisions, a closed task)">
             <TaskHeadDemo />
           </Section>
 
