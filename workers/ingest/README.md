@@ -1971,6 +1971,15 @@ An account entry that names no service-account key authenticates with the
 operator's sign-in instead, so an install can keep the map for its routing and
 sign in for its auth.
 
+An asset this secret does not name, with a GA4 property or Search Console site
+saved on its Data sources tab, is collected as well. The sign-in authenticates
+it when there is one; otherwise one of the secret's service accounts does, and
+`credential_ref` names that account. With one account entry, that account is
+used. With several, `googleTargets` uses the first account that already
+collects that data source, else the first account, and logs the choice as
+`google_register_account_chosen`. That service account still needs read access
+on the property in Google.
+
 The formatted local source keeps `service_account_b64` in that account entry;
 the runner extracts it to the named per-account binding before Wrangler
 starts. One account entry may name several properties. The Worker

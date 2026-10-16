@@ -1,11 +1,14 @@
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { OS_TIME_ZONE } from '@noticeos/contract';
 import {
   assumedTimeZoneEvent,
+  googleTargets,
   parseGoogleTargets,
   runGoogleSignals,
 } from '../src/google-signals.js';
+import type { LaneRegister } from '../src/lane-mapping.js';
+import { SignalError } from '../src/signal-store.js';
 import { dateInTimeZone } from '../src/time-zone.js';
 import { putCredential } from '../src/credentials.js';
 import { EGRESS_DOWN_CODE } from '../src/egress.js';
@@ -678,6 +681,152 @@ describe('authenticating a pull', () => {
     // second property served straight off the token the retry earned.
     expect(ga4Calls).toBe(3);
     expect(tokens.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+// A site added after the account map was written is mapped on its Data sources
+// tab only. On an install with no sign-in, the map's service account has to
+// collect it, or the tab reads "Mapped" while nothing is ever asked for.
+describe('a register mapping on a service-account install', () => {
+  const KEY = btoa(
+    JSON.stringify({ client_email: 'signals@example.test', private_key: 'test-private-key' }),
+  );
+  const ONE_ACCOUNT = JSON.stringify({
+    'test-signals': {
+      service_account_b64: KEY,
+      properties: {
+        'meadow.example': { ga4_property_id: '123456', gsc_site_url: 'sc-domain:meadow.example' },
+      },
+    },
+  });
+  /** acorn.example is in no account map anywhere: the register alone maps it. */
+  const ACORN: LaneRegister = {
+    assets: {
+      'acorn.example': {
+        ga4: { propertyId: '777777' },
+        gsc: { siteUrl: 'sc-domain:acorn.example' },
+      },
+    },
+  };
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('collects the register-mapped site with the map’s service account', () => {
+    const targets = googleTargets({ accounts: ONE_ACCOUNT, oauth: null }, 'store', undefined, ACORN);
+    expect(
+      targets.map(({ asset, integration, propertyRef, mappingSource }) =>
+        `${asset} ${integration} ${propertyRef} ${mappingSource}`),
+    ).toEqual([
+      'meadow.example ga4 123456 credential',
+      'meadow.example gsc sc-domain:meadow.example credential',
+      'acorn.example ga4 777777 register',
+      'acorn.example gsc sc-domain:acorn.example register',
+    ]);
+    for (const target of targets.filter((target) => target.asset === 'acorn.example')) {
+      expect(target.auth.kind).toBe('service-account');
+      if (target.auth.kind !== 'service-account') throw new Error('unreachable');
+      expect(target.auth.account.clientEmail).toBe('signals@example.test');
+      // signal_runs names the key that ran the pull, never a sign-in.
+      expect(target.account).toBe('test-signals');
+      expect(target.credentialRef).toBe('store:test-signals');
+      expect(target.timeZoneAssumed).toBe(true);
+    }
+  });
+
+  it('still refuses no account map and no sign-in, in the old words', () => {
+    let thrown: unknown;
+    try {
+      googleTargets({ accounts: undefined, oauth: null }, 'env', undefined, ACORN);
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(SignalError);
+    expect((thrown as SignalError).code).toBe('config_missing');
+    expect((thrown as SignalError).message).toBe('GOOGLE_SIGNAL_ACCOUNTS is not configured.');
+  });
+
+  it('adds nothing when the map holds no account to authenticate it', () => {
+    expect(googleTargets({ accounts: '{}', oauth: null }, 'env', undefined, ACORN)).toEqual([]);
+  });
+
+  it('collects a site the map names and the register overrides once, on the map’s account', () => {
+    const both: LaneRegister = {
+      assets: { ...ACORN.assets, 'meadow.example': { ga4: { propertyId: '999999' } } },
+    };
+    const targets = googleTargets({ accounts: ONE_ACCOUNT, oauth: null }, 'env', undefined, both);
+    expect(targets).toHaveLength(4);
+    const meadowGa4 = targets.filter(
+      (target) => target.asset === 'meadow.example' && target.integration === 'ga4',
+    );
+    expect(meadowGa4).toHaveLength(1);
+    expect(meadowGa4[0]).toMatchObject({
+      account: 'test-signals',
+      propertyRef: '999999',
+      mappingSource: 'register',
+    });
+  });
+
+  it('picks the account that already reads the data source when the map holds several, and says so', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const twoAccounts = JSON.stringify({
+      'analytics-signals': {
+        service_account_b64: KEY,
+        properties: { 'meadow.example': { ga4_property_id: '123456' } },
+      },
+      'search-signals': {
+        service_account_b64: KEY,
+        properties: { 'northwind.example': { gsc_site_url: 'sc-domain:northwind.example' } },
+      },
+    });
+    const targets = googleTargets({ accounts: twoAccounts, oauth: null }, 'env', undefined, ACORN);
+    const acorn = Object.fromEntries(
+      targets
+        .filter((target) => target.asset === 'acorn.example')
+        .map((target) => [target.integration, target.account]),
+    );
+    expect(acorn).toEqual({ ga4: 'analytics-signals', gsc: 'search-signals' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(String(warn.mock.calls[0]![0]))).toEqual({
+      event: 'google_register_account_chosen',
+      choices: [
+        { asset: 'acorn.example', integration: 'ga4', account: 'analytics-signals' },
+        { asset: 'acorn.example', integration: 'gsc', account: 'search-signals' },
+      ],
+    });
+
+    // Neither account reads the data source: the first one is the answer.
+    const ga4Only = JSON.stringify({
+      'first-signals': { service_account_b64: KEY, properties: {} },
+      'second-signals': {
+        service_account_b64: KEY,
+        properties: { 'meadow.example': { ga4_property_id: '123456' } },
+      },
+    });
+    const gsc = googleTargets({ accounts: ga4Only, oauth: null }, 'env', undefined, ACORN)
+      .find((target) => target.asset === 'acorn.example' && target.integration === 'gsc');
+    expect(gsc?.account).toBe('first-signals');
+  });
+
+  it('asks Google for the register-mapped site on a real run', async () => {
+    // The suite's own GOOGLE_SIGNAL_ACCOUNTS binding names meadow.example and
+    // northwind.example under a real generated key.
+    const { fetchImpl, calls } = googleFetch();
+    const result = await runGoogleSignals(env, { nowMs: NOW, fetchImpl, laneRegister: ACORN });
+    expect(calls.some((call) => call.url.includes('/properties/777777:runReport'))).toBe(true);
+    expect(
+      calls.some((call) => call.url.includes(encodeURIComponent('sc-domain:acorn.example'))),
+    ).toBe(true);
+    expect(
+      result.outcomes
+        .filter((outcome) => outcome.asset === 'acorn.example')
+        .map(({ integration, status, mappingSource }) => ({ integration, status, mappingSource })),
+    ).toEqual([
+      { integration: 'ga4', status: 'success', mappingSource: 'register' },
+      { integration: 'gsc', status: 'success', mappingSource: 'register' },
+    ]);
+    expect(result.attempted).toBe(GOOGLE_ATTEMPTS + 2);
   });
 });
 
