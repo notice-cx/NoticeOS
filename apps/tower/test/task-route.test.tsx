@@ -247,7 +247,7 @@ describe('hosted actor labels', () => {
     const editor = await openFact('Assignee: Current operator');
     expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('data-value', principal);
     expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByText('Comment from Current operator')).toBeInTheDocument();
+    expect(document.querySelector('[data-entry="comment"] [data-entry-label]')).toHaveTextContent('Comment from Current operator');
     expect(screen.queryByText(principal)).not.toBeInTheDocument();
     fireEvent.click(within(editor).getByRole('option', { name: 'Another member' }));
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: other }));
@@ -371,8 +371,8 @@ describe('live task details in a read-only demo', () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'open', assignee: null }) }));
     const view = renderTask();
     expect(await screen.findByText('A task has a page')).toBeInTheDocument();
-    await waitFor(() => expect(view.container.querySelector('[data-task-comments]')).not.toBeNull());
-    expect(within(view.container.querySelector('[data-task-comments]') as HTMLElement).getByText('Ship the facts panel first.')).toBeInTheDocument();
+    await waitFor(() => expect(view.container.querySelector('[data-task-activity]')).not.toBeNull());
+    expect(within(view.container.querySelector('[data-task-activity]') as HTMLElement).getByText('Ship the facts panel first.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit description' })).toBeDisabled());
     for (const name of ['Claim', 'Close', 'Comment']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
@@ -447,21 +447,86 @@ describe("no hint covers the header's actions", () => {
   });
 });
 
+// The description reads as the task guide's labelled sections, its paths and
+// task ids as chips; Done when reads as a checklist; activity is in time order.
+describe("the work reads as labelled sections, and what happened as a timeline", () => {
+  const guide = [
+    "WHAT: The page draws the facts.",
+    "",
+    "WHY: Read dozens of times a day.",
+    "",
+    "WHERE: apps/tower/src/routes/TaskRoute.tsx:191 and docs/tower/tasks.md; after ro-l1ed.4 lands.",
+    "",
+    "## Steps to Reproduce",
+    "1. Open a task",
+    "2. Look at the facts",
+  ].join("\n");
+
+  it("draws each label as its section's eyebrow, paths as chips and a task id as a link", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ description: guide, acceptance: "- Facts render\n- Undo works" }) }));
+    const { container } = renderTask();
+    await screen.findByText("The page draws the facts.");
+    const sections = [...container.querySelectorAll("[data-guide-section]")].map((section) => section.getAttribute("data-guide-section"));
+    expect(sections).toEqual(["What", "Why", "Where", "Steps to reproduce"]);
+    const where = container.querySelector('[data-guide-section="Where"]') as HTMLElement;
+    expect(within(where).getByRole("heading", { level: 3, name: "Where" })).toBeInTheDocument();
+    expect([...where.querySelectorAll("[data-path-ref]")].map((chip) => chip.textContent))
+      .toEqual(["apps/tower/src/routes/TaskRoute.tsx:191", "docs/tower/tasks.md"]);
+    // The project has no web address for its repository, so a path is a chip, not a link.
+    expect(where.querySelector("a[data-path-ref]")).toBeNull();
+    expect(within(where).getByRole("link", { name: "ro-l1ed.4" })).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    const steps = container.querySelector('[data-guide-section="Steps to reproduce"]') as HTMLElement;
+    expect(within(steps).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Open a task", "Look at the facts"]);
+    const done = container.querySelector('[data-task-field="Done when"] [data-checklist]') as HTMLElement;
+    expect(within(done).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Facts render", "Undo works"]);
+  });
+
+  it("reads a description without the guide's labels as it was written", async () => {
+    const { container } = renderTask();
+    await screen.findByText("the fields");
+    expect(container.querySelector("[data-guide-sections]")).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "What" })).toBeInTheDocument();
+  });
+
+  it("orders filing, the claim, comments and the close by time, comments inline", async () => {
+    api.fetchTask.mockResolvedValue(detail({
+      task: task({ status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Done · abc1234",
+        metadata: { noticeos_closed_by: "claude", noticeos_closed_at: "2026-09-04T11:30:00Z" } }),
+      comments: [
+        { id: "late", author: "Example Operator", text: "After the claim.", createdAt: "2026-09-04T10:45:00.000Z" },
+        { id: "early", author: "Example Operator", text: "Before the claim.", createdAt: "2026-09-04T09:30:00.000Z" },
+      ],
+    }));
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector('[data-entry="closed"]')).not.toBeNull());
+    const activity = container.querySelector("[data-task-activity]") as HTMLElement;
+    expect([...activity.querySelectorAll("[data-entry-id]")].map((entry) => entry.getAttribute("data-entry-id")))
+      .toEqual(["filed", "comment-early", "claimed", "comment-late", "closed"]);
+    // The strip above draws the same moments on a time axis that ends at now.
+    const strip = container.querySelector("[data-task-timeline] [data-event-timeline]") as HTMLElement;
+    expect(strip).toHaveAttribute("data-compact", "true");
+    expect(strip.querySelectorAll("[data-event], [data-event-cluster]").length).toBeGreaterThan(0);
+    // The comment box is the timeline's last item.
+    const last = activity.lastElementChild as HTMLElement;
+    expect(last).toHaveAttribute("data-task-timeline-composer");
+    expect(within(last).getByRole("textbox", { name: "Add a comment" })).toBeInTheDocument();
+  });
+});
+
 // A row is one target: the whole row is the link, named by its id and title.
+// Blocked by and Blocks are the dependency graph's cards, one target each.
 describe("every task row opens its task from anywhere on the row", () => {
-  it("opens a dependency from a press on the row's far end, and names the row by its id and title", async () => {
+  it("opens a dependency from a press anywhere on its card, and names the card by its id and title", async () => {
     renderTask();
-    const row = await screen.findByRole("link", { name: "ro-l1ed.4 The composer replaces the copied bd create" });
-    expect(row).toHaveAttribute("href", "/tasks/ro-l1ed.4");
-    // The row's whole content sits inside the one link: the glyph, the id, the
-    // title and the priority mark at its far end.
-    const item = row.closest("[data-dependency]") as HTMLElement;
-    expect(item.querySelectorAll("a")).toHaveLength(1);
-    const far = row.querySelector("[data-priority-mark]") as HTMLElement;
-    expect(row).toContainElement(far);
-    expect(row).toContainElement(row.querySelector("[data-task-status-glyph]") as HTMLElement);
-    expect(row).toHaveAccessibleDescription("Open, high priority");
-    fireEvent.click(far);
+    const card = await screen.findByRole("link", { name: "ro-l1ed.4 The composer replaces the copied bd create" });
+    expect(card).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    expect(card).toHaveAttribute("data-dependency", "ro-l1ed.4");
+    // The card's whole content sits inside the one link: the glyph, the id and
+    // the title, with no second link inside it.
+    expect(card.querySelectorAll("a")).toHaveLength(0);
+    expect(card).toContainElement(card.querySelector("[data-task-status-glyph]") as HTMLElement);
+    expect(card).toHaveAccessibleDescription("Open, high priority");
+    fireEvent.click(within(card).getByText("The composer replaces the copied bd create"));
     await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.4", expect.any(AbortSignal)));
   });
 
@@ -552,15 +617,19 @@ describe("the task page", () => {
     expect(within(header).getByText("Task")).toHaveAttribute("data-task-type", "task");
     expect(within(facts).getByText("tower")).toBeInTheDocument();
 
-    expect(within(facts).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
+    // Who blocks whom is one graph: blockers left, what this blocks right.
+    const graph = container.querySelector("[data-dependency-graph]") as HTMLElement;
+    expect(within(graph).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
       "href",
       "/tasks/ro-l1ed.1",
     );
-    expect(within(facts).getByRole("link", { name: /ro-l1ed\.4/ })).toHaveAttribute(
+    expect(within(graph).getByRole("link", { name: /ro-l1ed\.4/ })).toHaveAttribute(
       "href",
       "/tasks/ro-l1ed.4",
     );
-    const closedBlocker = within(facts).getByLabelText("State — Closed");
+    expect(graph.querySelector('[data-dependency-column="before"] [data-dependency="ro-l1ed.1"]')).not.toBeNull();
+    expect(graph.querySelector('[data-dependency-column="after"] [data-dependency="ro-l1ed.4"]')).not.toBeNull();
+    const closedBlocker = within(graph).getByLabelText("State — Closed");
     expect(closedBlocker.getAttribute("class")).toContain("text-muted-foreground");
 
     expect(
@@ -572,16 +641,16 @@ describe("the task page", () => {
     );
     expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument();
 
-    const comments = container.querySelector("[data-task-comments]") as HTMLElement;
-    expect(within(comments).getByText("Example Operator")).toBeInTheDocument();
-    expect(within(comments).getByText("Ship the facts panel first.")).toBeInTheDocument();
-
+    // Comments sit in the activity timeline at their time, after the claim.
     const activity = container.querySelector("[data-task-activity]") as HTMLElement;
+    const entries = [...activity.querySelectorAll("[data-entry]")].map((entry) => entry.getAttribute("data-entry"));
+    expect(entries).toEqual(["filed", "claimed", "comment"]);
+    const comment = activity.querySelector('[data-entry="comment"]') as HTMLElement;
+    expect(within(comment).getByText("Example Operator")).toBeInTheDocument();
+    expect(within(comment).getByText("Ship the facts panel first.")).toBeInTheDocument();
+    expect(comment.querySelector("[data-entry-label]")).toHaveTextContent("Comment from Example Operator");
     expect(within(activity).getByText("Filed")).toBeInTheDocument();
-    expect(
-      within(activity).getByText("Claimed by claude/task-page-agent"),
-    ).toBeInTheDocument();
-    expect(within(activity).getByText("Comment from Example Operator")).toBeInTheDocument();
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude/task-page-agent");
   });
 
   it("names who claimed and who closed it, with the models they named", async () => {
@@ -591,10 +660,16 @@ describe("the task page", () => {
         noticeos_closed_at: "2026-09-04T11:30:00Z" },
     }) }));
     const { container } = renderTask();
-    await screen.findByText("Closed by claude · Opus 5.5");
+    await waitFor(() => expect(container.querySelector('[data-entry="closed"]')).not.toBeNull());
     const activity = container.querySelector("[data-task-activity]") as HTMLElement;
-    expect(within(activity).getByText("Claimed by claude · Opus 5.5")).toBeInTheDocument();
-    expect(within(activity).getByText("Facts render · abc1234")).toBeInTheDocument();
+    const closed = activity.querySelector('[data-entry="closed"]') as HTMLElement;
+    expect(closed.querySelector("[data-entry-label]")).toHaveTextContent("Closed by claude · Opus 5.5");
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude · Opus 5.5");
+    // The agent's own mark, as the Wall's feed draws it.
+    expect(closed.querySelector("[data-entry-agent]")).toHaveAttribute("data-entry-agent", "anthropic");
+    // The reason's sentence, and its commit as a chip.
+    expect(within(closed).getByText("Facts render")).toBeInTheDocument();
+    expect(within(closed.querySelector("[data-entry-evidence]") as HTMLElement).getByText("abc1234")).toHaveClass("font-mono");
   });
 
   // Every place `Age` renders pairs it with a word that needs it, so a bare
@@ -811,7 +886,7 @@ describe("the task page", () => {
     const { container } = renderTask();
     await screen.findByText("A task has a page");
     const facts = container.querySelector("[data-task-facts]") as HTMLElement;
-    await waitFor(() => expect(within(facts).getByText("Blocks")).toBeInTheDocument());
+    await waitFor(() => expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument());
     expect(facts.querySelectorAll("select, input, textarea")).toHaveLength(0);
     expect(within(facts).queryByRole("button", { name: /^Save/ })).toBeNull();
     for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label", "Change parent epic"]) {
@@ -1241,6 +1316,27 @@ describe("an epic's page and its tasks", () => {
     const next = facts.querySelector("[data-next-ready]") as HTMLElement;
     expect(next).toHaveAttribute("data-next-ready", "ro-l1ed.5");
     expect(within(next).getByRole("link", { name: /Fields are edited where they are read/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    // The bar is the epic's tasks, one segment each: the one closed before the
+    // read's window, the closed sibling, this task ringed, then what waits,
+    // the next ready one marked.
+    const bar = within(facts).getByRole("progressbar");
+    expect(bar).toHaveAttribute("data-epic-segments", "6");
+    expect([...bar.querySelectorAll("[data-segment]")].map((segment) => segment.getAttribute("data-segment")))
+      .toEqual(["earlier", "done", "active", "waiting", "waiting", "waiting"]);
+    expect(bar.querySelectorAll("[data-segment-self]")).toHaveLength(1);
+    expect(bar.querySelector("[data-segment-self]")).toHaveAttribute("data-segment", "active");
+    expect(bar.querySelectorAll("[data-segment-next]")).toHaveLength(1);
+    // A closed task is ink, never green.
+    expect(bar.innerHTML).not.toMatch(/healthy|milestone|success/);
+  });
+
+  it("draws an epic's header bar as its tasks, one segment each", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask(EPIC);
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    await waitFor(() => expect(within(header).getByRole("progressbar")).toHaveAttribute("data-epic-segments", "6"));
+    expect(header.querySelector("[data-segment-self]")).toBeNull();
   });
 
   it("draws a deployed epic from the snapshot's rollup and counts the tasks the snapshot does not hold", async () => {

@@ -3405,6 +3405,8 @@ describe("kitchen sink covers the registry", () => {
       "Tabs",
       "TaskComposer / File task",
       "FactChip",
+      "DependencyGraph",
+      "TaskTimeline",
       "TaskHead / EpicTaskList",
       "DataSourceIcons",
     ]) {

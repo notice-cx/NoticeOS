@@ -3,12 +3,9 @@ import { useOwnerToast } from '@/lib/browser-context';
 import { type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Check,
-  Circle,
-  CircleDot,
+  CircleHelp,
   Layers,
   Lock,
-  MessageSquare,
   Pencil,
   Plus,
   Snowflake,
@@ -40,6 +37,9 @@ import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
 import { FactChip, factChipClass, type FactChoice } from "@/components/FactChip";
 import type { PageHeaderCrumb } from "@/components/PageHeader";
+import { TaskTimeline, type TaskTimelineEntry } from "@/components/TaskTimeline";
+import { DependencyGraph, type DependencyNode } from "@/components/viz/DependencyGraph";
+import type { FlowEdgeState } from "@/components/viz/FlowGraph";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { STATE_TONE } from "@/components/StateChip";
@@ -65,14 +65,16 @@ import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { TASK_STATUSES, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask } from "@/lib/task-board-read";
-import { epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { blockerEdgeState, epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { evidenceParts } from "@/lib/agent-work";
 import { formatInt } from "@/lib/format";
-import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
+import { EpicProgress, EpicTaskList, epicSegments, type EpicSegment } from "@/routes/tasks/epic-tasks";
 import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
-import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { PriorityMark, priorityFace, statusFace } from "@/routes/tasks/task-face";
-import { TaskRow, type TaskRowFacts } from "@/routes/tasks/task-row";
+import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
+import { GuideText, MarkdownText, TaskTextRefsProvider } from "@/routes/tasks/task-markdown";
+import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
 /**
@@ -95,7 +97,7 @@ function useTaskHref() {
   const [params] = useSearchParams();
   const capabilities = useTasksLive();
   const project = capabilities.projectSelection ? params.get('project') ?? undefined : undefined;
-  return (id: string) => taskPath(id, project);
+  return useCallback((id: string) => taskPath(id, project), [project]);
 }
 
 export function TaskRoute() {
@@ -135,6 +137,25 @@ export function TaskRoute() {
   const nextReady = epicTaskGroups(siblings, read).find((group) => group.word === "Ready")?.tasks[0] ?? null;
   const actors = detail.data?.actors;
   const taskHref = useTaskHref();
+  const parentEpic = task ? epicOf(board.data?.epics ?? null, task.parent) : null;
+  // This task among its siblings, on the parent's bar: the board read holds
+  // every unfinished one and a week of closes; the epic's count, the rest.
+  const parentSegments = task && parentEpic && parentEpic.total > 0
+    ? epicSegments({
+        children: [...siblings, ...(read.find((row) => row.id === task.id) ? [read.find((row) => row.id === task.id)!] : [{ ...task, project: project ?? "" }])],
+        self: task.id,
+        next: nextReady?.id ?? null,
+        closed: parentEpic.closed,
+        total: parentEpic.total,
+      })
+    : null;
+  const blockers = task ? blockerRows(task, board.data?.tasks ?? [], actors) : [];
+  const blocked = task ? blockedByThis(board.data?.tasks ?? [], task.id).map((other) => taskRowFacts(other, actors)) : [];
+  const textRefs = useMemo(() => ({
+    prefixes: [...new Set([detail.data?.prefix, ...(snapshot.data?.projects ?? []).map((row) => row.prefix)].filter((prefix): prefix is string => Boolean(prefix)))],
+    taskHref,
+    repoUrl: /^https:\/\/\S+$/.test(detail.data?.repo ?? "") ? detail.data!.repo : null,
+  }), [detail.data, snapshot.data, taskHref]);
 
   const head: TaskHeadFacts | null = task
     ? {
@@ -244,25 +265,24 @@ export function TaskRoute() {
             project={project}
             projectName={spoke?.name ?? project ?? ""}
             prefix={detail.data?.prefix ?? null}
-            epic={epicOf(board.data?.epics ?? null, task.parent)}
+            epic={parentEpic}
+            parentSegments={parentSegments}
             epics={board.data?.epics ?? []}
             people={holders(read)}
             parentTitle={parentTitle}
             nextReady={nextReady}
-            blockers={blockerRows(task, board.data?.tasks ?? [], actors)}
-            blocked={blockedByThis(board.data?.tasks ?? [], task.id).map((other) => taskRowFacts(other, actors))}
             nowMs={now}
           />
-          <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
-            <Body task={task} />
-            {epicView ? <EpicTasks view={epicView} /> : null}
-            <Comments
-              id={task.id}
-              comments={detail.data?.comments ?? []}
-              nowMs={now}
-            />
-            <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
-          </div>
+          <TaskTextRefsProvider value={textRefs}>
+            <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
+              <Body task={task} />
+              {blockers.length > 0 || blocked.length > 0 ? (
+                <Dependencies task={task} blockers={blockers} blocked={blocked} />
+              ) : null}
+              {epicView ? <EpicTasks view={epicView} /> : null}
+              <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
+            </div>
+          </TaskTextRefsProvider>
         </div>
       )}
     </div>
@@ -587,8 +607,10 @@ function LongTextField({
         <Button type="button" variant="outline" size="sm" className="w-fit" disabled={!writable} onClick={() => setEditing(true)}>
           <Plus aria-hidden /> {addLabel}
         </Button>
+      ) : label === "Description" ? (
+        <GuideText source={value} />
       ) : (
-        <MarkdownText source={value} />
+        <MarkdownText source={value} checklist />
       )}
     </section>
   );
@@ -598,20 +620,92 @@ function SectionLabel({ children }: { children: ReactNode }) {
   return <span className={eyebrowClass}>{children}</span>;
 }
 
-// --- Comments ---------------------------------------------------------------
+// --- What happened, and the next comment --------------------------------------
 
-/** The conversation, oldest first, with the composer where the next line
- * goes. The operator's own answers to `human` tasks land here. */
-function Comments({
-  id,
+/**
+ * Filing, the claim, every comment and the close on one time axis that ends
+ * at now, then the same moments in order with who did each, and the box for
+ * the next comment last. Every moment is dated, and an undated fact is not a
+ * moment: a claim with no `started_at` would otherwise be dated by the last
+ * edit. A comment nobody dated is still listed, last, and says so.
+ */
+function Activity({
+  task,
   comments,
   nowMs,
 }: {
-  id: string;
+  task: LiveTask;
   comments: TaskComment[];
   nowMs: number;
 }) {
   const actors = useContext(TaskActors);
+  const entries = useMemo(() => {
+    const out: TaskTimelineEntry[] = [];
+    if (task.createdAt) out.push({ id: "filed", at: task.createdAt, kind: "filed", label: "Filed", said: "Filed" });
+    if (task.startedAt) {
+      const name = task.assignee ? taskActorLabel(task.assignee, actors) : null;
+      const model = claimedModel(task);
+      out.push({
+        id: "claimed",
+        at: task.startedAt,
+        kind: "claimed",
+        who: name ? { name, model } : null,
+        label: name ? <>Claimed by <b className="font-semibold">{name}</b>{model ? <span className="text-muted-foreground"> · {model}</span> : null}</> : "Claimed",
+        said: name ? `Claimed by ${name}${model ? ` · ${model}` : ""}` : "Claimed",
+      });
+    }
+    for (const entry of comments) {
+      const name = taskActorLabel(entry.author, actors);
+      out.push({
+        id: `comment-${entry.id}`,
+        at: entry.createdAt,
+        kind: "comment",
+        who: { name, model: null },
+        label: <>Comment from <b className="font-semibold">{name}</b></>,
+        said: `Comment from ${name}`,
+        body: <MarkdownText source={entry.text} />,
+      });
+    }
+    if (task.closedAt) {
+      const closer = closeAttribution(task);
+      const name = closer ? taskActorLabel(closer.by, actors) : null;
+      // The reason's sentence is the body; its commits and links are chips.
+      const sentence = task.closeReason ? evidenceParts(task.closeReason).filter((part) => part.kind === "text").map((part) => part.text).join(" · ") : "";
+      out.push({
+        id: "closed",
+        at: task.closedAt,
+        kind: "closed",
+        who: name ? { name, model: closer?.model ?? null } : null,
+        label: name ? <>Closed by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : "Closed",
+        said: name ? `Closed by ${name}${closer?.model ? ` · ${closer.model}` : ""}` : "Closed",
+        body: sentence ? <MarkdownText source={sentence} /> : undefined,
+        evidence: task.closeReason,
+      });
+    }
+    return out;
+  }, [task, comments, actors]);
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <SectionLabelRow title="Activity" caption={comments.length > 0 ? `${formatInt(comments.length)} ${comments.length === 1 ? "comment" : "comments"}` : undefined} />
+      </CardHeader>
+      <CardContent>
+        <TaskTimeline
+          entries={entries}
+          nowMs={nowMs}
+          age={(at) => <Age iso={at} nowMs={nowMs} />}
+          composer={<CommentBox id={task.id} />}
+          ariaLabel="What happened to this task"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** The next comment. The operator's own answers to `human` tasks land in the
+ * timeline above it. */
+function CommentBox({ id }: { id: string }) {
   const toast = useOwnerToast();
   const permitted = useContext(TaskWritePermission);
   const writable = taskOperationAvailable(useTasksLive(), 'comment') && permitted;
@@ -620,71 +714,39 @@ function Comments({
   const ready = draft.trim().length > 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        {/* One heading style on the page: the eyebrow Description and Done
-            when wear. */}
-        <h2 className="m-0 flex items-center gap-2">
-          <SectionLabel>Comments</SectionLabel>
-          {comments.length > 0 ? (
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {comments.length}
-            </span>
-          ) : null}
-        </h2>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {/* No comments is no list — the box below is where the first one goes,
-            and the header's missing count already says there are none. */}
-        {comments.length === 0 ? null : (
-          <ol className="flex flex-col gap-3" data-task-comments>
-            {comments.map((entry) => (
-              <li key={entry.id} className="flex min-w-0 flex-col gap-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-sm font-medium">{taskActorLabel(entry.author, actors)}</span>
-                  <Age iso={entry.createdAt} nowMs={nowMs} />
-                </div>
-                <MarkdownText source={entry.text} className="text-sm" />
-              </li>
-            ))}
-          </ol>
-        )}
-
-        <div className={cn("flex flex-col gap-2", comments.length > 0 && "border-t border-border pt-3")}>
-          <textarea
-            aria-label="Add a comment"
-            disabled={!writable}
-            rows={2}
-            value={draft}
-            placeholder="What you found, decided, or need."
-            onChange={(event) => setDraft(event.target.value)}
-            className={cn(fieldClass, "w-full py-1.5")}
-          />
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!writable || !ready || comment.isPending}
-              onClick={() => {
-                comment.mutate(
-                  { id, text: draft.trim() },
-                  {
-                    onSuccess: () => {
-                      toast.success("Comment added");
-                      setDraft("");
-                    },
-                    onError: (err) => toast.error(refusalMessage(err)),
-                  },
-                );
-              }}
-            >
-              {comment.isPending ? "Sending…" : "Comment"}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-2">
+      <textarea
+        aria-label="Add a comment"
+        disabled={!writable}
+        rows={2}
+        value={draft}
+        placeholder="What you found, decided, or need."
+        onChange={(event) => setDraft(event.target.value)}
+        className={cn(fieldClass, "w-full py-1.5")}
+      />
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!writable || !ready || comment.isPending}
+          onClick={() => {
+            comment.mutate(
+              { id, text: draft.trim() },
+              {
+                onSuccess: () => {
+                  toast.success("Comment added");
+                  setDraft("");
+                },
+                onError: (err) => toast.error(refusalMessage(err)),
+              },
+            );
+          }}
+        >
+          {comment.isPending ? "Sending…" : "Comment"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -700,9 +762,8 @@ function Facts({
   epics,
   people,
   parentTitle,
+  parentSegments,
   nextReady,
-  blockers,
-  blocked,
   nowMs,
 }: {
   className?: string;
@@ -720,11 +781,10 @@ function Facts({
   /** The parent's title from the board read, when it is not an epic the
    * board's progress read covers. */
   parentTitle: string | null;
+  /** This task among its siblings, as the parent's bar draws them. */
+  parentSegments: readonly EpicSegment[] | null;
   /** The first sibling ready to be claimed. */
   nextReady: BoardTask | null;
-  /** What this task waits on, and what waits on it. */
-  blockers: TaskRowFacts[];
-  blocked: TaskRowFacts[];
   nowMs: number;
 }) {
   const save = useFieldSave(task.id);
@@ -797,9 +857,11 @@ function Facts({
               <div className="flex basis-full flex-col gap-1.5 pt-0.5">
                 {/* The epic's all-time child progress (`bd epic status`): the only
                     honest denominator, since a list read is a window. */}
-                {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
+                {epic ? <EpicProgress closed={epic.closed} total={epic.total} segments={parentSegments} /> : null}
                 {nextReady ? (
                   <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
+                    {/* The dot the bar marks this task with. */}
+                    <span aria-hidden className="me-1.5 inline-block size-1 rounded-full bg-foreground align-middle" />
                     Next ready:{" "}
                     <Link to={taskHref(nextReady.id)} className="text-foreground underline-offset-4 hover:underline">
                       <span className="font-mono">{nextReady.id}</span> {nextReady.title}
@@ -809,18 +871,6 @@ function Facts({
               </div>
             ) : null}
           </Fact>
-
-          {blockers.length > 0 ? (
-            <Fact label="Blocked by" wide list>
-              <DependencyList items={blockers} />
-            </Fact>
-          ) : null}
-
-          {blocked.length > 0 ? (
-            <Fact label="Blocks" wide list>
-              <DependencyList items={blocked} />
-            </Fact>
-          ) : null}
 
           <Fact label="Status">
             <FactChip
@@ -915,24 +965,21 @@ function Facts({
 }
 
 /** One fact: its eyebrow and its value, side by side on a laptop. A wide fact
- * takes the whole row when the facts wrap on a phone; a list stacks under its
- * eyebrow everywhere. */
+ * takes the whole row when the facts wrap on a phone. */
 function Fact({
   label,
   wide = false,
-  list = false,
   children,
 }: {
   label: string;
   wide?: boolean;
-  list?: boolean;
   children: ReactNode;
 }) {
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col gap-1.5 lg:border-b lg:border-border/70 lg:py-2.5 lg:first:pt-0 lg:last:border-0 lg:last:pb-0",
-        !list && "lg:grid lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-baseline lg:gap-x-3",
+        "flex min-w-0 flex-col gap-1.5 lg:grid lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-baseline lg:gap-x-3",
+        "lg:border-b lg:border-border/70 lg:py-2.5 lg:first:pt-0 lg:last:border-0 lg:last:pb-0",
         wide && "basis-full",
       )}
     >
@@ -1012,17 +1059,37 @@ function CameFrom({ origin }: { origin: HandoffOrigin }) {
   );
 }
 
-/** Each row wears its task's own status glyph: a closed blocker is no longer
- * in the way, and a list that could not say so would read as five things
- * blocking work that only two of them block. */
-function DependencyList({ items }: { items: TaskRowFacts[] }) {
+/**
+ * Who blocks whom, drawn: what this task waits on to its left, what waits on
+ * it to its right, each card in its task's own status glyph, because a closed
+ * blocker is no longer in the way and a drawing that could not say so would
+ * read as five things blocking work that only two of them block.
+ */
+function Dependencies({ task, blockers, blocked }: { task: LiveTask; blockers: TaskRowFacts[]; blocked: TaskRowFacts[] }) {
   const taskHref = useTaskHref();
+  const node = (row: TaskRowFacts, edge: FlowEdgeState): DependencyNode => ({
+    id: row.id,
+    title: row.title,
+    mark: row.status === null
+      ? <CircleHelp role="img" className="size-3.5 shrink-0 text-muted-foreground/60" aria-label="State — unknown" />
+      : <TaskStatusGlyph status={row.status} />,
+    said: taskRowSaid(row),
+    href: taskHref(row.id),
+    edge,
+  });
   return (
-    <ul className="-mx-2 flex flex-col">
-      {items.map((item) => (
-        <TaskRow key={item.id} task={item} href={taskHref(item.id)} marks={{ "data-dependency": item.id }} />
-      ))}
-    </ul>
+    <Card data-task-dependencies="">
+      <CardContent className="pt-4">
+        <DependencyGraph
+          subject={{ id: task.id, caption: "This task", mark: <TaskStatusGlyph status={task.status} /> }}
+          before={blockers.map((row) => node(row, blockerEdgeState(row.status)))}
+          after={blocked.map((row) => node(row, blockerEdgeState(task.status)))}
+          beforeLabel="Blocked by"
+          afterLabel="Blocks"
+          ariaLabel={`What ${task.id} waits on and what waits on it`}
+        />
+      </CardContent>
+    </Card>
   );
 }
 
@@ -1066,103 +1133,6 @@ function useFieldSave(id: string): FieldSave {
       return true;
     },
     [id, update, writable],
-  );
-}
-
-// --- The activity timeline --------------------------------------------------
-
-/**
- * What happened to this task, in `Timeline`'s grammar, but not the `Timeline`
- * component: that renders `annotations`, a different vocabulary over a
- * different table. Every node is dated, and an undated fact is not a node: a
- * claim with no `started_at` would otherwise be dated by the last edit.
- */
-function Activity({
-  task,
-  comments,
-  nowMs,
-}: {
-  task: LiveTask;
-  comments: TaskComment[];
-  nowMs: number;
-}) {
-  const actors = useContext(TaskActors);
-  const events = useMemo(() => {
-    const out: { key: string; at: string; icon: typeof Circle; label: string; note: string | null }[] =
-      [];
-    if (task.createdAt) {
-      out.push({ key: "created", at: task.createdAt, icon: Circle, label: "Filed", note: null });
-    }
-    if (task.startedAt) {
-      const model = claimedModel(task);
-      out.push({
-        key: "claimed",
-        at: task.startedAt,
-        icon: CircleDot,
-        label: task.assignee ? `Claimed by ${taskActorLabel(task.assignee, actors)}${model ? ` · ${model}` : ""}` : "Claimed",
-        note: null,
-      });
-    }
-    for (const entry of comments) {
-      if (!entry.createdAt) continue;
-      out.push({
-        key: `comment-${entry.id}`,
-        at: entry.createdAt,
-        icon: MessageSquare,
-        label: `Comment from ${taskActorLabel(entry.author, actors)}`,
-        note: entry.text,
-      });
-    }
-    if (task.closedAt) {
-      const closer = closeAttribution(task);
-      out.push({
-        key: "closed",
-        at: task.closedAt,
-        icon: Check,
-        label: closer ? `Closed by ${taskActorLabel(closer.by, actors)}${closer.model ? ` · ${closer.model}` : ""}` : "Closed",
-        note: task.closeReason,
-      });
-    }
-    return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  }, [task, comments, actors]);
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <h2 className="m-0"><SectionLabel>Activity</SectionLabel></h2>
-      </CardHeader>
-      <CardContent>
-        {events.length === 0 ? (
-          <EmptyState title="Nothing dated yet" />
-        ) : (
-          <ol className="flex flex-col" data-task-activity>
-            {events.map((event, index) => {
-              const Icon = event.icon;
-              const isLast = index === events.length - 1;
-              return (
-                <li key={event.key} className="flex gap-3 pb-3 last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-                      <Icon className="size-3" aria-hidden />
-                    </span>
-                    {isLast ? null : <span aria-hidden className="mt-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-0.5 pb-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-sm font-medium">{event.label}</span>
-                      <Age iso={event.at} nowMs={nowMs} />
-                    </div>
-                    {event.note ? (
-                      <span className="text-sm text-muted-foreground">{event.note}</span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1481,7 +1451,8 @@ function findInSnapshot(
  * the tasks the read leaves out, and the board's graph when it draws one. */
 interface EpicView {
   groups: EpicTaskGroup[];
-  progress: { closed: number; total: number } | null;
+  /** Closed of total, and, from the live read, each task as a segment. */
+  progress: { closed: number; total: number; segments?: readonly EpicSegment[] } | null;
   missing: string | null;
   graphHref: string | null;
 }
@@ -1492,11 +1463,16 @@ function liveEpicView(payload: LiveTasksPayload, read: BoardTask[], task: LiveTa
   const children = read.filter((row) => row.parent === task.id);
   if (task.issueType !== "epic" && children.length === 0) return null;
   const earlier = epic ? Math.max(0, epic.total - children.length) : 0;
+  const count = epic && epic.total > 0
+    ? { closed: epic.closed, total: epic.total }
+    : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null;
+  const groups = epicTaskGroups(children, read);
   return {
-    groups: epicTaskGroups(children, read),
-    progress: epic && epic.total > 0
-      ? { closed: epic.closed, total: epic.total }
-      : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null,
+    groups,
+    progress: count === null ? null : {
+      ...count,
+      segments: epicSegments({ children, next: groups.find((group) => group.word === "Ready")?.tasks[0]?.id ?? null, ...count }),
+    },
     missing: earlier === 0 ? null
       : `${formatInt(earlier)} ${children.length > 0 ? "more" : earlier === 1 ? "task" : "tasks"}, closed over ${TASKS_CLOSED_WINDOW_DAYS} days ago`,
     graphHref: epic && epicDrawsGraph(liveRows(payload), task.id) ? `/tasks?epic=${encodeURIComponent(task.id)}` : null,
@@ -1565,207 +1541,3 @@ function handoffOrigin(metadata: Record<string, unknown> | null): HandoffOrigin 
   };
 }
 
-// --- Markdown, the safe subset ----------------------------------------------
-
-/**
- * A task's description, acceptance criteria and comments are Markdown written
- * by whoever filed them. No dependency and no raw HTML: the renderer parses
- * into blocks and emits React elements, so there is no `dangerouslySetInnerHTML`
- * on the path and a `<script>` in a description is text by construction. A link
- * is rendered only when its href is `http(s)`, `mailto:` or site-relative;
- * anything else renders as the literal Markdown it was written as.
- */
-export function MarkdownText({ source, className }: { source: string; className?: string }) {
-  const blocks = useMemo(() => parseBlocks(source), [source]);
-  return (
-    <div className={cn("flex min-w-0 flex-col gap-2 text-sm leading-relaxed", className)}>
-      {blocks.map((block, index) => {
-        const key = `${block.kind}-${index}`;
-        if (block.kind === "heading") {
-          return (
-            <h3
-              key={key}
-              className={cn(
-                "font-semibold text-foreground",
-                block.level <= 2 ? "text-base" : "text-sm",
-              )}
-            >
-              {inline(block.text, key)}
-            </h3>
-          );
-        }
-        if (block.kind === "code") {
-          return (
-            <pre
-              key={key}
-              className="min-w-0 overflow-x-auto rounded-md border border-border bg-muted/50 p-2 font-mono text-xs"
-            >
-              <code>{block.text}</code>
-            </pre>
-          );
-        }
-        if (block.kind === "quote") {
-          return (
-            <blockquote
-              key={key}
-              className="border-l-2 border-border pl-3 text-muted-foreground"
-            >
-              {inline(block.text, key)}
-            </blockquote>
-          );
-        }
-        if (block.kind === "list") {
-          const items = block.items.map((item, i) => (
-            <li key={`${key}-${i}`}>{inline(item, `${key}-${i}`)}</li>
-          ));
-          return block.ordered ? (
-            <ol key={key} className="ml-5 list-decimal space-y-0.5">
-              {items}
-            </ol>
-          ) : (
-            <ul key={key} className="ml-5 list-disc space-y-0.5">
-              {items}
-            </ul>
-          );
-        }
-        return <p key={key}>{inline(block.text, key)}</p>;
-      })}
-    </div>
-  );
-}
-
-type Block =
-  | { kind: "heading"; level: number; text: string }
-  | { kind: "paragraph"; text: string }
-  | { kind: "list"; ordered: boolean; items: string[] }
-  | { kind: "code"; text: string }
-  | { kind: "quote"; text: string };
-
-function parseBlocks(source: string): Block[] {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
-  const out: Block[] = [];
-  let paragraph: string[] = [];
-
-  const flush = () => {
-    if (paragraph.length > 0) {
-      out.push({ kind: "paragraph", text: paragraph.join(" ") });
-      paragraph = [];
-    }
-  };
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i] ?? "";
-    if (line.trimStart().startsWith("```")) {
-      flush();
-      const body: string[] = [];
-      i += 1;
-      while (i < lines.length && !(lines[i] ?? "").trimStart().startsWith("```")) {
-        body.push(lines[i] ?? "");
-        i += 1;
-      }
-      out.push({ kind: "code", text: body.join("\n") });
-      continue;
-    }
-    if (line.trim() === "") {
-      flush();
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (heading) {
-      flush();
-      out.push({ kind: "heading", level: (heading[1] ?? "#").length, text: (heading[2] ?? "").trim() });
-      continue;
-    }
-    const quote = /^>\s?(.*)$/.exec(line);
-    if (quote) {
-      flush();
-      const last = out[out.length - 1];
-      if (last && last.kind === "quote") last.text = `${last.text} ${quote[1] ?? ""}`;
-      else out.push({ kind: "quote", text: quote[1] ?? "" });
-      continue;
-    }
-    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line);
-    const numbered = bullet ? null : /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (bullet || numbered) {
-      flush();
-      const ordered = bullet === null;
-      const item = ((bullet ?? numbered)?.[1] ?? "").trim();
-      const last = out[out.length - 1];
-      if (last && last.kind === "list" && last.ordered === ordered) last.items.push(item);
-      else out.push({ kind: "list", ordered, items: [item] });
-      continue;
-    }
-    paragraph.push(line.trim());
-  }
-  flush();
-  return out;
-}
-
-/** Inline spans: code, bold, emphasis, links. Split on the token pattern so the
- * delimiters survive as their own parts, then each part becomes an element —
- * never a string of markup. */
-const INLINE_TOKEN =
-  /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|_[^_\s][^_]*_|\[[^\]]*\]\([^)\s]+\))/g;
-
-function inline(text: string, keyPrefix: string): ReactNode[] {
-  return text.split(INLINE_TOKEN).map((part, index) => {
-    const key = `${keyPrefix}-i${index}`;
-    if (part === "") return null;
-    if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
-      return (
-        <code key={key} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]">
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 3) {
-      return (
-        <strong key={key} className="font-semibold">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (
-      (part.startsWith("*") && part.endsWith("*") && part.length > 1) ||
-      (part.startsWith("_") && part.endsWith("_") && part.length > 1)
-    ) {
-      return <em key={key}>{part.slice(1, -1)}</em>;
-    }
-    const link = /^\[([^\]]*)\]\(([^)\s]+)\)$/.exec(part);
-    if (link) {
-      const label = link[1] ?? "";
-      const href = safeHref(link[2] ?? "");
-      if (href === null) return <span key={key}>{part}</span>;
-      if (href.startsWith("/")) {
-        return (
-          <Link key={key} to={href} className="underline underline-offset-2">
-            {label}
-          </Link>
-        );
-      }
-      return (
-        <a
-          key={key}
-          href={href}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="underline underline-offset-2"
-        >
-          {label}
-        </a>
-      );
-    }
-    return <span key={key}>{part}</span>;
-  });
-}
-
-/** An allowlist, not a denylist: three shapes are safe to put in an `href` and
- * everything else — `javascript:`, `data:`, a protocol-relative `//host` — is
- * not a link this page will make. */
-function safeHref(raw: string): string | null {
-  const href = raw.trim();
-  if (/^https?:\/\//i.test(href)) return href;
-  if (/^mailto:[^\s]+$/i.test(href)) return href;
-  if (href.startsWith("/") && !href.startsWith("//")) return href;
-  return null;
-}

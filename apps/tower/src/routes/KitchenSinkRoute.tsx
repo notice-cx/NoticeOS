@@ -158,6 +158,7 @@ import { UnknownPriceCount } from "@/components/UnknownPriceCount";
 import { TaskStatusChip } from "@/routes/tasks/task-face";
 import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
 import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
+import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
 import { Tabs } from "@/components/Tabs";
@@ -4337,6 +4338,18 @@ export function KitchenSinkRoute() {
               editor kind, a link, a split chip and the read-only face. */}
           <Section title="FactChip (a fact that edits where it is read: choice, typed value, date, link, read-only)">
             <FactChipDemo />
+          </Section>
+
+          {/* Who blocks whom on a task's page: blockers left, blocked right,
+              each edge drawn as the board's Epic graph draws it. */}
+          <Section title="DependencyGraph (a task between what it waits on and what waits on it)">
+            <DependencyGraphDemo />
+          </Section>
+
+          {/* What happened to a task: the strip on a time axis to now, the
+              moments in order with who did each, the next comment last. */}
+          <Section title="TaskTimeline (filed, claimed, comments and the close on one time axis)">
+            <TaskTimelineDemo />
           </Section>
 
           {/* The task page's header: type word and id over the title, the

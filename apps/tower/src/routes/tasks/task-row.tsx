@@ -16,6 +16,16 @@ export interface TaskRowFacts {
   holder?: { name: string; model: string | null } | null;
 }
 
+/** A row's marks in words, its description for a screen reader: the state,
+ * who holds it, the priority. */
+export function taskRowSaid(task: TaskRowFacts): string {
+  return [
+    task.status === null ? "State unknown" : statusFace(task.status).label,
+    task.holder ? `held by ${task.holder.name}${task.holder.model ? ` · ${task.holder.model}` : ""}` : null,
+    task.priority === null || task.priority === undefined ? null : `${priorityFace(task.priority).band} priority`,
+  ].filter(Boolean).join(", ");
+}
+
 /**
  * One task as one target, the way the board's rows read: the status glyph,
  * the id and title, who holds it and the priority mark. The whole row is the
@@ -37,12 +47,7 @@ export function TaskRow({
 }) {
   const ids = useId();
   const name = `${ids}-id ${ids}-title`;
-  // The marks are drawn for the eye; this is the same row said in words.
-  const said = [
-    task.status === null ? "State unknown" : statusFace(task.status).label,
-    task.holder ? `held by ${task.holder.name}${task.holder.model ? ` · ${task.holder.model}` : ""}` : null,
-    task.priority === null || task.priority === undefined ? null : `${priorityFace(task.priority).band} priority`,
-  ].filter(Boolean).join(", ");
+  const said = taskRowSaid(task);
   return (
     <li className={cn("min-w-0 list-none", className)} {...marks}>
       <Link

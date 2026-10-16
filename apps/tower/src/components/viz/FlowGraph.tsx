@@ -540,34 +540,53 @@ export function FlowGraph({
 }
 
 function EdgeMark({ edge, route, fill }: { edge: PlannedEdge; route: FlowRoute | null; fill: string }) {
-  const flowing = edge.state === "flowing";
   return (
     <g data-flow-edge={`${edge.from.id}->${edge.to.id}`} data-state={edge.state} data-route={edge.kind}>
-      {route === null ? null : edge.state === "broken" ? (
-        <>
-          <path d={route.d} fill="none" className="stroke-error" strokeWidth={1.75} strokeDasharray="5 4" strokeLinecap="round" />
-          <path d={route.arrow} className="fill-error" />
-          {route.label && edge.edge.label ? null : (
-            <g transform={`translate(${pt(route.mid)})`} data-flow-break>
-              <circle r={6.5} strokeWidth={1.5} className={cn(fill, "stroke-error")} />
-              <path d="M-2.3 -2.3 L2.3 2.3 M2.3 -2.3 L-2.3 2.3" strokeWidth={1.75} strokeLinecap="round" className="stroke-error" />
-            </g>
-          )}
-        </>
-      ) : (
-        <>
-          <path
-            d={route.d}
-            pathLength={1}
-            fill="none"
-            strokeWidth={flowing ? 1.5 : 1}
-            className={cn("viz-draw", flowing ? "stroke-muted-foreground/35" : "stroke-muted-foreground/30")}
-          />
-          {flowing ? <path d={route.d} fill="none" strokeWidth={2} strokeLinecap="round" className="viz-flow stroke-muted-foreground" /> : null}
-          <path d={route.arrow} className={flowing ? "fill-muted-foreground" : "fill-muted-foreground/45"} />
-        </>
-      )}
+      {route === null ? null : <FlowEdgePath state={edge.state} route={route} fill={fill} breakMark={!(route.label && edge.edge.label)} />}
     </g>
+  );
+}
+
+/**
+ * One edge drawn on its route, the graph's own stroke for each state: a
+ * flowing edge's dashes move toward its head, an idle one is faint, a broken
+ * one is a dashed error line with a break mark. Exported for a drawing that
+ * places its own nodes and routes with `flowRoutes`.
+ */
+export function FlowEdgePath({ state, route, fill = SURFACE.card.fill, breakMark = true }: {
+  state: FlowEdgeState;
+  route: FlowRoute;
+  /** The surface's fill, which the break mark is cut from. */
+  fill?: string;
+  breakMark?: boolean;
+}) {
+  const flowing = state === "flowing";
+  if (state === "broken") {
+    return (
+      <>
+        <path d={route.d} fill="none" className="stroke-error" strokeWidth={1.75} strokeDasharray="5 4" strokeLinecap="round" />
+        <path d={route.arrow} className="fill-error" />
+        {breakMark ? (
+          <g transform={`translate(${pt(route.mid)})`} data-flow-break>
+            <circle r={6.5} strokeWidth={1.5} className={cn(fill, "stroke-error")} />
+            <path d="M-2.3 -2.3 L2.3 2.3 M2.3 -2.3 L-2.3 2.3" strokeWidth={1.75} strokeLinecap="round" className="stroke-error" />
+          </g>
+        ) : null}
+      </>
+    );
+  }
+  return (
+    <>
+      <path
+        d={route.d}
+        pathLength={1}
+        fill="none"
+        strokeWidth={flowing ? 1.5 : 1}
+        className={cn("viz-draw", flowing ? "stroke-muted-foreground/35" : "stroke-muted-foreground/30")}
+      />
+      {flowing ? <path d={route.d} fill="none" strokeWidth={2} strokeLinecap="round" className="viz-flow stroke-muted-foreground" /> : null}
+      <path d={route.arrow} className={flowing ? "fill-muted-foreground" : "fill-muted-foreground/45"} />
+    </>
   );
 }
 

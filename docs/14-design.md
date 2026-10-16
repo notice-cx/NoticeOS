@@ -157,6 +157,8 @@ that can be read quickly, and the kit has a component for it:
 | many units × many states | a grid, one cell per pair, the state as fill, the age in the failing cell | `HealthGrid` |
 | events in time | rows on a time axis with the current time marked, problems as spans from onset to now | `EventTimeline` |
 | how things connect or flow | nodes and edges, each node in its state with its live count, the broken one highlighted in place | `FlowGraph` |
+| one item and what it waits on | the item in the middle, what it waits on to its left and what waits on it to its right, each in its state, the edges drawn as `FlowGraph` draws them | `DependencyGraph` |
+| one record's history | its moments on a time axis that ends at now, then the same moments in order with who did each and what they wrote | `TaskTimeline` |
 | where things are | a map, when place is the data (visitors by country), never as decoration | — |
 | a queue | its size, the spread of its items' ages, then the rows with age as a bar length | `DecisionQueue` |
 | a quantity over time and who contributed it | columns split by contributor in neutral colours, each contributor named beside the newest complete column, the current column outlined | `StackedWeeks` |

@@ -7,7 +7,7 @@ import { StateChip } from "@/components/StateChip";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import type { InboxAsk } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
-import { EpicProgress } from "./epic-tasks";
+import { EpicProgress, type EpicSegment } from "./epic-tasks";
 import { PriorityChip, TaskStatusChip, askFace, taskTypeWord } from "./task-face";
 
 /** What a task page's header states, from whichever read the page has. */
@@ -22,7 +22,7 @@ export interface TaskHeadFacts {
   /** What the operator's inbox asks of it, or null. */
   ask: InboxAsk | null;
   /** An epic's closed of total. */
-  progress: { closed: number; total: number } | null;
+  progress: { closed: number; total: number; segments?: readonly EpicSegment[] } | null;
 }
 
 /**
@@ -91,7 +91,7 @@ export function TaskHead({
                 ) : null}
               </span>
             ) : null}
-            {facts.progress ? <EpicProgress closed={facts.progress.closed} total={facts.progress.total} /> : null}
+            {facts.progress ? <EpicProgress closed={facts.progress.closed} total={facts.progress.total} segments={facts.progress.segments} /> : null}
           </>
         ) : null
       }

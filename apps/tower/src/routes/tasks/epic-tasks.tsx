@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { claimedModel, taskActorLabel } from "@shared/tasks";
 import { Meter } from "@/components/Meter";
 import { SectionLabel } from "@/components/surface/SectionLabel";
@@ -8,14 +9,119 @@ import type { EpicTaskGroup } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
 import { TaskRow } from "./task-row";
 
-/** An epic's all-time progress: closed of total, as a bar with its figure. */
-export function EpicProgress({ closed, total, className }: { closed: number; total: number; className?: string }) {
+/** An epic's all-time progress: closed of total, as a bar with its figure.
+ * With its tasks known, the bar is one segment per task (`EpicSegments`). */
+export function EpicProgress({ closed, total, segments, className }: {
+  closed: number;
+  total: number;
+  segments?: readonly EpicSegment[] | null;
+  className?: string;
+}) {
+  const drawn = segments && segments.length > 0 && segments.length <= SEGMENTS_DRAWN ? segments : null;
   return (
     <span className={cn("inline-flex min-w-0 items-center gap-2", className)} data-epic-progress={`${closed}/${total}`}>
-      <Meter value={closed} max={total} ariaLabel={`${closed} of ${total} children closed`} className="w-24 shrink-0" />
+      {drawn ? (
+        <EpicSegments segments={drawn} label={`${closed} of ${total} children closed`} closed={closed} total={total} />
+      ) : (
+        <Meter value={closed} max={total} ariaLabel={`${closed} of ${total} children closed`} className="w-24 shrink-0" />
+      )}
       <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
         {formatInt(closed)} of {formatInt(total)} closed
       </span>
+    </span>
+  );
+}
+
+/** Past this many tasks a segment is too thin to read; the bar is drawn whole. */
+const SEGMENTS_DRAWN = 40;
+
+/** One of an epic's tasks on its progress bar. `earlier` is a task closed
+ * before the read's window, known only by the epic's count; `unknown` one the
+ * count holds and the read does not, state unknown. */
+export interface EpicSegment {
+  id: string;
+  state: "done" | "active" | "blocked" | "waiting" | "earlier" | "unknown";
+  /** The task whose page this is. */
+  self?: boolean;
+  /** The first task ready to be claimed. */
+  next?: boolean;
+}
+
+const SEGMENT_ORDER: Record<EpicSegment["state"], number> = { earlier: 0, done: 1, active: 2, blocked: 3, waiting: 4, unknown: 5 };
+
+/**
+ * An epic's tasks as segments: every closed one filled, then the work under
+ * way, what is held, what waits, and what the read cannot place, so the bar
+ * fills from the left as the epic does. The epic's all-time count is the
+ * denominator, since a list read is a window.
+ */
+export function epicSegments({ children, self = null, next = null, closed, total }: {
+  children: readonly BoardTask[];
+  self?: string | null;
+  next?: string | null;
+  closed: number;
+  total: number;
+}): EpicSegment[] {
+  const listed = children.map((task): EpicSegment => ({
+    id: task.id,
+    state: task.status === "closed" ? "done" : task.status === "in_progress" ? "active" : task.status === "blocked" ? "blocked" : "waiting",
+    ...(task.id === self ? { self: true } : {}),
+    ...(task.id === next ? { next: true } : {}),
+  }));
+  const listedClosed = listed.filter((segment) => segment.state === "done").length;
+  const unlisted = Math.max(0, total - listed.length);
+  const earlier = Math.min(unlisted, Math.max(0, closed - listedClosed));
+  const rest: EpicSegment[] = [
+    ...Array.from({ length: earlier }, (_, i): EpicSegment => ({ id: `earlier-${i}`, state: "earlier" })),
+    ...Array.from({ length: unlisted - earlier }, (_, i): EpicSegment => ({ id: `unknown-${i}`, state: "unknown" })),
+  ];
+  return [...rest, ...listed].sort((a, b) => SEGMENT_ORDER[a.state] - SEGMENT_ORDER[b.state]
+    || a.id.localeCompare(b.id, undefined, { numeric: true }));
+}
+
+const SEGMENT_FILL: Record<EpicSegment["state"], string> = {
+  earlier: "bg-foreground/55",
+  done: "bg-foreground/70",
+  active: "bg-foreground/30",
+  blocked: "bg-warn/70",
+  waiting: "bg-viz-track",
+  unknown: "viz-hatch bg-viz-track text-muted-foreground",
+};
+
+/** The bar, segment by segment: this task ringed, the next ready one marked
+ * with the dot the Next ready line starts with. Closed is ink, never green. */
+export function EpicSegments({ segments, label, closed, total }: { segments: readonly EpicSegment[]; label: string; closed: number; total: number }) {
+  return (
+    <span
+      role="progressbar"
+      aria-label={label}
+      aria-valuenow={closed}
+      aria-valuemin={0}
+      aria-valuemax={total}
+      data-epic-segments={segments.length}
+      className="flex h-3.5 shrink-0 items-start gap-[2px]"
+      // About a rem a segment, between 6 and 11 rem.
+      style={{ width: `min(11rem, max(6rem, ${segments.length} * 0.875rem))` }}
+    >
+      {segments.map((segment, index) => (
+        <span
+          key={segment.id}
+          data-segment={segment.state}
+          data-segment-self={segment.self ? "" : undefined}
+          data-segment-next={segment.next ? "" : undefined}
+          className="relative flex h-full min-w-[3px] flex-1 flex-col items-center"
+        >
+          <span
+            className={cn(
+              "viz-grow-y block h-2 w-full rounded-[2px]",
+              SEGMENT_FILL[segment.state],
+              segment.self && "ring-2 ring-foreground ring-offset-1 ring-offset-card",
+            )}
+            style={{ "--viz-i": index } as CSSProperties}
+          />
+          {segment.next ? <span aria-hidden className="mt-[3px] size-1 rounded-full bg-foreground" /> : null}
+        </span>
+      ))}
     </span>
   );
 }
