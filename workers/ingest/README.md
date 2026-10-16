@@ -1166,7 +1166,9 @@ quota and failure modes are in
   (`credential-probes.ts`) lists every GA4 property, matched to a host by its
   web data stream's default address (one free Admin API read for each of the
   first fifty), and every Search Console site; an unverified Search Console
-  site is listed, never ticked. **Start** writes each site's own mapping, which
+  site is listed, never ticked. The answer carries the credential it listed
+  with (`account`, `auth`), from which the connect panel names who to grant a
+  site the list lacks. **Start** writes each site's own mapping, which
   one resolver reads (`lane-mapping.ts`), and runs the Google step for the
   named sites. A sign-in with nothing mapped collects nothing and logs
   `google_signals_no_properties_mapped` once per pull; how the older account

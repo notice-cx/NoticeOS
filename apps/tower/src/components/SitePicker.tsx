@@ -1,10 +1,10 @@
 import { ArrowRight, ExternalLink, Loader2, TriangleAlert } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import type { CollectNowRefusal, CollectNowResult, CollectNowSite, IntegrationProvider } from "@noticeos/contract";
+import type { CollectNowRefusal, CollectNowResult, CollectNowSite, IntegrationProvider, SiteDiscovery } from "@noticeos/contract";
 import { integrationFailureMessage } from "@noticeos/contract/integration-health";
 import type { ConnectionKind, SiteStatus } from "@shared/connection-status";
-import { providerName } from "@shared/connect-panel";
+import { googleListingGrant, providerName } from "@shared/connect-panel";
 import {
   COLLECT_REFUSAL_LABEL,
   chosenSite,
@@ -231,6 +231,7 @@ export function SitePicker({
   const notUsing = tally("not-using");
   const undecided = tally("undecided");
   const others = unclaimedSites(plan, selection);
+  const grants = listingGrants(plan, selection, discovery);
   const metered = payload?.spend ?? null;
   const verb = metered ? "Start weekly reports" : "Start collecting";
   const count = siteCount(confirmed.length);
@@ -298,6 +299,15 @@ export function SitePicker({
           ))}
         </ul>
       )}
+      {grants.length > 0 ? (
+        <div className="flex flex-col gap-1" data-site-grants>
+          {grants.map((grant) => (
+            <p key={grant.lane} className="break-words text-xs leading-snug text-muted-foreground" data-site-grant={grant.lane}>
+              {grant.text}
+            </p>
+          ))}
+        </div>
+      ) : null}
       {others.length > 0 ? (
         <section aria-labelledby={`${provider.id}-other-sites`} className="flex flex-col gap-2" data-other-sites>
           <h3 id={`${provider.id}-other-sites`} className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
@@ -449,12 +459,35 @@ function ChoiceRow({
   );
 }
 
+/** A kind of site the account lists nothing for on this row: none matched,
+ * none picked, and none left to pick. */
+function notListed(row: SiteRow, lane: SiteLane, selection: SiteSelection): boolean {
+  return !(chosenSite(row, lane, selection) ?? lane.site) && lane.choices.length === 0;
+}
+
 /** What a row says under its name: each kind of site's detail, joined. A row
  * the account holds nothing for at all says so once. */
 function rowDetail(row: SiteRow, selection: SiteSelection, kind: "account" | "portfolio"): string {
-  const absent = (lane: SiteLane) => !(chosenSite(row, lane, selection) ?? lane.site) && lane.choices.length === 0;
-  if (kind === "account" && row.lanes.length > 1 && row.lanes.every(absent)) return NOT_IN_ACCOUNT;
+  if (kind === "account" && row.lanes.length > 1 && row.lanes.every((lane) => notListed(row, lane, selection))) return NOT_IN_ACCOUNT;
   return row.lanes.map((lane) => choiceDetail(row, lane, selection, kind)).filter(Boolean).join(" · ");
+}
+
+/** Under a Google list, once per kind of site some collectable row's account
+ * lists nothing for: whose access the list shows and the grant that adds it,
+ * in the Data sources tab's own words. None when the listing names no
+ * credential. */
+function listingGrants(
+  plan: SitePlan,
+  selection: SiteSelection,
+  discovery: SiteDiscovery | undefined,
+): { lane: "ga4" | "gsc"; text: string }[] {
+  if (plan.kind !== "account" || !discovery?.ok) return [];
+  return (["ga4", "gsc"] as const).flatMap((lane) => {
+    const missing = plan.rows.some((row) =>
+      row.excluded === null && row.lanes.some((entry) => entry.lane === lane && notListed(row, entry, selection)));
+    const text = missing ? googleListingGrant(lane, discovery) : null;
+    return text === null ? [] : [{ lane, text }];
+  });
 }
 
 /** One kind of site's part of a row's detail while choosing: the site it will
