@@ -461,6 +461,30 @@ function expectedProjection(seed: SeededRevenue) {
 // The store's projection is the month's pace beside the revenue figure, and
 // the change against last month's total; the Wall draws no daily bars and no
 // asset card.
+test("a Wall whose app fails to arrive reloads by itself and draws, and a drawn Wall is never reloaded", desktopOnly("the guard is the page's own, at any size"), async ({ page }) => {
+  await page.clock.install({ time: new Date(WALL_FIXTURE_NOW) });
+  await wallScene(page, "six", { clock: false });
+  // The app's entry, as source or as the built bundle, fails once, as it does
+  // when the server restarts in the middle of the load.
+  let entries = 0;
+  await page.route(/\/(?:src\/main\.tsx|assets\/index-[\w-]+\.js)(?:\?[^/]*)?$/, (route) => (entries++ === 0 ? route.abort() : route.continue()));
+  let loads = 0;
+  page.on("load", () => void (loads += 1));
+  await page.goto("/wall");
+  await expect.poll(() => loads).toBe(1);
+  await expect(page.locator("#root > *")).toHaveCount(0);
+  await page.clock.runFor(29_000);
+  expect(loads).toBe(1);
+  await page.clock.runFor(2_000);
+  await expect(page.locator("[data-wall-sites]")).toBeVisible();
+  expect(entries).toBe(2);
+  expect(loads).toBe(2);
+  // Drawn: the reloaded page's own check, and every later minute, leave it.
+  await page.clock.runFor("11:00");
+  expect(loads).toBe(2);
+  await expect(page.locator("[data-wall-sites]")).toBeVisible();
+});
+
 test('the Wall states the month on pace from the store\'s projection, and draws no asset card', async ({ page }, testInfo) => {
   await createAsset(page);
   const seeded = await page.request.post('/__journey/revenue-history');

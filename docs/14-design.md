@@ -446,6 +446,10 @@ screen in 240 ms (`lib/boot-splash.ts`). The first reads hold it for at most
 sign-in screen, the other session screens and a screen whose code could not
 be fetched remove it at once. It never takes a click, and the Wall opens the
 same way. It is drawn in the operator's theme, and always dark on the Wall.
+When no screen is drawn 30 seconds after the page loaded, because the app's
+code did not arrive (a restart in the middle of the load), `index.html`
+reloads the page; after reloads in a row it waits 1, 2, 4 and 8 minutes, then
+10, counted in the browser tab, and a drawn page clears the count.
 
 **A screen still loading shows its shape, never a value.** While a page's
 first read or its code is on its way, skeleton blocks in the empty-track

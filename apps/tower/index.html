@@ -165,6 +165,32 @@
         }
       } catch {}
     </script>
+    <!-- An app that has drawn nothing into #root when this check comes never
+         got the code it needs (a restart in the middle of the load), so the
+         page reloads: 30 s after loading, then 1, 2, 4 and 8 minutes after
+         reloads in a row, up to 10, counted in this tab. A drawn page clears
+         the count. Plain script: a module that failed to load is the case it
+         is for. -->
+    <script data-boot-guard>
+      (() => {
+        const key = "noticeos:boot-reloads";
+        let run = 0;
+        let wait = 600000;
+        try {
+          const last = JSON.parse(sessionStorage.getItem(key) || "null");
+          if (last && typeof last.run === "number" && typeof last.at === "number" && Date.now() - last.at < 1200000) run = last.run;
+          wait = Math.min(30000 * 2 ** run, 600000);
+        } catch {}
+        setTimeout(() => {
+          if (document.getElementById("root").firstElementChild) {
+            try { sessionStorage.removeItem(key); } catch {}
+            return;
+          }
+          try { sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), run: run + 1 })); } catch {}
+          location.reload();
+        }, wait);
+      })();
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
