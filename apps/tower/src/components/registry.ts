@@ -454,6 +454,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["connected", "affirmative", "caution", "critical", "declined", "na", "neutral", "hollow dot", "attention halo", "lifecycle glyph"],
   },
   {
+    name: "FactChip",
+    file: "components/FactChip.tsx",
+    purpose:
+      "A record's fact as its value, sized to its content, that edits where it is read: a press opens a small popover with the choices, a typed value or a date, a choice or Enter saves at once (the caller's save carries the Undo toast) and Escape leaves it as it was. Without write permission it is the same chip with nothing to press. KnobEditor edits a setting with its own Save and range; this is for a record's field that changes now and then (the task page's facts rail).",
+    variants: ["plain", "link", "choice", "choice with a typed value", "text", "date with presets", "split (link + editor)", "quiet (an absence)"],
+  },
+  {
     name: "UnknownPriceCount",
     file: "components/UnknownPriceCount.tsx",
     purpose:

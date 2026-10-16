@@ -157,6 +157,7 @@ import { StateChip } from "@/components/StateChip";
 import { UnknownPriceCount } from "@/components/UnknownPriceCount";
 import { TaskStatusChip } from "@/routes/tasks/task-face";
 import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
+import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
 import { Tabs } from "@/components/Tabs";
@@ -4330,6 +4331,12 @@ export function KitchenSinkRoute() {
             <TaskStatusChip subject="demo:task-deferred" status="deferred" />
             <TaskStatusChip subject="demo:task-closed" status="closed" />
             <TaskStatusChip subject="demo:task-marinating" status="marinating" />
+          </Section>
+
+          {/* A record's fact drawn as its value and edited in place: each
+              editor kind, a link, a split chip and the read-only face. */}
+          <Section title="FactChip (a fact that edits where it is read: choice, typed value, date, link, read-only)">
+            <FactChipDemo />
           </Section>
 
           {/* The task page's header: type word and id over the title, the

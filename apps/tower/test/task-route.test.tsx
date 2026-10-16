@@ -211,6 +211,12 @@ function renderTask(id = ID, query = '', state?: { returnTo: string }) {
   );
 }
 
+/** Opens a fact's editor by the chip's name ("Status: In progress"). */
+async function openFact(name: string | RegExp): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole("button", { name }));
+  return screen.findByRole("dialog");
+}
+
 /** The Undo the toast carried, invoked the way the operator would. */
 function pressUndo() {
   const call = toasts.success.mock.calls.at(-1);
@@ -238,13 +244,12 @@ describe('hosted actor labels', () => {
       actors: [{ principalId: principal, displayName: 'Current operator' }, { principalId: other, displayName: 'Another member' }],
       comments: [{ id: 'c1', author: principal, text: 'Observed work', createdAt: '2026-09-04T10:30:00.000Z' }] }));
     renderTask();
-    const chooser = await screen.findByRole('combobox', { name: 'Assignee' });
-    expect(chooser).toHaveValue(principal);
-    expect(screen.getByRole('option', { name: 'Current operator' })).toHaveValue(principal);
+    const editor = await openFact('Assignee: Current operator');
+    expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('data-value', principal);
+    expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByText('Comment from Current operator')).toBeInTheDocument();
     expect(screen.queryByText(principal)).not.toBeInTheDocument();
-    fireEvent.change(chooser, { target: { value: other } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Assignee' }));
+    fireEvent.click(within(editor).getByRole('option', { name: 'Another member' }));
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: other }));
     pressUndo();
     await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { assignee: principal }));
@@ -253,8 +258,8 @@ describe('hosted actor labels', () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'in_progress', assignee: principal }),
       actors: [{ principalId: principal, displayName: 'Current operator' }, { principalId: other, displayName: 'Another member' }] }));
     renderTask();
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Assignee' }), { target: { value: other } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Assignee' }));
+    const editor = await openFact('Assignee: Current operator');
+    fireEvent.click(within(editor).getByRole('option', { name: 'Another member' }));
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Saved — assignee'));
     expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: other });
     expect(toasts.success.mock.calls.at(-1)?.[1]).toBeUndefined();
@@ -264,10 +269,12 @@ describe('hosted actor labels', () => {
       comments: [{ id: 'c1', author: principal, text: 'Historical work', createdAt: null },
         { id: 'c2', author: 'agent/reviewer', text: 'Checked work', createdAt: null }] }));
     renderTask();
-    expect(await screen.findByRole('option', { name: 'Unknown actor' })).toHaveValue(principal);
+    const editor = await openFact('Assignee: Unknown actor');
+    expect(within(editor).getByRole('option', { name: 'Unknown actor' })).toHaveAttribute('data-value', principal);
     expect(screen.getByText('agent/reviewer')).toBeInTheDocument();
     expect(screen.queryByText(principal)).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Assignee' })).not.toBeInTheDocument();
+    // A hosted workspace's members are the whole list: no typed name.
+    expect(within(editor).queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
 
@@ -292,7 +299,7 @@ describe('hosted explicit project selection', () => {
     renderTask(ID, '?project=root-os');
     expect(await screen.findByText('A task has a page')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit description' })).toBeEnabled());
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Status: Open' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Claim' })).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeEnabled();
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a comment' }), { target: { value: 'Observed outcome' } });
@@ -367,11 +374,15 @@ describe('live task details in a read-only demo', () => {
     await waitFor(() => expect(view.container.querySelector('[data-task-comments]')).not.toBeNull());
     expect(within(view.container.querySelector('[data-task-comments]') as HTMLElement).getByText('Ship the facts panel first.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit description' })).toBeDisabled());
-    for (const name of ['Claim', 'Close', 'Comment', 'Save Status', 'Save Priority']) {
+    for (const name of ['Claim', 'Close', 'Comment']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
+    // Without write permission each fact is its plain chip: nothing to press.
+    const facts = view.container.querySelector('[data-task-facts]') as HTMLElement;
+    expect(within(facts).queryByRole('button', { name: /^(Status|Priority|Assignee|Parked until|Add a label|Change parent epic)/ })).toBeNull();
+    expect(within(facts).queryByRole('button', { name: /^Remove label/ })).toBeNull();
+    expect(within(facts).getByText('Open').closest('[data-fact-chip]')).toHaveAttribute('data-fact-chip', 'plain');
     expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/tasks');
     expect(api.fetchTask).toHaveBeenCalledWith(ID, expect.any(AbortSignal));
     expect(api.updateTask).not.toHaveBeenCalled(); expect(api.closeTask).not.toHaveBeenCalled();
@@ -674,15 +685,20 @@ describe("the task page", () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'open' }) }));
     renderTask();
 
-    const assignee = (await screen.findByLabelText("Assignee")) as HTMLInputElement;
-    expect(assignee.value).toBe("claude/task-page-agent");
-    fireEvent.change(assignee, { target: { value: "operator" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Assignee" }));
+    // A local read carries no member list, so a typed name is offered too.
+    const editor = await openFact("Assignee: claude/task-page-agent");
+    expect(within(editor).getByRole("option", { name: "claude/task-page-agent" })).toHaveAttribute("aria-selected", "true");
+    const other = within(editor).getByRole("textbox", { name: "Someone else" });
+    fireEvent.change(other, { target: { value: "operator" } });
+    fireEvent.keyDown(other, { key: "Enter" });
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: "operator" }),
     );
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
+    // Saved on Enter: the editor closed and there is no Save anywhere.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Save/ })).toBeNull();
 
     pressUndo();
     await waitFor(() =>
@@ -692,27 +708,74 @@ describe("the task page", () => {
     );
   });
 
-  it("saves the priority as a number and undoes it to the band it came from", async () => {
+  it("saves the priority as a number on choose and undoes it to the band it came from", async () => {
     renderTask();
 
-    const priority = (await screen.findByLabelText("Priority")) as HTMLSelectElement;
-    fireEvent.change(priority, { target: { value: "0" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Priority" }));
+    const editor = await openFact("Priority: high");
+    expect(within(editor).getAllByRole("option").map((option) => option.getAttribute("data-value"))).toEqual(["0", "1", "2", "3", "4"]);
+    for (const band of ["top", "high", "normal", "low", "lowest"]) {
+      expect(within(editor).getByRole("option", { name: band }).querySelector("[data-priority-mark]")).toHaveAttribute("data-priority-mark", band);
+    }
+    fireEvent.click(within(editor).getByRole("option", { name: "top" }));
 
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { priority: 0 }));
+    expect(toasts.success).toHaveBeenLastCalledWith("Saved — priority", expect.objectContaining({ action: expect.anything() }));
     pressUndo();
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenLastCalledWith(ID, { priority: 1 }),
     );
   });
 
+  it("saves the status on choose with the board's words, and undoes it", async () => {
+    renderTask();
+    const editor = await openFact("Status: In progress");
+    expect(within(editor).getAllByRole("option").map((option) => option.textContent)).toEqual(["Open", "In progress", "Blocked", "Parked", "Closed"]);
+    fireEvent.click(within(editor).getByRole("option", { name: "Blocked" }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { status: "blocked" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { status: "in_progress" }));
+  });
+
+  it("parks a task until a picked day, and clears it, each with an Undo", async () => {
+    const { unmount } = renderTask();
+    let editor = await openFact("Parked until: Not parked");
+    const day = within(editor).getByLabelText("Date") as HTMLInputElement;
+    fireEvent.change(day, { target: { value: "2026-09-20" } });
+    fireEvent.keyDown(day, { key: "Enter" });
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { defer: "2026-09-20" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { defer: "" }));
+    unmount();
+
+    api.updateTask.mockClear();
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "deferred", deferUntil: "2026-09-20T00:00:00Z" }) }));
+    renderTask();
+    editor = await openFact("Parked until: Sep 20");
+    fireEvent.click(within(editor).getByRole("option", { name: "Not parked" }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { defer: "" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { defer: "2026-09-20" }));
+  });
+
+  it("closes a fact's editor on Escape without a write", async () => {
+    renderTask();
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label"]) {
+      const editor = await openFact(name);
+      fireEvent.keyDown(editor, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    }
+    // Choosing the value it already has is not an edit either.
+    fireEvent.click(within(await openFact("Status: In progress")).getByRole("option", { name: "In progress" }));
+    expect(api.updateTask).not.toHaveBeenCalled();
+  });
+
   it("adds and removes a label, each undone by its opposite", async () => {
     renderTask();
 
-    fireEvent.change(await screen.findByLabelText("Add a label"), {
-      target: { value: "saas" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const editor = await openFact("Add a label");
+    const input = within(editor).getByRole("textbox", { name: "New label" });
+    fireEvent.change(input, { target: { value: "saas" } });
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { addLabels: ["saas"] }),
     );
@@ -726,8 +789,35 @@ describe("the task page", () => {
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { removeLabels: ["tower"] }),
     );
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { addLabels: ["tower"] }));
   });
 
+  it("moves a task to another epic from the parent's chip, and keeps the epic's link", async () => {
+    renderTask();
+    const facts = (await screen.findByText("Parent epic")).closest("[data-task-facts]") as HTMLElement;
+    await waitFor(() => expect(within(facts).getByRole("link", { name: "Tasks are managed in the Tower" })).toHaveAttribute("href", "/tasks/ro-l1ed"));
+    const editor = await openFact("Change parent epic");
+    expect(within(editor).getByRole("option", { name: "Tasks are managed in the Tower" })).toHaveAttribute("aria-selected", "true");
+    const other = within(editor).getByRole("textbox", { name: "Another task id" });
+    fireEvent.change(other, { target: { value: "ro-abc" } });
+    fireEvent.keyDown(other, { key: "Enter" });
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { parent: "ro-abc" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { parent: "ro-l1ed" }));
+  });
+
+  it("draws every fact as a chip sized to its content, with no Save and no select", async () => {
+    const { container } = renderTask();
+    await screen.findByText("A task has a page");
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    await waitFor(() => expect(within(facts).getByText("Blocks")).toBeInTheDocument());
+    expect(facts.querySelectorAll("select, input, textarea")).toHaveLength(0);
+    expect(within(facts).queryByRole("button", { name: /^Save/ })).toBeNull();
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label", "Change parent epic"]) {
+      expect(within(facts).getByRole("button", { name })).toHaveAttribute("aria-haspopup", "dialog");
+    }
+  });
   it("offers an empty description as a field to fill, not a command to run", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ description: "", acceptance: "" }) }));
     renderTask();

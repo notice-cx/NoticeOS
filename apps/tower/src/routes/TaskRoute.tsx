@@ -6,10 +6,12 @@ import {
   Check,
   Circle,
   CircleDot,
+  Layers,
   Lock,
   MessageSquare,
   Pencil,
   Plus,
+  Snowflake,
   X,
 } from "lucide-react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
@@ -34,10 +36,13 @@ import {
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
+import { FactChip, factChipClass, type FactChoice } from "@/components/FactChip";
 import type { PageHeaderCrumb } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
+import { STATE_TONE } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -66,6 +71,7 @@ import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
 import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
+import { PriorityMark, priorityFace, statusFace } from "@/routes/tasks/task-face";
 import { TaskRow, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
@@ -237,7 +243,10 @@ export function TaskRoute() {
             task={task}
             project={project}
             projectName={spoke?.name ?? project ?? ""}
+            prefix={detail.data?.prefix ?? null}
             epic={epicOf(board.data?.epics ?? null, task.parent)}
+            epics={board.data?.epics ?? []}
+            people={holders(read)}
             parentTitle={parentTitle}
             nextReady={nextReady}
             blockers={blockerRows(task, board.data?.tasks ?? [], actors)}
@@ -679,14 +688,17 @@ function Comments({
   );
 }
 
-// --- The right column: the facts, most of them editable in place ------------
+// --- The right column: the facts, each drawn as its value and edited in place
 
 function Facts({
   className,
   task,
   project,
   projectName,
+  prefix,
   epic,
+  epics,
+  people,
   parentTitle,
   nextReady,
   blockers,
@@ -697,7 +709,14 @@ function Facts({
   task: LiveTask;
   project: string | null;
   projectName: string;
+  /** The project's task id prefix, the hint for a typed parent id. */
+  prefix: string | null;
   epic: LiveEpic | null;
+  /** The project's open epics, offered as parents. */
+  epics: readonly LiveEpic[];
+  /** Who holds work in this project, offered as assignees where the read
+   * carries no member list. */
+  people: readonly string[];
   /** The parent's title from the board read, when it is not an epic the
    * board's progress read covers. */
   parentTitle: string | null;
@@ -712,6 +731,14 @@ function Facts({
   const actors = useContext(TaskActors);
   const taskHref = useTaskHref();
   const origin = handoffOrigin(task.metadata);
+  const can = {
+    status: useFieldPermission("status"),
+    priority: useFieldPermission("priority"),
+    assignee: useFieldPermission("assignee"),
+    parent: useFieldPermission("parent"),
+    labels: useFieldPermission("addLabels"),
+    defer: useFieldPermission("defer"),
+  };
   const saveAssignee = (next: string) => save({
     label: 'assignee',
     edit: { assignee: next },
@@ -720,188 +747,250 @@ function Facts({
     undo: task.status === 'in_progress' && next !== '' && next !== task.assignee
       ? undefined : { assignee: task.assignee ?? '' },
   });
+  const status = statusFace(task.status);
+  const StatusIcon = status.icon;
+  const band = priorityFace(task.priority).band;
+  const holder = task.assignee ? taskActorLabel(task.assignee, actors) : null;
+  const model = task.assignee ? claimedModel(task) : null;
+  const parked = (task.deferUntil ?? "").slice(0, 10);
+  const parentName = epic?.title ?? parentTitle ?? task.parent;
 
   return (
     <Card className={className}>
-      <CardContent className="flex flex-col pt-4" data-task-facts>
-        {project ? (
-          <Fact label="Project">
-            <Link
-              to={`/assets/${encodeURIComponent(project)}`}
-              className="inline-flex min-w-0 items-center gap-1.5 text-sm hover:underline"
+      <CardContent className="pt-4">
+        {/* A phone reads the facts as one wrapped row under the header; a
+            laptop as a column beside the work. */}
+        <dl className="m-0 flex flex-wrap gap-x-5 gap-y-3 lg:flex-col lg:flex-nowrap lg:gap-0" data-task-facts>
+          {project ? (
+            <Fact label="Project">
+              <FactChip label="Project" valueText={projectName || project} to={`/assets/${encodeURIComponent(project)}`}>
+                <PropertyFavicon domain={project} displayName={projectName || project} className="size-4" />
+                {projectName || project}
+              </FactChip>
+            </Fact>
+          ) : null}
+
+          <Fact label="Parent epic" wide>
+            <FactChip
+              label="Parent epic"
+              valueText={parentName ?? "Hangs off nothing"}
+              to={task.parent ? taskHref(task.parent) : undefined}
+              quiet={!task.parent}
+              readOnly={!can.parent}
+              editor={{
+                kind: "choice",
+                value: task.parent ?? "",
+                choices: [
+                  ...epics.filter((row) => row.id !== task.id && row.status !== "closed").map((row) => ({
+                    value: row.id, label: row.title, mark: <Layers className="size-3.5 text-muted-foreground" />,
+                  })),
+                  { value: "", label: "No epic" },
+                ],
+                other: { label: "Another task id", placeholder: prefix ? `${prefix}-…` : "A task id", mono: true },
+              }}
+              onSave={(next) => save({ label: "the parent", edit: { parent: next }, undo: { parent: task.parent ?? "" } })}
             >
-              <PropertyFavicon domain={project} displayName={projectName || project} />
-              <span className="truncate">{projectName || project}</span>
-            </Link>
+              {task.parent ? <Layers aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+              <span className={cn(!epic && !parentTitle && task.parent && "font-mono")}>{parentName ?? "Hangs off nothing"}</span>
+            </FactChip>
+            {task.parent ? (
+              <div className="flex basis-full flex-col gap-1.5 pt-0.5">
+                {/* The epic's all-time child progress (`bd epic status`): the only
+                    honest denominator, since a list read is a window. */}
+                {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
+                {nextReady ? (
+                  <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
+                    Next ready:{" "}
+                    <Link to={taskHref(nextReady.id)} className="text-foreground underline-offset-4 hover:underline">
+                      <span className="font-mono">{nextReady.id}</span> {nextReady.title}
+                    </Link>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </Fact>
-        ) : null}
 
-        <Fact label="Parent epic">
-          {task.parent ? (
-            <div className="flex flex-col gap-1">
-              <Link
-                to={taskHref(task.parent)}
-                className={cn("text-sm hover:underline", !epic && !parentTitle && "font-mono")}
-              >
-                {epic?.title ?? parentTitle ?? task.parent}
-              </Link>
-              {/* The epic's all-time child progress (`bd epic status`): the only
-                  honest denominator, since a list read is a window. */}
-              {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
-              {nextReady ? (
-                <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
-                  Next ready:{" "}
-                  <Link to={taskHref(nextReady.id)} className="text-foreground hover:underline">
-                    <span className="font-mono">{nextReady.id}</span> {nextReady.title}
-                  </Link>
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">Hangs off nothing</span>
-          )}
-          <div className="mt-1.5">
-            <TextEditor
-              name="Parent epic"
-              value={task.parent ?? ""}
-              placeholder="A task id, or empty to un-parent"
-              mono
-              onCommit={(next) =>
-                save({
-                  label: "the parent",
-                  edit: { parent: next },
-                  undo: { parent: task.parent ?? "" },
-                })
-              }
+          {blockers.length > 0 ? (
+            <Fact label="Blocked by" wide list>
+              <DependencyList items={blockers} />
+            </Fact>
+          ) : null}
+
+          {blocked.length > 0 ? (
+            <Fact label="Blocks" wide list>
+              <DependencyList items={blocked} />
+            </Fact>
+          ) : null}
+
+          <Fact label="Status">
+            <FactChip
+              label="Status"
+              valueText={status.label}
+              readOnly={!can.status}
+              editor={{ kind: "choice", value: task.status, choices: STATUS_CHOICES }}
+              onSave={(next) => save({ label: "status", edit: { status: next }, undo: { status: task.status } })}
+            >
+              <StatusIcon aria-hidden className={cn("size-3.5 shrink-0", STATE_TONE[status.tone].text)} />
+              <span className={STATE_TONE[status.tone].text}>{status.label}</span>
+            </FactChip>
+          </Fact>
+
+          <Fact label="Priority">
+            <FactChip
+              label="Priority"
+              valueText={band}
+              readOnly={!can.priority}
+              editor={{ kind: "choice", value: String(task.priority), choices: PRIORITY_CHOICES }}
+              onSave={(next) => save({ label: "priority", edit: { priority: Number(next) }, undo: { priority: task.priority } })}
+            >
+              <PriorityMark priority={task.priority} size="chip" hint={false} />
+              {band}
+            </FactChip>
+          </Fact>
+
+          <Fact label="Assignee">
+            <FactChip
+              label="Assignee"
+              valueText={holder ?? "Nobody"}
+              quiet={holder === null}
+              readOnly={!can.assignee}
+              editor={{
+                kind: "choice",
+                value: task.assignee ?? "",
+                choices: assigneeChoices(task.assignee, actors, people),
+                // A member list is the whole of who can hold a hosted task;
+                // a local one takes any name an agent goes by.
+                other: actors === undefined ? { label: "Someone else", placeholder: "A name or an agent" } : undefined,
+              }}
+              onSave={saveAssignee}
+            >
+              {holder ? <AgentMark name={holder} models={[model]} size="small" /> : null}
+              <span>{holder ?? "Nobody"}</span>
+              {holder && model ? <span className="font-normal text-muted-foreground">· {model}</span> : null}
+            </FactChip>
+          </Fact>
+
+          <Fact label="Labels" wide>
+            <Labels
+              labels={task.labels}
+              writable={can.labels}
+              onAdd={(label) => save({ label: `label ${label}`, edit: { addLabels: [label] }, undo: { removeLabels: [label] } })}
+              onRemove={(label) => save({ label: `label ${label}`, edit: { removeLabels: [label] }, undo: { addLabels: [label] } })}
             />
-          </div>
-        </Fact>
-
-        {blockers.length > 0 ? (
-          <Fact label="Blocked by">
-            <DependencyList items={blockers} />
           </Fact>
-        ) : null}
 
-        {blocked.length > 0 ? (
-          <Fact label="Blocks">
-            <DependencyList items={blocked} />
+          {/* "Parked", the board's own word for `deferred` — so the status chip,
+              the board's state column and this fact name one state one way. */}
+          <Fact label="Parked until">
+            <FactChip
+              label="Parked until"
+              valueText={parked === "" ? "Not parked" : calendarDay(parked, nowMs)}
+              quiet={parked === ""}
+              readOnly={!can.defer}
+              editor={{ kind: "date", value: parked, presets: parkPresets(nowMs), clearLabel: "Not parked" }}
+              // The empty string is `--defer ""`: clearing is an edit, not an
+              // absent one (the lane passes it through deliberately).
+              onSave={(next) => save({ label: "the deferral", edit: { defer: next }, undo: { defer: parked } })}
+            >
+              {parked === "" ? null : <Snowflake aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
+              <span className="tabular-nums">{parked === "" ? "Not parked" : calendarDay(parked, nowMs)}</span>
+            </FactChip>
           </Fact>
-        ) : null}
 
-        <Fact label="Status">
-          <SelectEditor
-            name="Status"
-            value={task.status}
-            options={STATUS_OPTIONS}
-            onCommit={(next) =>
-              save({ label: "status", edit: { status: next }, undo: { status: task.status } })
-            }
-          />
-        </Fact>
+          {origin ? <CameFrom origin={origin} /> : null}
 
-        <Fact label="Priority">
-          <SelectEditor
-            name="Priority"
-            value={String(task.priority)}
-            options={PRIORITY_BANDS.map((band, index) => ({
-              value: String(index),
-              label: band,
-            }))}
-            onCommit={(next) =>
-              save({
-                label: "priority",
-                edit: { priority: Number(next) },
-                undo: { priority: task.priority },
-              })
-            }
-          />
-        </Fact>
-
-        <Fact label="Assignee">
-          {actors === undefined ? <TextEditor
-            name="Assignee"
-            value={task.assignee ?? ""}
-            placeholder="Nobody"
-            onCommit={saveAssignee}
-          /> : <SelectEditor
-            name="Assignee"
-            value={task.assignee ?? ""}
-            options={[
-              { value: '', label: 'Nobody' },
-              ...actors.map(actor => ({ value: actor.principalId, label: actor.displayName.trim() || 'Unknown actor' })),
-              ...(task.assignee && !actors.some(actor => actor.principalId === task.assignee)
-                ? [{ value: task.assignee, label: taskActorLabel(task.assignee, actors) }] : []),
-            ]}
-            onCommit={saveAssignee}
-          />}
-        </Fact>
-
-        <Fact label="Labels">
-          <LabelsEditor
-            labels={task.labels}
-            onAdd={(label) =>
-              save({
-                label: `label ${label}`,
-                edit: { addLabels: [label] },
-                undo: { removeLabels: [label] },
-              })
-            }
-            onRemove={(label) =>
-              save({
-                label: `label ${label}`,
-                edit: { removeLabels: [label] },
-                undo: { addLabels: [label] },
-              })
-            }
-          />
-        </Fact>
-
-        {/* "Parked", the board's own word for `deferred` — so the status chip,
-            the board's state column and this field name one state one way. */}
-        <Fact label="Parked until">
-          <DateEditor
-            name="Parked until"
-            value={(task.deferUntil ?? "").slice(0, 10)}
-            onCommit={(next) =>
-              save({
-                label: "the deferral",
-                edit: { defer: next },
-                undo: { defer: (task.deferUntil ?? "").slice(0, 10) },
-              })
-            }
-          />
-        </Fact>
-
-        {origin ? <CameFrom origin={origin} /> : null}
-
-        <Fact label="Ages">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-            <span className="text-muted-foreground">
+          <Fact label="Ages">
+            <span className="text-xs text-muted-foreground">
               created <Age iso={task.createdAt} nowMs={nowMs} />
             </span>
-            <span className="text-muted-foreground">
+            <span aria-hidden className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">
               updated <Age iso={task.updatedAt} nowMs={nowMs} />
             </span>
-          </div>
-        </Fact>
+          </Fact>
+        </dl>
       </CardContent>
     </Card>
   );
 }
 
+/** One fact: its eyebrow and its value, side by side on a laptop. A wide fact
+ * takes the whole row when the facts wrap on a phone; a list stacks under its
+ * eyebrow everywhere. */
 function Fact({
   label,
+  wide = false,
+  list = false,
   children,
 }: {
   label: string;
+  wide?: boolean;
+  list?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-border py-2.5 first:pt-0 last:border-0">
-      <span className={eyebrowClass}>{label}</span>
-      <div className="min-w-0">{children}</div>
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1.5 lg:border-b lg:border-border/70 lg:py-2.5 lg:first:pt-0 lg:last:border-0 lg:last:pb-0",
+        !list && "lg:grid lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-baseline lg:gap-x-3",
+        wide && "basis-full",
+      )}
+    >
+      <dt className={eyebrowClass}>{label}</dt>
+      <dd className="m-0 flex min-w-0 flex-wrap items-center gap-1.5">{children}</dd>
     </div>
+  );
+}
+
+/** Labels as chips, each with its own remove, and one more chip that adds. */
+function Labels({
+  labels,
+  writable,
+  onAdd,
+  onRemove,
+}: {
+  labels: string[];
+  writable: boolean;
+  onAdd: (label: string) => Promise<boolean>;
+  onRemove: (label: string) => Promise<boolean>;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      {labels.length === 0 && !writable ? <span className="text-xs text-muted-foreground">No labels</span> : null}
+      {labels.map((label) => (
+        <span key={label} className={cn(factChipClass, "gap-1 font-normal", writable && "pe-1")} data-task-label={label}>
+          {label}
+          {writable ? (
+            <button
+              type="button"
+              aria-label={`Remove label ${label}`}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onRemove(label).finally(() => setBusy(false));
+              }}
+              className="grid size-5 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 max-sm:size-8"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          ) : null}
+        </span>
+      ))}
+      {writable ? (
+        <FactChip
+          label="Add a label"
+          valueText=""
+          quiet
+          className="border-dashed"
+          editor={{ kind: "text", value: "", inputLabel: "New label", placeholder: "human, tower, ux…" }}
+          onSave={(label) => onAdd(label)}
+        >
+          <Plus aria-hidden className="size-3.5 shrink-0" />
+          Label
+        </FactChip>
+      ) : null}
+    </>
   );
 }
 
@@ -937,7 +1026,7 @@ function DependencyList({ items }: { items: TaskRowFacts[] }) {
   );
 }
 
-// --- The editors: buffer a draft, Save writes it, the toast carries the way back
+// --- Saving a fact: one write, and the toast carries the way back -----------
 
 type FieldSave = (input: { label: string; edit: TaskEdit; undo?: TaskEdit }) => Promise<boolean>;
 
@@ -977,277 +1066,6 @@ function useFieldSave(id: string): FieldSave {
       return true;
     },
     [id, update, writable],
-  );
-}
-
-function TextEditor({
-  name,
-  value,
-  placeholder,
-  mono,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  placeholder?: string;
-  mono?: boolean;
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission(name === 'Title' ? 'title' : name === 'Assignee' ? 'assignee' : 'parent');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  // The hub moved underneath us (a write from this session, a poll): the field
-  // follows reality rather than holding a value typed against an older one.
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <input
-        type="text"
-        aria-label={name}
-        value={draft}
-        placeholder={placeholder}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(
-          fieldClass,
-          "min-w-0 flex-1",
-          mono && "font-mono text-xs",
-        )}
-      />
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function SelectEditor({
-  name,
-  value,
-  options,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission(name === 'Status' ? 'status' : name === 'Assignee' ? 'assignee' : 'priority');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-
-  // `bd` accepts values this build has never heard of; a stored one outside the
-  // list is offered as itself rather than silently reset by the control.
-  const known = options.some((option) => option.value === value);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select
-        aria-label={name}
-        value={draft}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(fieldClass, "min-w-0 flex-1")}
-      >
-        {known ? null : <option value={value}>{value}</option>}
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function DateEditor({
-  name,
-  value,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission('defer');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <input
-        type="date"
-        aria-label={name}
-        value={draft}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(fieldClass, "min-w-0")}
-      />
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-      {value === "" ? null : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!writable || saving}
-          onClick={async () => {
-            setSaving(true);
-            try {
-              // The empty string is `--defer ""` — "clear this" is an edit, not
-              // an absent one (the lane passes it through deliberately).
-              await onCommit("");
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          Clear
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function LabelsEditor({
-  labels,
-  onAdd,
-  onRemove,
-}: {
-  labels: string[];
-  onAdd: (label: string) => Promise<boolean>;
-  onRemove: (label: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission('addLabels');
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function add() {
-    const value = draft.trim();
-    if (value === "") return;
-    setBusy(true);
-    try {
-      if (await onAdd(value)) setDraft("");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {labels.length === 0 ? (
-        <span className="text-sm text-muted-foreground">No labels</span>
-      ) : (
-        <div className="flex flex-wrap gap-1">
-          {labels.map((label) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs"
-            >
-              {label}
-              <button
-                type="button"
-                aria-label={`Remove label ${label}`}
-                disabled={!writable || busy}
-                onClick={() => {
-                  setBusy(true);
-                  void onRemove(label).finally(() => setBusy(false));
-                }}
-                className="text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground disabled:opacity-50"
-              >
-                <X className="size-3" aria-hidden />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          aria-label="Add a label"
-          value={draft}
-          placeholder="human, tower, ux…"
-          disabled={!writable || busy}
-          onChange={(event) => setDraft(event.target.value)}
-          className={cn(fieldClass, "min-w-0 flex-1")}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!writable || busy || draft.trim() === ""}
-          onClick={() => void add()}
-        >
-          Add
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** The Save every field shares — one word, one disabled rule (nothing to
- * write), one pending label, so "did that save?" never depends on which kind of
- * field it was. Named per field so a page of them stays addressable. */
-function SaveButton({
-  name,
-  dirty,
-  saving,
-  onClick,
-}: {
-  name: string;
-  dirty: boolean;
-  saving: boolean;
-  onClick: () => void;
-}) {
-  const writable = useContext(TaskWritePermission);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      aria-label={`Save ${name}`}
-      disabled={!writable || !dirty || saving}
-      onClick={onClick}
-    >
-      {saving ? "Saving…" : "Save"}
-    </Button>
   );
 }
 
@@ -1525,10 +1343,61 @@ function LaneFailed({ error }: { error: Error | null }) {
 
 // --- Pure helpers -----------------------------------------------------------
 
-/** The statuses `bd` ships with, in the board's own words. Not exhaustive by
- * design — `bd` supports custom statuses, and `SelectEditor` offers a stored one
- * outside this list as itself. */
-const STATUS_OPTIONS = TASK_STATUSES.map((status) => ({ value: status.stored, label: status.label }));
+/** The statuses `bd` ships with, in the board's own words and glyphs. Not
+ * exhaustive by design — `bd` supports custom statuses, and the fact's editor
+ * offers a stored one outside this list as itself. */
+const STATUS_CHOICES: FactChoice[] = TASK_STATUSES.map((status) => {
+  const face = statusFace(status.stored);
+  const Icon = face.icon;
+  return { value: status.stored, label: status.label, mark: <Icon className={cn("size-3.5", STATE_TONE[face.tone].text)} /> };
+});
+
+const PRIORITY_CHOICES: FactChoice[] = PRIORITY_BANDS.map((band, index) => ({
+  value: String(index),
+  label: band,
+  mark: <PriorityMark priority={index} size="chip" hint={false} />,
+}));
+
+/** Who a task can be given to: a hosted workspace's members, else the names
+ * that hold work in this project; the current holder always, and nobody. */
+function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly string[]): FactChoice[] {
+  const named = actors === undefined
+    ? people.map((name) => ({ value: name, label: name }))
+    : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
+  const held = current && !named.some((choice) => choice.value === current)
+    ? [{ value: current, label: taskActorLabel(current, actors) }] : [];
+  return [
+    ...[...named, ...held].map((choice) => ({ ...choice, mark: <AgentMark name={choice.label} size="small" /> })),
+    { value: "", label: "Nobody" },
+  ];
+}
+
+/** A calendar day in local time, `YYYY-MM-DD`, the form `--defer` takes. */
+function localDay(ms: number, addDays = 0): string {
+  const at = new Date(ms);
+  at.setDate(at.getDate() + addDays);
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+}
+
+/** The days a task is most often parked until. */
+function parkPresets(nowMs: number): { label: string; value: string }[] {
+  return [
+    { label: "Tomorrow", value: localDay(nowMs, 1) },
+    { label: "In a week", value: localDay(nowMs, 7) },
+    { label: "In a month", value: localDay(nowMs, 30) },
+  ];
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const DAY_YEAR_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+/** `2026-10-20` as "Oct 20", with the year when it is not this one. */
+function calendarDay(day: string, nowMs: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  if (!year || !month || !date) return day;
+  const at = new Date(year, month - 1, date);
+  return (year === new Date(nowMs).getFullYear() ? DAY_FORMAT : DAY_YEAR_FORMAT).format(at);
+}
 
 /** A task as a row: who holds open work, and the model they named. */
 function taskRowFacts(task: LiveTask, actors: readonly TaskActor[] | undefined): TaskRowFacts {
@@ -1552,6 +1421,11 @@ function blockerRows(task: LiveTask, known: readonly LiveTask[], actors: readonl
       const other = known.find((row) => row.id === dep.id);
       return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
     });
+}
+
+/** Who holds work in a project's read, each name once. */
+function holders(rows: readonly BoardTask[]): string[] {
+  return [...new Set(rows.flatMap((row) => (row.assignee ? [row.assignee] : [])))].sort((a, b) => a.localeCompare(b));
 }
 
 /** What this task blocks. `bd show` reports only the edges pointing out of a
