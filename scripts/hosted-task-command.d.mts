@@ -72,8 +72,12 @@ export type HostedTaskOperation = {
     readonly acceptance?: string;
     readonly metadata?: Readonly<Record<string, string>>;
     readonly links?: readonly HostedTaskLink[];
+    /** The model the filer names, kept on the task. */
+    readonly model?: string;
     /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
     readonly operationId?: string;
+    /** Server-only: the actor filing the task, kept on it. Request parsers never set it. */
+    readonly filedBy?: string;
 } | {
     readonly kind: 'update';
     readonly taskId: string;

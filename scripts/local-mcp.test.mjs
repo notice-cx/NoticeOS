@@ -169,6 +169,32 @@ test('an agent\'s claim and close name its model, and its close records the agen
   await mcp.close();
 });
 
+test('an agent\'s new tasks record the agent as their filer and the model it names, one at a time or several', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [];
+  let filed = 0;
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
+    run: async argv => {
+      commands.push(argv);
+      return { code: 0, stdout: JSON.stringify(argv.includes('lint') ? { results: null } : { id: `ex-${++filed}` }) };
+    } });
+  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
+    .then(response => response.json());
+  assert.equal((await call('create_task', { title: 'Found work', model: 'Example Model 1', idempotency_key: 'local-file-0001' })).result.isError, undefined);
+  assert.equal((await call('create_tasks', { tasks: [{ title: 'First' }, { title: 'Second' }], model: 'Example Model 1',
+    idempotency_key: 'local-file-0002' })).result.isError, undefined);
+  assert.equal((await call('create_task', { title: 'No model named', idempotency_key: 'local-file-0003' })).result.isError, undefined);
+  const metadata = commands.filter(argv => argv.includes('create'))
+    .map(argv => JSON.parse(argv.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)));
+  assert.deepEqual(metadata.map(row => [row.noticeos_filed_by, row.noticeos_filed_model]), [
+    ['claude', 'Example Model 1'], ['claude', 'Example Model 1'], ['claude', 'Example Model 1'], ['claude', undefined]]);
+  assert.match((await call('create_task', { title: 'Padded', model: ' Example', idempotency_key: 'local-file-0004' })).result.content[0].text,
+    /^invalid arguments: model/u);
+  await mcp.close();
+});
+
 test('os:bd runs in the project a task id or --project names, or the only linked one, as the operator', async () => {
   assert.equal(chooseProject([PROJECTS[0], PROJECTS[2]]).asset, 'example');
   assert.equal(chooseProject(PROJECTS, undefined, ['show', 'se-1x2.3']).asset, 'second', 'a task id names its project by its prefix');

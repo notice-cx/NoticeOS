@@ -261,6 +261,7 @@ export const FEED_JOBS_SQL = `SELECT j.job_run_number::text AS id, j.job, j.fini
  * (`BEADS_SNAPSHOT_RETENTION_DAYS`, workers/ingest/src/beads-snapshots.ts),
  * which covers this window's farthest reach; keep the two in step. An item's
  * time is the text the writer stored (`toISOString`), compared byte by byte.
+ * A filed task carries its filer and model (`filedBy`, `filedModel`).
  */
 export const FEED_TASKS_SQL = `WITH RECURSIVE ticks(t) AS (
     SELECT $1::timestamptz
@@ -274,7 +275,8 @@ export const FEED_TASKS_SQL = `WITH RECURSIVE ticks(t) AS (
   ),
   first_seen AS (
 SELECT DISTINCT ON (i.list, i.value ->> 'id')
-       i.list, p.value ->> 'asset' AS asset, i.value ->> 'id' AS id, i.value ->> 'title' AS title, i.at
+       i.list, p.value ->> 'asset' AS asset, i.value ->> 'id' AS id, i.value ->> 'title' AS title, i.at,
+       i.value ->> 'filedBy' AS who, i.value ->> 'filedModel' AS model
   FROM picks
   JOIN noticeos.task_snapshots s ON s.snapshot_id = picks.id
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END)
@@ -289,7 +291,7 @@ SELECT DISTINCT ON (i.list, i.value ->> 'id')
  WHERE i.at COLLATE "C" >= $3::text
  ORDER BY i.list, i.value ->> 'id', s.captured_at, s.snapshot_id, p.n, i.list_n, i.item_n
   )
-SELECT list, asset, id, title, at FROM first_seen
+SELECT list, asset, id, title, at, who, model FROM first_seen
  ORDER BY at COLLATE "C" DESC, list, id
  LIMIT $4`;
 
@@ -578,6 +580,9 @@ type TaskRow = {
   id: string | null;
   title: string | null;
   at: string | null;
+  /** A filed task's filer and model. */
+  who: string | null;
+  model: string | null;
 };
 
 /** A collection attempt, whichever table recorded it. */
@@ -1192,11 +1197,13 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     }
   }
 
-  // Tasks done and tasks filed, once per task whichever snapshots held it.
+  // Tasks done and tasks filed, once per task whichever snapshots held it. A
+  // filed task the snapshot names a filer for reads as that filer's line.
   for (const row of tasks) {
     if (!row.id || !row.at) continue;
     const done = row.list === "recentlyClosed";
     const closer = done ? closers.get(`${row.asset}\0${row.id}`) : undefined;
+    const filer = !done && row.who?.trim() ? row.who.trim() : null;
     add({
       id: `${done ? "task" : "task-filed"}:${row.id}`,
       atMs: ms(row.at),
@@ -1206,6 +1213,7 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
       tone: done ? "healthy" : "neutral",
       foldKey: null,
       ...(closer ? { who: closer.who!, model: closer.model, evidence: closer.evidence } : {}),
+      ...(filer ? { who: filer, model: row.model?.trim() || null } : {}),
     });
   }
   // A named close the board's capped list no longer holds still gets its line.

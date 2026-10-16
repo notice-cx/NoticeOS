@@ -48,7 +48,7 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
 ]);
 
 /** How a session starts, said in every session's instructions. */
-export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
+export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
 /** Said only where the panel tools are offered. */
 export const PANEL_RULE = 'For a site\'s search, traffic and product data, use get_panel then query_panel, never a provider\'s API, and cite the panel version you read.';
 /** The order of task work, in the tools' own names. */
@@ -333,9 +333,9 @@ export interface TaskTool {
 }
 const PROJECT = { type: 'string', description: 'The projectId from list_projects.' };
 const TASK = { type: 'string', description: 'The task id, such as abc-1x2.' };
-/** Optional on claim and close: the Tower credits the work to this model as well as to the agent. */
+/** Optional on a new task, a claim and a close: the Tower credits the work to this model as well as to the agent. */
 const MODEL = { type: 'string', maxLength: HOSTED_TASK_LIMITS.identifier,
-  description: 'The name of the model you run as, as you would say it. Pass it on every claim and close: the task shows it beside your name, and the Agents page ranks your work by it.' };
+  description: 'The name of the model you run as, as you would say it. Pass it on every new task, claim and close: the Tower shows it beside your name, and the Agents page ranks your work by it.' };
 const IDEMPOTENCY = { type: 'string', pattern: IDEMPOTENCY_KEY.source,
   description: 'A key you choose for this call. Retrying with the same key and arguments never repeats the change.' };
 function schema(properties: Record<string, unknown>, required: readonly string[] = []): Record<string, unknown> {
@@ -484,30 +484,30 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
           at: typeof row.CommitDate === 'string' ? row.CommitDate : null, task: taskOf(row.Issue) };
       }) };
     } },
-  { name: 'create_task', description: 'Create a task in a project, with its links. The result\'s lint names sections it still lacks; '
+  { name: 'create_task', description: 'Create a task in a project, with its links, naming your model. The result\'s lint names sections it still lacks; '
       + 'add them with update_task. create_tasks files many in one call.',
-    inputSchema: schema({ project: PROJECT, ...NEW_TASK, idempotency_key: IDEMPOTENCY }, ['project', 'title', 'idempotency_key']),
+    inputSchema: schema({ project: PROJECT, ...NEW_TASK, model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'title', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', ...CREATE_FIELDS, 'idempotency_key']);
+      only(args, ['project', ...CREATE_FIELDS, 'model', 'idempotency_key']);
       const { operation, approval } = creation(args, (name, value) => task({ [name]: value }, name));
-      const projectId = project(args);
-      const result = await write(context, projectId, operation, key(args), value => value);
+      const projectId = project(args), model = modelArg(args);
+      const result = await write(context, projectId, model ? { ...operation, model } : operation, key(args), value => value);
       const id = result.id as string;
       const asked = approval === undefined ? {}
         : approvalOf(id, (await context.operations.approval(context.proof, context.workspaceId, projectId, id, approval)).gate);
       return { ...result, ...asked, lint: lintOf(await linted(context, projectId, [id]), id) };
     } },
-  { name: 'create_tasks', description: `Create up to ${BATCH} tasks in one call, in order. A parent or link may name an earlier `
+  { name: 'create_tasks', description: `Create up to ${BATCH} tasks in one call, in order, naming your model. A parent or link may name an earlier `
       + 'task of the same call as #0 for the first, #1 for the second. Stops at the first task refused and says which; '
       + 'retrying with the same idempotency_key and tasks never files one twice.',
     inputSchema: schema({ project: PROJECT,
       tasks: { type: 'array', minItems: 1, maxItems: BATCH, items: schema(NEW_TASK, ['title']) },
-      idempotency_key: IDEMPOTENCY }, ['project', 'tasks', 'idempotency_key']),
+      model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'tasks', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', 'tasks', 'idempotency_key']);
-      const projectId = project(args), batchKey = key(args), entries = args.tasks;
+      only(args, ['project', 'tasks', 'model', 'idempotency_key']);
+      const projectId = project(args), batchKey = key(args), entries = args.tasks, model = modelArg(args);
       if (!Array.isArray(entries) || entries.length < 1 || entries.length > BATCH) refuse(`invalid arguments: tasks (1–${BATCH})`);
       // Every entry is read before any is filed, so a malformed one files nothing.
       const planned = entries.map((entry, index) => {
@@ -531,7 +531,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       let failed: Record<string, unknown> | null = null;
       for (const [index, { operation, approval }] of planned.entries()) {
         const resolved = defined({ ...operation, parent: operation.parent === undefined ? undefined : earlier(operation.parent),
-          links: operation.links?.map(link => ({ type: link.type, taskId: earlier(link.taskId) })) });
+          links: operation.links?.map(link => ({ type: link.type, taskId: earlier(link.taskId) })), model });
         let id: string | undefined;
         try {
           const result = await write(context, projectId, resolved, entryKey(batchKey, index), value => value);

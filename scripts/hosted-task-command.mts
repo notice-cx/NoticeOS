@@ -44,8 +44,12 @@ export type HostedTaskOperation =
       readonly type?: HostedTaskType; readonly priority?: number; readonly labels?: readonly string[];
       readonly parent?: string; readonly acceptance?: string; readonly metadata?: Readonly<Record<string, string>>;
       readonly links?: readonly HostedTaskLink[];
+      /** The model the filer names, kept on the task. */
+      readonly model?: string;
       /** Server-only receipt identity (hosted-task-operations); request parsers never set it. */
-      readonly operationId?: string }
+      readonly operationId?: string;
+      /** Server-only: the actor filing the task, kept on it. Request parsers never set it. */
+      readonly filedBy?: string }
   | { readonly kind: 'update'; readonly taskId: string; readonly status?: HostedTaskStatus;
       readonly priority?: number; readonly title?: string; readonly description?: string; readonly claim?: true;
       readonly assignee?: string; readonly parent?: string; readonly defer?: string; readonly acceptance?: string;
@@ -271,7 +275,8 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     }
     case 'create':
-      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'operationId']);
+      keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'model',
+        'operationId', 'filedBy']);
       argv.push('create');
       if (Object.hasOwn(op, 'description')) argv.push(`--description=${text(op.description, HOSTED_TASK_LIMITS.body, true)}`);
       if (Object.hasOwn(op, 'type')) argv.push(`--type=${choice(op.type, TYPES)}`);
@@ -285,9 +290,12 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       // In the create itself, so a task and its links land together or not at all.
       if (Object.hasOwn(op, 'links')) argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
       if (Object.hasOwn(op, 'acceptance')) argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-      if (Object.hasOwn(op, 'metadata') || Object.hasOwn(op, 'operationId')) {
+      // In the create itself, so a task and its filer land together.
+      if (['metadata', 'operationId', 'filedBy', 'model'].some(key => Object.hasOwn(op, key))) {
         const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
-          ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}) };
+          ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
+          ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
+          ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}) };
         argv.push(`--metadata=${JSON.stringify(metadata)}`);
       }
       argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');

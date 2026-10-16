@@ -71,7 +71,9 @@ export function supersededPayload(payload: string): string {
         : {
             recentlyCreated: created
               .filter(isRecord)
-              .map((item) => ({ id: item.id, title: item.title, createdAt: item.createdAt ?? null })),
+              .map((item) => ({ id: item.id, title: item.title, createdAt: item.createdAt ?? null,
+                ...(item.filedBy === undefined ? {} : { filedBy: item.filedBy }),
+                ...(item.filedModel === undefined ? {} : { filedModel: item.filedModel }) })),
           }),
     };
   });
@@ -140,6 +142,9 @@ interface StoredIssue {
   deferUntil: string | null;
   /** Present only when the poller sent it. */
   createdAt?: string;
+  /** Who filed it and the model they named; present only when the poller sent them. */
+  filedBy?: string;
+  filedModel?: string;
 }
 
 interface StoredEpic {
@@ -255,6 +260,8 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
   const parent = optionalString(issues, raw.parent, `${path}.parent`, BEADS_ID_MAX);
   const deferUntil = optionalInstant(issues, raw.deferUntil, `${path}.deferUntil`);
   const createdAt = optionalInstant(issues, raw.createdAt, `${path}.createdAt`);
+  const filedBy = optionalString(issues, raw.filedBy, `${path}.filedBy`, BEADS_ASSIGNEE_MAX);
+  const filedModel = optionalString(issues, raw.filedModel, `${path}.filedModel`, BEADS_MODEL_MAX);
 
   if (id === null || title === null || status === null || issueType === null || priority === null) {
     return null;
@@ -263,6 +270,8 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     id, title, status, priority, issueType, assignee, updatedAt, closedAt, parent, deferUntil,
     // No key at all from an older poller, so its photographs stay byte-identical.
     ...(createdAt === null ? {} : { createdAt }),
+    ...(filedBy === null ? {} : { filedBy }),
+    ...(filedModel === null ? {} : { filedModel }),
   };
 }
 

@@ -178,6 +178,27 @@ describe("an agent's line", () => {
     expect(claimed).toHaveTextContent("codex claimed Restore the nightly report");
     expect(claimed!.querySelector("[data-feed-evidence]")).toBeNull();
   });
+
+  it("names who filed a new task with the agent's mark and the model; a filing that names nobody keeps the plus glyph", () => {
+    const filed = { kind: "task-filed", label: "New task", tone: "neutral" } as const;
+    render(<WallFeed feed={payload([
+      item("a", 5, { ...filed, text: "Listings show opening hours", who: "claude", model: "Opus 5.5", evidence: null }),
+      item("b", 9, { ...filed, text: "Listings show delivery prices" }),
+    ])} nowMs={NOW} />);
+    const [named, unnamed] = screen.getAllByRole("listitem");
+    expect(named).toHaveTextContent("New task");
+    expect(named).toHaveTextContent("claude filed Listings show opening hours");
+    expect(named!.querySelector("[data-feed-verb]")).toHaveTextContent("filed");
+    expect(named!.querySelector("[data-feed-agent]")).toHaveAttribute("data-feed-agent", "anthropic");
+    expect(named!.querySelector("[data-feed-badge]")).toHaveClass("bg-muted-foreground");
+    const evidence = named!.querySelector("[data-feed-evidence]") as HTMLElement;
+    expect([...evidence.children].map((chip) => chip.textContent)).toEqual(["Opus 5.5"]);
+    expect(unnamed!.querySelector("[data-feed-text]")).toHaveTextContent(/^Listings show delivery prices$/);
+    expect(unnamed!.querySelector("[data-feed-who]")).toBeNull();
+    expect(unnamed!.querySelector("[data-feed-agent]")).toBeNull();
+    expect(unnamed!.querySelector("svg.lucide-plus")).not.toBeNull();
+    expect(unnamed!.querySelector("[data-feed-evidence]")).toBeNull();
+  });
 });
 
 describe("a line's marks", () => {

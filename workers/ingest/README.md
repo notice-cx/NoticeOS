@@ -564,7 +564,8 @@ board forever and make a dead poller look fresh. Each project is
 `{asset, prefix, ok, error?, counts: {open, ready, inProgress, blocked,
 closedRecent}, ready: [...], inProgress: [...], recentlyClosed: [...]}`, plus an
 optional `recentlyCreated: [...]` (newest-filed work, for the Wall feed's "New
-task") and an optional `createdAt` on every item.
+task", each item with an optional `filedBy` and `filedModel`: who filed it and
+the model they named) and an optional `createdAt` on every item.
 
 There is **no idempotent re-post**. Two snapshots a second apart are two
 observations of a changing hub, not the same event recorded twice, so every POST

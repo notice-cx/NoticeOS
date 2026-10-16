@@ -113,6 +113,7 @@ test('keys and operation identities are the server’s, never a caller’s', asy
     operationId: '77777777-1111-4111-8111-111111111111' } }, KEY));
   await assert.rejects(f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'x',
     metadata: { noticeos_operation_id: '77777777-1111-4111-8111-111111111111' } } }, KEY));
+  await assert.rejects(f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'x', filedBy: OTHER } }, KEY));
   await assert.rejects(f.operations.write(proof(), A, create, 'short'));
   await assert.rejects(f.operations.write(proof(), A, { projectId: P, operation: { kind: 'respond', taskId: 'tt-1', response: 'yes' } }, KEY));
   assert.deepEqual(f.calls, []);
@@ -121,6 +122,14 @@ test('keys and operation identities are the server’s, never a caller’s', asy
   const plain = fixture();
   assert.deepEqual(await plain.operations.write(proof(), A, create), { status: 'done', value: { id: 'tt-1', project: 'example' }, replayed: false });
   assert.equal(plain.store.rows.size, 0);
+});
+
+test('a new task records who filed it and with which model, with or without a key', async () => {
+  const f = fixture();
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'Found work', model: 'Opus 5.5' } }, KEY);
+  await f.operations.write(proof(), A, { projectId: P, operation: { kind: 'create', title: 'Unkeyed, no model' } });
+  const filed = id => [f.tasks.get(id).metadata.noticeos_filed_by, f.tasks.get(id).metadata.noticeos_filed_model];
+  assert.deepEqual([filed('tt-1'), filed('tt-2')], [[PERSON, 'Opus 5.5'], [PERSON, undefined]]);
 });
 
 test('a close records who closed it and with which model; the close stands if that record fails', async () => {

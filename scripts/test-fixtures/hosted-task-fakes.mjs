@@ -64,7 +64,9 @@ export function fakeTaskExecutor({ principal, clock }) {
           ...(operation.type ? { issue_type: operation.type } : {}), ...(operation.description ? { description: operation.description } : {}),
           ...(operation.labels?.length ? { labels: [...operation.labels] } : {}), ...(operation.parent ? { parent: operation.parent } : {}),
           ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}), created_at: at, updated_at: at,
-          metadata: operation.operationId ? { noticeos_operation_id: operation.operationId } : {} });
+          metadata: { ...(operation.operationId ? { noticeos_operation_id: operation.operationId } : {}),
+            ...(operation.filedBy ? { noticeos_filed_by: operation.filedBy } : {}),
+            ...(operation.model ? { noticeos_filed_model: operation.model } : {}) } });
         if (operation.parent) edges.push({ from: id, to: operation.parent, type: 'parent-child' });
         for (const link of operation.links ?? []) {
           if (link.type === 'blocks') edges.push({ from: link.taskId, to: id, type: 'blocks' });

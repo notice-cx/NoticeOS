@@ -73,6 +73,13 @@ const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "setting-saved": SlidersHorizontal,
 };
 
+/** What the worker on a task line did: "claude filed …". */
+const VERB: Partial<Record<WallFeedKind, string>> = {
+  "task-filed": "filed",
+  "task-claimed": "claimed",
+  "task-done": "closed",
+};
+
 /** Tokens only: ink for the kind label and glyph, a soft tile behind
  * the glyph, a solid badge on an agent's mark, and the arrival tint. */
 const TONE: Record<WallFeedTone, { ink: string; tile: string; badge: string; tint: string }> = {
@@ -297,7 +304,7 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
                       {item.who ? (
                         <>
                           <span className="font-semibold" data-feed-who>{item.who}</span>
-                          {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")}>{item.kind === "task-done" ? "closed" : "claimed"}</span>{" "}
+                          {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")} data-feed-verb>{VERB[item.kind]}</span>{" "}
                         </>
                       ) : null}
                       {item.text}

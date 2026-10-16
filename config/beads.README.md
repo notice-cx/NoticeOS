@@ -285,12 +285,16 @@ reader takes either name
 Never rewrite an old bead's metadata to the new names.
 
 **Who did the work.** `bd` records the assignee a claim sets but not who
-closed a task, so NoticeOS writes four more keys itself, and metadata sent with
-a new task may not include them: `noticeos_claimed_model` (the model an agent
-named when it claimed the task), and, written just after a close,
-`noticeos_closed_by`, `noticeos_closed_model` and `noticeos_closed_at`. The
-closer applies only to the close at `noticeos_closed_at`; a task reopened and
-closed again without a new record shows its close and no closer.
+closed a task or the model a filer named, so NoticeOS writes six more keys
+itself, and metadata sent with a new task may not include them:
+`noticeos_filed_by` and `noticeos_filed_model` (who filed the task through the
+task tools and the model it named, written in the create itself),
+`noticeos_claimed_model` (the model an agent named when it claimed the task),
+and, written just after a close, `noticeos_closed_by`, `noticeos_closed_model`
+and `noticeos_closed_at`. The closer applies only to the close at
+`noticeos_closed_at`; a task reopened and closed again without a new record
+shows its close and no closer. A task filed with `bd` directly, or by one of
+the runner's filers, carries no `noticeos_filed_by` and names no filer.
 
 **Four kinds, and what each one's key is.** `noticeos_kind` names the surface
 that raised the work, and `noticeos_key` is the join back to the exact row:

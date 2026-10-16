@@ -95,6 +95,26 @@ test('a snapshot is filed at the given door, and a down runtime is one line, not
   assert.match(lines[1], /beads snapshot resumed/u);
 });
 
+test('a newly filed task names the filer and model the task tools recorded, and nobody else', () => {
+  const filed = { id: 'shop-1', title: 'Found work', status: 'open', issue_type: 'task', created_at: '2026-10-16T09:00:00Z', created_by: 'claude',
+    metadata: { noticeos_filed_by: 'claude', noticeos_filed_model: 'Opus 5.5' } };
+  const noModel = { id: 'shop-2', title: 'Filed without a model', status: 'closed', issue_type: 'task', created_at: '2026-10-16T08:00:00Z',
+    closed_at: '2026-10-16T08:30:00Z', metadata: { noticeos_filed_by: 'codex' } };
+  // A runner filer's task: bd's own creator is an internal actor name, never a filer on the Wall.
+  const unnamed = { id: 'shop-3', title: 'Push the waiting commits', status: 'deferred', issue_type: 'task', created_at: '2026-10-16T07:00:00Z',
+    created_by: 'os-up-push-filer' };
+  const entry = summarizeBeadsProject(PROJECT, {
+    active: ok([filed]), ready: ok([filed]), blocked: ok([]), closed: ok([noModel]), deferred: ok([unnamed]),
+  });
+  assert.deepEqual(entry.recentlyCreated.map((row) => [row.id, row.filedBy, row.filedModel]), [
+    ['shop-1', 'claude', 'Opus 5.5'], ['shop-2', 'codex', undefined], ['shop-3', undefined, undefined],
+  ]);
+  assert.equal('filedModel' in entry.recentlyCreated[1], false);
+  assert.equal('filedBy' in entry.recentlyCreated[2], false);
+  // Only the new-task list carries a filer.
+  assert.equal('filedBy' in entry.ready[0], false);
+});
+
 test('the snapshot names who did the work: each worker and model, and the newest claims and closes', async () => {
   const { beadsWork } = await import('./task-snapshot-summary.mjs');
   const active = [
