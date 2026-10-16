@@ -106,10 +106,11 @@ export function askVerb(task: Parameters<typeof isGate>[0]): InboxAsk {
  * not claimable work — the same exclusion the OS makes when it photographs the
  * task database, so the two reads can never disagree about a count), and not a
  * gate that resolves itself. A timer or GitHub gate is nobody's inbox item and
- * nobody's queue row. */
-function boardRows(payload: LiveTasksPayload): BoardTask[] {
+ * nobody's queue row. An epic's own page asks for `containers`, because a
+ * child epic is part of what its parent holds. */
+export function liveRows(payload: LiveTasksPayload, { containers = false }: { containers?: boolean } = {}): BoardTask[] {
   return payload.tasks
-    .filter((task: LiveTask) => task.issueType !== "epic")
+    .filter((task: LiveTask) => containers || task.issueType !== "epic")
     .filter((task: LiveTask) => task.awaitType === null || task.awaitType === "human")
     .map((task: LiveTask) => ({ ...task, project: payload.project, ...(payload.actors === undefined ? {} : { actors: payload.actors }) }));
 }
@@ -125,6 +126,23 @@ function snapshotRow(item: WorkItem, project: string, ready: boolean): BoardTask
     ready,
     awaitType: item.issueType === "gate" ? "human" : null,
   };
+}
+
+/** Every row one project's photograph holds, once each. The lists are capped,
+ * so this is a sample of the project, never all of it. */
+export function snapshotRows(project: WorkProject): BoardTask[] {
+  const readySet = new Set(project.ready.map((item) => item.id));
+  const rows = new Map<string, BoardTask>();
+  for (const item of project.ok ? [
+    ...project.waiting,
+    ...project.ready,
+    ...project.inProgress,
+    ...project.deferred,
+    ...project.recentlyClosed,
+  ] : []) {
+    if (!rows.has(item.id)) rows.set(item.id, snapshotRow(item, project.asset, readySet.has(item.id)));
+  }
+  return [...rows.values()];
 }
 
 /** Most-blocking first: a gate leads (it is holding a task out of the claimable
@@ -188,18 +206,6 @@ function buildProject(
   };
   if (live === null) {
     const readySet = new Set(project.ready.map((item) => item.id));
-    const rows = new Map<string, BoardTask>();
-    for (const item of project.ok ? [
-      ...project.waiting,
-      ...project.ready,
-      ...project.inProgress,
-      ...project.deferred,
-      ...project.recentlyClosed,
-    ] : []) {
-      if (!rows.has(item.id)) {
-        rows.set(item.id, snapshotRow(item, project.asset, readySet.has(item.id)));
-      }
-    }
     const { open, highPriority, inProgress, blocked, closedRecent } = project.counts;
     return {
       ...base,
@@ -211,7 +217,7 @@ function buildProject(
         ? { open, urgent: highPriority, inProgress, blocked, closed: closedRecent }
         : { open: 0, urgent: null, inProgress: 0, blocked: 0, closed: 0 },
       epicNames: new Map((project.epics ?? []).map((epic) => [epic.id, epic.title])),
-      tasks: [...rows.values()],
+      tasks: snapshotRows(project),
       waiting: (project.ok ? project.waiting : []).map((item) =>
         snapshotRow(item, project.asset, readySet.has(item.id)),
       ),
@@ -222,7 +228,7 @@ function buildProject(
     };
   }
 
-  const tasks = boardRows(live);
+  const tasks = liveRows(live);
   const active = tasks.filter((task) => task.status !== PARKED && task.status !== "closed");
   const waiting = tasks.filter((task) => inboxAsk(task) !== null).sort(inboxOrder);
   return {

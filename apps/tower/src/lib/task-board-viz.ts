@@ -10,7 +10,7 @@ import type { BarStripPoint } from "@/components/viz/BarStrip";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
 import { flowLayers, type FlowEdge, type FlowNode } from "@/components/viz/FlowGraph";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
-import { IN_PROGRESS, PARKED, inboxAsk, isGate, type BoardProject, type BoardTask } from "@/lib/task-board-read";
+import { IN_PROGRESS, PARKED, inboxAsk, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 
 const DAY_MS = 86_400_000;
 
@@ -173,29 +173,106 @@ function blockers(task: BoardTask): string[] {
 
 const finished = (task: BoardTask) => task.status === "closed";
 
+/** How many unfinished tasks in the read this one waits on. */
+function waitingOnCount(task: BoardTask, byId: ReadonlyMap<string, BoardTask>): number {
+  return blockers(task).filter((id) => byId.has(id) && !finished(byId.get(id)!)).length;
+}
+
+/** Where a task stands, in the board's words, in the order an epic's page
+ * groups its tasks: what needs the operator first, what is finished last. */
+export const TASK_STATE_WORDS = ["Needs attention", "In progress", "Ready", "Waiting", "Not started", "Blocked", "Parked", "Done"] as const;
+export type TaskStateWord = (typeof TASK_STATE_WORDS)[number];
+
+/** A task's word. `waitingOn` counts the unfinished tasks in the read it waits
+ * on; `ask` is what the operator's inbox asks of it, passed in because the
+ * saved snapshot knows an ask by its list rather than by its labels. */
+export function taskStateWord(task: Pick<BoardTask, "status" | "ready">, waitingOn: number, ask: InboxAsk | null): TaskStateWord {
+  if (task.status === "closed") return "Done";
+  if (task.status === PARKED) return "Parked";
+  if (ask !== null) return "Needs attention";
+  if (task.status === "blocked") return "Blocked";
+  if (task.status === IN_PROGRESS) return "In progress";
+  if (waitingOn > 0) return "Waiting";
+  return task.ready ? "Ready" : "Not started";
+}
+
 /** A task as a node: its status as the node's state and word, the fact that
  * matters for that state as its caption. Blocked and asks wear warn, as their
  * rows do; the graph draws no task in error ink. */
 function epicNode(task: BoardTask, waitingOn: number, nowMs: number, actors: readonly TaskActor[] | undefined, href: (task: BoardTask) => string): FlowNode {
   const base = { id: task.id, label: task.title, href: href(task), caption: task.id };
-  if (task.status === "closed") {
-    const age = ageMs(nowMs, task.closedAt);
-    return { ...base, state: "ok", stateLabel: "Done", caption: age === null ? task.id : `closed ${formatAge(age)} ago` };
-  }
-  if (task.status === PARKED) {
-    return { ...base, state: "absent", stateLabel: "Parked", caption: task.deferUntil ? `until ${task.deferUntil.slice(0, 10)}` : task.id };
-  }
   const ask = inboxAsk(task);
-  if (ask !== null) {
-    return { ...base, state: "warn", stateLabel: "Needs attention", caption: ask === "approve" ? "your approval" : "your answer", since: task.updatedAt };
+  const word = taskStateWord(task, waitingOn, ask);
+  switch (word) {
+    case "Done": {
+      const age = ageMs(nowMs, task.closedAt);
+      return { ...base, state: "ok", stateLabel: word, caption: age === null ? task.id : `closed ${formatAge(age)} ago` };
+    }
+    case "Parked":
+      return { ...base, state: "absent", stateLabel: word, caption: task.deferUntil ? `until ${task.deferUntil.slice(0, 10)}` : task.id };
+    case "Needs attention":
+      return { ...base, state: "warn", stateLabel: word, caption: ask === "approve" ? "your approval" : "your answer", since: task.updatedAt };
+    case "Blocked":
+      return { ...base, state: "warn", stateLabel: word, since: task.updatedAt };
+    case "In progress":
+      return { ...base, state: "active", stateLabel: word, caption: task.assignee ? taskActorLabel(task.assignee, actors) : task.id };
+    case "Waiting":
+      return { ...base, state: "idle", stateLabel: word, caption: `waits on ${waitingOn}` };
+    default:
+      return { ...base, state: "idle", stateLabel: word };
   }
-  if (task.status === "blocked") return { ...base, state: "warn", stateLabel: "Blocked", since: task.updatedAt };
-  if (task.status === IN_PROGRESS) {
-    return { ...base, state: "active", stateLabel: "In progress", caption: task.assignee ? taskActorLabel(task.assignee, actors) : task.id };
+}
+
+/** One epic's unfinished children, the tasks in the read that hold them, and
+ * the edges between those: what the board's graph draws for the epic. */
+function epicChain(tasks: readonly BoardTask[], byId: ReadonlyMap<string, BoardTask>, epicId: string) {
+  const children = tasks.filter((task) => task.parent === epicId);
+  const open = children.filter((task) => !finished(task));
+  const keep = new Map(open.map((task) => [task.id, task]));
+  // What holds the unfinished children, and what released them: one step
+  // back, inside the read.
+  for (const task of open) {
+    for (const id of blockers(task)) {
+      const blocker = byId.get(id);
+      if (blocker) keep.set(blocker.id, blocker);
+    }
   }
-  return waitingOn > 0
-    ? { ...base, state: "idle", stateLabel: "Waiting", caption: `waits on ${waitingOn}` }
-    : { ...base, state: "idle", stateLabel: task.ready ? "Ready" : "Not started" };
+  const edges = [...keep.values()].flatMap((task) =>
+    blockers(task).filter((id) => keep.has(id)).map((id) => epicEdge(keep.get(id)!, task.id)));
+  return { children, keep, edges };
+}
+
+/** Whether the board's Epic graph draws this epic, given the board's own rows
+ * for its project: a link to the graph is offered only where there is one. */
+export function epicDrawsGraph(tasks: readonly BoardTask[], epicId: string): boolean {
+  return epicChain(tasks, new Map(tasks.map((task) => [task.id, task])), epicId).edges.length > 0;
+}
+
+export interface EpicTaskGroup {
+  word: TaskStateWord;
+  tasks: BoardTask[];
+}
+
+/**
+ * An epic's tasks grouped by where each stands, in the board's words and
+ * order; inside a group by priority, then id. `read` is every task the read
+ * holds, so a task held by one outside the epic still reads Waiting.
+ */
+export function epicTaskGroups(
+  children: readonly BoardTask[],
+  read: readonly BoardTask[],
+  askOf: (task: BoardTask) => InboxAsk | null = inboxAsk,
+): EpicTaskGroup[] {
+  const byId = new Map(read.map((task) => [task.id, task]));
+  const groups = new Map<TaskStateWord, BoardTask[]>();
+  for (const task of children) {
+    const word = taskStateWord(task, waitingOnCount(task, byId), askOf(task));
+    groups.set(word, [...(groups.get(word) ?? []), task]);
+  }
+  return TASK_STATE_WORDS.flatMap((word) => {
+    const tasks = groups.get(word);
+    return tasks ? [{ word, tasks: tasks.sort((a, b) => a.priority - b.priority || a.id.localeCompare(b.id, undefined, { numeric: true })) }] : [];
+  });
 }
 
 /** An edge as its blocker leaves it: released once the blocker is done, moving
@@ -230,30 +307,16 @@ export function epicGraphs({ projects, snapshots, nowMs, href }: {
     const byId = new Map(project.tasks.map((task) => [task.id, task]));
     const rollup = new Map<string, WorkEpic>((snapshots.find((row) => row.prefix === project.prefix)?.epics ?? []).map((epic) => [epic.id, epic]));
     for (const [epicId, title] of project.epicNames) {
-      const children = project.tasks.filter((task) => task.parent === epicId);
-      const open = children.filter((task) => !finished(task));
-      if (open.length === 0) continue;
-      const keep = new Map(open.map((task) => [task.id, task]));
-      // What holds the unfinished children, and what released them: one step
-      // back, inside the read.
-      for (const task of open) {
-        for (const id of blockers(task)) {
-          const blocker = byId.get(id);
-          if (blocker) keep.set(blocker.id, blocker);
-        }
-      }
-      let edges = [...keep.values()].flatMap((task) =>
-        blockers(task).filter((id) => keep.has(id)).map((id) => epicEdge(keep.get(id)!, task.id)));
-      if (edges.length === 0) continue;
+      const { children, keep, edges: chained } = epicChain(project.tasks, byId, epicId);
+      if (chained.length === 0) continue;
       // Past the cap, the nodes with no edge go first, then the finished ones.
-      const linked = new Set(edges.flatMap((edge) => [edge.from, edge.to]));
+      const linked = new Set(chained.flatMap((edge) => [edge.from, edge.to]));
       const ranked = [...keep.values()].sort((a, b) =>
         Number(linked.has(b.id)) - Number(linked.has(a.id)) || Number(finished(a)) - Number(finished(b)));
       const shown = new Set(ranked.slice(0, EPIC_GRAPH_NODES).map((task) => task.id));
-      edges = edges.filter((edge) => shown.has(edge.from) && shown.has(edge.to));
+      const edges = chained.filter((edge) => shown.has(edge.from) && shown.has(edge.to));
       const tasks = [...keep.values()].filter((task) => shown.has(task.id));
-      const holding = (task: BoardTask) => blockers(task).filter((id) => byId.has(id) && !finished(byId.get(id)!)).length;
-      const nodes = tasks.map((task) => epicNode(task, holding(task), nowMs, task.actors, href));
+      const nodes = tasks.map((task) => epicNode(task, waitingOnCount(task, byId), nowMs, task.actors, href));
       const epic = rollup.get(epicId);
       graphs.push({
         id: epicId,

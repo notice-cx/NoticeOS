@@ -31,6 +31,8 @@ The page starts with a one-line summary: **No decisions for you**, or **3 decisi
 
 **All tasks** is the table: **Id**, **Project**, **Who** (the agent or person holding it, or **nobody**), **Age** and **State**. Each row opens its task page at `/tasks/<id>`, with the full description and the evidence attached when it was closed.
 
+An epic's page lists the epic's tasks under **Tasks**, grouped by the states the **Epic** graph draws (**Needs attention**, **In progress**, **Ready**, **Waiting**, **Not started**, **Blocked**, **Parked**, **Done**) and sorted by priority inside each group. Each row shows the task's state mark, id, title, who holds it with the model they named, and its priority mark, and opens the task's page. The header shows a bar and **2 of 7 closed**: the epic's closed tasks against all its tasks. The list holds the tasks closed in the last 7 days; a line under it, such as **3 more, closed over 7 days ago**, counts the older ones. **Epic graph →** opens this page's epic in the **Epic** graph, and appears only when the board draws a graph for it. A task in an epic shows the same bar under **Parent epic**, and **Next ready:** names the first task in the epic that can be claimed now.
+
 The board works on a new installation because it ships with the **System** project.
 
 ## What you can do
@@ -49,7 +51,7 @@ The board works on a new installation because it ships with the **System** proje
 
 - A figure shown as **—** means the board could not read that project; it is never a zero. The summary line then shows **Couldn't read your decisions**.
 - A count shown as **12+** is a lower bound: the snapshot holds only the first items of each list.
-- On a hosted view the board shows a **Read-only snapshot** banner: the rows are the last snapshot and the actions are off. **Filed a day** then shows **not in the saved snapshot**, and no epic graph is drawn, because the snapshot holds neither filing dates nor dependencies.
+- On a hosted view the board shows a **Read-only snapshot** banner: the rows are the last snapshot and the actions are off. **Filed a day** then shows **not in the saved snapshot**, and no epic graph is drawn, because the snapshot holds neither filing dates nor dependencies. An epic's page there lists the epic's tasks the snapshot holds and counts the others, such as **4 tasks not in the saved snapshot**.
 - A hatched day in **In and out** was not counted. It is never a zero.
 - A site with no project of its own shows **No task project for this site** on its Tasks tab.
 

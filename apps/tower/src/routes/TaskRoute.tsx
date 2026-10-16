@@ -24,16 +24,17 @@ import {
   claimedModel,
   closeAttribution,
   TASK_PROJECTS_PATH,
+  TASKS_CLOSED_WINDOW_DAYS,
   type LiveEpic,
   type LiveTask,
   type TaskComment,
   type TaskDependency,
   type TaskActor,
+  type LiveTasksPayload,
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
-import { PRIORITY_BANDS, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import { EmptyState } from "@/components/EmptyState";
-import { Meter } from "@/components/Meter";
 import { PageHeader } from "@/components/PageHeader";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -59,7 +60,10 @@ import { ApiError, type TaskEdit } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { useOwnerAnswers } from "@/lib/browser-context";
-import { TASK_STATUSES, askVerb, inboxAsk, type InboxAsk } from "@/lib/task-board-read";
+import { TASK_STATUSES, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
+import { epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { formatInt } from "@/lib/format";
+import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
 import { useAskActions } from "@/routes/tasks/ask-actions";
 import { PriorityMark, TaskStatusChip, TaskStatusGlyph, priorityFace } from "@/routes/tasks/task-face";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
@@ -111,6 +115,15 @@ export function TaskRoute() {
     : findInSnapshot(snapshot.data, id, capability.projectSelection ? selectedProject : undefined), [snapshot.data, id, capability.projectSelection, selectedProject]);
   const spoke = fromSnapshot?.project ?? (capability.projectSelection ? null : projectByPrefix(snapshot.data, id));
 
+  // Every row of the project's live read, epics included: this task's own
+  // children and its siblings come from here.
+  const read = useMemo(() => (board.data ? liveRows(board.data, { containers: true }) : []), [board.data]);
+  const epicView = task && board.data
+    ? liveEpicView(board.data, read, task, epicOf(board.data.epics, task.id))
+    : !live && fromSnapshot ? snapshotEpicView(fromSnapshot.project, id, fromSnapshot.epic) : null;
+  const siblings = task?.parent ? read.filter((row) => row.parent === task.parent && row.id !== task.id) : [];
+  const nextReady = epicTaskGroups(siblings, read).find((group) => group.word === "Ready")?.tasks[0] ?? null;
+
   const head: HeadFacts | null = task
     ? { title: task.title, status: task.status, priority: task.priority, assignee: task.assignee, ask: inboxAsk(task) }
     : fromSnapshot
@@ -136,7 +149,7 @@ export function TaskRoute() {
         <ArrowLeft className="size-4" aria-hidden />
         {returnTo.startsWith("/assets/") ? "Back to site" : returnTo === "/" || returnTo.startsWith("/?") ? "Back to Home" : "Back to tasks"}
       </Link>
-      <TaskHeader id={id} head={head} writable={writable} readAt={detail.data?.readAt ?? null} />
+      <TaskHeader id={id} head={head} writable={writable} readAt={detail.data?.readAt ?? null} progress={epicView?.progress ?? null} />
       {capability.projectSelection ? <select aria-label="Task project" value={selectedProject ?? ''}
         className={cn(fieldClass, 'w-fit max-w-full')} onChange={event => {
           const next = new URLSearchParams(params); next.set('project', event.target.value); setParams(next, { replace: true });
@@ -146,7 +159,7 @@ export function TaskRoute() {
       </select> : null}
 
       {!live ? (
-        <ReadOnly row={fromSnapshot?.item ?? null} project={spoke} />
+        <ReadOnly row={fromSnapshot?.item ?? null} project={spoke} epicView={epicView} />
       ) : notFound ? (
         <NotFound id={id} />
       ) : laneError ? (
@@ -164,6 +177,7 @@ export function TaskRoute() {
           <div className="grid gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:items-start">
             <div className="flex min-w-0 flex-col gap-4">
               <Body task={task} />
+              {epicView ? <EpicTasks view={epicView} /> : null}
               <Comments
                 id={task.id}
                 comments={detail.data?.comments ?? []}
@@ -175,6 +189,8 @@ export function TaskRoute() {
               project={project}
               projectName={spoke?.name ?? project ?? ""}
               epic={epicOf(board.data?.epics ?? null, task.parent)}
+              parentTitle={read.find((row) => row.id === task.parent)?.title ?? null}
+              nextReady={nextReady}
               blocks={blockedByThis(board.data?.tasks ?? [], task.id)}
               nowMs={now}
             />
@@ -219,6 +235,7 @@ function TaskHeader({
   head,
   writable,
   readAt,
+  progress,
 }: {
   id: string;
   head: HeadFacts | null;
@@ -226,6 +243,8 @@ function TaskHeader({
   /** When the live read the page shows was taken: an answer sent after it
    * hides the verbs until the next read. */
   readAt: string | null;
+  /** An epic's closed of total. */
+  progress: { closed: number; total: number } | null;
 }) {
   const demoReadonly = useDemoReadonly();
   const capabilities = useTasksLive();
@@ -262,6 +281,7 @@ function TaskHeader({
           <>
             <TaskStatusChip status={head.status} subject={`task:${id}`} />
             <PriorityChip priority={head.priority} subject={`task:${id}`} />
+            {progress ? <EpicProgress closed={progress.closed} total={progress.total} /> : null}
           </>
         ) : null
       }
@@ -622,6 +642,8 @@ function Facts({
   project,
   projectName,
   epic,
+  parentTitle,
+  nextReady,
   blocks,
   nowMs,
 }: {
@@ -629,6 +651,11 @@ function Facts({
   project: string | null;
   projectName: string;
   epic: LiveEpic | null;
+  /** The parent's title from the board read, when it is not an epic the
+   * board's progress read covers. */
+  parentTitle: string | null;
+  /** The first sibling ready to be claimed. */
+  nextReady: BoardTask | null;
   blocks: LiveTask[];
   nowMs: number;
 }) {
@@ -755,32 +782,26 @@ function Facts({
         </Fact>
 
         <Fact label="Parent epic">
-          {epic ? (
+          {task.parent ? (
             <div className="flex flex-col gap-1">
               <Link
-                to={taskHref(epic.id)}
-                className="text-sm hover:underline"
+                to={taskHref(task.parent)}
+                className={cn("text-sm hover:underline", !epic && !parentTitle && "font-mono")}
               >
-                {epic.title}
+                {epic?.title ?? parentTitle ?? task.parent}
               </Link>
               {/* The epic's all-time child progress (`bd epic status`): the only
                   honest denominator, since a list read is a window. */}
-              <Meter
-                value={epic.closed}
-                max={epic.total}
-                ariaLabel={`${epic.closed} of ${epic.total} children closed`}
-              />
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {epic.closed} of {epic.total} closed
-              </span>
+              {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
+              {nextReady ? (
+                <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
+                  Next ready:{" "}
+                  <Link to={taskHref(nextReady.id)} className="text-foreground hover:underline">
+                    <span className="font-mono">{nextReady.id}</span> {nextReady.title}
+                  </Link>
+                </span>
+              ) : null}
             </div>
-          ) : task.parent ? (
-            <Link
-              to={taskHref(task.parent)}
-              className="font-mono text-sm hover:underline"
-            >
-              {task.parent}
-            </Link>
           ) : (
             <span className="text-sm text-muted-foreground">Hangs off nothing</span>
           )}
@@ -1361,10 +1382,13 @@ function Age({ iso, nowMs }: { iso: string | null; nowMs: number }) {
 function ReadOnly({
   row,
   project,
+  epicView,
 }: {
   row: WorkItem | null;
   project: WorkProject | null;
+  epicView: EpicView | null;
 }) {
+  const parent = row?.parent ? project?.epics?.find((epic) => epic.id === row.parent) ?? null : null;
   return (
     <div className="flex flex-col gap-4" data-task-readonly>
       <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
@@ -1393,7 +1417,14 @@ function ReadOnly({
               {row.parent ? (
                 <>
                   <dt className="text-muted-foreground">Parent</dt>
-                  <dd className="font-mono text-xs">{row.parent}</dd>
+                  {parent ? (
+                    <dd className="flex flex-col gap-1">
+                      <span>{parent.title}</span>
+                      {parent.total > 0 ? <EpicProgress closed={parent.closed} total={parent.total} /> : null}
+                    </dd>
+                  ) : (
+                    <dd className="font-mono text-xs">{row.parent}</dd>
+                  )}
                 </>
               ) : null}
               {row.deferUntil ? (
@@ -1406,8 +1437,16 @@ function ReadOnly({
           )}
         </CardContent>
       </Card>
+      {epicView ? <EpicTasks view={epicView} /> : null}
     </div>
   );
+}
+
+/** The epic's task list, opening each task the way every link on this page
+ * does. */
+function EpicTasks({ view }: { view: EpicView }) {
+  const taskHref = useTaskHref();
+  return <EpicTaskList groups={view.groups} missing={view.missing} graphHref={view.graphHref} taskHref={taskHref} />;
 }
 
 /** A dead end's one way out, as a link rather than a sentence about it. */
@@ -1469,11 +1508,12 @@ function epicOf(epics: LiveEpic[] | null, parent: string | null): LiveEpic | nul
   return epics.find((epic) => epic.id === parent) ?? null;
 }
 
+/** The snapshot's lists leave epics out; its epic rollup carries them. */
 function findInSnapshot(
   payload: WorkPayload | undefined,
   id: string,
   selectedProject?: string,
-): { item: WorkItem; project: WorkProject; waiting: boolean } | null {
+): { item: WorkItem; project: WorkProject; waiting: boolean; epic: WorkEpic | null } | null {
   if (!payload) return null;
   for (const project of payload.projects) {
     if (selectedProject !== undefined && project.asset !== selectedProject) continue;
@@ -1486,10 +1526,65 @@ function findInSnapshot(
     ];
     for (const list of lists) {
       const found = list.find((item) => item.id === id);
-      if (found) return { item: found, project, waiting: list === project.waiting };
+      if (found) return { item: found, project, waiting: list === project.waiting, epic: null };
+    }
+    const epic = project.epics?.find((row) => row.id === id);
+    if (epic) {
+      return {
+        item: {
+          id: epic.id, title: epic.title, status: epic.status, priority: epic.priority, issueType: "epic",
+          assignee: null, updatedAt: null, closedAt: null, parent: null, deferUntil: null,
+        },
+        project,
+        waiting: false,
+        epic,
+      };
     }
   }
   return null;
+}
+
+/** An epic's place on its own page: its tasks by state, its closed of total,
+ * the tasks the read leaves out, and the board's graph when it draws one. */
+interface EpicView {
+  groups: EpicTaskGroup[];
+  progress: { closed: number; total: number } | null;
+  missing: string | null;
+  graphHref: string | null;
+}
+
+/** From the live read. Every unfinished task is in it; closed ones only from
+ * the closed window, so the epic's all-time count names the rest. */
+function liveEpicView(payload: LiveTasksPayload, read: BoardTask[], task: LiveTask, epic: LiveEpic | null): EpicView | null {
+  const children = read.filter((row) => row.parent === task.id);
+  if (task.issueType !== "epic" && children.length === 0) return null;
+  const earlier = epic ? Math.max(0, epic.total - children.length) : 0;
+  return {
+    groups: epicTaskGroups(children, read),
+    progress: epic && epic.total > 0
+      ? { closed: epic.closed, total: epic.total }
+      : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null,
+    missing: earlier === 0 ? null
+      : `${formatInt(earlier)} ${children.length > 0 ? "more" : earlier === 1 ? "task" : "tasks"}, closed over ${TASKS_CLOSED_WINDOW_DAYS} days ago`,
+    graphHref: epic && epicDrawsGraph(liveRows(payload), task.id) ? `/tasks?epic=${encodeURIComponent(task.id)}` : null,
+  };
+}
+
+/** From the saved snapshot: its capped lists name some of the epic's tasks,
+ * and its waiting list, not labels, says which ask for the operator. */
+function snapshotEpicView(project: WorkProject, id: string, epic: WorkEpic | null): EpicView | null {
+  const rows = snapshotRows(project);
+  const children = rows.filter((row) => row.parent === id);
+  if (epic === null && children.length === 0) return null;
+  const asks = new Set(project.waiting.map((item) => item.id));
+  const unlisted = Math.max(0, (epic?.total ?? children.length) - children.length);
+  return {
+    groups: epicTaskGroups(children, rows, (row) => (asks.has(row.id) ? askVerb(row) : null)),
+    progress: epic && epic.total > 0 ? { closed: epic.closed, total: epic.total } : null,
+    missing: unlisted === 0 ? null
+      : `${formatInt(unlisted)} ${children.length > 0 ? "more" : unlisted === 1 ? "task" : "tasks"} not in the saved snapshot`,
+    graphHref: null,
+  };
 }
 
 /** The spoke a task id belongs to, from its prefix, which is not derivable

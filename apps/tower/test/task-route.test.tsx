@@ -4,7 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
-import { emptyWorkHistory, type WorkItem, type WorkPayload } from "@shared/work";
+import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
 import { validateDemoViewer } from '@shared/demo-viewer';
 
 // `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
@@ -849,5 +849,112 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     expect(approve).toBeDisabled();
     expect(approve).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
     expect(headerButtons()).toEqual(["Approve"]);
+  });
+});
+
+// An epic's page lists what it holds, from the project's live read; a task's
+// page shows where it stands among its siblings.
+describe("an epic's page and its tasks", () => {
+  const EPIC = "ro-l1ed";
+  const epicTask = () => task({ id: EPIC, title: "Tasks are managed in the Tower", issueType: "epic", parent: null, status: "open",
+    assignee: null, startedAt: null, dependencies: [], metadata: null });
+  const child = (over: Partial<LiveTask>) => task({ status: "open", assignee: null, startedAt: null, parent: EPIC, dependencies: [], metadata: null, ...over });
+  function epicBoard(): LiveTasksPayload {
+    const base = board();
+    return {
+      ...base,
+      tasks: [
+        epicTask(),
+        ...base.tasks,
+        child({ id: "ro-l1ed.5", title: "Fields are edited where they are read", ready: true, priority: 2 }),
+        child({ id: "ro-l1ed.6", title: "Approve the close form wording", ready: true, labels: ["human"] }),
+        child({ id: "ro-l1ed.1", title: "A local task lane", status: "closed", closedAt: "2026-09-03T10:00:00.000Z" }),
+      ],
+      epics: [{ ...base.epics![0]!, total: 6, closed: 2 }],
+    };
+  }
+  const rollup = (over: Partial<WorkEpic> = {}): WorkEpic => ({ id: EPIC, title: "Tasks are managed in the Tower", status: "open", priority: 1,
+    total: 4, closed: 1, counts: { open: 2, inProgress: 1, blocked: 0, deferred: 0 }, priorities: [0, 1, 2, 0, 0], ...over });
+
+  it("lists its tasks under the board's state words, each opening its page, with closed of total in the header", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask(EPIC);
+
+    await waitFor(() => expect(container.querySelector("[data-epic-tasks]")).not.toBeNull());
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    const groups = [...list.querySelectorAll("[data-epic-group]")].map((group) => [
+      group.getAttribute("data-epic-group"),
+      [...group.querySelectorAll("[data-epic-task]")].map((row) => row.getAttribute("data-epic-task")),
+    ]);
+    expect(groups).toEqual([
+      ["Needs attention", ["ro-l1ed.6"]],
+      ["In progress", [ID]],
+      ["Ready", ["ro-l1ed.5"]],
+      ["Waiting", ["ro-l1ed.4"]],
+      ["Done", ["ro-l1ed.1"]],
+    ]);
+    const ready = within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement);
+    expect(ready.getByRole("link", { name: /ro-l1ed\.5/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    // Who holds a task in progress is on its row.
+    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText(/claude\/task-page-agent/)).toBeInTheDocument();
+    // The read holds a week of closes; the epic's all-time count names the rest.
+    expect(within(list).getByText("1 more, closed over 7 days ago")).toBeInTheDocument();
+    expect(within(list).getByRole("link", { name: "Epic graph →" })).toHaveAttribute("href", `/tasks?epic=${EPIC}`);
+
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    expect(within(header).getByRole("progressbar")).toHaveAttribute("aria-label", "2 of 6 children closed");
+    expect(within(header).getByText("2 of 6 closed")).toBeInTheDocument();
+  });
+
+  it("offers no Epic graph link where the board draws no graph for the epic", async () => {
+    const flat = epicBoard();
+    flat.tasks = flat.tasks.map((row) => ({ ...row, dependencies: [] }));
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(flat);
+    const { container } = renderTask(EPIC);
+    await waitFor(() => expect(container.querySelector("[data-epic-tasks]")).not.toBeNull());
+    expect(screen.queryByRole("link", { name: "Epic graph →" })).toBeNull();
+  });
+
+  it("shows a child's epic as closed of total and names the next sibling ready to claim", async () => {
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-next-ready]")).not.toBeNull());
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    expect(within(facts).getByText("2 of 6 closed")).toBeInTheDocument();
+    const next = facts.querySelector("[data-next-ready]") as HTMLElement;
+    expect(next).toHaveAttribute("data-next-ready", "ro-l1ed.5");
+    expect(within(next).getByRole("link", { name: /Fields are edited where they are read/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+  });
+
+  it("draws a deployed epic from the snapshot's rollup and counts the tasks the snapshot does not hold", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work();
+    snapshot.projects[0]!.epics = [rollup()];
+    state.work = snapshot;
+    const { container } = renderTask(EPIC);
+
+    expect(await screen.findByText("Tasks are managed in the Tower")).toBeInTheDocument();
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    expect(within(header).getByText("1 of 4 closed")).toBeInTheDocument();
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    expect(list.querySelectorAll("[data-epic-task]")).toHaveLength(0);
+    expect(within(list).getByText("4 tasks not in the saved snapshot")).toBeInTheDocument();
+    expect(api.fetchTask).not.toHaveBeenCalled();
+  });
+
+  it("lists the epic's tasks the deployed snapshot does hold, and counts the rest", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work([snapshotItem({ id: "ro-l1ed.5", title: "Fields are edited where they are read", parent: EPIC })]);
+    snapshot.projects[0]!.epics = [rollup()];
+    state.work = snapshot;
+    const { container } = renderTask(EPIC);
+
+    await screen.findByText("Tasks are managed in the Tower");
+    const list = container.querySelector("[data-epic-tasks]") as HTMLElement;
+    expect(within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement).getByRole("link", { name: /ro-l1ed\.5/ }))
+      .toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    expect(within(list).getByText("3 more not in the saved snapshot")).toBeInTheDocument();
   });
 });
