@@ -619,6 +619,32 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(r.evidence[0]!.source).toBe("Search Console collector has no recent run");
   });
 
+  it("reads No run yet for a cell recorded inside the evidence floor, and the floor for one older", () => {
+    const ev: LaneEvidence = { revenueRows: [], signalRuns: [], nowMs: NOW_MS };
+    const today = NOW.toISOString().slice(0, 10);
+    const fresh = mergeLane("needs-setup", "ga4", ev, today);
+    expect(fresh.effective).toBe("needs-setup");
+    expect(fresh.evidence[0]).toEqual({ polarity: "against", source: "GA4 collector", detail: "No run yet", at: null });
+
+    const old = new Date(NOW_MS - (SIGNAL_EVIDENCE_FLOOR_DAYS + 1) * 24 * HOUR).toISOString().slice(0, 10);
+    expect(mergeLane("needs-setup", "ga4", ev, old).evidence[0]).toMatchObject({
+      source: "GA4 collector has no recent run",
+      detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
+    });
+    // A cell with no recorded date cannot bound the span.
+    expect(mergeLane("needs-setup", "ga4", ev).evidence[0]!.detail).toBe(`0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`);
+  });
+
+  it("reads No run yet for the nightly archive of a cell recorded inside the floor", () => {
+    const r = mergeLane("needs-setup", "gsc", {
+      revenueRows: [],
+      signalRuns: [GSC_SUCCESS],
+      archiveRuns: [],
+      nowMs: NOW_MS,
+    }, NOW.toISOString().slice(0, 10));
+    expect(r.evidence[1]).toEqual({ polarity: "against", source: "Nightly archive", detail: "No run yet", at: null });
+  });
+
   it("keeps a needs-setup revenue lane needs-setup but surfaces the manual lane", () => {
     const ev: LaneEvidence = {
       revenueRows: [{ currency: 'USD', family: "ads", source: "raptive-report", note: null, amountMinor: 49810, period: "2026-06" }],
@@ -832,11 +858,13 @@ describe("buildIntegrationsMatrix", () => {
       at: new Date(NOW_MS - 20 * 60_000).toISOString(),
     }]);
 
+    // Recorded inside the evidence floor, so it is owed nothing before then.
     const nomGsc = m.cells["northwind.example"]![0]!;
     expect(nomGsc.effective).toBe("needs-setup");
     expect(nomGsc.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector has no recent run",
+      source: "Search Console collector",
+      detail: "No run yet",
       at: null,
     });
 
@@ -878,7 +906,10 @@ describe("buildIntegrationsMatrix", () => {
 
   it("names the floor when a lane's last attempt predates it, rather than dropping the lane", async () => {
     await insertSignalRun(ctx, "gsc-ancient", "meadow.example", "gsc", daysBeforeNow(401));
-    const m = await buildIntegrationsMatrix(ctx.call, deps(INTEGRATIONS));
+    // The cell is older than the floor too, so the whole span was owed a run.
+    const recordedLongAgo = structuredClone(INTEGRATIONS);
+    recordedLongAgo.assets["meadow.example"]!.gsc!.since = daysBeforeNow(402).slice(0, 10);
+    const m = await buildIntegrationsMatrix(ctx.call, deps(recordedLongAgo));
 
     expect(m.cells["meadow.example"]).toHaveLength(m.catalog.length);
     const gsc = m.cells["meadow.example"]![0]!;
@@ -889,6 +920,19 @@ describe("buildIntegrationsMatrix", () => {
       detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
       at: null,
     });
+  });
+
+  it("reads No run yet for a cell recorded after its collector's last run, not the whole floor", async () => {
+    // A site added today: its last run, if any, predates the floor, and the
+    // cell was recorded since.
+    await insertSignalRun(ctx, "gsc-ancient", "meadow.example", "gsc", daysBeforeNow(401));
+    const addedToday = structuredClone(INTEGRATIONS);
+    addedToday.assets["meadow.example"]!.gsc!.since = NOW.toISOString().slice(0, 10);
+    const m = await buildIntegrationsMatrix(ctx.call, deps(addedToday));
+
+    const gsc = m.cells["meadow.example"]![0]!;
+    expect(gsc.evidence[0]).toEqual({ polarity: "against", source: "Search Console collector", detail: "No run yet", at: null });
+    expect(JSON.stringify(gsc.evidence)).not.toContain("0 runs in");
   });
 
   it("states the manual lane's total in exact cents", async () => {
@@ -2070,6 +2114,33 @@ describe("buildAssetIntegrations", () => {
     )!;
     expect(amazon.mappingSource).toBe("fallback");
     expect(amazon.mapping).toEqual([]);
+  });
+
+  // The status model reads a mapped source on a connected provider as
+  // Collecting before its first run, from the cell on the Data sources row and
+  // from the card slot everywhere else, so both carry the same flag.
+  it("marks the cell and the card slot mapped by the same rule as the mapping source", () => {
+    const mapped: IntegrationsConfig = {
+      catalog: CATALOG,
+      assets: {
+        ...INTEGRATIONS.assets,
+        "meadow.example": {
+          ...INTEGRATIONS.assets["meadow.example"]!,
+          gsc: cell("needs-setup", { siteUrl: "sc-domain:meadow.example" }),
+        },
+      },
+    };
+    const slots = (integrations: IntegrationsConfig) => buildCardDataSources({
+      assetId: "meadow.example", integrations, latestReportAt: null, pull: null, now: NOW, signalRuns: [],
+    });
+    const ev: LaneEvidence = { revenueRows: [], signalRuns: [], nowMs: NOW_MS };
+    const gsc = buildAssetIntegrations("meadow.example", mapped, ev, slots(mapped)).lanes.find((l) => l.cell.laneId === "gsc")!;
+    expect(gsc.cell.mapped).toBe(true);
+    expect(slots(mapped).find((source) => source.id === "gsc")).toMatchObject({ mapped: true, detail: "No run yet" });
+
+    const unmapped = buildAssetIntegrations("meadow.example", INTEGRATIONS, ev).lanes.find((l) => l.cell.laneId === "gsc")!;
+    expect(unmapped.cell).not.toHaveProperty("mapped");
+    expect(slots(INTEGRATIONS).find((source) => source.id === "gsc")).not.toHaveProperty("mapped");
   });
 
   // An unmapped lane reads as unmapped rather than as an empty string.

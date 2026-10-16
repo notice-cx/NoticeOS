@@ -2452,7 +2452,8 @@ describe("buildAssetDetailPayload", () => {
     const gsc = p.integrations.lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.cell.evidence[0]).toMatchObject({
       polarity: "against",
-      source: "Search Console collector has no recent run",
+      source: "Search Console collector",
+      detail: "No run yet",
       at: null,
     });
   });

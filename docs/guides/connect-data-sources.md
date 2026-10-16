@@ -80,7 +80,7 @@ The row's status shows the state of the connection:
 | **Not checked** | A credential is saved but nobody has tested it. |
 | **Checking** | The panel is waiting for the provider's response. |
 | **Key accepted** / **Signed in** / **URL accepted** | The provider accepted what you gave it. Nothing collected yet. |
-| **Collecting** | A first collection is running. |
+| **Collecting** | A first collection is running, or the site's source is mapped and waits for the next scheduled run. The site's Data sources row shows when that run starts. |
 | **Working** | The latest attempt succeeded. |
 | **Overdue** | A scheduled attempt is late while others still work. |
 | **Failing** | The credential was rejected, or most sites failed their latest attempt. |

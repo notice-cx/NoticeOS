@@ -186,11 +186,13 @@ export function effectiveLaneState(
 // ---------------------------------------------------------------------------
 // The merge, pure: collector-backed health from the latest run, scope decisions
 // and evidence-free lanes from the file. Every observed state carries its why.
+// `since` is the cell's own date, which bounds how long a missing run was owed.
 // ---------------------------------------------------------------------------
 export function mergeLane(
   declared: IntegrationState,
   laneId: string,
   ev: LaneEvidence,
+  since = "",
 ): { effective: IntegrationState; evidence: IntegrationEvidence[] } {
   // Uptime reads the OS's own home-page check, never another lane's alerts.
   if (laneId === UPTIME_LANE_ID && ev.homeCheck !== undefined) return uptimeState(declared, ev.homeCheck);
@@ -204,10 +206,10 @@ export function mergeLane(
     return {
       effective,
       evidence: [
-        signalRunEvidence(laneId, signalRun, nowMs),
+        signalRunEvidence(laneId, signalRun, nowMs, since),
         // The nightly archive explains the lane; it does not get a vote on its
         // state, because the 15-minute run is the fresher observation.
-        ...archiveEvidence(laneId, declared, signalRun, ev.archiveRuns, nowMs),
+        ...archiveEvidence(laneId, declared, signalRun, ev.archiveRuns, nowMs, since),
       ],
     };
   }
@@ -343,7 +345,7 @@ export function buildCardDataSources({
     if (unusedWithoutConnectPath({ laneId: lane.id, effective })) continue;
     const evidence =
       isCollectedSignalLane(lane.id)
-        ? signalRunEvidence(lane.id, signalRun ?? null, now.getTime())
+        ? signalRunEvidence(lane.id, signalRun ?? null, now.getTime(), cell.since)
         : null;
     sources.push({
       id: lane.id,
@@ -352,6 +354,7 @@ export function buildCardDataSources({
       detail: evidence?.detail ?? cell.note ?? undefined,
       observedAt: evidence?.at ?? null,
       verification: evidence?.verification,
+      ...(laneMapped(lane.id, configured[lane.id]) ? { mapped: true } : {}),
     });
   }
   return sources;
@@ -381,6 +384,7 @@ function signalRunEvidence(
   laneId: string,
   run: LatestSignalRun | null,
   nowMs: number,
+  since = "",
 ): IntegrationEvidence {
   const label =
     laneId === "ga4"
@@ -404,18 +408,7 @@ function signalRunEvidence(
           : laneId === "clarity"
             ? "Clarity"
             : "Google";
-  if (!run) {
-    // Two facts share this line: a lane that has never collected, and a lane
-    // whose last attempt is older than `SIGNAL_EVIDENCE_FLOOR_DAYS`. The
-    // sentence states the span it looked over instead of claiming nothing
-    // ever happened.
-    return {
-      polarity: "against",
-      source: `${label} has no recent run`,
-      detail: noRunsDetail(),
-      at: null,
-    };
-  }
+  if (!run) return noRunEvidence(label, since, nowMs);
   if (run.status === "error") {
     // The cap is a decision the OS made, not a provider failure; the date it
     // resumes is the fact.
@@ -471,9 +464,24 @@ function dueEvery(hours: number): string {
   return `Due ${everyLabel(hours).toLowerCase()}`;
 }
 
-/** The evidence floor, as the count it looked over. */
-function noRunsDetail(): string {
-  return `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`;
+/**
+ * A collector with no run on record for this cell. Two facts share the older
+ * form: a source that has never collected, and one whose last attempt is older
+ * than `SIGNAL_EVIDENCE_FLOOR_DAYS`; it states the span it looked over instead
+ * of claiming nothing ever happened. A cell recorded inside that span (`since`)
+ * was owed no run before it existed, so it reads No run yet rather than being
+ * charged for the whole span.
+ */
+function noRunEvidence(label: string, since: string, nowMs: number): IntegrationEvidence {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(since) && since >= signalEvidenceFloor(nowMs).slice(0, 10)) {
+    return { polarity: "against", source: label, detail: "No run yet", at: null };
+  }
+  return {
+    polarity: "against",
+    source: `${label} has no recent run`,
+    detail: `0 runs in ${SIGNAL_EVIDENCE_FLOOR_DAYS} days`,
+    at: null,
+  };
 }
 
 /** The first day of the month after `nowMs`, when the monthly data cap resets. */
@@ -510,6 +518,7 @@ function archiveEvidence(
   signalRun: LatestSignalRun | null,
   archiveRuns: ArchiveLaneRun[] | undefined,
   nowMs: number,
+  since = "",
 ): IntegrationEvidence[] {
   if (!isArchivedSignalLane(laneId) || archiveRuns === undefined) return [];
   if (declared === "skipped" || declared === "not-applicable") return [];
@@ -518,16 +527,7 @@ function archiveEvidence(
   if (!run) {
     // The collector's own row already says it is running; this adds only that
     // the archive is not.
-    return signalRun
-      ? [
-          {
-            polarity: "against",
-            source: "Nightly archive has no recent run",
-            detail: noRunsDetail(),
-            at: null,
-          },
-        ]
-      : [];
+    return signalRun ? [noRunEvidence("Nightly archive", since, nowMs)] : [];
   }
   if (run.status === "error") {
     return [
@@ -660,8 +660,11 @@ export function buildCells(
         note: on ? 'Automatic Mediavine revenue collection is enabled.' : 'Automatic Mediavine revenue collection is paused. Saved history is retained.',
         ref: 'Mediavine', since };
     }
-    const { effective, evidence } = mergeLane(declared, lane.id, ev);
-    return { assetId, laneId: lane.id, declared, effective, evidence, note, ref, since };
+    const { effective, evidence } = mergeLane(declared, lane.id, ev, since);
+    return {
+      assetId, laneId: lane.id, declared, effective, evidence, note, ref, since,
+      ...(laneMapped(lane.id, laneConfig[lane.id]) ? { mapped: true } : {}),
+    };
   });
 }
 
@@ -823,6 +826,12 @@ function laneMapping(
     : "fallback";
   // The card draws the state and the lane's fallback from `LANE_MAPPING`.
   return { mapping, mappingLists, mappingSource };
+}
+
+/** Whether this asset holds its own mapping for the source: what a cell's and
+ * a card slot's `mapped` say. */
+function laneMapped(laneId: string, declared: IntegrationsConfigCell | undefined): boolean {
+  return laneMapping(laneId, declared).mappingSource === "register";
 }
 
 export function buildAssetIntegrations(

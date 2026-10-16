@@ -13,10 +13,13 @@ import {
   connectionLabel,
   connectionStatus,
   currentHealth,
+  laneStatus,
   needsOperator,
   reportOf,
+  sourceReadings,
   sourceStatus,
 } from "@shared/connection-status";
+import { connectable, firstToConnect } from "@shared/connect-panel";
 
 const NOW = Date.parse("2026-09-23T15:00:00.000Z");
 const TODAY = "2026-09-23T12:15:00.000Z";
@@ -185,6 +188,45 @@ describe("one data source on one asset", () => {
   it("is Unknown, never Not connected, while a read is missing", () => {
     expect(sourceStatus(undefined, items, "meadow.example", "ga4").kind).toBe("unknown");
     expect(sourceStatus(credential(), null, "meadow.example", "ga4").kind).toBe("unknown");
+  });
+
+  it("is Collecting, with no site yet, when the asset maps the source and the provider is connected", () => {
+    // A site added and mapped today: no monitoring item names it yet.
+    expect(sourceStatus(credential(), items, "northwind.example", "ga4", true)).toEqual({ kind: "collecting", site: null });
+    expect(sourceStatus(credential(), [], "northwind.example", "ga4", true).kind).toBe("collecting");
+    // A key nobody has tested yet is still a connected provider.
+    expect(sourceStatus(credential({ lastOkAt: null, lastUsedAt: null }), [], "northwind.example", "ga4", true).kind).toBe("collecting");
+  });
+
+  it("keeps Not connected for a provider not connected or a source with no mapping, and Failing for a refused key", () => {
+    expect(sourceStatus(null, [], "northwind.example", "ga4", true).kind).toBe("not-connected");
+    expect(sourceStatus(credential({ source: "none", fields: [] }), [], "northwind.example", "ga4", true).kind).toBe("not-connected");
+    expect(sourceStatus(credential(), [], "northwind.example", "ga4", false).kind).toBe("not-connected");
+    expect(sourceStatus(credential(), [], "northwind.example", "ga4").kind).toBe("not-connected");
+    const refused = credential({ lastError: "invalid_grant", lastOkAt: "2026-09-01T00:00:00.000Z", lastUsedAt: TODAY });
+    expect(sourceStatus(refused, [], "northwind.example", "ga4", true).kind).toBe("failing");
+  });
+
+  it("lets the monitoring items speak once they name the mapped site", () => {
+    expect(sourceStatus(credential(), items, "meadow.example", "ga4", true).kind).toBe("working");
+    expect(sourceStatus(credential(), items, "meadow.example", "gsc", true).kind).toBe("failing");
+  });
+
+  it("reads a mapped cell as Collecting on the Data sources row and on every card slot, with no Connect", () => {
+    const credentials = new Map([["google", credential()]]);
+    const cell = { assetId: "northwind.example", laneId: "ga4", effective: "needs-setup" as const, evidence: [] };
+    const row = laneStatus({ laneId: "ga4", assetId: "northwind.example", cell: { ...cell, mapped: true }, credentials, items: [], nowMs: NOW });
+    expect(row).toEqual({ kind: "collecting", site: null, provider: "google" });
+    expect(connectable(row)).toBe(false);
+    expect(laneStatus({ laneId: "ga4", assetId: "northwind.example", cell, credentials, items: [], nowMs: NOW }).kind).toBe("not-connected");
+
+    // The header, Home, the Wall and the setup checklist read the card slot.
+    const slots = sourceReadings("northwind.example", [
+      { id: "ga4", label: "Google Analytics (GA4)", state: "needs-setup", detail: "No run yet", observedAt: null, mapped: true },
+      { id: "gsc", label: "Google Search Console", state: "needs-setup", detail: "No run yet", observedAt: null },
+    ], { credentials, items: [] }, NOW);
+    expect(slots.map(({ id, kind }) => [id, kind])).toEqual([["ga4", "collecting"], ["gsc", "not-connected"]]);
+    expect(firstToConnect(slots)?.id).toBe("gsc");
   });
 
   it("reads a demo connection as its runs say, like any connection", () => {
