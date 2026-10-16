@@ -272,6 +272,7 @@ export function cardSourceCell(source: CardDataSource, assetId: string): Integra
       polarity: "supporting", source: source.label, detail: source.detail ?? "",
       at: source.observedAt ?? null, verification: source.verification,
     }],
+    ...(source.mapped ? { mapped: true } : {}),
   };
 }
 
@@ -328,6 +329,9 @@ export interface IntegrationCellBase {
   effective: IntegrationState;
   /** Store evidence behind (or annotating) this state. */
   evidence: IntegrationEvidence[];
+  /** This asset holds its own mapping for the source (a `LANE_MAPPING` field
+   * set), which the collector asks for on its next run. Absent otherwise. */
+  mapped?: boolean;
 }
 
 export interface IntegrationCell extends IntegrationCellBase {

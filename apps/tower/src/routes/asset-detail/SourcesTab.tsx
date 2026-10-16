@@ -25,6 +25,8 @@ import { ProviderConnectPanel, providerPanelOpening, type ProviderPanelOpening }
 import { INTEGRATION_HEALTH_KEY } from "@/hooks/useIntegrationHealth";
 import { INTEGRATION_PROVIDERS_KEY, useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useWall } from "@/hooks/useWall";
+import { useSettings } from "@/hooks/useSettings";
+import { formatNextRun, nextCollectionRun, utcRunReference } from "@shared/scheduled-jobs";
 import { CADENCE_HOURS } from "@shared/wall";
 import type { SeriesPointOrGap } from "@shared/surface";
 import { AgeBadge } from "@/components/AgeBadge";
@@ -374,7 +376,9 @@ function LaneRow({
             // prefix is the product's (`declineReason`).
             : kind === "not-using" && cell.note ? <span className="wrap-anywhere" data-lane-reason>{declineReason(cell.note) ?? cell.note}</span>
               : catalog.id === UPTIME_LANE_ID && cell.evidence[0]?.at ? <UptimeCheck evidence={cell.evidence[0]} nowMs={nowMs} />
-                : undefined
+                // Mapped on a connected provider, before its first result.
+                : kind === "collecting" && site === null && provider ? <NextRun provider={provider} nowMs={nowMs} />
+                  : undefined
       }
       value={connect ? undefined : <IntegrationStateChip state={kind === "not-applicable" ? "not-applicable" : kind} subject={subject} lane={catalog.id} />}
       // The one decision the file owns, in use or Not using with a reason
@@ -404,6 +408,23 @@ function LaneRow({
 
       {cell.laneId === GA4_LANE_ID ? <Ga4LaneConfig asset={asset} config={ga4Config} /> : null}
     </ListRow>
+  );
+}
+
+/**
+ * When the collection that asks for a newly mapped source next runs, from the
+ * saved schedule. Nothing while the schedule is read; First run pending when
+ * no run is scheduled.
+ */
+function NextRun({ provider, nowMs }: { provider: string; nowMs: number }) {
+  const settings = useSettings();
+  if (!settings.data && !settings.isError) return null;
+  const next = settings.data ? nextCollectionRun(provider, settings.data.collection.schedules, nowMs) : null;
+  if (next === null) return <span data-next-run="">First run pending</span>;
+  return (
+    <span className="tabular-nums" data-next-run={next}>
+      Next run <time dateTime={next} title={utcRunReference(next)}>{formatNextRun(next)}</time>
+    </span>
   );
 }
 

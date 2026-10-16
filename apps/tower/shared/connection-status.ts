@@ -284,7 +284,9 @@ export function connectionStatus(
 /**
  * One data source on one asset: that site's status for the provider's work on
  * this lane. A connected provider with nothing scheduled for this asset has not
- * connected this asset; `items === null` means the monitoring read is missing,
+ * connected this asset, unless the asset maps the source itself (`mapped`):
+ * the collector asks for that mapping on its next run, so it is Collecting
+ * with no site yet. `items === null` means the monitoring read is missing,
  * which is Unknown, never Not connected.
  */
 export function sourceStatus(
@@ -292,13 +294,15 @@ export function sourceStatus(
   items: IntegrationHealthItem[] | null,
   asset: string,
   lane: string,
+  mapped = false,
 ): { kind: ConnectionKind; site: SiteStatus | null } {
   if (credential === undefined || items === null) return { kind: "unknown", site: null };
   if (credential === null || connectionState(credential) === "not-connected") return { kind: "not-connected", site: null };
   const own = items.filter((item) => item.asset === asset && item.state !== "disconnected" && itemLanes(item).includes(lane));
   const site = siteStatus(asset, own);
   if (site) return { kind: site.kind, site };
-  return { kind: connectionState(credential) === "failing" ? "failing" : "not-connected", site: null };
+  if (connectionState(credential) === "failing") return { kind: "failing", site: null };
+  return { kind: mapped ? "collecting" : "not-connected", site: null };
 }
 
 /**
@@ -342,7 +346,7 @@ export function laneStatus(input: {
     if (credential === undefined || items === null) return { kind: "unknown", site: null, provider };
     return { kind: connectionStatus(provider, credential, items).kind, site: null, provider };
   }
-  return { ...sourceStatus(credential, items, assetId, laneId), provider };
+  return { ...sourceStatus(credential, items, assetId, laneId, cell.mapped === true), provider };
 }
 
 // --- one asset's sources, on every compact screen ------------------------------

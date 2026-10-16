@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { formatClock, formatNextRun, localTimezoneLabel, localScheduleFields, scheduleLabel, utcRunReference } from '@shared/scheduled-jobs';
+import { formatClock, formatNextRun, localTimezoneLabel, localScheduleFields, nextCollectionRun, scheduleLabel, utcRunReference } from '@shared/scheduled-jobs';
 
 describe('viewer-local workflow times', () => {
   const now = Date.parse('2026-09-09T12:00:00Z');
@@ -32,5 +32,23 @@ describe('viewer-local workflow times', () => {
     expect(formatNextRun('2026-09-10T04:00:00Z', 'America/Los_Angeles')).toBe('Wed, Sep 9, 21:00');
     expect(localTimezoneLabel(now, 'America/Los_Angeles')).toBe('PDT');
     expect(localTimezoneLabel(now, 'UTC')).toBe('UTC');
+  });
+});
+
+/* A newly mapped source's row names when its collection next runs: the saved
+   schedule of the one job that collects its provider, never a guess. */
+describe('the next run of the collection behind a provider', () => {
+  const now = Date.parse('2026-09-09T12:07:00Z');
+  it('reads the job that collects the provider, on its default schedule', () => {
+    expect(nextCollectionRun('google', null, now)).toBe('2026-09-09T12:15:00.000Z');
+    expect(nextCollectionRun('mediavine', {}, now)).toBe('2026-09-09T12:10:00.000Z');
+  });
+  it('follows a saved schedule in its own timezone', () => {
+    const saved = { counters: { enabled: true, cron: '0 4 * * *', timezone: 'America/Los_Angeles' } };
+    expect(nextCollectionRun('google', saved, now)).toBe('2026-09-10T11:00:00.000Z');
+  });
+  it('has no next run for a paused schedule or a provider no job collects', () => {
+    expect(nextCollectionRun('google', { counters: { enabled: false, cron: '*/15 * * * *' } }, now)).toBeNull();
+    expect(nextCollectionRun('example-provider', null, now)).toBeNull();
   });
 });

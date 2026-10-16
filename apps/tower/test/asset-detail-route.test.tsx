@@ -2037,6 +2037,57 @@ describe("AssetDetailRoute — data sources are not a dead end", () => {
     expect(container.textContent).not.toContain("Setup steps:");
   });
 
+  it("reads a mapped GA4 source on a connected Google as Collecting with its next run, and no Connect, before its first result", async () => {
+    // A site added today: GA4 mapped and collection started, no run yet.
+    const ga4 = {
+      ...gscLane,
+      catalog: { ...gscLane.catalog, id: "ga4", label: "Google Analytics (GA4)" },
+      cell: {
+        ...gscLane.cell, laneId: "ga4", since: "2026-07-05", mapped: true,
+        evidence: [{ polarity: "against" as const, source: "GA4 collector", detail: "No run yet", at: null }],
+      },
+      mapping: [{ name: "propertyId", value: "123456789" }],
+      mappingSource: "register" as const,
+    };
+    const data = payload();
+    data.integrations = {
+      ...data.integrations,
+      lanes: [ga4, gscLane],
+      sources: [
+        { id: "ga4", label: "Google Analytics", state: "needs-setup", detail: "No run yet", observedAt: null, mapped: true },
+        { id: "gsc", label: "Google Search Console", state: "needs-setup", detail: "No run yet", observedAt: null },
+      ],
+    };
+    googleAnswers([]);
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => new Response(
+      JSON.stringify(String(input).startsWith("/api/settings") ? settingsResponse() : data),
+      { status: 200, headers: { "content-type": "application/json" } },
+    )));
+    const startedAt = Date.now();
+    const view = renderRoute("meadow.example", "", "sources");
+
+    await view.findByText("Google Analytics");
+    const rowOf = (title: string) => [...view.container.querySelectorAll<HTMLElement>("#integrations li")].find((li) => li.textContent?.includes(title))!;
+    const row = rowOf("Google Analytics");
+    expect(row.querySelector("[data-connection]")).toHaveAttribute("data-connection", "collecting");
+    expect(row.querySelector("[data-connection]")).toHaveTextContent("Collecting");
+    expect(row.querySelector("[data-source-connect]")).toBeNull();
+    expect(row.textContent).not.toMatch(/Not connected|0 runs in/u);
+    // The default Google collection runs every 15 minutes.
+    await waitFor(() => expect(row.querySelector("[data-next-run]")).toHaveTextContent(/^Next run /u));
+    const next = Date.parse(row.querySelector("[data-next-run] time")!.getAttribute("datetime")!);
+    expect(next).toBeGreaterThan(startedAt);
+    expect(next - startedAt).toBeLessThanOrEqual(15 * 60_000);
+
+    // The unmapped source keeps Connect as the page's one primary action.
+    expect(rowOf("Google Search Console").querySelector("[data-source-connect]")).not.toBeNull();
+    expect(view.getAllByRole("link", { name: /Connect Google/u })).toHaveLength(1);
+    // The header and the page's answer read the same status as the row.
+    const heading = view.getByRole("heading", { name: /Meadow Board/u, level: 1 });
+    expect(headerStatuses(heading)).toEqual(["Google Analytics: Collecting", "Google Search Console: Not connected"]);
+    expect(view.container.querySelector('[data-sources-answer]')).toHaveTextContent("1 of 2 sources connected");
+  });
+
   it("shows a source nothing connects with its evidence, and no Connect or dead link", async () => {
     const cj = {
       ...gscLane,

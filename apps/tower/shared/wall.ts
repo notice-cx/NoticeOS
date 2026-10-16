@@ -242,6 +242,8 @@ export interface CardDataSource {
   observedAt?: string | null;
   /** Typed successful outcome; older payloads without it remain unverified. */
   verification?: CollectionVerification;
+  /** The asset holds its own mapping for this source (`IntegrationCellBase.mapped`). */
+  mapped?: boolean;
 }
 
 /** One provider-backed daily chart. Values come from the latest successful

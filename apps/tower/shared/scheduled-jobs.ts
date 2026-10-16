@@ -1,5 +1,5 @@
 export * from '../../../scripts/scheduled-jobs.mjs';
-import { SCHEDULED_JOBS, type ScheduleOverrides, type ScheduleStatus, type ScheduledJob } from '../../../scripts/scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, collectNowStep, scheduleFor, scheduleTimezone, type ScheduleOverrides, type ScheduleStatus, type ScheduledJob } from '../../../scripts/scheduled-jobs.mjs';
 import { Cron } from 'croner';
 
 export interface ScheduledJobsPayload {
@@ -27,6 +27,23 @@ export function isCollectionJob(job: { group: string }): boolean {
  */
 export function connectionCollections(provider: string): ScheduledJob[] {
   return SCHEDULED_JOBS.filter((job) => isCollectionJob(job) && (job.connections ?? []).includes(provider));
+}
+
+/**
+ * When the scheduled job that collects `provider` (`collectNowStep`) next
+ * fires under its saved schedule, as an instant. `overrides` are the saved
+ * schedules, null when none has been saved. Null when no job collects the
+ * provider or its schedule is off.
+ */
+export function nextCollectionRun(provider: string, overrides: ScheduleOverrides | null, nowMs: number): string | null {
+  const job = collectNowStep(provider)?.job;
+  if (!job) return null;
+  const schedule = scheduleFor(job, overrides ?? {});
+  if (!schedule.enabled) return null;
+  const timer = new Cron(schedule.cron, { timezone: scheduleTimezone(schedule), paused: true });
+  const next = timer.nextRun(new Date(nowMs));
+  timer.stop();
+  return next ? next.toISOString() : null;
 }
 
 /** The collections no connection feeds: Settings → Data collection's rows. */
