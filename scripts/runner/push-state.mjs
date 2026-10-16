@@ -414,8 +414,8 @@ export async function runPushStateFiler(deps = {}) {
 
   const { skip, resume } = laneSkips('push state filer', state, emit);
   /** A spoke we cannot act on: one line when it starts, silence while it lasts. */
-  const degrade = (asset, reason, text) => {
-    if (pushStateSpokeDecision(state.degraded, asset, reason)) emit('WARN', text);
+  const degrade = (asset, reason, text, level = 'WARN') => {
+    if (pushStateSpokeDecision(state.degraded, asset, reason)) emit(level, text);
   };
 
   if (stopped()) return null;
@@ -459,6 +459,22 @@ export async function runPushStateFiler(deps = {}) {
     // turns out to be unreadable below: `bd gate check` does not depend on git
     // having worked, and a spoke with no SSH agent still has timer gates.
     await runSpokeGateCheck({ project, repoDir, run, state, emit });
+
+    // A linked folder that holds only the task project's `.beads` has no branch
+    // to read. That is how the installation is set up, not a failed read, so it
+    // is neither a WARN nor an unread spoke in the run record. `.git` may be a
+    // file: a worktree is a checkout too.
+    if (!exists(path.join(repoDir, '.git'))) {
+      degrade(
+        asset,
+        'not-a-checkout',
+        `push state: ${asset} — not a checkout: the task project folder ${repoDir} holds no ` +
+          `code checkout; link the code repository in task-host.json to read its push state. ` +
+          `Nothing was filed or closed for this spoke (silent until it changes)`,
+        'INFO',
+      );
+      continue;
+    }
 
     const fetched = await git(pushStateFetchArgs(repoDir)).catch((err) => ({
       code: 1,

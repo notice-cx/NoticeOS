@@ -445,8 +445,10 @@ lanes against it, each a module under `scripts/runner/` with its cadence in
 - **The push-state filer** (`pushStateCron`) files one `push-state,human` bead
   when a project's commits have sat unpushed for `pushStaleHours`, closes it
   when the count returns to zero, and decides nothing on an unreadable state.
-  The same tick runs `bd gate check` on every spoke, which is what closes
-  `timer` gates.
+  A linked folder with no `.git` (one that holds only `.beads`) is not a
+  checkout: the lane logs one INFO line per runner start, runs no `git` there
+  and files or closes nothing. The same tick runs `bd gate check` on every
+  spoke, which is what closes `timer` gates.
 - **The task-map lane** (`beadsMapCheckCron`) files one `task-map-drift,human`
   bead for a declared database the hub's `SHOW DATABASES` does not hold; a hub
   that will not answer decides nothing.
