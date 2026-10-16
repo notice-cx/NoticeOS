@@ -46,7 +46,7 @@ describe("each screen is its own file", () => {
     expect(screens).toEqual(["@/routes/AliasRedirect", "@/routes/PropertyRedirect"]);
   });
 
-  it("every desk screen, the desk shell and the TV load through the router's lazy", () => {
+  it("every desk screen, the desk shell and the TV load through the router's lazy, each with its own error frame", () => {
     const redirects = new Set(["/properties", "/properties/:id/:tab?", "/work"]);
     const screens = deskRoutes.filter((route) => !redirects.has(route.path ?? ""));
     expect(screens.length).toBeGreaterThan(12);
@@ -54,6 +54,7 @@ describe("each screen is its own file", () => {
       expect(typeof route.lazy, route.path ?? "(desk shell)").toBe("function");
       expect(route.element, route.path ?? "(desk shell)").toBeUndefined();
       expect(route.Component, route.path ?? "(desk shell)").toBeUndefined();
+      expect(route.errorElement, route.path ?? "(desk shell)").toBeDefined();
     }
   });
 

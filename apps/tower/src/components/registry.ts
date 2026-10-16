@@ -302,10 +302,10 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["desk · HTTP status", "desk · no answer, with a detail (the asset page's id)", "desk · retrying", "Wall (true black)"],
   },
   {
-    name: "RouteLoading / RouteLoadFailure",
+    name: "RouteLoading / RouteLoadFailure / RouteErrorFrame",
     file: "components/RouteLoading.tsx",
     purpose:
-      "What stands in for a screen while its code is fetched, and what a screen whose code can no longer be fetched becomes. RouteLoading draws the screen's shape in skeleton blocks in the space it will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette), with its words for screen readers only; RouteLoadFailure offers an explicit Open app in new tab action, dismisses the boot splash and never reloads by itself.",
+      "What stands in for a screen while its code is fetched, what a screen whose code can no longer be fetched becomes, and what a screen that threw becomes. RouteLoading draws the screen's shape in skeleton blocks in the space it will take (the desk column, the Wall, an asset tab's panel, or nothing for the palette), with its words for screen readers only; RouteLoadFailure offers an explicit Open app in new tab action, dismisses the boot splash and never reloads by itself. RouteErrorFrame (drawn by every route through RouteError) shows the error's message and Reload in the screen's own frame, so a desk screen's error keeps the sidebar; the Wall's reloads by itself after a minute, doubling up to ten.",
     variants: [
       "desk loading",
       "Wall loading (true black)",
@@ -314,6 +314,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "asset tab loading (panel)",
       "asset tab failure with explicit new-tab action (panel)",
       "palette failure with explicit new-tab action",
+      "desk error with message and Reload",
+      "Wall error with message, Reload and its own reload time",
     ],
   },
   {

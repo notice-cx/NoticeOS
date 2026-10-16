@@ -1,20 +1,22 @@
 import { lazy, type ComponentType } from "react";
 import { matchRoutes, type RouteObject } from "react-router-dom";
-import { RouteLoadFailure, RouteLoading, type RouteSurface } from "@/components/RouteLoading";
+import { RouteError, RouteLoadFailure, RouteLoading, type RouteSurface } from "@/components/RouteLoading";
 import { isChunkLoadError } from "@/lib/chunk-recovery";
 
 /**
  * One screen's code, fetched through react-router's `lazy` when first opened,
  * so the page being left stays on screen until the next one's code arrives. A
- * file that can no longer be fetched resolves to `RouteLoadFailure`; every
- * other error still throws.
+ * file that can no longer be fetched resolves to `RouteLoadFailure`; any other
+ * error, while loading or drawing, is the route's own `RouteError`, so a desk
+ * screen's error stays inside the shell and its sidebar.
  */
 export function lazyPage<P extends object>(
   load: () => Promise<{ default: ComponentType<P> }>,
   { surface = "desk", props }: { surface?: RouteSurface; props?: P } = {},
-): Pick<RouteObject, "lazy" | "hydrateFallbackElement"> {
+): Pick<RouteObject, "lazy" | "hydrateFallbackElement" | "errorElement"> {
   return {
     hydrateFallbackElement: <RouteLoading surface={surface} />,
+    errorElement: <RouteError surface={surface === "wall" ? "wall" : "desk"} />,
     lazy: async () => {
       try {
         const Page = (await load()).default;
