@@ -125,8 +125,9 @@ export function createHostedTaskOperations(options) {
         return { id: 'taskId' in request.operation ? request.operation.taskId : null, truncated: true };
     }
     /** Task evidence that an earlier attempt already took effect, or undefined.
-     * Only create and comment would duplicate if repeated; Beads 1.3.1 repeats
-     * update, claim (by the same actor) and close without a second effect. */
+     * Create and comment would duplicate if repeated, and a close is refused
+     * once its task is closed; Beads 1.3.1 repeats update and claim (by the same
+     * actor) without a second effect. */
     async function evidence(proof, workspaceId, request, project, receipt, principalId) {
         const operation = request.operation;
         const controls = Object.freeze({ deadline: now() + 30000, signal: proof.signal });
@@ -149,6 +150,11 @@ export function createHostedTaskOperations(options) {
                 .find(row => row.author === principalId && row.text === operation.text
                 && typeof row.created_at === 'string' && Date.parse(row.created_at) >= floor);
             return match;
+        }
+        if (operation.kind === 'close') {
+            const shown = await run({ kind: 'show', taskId: operation.taskId });
+            const row = record(Array.isArray(shown) ? shown[0] : shown);
+            return row.id === operation.taskId && row.status === 'closed' && row.close_reason === operation.reason ? [row] : undefined;
         }
         return undefined;
     }

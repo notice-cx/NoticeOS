@@ -373,6 +373,75 @@ export function decisionGuardTargets(operation: HostedTaskOperation): readonly s
   return [];
 }
 
+/** Why a write was refused, from the state of the task it names as read just
+ * before it. Thrown only after admission and that read, so naming the cause
+ * shows nothing get_task would not. */
+export type TaskStateReason =
+  | { readonly kind: 'closed' }
+  | { readonly kind: 'held'; readonly holder: string }
+  /** Open gates it waits on; `human` when every one waits on a person. */
+  | { readonly kind: 'gate'; readonly gates: readonly string[]; readonly human: boolean }
+  | { readonly kind: 'children'; readonly children: readonly string[] };
+export class TaskStateRefused extends Error {
+  override name = 'TaskStateRefused';
+  constructor(readonly taskId: string, readonly attempted: 'close', readonly reason: TaskStateReason) {
+    super(`${taskId} refused: ${reason.kind}.`);
+  }
+}
+
+/** The dependency types the task client counts as live blockers while the other task is open. */
+const BLOCKING: readonly string[] = ['blocks', 'waits-for', 'conditional-blocks'];
+function rowsOf(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
+}
+const stringOf = (value: unknown): string => typeof value === 'string' ? value : '';
+/** The task client's actor match: a run of `.`, `_` or `-` is one separator, and `--` another. */
+function canonicalActor(name: string): string {
+  return name.replace(/[._-]+/gu, run => run === '--' ? '/' : '_');
+}
+function sameActor(a: string, b: string): boolean { return a === b || canonicalActor(a) === canonicalActor(b); }
+
+/** A write whose own task's state decides how it runs. A caller's forced
+ * close is a service closing for the agent it named, and decides for itself. */
+function stateGuarded(operation: HostedTaskOperation): operation is Extract<HostedTaskOperation, { kind: 'close' }> {
+  return operation.kind === 'close' && operation.force !== true;
+}
+/** The tasks an executor reads before this write: the decisions it must not
+ * stand in for, then the task whose own state decides it. */
+export function writeGuardReads(operation: HostedTaskOperation): readonly string[] {
+  const reads = [...decisionGuardTargets(operation)];
+  if (stateGuarded(operation) && !reads.includes(operation.taskId)) reads.push(operation.taskId);
+  return reads;
+}
+/** The fixed read of one of those tasks. A close reads its children too, which
+ * the task client's plain show only counts. */
+export function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[] {
+  const children = stateGuarded(operation) && operation.taskId === taskId;
+  return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
+}
+/** The write to run, given its task as read just before (writeGuardReads). A
+ * dependency holds a task out of ready work, not open: a close whose only
+ * obstacle is an open blocker runs forced past it, and the checks that force
+ * would also skip are made here first. Its holder, an open gate and an open
+ * child still stop it. */
+export function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation {
+  if (!stateGuarded(operation)) return operation;
+  if (!row || row.id !== operation.taskId) invalid();
+  const refuse = (reason: TaskStateReason): never => { throw new TaskStateRefused(operation.taskId, 'close', reason); };
+  const status = stringOf(row.status), holder = stringOf(row.assignee);
+  if (status === 'closed') refuse({ kind: 'closed' });
+  if (holder !== '' && !sameActor(holder, actor)) refuse({ kind: 'held', holder });
+  const open = (edge: Record<string, unknown>) => stringOf(edge.status) !== 'closed';
+  const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
+  const gates = blockers.filter(edge => edge.issue_type === 'gate');
+  if (gates.length) refuse({ kind: 'gate', gates: gates.map(edge => stringOf(edge.id)), human: gates.every(edge => edge.await_type === 'human') });
+  const children = rowsOf(row.dependents).filter(edge => edge.dependency_type === 'parent-child' && open(edge));
+  if (children.length) refuse({ kind: 'children', children: children.map(edge => stringOf(edge.id)) });
+  // A pinned or template task keeps the task client's own refusal, which force would skip.
+  const kept = row.pinned === true || status === 'pinned' || row.is_template === true;
+  return blockers.length && !kept ? Object.freeze({ ...operation, force: true as const }) : operation;
+}
+
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide' {

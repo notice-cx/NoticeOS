@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHostedTaskPlanner, decisionGuardTargets, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision,
+  TaskStateRefused, writeGuardReads } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -301,4 +302,52 @@ test('a closed read may span the Agents page history, and no further', () => {
   const until = '2026-10-16T12:00:00.000Z';
   assert.ok(plan(A, request({ kind: 'closed-board', since: '2026-08-21', until })).argv.includes('--closed-after=2026-08-21'));
   denied(() => plan(A, request({ kind: 'closed-board', since: '2026-08-19', until })));
+});
+
+// A dependency holds a task out of ready work; closing it checks only the
+// task's own state. The executor reads the task (with its children) first.
+const closing = { kind: 'close', taskId: 'tt-a', reason: 'Done in abc123' };
+const edge = (id, extra = {}) => ({ id, status: 'open', issue_type: 'task', dependency_type: 'blocks', ...extra });
+const shown = (extra = {}) => ({ id: 'tt-a', status: 'in_progress', assignee: 'agent-1', dependencies: [], ...extra });
+const refusedBy = (row, reason) => assert.throws(() => guardedWrite(closing, row, 'agent-1'),
+  error => error instanceof TaskStateRefused && error.taskId === 'tt-a' && error.attempted === 'close'
+    && assert.deepEqual(error.reason, reason) === undefined);
+
+test('a close reads its own task with its children, and only an unforced close is guarded by that read', () => {
+  assert.deepEqual(writeGuardReads(closing), ['tt-a']);
+  assert.deepEqual(guardReadArgs(closing, 'tt-a'), ['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', 'tt-a']);
+  const undepend = { kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-g' };
+  assert.deepEqual(writeGuardReads(undepend), ['tt-a', 'tt-g']);
+  assert.deepEqual(guardReadArgs(undepend, 'tt-a'), ['--sandbox', '--readonly', '--json', 'show', '--', 'tt-a']);
+  assert.deepEqual(writeGuardReads({ kind: 'comment', taskId: 'tt-a', text: 'Note' }), []);
+  const serviceClose = { ...closing, force: true };
+  assert.equal(guardedWrite(serviceClose, undefined, 'service'), serviceClose, 'a service\'s forced close decides for itself');
+  const titled = { kind: 'update', taskId: 'tt-a', title: 'New' };
+  assert.equal(guardedWrite(titled, undefined, 'agent-1'), titled);
+});
+
+test('a close whose only obstacle is an open blocker runs forced past it, even when the blocker is a person\'s task', () => {
+  assert.equal(guardedWrite(closing, shown(), 'agent-1'), closing, 'nothing open: the plain close');
+  assert.equal(guardedWrite(closing, shown({ assignee: '' }), 'agent-1'), closing, 'an unclaimed task closes too');
+  assert.equal(guardedWrite(closing, shown({ dependencies: [edge('tt-b', { status: 'closed' }), edge('tt-c', { dependency_type: 'related' }),
+    edge('tt-p', { dependency_type: 'parent-child' })] }), 'agent-1'), closing, 'closed blockers, links and the parent are no obstacle');
+  for (const blocker of [edge('tt-b'), edge('tt-b', { labels: ['human'], issue_type: 'decision' }), edge('tt-b', { dependency_type: 'waits-for' })]) {
+    assert.deepEqual(guardedWrite(closing, shown({ dependencies: [blocker] }), 'agent-1'), { ...closing, force: true }, JSON.stringify(blocker));
+  }
+  assert.deepEqual(guardedWrite(closing, shown({ assignee: 'agent.1', dependencies: [edge('tt-b')] }), 'agent_1'), { ...closing, force: true },
+    'the holder is matched as the task client matches actors');
+  for (const kept of [{ pinned: true }, { status: 'pinned' }, { is_template: true }]) {
+    assert.equal(guardedWrite(closing, shown({ ...kept, dependencies: [edge('tt-b')] }), 'agent-1'), closing, 'force would skip the client\'s own refusal');
+  }
+  assert.throws(() => guardedWrite(closing, { ...shown(), id: 'tt-z' }, 'agent-1'), { message: 'Invalid hosted task plan input.' });
+});
+
+test('a close is refused by its own state: closed, held by another, waiting on a gate, or holding open children', () => {
+  refusedBy(shown({ status: 'closed' }), { kind: 'closed' });
+  refusedBy(shown({ assignee: 'alice' }), { kind: 'held', holder: 'alice' });
+  refusedBy(shown({ dependencies: [edge('tt-b'), edge('tt-g', { issue_type: 'gate', await_type: 'human' })] }),
+    { kind: 'gate', gates: ['tt-g'], human: true });
+  refusedBy(shown({ dependencies: [edge('tt-t', { issue_type: 'gate', await_type: 'timer' })] }), { kind: 'gate', gates: ['tt-t'], human: false });
+  refusedBy(shown({ dependents: [edge('tt-a.1', { dependency_type: 'parent-child' }), edge('tt-a.2', { dependency_type: 'parent-child', status: 'closed' }),
+    edge('tt-x')] }), { kind: 'children', children: ['tt-a.1'] });
 });

@@ -173,6 +173,43 @@ export declare function isHumanDecision(row: {
  * this ordinary write: no close, marker removal or removed dependency stands
  * in for the decision itself, which has its own named verb. */
 export declare function decisionGuardTargets(operation: HostedTaskOperation): readonly string[];
+/** Why a write was refused, from the state of the task it names as read just
+ * before it. Thrown only after admission and that read, so naming the cause
+ * shows nothing get_task would not. */
+export type TaskStateReason = {
+    readonly kind: 'closed';
+} | {
+    readonly kind: 'held';
+    readonly holder: string;
+}
+/** Open gates it waits on; `human` when every one waits on a person. */
+ | {
+    readonly kind: 'gate';
+    readonly gates: readonly string[];
+    readonly human: boolean;
+} | {
+    readonly kind: 'children';
+    readonly children: readonly string[];
+};
+export declare class TaskStateRefused extends Error {
+    readonly taskId: string;
+    readonly attempted: 'close';
+    readonly reason: TaskStateReason;
+    name: string;
+    constructor(taskId: string, attempted: 'close', reason: TaskStateReason);
+}
+/** The tasks an executor reads before this write: the decisions it must not
+ * stand in for, then the task whose own state decides it. */
+export declare function writeGuardReads(operation: HostedTaskOperation): readonly string[];
+/** The fixed read of one of those tasks. A close reads its children too, which
+ * the task client's plain show only counts. */
+export declare function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[];
+/** The write to run, given its task as read just before (writeGuardReads). A
+ * dependency holds a task out of ready work, not open: a close whose only
+ * obstacle is an open blocker runs forced past it, and the checks that force
+ * would also skip are made here first. Its holder, an open gate and an open
+ * child still stop it. */
+export declare function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation;
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export declare function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide';

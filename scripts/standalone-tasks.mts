@@ -9,8 +9,8 @@ import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-dire
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
-  type HostedTaskRequest } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
+  isHumanDecision, writeGuardReads, type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
@@ -113,14 +113,20 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
           try { return JSON.parse(result.stdout) as unknown; } catch { refuse(); }
         };
         if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) refuse();
-        for (const taskId of decisionGuardTargets(operation)) {
-          const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
+        const rows = new Map<string, Record<string, unknown>>(), decisions = decisionGuardTargets(operation);
+        for (const taskId of writeGuardReads(operation)) {
+          const shown = await client(guardReadArgs(operation, taskId));
           const row = (Array.isArray(shown) ? shown[0] : shown) as Record<string, unknown> | undefined;
           if (row?.id !== taskId) refuse();
-          if (isHumanDecision(row)) throw new HumanDecisionRefused(taskId);
+          if (decisions.includes(taskId) && isHumanDecision(row)) throw new HumanDecisionRefused(taskId);
+          rows.set(taskId, row);
         }
+        const effective = guardedWrite(operation, 'taskId' in operation ? rows.get(operation.taskId) : undefined, context.principalId);
+        const argv = effective === operation ? plan.argv
+          : createHostedTaskPlanner([{ workspaceId, projectId: project.projectId, capability: Symbol() }])(workspaceId,
+            { projectId: project.projectId, operation: effective }).argv;
         // The actor is the admitted principal, inserted before every command token.
-        return client([plan.argv[0]!, plan.argv[1]!, `--actor=${context.principalId}`, ...plan.argv.slice(2)]);
+        return client([argv[0]!, argv[1]!, `--actor=${context.principalId}`, ...argv.slice(2)]);
       });
     },
   });

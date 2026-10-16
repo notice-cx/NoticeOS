@@ -14,8 +14,8 @@
  */
 import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, HumanDecisionRefused, type HostedTaskDependencyType, type HostedTaskLink, type HostedTaskOperation,
-  type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, type HostedTaskDependencyType, type HostedTaskLink,
+  type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
@@ -83,16 +83,33 @@ export function taskInstructions(panels: boolean): string {
 
 function refuse(message: string): never { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';
-/** A task tool's failure as the caller may read it. Admission, project
- * selection and command refusals share one answer: which of them refused is
- * not the caller's to learn. A person's decision is named, since the task's
- * own read already showed it. */
+/** Task ids as a sentence lists them: "a", "a and b", "a, b and c". */
+function listed(ids: readonly string[]): string {
+  return ids.length < 2 ? ids.join('') : `${ids.slice(0, -1).join(', ')} and ${ids.at(-1)}`;
+}
+/** What the task's own state says about a refused close, and what to do next. */
+function stateRefusal({ taskId: id, reason }: TaskStateRefused): string {
+  switch (reason.kind) {
+    case 'closed': return `refused: ${id} is already closed; get_task shows its close reason.`;
+    case 'held': return `refused: ${id} is held by ${reason.holder}, and only its holder closes it. `
+      + `Reach ${reason.holder} with comment_on_task, or ask a person to close it on Tasks in the Tower.`;
+    case 'gate': return reason.human
+      ? `refused: ${id} waits on approval ${listed(reason.gates)}, which is still open. Close ${id} after a person approves it on Tasks in the Tower.`
+      : `refused: ${id} waits on gate ${listed(reason.gates)}, which is still open. Close ${id} after it resolves.`;
+    case 'children': return `refused: ${id} has open children: ${listed(reason.children)}. Close them first, or give them another parent with update_task.`;
+  }
+}
+/** A task tool's failure as the caller may read it. Admission and project
+ * selection share one answer: which of them refused is not the caller's to
+ * learn. A refusal by the task's own state is named, since the task's own
+ * read already showed it. */
 export function taskRefusal(error: unknown): McpToolError {
   if (error instanceof McpToolError) return error;
   if (error instanceof HumanDecisionRefused) {
     return new McpToolError(`refused: ${error.taskId} is a person's decision, a gate or a task labelled human. Only a person `
       + 'closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
   }
+  if (error instanceof TaskStateRefused) return new McpToolError(stateRefusal(error));
   return new McpToolError(REFUSED);
 }
 
@@ -567,7 +584,8 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         textArg(args, 'reason', GATE_REASON_MAX)!);
       return { task: taskId, ...approvalOf(taskId, gate), created };
     } },
-  { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL, and naming your model.',
+  { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL, and naming your model. '
+      + 'A task it depends on may still be open; an approval it waits on must be given first.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
       model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'reason', 'idempotency_key']),
     annotations: WRITE,

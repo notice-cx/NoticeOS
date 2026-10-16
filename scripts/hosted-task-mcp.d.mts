@@ -23,10 +23,10 @@ export declare function taskGuide(panels: boolean): {
 /** Every session's instructions: the guide's start, its panel rule where the
  * panel tools are offered, and its rules for writing a task. */
 export declare function taskInstructions(panels: boolean): string;
-/** A task tool's failure as the caller may read it. Admission, project
- * selection and command refusals share one answer: which of them refused is
- * not the caller's to learn. A person's decision is named, since the task's
- * own read already showed it. */
+/** A task tool's failure as the caller may read it. Admission and project
+ * selection share one answer: which of them refused is not the caller's to
+ * learn. A refusal by the task's own state is named, since the task's own
+ * read already showed it. */
 export declare function taskRefusal(error: unknown): McpToolError;
 type Args = Record<string, unknown>;
 export interface ToolContext {

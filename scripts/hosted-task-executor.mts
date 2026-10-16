@@ -11,8 +11,8 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
-  type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
+  isHumanDecision, TaskStateRefused, writeGuardReads, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
@@ -372,9 +372,11 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                 await current(selected, life, readMapping);
                 admission.assertContext(last, action);
                 const operation = snapshot.operation;
-                const target = async (taskId = 'taskId' in operation ? operation.taskId : null) => {
-                  if (taskId === null) fail();
-                  const found = await run(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
+                let effective: HostedTaskOperation = operation;
+                const target = async (taskId = 'taskId' in operation ? operation.taskId : null,
+                  read = taskId === null ? null : guardReadArgs(operation, taskId)) => {
+                  if (taskId === null || read === null) fail();
+                  const found = await run(read);
                   const row = record(Array.isArray(found) && found.length === 1 ? found[0] : found);
                   if (row.id !== taskId || typeof row.issue_type !== 'string'
                     || typeof row.status !== 'string' || !['open', 'in_progress', 'blocked', 'deferred', 'closed'].includes(row.status)
@@ -390,10 +392,14 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                 } else if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) {
                   fail();
                 } else {
-                  // Even for an operator: a decision has its own named verb.
-                  for (const taskId of decisionGuardTargets(operation)) {
-                    if (isHumanDecision(await target(taskId))) throw new HumanDecisionRefused(taskId);
+                  const rows = new Map<string, Record<string, unknown>>(), decisions = decisionGuardTargets(operation);
+                  for (const taskId of writeGuardReads(operation)) {
+                    const row = await target(taskId);
+                    // Even for an operator: a decision has its own named verb.
+                    if (decisions.includes(taskId) && isHumanDecision(row)) throw new HumanDecisionRefused(taskId);
+                    rows.set(taskId, row);
                   }
+                  effective = guardedWrite(operation, 'taskId' in operation ? rows.get(operation.taskId) : undefined, last.principalId);
                 }
                 checkpoint(life);
                 return admission.withAdmission(action, { requestedWorkspaceId: workspaceId, correlationId: last.correlationId }, proof, async effect => {
@@ -431,8 +437,11 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                     checkpoint(life);
                     return Object.freeze(results);
                   }
+                  const planned = effective === operation ? plan.argv
+                    : createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId,
+                      { projectId: snapshot.projectId, operation: effective }).argv;
                   // Server actor is inserted before all command tokens/terminal --.
-                  const argv = [plan.argv[0]!, plan.argv[1]!, `--actor=${effect.principalId}`, ...plan.argv.slice(2)];
+                  const argv = [planned[0]!, planned[1]!, `--actor=${effect.principalId}`, ...planned.slice(2)];
                   if (action !== 'tasks.decide') return run(argv);
                   await run(argv, true);
                   const after = await target();
@@ -467,8 +476,8 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
             });
         });
       } catch (error) {
-        // The one refusal whose reason is the caller's to learn; see its class.
-        if (error instanceof HumanDecisionRefused) throw error;
+        // The refusals whose reason is the caller's to learn; see their classes.
+        if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused) throw error;
         fail();
       }
     },
