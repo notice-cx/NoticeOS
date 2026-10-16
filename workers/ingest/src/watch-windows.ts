@@ -14,6 +14,7 @@
 
 import {
   WATCH_QUERY_MAX_CHARS,
+  siteHost,
   type WatchQueryHistory,
   type WatchQueryHistoryInput,
   type WatchScopeInput,
@@ -365,14 +366,16 @@ function pageMatcher(page: string): (key: string) => boolean {
 }
 
 /** `{host, path}` for an absolute URL or a bare route. A null host means "any
- * host in this property"; a key too malformed to parse is compared as the
- * literal string, so bad archive data can never match everything. */
+ * host in this property"; a key too malformed to parse, or whose host
+ * `siteHost` cannot read, is compared as the literal string, so bad archive
+ * data can never match everything. */
 function normalizePageRef(value: string): { host: string | null; path: string } {
   const trimmed = value.trim().split('#')[0]!;
   if (/^https?:\/\//i.test(trimmed)) {
     try {
       const url = new URL(trimmed);
-      return { host: url.host.toLowerCase().replace(/^www\./, ''), path: trimPath(`${url.pathname}${url.search}`) };
+      const host = siteHost(url.hostname);
+      return host === null ? { host: null, path: trimmed } : { host, path: trimPath(`${url.pathname}${url.search}`) };
     } catch {
       return { host: null, path: trimmed };
     }
