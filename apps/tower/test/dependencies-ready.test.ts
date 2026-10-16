@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer, type Connect, type Plugin, type ViteDevServer } from "vite";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { closeAfterOptimizer, createTestViteServer } from "../../../scripts/test-vite-server.mjs";
 import { dependenciesReady, holdUntil } from "../vite/dependencies-ready";
 
 // A restarted dev server reads its dependency cache before it transforms or
@@ -34,25 +35,25 @@ function fixture(): string {
   return dir;
 }
 
-function cachedLibraries(dir: string): string[] {
+/** The libraries the server's dependency cache holds now. */
+function cachedLibraries(server: ViteDevServer): string[] {
   try {
-    return Object.keys(JSON.parse(readFileSync(path.join(dir, ".vite", "deps", "_metadata.json"), "utf8")).optimized).sort();
+    return Object.keys(JSON.parse(readFileSync(path.join(server.config.cacheDir, "deps", "_metadata.json"), "utf8")).optimized).sort();
   } catch {
     return [];
   }
 }
 
 async function start(dir: string, plugins: Plugin[]): Promise<ViteDevServer> {
-  owned.server = await createServer({
+  const server = (owned.server = await createTestViteServer(createServer, {
     configFile: false,
     root: dir,
-    cacheDir: path.join(dir, ".vite"),
     logLevel: "silent",
-    server: { middlewareMode: true, hmr: false, watch: null },
+    server: { middlewareMode: true, hmr: false },
     plugins,
-  });
-  await vi.waitFor(() => expect(cachedLibraries(dir)).toEqual(["clsx", "tailwind-merge"]), { timeout: 30_000, interval: 50 });
-  return owned.server;
+  }, { pages: true }));
+  await vi.waitFor(() => expect(cachedLibraries(server)).toEqual(["clsx", "tailwind-merge"]), { timeout: 30_000, interval: 50 });
+  return server;
 }
 
 /** The version the first screen's library is served under. */
@@ -86,6 +87,8 @@ async function restart(server: ViteDevServer, early: ReturnType<typeof earlyTran
     return (read as (...args: unknown[]) => Promise<unknown>).call(fs.promises, file, ...rest);
   }) as typeof read);
   await server.restart();
+  // The restart replaced the server's close with the new instance's own.
+  closeAfterOptimizer(server);
   const reloaded = await early.reloaded;
   await new Promise((resolve) => setTimeout(resolve, 1000));
   return [reloaded, clsxVersion((await server.environments.client.transformRequest("/main.js"))?.code)];
@@ -99,7 +102,7 @@ describe("a restarted Tower serves the libraries it already built", () => {
     const [reloaded, settled] = await restart(server, early);
     expect(reloaded).toBeDefined();
     expect(reloaded).toBe(settled);
-    expect(cachedLibraries(dir)).toEqual(["clsx", "tailwind-merge"]);
+    expect(cachedLibraries(server)).toEqual(["clsx", "tailwind-merge"]);
   }, 60_000);
 
   // Vite's own behaviour, which the plugin exists for: if this starts failing
@@ -109,7 +112,7 @@ describe("a restarted Tower serves the libraries it already built", () => {
     const early = earlyTransform();
     const server = await start(dir, [early]);
     await restart(server, early);
-    expect(cachedLibraries(dir)).toEqual(["clsx"]);
+    expect(cachedLibraries(server)).toEqual(["clsx"]);
   }, 60_000);
 });
 
