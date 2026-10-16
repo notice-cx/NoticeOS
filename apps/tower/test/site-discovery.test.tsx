@@ -615,4 +615,52 @@ describe("Google's two kinds of site on one row", () => {
     const second = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
     expect(second.querySelector("[data-site-detail]")?.textContent).toBe("Not in this account");
   });
+
+  describe("the grant under the list", () => {
+    const listedFor = (sites: SitesPayload, credential: { account?: string; auth?: "oauth" | "service-account" }): SitesPayload =>
+      ({ ...sites, discovery: { ...sites.discovery, ...credential } as SiteDiscovery });
+    // Two rows, each with its GA4 property and no Search Console site.
+    const noSearchConsole = payload(
+      [ga4("538680421", "journey.example"), ga4("538680422", "second.example")],
+      [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() })],
+    );
+    const SERVICE_ACCOUNT = { account: "signals@example.test", auth: "service-account" } as const;
+    const renderGoogle = (sites: SitesPayload) => render(
+      <MemoryRouter>
+        <SitePicker provider={GOOGLE} payload={sites} onStart={async () => null} onClose={() => {}} />
+      </MemoryRouter>,
+    );
+    const grants = () => [...document.querySelectorAll("[data-site-grant]")];
+
+    it("names the service account and the Full user grant once, under the list", () => {
+      renderGoogle(listedFor(noSearchConsole, SERVICE_ACCOUNT));
+      expect(grants()).toHaveLength(1);
+      const grant = grants()[0]!;
+      expect(grant.getAttribute("data-site-grant")).toBe("gsc");
+      expect(grant.textContent).toBe(
+        "Listed for the service account signals@example.test. Missing a Search Console site? In Search Console, add this account as a Full user on that site, then reload this page.",
+      );
+      const list = screen.getByRole("list", { name: "Sites" });
+      expect(list.contains(grant)).toBe(false);
+      expect(list.compareDocumentPosition(grant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("asks a sign-in for an account that can read it", () => {
+      renderGoogle(listedFor(noSearchConsole, { account: "ops@example.test", auth: "oauth" }));
+      expect(grants().map((grant) => grant.textContent)).toEqual([
+        "Listed for ops@example.test. Missing a Search Console site? Sign in on Integrations with a Google account that can read it.",
+      ]);
+    });
+
+    it("draws no line when the listing names no credential, or when nothing is missing", () => {
+      const { unmount } = renderGoogle(noSearchConsole);
+      expect(grants()).toHaveLength(0);
+      unmount();
+      renderGoogle(listedFor(payload(
+        [ga4("538680421", "journey.example"), gsc("sc-domain:journey.example", "journey.example")],
+        [asset("journey.example", { cells: cells() })],
+      ), SERVICE_ACCOUNT));
+      expect(grants()).toHaveLength(0);
+    });
+  });
 });

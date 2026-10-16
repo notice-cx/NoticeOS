@@ -33,7 +33,7 @@ How often the archive runs is set on **Integrations** > **Manage** on the Google
 
 1. In the panel, select **Continue with Google**.
 2. On Google's screen, select the account that can read the site's GA4 property and Search Console site, and allow both permissions.
-3. Back in the panel, review each site's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked.
+3. Back in the panel, review each site's row. It lists the GA4 property and the Search Console site matched by domain, already ticked. A Search Console site the account has not verified is listed as **Not verified** and left unticked. When the account cannot read a site's GA4 property or Search Console site, the row reads **GA4: not in this account** or **Search Console: not in this account**, and a line under the list names the account and what to grant (see [Change which property a site uses](#change-which-property-a-site-uses)).
 4. Select **Start collecting**.
 
 ## Self-hosted: the one-time console steps

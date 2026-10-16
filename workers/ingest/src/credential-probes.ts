@@ -601,12 +601,16 @@ const GOOGLE_MAX_PROPERTIES = 50;
  * address does (one free Admin API read per property, the first fifty). An
  * unverified Search Console site is listed, never ticked. A listing is not
  * evidence: no verdict is stamped. Both halves refusing is `refused`, neither
- * answering `unreachable`.
+ * answering `unreachable`. The answer names the credential the list was read
+ * with, so the panel can say who to grant a site the list lacks.
  */
 export async function discoverGoogleSites(
   env: IngestEnv,
   options: DiscoverOptions = {},
-): Promise<{ ok: true; kind: 'account'; sites: DiscoveredSite[] } | { ok: false; reason: 'not-connected' | 'refused' | 'unreachable' }> {
+): Promise<
+  | { ok: true; kind: 'account'; sites: DiscoveredSite[]; account: string; auth: GoogleAuth['kind'] }
+  | { ok: false; reason: 'not-connected' | 'refused' | 'unreachable' }
+> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const nowMs = options.nowMs ?? Date.now();
   const resolved = await probeGoogleAuth(env, {});
@@ -643,7 +647,7 @@ export async function discoverGoogleSites(
     if (refusal(error)) refused += 1;
   }
   if (answered === 0) return { ok: false, reason: refused > 0 ? 'refused' : 'unreachable' };
-  return { ok: true, kind: 'account', sites };
+  return { ok: true, kind: 'account', sites, account: googleAuthIdentity(auth), auth: auth.kind };
 }
 
 /** The host a GA4 property's first web data stream answers for, or null. */

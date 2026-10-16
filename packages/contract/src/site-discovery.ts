@@ -50,7 +50,20 @@ export interface DiscoveredSite {
  * rule covers today.
  */
 export type SiteDiscovery =
-  | { ok: true; provider: string; kind: 'account' | 'portfolio'; checkedAt: string; sites: DiscoveredSite[] }
+  | {
+      ok: true;
+      provider: string;
+      kind: 'account' | 'portfolio';
+      checkedAt: string;
+      sites: DiscoveredSite[];
+      /** Google: whose access the list shows (the service account's address,
+       * or the signed-in account's), so the panel can name who to grant a
+       * missing site to. Absent for every other provider. */
+      account?: string;
+      /** Google: how that credential authenticated, which decides what a
+       * missing site needs (a grant at Google, or another sign-in). */
+      auth?: 'oauth' | 'service-account';
+    }
   | { ok: false; provider: string; checkedAt: string; reason: SiteDiscoveryFailure };
 
 /** `not-connected` — no credential is stored; `refused` — the provider said
