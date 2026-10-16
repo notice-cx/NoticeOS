@@ -24,6 +24,7 @@ import { AGENT_RESOURCE_PATH, AGENT_SCOPES, bearerChallenge, bearerToken, scopes
 import { TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefusal } from './hosted-task-mcp.mjs';
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS } from './panel-mcp.mjs';
+import { AdmissionRefused } from './workspace-admission.mjs';
 export const MCP_PATH = AGENT_RESOURCE_PATH;
 /** Marks this endpoint's own forwarded call to the Worker's read-model tools,
  * so a front door passes it through rather than answering it again. Routing
@@ -86,6 +87,24 @@ export function createHostedMcp(options) {
     const tools = Object.freeze([LIST_WORKSPACES, GET_TASK_GUIDE, ...TASK_TOOLS, ...(readModels ? READ_TOOLS : []), ...(panels ? PANEL_TOOLS : [])]);
     const invalid = (message) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } }, { status: 400, headers: { 'cache-control': 'no-store' } });
     const refused = () => taskRefusal(null);
+    /** Why admission refused a call, when the caller's own workspace list
+     * shows it: never more than list_workspaces tells them. Null otherwise. */
+    async function accessRefusal(original, workspaceId, name, scopes) {
+        const workspaces = await agents.workspaces(original).catch(() => null);
+        if (!workspaces)
+            return null;
+        const found = workspaces.find(entry => entry.workspaceId === workspaceId);
+        if (!found)
+            return new McpToolError(`refused: workspace ${workspaceId} is not one of yours; list_workspaces lists yours.`);
+        if (found.status !== 'active')
+            return new McpToolError(`refused: workspace ${workspaceId} (${found.displayName}) is ${found.status}; its tasks cannot be read or changed now.`);
+        const needed = scopesFor(name);
+        if (!scopesSatisfy(access(scopes, found), needed)) {
+            return new McpToolError(`refused: this call needs ${needed.join(', ')} in workspace ${workspaceId} (${found.displayName}), `
+                + `where you have ${access(scopes, found).join(', ') || 'no access'}; list_workspaces shows what you may do in each.`);
+        }
+        return null;
+    }
     const instructions = taskInstructions(Boolean(panels));
     const guide = taskGuide(Boolean(panels));
     /** One read-model call, as the Worker's own MCP endpoint answers it. */
@@ -178,6 +197,8 @@ export function createHostedMcp(options) {
                     return await readModel(original, name, workspace, rest);
                 }
                 catch (error) {
+                    if (agents && error instanceof AdmissionRefused)
+                        throw await accessRefusal(original, workspace, name, scopes) ?? taskRefusal(error);
                     throw taskRefusal(error);
                 }
             } };

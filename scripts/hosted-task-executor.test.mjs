@@ -9,7 +9,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { createHostedTaskExecutor, HostedTaskRefused } from './hosted-task-executor.mjs';
-import { HumanDecisionRefused } from './hosted-task-command.mjs';
+import { HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -68,7 +68,7 @@ else if(args.includes('sql')){
  else console.log(JSON.stringify({rows:[{database:db,branch:'main',user:process.env.BEADS_DOLT_SERVER_USER,host:'%',permissions:'write'}]}));
 }else if(c.failBlocked&&args.includes('blocked')){process.exit(1)}
 else if(c.overflow){process.stdout.write('x'.repeat(9*1024*1024))}
-else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason}))}
+else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents}))}
 else if((args.includes('human')||args.includes('gate'))&&args.some(value=>['respond','dismiss','resolve'].includes(value))){
  if(c.decisionFailure)process.exit(1);
  const response=args.find(a=>a.startsWith('--response='))?.slice(11), reason=args.find(a=>a.startsWith('--reason='))?.slice(9);
@@ -320,7 +320,8 @@ test('platform catalog verification checks the actual project prefix without cha
 }));
 test('excess output refuses and awaits child close before retiring its profile', () => fixture(async f => {
   await f.control({ overflow: true });
-  await refused(() => f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })));
+  // Admitted and verified: the refusal names the task client as what failed.
+  await assert.rejects(f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })), TaskStoreFailed);
 }));
 
 
@@ -502,9 +503,9 @@ test('original and server cancellation stop an issued mutation and await exact c
     let work;
     try {
       await f.control({ hangWrite: true, readinessSocket: handshake.socketPath });
-      work = refused(() => f.executor.execute(original, A,
+      work = assert.rejects(f.executor.execute(original, A,
         task({ kind: 'comment', taskId: 'tt-a', text: 'outcome may be unknown' }),
-        { signal: source === 'server' ? abort.signal : new AbortController().signal }));
+        { signal: source === 'server' ? abort.signal : new AbortController().signal }), TaskStoreFailed);
       const pid = await Promise.race([handshake.ready, work.then(() => {
         throw new Error('The executor finished before its child readiness marker');
       })]);
@@ -567,6 +568,22 @@ test('a forced close runs for a workspace service and refuses anyone else before
     workspaceStatus: 'active', expiresAt: new Date(Date.now() + 60_000).toISOString(), actions: ['tasks.read', 'tasks.write'] }) });
   const output = await createHostedTaskExecutor({ ...f.options, admission: service }).execute(request(), A, close);
   assert.deepEqual(output.args.slice(2), ['--actor=' + PERSON, 'close', '--reason=Done', '--force', '--', 'tt-a']);
+}));
+
+test('a close past an open blocker runs forced, after its own read finds no other holder, gate or open child', () => fixture(async f => {
+  const close = task({ kind: 'close', taskId: 'tt-a', reason: 'Done' });
+  await f.control({ assignee: PERSON, dependencies: [{ id: 'tt-b', status: 'open', issue_type: 'task', labels: ['human'], dependency_type: 'blocks' }] });
+  const output = await f.executor.execute(request(), A, close);
+  assert.deepEqual(output.args.slice(2), ['--actor=' + PERSON, 'close', '--reason=Done', '--force', '--', 'tt-a']);
+  const reads = (await f.commands()).filter(row => row.args.includes('show'));
+  assert.deepEqual(reads.map(row => row.args), [['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', 'tt-a']]);
+  await f.control({ dependencies: [] });
+  assert.ok(!(await f.executor.execute(request(), A, close)).args.includes('--force'), 'nothing open: the plain close');
+  await f.control({ assignee: 'someone-else', dependencies: [{ id: 'tt-b', status: 'open', issue_type: 'task', dependency_type: 'blocks' }] });
+  const before = (await f.commands()).length;
+  await assert.rejects(f.executor.execute(request(), A, close),
+    error => error instanceof TaskStateRefused && error.reason.kind === 'held' && error.reason.holder === 'someone-else');
+  assert.deepEqual((await f.commands()).slice(before).filter(row => row.args.includes('close')), [], 'refused before any close ran');
 }));
 
 test('snapshot refuses nonservice principals and expanded historical windows before directory or credentials', () => fixture(async f => {

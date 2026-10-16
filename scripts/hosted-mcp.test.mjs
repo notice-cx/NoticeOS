@@ -190,6 +190,16 @@ test('task tools act in the workspace each call names, bounded there by the role
   assert.deepEqual(f.effects.map(([kind]) => kind), ['create', 'update', 'comment', 'close']);
 });
 
+test('a call admission refuses names the workspace or the access when the caller\'s own workspace list shows it', async () => {
+  const f = fixture();
+  assert.equal((await call(f, 'list_tasks', { workspace: DEMO, project: P })).content[0].text,
+    `refused: workspace ${DEMO} is not one of yours; list_workspaces lists yours.`);
+  assert.equal((await call(f, 'create_task', { workspace: B, project: P, title: 'From a viewer', idempotency_key: 'agent-create-0901' })).content[0].text,
+    `refused: this call needs tasks:write in workspace ${B} (Viewed), where you have tasks:read, evidence:read; `
+    + 'list_workspaces shows what you may do in each.');
+  assert.equal(f.calls.length, 0, 'admission refused both before any task command');
+});
+
 test('read-model tools are forwarded to the Worker with the token, the named workspace and their own arguments', async () => {
   const f = fixture();
   const listed = await call(f, 'list_properties', { workspace: B });
@@ -257,7 +267,9 @@ test('dependencies and human approval decide what is ready; lint advises on ever
   const error = async (name, args, options) => (await call(f, name, args, options)).content[0].text;
   assert.match(await error('add_dependency', { ...link, depends_on: 'tt-1' }), /cannot depend on itself/u);
   assert.match(await error('add_dependency', { ...link, type: 'parent-child' }), /^invalid arguments: type/u);
-  assert.match(await error('add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'related' }), /^refused:/u, 'an edge is never retyped');
+  assert.equal(await error('add_dependency', { ...link, task: 'tt-2', depends_on: 'tt-1', type: 'related' }),
+    'refused: tt-2 already depends on tt-1 as discovered-from, and a dependency keeps the type it was added with. '
+    + 'To record it as related, remove_dependency first, then add it again.', 'an edge is never retyped, and the refusal names the one that stands');
   assert.match(await error('request_human_approval', { ...ask, reason: 'x'.repeat(401) }), /^invalid arguments: reason/u);
   assert.match(await error('add_dependency', { ...link, workspace: B }), /^refused:/u);
   assert.equal((await call(f, 'request_human_approval', ask, { bearer: READER, status: 403 })).headers.get('www-authenticate').includes('scope="tasks:write"'), true);

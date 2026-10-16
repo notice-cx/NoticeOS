@@ -22,10 +22,11 @@ export interface StandaloneTaskExecutorOptions {
     readonly admission: WorkspaceAdmission;
     /** Read for every call, so a project linked or unlinked since is seen. */
     readonly projects: () => Promise<readonly StandaloneTaskProject[]>;
-    /** Runs the task client once with these arguments in `cwd`. */
+    /** Runs the task client once with these arguments in `cwd`; `timedOut` when its time ran out. */
     readonly run: (argv: readonly string[], cwd: string) => Promise<{
         readonly code: number;
         readonly stdout: string;
+        readonly timedOut?: boolean;
     }>;
 }
 export declare class StandaloneTaskRefused extends Error {

@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
@@ -82,27 +82,33 @@ export function createStandaloneTaskExecutor(options) {
                 admission.assertContext(context, action);
                 const client = async (argv) => {
                     const result = await run(argv, project.cwd);
+                    // Admitted, in a linked project: what failed is the task client itself.
                     if (result.code !== 0)
-                        refuse();
+                        throw new TaskStoreFailed(result.timedOut === true);
                     try {
                         return JSON.parse(result.stdout);
                     }
                     catch {
-                        refuse();
+                        throw new TaskStoreFailed(false);
                     }
                 };
                 if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human'))
                     refuse();
-                for (const taskId of decisionGuardTargets(operation)) {
-                    const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--', taskId]);
+                const rows = new Map(), decisions = decisionGuardTargets(operation);
+                for (const taskId of writeGuardReads(operation)) {
+                    const shown = await client(guardReadArgs(operation, taskId));
                     const row = (Array.isArray(shown) ? shown[0] : shown);
                     if (row?.id !== taskId)
                         refuse();
-                    if (isHumanDecision(row))
+                    if (decisions.includes(taskId) && isHumanDecision(row))
                         throw new HumanDecisionRefused(taskId);
+                    rows.set(taskId, row);
                 }
+                const effective = guardedWrite(operation, 'taskId' in operation ? rows.get(operation.taskId) : undefined, context.principalId);
+                const argv = effective === operation ? plan.argv
+                    : createHostedTaskPlanner([{ workspaceId, projectId: project.projectId, capability: Symbol() }])(workspaceId, { projectId: project.projectId, operation: effective }).argv;
                 // The actor is the admitted principal, inserted before every command token.
-                return client([plan.argv[0], plan.argv[1], `--actor=${context.principalId}`, ...plan.argv.slice(2)]);
+                return client([argv[0], argv[1], `--actor=${context.principalId}`, ...argv.slice(2)]);
             });
         },
     });

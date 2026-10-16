@@ -66,13 +66,15 @@ export function storeSites(store: Pick<PostgresStore, 'inWorkspace'>, workspaceI
 }
 
 /** One task client command in a project's folder, with the declared task client, bounded in time and output. */
-export function runTaskClient(argv: readonly string[], cwd: string, env: TaskClientEnvironment = process.env):
-  Promise<{ readonly code: number; readonly stdout: string }> {
+export function runTaskClient(argv: readonly string[], cwd: string, env: TaskClientEnvironment = process.env, timeout = 30_000):
+  Promise<{ readonly code: number; readonly stdout: string; readonly timedOut: boolean }> {
   return new Promise(resolve => {
-    execFile(env.BEADS_BD_BIN ?? 'bd', [...argv], { cwd, env: taskChildEnvironment(env), timeout: 30_000, maxBuffer: 32 * 1024 ** 2,
+    execFile(env.BEADS_BD_BIN ?? 'bd', [...argv], { cwd, env: taskChildEnvironment(env), timeout, maxBuffer: 32 * 1024 ** 2,
       encoding: 'utf8' }, (error, stdout) => {
       const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
-      resolve({ code, stdout });
+      // Node kills the client when its time runs out, and when its output overflows.
+      const timedOut = error !== null && error.killed === true && error.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+      resolve({ code, stdout, timedOut });
     });
   });
 }

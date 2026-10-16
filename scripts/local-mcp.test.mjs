@@ -72,11 +72,15 @@ test('the task client runs in the project\'s folder with the installation\'s dec
   const dir = mkdtempSync(path.join(os.tmpdir(), 'nos-task-client-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const bd = path.join(dir, 'bd');
-  writeFileSync(bd, `#!${process.execPath}\nprocess.stdout.write(JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\nprocess.exit(process.argv.includes('fail') ? 3 : 0);\n`);
+  writeFileSync(bd, `#!${process.execPath}\nif (process.argv.includes('hang')) setInterval(() => {}, 1000);\nelse {\nprocess.stdout.write(JSON.stringify({ args: process.argv.slice(2), cwd: process.cwd() }));\nprocess.exit(process.argv.includes('fail') ? 3 : 0);\n}\n`);
   chmodSync(bd, 0o755);
   const result = await runTaskClient(['--sandbox', '--json', 'ready'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH });
-  assert.deepEqual([result.code, JSON.parse(result.stdout)], [0, { args: ['--sandbox', '--json', 'ready'], cwd: dir }]);
-  assert.equal((await runTaskClient(['fail'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH })).code, 3);
+  assert.deepEqual([result.code, JSON.parse(result.stdout), result.timedOut], [0, { args: ['--sandbox', '--json', 'ready'], cwd: dir }, false]);
+  const failed = await runTaskClient(['fail'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH });
+  assert.deepEqual([failed.code, failed.timedOut], [3, false]);
+  // A client that outlives its time is killed, and the refusal can say so.
+  const hung = await runTaskClient(['hang'], dir, { BEADS_BD_BIN: bd, PATH: process.env.PATH }, 300);
+  assert.deepEqual([hung.code, hung.timedOut], [1, true]);
 });
 
 test('a request acts as the agent its header names, or as agent', () => {

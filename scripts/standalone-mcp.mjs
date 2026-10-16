@@ -59,12 +59,14 @@ export function storeSites(store, workspaceId, now = Date.now) {
     };
 }
 /** One task client command in a project's folder, with the declared task client, bounded in time and output. */
-export function runTaskClient(argv, cwd, env = process.env) {
+export function runTaskClient(argv, cwd, env = process.env, timeout = 30_000) {
     return new Promise(resolve => {
-        execFile(env.BEADS_BD_BIN ?? 'bd', [...argv], { cwd, env: taskChildEnvironment(env), timeout: 30_000, maxBuffer: 32 * 1024 ** 2,
+        execFile(env.BEADS_BD_BIN ?? 'bd', [...argv], { cwd, env: taskChildEnvironment(env), timeout, maxBuffer: 32 * 1024 ** 2,
             encoding: 'utf8' }, (error, stdout) => {
             const code = error === null ? 0 : typeof error.code === 'number' ? error.code : 1;
-            resolve({ code, stdout });
+            // Node kills the client when its time runs out, and when its output overflows.
+            const timedOut = error !== null && error.killed === true && error.code !== 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER';
+            resolve({ code, stdout, timedOut });
         });
     });
 }

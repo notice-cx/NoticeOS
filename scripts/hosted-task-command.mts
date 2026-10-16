@@ -29,6 +29,8 @@ export interface HostedTaskLink {
 export type HostedTaskOperation =
   | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
   | { readonly kind: 'show'; readonly taskId: string }
+  /** Which of these task ids the project holds, closed or not: an absent one is not listed. */
+  | { readonly kind: 'find'; readonly taskIds: readonly string[] }
   | { readonly kind: 'history'; readonly taskId: string; readonly limit: number }
   | { readonly kind: 'comments'; readonly taskId: string }
   | { readonly kind: 'ready' }
@@ -196,9 +198,9 @@ function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
 
 function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
   const op = record(input);
-  const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
+  const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
     'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
-  const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
+  const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
   const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
   switch (kind) {
     case 'list':
@@ -210,6 +212,13 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       keys(op, ['kind', 'taskId']);
       argv.push('show', '--', task(op.taskId));
       break;
+    case 'find': {
+      keys(op, ['kind', 'taskIds']);
+      const ids = entries(op.taskIds, 1, HOSTED_TASK_LIMITS.rows).map(task);
+      if (new Set(ids).size !== ids.length) invalid();
+      argv.push('list', '--all', '--include-gates', '--limit=0', `--id=${ids.join(',')}`);
+      break;
+    }
     case 'history':
       keys(op, ['kind', 'taskId', 'limit']);
       argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
@@ -371,6 +380,129 @@ export function decisionGuardTargets(operation: HostedTaskOperation): readonly s
   if (operation.kind === 'update') return operation.status === 'closed' || operation.removeLabels?.includes('human') ? [operation.taskId] : [];
   if (operation.kind === 'undepend') return [operation.taskId, operation.dependsOn];
   return [];
+}
+
+/** A task project as list_projects names it. */
+export interface TaskProjectName { readonly projectId: string; readonly name: string; readonly prefix: string }
+/** Why a call was refused, from the state of the task it names: read just
+ * before a write, or after the store refused one. Thrown only after admission
+ * and that read, so naming the cause shows nothing get_task would not. */
+export type TaskStateReason =
+  | { readonly kind: 'closed' }
+  | { readonly kind: 'held'; readonly holder: string }
+  /** Open gates it waits on; `human` when every one waits on a person. */
+  | { readonly kind: 'gate'; readonly gates: readonly string[]; readonly human: boolean }
+  | { readonly kind: 'children'; readonly children: readonly string[] }
+  /** A claim of a task whose status is not open, with the open tasks it depends on. */
+  | { readonly kind: 'not-open'; readonly status: string; readonly blockers: readonly string[] }
+  /** A dependency asked for with one type where an edge of another already stands. */
+  | { readonly kind: 'linked'; readonly dependsOn: string; readonly type: string; readonly wanted: string }
+  | { readonly kind: 'missing'; readonly project: TaskProjectName };
+/** What the refused call tried, so its refusal can say what to do instead. */
+export type TaskAttempt = 'close' | 'claim' | 'reassign' | 'other';
+export class TaskStateRefused extends Error {
+  override name = 'TaskStateRefused';
+  constructor(readonly taskId: string, readonly attempted: TaskAttempt, readonly reason: TaskStateReason) {
+    super(`${taskId} refused: ${reason.kind}.`);
+  }
+}
+/** The task client did not complete a command every check before it allowed:
+ * it ran out of time, or failed with no cause the task's own state shows. */
+export class TaskStoreFailed extends Error {
+  override name = 'TaskStoreFailed';
+  constructor(readonly timedOut: boolean) { super(timedOut ? 'The task client did not answer in time.' : 'The task client failed.'); }
+}
+
+/** The dependency types the task client counts as live blockers while the other task is open. */
+const BLOCKING: readonly string[] = ['blocks', 'waits-for', 'conditional-blocks'];
+function rowsOf(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
+}
+const stringOf = (value: unknown): string => typeof value === 'string' ? value : '';
+/** The task client's actor match: a run of `.`, `_` or `-` is one separator, and `--` another. */
+function canonicalActor(name: string): string {
+  return name.replace(/[._-]+/gu, run => run === '--' ? '/' : '_');
+}
+function sameActor(a: string, b: string): boolean { return a === b || canonicalActor(a) === canonicalActor(b); }
+
+/** A write whose own task's state decides how it runs: a close, a claim, a
+ * change of assignee. A caller's forced close is a service closing for the
+ * agent it named, and decides for itself. */
+function stateGuarded(operation: HostedTaskOperation): operation is Extract<HostedTaskOperation, { kind: 'close' | 'update' }> {
+  if (operation.kind === 'close') return operation.force !== true;
+  return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined);
+}
+/** The tasks an executor reads before this write: the decisions it must not
+ * stand in for, then the task whose own state decides it. */
+export function writeGuardReads(operation: HostedTaskOperation): readonly string[] {
+  const reads = [...decisionGuardTargets(operation)];
+  if (stateGuarded(operation) && !reads.includes(operation.taskId)) reads.push(operation.taskId);
+  return reads;
+}
+/** The fixed read of one of those tasks. A close reads its children too, which
+ * the task client's plain show only counts. */
+export function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[] {
+  const children = operation.kind === 'close' && stateGuarded(operation) && operation.taskId === taskId;
+  return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
+}
+/** The write to run, given its task as read just before (writeGuardReads). A
+ * dependency holds a task out of ready work, not open: a close whose only
+ * obstacle is an open blocker runs forced past it, and the checks that force
+ * would also skip are made here first. Its holder, an open gate and an open
+ * child still stop it. A claim or a change of assignee is refused here for
+ * the causes the task client would refuse it for, so the refusal can name
+ * them. */
+export function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation {
+  if (!stateGuarded(operation)) return operation;
+  if (!row || row.id !== operation.taskId) invalid();
+  const attempted: TaskAttempt = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim' : 'reassign';
+  const refuse = (reason: TaskStateReason): never => { throw new TaskStateRefused(operation.taskId, attempted, reason); };
+  const status = stringOf(row.status), holder = stringOf(row.assignee);
+  const held = holder !== '' && !sameActor(holder, actor);
+  const open = (edge: Record<string, unknown>) => stringOf(edge.status) !== 'closed';
+  const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
+  if (operation.kind === 'update') {
+    if (attempted === 'reassign') {
+      // The task client lets only its holder hand on a task someone is working.
+      if (status === 'in_progress' && held && !sameActor(holder, operation.assignee!)) refuse({ kind: 'held', holder });
+      return operation;
+    }
+    if (status === 'closed') refuse({ kind: 'closed' });
+    if (held) refuse({ kind: 'held', holder });
+    // The task client claims an open task, or re-claims one its holder is working.
+    if (status === 'blocked' || status === 'deferred' || status === 'in_progress' && holder === '') {
+      refuse({ kind: 'not-open', status, blockers: blockers.map(edge => stringOf(edge.id)) });
+    }
+    return operation;
+  }
+  if (status === 'closed') refuse({ kind: 'closed' });
+  if (held) refuse({ kind: 'held', holder });
+  const gates = blockers.filter(edge => edge.issue_type === 'gate');
+  if (gates.length) refuse({ kind: 'gate', gates: gates.map(edge => stringOf(edge.id)), human: gates.every(edge => edge.await_type === 'human') });
+  const children = rowsOf(row.dependents).filter(edge => edge.dependency_type === 'parent-child' && open(edge));
+  if (children.length) refuse({ kind: 'children', children: children.map(edge => stringOf(edge.id)) });
+  // A pinned or template task keeps the task client's own refusal, which force would skip.
+  const kept = row.pinned === true || status === 'pinned' || row.is_template === true;
+  return blockers.length && !kept ? Object.freeze({ ...operation, force: true as const }) : operation;
+}
+/** What the task's state, read again after the store refused a write, says
+ * refused it, or null when it explains nothing: the rules guardedWrite checks
+ * before a write (another caller can win a claim between that read and the
+ * write), and an edge the write would retype, which the task client never does. */
+export function refusalFromState(operation: HostedTaskOperation, row: Record<string, unknown>, actor: string): TaskStateRefused | null {
+  if (operation.kind === 'depend') {
+    const edge = rowsOf(row.dependencies).find(entry => entry.id === operation.dependsOn);
+    const type = stringOf(edge?.dependency_type);
+    return edge && type !== operation.type
+      ? new TaskStateRefused(operation.taskId, 'other', { kind: 'linked', dependsOn: operation.dependsOn, type, wanted: operation.type }) : null;
+  }
+  if (!stateGuarded(operation)) return null;
+  // Closed with this very reason: the refused close may itself have landed, which a retry with its key confirms.
+  if (operation.kind === 'close' && row.status === 'closed' && row.close_reason === operation.reason) return null;
+  try { guardedWrite(operation, row, actor); return null; } catch (error) {
+    if (error instanceof TaskStateRefused) return error;
+    throw error;
+  }
 }
 
 /** Semantic action classification after the same strict command validation.

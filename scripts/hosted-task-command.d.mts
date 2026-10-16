@@ -31,6 +31,11 @@ export type HostedTaskOperation = {
 } | {
     readonly kind: 'show';
     readonly taskId: string;
+}
+/** Which of these task ids the project holds, closed or not: an absent one is not listed. */
+ | {
+    readonly kind: 'find';
+    readonly taskIds: readonly string[];
 } | {
     readonly kind: 'history';
     readonly taskId: string;
@@ -173,6 +178,81 @@ export declare function isHumanDecision(row: {
  * this ordinary write: no close, marker removal or removed dependency stands
  * in for the decision itself, which has its own named verb. */
 export declare function decisionGuardTargets(operation: HostedTaskOperation): readonly string[];
+/** A task project as list_projects names it. */
+export interface TaskProjectName {
+    readonly projectId: string;
+    readonly name: string;
+    readonly prefix: string;
+}
+/** Why a call was refused, from the state of the task it names: read just
+ * before a write, or after the store refused one. Thrown only after admission
+ * and that read, so naming the cause shows nothing get_task would not. */
+export type TaskStateReason = {
+    readonly kind: 'closed';
+} | {
+    readonly kind: 'held';
+    readonly holder: string;
+}
+/** Open gates it waits on; `human` when every one waits on a person. */
+ | {
+    readonly kind: 'gate';
+    readonly gates: readonly string[];
+    readonly human: boolean;
+} | {
+    readonly kind: 'children';
+    readonly children: readonly string[];
+}
+/** A claim of a task whose status is not open, with the open tasks it depends on. */
+ | {
+    readonly kind: 'not-open';
+    readonly status: string;
+    readonly blockers: readonly string[];
+}
+/** A dependency asked for with one type where an edge of another already stands. */
+ | {
+    readonly kind: 'linked';
+    readonly dependsOn: string;
+    readonly type: string;
+    readonly wanted: string;
+} | {
+    readonly kind: 'missing';
+    readonly project: TaskProjectName;
+};
+/** What the refused call tried, so its refusal can say what to do instead. */
+export type TaskAttempt = 'close' | 'claim' | 'reassign' | 'other';
+export declare class TaskStateRefused extends Error {
+    readonly taskId: string;
+    readonly attempted: TaskAttempt;
+    readonly reason: TaskStateReason;
+    name: string;
+    constructor(taskId: string, attempted: TaskAttempt, reason: TaskStateReason);
+}
+/** The task client did not complete a command every check before it allowed:
+ * it ran out of time, or failed with no cause the task's own state shows. */
+export declare class TaskStoreFailed extends Error {
+    readonly timedOut: boolean;
+    name: string;
+    constructor(timedOut: boolean);
+}
+/** The tasks an executor reads before this write: the decisions it must not
+ * stand in for, then the task whose own state decides it. */
+export declare function writeGuardReads(operation: HostedTaskOperation): readonly string[];
+/** The fixed read of one of those tasks. A close reads its children too, which
+ * the task client's plain show only counts. */
+export declare function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[];
+/** The write to run, given its task as read just before (writeGuardReads). A
+ * dependency holds a task out of ready work, not open: a close whose only
+ * obstacle is an open blocker runs forced past it, and the checks that force
+ * would also skip are made here first. Its holder, an open gate and an open
+ * child still stop it. A claim or a change of assignee is refused here for
+ * the causes the task client would refuse it for, so the refusal can name
+ * them. */
+export declare function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation;
+/** What the task's state, read again after the store refused a write, says
+ * refused it, or null when it explains nothing: the rules guardedWrite checks
+ * before a write (another caller can win a claim between that read and the
+ * write), and an edge the write would retype, which the task client never does. */
+export declare function refusalFromState(operation: HostedTaskOperation, row: Record<string, unknown>, actor: string): TaskStateRefused | null;
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export declare function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' | 'tasks.write' | 'tasks.decide';

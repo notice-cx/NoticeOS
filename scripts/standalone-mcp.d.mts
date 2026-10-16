@@ -20,9 +20,10 @@ export declare function linkedProjects({ read, root, now }?: {
  * for the task projects' names. A failed read is not kept. */
 export declare function storeSites(store: Pick<PostgresStore, 'inWorkspace'>, workspaceId: string, now?: () => number): () => Promise<readonly StandaloneSite[]>;
 /** One task client command in a project's folder, with the declared task client, bounded in time and output. */
-export declare function runTaskClient(argv: readonly string[], cwd: string, env?: TaskClientEnvironment): Promise<{
+export declare function runTaskClient(argv: readonly string[], cwd: string, env?: TaskClientEnvironment, timeout?: number): Promise<{
     readonly code: number;
     readonly stdout: string;
+    readonly timedOut: boolean;
 }>;
 export interface StandaloneMcp {
     /** Answers one MCP POST addressed to STANDALONE_MCP_ORIGIN + MCP_PATH. */
