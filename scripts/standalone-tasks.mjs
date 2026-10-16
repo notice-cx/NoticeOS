@@ -6,25 +6,59 @@
  * the human-decision guards are the hosted executor's.
  */
 import { createHash } from 'node:crypto';
+import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
 }
 function refuse() { throw new StandaloneTaskRefused(); }
-/** A project's id, the same on every read: derived from its asset, which an
- * installation never reuses for another project. */
-export function standaloneProjectId(asset) {
-    const hex = createHash('sha256').update(`noticeos-task-project:${asset}`).digest('hex');
+/** A fixed UUID for a name, in the version-8 layout. */
+function uuidOf(name) {
+    const hex = createHash('sha256').update(name).digest('hex');
     return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${(8 + (parseInt(hex[16], 16) & 3)).toString(16)}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
-/** The catalog the shared operations select a project from. */
-export function standaloneTaskDirectory(projects) {
+/** A project's id, the same on every read: derived from its task database,
+ * which no two projects share and which moving the project to another site
+ * leaves unchanged. */
+export function standaloneProjectId(database) {
+    return uuidOf(`noticeos-task-database:${database}`);
+}
+/** An id derived from the site `asset` instead of a database, which agents
+ * may still hold. It names no project; `formerly` finds the project now filed
+ * under that site. */
+export function formerStandaloneProjectId(asset) {
+    return uuidOf(`noticeos-task-project:${asset}`);
+}
+/** Each site's on-screen name by id. A name is presentation only: when the
+ * site list cannot be read, each project is named by its site's id instead of
+ * the call being refused. */
+async function siteNames(sites) {
+    try {
+        return new Map((await sites()).map(site => [site.id, assetDisplayName(site.isOs, site.displayName)]));
+    }
+    catch {
+        return new Map();
+    }
+}
+/** The catalog the shared operations select a project from. A project is
+ * named by its site's on-screen name, or by the site's id when the store holds
+ * no such site. */
+export function standaloneTaskDirectory(projects, sites) {
+    async function catalog(_workspaceId) {
+        const [linked, names] = await Promise.all([projects(), siteNames(sites)]);
+        return Object.freeze(linked.map(project => Object.freeze({
+            projectId: project.projectId, logicalKey: project.asset, displayName: names.get(project.asset) ?? project.asset,
+            prefix: project.prefix
+        })));
+    }
     return Object.freeze({
-        async catalog(_workspaceId) {
-            return Object.freeze((await projects()).map(project => Object.freeze({
-                projectId: project.projectId, logicalKey: project.asset, displayName: project.asset, prefix: project.prefix
-            })));
+        catalog,
+        /** The project now filed under the site a former id was derived from, or
+         * null when `projectId` is not a former id of a linked project. A former
+         * id is still refused; this only names the project to use instead. */
+        async formerly(workspaceId, projectId) {
+            return (await catalog(workspaceId)).find(entry => formerStandaloneProjectId(entry.logicalKey) === projectId) ?? null;
         },
     });
 }

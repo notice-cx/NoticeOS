@@ -1043,6 +1043,36 @@ function fillProject(fields: { asset: string; prefix: string }) {
 
 describe("/settings — the task-hub project map", () => {
   beforeEach(() => { initialSection = "task-projects"; });
+  it("names each project's site by its on-screen name, with the site's id kept in the Site cell", () => {
+    state.integrations = matrix(11.4, "2026-09", [{ id: "root-os", displayName: "System", isOs: true },
+      { id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
+    stubFetch();
+    renderPage();
+    expect(projectRow("root-os").querySelector("[data-task-project-site]")).toHaveTextContent("System");
+    expect(within(projectRow("root-os")).getByLabelText("Site")).toHaveValue("root-os");
+    expect(projectRow("meadow.example").querySelector("[data-task-project-site]")).toHaveTextContent("Meadow Board");
+  });
+
+  it("keeps a site the store does not list under its id alone", () => {
+    state.integrations = matrix(11.4, "2026-09", []);
+    stubFetch();
+    renderPage();
+    expect(projectRow("meadow.example").querySelector("[data-task-project-site]")?.textContent).toBe("");
+    expect(within(projectRow("meadow.example")).getByLabelText("Site")).toHaveValue("meadow.example");
+  });
+
+  it("names each project's site in the read-only list too, the id beside its database", () => {
+    state.integrations = matrix(11.4, "2026-09", [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
+    state.settings = payload({ taskHub: { owner: "config/beads.json", hub: null,
+      spokes: [{ asset: "meadow.example", prefix: "md", database: "md", repo: "" }, { asset: "unlisted.example", prefix: "un", database: "un", repo: "" }] } });
+    stubFetch();
+    renderPage();
+    const list = taskHub().querySelector("[data-task-projects-read-only]") as HTMLElement;
+    expect(within(list).getByText("Meadow Board")).toBeTruthy();
+    expect(within(list).getByText("meadow.example · Task database: md")).toBeTruthy();
+    expect(within(list).getByText("unlisted.example")).toBeTruthy();
+    expect(within(list).getByText("Task database: un")).toBeTruthy();
+  });
   it("adds a project as one insert, and the Undo takes it out again", async () => {
     state.integrations = matrix(11.4, "2026-09", assetRefs("northwind.example", "meadow.example"));
     const calls = stubFetch();
