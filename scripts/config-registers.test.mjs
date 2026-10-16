@@ -683,7 +683,8 @@ test('every mapped lane states what reads it, and what reads it when nothing is 
   }
   assert.equal(laneMappingTiming('store'), 'next-run');
   assert.equal(laneMappingTiming('file'), 'after-restart');
-  assert.equal(laneMappingTiming(undefined), 'after-restart');
+  // A deployment that did not say draws no chip rather than the cautious one.
+  assert.equal(laneMappingTiming(undefined), null);
 });
 
 /**

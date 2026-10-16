@@ -3010,6 +3010,72 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     expect(document.querySelector('[data-lane-picker-typed="ga4"]')).not.toBeNull();
   });
 
+  const SERVICE_ACCOUNT_LISTING = {
+    ...TWO_PROPERTIES,
+    account: "collector@example-project.iam.gserviceaccount.com",
+    auth: "service-account",
+  };
+
+  function gscLane() {
+    return {
+      catalog: { ...catalog, id: "gsc", label: "Google Search Console" },
+      cell: { ...ga4Lane().cell, laneId: "gsc" },
+      mapping: [{ name: "siteUrl", value: null }],
+      mappingSource: "fallback" as const,
+    } as unknown as ReturnType<typeof ga4Lane>;
+  }
+
+  async function listingLine(lane: "ga4" | "gsc", title: string): Promise<string> {
+    const { findByText } = renderRoute("meadow.example", "", "sources");
+    await findByText(title);
+    openLane(title);
+    const line = await waitFor(() => {
+      const found = document.querySelector(`[data-lane-picker-grant="${lane}"]`);
+      if (!(found instanceof HTMLElement)) throw new Error("no listing line");
+      return found;
+    });
+    return line.textContent ?? "";
+  }
+
+  it("names the signed-in account under the GA4 picker, and the sign-in that lists a missing one", async () => {
+    stubEditing(ga4Lane(), TWO_PROPERTIES);
+    expect(await listingLine("ga4", "Google Analytics")).toBe(
+      "Listed for ops@example.test. Missing a GA4 property? Sign in on Integrations with a Google account that can read it.",
+    );
+  });
+
+  it("names the service account under the GA4 picker, and the Viewer grant that lists a missing one", async () => {
+    stubEditing(ga4Lane(), SERVICE_ACCOUNT_LISTING);
+    expect(await listingLine("ga4", "Google Analytics")).toBe(
+      "Listed for the service account collector@example-project.iam.gserviceaccount.com. Missing a GA4 property? " +
+        "In Google Analytics, add this account as Viewer on that GA4 property or its account, then reload this page.",
+    );
+  });
+
+  it("names the service account under the Search Console picker, and the Full user grant", async () => {
+    stubEditing(gscLane(), SERVICE_ACCOUNT_LISTING);
+    expect(await listingLine("gsc", "Google Search Console")).toBe(
+      "Listed for the service account collector@example-project.iam.gserviceaccount.com. Missing a Search Console site? " +
+        "In Search Console, add this account as a Full user on that site, then reload this page.",
+    );
+  });
+
+  it("names the signed-in account under the Search Console picker too", async () => {
+    stubEditing(gscLane(), TWO_PROPERTIES);
+    expect(await listingLine("gsc", "Google Search Console")).toBe(
+      "Listed for ops@example.test. Missing a Search Console site? Sign in on Integrations with a Google account that can read it.",
+    );
+  });
+
+  it("says nothing about access when Google is not connected", async () => {
+    stubEditing(ga4Lane());
+    const { findByText } = renderRoute("meadow.example", "", "sources");
+    await findByText("Google Analytics");
+    openLane("Google Analytics");
+    await waitFor(() => expect(picker().dataset.lanePickerState).toBe("unavailable"));
+    expect(document.querySelector("[data-lane-picker-grant]")).toBeNull();
+  });
+
   it("degrades to the text box when the account cannot be read", async () => {
     stubEditing(ga4Lane(), null);
     const { findByText } = renderRoute("meadow.example", "", "sources");
@@ -3051,7 +3117,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
   });
 
   it("shows what reads the mapping, which differs per asset, and when a save gets there", async () => {
-    stubEditing(ga4Lane());
+    stubEditing(ga4Lane(), NOT_CONNECTED, { "config/integrations.json": "file" });
     const first = renderRoute("meadow.example", "", "sources");
 
     await first.findByText("Google Analytics");
@@ -3059,7 +3125,7 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const unmapped = first.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
     expect(unmapped).toHaveAttribute("data-lane-mapping-state", "fallback");
     expect(unmapped.textContent).toContain("Using the Google account map");
-    expect(unmapped.textContent).toContain("Applies after a restart");
+    await waitFor(() => expect(unmapped.textContent).toContain("Applies after a restart"));
     expect(first.container.textContent).not.toContain("falls back to");
     first.unmount();
 
@@ -3073,10 +3139,24 @@ describe("AssetDetailRoute — the per-asset provider mapping", () => {
     const mapped = second.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
     expect(mapped).toHaveAttribute("data-lane-mapping-state", "register");
     expect(mapped.textContent).toContain("Mapped here");
-    // Awaited: the cautious chip renders until `/api/config` answers (see
+    // Awaited: no timing chip renders until `/api/config` answers (see
     // `useConfigWritable`).
     await waitFor(() => expect(mapped.textContent).toContain("Applies on the next run"));
     expect(mapped.textContent).not.toContain("after a restart");
+  });
+
+  it("draws no timing chip when the deployment does not say where it read the file", async () => {
+    stubEditing(ga4Lane({ propertyId: "123456789" }), NOT_CONNECTED, {});
+    const view = renderRoute("meadow.example", "", "sources");
+
+    await view.findByText("Google Analytics");
+    openLane("Google Analytics");
+    await waitFor(() =>
+      expect(vi.mocked(fetch).mock.calls.some(([input]) => String(input).startsWith("/api/config"))).toBe(true),
+    );
+    const state = view.container.querySelector<HTMLElement>("[data-lane-mapping-state]")!;
+    expect(state.textContent).toContain("Mapped here");
+    expect(state.textContent).not.toContain("Applies");
   });
 
   function declineChips(): HTMLElement {

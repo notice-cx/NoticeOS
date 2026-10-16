@@ -31,7 +31,8 @@ export const WORKER_RESTART_MS = 1500;
 /**
  * How long a save waits before refetching: none only when `GET /api/config`
  * says every document came from the store. A mixed or missing answer waits,
- * because the local dev lane reports no sources and really does restart.
+ * because a document read from the compiled copy changes only after the local
+ * Worker restarts.
  */
 export function configSaveDelayMs(
   sources: Readonly<Record<string, ConfigSource>> | undefined,

@@ -1027,8 +1027,10 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
 export type LaneMappingTiming = 'next-run' | 'after-restart';
 
 /** The one true answer, given where this deployment read the file.
- * `source` is `'store'` or `'file'`, straight off `GET /api/config`. */
-export function laneMappingTiming(source: 'store' | 'file' | undefined): LaneMappingTiming {
+ * `source` is `'store'` or `'file'`, straight off `GET /api/config`; null
+ * when the deployment did not say, which the card draws as no chip. */
+export function laneMappingTiming(source: 'store' | 'file' | undefined): LaneMappingTiming | null {
+  if (source === undefined) return null;
   return source === 'store' ? 'next-run' : 'after-restart';
 }
 
