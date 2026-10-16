@@ -670,6 +670,76 @@ describe('hygiene: home-unreachable', () => {
   });
 });
 
+// --- a site served only at www. ---------------------------------------------
+
+describe('hygiene: a site whose bare host does not answer is read at www.', () => {
+  // The stored domain is always the bare host; this site answers only at www.
+  const APEX_ONLY_DEAD: HygieneAsset[] = [{ asset: 'meadow.example', domain: 'example.com' }];
+  const APEX_HOME = 'https://example.com/';
+  const WWW_HOME = 'https://www.example.com/';
+  const WWW_ROBOTS = 'https://www.example.com/robots.txt';
+  const WWW_SITEMAP = 'https://www.example.com/sitemap.xml';
+  const HOUR_MS = 3_600_000;
+
+  it('reads the home page, robots.txt and the sitemap from www. and files no outage', async () => {
+    // Nothing at the bare host is routed, so every request to it is refused.
+    const { fetchImpl, calls } = stubOrigin({
+      [WWW_HOME]: () => html(page(800)),
+      // No Sitemap: line, so the sitemap's address is built from the host.
+      [WWW_ROBOTS]: () => plain('User-agent: *\nAllow: /\n'),
+      [WWW_SITEMAP]: () => xml(urlset(5, 'www.example.com')),
+      ...pageRoutes(5, 'www.example.com'),
+    });
+
+    await runHygieneChecks(env, { assets: APEX_ONLY_DEAD, confirmWaitMs: AT_ONCE, fetchImpl, nowMs: NOW });
+
+    expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(0);
+    expect(await readingFor('html-depth')).toMatchObject({ status: 'ok', value_num: 800 });
+    expect(detailOf(await readingFor('html-depth'))).toMatchObject({ url: WWW_HOME, served_host: 'www.example.com' });
+    expect(detailOf(await readingFor('robots-ai-access'))).toMatchObject({ url: WWW_ROBOTS, present: true });
+    expect(await readingFor('sitemap')).toMatchObject({ status: 'ok', value_num: 5 });
+    expect(detailOf(await readingFor('sitemap'))).toMatchObject({ url: WWW_SITEMAP, source: 'convention' });
+    // The bare host is asked once, for the home page, and for nothing else.
+    expect(calls.map((call) => call.url).filter((url) => url.startsWith(APEX_HOME))).toEqual([APEX_HOME]);
+  });
+
+  it('files one outage naming both addresses when neither host answers', async () => {
+    const { fetchImpl } = stubOrigin({ ...BEACON_UP });
+
+    await runHygieneChecks(env, { assets: APEX_ONLY_DEAD, confirmWaitMs: AT_ONCE, fetchImpl, nowMs: NOW });
+
+    expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(1);
+    const flag = await flagFor(HOME_UNREACHABLE_RULE_ID);
+    expect(flag).toMatchObject({ severity: 'error', kind: 'anomaly', metric: 'html-depth' });
+    expect(flag!.message).toContain(`unreachable at ${APEX_HOME}`);
+    expect(flag!.message).toContain(`and at ${WWW_HOME}`);
+    expect(inputsOf(flag)).toMatchObject({
+      url: APEX_HOME,
+      http_status: null,
+      www_url: WWW_HOME,
+      www_http_status: null,
+      reading_status: 'unreachable',
+      failed_tries: 2,
+      occurrences: 1,
+    });
+    expect(await readingFor('html-depth')).toMatchObject({ status: 'unreachable', value_num: null });
+  });
+
+  it('asks www. after a 404 at the bare host, and never after a 5xx', async () => {
+    const missing = stubOrigin({ [APEX_HOME]: () => status(404), [WWW_HOME]: () => html(page(800)) });
+    await runUptimeChecks(env, { assets: APEX_ONLY_DEAD, confirmWaitMs: AT_ONCE, fetchImpl: missing.fetchImpl, nowMs: NOW });
+    expect(missing.calls.map((call) => call.url)).toEqual([APEX_HOME, WWW_HOME]);
+    expect(await readingFor('html-depth')).toMatchObject({ status: 'ok', value_num: 800 });
+
+    // A 503 is a site that errs, not a host with no site: it is the reading.
+    const erring = stubOrigin({ [APEX_HOME]: () => status(503), [WWW_HOME]: () => html(page(800)) });
+    await runUptimeChecks(env, { assets: APEX_ONLY_DEAD, confirmWaitMs: AT_ONCE, fetchImpl: erring.fetchImpl, nowMs: NOW + HOUR_MS });
+    expect(erring.calls.map((call) => call.url)).toEqual([APEX_HOME, APEX_HOME]);
+    expect(await flagCount(HOME_UNREACHABLE_RULE_ID, false)).toBe(1);
+    expect((await flagFor(HOME_UNREACHABLE_RULE_ID))!.message).toBe(`home page did not serve: ${APEX_HOME} answered HTTP 503`);
+  });
+});
+
 // --- uptime: the home-page check, hourly -------------------------------------
 
 describe('uptime: the hourly home-page check', () => {

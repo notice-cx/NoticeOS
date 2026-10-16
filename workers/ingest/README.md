@@ -1298,7 +1298,7 @@ re-fetched. No check can disagree with another about what the property served.
 
 | Check | What it stores | Flags (`warn`/`anomaly`) when |
 |---|---|---|
-| `html-depth` | words of visible text on `https://<domain>/` | today ≤ **50%** of the median of the last **14 healthy readings**, and at least **7** exist |
+| `html-depth` | words of visible text on `https://<domain>/`, or on `https://www.<domain>/` when only that host responds | today ≤ **50%** of the median of the last **14 healthy readings**, and at least **7** exist |
 | `robots-ai-access` | resolved allow/deny per watched bot + a SHA-256 of the file, **plus the directives on three sampled pages** | a bot **allowed in the previous reading** becomes disallowed; `robots.txt` goes present → absent; or a sampled page that was clean in the previous reading now carries a closing directive |
 | `sitemap` | `<loc>` count | unreachable, unparseable, or count ≤ **50%** of the last healthy count **when that count was ≥ 50 URLs** |
 | `page-structure` | title / meta description / `<h1>` count / canonical on the **same three sampled pages**, and how many were read | a sampled page that was **structurally clean in the previous reading** now carries a fault |
@@ -1422,6 +1422,15 @@ stays floor-to-floor.
   `value_num = NULL` and files **no** depth flag; that rule's only trigger is the
   median collapse. It files a `hygiene-home-unreachable` flag instead, naming the
   HTTP status or the transport error.
+- **A site served only at `www.` is read there.** A stored domain is the bare
+  host. When `https://<domain>/` gets no response or a 404, the home page is
+  requested once at `https://www.<domain>/`; when that host responds, the run
+  reads the home page, `robots.txt` and the sitemap from it, and the
+  `html-depth` reading records it as `served_host`. A redirect from the bare
+  host is followed, and a 5xx is the site's own error: neither requests
+  `www.`. `hygiene-home-unreachable` fires only when neither host responds, and
+  its message names both addresses. No setting stores the host; each run
+  checks it again.
 - **One failed GET is not an outage.** A home page that fails is asked once more
   45 seconds later, after every other site, with one wait for the whole run
   (`HOME_CONFIRM_WAIT_MS`, `confirmHomeFailures`). Only the second failure
