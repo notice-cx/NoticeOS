@@ -13,7 +13,7 @@ import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory,
-  type StandaloneTaskProject } from './standalone-tasks.mjs';
+  type StandaloneSite, type StandaloneTaskProject } from './standalone-tasks.mjs';
 import { taskChildEnvironment, type TaskClientEnvironment } from './task-client.mjs';
 import { readTaskProjects, type TaskProject } from './task-project-config.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
@@ -26,7 +26,7 @@ export const STANDALONE_MCP_ORIGIN = 'http://localhost';
 export const ACTOR_HEADER = 'x-noticeos-actor';
 const ACTOR = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/u;
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-/** How long one read of the linked projects serves the calls after it. */
+/** How long one read of the linked projects, or of the site list, serves the calls after it. */
 const PROJECTS_TTL_MS = 5_000;
 
 /** Who a request acts as, or null when it names someone no task can record. */
@@ -42,10 +42,26 @@ export function linkedProjects({ read = () => readTaskProjects(), root = REPO_RO
   let cached: { at: number; projects: readonly StandaloneTaskProject[] } | null = null;
   return async () => {
     if (cached && now() - cached.at < PROJECTS_TTL_MS) return cached.projects;
-    const projects = Object.freeze((await read()).filter(project => project.repo).map(project => Object.freeze({
-      projectId: standaloneProjectId(project.asset), asset: project.asset, prefix: project.prefix, cwd: path.resolve(root, project.repo) })));
+    const projects = Object.freeze((await read()).flatMap(({ asset, prefix, database, repo }) => repo && database
+      ? [Object.freeze({ projectId: standaloneProjectId(database), asset, prefix, cwd: path.resolve(root, repo) })] : []));
     cached = { at: now(), projects };
     return projects;
+  };
+}
+
+type SiteRow = { id: string; displayName: string; isOs: boolean };
+
+/** The site list the Tower names sites from (apps/tower/worker/asset-registry.ts),
+ * for the task projects' names. A failed read is not kept. */
+export function storeSites(store: Pick<PostgresStore, 'inWorkspace'>, workspaceId: string, now: () => number = Date.now):
+  () => Promise<readonly StandaloneSite[]> {
+  let cached: { at: number; sites: readonly StandaloneSite[] } | null = null;
+  return async () => {
+    if (cached && now() - cached.at < PROJECTS_TTL_MS) return cached.sites;
+    const sites = Object.freeze(await store.inWorkspace(workspaceId, tx => tx.query<SiteRow>(
+      'SELECT asset_id AS id, display_name AS "displayName", is_os AS "isOs" FROM noticeos.assets'), { readOnly: true }));
+    cached = { at: now(), sites };
+    return sites;
   };
 }
 
@@ -69,7 +85,7 @@ export interface StandaloneMcp {
 export interface StandaloneMcpOptions {
   readonly databaseUrl?: string;
   /** Tests supply a store and receipts instead of a database. */
-  readonly store?: Pick<PostgresStore, 'onlyWorkspace' | 'close'>;
+  readonly store?: Pick<PostgresStore, 'onlyWorkspace' | 'inWorkspace' | 'close'>;
   readonly receipts?: TaskReceipts;
   readonly projects?: () => Promise<readonly StandaloneTaskProject[]>;
   readonly run?: (argv: readonly string[], cwd: string) => Promise<{ readonly code: number; readonly stdout: string }>;
@@ -91,7 +107,7 @@ export async function openStandaloneMcp(options: StandaloneMcpOptions): Promise<
       return principalId === null ? null : { principalId, workspaceId, workspaceStatus: 'active' };
     } });
   const projects = options.projects ?? linkedProjects();
-  const operations = createHostedTaskOperations({ admission, directory: standaloneTaskDirectory(projects),
+  const operations = createHostedTaskOperations({ admission, directory: standaloneTaskDirectory(projects, storeSites(store, workspaceId)),
     executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)) }),
     receipts: options.receipts ?? taskReceipts(opened!) });
   const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;

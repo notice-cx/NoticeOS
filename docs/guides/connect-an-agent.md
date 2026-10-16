@@ -56,7 +56,7 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 
 | Tools | What they do |
 | --- | --- |
-| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects |
+| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its site's name, and its `projectId` stays the same when the project moves to another site |
 | `get_task_guide` | Return the rules for task work as Markdown with a version: the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
 | `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` returns summaries, most urgent first, 50 at a time (`limit`, and `offset` from the response's `nextOffset`). It searches the current tasks: `query` for words, `parent`, `labels`, `type`, `status`, `ready: true` for tasks with no open blockers, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
 | `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. Each response lists what a task still lacks, such as acceptance criteria; a task is not rejected for missing them |

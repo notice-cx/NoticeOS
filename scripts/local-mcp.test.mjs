@@ -6,9 +6,11 @@ import path from 'node:path';
 import test from 'node:test';
 import { main, parseOptions } from './local-mcp.mjs';
 import { chooseProject, main as bdMain } from './local-bd.mjs';
-import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient } from './standalone-mcp.mjs';
+import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient, storeSites } from './standalone-mcp.mjs';
 import { standaloneProjectId } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
+import { openStore } from '../packages/postgres/src/store.mjs';
+import { postgresRequired, startTestCluster, unavailableReason } from './postgres-test-cluster.mjs';
 
 // scripts/standalone-mcp.mts, local-mcp.mjs and local-bd.mjs: a standalone
 // installation's MCP endpoint (the Tower's /api/mcp and pnpm os:mcp) and its
@@ -37,15 +39,33 @@ test('a refused option stops before anything is read, and a missing database is 
   assert.match(said, /^NoticeOS MCP could not reach the installation's database: could not read \/nonexistent\/\.dev\.vars/u);
 });
 
-test('only linked projects are served, each in its own folder under a stable id, read again after a few seconds', async () => {
+test('only linked projects are served, each in its own folder under its database\'s id, read again after a few seconds', async () => {
   let reads = 0, time = 0;
   const projects = linkedProjects({ read: async () => { reads++; return PROJECTS; }, root: '/opt/noticeos', now: () => time });
   const first = await projects();
   assert.deepEqual(first.map(project => [project.projectId, project.asset, project.cwd]), [
-    [standaloneProjectId('example'), 'example', '/spokes/example'], [standaloneProjectId('second'), 'second', '/opt/noticeos/spokes/second']]);
+    [standaloneProjectId('example_tasks'), 'example', '/spokes/example'], [standaloneProjectId('second_tasks'), 'second', '/opt/noticeos/spokes/second']]);
   time = 4_000; assert.equal(await projects(), first);
   time = 5_000; await projects();
   assert.equal(reads, 2);
+});
+
+test('the site list is read read-only in the store\'s workspace, kept a few seconds, and a failed read is not kept', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', reads = [];
+  let time = 0, fail = false;
+  const rows = [{ id: 'example.com', displayName: 'Example', isOs: false }];
+  const sites = storeSites({ inWorkspace: async (workspaceId, work, options) => {
+    reads.push([workspaceId, options]);
+    if (fail) throw new Error('store unavailable');
+    return work({ workspaceId, query: async sql => { assert.match(sql, /FROM noticeos\.assets/u); return rows; } });
+  } }, WORKSPACE, () => time);
+  assert.deepEqual(await sites(), rows);
+  assert.deepEqual(reads, [[WORKSPACE, { readOnly: true }]]);
+  time = 4_000; await sites(); assert.equal(reads.length, 1);
+  time = 5_000; fail = true;
+  await assert.rejects(sites(), /store unavailable/u);
+  fail = false; assert.deepEqual(await sites(), rows);
+  assert.equal(reads.length, 3);
 });
 
 test('the task client runs in the project\'s folder with the installation\'s declared client, and its exit code is kept', async (t) => {
@@ -69,13 +89,16 @@ test('a request acts as the agent its header names, or as agent', () => {
 test('the endpoint serves the store\'s one workspace as the named agent, and the Tower\'s read models', async () => {
   const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], forwarded = [];
   let closed = false;
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; } },
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; },
+    inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ id: 'example', displayName: 'Example', isOs: false }] }) },
     receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
     run: async argv => { commands.push(argv); return { code: 0, stdout: argv.includes('lint') ? '{"results":null}' : '{"id":"ex-1"}' }; },
     tower: 'http://127.0.0.1:5173', fetch: async (url, init) => { forwarded.push([url, init.headers.get('x-noticeos-mcp-part')]); return Response.json({ jsonrpc: '2.0', id: 1, result: { structuredContent: { properties: [] } } }); } });
   const call = (name, args, headers = {}) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
     headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: args } }) }))
     .then(response => response.json());
+  assert.deepEqual((await call('list_projects', { workspace: WORKSPACE })).result.structuredContent.projects,
+    [{ projectId: standaloneProjectId('example'), key: 'example', name: 'Example', prefix: 'ex' }], 'a project is named from the store\'s site list');
   const created = await call('create_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), title: 'Probe', idempotency_key: 'local-create-0001' },
     { 'x-noticeos-actor': 'claude' });
   assert.equal(created.result.structuredContent.id, 'ex-1');
@@ -88,6 +111,32 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
   await assert.rejects(openStandaloneMcp({ store: { onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
     /no single workspace/u);
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
+});
+
+test('on the store, each project is named from the site list: the System for the installation\'s own row, else its stored name', async (t) => {
+  let cluster;
+  try { cluster = await startTestCluster(); } catch (error) {
+    const reason = unavailableReason(error);
+    if (reason === null || postgresRequired()) throw error;
+    return t.skip(`no Postgres here: ${reason}`);
+  }
+  t.after(() => cluster.close());
+  const url = cluster.url(await cluster.createDatabase());
+  const seed = openStore(url, { maxConnections: 1 });
+  try {
+    await seed.inWorkspace(cluster.workspaceId, tx => tx.execute(`INSERT INTO noticeos.assets (workspace_id, asset_id, domain, display_name, status, is_os)
+      VALUES ($1, 'os-test', NULL, 'Stored name of the OS row', 'live', true), ($1, 'example.com', 'example.com', 'Example', 'live', false)`,
+    [cluster.workspaceId]));
+  } finally { await seed.close(); }
+  const linked = [['os-test', 'sy'], ['example.com', 'ex'], ['unlisted.example', 'un']]
+    .map(([asset, prefix]) => ({ projectId: standaloneProjectId(prefix), asset, prefix, cwd: `/spokes/${prefix}` }));
+  const mcp = await openStandaloneMcp({ databaseUrl: url, projects: async () => linked, run: async () => ({ code: 1, stdout: '' }) });
+  t.after(() => mcp.close());
+  const listed = await mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'list_projects', arguments: { workspace: cluster.workspaceId } } }) }))
+    .then(response => response.json());
+  assert.deepEqual(listed.result.structuredContent.projects.map(project => [project.prefix, project.key, project.name]),
+    [['sy', 'os-test', 'System'], ['ex', 'example.com', 'Example'], ['un', 'unlisted.example', 'unlisted.example']]);
 });
 
 test('an agent\'s claim and close name its model, and its close records the agent as the closer', async () => {

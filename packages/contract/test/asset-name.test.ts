@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PRODUCT_NAME, SYSTEM_NAME, assetDisplayName } from '../src/asset-name.js';
+import { PRODUCT_NAME, SYSTEM_NAME, assetDisplayName } from '../src/asset-name.mjs';
 
 describe("the OS's own row is always called System", () => {
   it('names the OS row the System, whatever its stored name says', () => {

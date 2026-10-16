@@ -1261,6 +1261,16 @@ function InstallationSection() {
   );
 }
 
+/** A project's site by its on-screen name, beside the Site cell that edits its id. */
+function ProjectSite({ id, name }: { id: string; name: string | undefined }) {
+  return (
+    <span className="flex items-center gap-1.5" data-task-project-site={id}>
+      <PropertyFavicon domain={id} displayName={name ?? id} />
+      {name === undefined ? null : <span className="max-w-40 truncate text-sm font-medium text-foreground">{name}</span>}
+    </span>
+  );
+}
+
 function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const { taskHub } = settings;
   const { data: matrix } = useIntegrations();
@@ -1274,6 +1284,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
   const mapped = new Set(taskHub.spokes.map((spoke) => spoke.asset));
   const known = (matrix?.assets ?? []).map((asset) => asset.id);
   const unclaimed = known.filter((id) => !mapped.has(id));
+  const siteNames = new Map((matrix?.assets ?? []).map((asset) => [asset.id, asset.displayName]));
 
   // What the hourly check found, read off the task it filed. `null` is
   // "nothing answered", and the column is not offered at all in that case.
@@ -1306,9 +1317,13 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
       >
         {taskHub.hub === null ? (
           <div data-task-projects-read-only>
-            {taskHub.spokes.length === 0 ? <p className="text-sm text-muted-foreground">No task projects configured.</p> : taskHub.spokes.map((spoke) => (
-              <KnobRow key={spoke.asset} className={PANEL_ROW} label={spoke.asset} value={spoke.prefix} explain={`Task database: ${spoke.database}`} />
-            ))}
+            {taskHub.spokes.length === 0 ? <p className="text-sm text-muted-foreground">No task projects configured.</p> : taskHub.spokes.map((spoke) => {
+              const name = siteNames.get(spoke.asset);
+              return (
+                <KnobRow key={spoke.asset} className={PANEL_ROW} label={name ?? spoke.asset} value={spoke.prefix}
+                  explain={name === undefined ? `Task database: ${spoke.database}` : `${spoke.asset} · Task database: ${spoke.database}`} />
+              );
+            })}
           </div>
         ) : (
           <CollectionEditor
@@ -1321,7 +1336,7 @@ function TaskHubSection({ settings }: { settings: SettingsPayload }) {
             emptyHint="Tasks board empty"
             slug="map-a-project"
             fieldOptions={known.length === 0 ? undefined : { asset: unclaimed }}
-            rowGlyph={(row) => <PropertyFavicon domain={row.key} displayName={row.key} />}
+            rowGlyph={(row) => <ProjectSite id={row.key} name={siteNames.get(row.key)} />}
             derived={found === null ? undefined : [found]}
             onAdded={(row) => setAdded(spokeOf(row))}
             commit="auto"

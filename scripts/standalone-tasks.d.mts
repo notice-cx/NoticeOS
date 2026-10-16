@@ -5,10 +5,18 @@ import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
     readonly projectId: string;
+    /** The site the project is filed under: its key in the catalog, and editable. */
     readonly asset: string;
     readonly prefix: string;
     /** The project's own folder, where the task client finds its settings. */
     readonly cwd: string;
+}
+/** One row of the site list as the store holds it. */
+export interface StandaloneSite {
+    readonly id: string;
+    readonly displayName: string;
+    /** The installation's own row, which reads as the System whatever it stores. */
+    readonly isOs: boolean | number;
 }
 export interface StandaloneTaskExecutorOptions {
     readonly admission: WorkspaceAdmission;
@@ -24,11 +32,22 @@ export declare class StandaloneTaskRefused extends Error {
     name: string;
     constructor();
 }
-/** A project's id, the same on every read: derived from its asset, which an
- * installation never reuses for another project. */
-export declare function standaloneProjectId(asset: string): string;
-/** The catalog the shared operations select a project from. */
-export declare function standaloneTaskDirectory(projects: () => Promise<readonly StandaloneTaskProject[]>): Readonly<{
-    catalog(_workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]>;
+/** A project's id, the same on every read: derived from its task database,
+ * which no two projects share and which moving the project to another site
+ * leaves unchanged. */
+export declare function standaloneProjectId(database: string): string;
+/** An id derived from the site `asset` instead of a database, which agents
+ * may still hold. It names no project; `formerly` finds the project now filed
+ * under that site. */
+export declare function formerStandaloneProjectId(asset: string): string;
+/** The catalog the shared operations select a project from. A project is
+ * named by its site's on-screen name, or by the site's id when the store holds
+ * no such site. */
+export declare function standaloneTaskDirectory(projects: () => Promise<readonly StandaloneTaskProject[]>, sites: () => Promise<readonly StandaloneSite[]>): Readonly<{
+    catalog: (_workspaceId: string) => Promise<readonly TaskProjectCatalogEntry[]>;
+    /** The project now filed under the site a former id was derived from, or
+     * null when `projectId` is not a former id of a linked project. A former
+     * id is still refused; this only names the project to use instead. */
+    formerly(workspaceId: string, projectId: string): Promise<TaskProjectCatalogEntry | null>;
 }>;
 export declare function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOptions): TaskOperationExecutor;

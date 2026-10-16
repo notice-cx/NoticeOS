@@ -6,6 +6,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
+import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanDecisionRefused, isHumanDecision,
@@ -14,10 +15,18 @@ import { createHostedTaskPlanner, decisionGuardTargets, hostedTaskAction, HumanD
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
   readonly projectId: string;
+  /** The site the project is filed under: its key in the catalog, and editable. */
   readonly asset: string;
   readonly prefix: string;
   /** The project's own folder, where the task client finds its settings. */
   readonly cwd: string;
+}
+/** One row of the site list as the store holds it. */
+export interface StandaloneSite {
+  readonly id: string;
+  readonly displayName: string;
+  /** The installation's own row, which reads as the System whatever it stores. */
+  readonly isOs: boolean | number;
 }
 export interface StandaloneTaskExecutorOptions {
   readonly admission: WorkspaceAdmission;
@@ -32,19 +41,53 @@ export class StandaloneTaskRefused extends Error {
 }
 function refuse(): never { throw new StandaloneTaskRefused(); }
 
-/** A project's id, the same on every read: derived from its asset, which an
- * installation never reuses for another project. */
-export function standaloneProjectId(asset: string): string {
-  const hex = createHash('sha256').update(`noticeos-task-project:${asset}`).digest('hex');
+/** A fixed UUID for a name, in the version-8 layout. */
+function uuidOf(name: string): string {
+  const hex = createHash('sha256').update(name).digest('hex');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${(8 + (parseInt(hex[16]!, 16) & 3)).toString(16)}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
-/** The catalog the shared operations select a project from. */
-export function standaloneTaskDirectory(projects: () => Promise<readonly StandaloneTaskProject[]>) {
+/** A project's id, the same on every read: derived from its task database,
+ * which no two projects share and which moving the project to another site
+ * leaves unchanged. */
+export function standaloneProjectId(database: string): string {
+  return uuidOf(`noticeos-task-database:${database}`);
+}
+
+/** An id derived from the site `asset` instead of a database, which agents
+ * may still hold. It names no project; `formerly` finds the project now filed
+ * under that site. */
+export function formerStandaloneProjectId(asset: string): string {
+  return uuidOf(`noticeos-task-project:${asset}`);
+}
+
+/** Each site's on-screen name by id. A name is presentation only: when the
+ * site list cannot be read, each project is named by its site's id instead of
+ * the call being refused. */
+async function siteNames(sites: () => Promise<readonly StandaloneSite[]>): Promise<ReadonlyMap<string, string>> {
+  try {
+    return new Map((await sites()).map(site => [site.id, assetDisplayName(site.isOs, site.displayName)]));
+  } catch { return new Map(); }
+}
+
+/** The catalog the shared operations select a project from. A project is
+ * named by its site's on-screen name, or by the site's id when the store holds
+ * no such site. */
+export function standaloneTaskDirectory(projects: () => Promise<readonly StandaloneTaskProject[]>,
+  sites: () => Promise<readonly StandaloneSite[]>) {
+  async function catalog(_workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]> {
+    const [linked, names] = await Promise.all([projects(), siteNames(sites)]);
+    return Object.freeze(linked.map(project => Object.freeze({
+      projectId: project.projectId, logicalKey: project.asset, displayName: names.get(project.asset) ?? project.asset,
+      prefix: project.prefix })));
+  }
   return Object.freeze({
-    async catalog(_workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]> {
-      return Object.freeze((await projects()).map(project => Object.freeze({
-        projectId: project.projectId, logicalKey: project.asset, displayName: project.asset, prefix: project.prefix })));
+    catalog,
+    /** The project now filed under the site a former id was derived from, or
+     * null when `projectId` is not a former id of a linked project. A former
+     * id is still refused; this only names the project to use instead. */
+    async formerly(workspaceId: string, projectId: string): Promise<TaskProjectCatalogEntry | null> {
+      return (await catalog(workspaceId)).find(entry => formerStandaloneProjectId(entry.logicalKey) === projectId) ?? null;
     },
   });
 }

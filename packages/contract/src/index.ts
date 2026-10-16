@@ -36,5 +36,5 @@ export * from './metered-spend.js';
 export * from './flag-open.js';
 export * from './posthog.js';
 export * from './site-discovery.js';
-export * from './asset-name.js';
+export * from './asset-name.mjs';
 export * from './site-order.js';

@@ -42,6 +42,10 @@
       "types": "./src/revenue-sources.d.mts",
       "default": "./src/revenue-sources.mjs"
     },
+    "./asset-name": {
+      "types": "./src/asset-name.d.mts",
+      "default": "./src/asset-name.mjs"
+    },
     "./*": {
       "types": "./src/*.ts",
       "default": "./src/*.ts"
