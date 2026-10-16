@@ -10,7 +10,7 @@ import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, writeGuardReads, type HostedTaskRequest } from './hosted-task-command.mjs';
+  isHumanDecision, TaskStoreFailed, writeGuardReads, type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
@@ -32,8 +32,8 @@ export interface StandaloneTaskExecutorOptions {
   readonly admission: WorkspaceAdmission;
   /** Read for every call, so a project linked or unlinked since is seen. */
   readonly projects: () => Promise<readonly StandaloneTaskProject[]>;
-  /** Runs the task client once with these arguments in `cwd`. */
-  readonly run: (argv: readonly string[], cwd: string) => Promise<{ readonly code: number; readonly stdout: string }>;
+  /** Runs the task client once with these arguments in `cwd`; `timedOut` when its time ran out. */
+  readonly run: (argv: readonly string[], cwd: string) => Promise<{ readonly code: number; readonly stdout: string; readonly timedOut?: boolean }>;
 }
 export class StandaloneTaskRefused extends Error {
   override name = 'StandaloneTaskRefused';
@@ -109,8 +109,9 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
         admission.assertContext(context, action);
         const client = async (argv: readonly string[]) => {
           const result = await run(argv, project.cwd);
-          if (result.code !== 0) refuse();
-          try { return JSON.parse(result.stdout) as unknown; } catch { refuse(); }
+          // Admitted, in a linked project: what failed is the task client itself.
+          if (result.code !== 0) throw new TaskStoreFailed(result.timedOut === true);
+          try { return JSON.parse(result.stdout) as unknown; } catch { throw new TaskStoreFailed(false); }
         };
         if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) refuse();
         const rows = new Map<string, Record<string, unknown>>(), decisions = decisionGuardTargets(operation);

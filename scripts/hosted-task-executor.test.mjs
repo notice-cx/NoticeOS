@@ -9,7 +9,7 @@ import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { createHostedTaskExecutor, HostedTaskRefused } from './hosted-task-executor.mjs';
-import { HumanDecisionRefused, TaskStateRefused } from './hosted-task-command.mjs';
+import { HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-4111-8111-111111111111';
 const B = '22222222-2222-4222-8222-222222222222';
@@ -320,7 +320,8 @@ test('platform catalog verification checks the actual project prefix without cha
 }));
 test('excess output refuses and awaits child close before retiring its profile', () => fixture(async f => {
   await f.control({ overflow: true });
-  await refused(() => f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })));
+  // Admitted and verified: the refusal names the task client as what failed.
+  await assert.rejects(f.executor.execute(request(), A, task({ kind: 'show', taskId: 'tt-a' })), TaskStoreFailed);
 }));
 
 
@@ -502,9 +503,9 @@ test('original and server cancellation stop an issued mutation and await exact c
     let work;
     try {
       await f.control({ hangWrite: true, readinessSocket: handshake.socketPath });
-      work = refused(() => f.executor.execute(original, A,
+      work = assert.rejects(f.executor.execute(original, A,
         task({ kind: 'comment', taskId: 'tt-a', text: 'outcome may be unknown' }),
-        { signal: source === 'server' ? abort.signal : new AbortController().signal }));
+        { signal: source === 'server' ? abort.signal : new AbortController().signal }), TaskStoreFailed);
       const pid = await Promise.race([handshake.ready, work.then(() => {
         throw new Error('The executor finished before its child readiness marker');
       })]);

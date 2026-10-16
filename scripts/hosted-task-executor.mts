@@ -12,7 +12,7 @@ import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, TaskStateRefused, writeGuardReads, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
+  isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
@@ -442,7 +442,10 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                       { projectId: snapshot.projectId, operation: effective }).argv;
                   // Server actor is inserted before all command tokens/terminal --.
                   const argv = [planned[0]!, planned[1]!, `--actor=${effect.principalId}`, ...planned.slice(2)];
-                  if (action !== 'tasks.decide') return run(argv);
+                  if (action !== 'tasks.decide') {
+                    // Admitted and verified up to here: what failed is the task client itself.
+                    try { return await run(argv); } catch { throw new TaskStoreFailed(Date.now() >= life.deadline); }
+                  }
                   await run(argv, true);
                   const after = await target();
                   if (after.status !== 'closed') fail();
@@ -477,7 +480,7 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
         });
       } catch (error) {
         // The refusals whose reason is the caller's to learn; see their classes.
-        if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused) throw error;
+        if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused || error instanceof TaskStoreFailed) throw error;
         fail();
       }
     },

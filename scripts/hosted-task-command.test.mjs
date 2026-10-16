@@ -33,6 +33,7 @@ test('colliding project/task IDs resolve through the separately selected workspa
 const cases = [
   [{ kind: 'list', limit: 20, status: 'open' }, true, ['list', '--limit=20', '--status=open']],
   [{ kind: 'show', taskId: 'tt-a.1' }, true, ['show', '--', 'tt-a.1']],
+  [{ kind: 'find', taskIds: ['tt-a', 'tt-b.1'] }, true, ['list', '--all', '--include-gates', '--limit=0', '--id=tt-a,tt-b.1']],
   [{ kind: 'history', taskId: 'tt-a', limit: 5 }, true, ['history', '--limit=5', '--', 'tt-a']],
   [{ kind: 'comments', taskId: 'tt-a' }, true, ['comments', '--', 'tt-a']],
   [{ kind: 'ready' }, true, ['ready', '--limit=0']],
@@ -87,7 +88,8 @@ test('an agent opens a gate with write access; dependency edges are bounded and 
     { kind: 'undepend', taskId: 'tt-a', dependsOn: '--all' }, { kind: 'undepend', taskId: 'tt-a', dependsOn: 'tt-b', type: 'blocks' },
     { kind: 'gate', taskId: 'tt-a', reason: '' }, { kind: 'gate', taskId: 'tt-a', reason: 'Approve', type: 'timer' },
     { kind: 'lint', taskIds: ['tt-a'], fix: true }, { kind: 'lint', taskIds: [] }, { kind: 'lint', taskIds: ['tt-a', 'tt-a'] },
-    { kind: 'lint', taskIds: ['--all'] }, { kind: 'lint', taskId: 'tt-a' }]) denied(() => hostedTaskAction(operation));
+    { kind: 'lint', taskIds: ['--all'] }, { kind: 'lint', taskId: 'tt-a' }, { kind: 'find', taskIds: [] }, { kind: 'find', taskIds: ['tt-a', 'tt-a'] },
+    { kind: 'find', taskIds: ['tt-a,tt-b'] }, { kind: 'find', taskIds: ['--all'] }]) denied(() => hostedTaskAction(operation));
 });
 
 test('a new task\'s links are named once each, never its parent, and only in the task client\'s link words', () => {
@@ -350,4 +352,25 @@ test('a close is refused by its own state: closed, held by another, waiting on a
   refusedBy(shown({ dependencies: [edge('tt-t', { issue_type: 'gate', await_type: 'timer' })] }), { kind: 'gate', gates: ['tt-t'], human: false });
   refusedBy(shown({ dependents: [edge('tt-a.1', { dependency_type: 'parent-child' }), edge('tt-a.2', { dependency_type: 'parent-child', status: 'closed' }),
     edge('tt-x')] }), { kind: 'children', children: ['tt-a.1'] });
+});
+
+test('a claim or a change of assignee is refused for the causes the task client refuses it for, and never forced', () => {
+  const claiming = { kind: 'update', taskId: 'tt-a', claim: true };
+  const giving = { kind: 'update', taskId: 'tt-a', assignee: 'bob' };
+  const refused = (operation, row, attempted, reason) => assert.throws(() => guardedWrite(operation, row, 'agent-1'),
+    error => error instanceof TaskStateRefused && error.attempted === attempted && assert.deepEqual(error.reason, reason) === undefined);
+  assert.deepEqual([writeGuardReads(claiming), writeGuardReads(giving)], [['tt-a'], ['tt-a']]);
+  assert.deepEqual(guardReadArgs(claiming, 'tt-a'), ['--sandbox', '--readonly', '--json', 'show', '--', 'tt-a']);
+  for (const row of [shown({ status: 'open', assignee: '' }), shown({ status: 'open', assignee: '', dependencies: [edge('tt-b')] }),
+    shown({ status: 'in_progress', assignee: 'agent-1' })]) assert.equal(guardedWrite(claiming, row, 'agent-1'), claiming, JSON.stringify(row));
+  refused(claiming, shown({ status: 'closed' }), 'claim', { kind: 'closed' });
+  refused(claiming, shown({ assignee: 'alice' }), 'claim', { kind: 'held', holder: 'alice' });
+  refused(claiming, shown({ status: 'blocked', assignee: '', dependencies: [edge('tt-b'), edge('tt-c', { status: 'closed' })] }), 'claim',
+    { kind: 'not-open', status: 'blocked', blockers: ['tt-b'] });
+  refused(claiming, shown({ status: 'deferred', assignee: '' }), 'claim', { kind: 'not-open', status: 'deferred', blockers: [] });
+  refused(claiming, shown({ status: 'in_progress', assignee: '' }), 'claim', { kind: 'not-open', status: 'in_progress', blockers: [] });
+  refused(giving, shown({ assignee: 'alice' }), 'reassign', { kind: 'held', holder: 'alice' });
+  for (const row of [shown({ assignee: 'agent-1' }), shown({ status: 'open', assignee: 'alice' }), shown({ assignee: 'bob' })]) {
+    assert.equal(guardedWrite(giving, row, 'agent-1'), giving, 'its holder, an unstarted task, or the same assignee again');
+  }
 });

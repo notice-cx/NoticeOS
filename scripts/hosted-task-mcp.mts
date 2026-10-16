@@ -13,9 +13,9 @@
  * advice: nothing is refused for it.
  */
 import { createHash } from 'node:crypto';
-import { HostedTaskReceiptsUnavailable, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, type HostedTaskDependencyType, type HostedTaskLink,
-  type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType } from './hosted-task-command.mjs';
+import { HostedTaskReceiptsUnavailable, TaskProjectRefused, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, TaskStoreFailed, type HostedTaskDependencyType, type HostedTaskLink,
+  type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType, type TaskProjectName } from './hosted-task-command.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
@@ -87,22 +87,46 @@ const REFUSED = 'refused: this workspace, project or task is not available to yo
 function listed(ids: readonly string[]): string {
   return ids.length < 2 ? ids.join('') : `${ids.slice(0, -1).join(', ')} and ${ids.at(-1)}`;
 }
-/** What the task's own state says about a refused close, and what to do next. */
-function stateRefusal({ taskId: id, reason }: TaskStateRefused): string {
+/** A project as a refusal names it, with the id a call takes. */
+const projectNamed = (project: TaskProjectName) => `projectId ${project.projectId} (${project.name})`;
+/** What the task's own state says about a refused call, and what to do next. */
+function stateRefusal({ taskId: id, attempted, reason }: TaskStateRefused): string {
   switch (reason.kind) {
-    case 'closed': return `refused: ${id} is already closed; get_task shows its close reason.`;
-    case 'held': return `refused: ${id} is held by ${reason.holder}, and only its holder closes it. `
-      + `Reach ${reason.holder} with comment_on_task, or ask a person to close it on Tasks in the Tower.`;
+    case 'missing': return `refused: ${id} is not a task in ${projectNamed(reason.project)}; list_tasks lists its tasks.`;
+    case 'closed': return attempted === 'claim'
+      ? `refused: ${id} is closed, so it cannot be claimed. File work that remains with create_task.`
+      : `refused: ${id} is already closed; get_task shows its close reason.`;
+    case 'held': return attempted === 'claim'
+      ? `refused: ${id} is held by ${reason.holder}. Choose another task, or reach ${reason.holder} with comment_on_task.`
+      : attempted === 'reassign'
+        ? `refused: ${id} is held by ${reason.holder}, and only its holder or a person on Tasks in the Tower gives it to someone else.`
+        : `refused: ${id} is held by ${reason.holder}, and only its holder closes it. `
+          + `Reach ${reason.holder} with comment_on_task, or ask a person to close it on Tasks in the Tower.`;
+    case 'not-open': return `refused: ${id} has status ${reason.status}, and claim_task takes an open task.`
+      + (reason.blockers.length ? ` It depends on ${listed(reason.blockers)}, still open.` : '')
+      + ` To work on it now, set its status to open with update_task, then claim it.`;
     case 'gate': return reason.human
       ? `refused: ${id} waits on approval ${listed(reason.gates)}, which is still open. Close ${id} after a person approves it on Tasks in the Tower.`
       : `refused: ${id} waits on gate ${listed(reason.gates)}, which is still open. Close ${id} after it resolves.`;
     case 'children': return `refused: ${id} has open children: ${listed(reason.children)}. Close them first, or give them another parent with update_task.`;
   }
 }
-/** A task tool's failure as the caller may read it. Admission and project
- * selection share one answer: which of them refused is not the caller's to
- * learn. A refusal by the task's own state is named, since the task's own
- * read already showed it. */
+/** A call naming a project the catalog does not hold, or another project's
+ * task, with the project that holds it: by the task's prefix, or the project
+ * a former id belonged to. */
+function projectRefusal({ projectId, taskId, project, owner }: TaskProjectRefused): string {
+  if (project === null) {
+    return `refused: projectId ${projectId} names no project in this workspace; `
+      + (owner ? `tasks with prefix ${owner.prefix} are in ${projectNamed(owner)}.` : 'list_projects lists the current projectIds.');
+  }
+  return `refused: ${taskId} is not in ${projectNamed(project)}, whose tasks start ${project.prefix}-; `
+    + `tasks with prefix ${owner!.prefix} are in ${projectNamed(owner!)}.`;
+}
+/** A task tool's failure as the caller may read it. A failed admission or
+ * verification keeps one answer: which check refused is not the caller's to
+ * learn. A cause found after them is named: the project or task the call
+ * names, the task's own state as its read showed it, or the task store
+ * failing. */
 export function taskRefusal(error: unknown): McpToolError {
   if (error instanceof McpToolError) return error;
   if (error instanceof HumanDecisionRefused) {
@@ -110,6 +134,12 @@ export function taskRefusal(error: unknown): McpToolError {
       + 'closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
   }
   if (error instanceof TaskStateRefused) return new McpToolError(stateRefusal(error));
+  if (error instanceof TaskProjectRefused) return new McpToolError(projectRefusal(error));
+  if (error instanceof TaskStoreFailed) {
+    return new McpToolError((error.timedOut ? 'unavailable: the task store did not answer in time. '
+      : 'unavailable: the task store did not complete this call, and nothing in the task\'s state explains it. ')
+      + 'Retry the same call; with the same idempotency_key a change lands at most once.');
+  }
   return new McpToolError(REFUSED);
 }
 
@@ -122,8 +152,11 @@ function only(args: Args, allowed: readonly string[]): void {
 function textArg(args: Args, name: string, max: number, required = true, empty = false): string | undefined {
   const value = args[name];
   if (value === undefined && !required) return undefined;
-  if (typeof value !== 'string' || value.length > max || (!empty && !value.trim())
-    || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) refuse(`invalid arguments: ${name}`);
+  if (value === undefined) refuse(`invalid arguments: ${name} (required)`);
+  if (typeof value !== 'string') refuse(`invalid arguments: ${name} (text)`);
+  if (value.length > max) refuse(`invalid arguments: ${name} (at most ${max} characters; this one has ${value.length})`);
+  if (!empty && !value.trim()) refuse(`invalid arguments: ${name} (empty)`);
+  if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u.test(value)) refuse(`invalid arguments: ${name} (a control character; tab and line breaks are the only ones allowed)`);
   return value;
 }
 function modelArg(args: Args): string | undefined {
@@ -138,7 +171,7 @@ function project(args: Args): string {
 }
 function task(args: Args, name = 'task'): string {
   const value = args[name];
-  if (typeof value !== 'string' || !TASK_ID.test(value)) refuse(`invalid arguments: ${name}`);
+  if (typeof value !== 'string' || !TASK_ID.test(value)) refuse(`invalid arguments: ${name} (a task id such as abc-1x2)`);
   return value;
 }
 function key(args: Args): string {
@@ -154,12 +187,25 @@ function priority(args: Args): number | undefined {
   if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > 4) refuse('invalid arguments: priority (0–4)');
   return value;
 }
-function labels(args: Args, name: string): string[] | undefined {
+/** Labels as the task client keeps them: each one line without commas or surrounding spaces, none twice. */
+function labels(args: Args, name: string, least = 0): string[] | undefined {
   const value = args[name];
   if (value === undefined) return undefined;
-  if (!Array.isArray(value) || value.length > HOSTED_TASK_LIMITS.labels
-    || value.some(label => typeof label !== 'string')) refuse(`invalid arguments: ${name}`);
+  if (!Array.isArray(value) || value.length < least || value.length > HOSTED_TASK_LIMITS.labels || new Set(value).size !== value.length
+    || value.some(label => typeof label !== 'string' || !label || label.length > HOSTED_TASK_LIMITS.label
+      || /[\r\n\t,]/u.test(label) || label.trim() !== label)) {
+    refuse(`invalid arguments: ${name} (${least ? `${least} to ` : 'at most '}${HOSTED_TASK_LIMITS.labels} labels, each at most ${HOSTED_TASK_LIMITS.label} `
+      + 'characters on one line, without commas or surrounding spaces, none twice)');
+  }
   return value as string[];
+}
+/** A defer date, or "" to clear one. */
+function deferArg(args: Args): string | undefined {
+  const value = args.defer;
+  if (value === undefined || value === '') return value;
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/u.test(value) || !Number.isFinite(Date.parse(value))
+    || new Date(value).toISOString().slice(0, 10) !== value) refuse('invalid arguments: defer (YYYY-MM-DD, or "" to clear it)');
+  return value;
 }
 function choice<T extends string>(args: Args, name: string, values: readonly T[]): T | undefined {
   const value = args[name];
@@ -323,7 +369,10 @@ async function write(context: ToolContext, projectId: string, operation: HostedT
   if (outcome.status === 'pending') {
     refuse('pending: an earlier call with this idempotency_key may still be running or its result is not yet known; retry later with the same key');
   }
-  if (outcome.status === 'conflict') refuse('conflict: this idempotency_key was already used for a different change');
+  if (outcome.status === 'conflict') {
+    refuse('conflict: this idempotency_key was first used for a different change. Resend that call unchanged to read its result, '
+      + 'or choose a new key for this one.');
+  }
   return { ...(present(outcome.value) as object), replayed: outcome.replayed };
 }
 /** A write that repeats without a second effect, so it takes no key. */
@@ -531,8 +580,8 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
         description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true),
         assignee: textArg(args, 'assignee', HOSTED_TASK_LIMITS.identifier, false, true),
         parent: args.parent === undefined || args.parent === '' ? args.parent as string | undefined : task(args, 'parent'),
-        defer: textArg(args, 'defer', 10, false, true), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
-        addLabels: labels(args, 'add_labels'), removeLabels: labels(args, 'remove_labels') });
+        defer: deferArg(args), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
+        addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1) });
       if (Object.keys(operation).length === 2) refuse('invalid arguments: name at least one field to change');
       const projectId = project(args);
       const { replayed } = await write(context, projectId, operation, key(args), () => ({}));

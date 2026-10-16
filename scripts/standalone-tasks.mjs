@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, writeGuardReads } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
@@ -82,13 +82,14 @@ export function createStandaloneTaskExecutor(options) {
                 admission.assertContext(context, action);
                 const client = async (argv) => {
                     const result = await run(argv, project.cwd);
+                    // Admitted, in a linked project: what failed is the task client itself.
                     if (result.code !== 0)
-                        refuse();
+                        throw new TaskStoreFailed(result.timedOut === true);
                     try {
                         return JSON.parse(result.stdout);
                     }
                     catch {
-                        refuse();
+                        throw new TaskStoreFailed(false);
                     }
                 };
                 if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human'))

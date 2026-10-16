@@ -24,6 +24,7 @@ import { TASK_GUIDE_TOOL, TASK_MCP_TOOLS, taskGuide, taskInstructions, taskRefus
 import { READ_MODEL_TOOLS } from './read-model-tools.mjs';
 import { PANEL_MCP_TOOLS, type PanelOperations } from './panel-mcp.mjs';
 import type { HostedTaskOperations } from './hosted-task-operations.mjs';
+import { AdmissionRefused } from './workspace-admission.mjs';
 
 export const MCP_PATH = AGENT_RESOURCE_PATH;
 /** Marks this endpoint's own forwarded call to the Worker's read-model tools,
@@ -112,6 +113,21 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
   const invalid = (message: string) => Response.json({ jsonrpc: '2.0', id: null, error: { code: -32600, message } },
     { status: 400, headers: { 'cache-control': 'no-store' } });
   const refused = () => taskRefusal(null);
+  /** Why admission refused a call, when the caller's own workspace list
+   * shows it: never more than list_workspaces tells them. Null otherwise. */
+  async function accessRefusal(original: Request, workspaceId: string, name: string, scopes: readonly string[]): Promise<McpToolError | null> {
+    const workspaces = await agents!.workspaces(original).catch(() => null);
+    if (!workspaces) return null;
+    const found = workspaces.find(entry => entry.workspaceId === workspaceId);
+    if (!found) return new McpToolError(`refused: workspace ${workspaceId} is not one of yours; list_workspaces lists yours.`);
+    if (found.status !== 'active') return new McpToolError(`refused: workspace ${workspaceId} (${found.displayName}) is ${found.status}; its tasks cannot be read or changed now.`);
+    const needed = scopesFor(name);
+    if (!scopesSatisfy(access(scopes, found), needed)) {
+      return new McpToolError(`refused: this call needs ${needed.join(', ')} in workspace ${workspaceId} (${found.displayName}), `
+        + `where you have ${access(scopes, found).join(', ') || 'no access'}; list_workspaces shows what you may do in each.`);
+    }
+    return null;
+  }
   const instructions = taskInstructions(Boolean(panels));
   const guide = taskGuide(Boolean(panels));
 
@@ -179,7 +195,10 @@ export function createHostedMcp(options: HostedMcpOptions): (original: Request) 
         if (task) return await task.run({ proof, workspaceId: workspace, operations }, rest);
         if (panel) return await panel.run({ proof, workspaceId: workspace, operations: panels! }, rest);
         return await readModel(original, name, workspace, rest);
-      } catch (error) { throw taskRefusal(error); }
+      } catch (error) {
+        if (agents && error instanceof AdmissionRefused) throw await accessRefusal(original, workspace, name, scopes!) ?? taskRefusal(error);
+        throw taskRefusal(error);
+      }
     } };
     const authorize = scopes === null ? undefined : (message: McpMessage) => {
       if (message.method !== 'tools/call') return null;

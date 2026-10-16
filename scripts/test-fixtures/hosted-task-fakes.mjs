@@ -106,6 +106,7 @@ export function fakeTaskExecutor({ principal, clock }) {
         .map(task => ({ id: task.id })); break;
       case 'show': value = [{ ...row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }),
         dependencies: dependencies(operation.taskId) }]; break;
+      case 'find': value = operation.taskIds.filter(id => tasks.has(id)).map(id => row(tasks.get(id))); break;
       case 'depend': {
         // Beads keeps one edge per pair and never retypes it.
         const found = edges.find(edge => edge.from === operation.taskId && edge.to === operation.dependsOn);

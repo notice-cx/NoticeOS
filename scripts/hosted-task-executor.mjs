@@ -10,7 +10,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, writeGuardReads } from './hosted-task-command.mjs';
+import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
@@ -471,8 +471,15 @@ export function createHostedTaskExecutor(options) {
                                         : createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId, { projectId: snapshot.projectId, operation: effective }).argv;
                                     // Server actor is inserted before all command tokens/terminal --.
                                     const argv = [planned[0], planned[1], `--actor=${effect.principalId}`, ...planned.slice(2)];
-                                    if (action !== 'tasks.decide')
-                                        return run(argv);
+                                    if (action !== 'tasks.decide') {
+                                        // Admitted and verified up to here: what failed is the task client itself.
+                                        try {
+                                            return await run(argv);
+                                        }
+                                        catch {
+                                            throw new TaskStoreFailed(Date.now() >= life.deadline);
+                                        }
+                                    }
                                     await run(argv, true);
                                     const after = await target();
                                     if (after.status !== 'closed')
@@ -517,7 +524,7 @@ export function createHostedTaskExecutor(options) {
             }
             catch (error) {
                 // The refusals whose reason is the caller's to learn; see their classes.
-                if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused)
+                if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused || error instanceof TaskStoreFailed)
                     throw error;
                 fail();
             }

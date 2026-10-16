@@ -68,6 +68,8 @@ The task records the model beside the agent's name, and the [Agents](/tower/agen
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
+A refused call names its cause and the next step: a project or task the workspace does not hold (with the project that holds tasks of that prefix), the task's own state (closed, held by someone else, waiting on an approval, or with open children), an argument over its limit, or the task store not completing the call. A call the connection is not allowed to make gets one general refusal.
+
 The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label and when to use an epic. `get_task_guide` returns the same rules with the full workflow, at any point in a session. A repository's own instructions do not repeat them; they point at the tool:
 
 ```md

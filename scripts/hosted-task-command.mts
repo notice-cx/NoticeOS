@@ -29,6 +29,8 @@ export interface HostedTaskLink {
 export type HostedTaskOperation =
   | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
   | { readonly kind: 'show'; readonly taskId: string }
+  /** Which of these task ids the project holds, closed or not: an absent one is not listed. */
+  | { readonly kind: 'find'; readonly taskIds: readonly string[] }
   | { readonly kind: 'history'; readonly taskId: string; readonly limit: number }
   | { readonly kind: 'comments'; readonly taskId: string }
   | { readonly kind: 'ready' }
@@ -196,9 +198,9 @@ function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
 
 function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
   const op = record(input);
-  const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
+  const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
     'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']) as HostedTaskOperation['kind'];
-  const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
+  const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
   const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
   switch (kind) {
     case 'list':
@@ -210,6 +212,13 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       keys(op, ['kind', 'taskId']);
       argv.push('show', '--', task(op.taskId));
       break;
+    case 'find': {
+      keys(op, ['kind', 'taskIds']);
+      const ids = entries(op.taskIds, 1, HOSTED_TASK_LIMITS.rows).map(task);
+      if (new Set(ids).size !== ids.length) invalid();
+      argv.push('list', '--all', '--include-gates', '--limit=0', `--id=${ids.join(',')}`);
+      break;
+    }
     case 'history':
       keys(op, ['kind', 'taskId', 'limit']);
       argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
@@ -373,20 +382,33 @@ export function decisionGuardTargets(operation: HostedTaskOperation): readonly s
   return [];
 }
 
-/** Why a write was refused, from the state of the task it names as read just
- * before it. Thrown only after admission and that read, so naming the cause
- * shows nothing get_task would not. */
+/** A task project as list_projects names it. */
+export interface TaskProjectName { readonly projectId: string; readonly name: string; readonly prefix: string }
+/** Why a call was refused, from the state of the task it names: read just
+ * before a write, or after the store refused one. Thrown only after admission
+ * and that read, so naming the cause shows nothing get_task would not. */
 export type TaskStateReason =
   | { readonly kind: 'closed' }
   | { readonly kind: 'held'; readonly holder: string }
   /** Open gates it waits on; `human` when every one waits on a person. */
   | { readonly kind: 'gate'; readonly gates: readonly string[]; readonly human: boolean }
-  | { readonly kind: 'children'; readonly children: readonly string[] };
+  | { readonly kind: 'children'; readonly children: readonly string[] }
+  /** A claim of a task whose status is not open, with the open tasks it depends on. */
+  | { readonly kind: 'not-open'; readonly status: string; readonly blockers: readonly string[] }
+  | { readonly kind: 'missing'; readonly project: TaskProjectName };
+/** What the refused call tried, so its refusal can say what to do instead. */
+export type TaskAttempt = 'close' | 'claim' | 'reassign' | 'other';
 export class TaskStateRefused extends Error {
   override name = 'TaskStateRefused';
-  constructor(readonly taskId: string, readonly attempted: 'close', readonly reason: TaskStateReason) {
+  constructor(readonly taskId: string, readonly attempted: TaskAttempt, readonly reason: TaskStateReason) {
     super(`${taskId} refused: ${reason.kind}.`);
   }
+}
+/** The task client did not complete a command every check before it allowed:
+ * it ran out of time, or failed with no cause the task's own state shows. */
+export class TaskStoreFailed extends Error {
+  override name = 'TaskStoreFailed';
+  constructor(readonly timedOut: boolean) { super(timedOut ? 'The task client did not answer in time.' : 'The task client failed.'); }
 }
 
 /** The dependency types the task client counts as live blockers while the other task is open. */
@@ -401,10 +423,12 @@ function canonicalActor(name: string): string {
 }
 function sameActor(a: string, b: string): boolean { return a === b || canonicalActor(a) === canonicalActor(b); }
 
-/** A write whose own task's state decides how it runs. A caller's forced
- * close is a service closing for the agent it named, and decides for itself. */
-function stateGuarded(operation: HostedTaskOperation): operation is Extract<HostedTaskOperation, { kind: 'close' }> {
-  return operation.kind === 'close' && operation.force !== true;
+/** A write whose own task's state decides how it runs: a close, a claim, a
+ * change of assignee. A caller's forced close is a service closing for the
+ * agent it named, and decides for itself. */
+function stateGuarded(operation: HostedTaskOperation): operation is Extract<HostedTaskOperation, { kind: 'close' | 'update' }> {
+  if (operation.kind === 'close') return operation.force !== true;
+  return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined);
 }
 /** The tasks an executor reads before this write: the decisions it must not
  * stand in for, then the task whose own state decides it. */
@@ -416,23 +440,41 @@ export function writeGuardReads(operation: HostedTaskOperation): readonly string
 /** The fixed read of one of those tasks. A close reads its children too, which
  * the task client's plain show only counts. */
 export function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[] {
-  const children = stateGuarded(operation) && operation.taskId === taskId;
+  const children = operation.kind === 'close' && stateGuarded(operation) && operation.taskId === taskId;
   return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
 }
 /** The write to run, given its task as read just before (writeGuardReads). A
  * dependency holds a task out of ready work, not open: a close whose only
  * obstacle is an open blocker runs forced past it, and the checks that force
  * would also skip are made here first. Its holder, an open gate and an open
- * child still stop it. */
+ * child still stop it. A claim or a change of assignee is refused here for
+ * the causes the task client would refuse it for, so the refusal can name
+ * them. */
 export function guardedWrite(operation: HostedTaskOperation, row: Record<string, unknown> | undefined, actor: string): HostedTaskOperation {
   if (!stateGuarded(operation)) return operation;
   if (!row || row.id !== operation.taskId) invalid();
-  const refuse = (reason: TaskStateReason): never => { throw new TaskStateRefused(operation.taskId, 'close', reason); };
+  const attempted: TaskAttempt = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim' : 'reassign';
+  const refuse = (reason: TaskStateReason): never => { throw new TaskStateRefused(operation.taskId, attempted, reason); };
   const status = stringOf(row.status), holder = stringOf(row.assignee);
-  if (status === 'closed') refuse({ kind: 'closed' });
-  if (holder !== '' && !sameActor(holder, actor)) refuse({ kind: 'held', holder });
+  const held = holder !== '' && !sameActor(holder, actor);
   const open = (edge: Record<string, unknown>) => stringOf(edge.status) !== 'closed';
   const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
+  if (operation.kind === 'update') {
+    if (attempted === 'reassign') {
+      // The task client lets only its holder hand on a task someone is working.
+      if (status === 'in_progress' && held && !sameActor(holder, operation.assignee!)) refuse({ kind: 'held', holder });
+      return operation;
+    }
+    if (status === 'closed') refuse({ kind: 'closed' });
+    if (held) refuse({ kind: 'held', holder });
+    // The task client claims an open task, or re-claims one its holder is working.
+    if (status === 'blocked' || status === 'deferred' || status === 'in_progress' && holder === '') {
+      refuse({ kind: 'not-open', status, blockers: blockers.map(edge => stringOf(edge.id)) });
+    }
+    return operation;
+  }
+  if (status === 'closed') refuse({ kind: 'closed' });
+  if (held) refuse({ kind: 'held', holder });
   const gates = blockers.filter(edge => edge.issue_type === 'gate');
   if (gates.length) refuse({ kind: 'gate', gates: gates.map(edge => stringOf(edge.id)), human: gates.every(edge => edge.await_type === 'human') });
   const children = rowsOf(row.dependents).filter(edge => edge.dependency_type === 'parent-child' && open(edge));

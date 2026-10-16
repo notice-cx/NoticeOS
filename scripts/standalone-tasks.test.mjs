@@ -6,7 +6,7 @@ import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createStandaloneTaskExecutor, formerStandaloneProjectId, standaloneProjectId, standaloneTaskDirectory,
   StandaloneTaskRefused } from './standalone-tasks.mjs';
 import { linkedProjects } from './standalone-mcp.mjs';
-import { HumanDecisionRefused } from './hosted-task-command.mjs';
+import { HumanDecisionRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 
 // scripts/standalone-tasks.mts: a standalone installation's linked task
@@ -152,10 +152,10 @@ test('a failed or unreadable task command is a refusal, never a guess', async ()
   const executor = createStandaloneTaskExecutor({ admission: f.admission, projects: f.projects,
     run: async () => ({ code: 0, stdout: 'Created task ex-1' }) });
   await assert.rejects(executor.execute(new Request(origin), WORKSPACE,
-    { projectId: standaloneProjectId('example'), operation: { kind: 'show', taskId: 'ex-1' } }), StandaloneTaskRefused);
+    { projectId: standaloneProjectId('example'), operation: { kind: 'show', taskId: 'ex-1' } }), TaskStoreFailed);
   const failing = createStandaloneTaskExecutor({ admission: f.admission, projects: f.projects, run: async () => ({ code: 1, stdout: '{}' }) });
   await assert.rejects(failing.execute(new Request(origin), WORKSPACE,
-    { projectId: standaloneProjectId('example'), operation: { kind: 'show', taskId: 'ex-1' } }), StandaloneTaskRefused);
+    { projectId: standaloneProjectId('example'), operation: { kind: 'show', taskId: 'ex-1' } }), TaskStoreFailed);
 });
 
 test('the standalone MCP endpoint serves its one workspace in full, with no credential and the hosted task tools', async () => {
@@ -183,8 +183,10 @@ test('the standalone MCP endpoint serves its one workspace in full, with no cred
   const decided = (await result('close_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), task: 'ex-gate',
     reason: 'Approved it myself', idempotency_key: 'local-close-0001' })).content[0].text;
   assert.match(decided, /^refused: ex-gate is a person's decision, a gate or a task labelled human\. Only a person closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment\.$/u);
-  assert.match((await result('get_task', { workspace: WORKSPACE, project: standaloneProjectId('other'), task: 'ex-1' })).content[0].text,
-    /^refused: this workspace, project or task is not available to you/u, 'every other refusal keeps one answer');
+  // A project the catalog does not hold is named, with the one that holds the task's prefix.
+  const [known] = (await result('list_projects', { workspace: WORKSPACE })).structuredContent.projects;
+  assert.equal((await result('get_task', { workspace: WORKSPACE, project: standaloneProjectId('other'), task: 'ex-1' })).content[0].text,
+    `refused: projectId ${standaloneProjectId('other')} names no project in this workspace; tasks with prefix ex are in projectId ${known.projectId} (${known.name}).`);
   for (const bad of [{}, { standaloneWorkspaceId: 'not-a-uuid' }, { standaloneWorkspaceId: WORKSPACE, demoWorkspaceId: WORKSPACE }]) {
     assert.throws(() => createHostedMcp({ profile: 'standalone', trustedOrigin: origin, operations, ...bad }), /configuration refused/u);
   }

@@ -2,8 +2,8 @@
 import type { TaskDirectory, TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
 import { type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
-import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import { type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus } from './hosted-task-command.mjs';
+import { type WorkspaceAdmission } from './workspace-admission.mjs';
+import { type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
 export interface TaskOperationExecutor {
     execute(proof: Request, workspaceId: string, request: HostedTaskRequest, controls?: {
@@ -20,7 +20,10 @@ export interface TaskOperationExecutor {
 }
 export interface HostedTaskOperationsOptions {
     readonly admission: WorkspaceAdmission;
-    readonly directory: Pick<TaskDirectory, 'catalog'>;
+    /** `formerly`, where a directory has it, names the project an id it no longer holds once named. */
+    readonly directory: Pick<TaskDirectory, 'catalog'> & {
+        readonly formerly?: (workspaceId: string, projectId: string) => Promise<TaskProjectCatalogEntry | null>;
+    };
     readonly executor: TaskOperationExecutor;
     readonly workspaceActors?: (workspaceId: string) => Promise<readonly WorkspaceActor[]>;
     /** Absent: a write that carries an idempotency key is refused as unavailable. */
@@ -71,6 +74,18 @@ export interface HostedTaskOperations {
 export declare class HostedTaskReceiptsUnavailable extends Error {
     name: string;
     constructor();
+}
+/** A call naming a projectId this workspace's catalog does not hold
+ * (`project` null), or a task whose prefix another of its projects owns.
+ * `owner` is the project that owns the task's prefix, when one does. Thrown
+ * after admission, from the catalog list_projects shows the caller. */
+export declare class TaskProjectRefused extends Error {
+    readonly projectId: string;
+    readonly taskId: string | null;
+    readonly project: TaskProjectName | null;
+    readonly owner: TaskProjectName | null;
+    name: string;
+    constructor(projectId: string, taskId: string | null, project: TaskProjectName | null, owner: TaskProjectName | null);
 }
 export declare const EDITABLE_TASK_FIELDS: readonly string[];
 /** The board's closed week, and the longest history a closed read may ask for. */

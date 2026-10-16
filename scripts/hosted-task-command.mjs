@@ -146,9 +146,9 @@ function handoffMetadata(value) {
 }
 function command(input) {
     const op = record(input);
-    const kind = choice(op.kind, ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
+    const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
         'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']);
-    const readOnly = ['list', 'show', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
+    const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
         case 'list':
@@ -161,6 +161,14 @@ function command(input) {
             keys(op, ['kind', 'taskId']);
             argv.push('show', '--', task(op.taskId));
             break;
+        case 'find': {
+            keys(op, ['kind', 'taskIds']);
+            const ids = entries(op.taskIds, 1, HOSTED_TASK_LIMITS.rows).map(task);
+            if (new Set(ids).size !== ids.length)
+                invalid();
+            argv.push('list', '--all', '--include-gates', '--limit=0', `--id=${ids.join(',')}`);
+            break;
+        }
         case 'history':
             keys(op, ['kind', 'taskId', 'limit']);
             argv.push('history', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`, '--', task(op.taskId));
@@ -381,6 +389,16 @@ export class TaskStateRefused extends Error {
         this.reason = reason;
     }
 }
+/** The task client did not complete a command every check before it allowed:
+ * it ran out of time, or failed with no cause the task's own state shows. */
+export class TaskStoreFailed extends Error {
+    timedOut;
+    name = 'TaskStoreFailed';
+    constructor(timedOut) {
+        super(timedOut ? 'The task client did not answer in time.' : 'The task client failed.');
+        this.timedOut = timedOut;
+    }
+}
 /** The dependency types the task client counts as live blockers while the other task is open. */
 const BLOCKING = ['blocks', 'waits-for', 'conditional-blocks'];
 function rowsOf(value) {
@@ -392,10 +410,13 @@ function canonicalActor(name) {
     return name.replace(/[._-]+/gu, run => run === '--' ? '/' : '_');
 }
 function sameActor(a, b) { return a === b || canonicalActor(a) === canonicalActor(b); }
-/** A write whose own task's state decides how it runs. A caller's forced
- * close is a service closing for the agent it named, and decides for itself. */
+/** A write whose own task's state decides how it runs: a close, a claim, a
+ * change of assignee. A caller's forced close is a service closing for the
+ * agent it named, and decides for itself. */
 function stateGuarded(operation) {
-    return operation.kind === 'close' && operation.force !== true;
+    if (operation.kind === 'close')
+        return operation.force !== true;
+    return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined);
 }
 /** The tasks an executor reads before this write: the decisions it must not
  * stand in for, then the task whose own state decides it. */
@@ -408,27 +429,48 @@ export function writeGuardReads(operation) {
 /** The fixed read of one of those tasks. A close reads its children too, which
  * the task client's plain show only counts. */
 export function guardReadArgs(operation, taskId) {
-    const children = stateGuarded(operation) && operation.taskId === taskId;
+    const children = operation.kind === 'close' && stateGuarded(operation) && operation.taskId === taskId;
     return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
 }
 /** The write to run, given its task as read just before (writeGuardReads). A
  * dependency holds a task out of ready work, not open: a close whose only
  * obstacle is an open blocker runs forced past it, and the checks that force
  * would also skip are made here first. Its holder, an open gate and an open
- * child still stop it. */
+ * child still stop it. A claim or a change of assignee is refused here for
+ * the causes the task client would refuse it for, so the refusal can name
+ * them. */
 export function guardedWrite(operation, row, actor) {
     if (!stateGuarded(operation))
         return operation;
     if (!row || row.id !== operation.taskId)
         invalid();
-    const refuse = (reason) => { throw new TaskStateRefused(operation.taskId, 'close', reason); };
+    const attempted = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim' : 'reassign';
+    const refuse = (reason) => { throw new TaskStateRefused(operation.taskId, attempted, reason); };
     const status = stringOf(row.status), holder = stringOf(row.assignee);
-    if (status === 'closed')
-        refuse({ kind: 'closed' });
-    if (holder !== '' && !sameActor(holder, actor))
-        refuse({ kind: 'held', holder });
+    const held = holder !== '' && !sameActor(holder, actor);
     const open = (edge) => stringOf(edge.status) !== 'closed';
     const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
+    if (operation.kind === 'update') {
+        if (attempted === 'reassign') {
+            // The task client lets only its holder hand on a task someone is working.
+            if (status === 'in_progress' && held && !sameActor(holder, operation.assignee))
+                refuse({ kind: 'held', holder });
+            return operation;
+        }
+        if (status === 'closed')
+            refuse({ kind: 'closed' });
+        if (held)
+            refuse({ kind: 'held', holder });
+        // The task client claims an open task, or re-claims one its holder is working.
+        if (status === 'blocked' || status === 'deferred' || status === 'in_progress' && holder === '') {
+            refuse({ kind: 'not-open', status, blockers: blockers.map(edge => stringOf(edge.id)) });
+        }
+        return operation;
+    }
+    if (status === 'closed')
+        refuse({ kind: 'closed' });
+    if (held)
+        refuse({ kind: 'held', holder });
     const gates = blockers.filter(edge => edge.issue_type === 'gate');
     if (gates.length)
         refuse({ kind: 'gate', gates: gates.map(edge => stringOf(edge.id)), human: gates.every(edge => edge.await_type === 'human') });

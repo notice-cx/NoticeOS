@@ -11,8 +11,9 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES, type TaskReceipt, type Task
 import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
-import type { WorkspaceAdmission, WorkspaceContext } from './workspace-admission.mjs';
-import { hostedTaskAction, type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus } from './hosted-task-command.mjs';
+import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
+import { hostedTaskAction, HumanDecisionRefused, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
+  type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
@@ -28,7 +29,10 @@ export interface TaskOperationExecutor {
 }
 export interface HostedTaskOperationsOptions {
   readonly admission: WorkspaceAdmission;
-  readonly directory: Pick<TaskDirectory, 'catalog'>;
+  /** `formerly`, where a directory has it, names the project an id it no longer holds once named. */
+  readonly directory: Pick<TaskDirectory, 'catalog'> & {
+    readonly formerly?: (workspaceId: string, projectId: string) => Promise<TaskProjectCatalogEntry | null>;
+  };
   readonly executor: TaskOperationExecutor;
   readonly workspaceActors?: (workspaceId: string) => Promise<readonly WorkspaceActor[]>;
   /** Absent: a write that carries an idempotency key is refused as unavailable. */
@@ -71,6 +75,15 @@ export class HostedTaskReceiptsUnavailable extends Error {
   override name = 'HostedTaskReceiptsUnavailable';
   constructor() { super('Retry-safe task writes are unavailable.'); }
 }
+/** A call naming a projectId this workspace's catalog does not hold
+ * (`project` null), or a task whose prefix another of its projects owns.
+ * `owner` is the project that owns the task's prefix, when one does. Thrown
+ * after admission, from the catalog list_projects shows the caller. */
+export class TaskProjectRefused extends Error {
+  override name = 'TaskProjectRefused';
+  constructor(readonly projectId: string, readonly taskId: string | null, readonly project: TaskProjectName | null,
+    readonly owner: TaskProjectName | null) { super('Task project refused.'); }
+}
 
 export const EDITABLE_TASK_FIELDS = Object.freeze(['status', 'priority', 'title', 'description', 'claim', 'assignee',
   'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']);
@@ -83,6 +96,18 @@ const DAY_MS = 86_400_000;
 export const CLOSED_DAYS = 7;
 export const CLOSED_HISTORY_DAYS = 56;
 function invalid(): never { throw new Error('Hosted task operation refused'); }
+/** The task ids a write names, which a refusal checks the project for. */
+function tasksNamed(operation: HostedTaskOperation): string[] {
+  const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]
+    : operation.kind === 'update' ? [operation.taskId, operation.parent]
+    : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
+    : 'taskId' in operation ? [operation.taskId] : [];
+  return [...new Set(ids.filter((id): id is string => typeof id === 'string' && id !== ''))];
+}
+/** A catalog entry as a refusal names it. */
+function named(entry: TaskProjectCatalogEntry): TaskProjectName {
+  return Object.freeze({ projectId: entry.projectId, name: entry.displayName, prefix: entry.prefix });
+}
 function rows(value: unknown): unknown[] {
   if (!Array.isArray(value)) invalid(); return value;
 }
@@ -121,6 +146,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
   const { directory, executor, workspaceActors, receipts } = options;
   const admission: WorkspaceAdmission = options.admission;
   if (typeof admission?.withAdmission !== 'function' || typeof directory?.catalog !== 'function'
+    || directory.formerly !== undefined && typeof directory.formerly !== 'function'
     || typeof executor?.execute !== 'function' || executor.reads !== undefined && typeof executor.reads !== 'function') invalid();
   const now = options.now ?? Date.now;
   const pendingMs = options.pendingMs ?? 5 * 60_000;
@@ -135,17 +161,51 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       return work(context, catalog);
     });
   }
-  function selected(catalog: readonly TaskProjectCatalogEntry[], projectId: string): TaskProjectCatalogEntry {
+  /** The project a call names. A task id it names must not carry another
+   * project's prefix: that call meant the other project. */
+  async function selected(workspaceId: string, catalog: readonly TaskProjectCatalogEntry[], projectId: string,
+    taskId?: string): Promise<TaskProjectCatalogEntry> {
     const project = catalog.find(entry => entry.projectId === projectId);
-    if (!project) invalid();
+    const prefix = taskId?.slice(0, taskId.indexOf('-')).toLowerCase();
+    const owner = prefix === undefined ? undefined : catalog.find(entry => entry.prefix.toLowerCase() === prefix);
+    if (!project) {
+      let former: TaskProjectCatalogEntry | null = null;
+      // Advice only: a directory that cannot say leaves the refusal without it.
+      if (!owner) try { former = await directory.formerly?.(workspaceId, projectId) ?? null; } catch { /* See above. */ }
+      const holder = owner ?? former;
+      throw new TaskProjectRefused(projectId, taskId ?? null, null, holder ? named(holder) : null);
+    }
+    if (owner && owner.projectId !== project.projectId && project.prefix.toLowerCase() !== prefix) {
+      throw new TaskProjectRefused(projectId, taskId!, named(project), named(owner));
+    }
     return project;
+  }
+  /** Names a refused call's cause when the store shows one: a task it names
+   * is not in the project. Any other failure stands as it was. */
+  async function explained<T>(proof: Request, workspaceId: string, projectId: string, taskIds: readonly string[],
+    work: () => Promise<T>): Promise<T> {
+    try { return await work(); } catch (error) {
+      if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskStateRefused, TaskProjectRefused,
+        HostedTaskReceiptsUnavailable].some(kind => error instanceof kind)) throw error;
+      let missing: TaskStateRefused | null = null;
+      try {
+        missing = await admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => {
+          const project = await selected(workspaceId, catalog, projectId);
+          const found = new Set(rows(await executor.execute(proof, workspaceId, { projectId, operation: { kind: 'find', taskIds } }))
+            .map(row => record(row).id));
+          const absent = taskIds.find(id => !found.has(id));
+          return absent === undefined ? null : new TaskStateRefused(absent, 'other', { kind: 'missing', project: named(project) });
+        });
+      } catch { /* The diagnosis is advice; the call's own failure stands. */ }
+      throw missing ?? error;
+    }
   }
   /** One project's reads under one aggregate deadline, as the Tower draws them. */
   function read<T>(proof: Request, workspaceId: string, projectId: string,
     work: (project: TaskProjectCatalogEntry, run: (operation: HostedTaskOperation) => Promise<unknown>,
-      readAt: string, actors: () => Promise<readonly WorkspaceActor[]>) => Promise<T>): Promise<T> {
+      readAt: string, actors: () => Promise<readonly WorkspaceActor[]>) => Promise<T>, taskId?: string): Promise<T> {
     return admitted(proof, workspaceId, 'tasks.read', async (context, catalog) => {
-      const project = selected(catalog, projectId);
+      const project = await selected(workspaceId, catalog, projectId, taskId);
       const readAt = new Date(now()).toISOString(), deadline = now() + 30000;
       const controls = Object.freeze({ deadline, signal: proof.signal });
       const actorsOf = async () => {
@@ -250,7 +310,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
       });
     },
     task(proof, workspaceId, projectId, taskId) {
-      return read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {
+      return explained(proof, workspaceId, projectId, [taskId], () => read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {
         const actors = await actorsOf();
         const ready = new Set(rows(await run({ kind: 'ready' })).map(row => record(row).id).filter((id): id is string => typeof id === 'string'));
         const shown = await run({ kind: 'show', taskId });
@@ -258,19 +318,19 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         if (task.id !== taskId) invalid();
         const comments = rows(await run({ kind: 'comments', taskId })).map(toComment);
         return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors };
-      });
+      }, taskId));
     },
     history(proof, workspaceId, projectId, taskId, limit) {
-      return read(proof, workspaceId, projectId, async (_project, run, _readAt, actorsOf) => {
+      return explained(proof, workspaceId, projectId, [taskId], () => read(proof, workspaceId, projectId, async (_project, run, _readAt, actorsOf) => {
         await actorsOf();
         return run({ kind: 'history', taskId, limit });
-      });
+      }, taskId));
     },
     approval(proof, workspaceId, projectId, taskId, reason) {
       const operation = Object.freeze({ kind: 'gate' as const, taskId, reason });
       hostedTaskAction(operation);
-      return admitted(proof, workspaceId, 'tasks.write', async (_context, catalog) => {
-        selected(catalog, projectId);
+      return explained(proof, workspaceId, projectId, [taskId], () => admitted(proof, workspaceId, 'tasks.write', async (_context, catalog) => {
+        await selected(workspaceId, catalog, projectId, taskId);
         const run = (step: HostedTaskOperation) => executor.execute(proof, workspaceId, { projectId, operation: step });
         const shown = await run({ kind: 'show', taskId });
         const task = record(Array.isArray(shown) ? shown[0] : shown);
@@ -282,7 +342,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         const gate = record(await run(operation));
         if (typeof gate.id !== 'string' || !TASK_ID.test(gate.id) || gate.issue_type !== 'gate' || gate.await_type !== 'human') invalid();
         return Object.freeze({ gate, created: true });
-      });
+      }));
     },
     lint(proof, workspaceId, projectId, taskIds) {
       return read(proof, workspaceId, projectId, async (_project, run) => {
@@ -307,8 +367,10 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         if (typeof idempotencyKey !== 'string' || !IDEMPOTENCY_KEY.test(idempotencyKey) || !RECEIPTED.includes(kind)) invalid();
         if (!receipts) throw new HostedTaskReceiptsUnavailable();
       }
-      return admitted(proof, workspaceId, action, async (context, catalog): Promise<HostedTaskWriteOutcome> => {
-        const project = selected(catalog, request.projectId);
+      const primary = 'taskId' in request.operation ? request.operation.taskId : undefined;
+      return explained(proof, workspaceId, request.projectId, tasksNamed(request.operation),
+        () => admitted(proof, workspaceId, action, async (context, catalog): Promise<HostedTaskWriteOutcome> => {
+        const project = await selected(workspaceId, catalog, request.projectId, primary);
         const answer = (value: unknown) => kind === 'create' ? created(value, project) : value;
         const effect = async (planned: HostedTaskRequest) => {
           const value = await executor.execute(proof, workspaceId, planned);
@@ -354,7 +416,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         // The effect happened; a lost record is reconciled by the next retry.
         try { await receipts.finish(workspaceId, identity, receipt, kept); } catch { /* See above. */ }
         return { status: 'done', value, replayed: false };
-      });
+      }));
     },
   } satisfies HostedTaskOperations);
 }
