@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
-import { validateDemoViewer } from '@shared/demo-viewer';
+import { DEMO_READ_ONLY, validateDemoViewer } from '@shared/demo-viewer';
 
 // `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
 // `useTask` / `useUpdateTask` / `useCloseTask` run against fake `@/lib/api`
@@ -211,6 +211,12 @@ function renderTask(id = ID, query = '', state?: { returnTo: string }) {
   );
 }
 
+/** Opens a fact's editor by the chip's name ("Status: In progress"). */
+async function openFact(name: string | RegExp): Promise<HTMLElement> {
+  fireEvent.click(await screen.findByRole("button", { name }));
+  return screen.findByRole("dialog");
+}
+
 /** The Undo the toast carried, invoked the way the operator would. */
 function pressUndo() {
   const call = toasts.success.mock.calls.at(-1);
@@ -238,13 +244,12 @@ describe('hosted actor labels', () => {
       actors: [{ principalId: principal, displayName: 'Current operator' }, { principalId: other, displayName: 'Another member' }],
       comments: [{ id: 'c1', author: principal, text: 'Observed work', createdAt: '2026-09-04T10:30:00.000Z' }] }));
     renderTask();
-    const chooser = await screen.findByRole('combobox', { name: 'Assignee' });
-    expect(chooser).toHaveValue(principal);
-    expect(screen.getByRole('option', { name: 'Current operator' })).toHaveValue(principal);
-    expect(screen.getByText('Comment from Current operator')).toBeInTheDocument();
+    const editor = await openFact('Assignee: Current operator');
+    expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('data-value', principal);
+    expect(within(editor).getByRole('option', { name: 'Current operator' })).toHaveAttribute('aria-selected', 'true');
+    expect(document.querySelector('[data-entry="comment"] [data-entry-label]')).toHaveTextContent('Comment from Current operator');
     expect(screen.queryByText(principal)).not.toBeInTheDocument();
-    fireEvent.change(chooser, { target: { value: other } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Assignee' }));
+    fireEvent.click(within(editor).getByRole('option', { name: 'Another member' }));
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: other }));
     pressUndo();
     await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { assignee: principal }));
@@ -253,8 +258,8 @@ describe('hosted actor labels', () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'in_progress', assignee: principal }),
       actors: [{ principalId: principal, displayName: 'Current operator' }, { principalId: other, displayName: 'Another member' }] }));
     renderTask();
-    fireEvent.change(await screen.findByRole('combobox', { name: 'Assignee' }), { target: { value: other } });
-    fireEvent.click(screen.getByRole('button', { name: 'Save Assignee' }));
+    const editor = await openFact('Assignee: Current operator');
+    fireEvent.click(within(editor).getByRole('option', { name: 'Another member' }));
     await waitFor(() => expect(toasts.success).toHaveBeenCalledWith('Saved — assignee'));
     expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: other });
     expect(toasts.success.mock.calls.at(-1)?.[1]).toBeUndefined();
@@ -264,10 +269,12 @@ describe('hosted actor labels', () => {
       comments: [{ id: 'c1', author: principal, text: 'Historical work', createdAt: null },
         { id: 'c2', author: 'agent/reviewer', text: 'Checked work', createdAt: null }] }));
     renderTask();
-    expect(await screen.findByRole('option', { name: 'Unknown actor' })).toHaveValue(principal);
+    const editor = await openFact('Assignee: Unknown actor');
+    expect(within(editor).getByRole('option', { name: 'Unknown actor' })).toHaveAttribute('data-value', principal);
     expect(screen.getByText('agent/reviewer')).toBeInTheDocument();
     expect(screen.queryByText(principal)).not.toBeInTheDocument();
-    expect(screen.queryByRole('textbox', { name: 'Assignee' })).not.toBeInTheDocument();
+    // A hosted workspace's members are the whole list: no typed name.
+    expect(within(editor).queryByRole('textbox')).not.toBeInTheDocument();
   });
 });
 
@@ -292,7 +299,7 @@ describe('hosted explicit project selection', () => {
     renderTask(ID, '?project=root-os');
     expect(await screen.findByText('A task has a page')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit description' })).toBeEnabled());
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Status: Open' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Claim' })).toBeDisabled();
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeEnabled();
     fireEvent.change(screen.getByRole('textbox', { name: 'Add a comment' }), { target: { value: 'Observed outcome' } });
@@ -364,19 +371,261 @@ describe('live task details in a read-only demo', () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'open', assignee: null }) }));
     const view = renderTask();
     expect(await screen.findByText('A task has a page')).toBeInTheDocument();
-    await waitFor(() => expect(view.container.querySelector('[data-task-comments]')).not.toBeNull());
-    expect(within(view.container.querySelector('[data-task-comments]') as HTMLElement).getByText('Ship the facts panel first.')).toBeInTheDocument();
+    await waitFor(() => expect(view.container.querySelector('[data-task-activity]')).not.toBeNull());
+    expect(within(view.container.querySelector('[data-task-activity]') as HTMLElement).getByText('Ship the facts panel first.')).toBeInTheDocument();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Edit description' })).toBeDisabled());
-    for (const name of ['Claim', 'Close', 'Comment', 'Save Status', 'Save Priority']) {
+    for (const name of ['Claim', 'Close', 'Comment']) {
       expect(screen.getByRole('button', { name })).toBeDisabled();
     }
     expect(screen.getByRole('textbox', { name: 'Add a comment' })).toBeDisabled();
-    expect(screen.getByRole('combobox', { name: 'Status' })).toBeDisabled();
+    // Without write permission each fact is its plain chip: nothing to press.
+    const facts = view.container.querySelector('[data-task-facts]') as HTMLElement;
+    expect(within(facts).queryByRole('button', { name: /^(Status|Priority|Assignee|Parked until|Add a label|Change parent epic)/ })).toBeNull();
+    expect(within(facts).queryByRole('button', { name: /^Remove label/ })).toBeNull();
+    expect(within(facts).getByText('Open').closest('[data-fact-chip]')).toHaveAttribute('data-fact-chip', 'plain');
     expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: 'Tasks' })).toHaveAttribute('href', '/tasks');
     expect(api.fetchTask).toHaveBeenCalledWith(ID, expect.any(AbortSignal));
     expect(api.updateTask).not.toHaveBeenCalled(); expect(api.closeTask).not.toHaveBeenCalled();
     expect(api.commentOnTask).not.toHaveBeenCalled(); expect(api.resolveGate).not.toHaveBeenCalled();
     expect(api.respondToTask).not.toHaveBeenCalled(); expect(api.dismissTask).not.toHaveBeenCalled();
+  });
+});
+
+// A hint over Claim or Close hides the page's one job. The header carries no
+// hover title at all, and a disabled action says why in text beside it.
+describe("no hint covers the header's actions", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const actions = () => header().querySelector<HTMLElement>("[data-task-actions]")!;
+
+  it("opens no hint over Claim or Close, and the header holds no hover title", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    const claim = await screen.findByRole("button", { name: "Claim" });
+    const close = screen.getByRole("button", { name: "Close" });
+    for (const node of [claim, close, ...header().querySelectorAll("[data-status-for]")]) {
+      fireEvent.pointerEnter(node);
+      fireEvent.mouseOver(node);
+      fireEvent.focus(node);
+    }
+    expect(document.querySelector("[role=tooltip]")).toBeNull();
+    expect([...header().querySelectorAll("[title]")].map((node) => node.getAttribute("title"))).toEqual([]);
+    expect(actions()).toContainElement(claim);
+    expect(actions()).toContainElement(close);
+    expect(actions().querySelector("[data-action-reason]")).toBeNull();
+  });
+
+  it("writes a disabled Claim's reason as visible text beside it in a read-only demo", async () => {
+    vi.stubGlobal('__DEMO_VIEWER__', validateDemoViewer({ version: 1, synthetic: true, release: '1'.repeat(40),
+      scenarioHash: '2'.repeat(64), workspaceId: '11111111-1111-4111-8111-111111111111',
+      cutoff: '2026-09-15T12:00:00.000Z', generatedAt: null }));
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    const claim = await within(header()).findByRole("button", { name: "Claim" });
+    await waitFor(() => expect(claim).toBeDisabled());
+    const reason = actions().querySelector("[data-action-reason]") as HTMLElement;
+    expect(reason).toHaveTextContent(DEMO_READ_ONLY);
+    expect(reason).toBeVisible();
+    expect(reason.className).not.toContain("sr-only");
+    expect(claim).not.toHaveAttribute("title");
+    expect(claim).toHaveAccessibleDescription(DEMO_READ_ONLY);
+    expect(screen.getByRole("button", { name: "Close" })).toHaveAccessibleDescription(DEMO_READ_ONLY);
+  });
+
+  it("names a workspace that cannot claim as the reason, in text", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: true, writable: true, reason: null,
+      operations: ["update", "comment", "close"], editableFields: ["status", "priority"] });
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    const claim = await within(header()).findByRole("button", { name: "Claim" });
+    await waitFor(() => expect(claim).toBeDisabled());
+    expect(actions().querySelector("[data-action-reason]")).toHaveTextContent("Unavailable in this workspace.");
+    expect(claim).toHaveAccessibleDescription("Unavailable in this workspace.");
+    // Close can still run, so it names no reason.
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close" })).not.toHaveAccessibleDescription();
+  });
+});
+
+// The description reads as the task guide's labelled sections, its paths and
+// task ids as chips; Done when reads as a checklist; activity is in time order.
+describe("the work reads as labelled sections, and what happened as a timeline", () => {
+  const guide = [
+    "WHAT: The page draws the facts.",
+    "",
+    "WHY: Read dozens of times a day.",
+    "",
+    "WHERE: apps/tower/src/routes/TaskRoute.tsx:191 and docs/tower/tasks.md; after ro-l1ed.4 lands.",
+    "",
+    "## Steps to Reproduce",
+    "1. Open a task",
+    "2. Look at the facts",
+  ].join("\n");
+
+  it("draws each label as its section's eyebrow, paths as chips and a task id as a link", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ description: guide, acceptance: "- Facts render\n- Undo works" }) }));
+    const { container } = renderTask();
+    await screen.findByText("The page draws the facts.");
+    const sections = [...container.querySelectorAll("[data-guide-section]")].map((section) => section.getAttribute("data-guide-section"));
+    expect(sections).toEqual(["What", "Why", "Where", "Steps to reproduce"]);
+    const where = container.querySelector('[data-guide-section="Where"]') as HTMLElement;
+    expect(within(where).getByRole("heading", { level: 3, name: "Where" })).toBeInTheDocument();
+    expect([...where.querySelectorAll("[data-path-ref]")].map((chip) => chip.textContent))
+      .toEqual(["apps/tower/src/routes/TaskRoute.tsx:191", "docs/tower/tasks.md"]);
+    // The project has no web address for its repository, so a path is a chip, not a link.
+    expect(where.querySelector("a[data-path-ref]")).toBeNull();
+    expect(within(where).getByRole("link", { name: "ro-l1ed.4" })).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    const steps = container.querySelector('[data-guide-section="Steps to reproduce"]') as HTMLElement;
+    expect(within(steps).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Open a task", "Look at the facts"]);
+    const done = container.querySelector('[data-task-field="Done when"] [data-checklist]') as HTMLElement;
+    expect(within(done).getAllByRole("listitem").map((item) => item.textContent)).toEqual(["Facts render", "Undo works"]);
+  });
+
+  it("reads a description without the guide's labels as it was written", async () => {
+    const { container } = renderTask();
+    await screen.findByText("the fields");
+    expect(container.querySelector("[data-guide-sections]")).toBeNull();
+    expect(screen.getByRole("heading", { level: 3, name: "What" })).toBeInTheDocument();
+  });
+
+  it("orders filing, the claim, comments and the close by time, comments inline", async () => {
+    api.fetchTask.mockResolvedValue(detail({
+      task: task({ status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Done · abc1234",
+        metadata: { noticeos_closed_by: "claude", noticeos_closed_at: "2026-09-04T11:30:00Z" } }),
+      comments: [
+        { id: "late", author: "Example Operator", text: "After the claim.", createdAt: "2026-09-04T10:45:00.000Z" },
+        { id: "early", author: "Example Operator", text: "Before the claim.", createdAt: "2026-09-04T09:30:00.000Z" },
+      ],
+    }));
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector('[data-entry="closed"]')).not.toBeNull());
+    const activity = container.querySelector("[data-task-activity]") as HTMLElement;
+    expect([...activity.querySelectorAll("[data-entry-id]")].map((entry) => entry.getAttribute("data-entry-id")))
+      .toEqual(["filed", "comment-early", "claimed", "comment-late", "closed"]);
+    // The strip above draws the same moments on a time axis that ends at now.
+    const strip = container.querySelector("[data-task-timeline] [data-event-timeline]") as HTMLElement;
+    expect(strip).toHaveAttribute("data-compact", "true");
+    expect(strip.querySelectorAll("[data-event], [data-event-cluster]").length).toBeGreaterThan(0);
+    // The comment box is the timeline's last item.
+    const last = activity.lastElementChild as HTMLElement;
+    expect(last).toHaveAttribute("data-task-timeline-composer");
+    expect(within(last).getByRole("textbox", { name: "Add a comment" })).toBeInTheDocument();
+  });
+});
+
+// Each type has its own mark and header band; every control answers a hover,
+// a press and focus; the page's motion is the Wall's, and stops under reduced
+// motion.
+describe("the page carries its type's identity and the Wall's states", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const band = () => document.querySelector<HTMLElement>("[data-task-band]")!;
+
+  it.each([
+    ["epic", null, "Epic"],
+    ["task", null, "Task"],
+    ["bug", null, "Bug"],
+    ["feature", null, "Feature"],
+    ["chore", null, "Chore"],
+    ["decision", null, "Decision"],
+    ["gate", "human", "Approval"],
+  ])("draws a %s's word and mark in its header", async (issueType, awaitType, word) => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType, awaitType, status: "open", assignee: null, startedAt: null, labels: issueType === "gate" ? ["human"] : [] }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(within(header()).getByText(word)).toHaveAttribute("data-task-type", issueType);
+    const mark = header().querySelector(`[data-task-type-mark="${issueType}"]`) as HTMLElement;
+    expect(mark).not.toBeNull();
+    expect(mark.querySelector("svg")).not.toBeNull();
+    // A type is not a state: only an open bug wears the alert surface.
+    expect(band()).toHaveAttribute("data-surface-kind", issueType === "bug" ? "alert" : "neutral");
+    expect(mark.className).toMatch(issueType === "bug" ? /\btext-error\b/ : /\btext-foreground\b/);
+  });
+
+  it("draws a closed bug's band and mark in plain ink, never green", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: "bug", status: "closed", closedAt: "2026-09-04T11:30:00Z" }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    expect(band()).toHaveAttribute("data-surface-kind", "neutral");
+    const mark = header().querySelector('[data-task-type-mark="bug"]') as HTMLElement;
+    expect(mark.className).not.toMatch(/error|healthy|milestone|success/);
+  });
+
+  it("gives every link and button on the page a hover and a focus state, and every button a press", async () => {
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-dependency-graph]")).not.toBeNull());
+    const page = container.querySelector("[data-task-page]") as HTMLElement;
+    expect(page.className).toContain("motion-safe:[&_button:not(:disabled):active]:translate-y-px");
+    const controls = [...page.querySelectorAll<HTMLElement>("a, button")].filter((node) => !node.closest("[data-event-timeline]"));
+    expect(controls.length).toBeGreaterThan(10);
+    for (const node of controls) {
+      const name = `${node.tagName} ${node.textContent?.trim() || node.getAttribute("aria-label")}`;
+      expect(node.className, name).toMatch(/hover:/);
+      // Focus is either drawn as a ring or left to the browser's own outline.
+      expect(/focus-visible:/.test(node.className) || !/outline-none/.test(node.className), name).toBe(true);
+    }
+  });
+
+  it("moves only with the Wall's motion, all of which stops under reduced motion", async () => {
+    const { readFileSync } = await import("node:fs");
+    const path = await import("node:path");
+    const css = readFileSync(path.resolve(import.meta.dirname, "../src/index.css"), "utf8");
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    const stilled = reduced.slice(0, reduced.indexOf("}", reduced.indexOf(".viz-draw,")));
+    const { container } = renderTask();
+    await waitFor(() => expect(container.querySelector("[data-epic-segments]")).not.toBeNull());
+    const classes = new Set([...container.querySelectorAll<HTMLElement | SVGElement>("*")]
+      .flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/)));
+    const motion = [...classes].filter((name) => /^viz-(arrive|breathe|grow-x|grow-y|draw|flow)$/.test(name));
+    // The page's entrance, the bar growing, a live edge's flow and the
+    // holder's slow ring for work still under way.
+    expect(motion).toEqual(expect.arrayContaining(["viz-arrive", "viz-grow-y", "viz-breathe"]));
+    for (const name of motion) expect(stilled, name).toContain(`.${name}`);
+    // Any other animation runs only where motion is allowed.
+    for (const name of classes) if (/animate-/.test(name)) expect(name, name).toMatch(/^motion-safe:/);
+  });
+});
+
+// A row is one target: the whole row is the link, named by its id and title.
+// Blocked by and Blocks are the dependency graph's cards, one target each.
+describe("every task row opens its task from anywhere on the row", () => {
+  it("opens a dependency from a press anywhere on its card, and names the card by its id and title", async () => {
+    renderTask();
+    const card = await screen.findByRole("link", { name: "ro-l1ed.4 The composer replaces the copied bd create" });
+    expect(card).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    expect(card).toHaveAttribute("data-dependency", "ro-l1ed.4");
+    // The card's whole content sits inside the one link: the glyph, the id and
+    // the title, with no second link inside it.
+    expect(card.querySelectorAll("a")).toHaveLength(0);
+    expect(card).toContainElement(card.querySelector("[data-task-status-glyph]") as HTMLElement);
+    expect(card).toHaveAccessibleDescription("Open, high priority");
+    fireEvent.click(within(card).getByText("The composer replaces the copied bd create"));
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.4", expect.any(AbortSignal)));
+  });
+
+  it("opens a row with Enter once it has focus, the way a link activates", async () => {
+    renderTask();
+    const row = await screen.findByRole("link", { name: "ro-l1ed.1 A local task lane" });
+    row.focus();
+    expect(document.activeElement).toBe(row);
+    expect(row.tagName).toBe("A");
+    expect(row).not.toHaveAttribute("tabindex");
+    // A browser turns Enter on a focused link into its click.
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.click(row);
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.1", expect.any(AbortSignal)));
+  });
+
+  it("opens an epic's task from a press on its holder", async () => {
+    const EPIC = "ro-l1ed";
+    api.fetchTask.mockResolvedValue(detail({ task: task({ id: EPIC, title: "Tasks are managed in the Tower", issueType: "epic", parent: null,
+      status: "open", assignee: null, startedAt: null, dependencies: [], metadata: null }), comments: [] }));
+    const { container } = renderTask(EPIC);
+    await waitFor(() => expect(container.querySelector(`[data-epic-task="${ID}"]`)).not.toBeNull());
+    const item = container.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement;
+    const row = within(item).getByRole("link", { name: `${ID} A task has a page` });
+    const holder = within(row).getByText("claude/task-page-agent");
+    fireEvent.click(holder);
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith(ID, expect.any(AbortSignal)));
   });
 });
 
@@ -440,15 +689,19 @@ describe("the task page", () => {
     expect(within(header).getByText("Task")).toHaveAttribute("data-task-type", "task");
     expect(within(facts).getByText("tower")).toBeInTheDocument();
 
-    expect(within(facts).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
+    // Who blocks whom is one graph: blockers left, what this blocks right.
+    const graph = container.querySelector("[data-dependency-graph]") as HTMLElement;
+    expect(within(graph).getByRole("link", { name: /ro-l1ed\.1/ })).toHaveAttribute(
       "href",
       "/tasks/ro-l1ed.1",
     );
-    expect(within(facts).getByRole("link", { name: /ro-l1ed\.4/ })).toHaveAttribute(
+    expect(within(graph).getByRole("link", { name: /ro-l1ed\.4/ })).toHaveAttribute(
       "href",
       "/tasks/ro-l1ed.4",
     );
-    const closedBlocker = within(facts).getByLabelText("State — Closed");
+    expect(graph.querySelector('[data-dependency-column="before"] [data-dependency="ro-l1ed.1"]')).not.toBeNull();
+    expect(graph.querySelector('[data-dependency-column="after"] [data-dependency="ro-l1ed.4"]')).not.toBeNull();
+    const closedBlocker = within(graph).getByLabelText("State — Closed");
     expect(closedBlocker.getAttribute("class")).toContain("text-muted-foreground");
 
     expect(
@@ -460,16 +713,16 @@ describe("the task page", () => {
     );
     expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument();
 
-    const comments = container.querySelector("[data-task-comments]") as HTMLElement;
-    expect(within(comments).getByText("Example Operator")).toBeInTheDocument();
-    expect(within(comments).getByText("Ship the facts panel first.")).toBeInTheDocument();
-
+    // Comments sit in the activity timeline at their time, after the claim.
     const activity = container.querySelector("[data-task-activity]") as HTMLElement;
+    const entries = [...activity.querySelectorAll("[data-entry]")].map((entry) => entry.getAttribute("data-entry"));
+    expect(entries).toEqual(["filed", "claimed", "comment"]);
+    const comment = activity.querySelector('[data-entry="comment"]') as HTMLElement;
+    expect(within(comment).getByText("Example Operator")).toBeInTheDocument();
+    expect(within(comment).getByText("Ship the facts panel first.")).toBeInTheDocument();
+    expect(comment.querySelector("[data-entry-label]")).toHaveTextContent("Comment from Example Operator");
     expect(within(activity).getByText("Filed")).toBeInTheDocument();
-    expect(
-      within(activity).getByText("Claimed by claude/task-page-agent"),
-    ).toBeInTheDocument();
-    expect(within(activity).getByText("Comment from Example Operator")).toBeInTheDocument();
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude/task-page-agent");
   });
 
   it("names who claimed and who closed it, with the models they named", async () => {
@@ -479,10 +732,16 @@ describe("the task page", () => {
         noticeos_closed_at: "2026-09-04T11:30:00Z" },
     }) }));
     const { container } = renderTask();
-    await screen.findByText("Closed by claude · Opus 5.5");
+    await waitFor(() => expect(container.querySelector('[data-entry="closed"]')).not.toBeNull());
     const activity = container.querySelector("[data-task-activity]") as HTMLElement;
-    expect(within(activity).getByText("Claimed by claude · Opus 5.5")).toBeInTheDocument();
-    expect(within(activity).getByText("Facts render · abc1234")).toBeInTheDocument();
+    const closed = activity.querySelector('[data-entry="closed"]') as HTMLElement;
+    expect(closed.querySelector("[data-entry-label]")).toHaveTextContent("Closed by claude · Opus 5.5");
+    expect(activity.querySelector('[data-entry="claimed"] [data-entry-label]')).toHaveTextContent("Claimed by claude · Opus 5.5");
+    // The agent's own mark, as the Wall's feed draws it.
+    expect(closed.querySelector("[data-entry-agent]")).toHaveAttribute("data-entry-agent", "anthropic");
+    // The reason's sentence, and its commit as a chip.
+    expect(within(closed).getByText("Facts render")).toBeInTheDocument();
+    expect(within(closed.querySelector("[data-entry-evidence]") as HTMLElement).getByText("abc1234")).toHaveClass("font-mono");
   });
 
   // Every place `Age` renders pairs it with a word that needs it, so a bare
@@ -573,15 +832,20 @@ describe("the task page", () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ status: 'open' }) }));
     renderTask();
 
-    const assignee = (await screen.findByLabelText("Assignee")) as HTMLInputElement;
-    expect(assignee.value).toBe("claude/task-page-agent");
-    fireEvent.change(assignee, { target: { value: "operator" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Assignee" }));
+    // A local read carries no member list, so a typed name is offered too.
+    const editor = await openFact("Assignee: claude/task-page-agent");
+    expect(within(editor).getByRole("option", { name: "claude/task-page-agent" })).toHaveAttribute("aria-selected", "true");
+    const other = within(editor).getByRole("textbox", { name: "Someone else" });
+    fireEvent.change(other, { target: { value: "operator" } });
+    fireEvent.keyDown(other, { key: "Enter" });
 
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { assignee: "operator" }),
     );
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
+    // Saved on Enter: the editor closed and there is no Save anywhere.
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Save/ })).toBeNull();
 
     pressUndo();
     await waitFor(() =>
@@ -591,27 +855,74 @@ describe("the task page", () => {
     );
   });
 
-  it("saves the priority as a number and undoes it to the band it came from", async () => {
+  it("saves the priority as a number on choose and undoes it to the band it came from", async () => {
     renderTask();
 
-    const priority = (await screen.findByLabelText("Priority")) as HTMLSelectElement;
-    fireEvent.change(priority, { target: { value: "0" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Priority" }));
+    const editor = await openFact("Priority: high");
+    expect(within(editor).getAllByRole("option").map((option) => option.getAttribute("data-value"))).toEqual(["0", "1", "2", "3", "4"]);
+    for (const band of ["top", "high", "normal", "low", "lowest"]) {
+      expect(within(editor).getByRole("option", { name: band }).querySelector("[data-priority-mark]")).toHaveAttribute("data-priority-mark", band);
+    }
+    fireEvent.click(within(editor).getByRole("option", { name: "top" }));
 
     await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { priority: 0 }));
+    expect(toasts.success).toHaveBeenLastCalledWith("Saved — priority", expect.objectContaining({ action: expect.anything() }));
     pressUndo();
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenLastCalledWith(ID, { priority: 1 }),
     );
   });
 
+  it("saves the status on choose with the board's words, and undoes it", async () => {
+    renderTask();
+    const editor = await openFact("Status: In progress");
+    expect(within(editor).getAllByRole("option").map((option) => option.textContent)).toEqual(["Open", "In progress", "Blocked", "Parked", "Closed"]);
+    fireEvent.click(within(editor).getByRole("option", { name: "Blocked" }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { status: "blocked" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { status: "in_progress" }));
+  });
+
+  it("parks a task until a picked day, and clears it, each with an Undo", async () => {
+    const { unmount } = renderTask();
+    let editor = await openFact("Parked until: Not parked");
+    const day = within(editor).getByLabelText("Date") as HTMLInputElement;
+    fireEvent.change(day, { target: { value: "2026-09-20" } });
+    fireEvent.keyDown(day, { key: "Enter" });
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { defer: "2026-09-20" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { defer: "" }));
+    unmount();
+
+    api.updateTask.mockClear();
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "deferred", deferUntil: "2026-09-20T00:00:00Z" }) }));
+    renderTask();
+    editor = await openFact("Parked until: Sep 20");
+    fireEvent.click(within(editor).getByRole("option", { name: "Not parked" }));
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { defer: "" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { defer: "2026-09-20" }));
+  });
+
+  it("closes a fact's editor on Escape without a write", async () => {
+    renderTask();
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label"]) {
+      const editor = await openFact(name);
+      fireEvent.keyDown(editor, { key: "Escape" });
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    }
+    // Choosing the value it already has is not an edit either.
+    fireEvent.click(within(await openFact("Status: In progress")).getByRole("option", { name: "In progress" }));
+    expect(api.updateTask).not.toHaveBeenCalled();
+  });
+
   it("adds and removes a label, each undone by its opposite", async () => {
     renderTask();
 
-    fireEvent.change(await screen.findByLabelText("Add a label"), {
-      target: { value: "saas" },
-    });
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    const editor = await openFact("Add a label");
+    const input = within(editor).getByRole("textbox", { name: "New label" });
+    fireEvent.change(input, { target: { value: "saas" } });
+    fireEvent.keyDown(input, { key: "Enter" });
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { addLabels: ["saas"] }),
     );
@@ -625,8 +936,35 @@ describe("the task page", () => {
     await waitFor(() =>
       expect(api.updateTask).toHaveBeenCalledWith(ID, { removeLabels: ["tower"] }),
     );
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { addLabels: ["tower"] }));
   });
 
+  it("moves a task to another epic from the parent's chip, and keeps the epic's link", async () => {
+    renderTask();
+    const facts = (await screen.findByText("Parent epic")).closest("[data-task-facts]") as HTMLElement;
+    await waitFor(() => expect(within(facts).getByRole("link", { name: "Tasks are managed in the Tower" })).toHaveAttribute("href", "/tasks/ro-l1ed"));
+    const editor = await openFact("Change parent epic");
+    expect(within(editor).getByRole("option", { name: "Tasks are managed in the Tower" })).toHaveAttribute("aria-selected", "true");
+    const other = within(editor).getByRole("textbox", { name: "Another task id" });
+    fireEvent.change(other, { target: { value: "ro-abc" } });
+    fireEvent.keyDown(other, { key: "Enter" });
+    await waitFor(() => expect(api.updateTask).toHaveBeenCalledWith(ID, { parent: "ro-abc" }));
+    pressUndo();
+    await waitFor(() => expect(api.updateTask).toHaveBeenLastCalledWith(ID, { parent: "ro-l1ed" }));
+  });
+
+  it("draws every fact as a chip sized to its content, with no Save and no select", async () => {
+    const { container } = renderTask();
+    await screen.findByText("A task has a page");
+    const facts = container.querySelector("[data-task-facts]") as HTMLElement;
+    await waitFor(() => expect(within(facts).getByText("2 of 5 closed")).toBeInTheDocument());
+    expect(facts.querySelectorAll("select, input, textarea")).toHaveLength(0);
+    expect(within(facts).queryByRole("button", { name: /^Save/ })).toBeNull();
+    for (const name of ["Status: In progress", "Priority: high", "Assignee: claude/task-page-agent", "Parked until: Not parked", "Add a label", "Change parent epic"]) {
+      expect(within(facts).getByRole("button", { name })).toHaveAttribute("aria-haspopup", "dialog");
+    }
+  });
   it("offers an empty description as a field to fill, not a command to run", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: task({ description: "", acceptance: "" }) }));
     renderTask();
@@ -748,9 +1086,12 @@ describe("the task page", () => {
     expect(document.querySelector("[data-task-readonly] [role=status]")).toHaveTextContent(READ_ONLY_TASKS_HINT);
     expect(document.querySelector("[data-owner-chip]")).toBeNull();
 
+    // The reason is the banner under the header, which the button names; no
+    // hover title repeats it over the next button.
     const claim = screen.getByRole("button", { name: "Claim" });
     expect(claim).toBeDisabled();
-    expect(claim).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
+    expect(claim).not.toHaveAttribute("title");
+    expect(claim).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
     expect(api.fetchTask).not.toHaveBeenCalled();
@@ -848,7 +1189,8 @@ describe("a waiting task's page offers what its inbox row offers", () => {
 
     const approve = await header().findByRole("button", { name: "Approve" });
     expect(approve).toBeDisabled();
-    expect(approve).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
+    expect(approve).not.toHaveAttribute("title");
+    expect(approve).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
     expect(headerButtons()).toEqual(["Approve"]);
   });
 });
@@ -1017,7 +1359,7 @@ describe("an epic's page and its tasks", () => {
     const ready = within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement);
     expect(ready.getByRole("link", { name: /ro-l1ed\.5/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
     // Who holds a task in progress is on its row.
-    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText(/claude\/task-page-agent/)).toBeInTheDocument();
+    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText("claude/task-page-agent")).toBeInTheDocument();
     // The read holds a week of closes; the epic's all-time count names the rest.
     expect(within(list).getByText("1 more, closed over 7 days ago")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "Epic graph →" })).toHaveAttribute("href", `/tasks?epic=${EPIC}`);
@@ -1046,6 +1388,27 @@ describe("an epic's page and its tasks", () => {
     const next = facts.querySelector("[data-next-ready]") as HTMLElement;
     expect(next).toHaveAttribute("data-next-ready", "ro-l1ed.5");
     expect(within(next).getByRole("link", { name: /Fields are edited where they are read/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
+    // The bar is the epic's tasks, one segment each: the one closed before the
+    // read's window, the closed sibling, this task ringed, then what waits,
+    // the next ready one marked.
+    const bar = within(facts).getByRole("progressbar");
+    expect(bar).toHaveAttribute("data-epic-segments", "6");
+    expect([...bar.querySelectorAll("[data-segment]")].map((segment) => segment.getAttribute("data-segment")))
+      .toEqual(["earlier", "done", "active", "waiting", "waiting", "waiting"]);
+    expect(bar.querySelectorAll("[data-segment-self]")).toHaveLength(1);
+    expect(bar.querySelector("[data-segment-self]")).toHaveAttribute("data-segment", "active");
+    expect(bar.querySelectorAll("[data-segment-next]")).toHaveLength(1);
+    // A closed task is ink, never green.
+    expect(bar.innerHTML).not.toMatch(/healthy|milestone|success/);
+  });
+
+  it("draws an epic's header bar as its tasks, one segment each", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: epicTask(), comments: [] }));
+    api.fetchTasks.mockResolvedValue(epicBoard());
+    const { container } = renderTask(EPIC);
+    const header = container.querySelector("[data-page-header]") as HTMLElement;
+    await waitFor(() => expect(within(header).getByRole("progressbar")).toHaveAttribute("data-epic-segments", "6"));
+    expect(header.querySelector("[data-segment-self]")).toBeNull();
   });
 
   it("draws a deployed epic from the snapshot's rollup and counts the tasks the snapshot does not hold", async () => {

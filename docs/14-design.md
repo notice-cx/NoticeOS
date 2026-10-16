@@ -157,6 +157,8 @@ that can be read quickly, and the kit has a component for it:
 | many units × many states | a grid, one cell per pair, the state as fill, the age in the failing cell | `HealthGrid` |
 | events in time | rows on a time axis with the current time marked, problems as spans from onset to now | `EventTimeline` |
 | how things connect or flow | nodes and edges, each node in its state with its live count, the broken one highlighted in place | `FlowGraph` |
+| one item and what it waits on | the item in the middle, what it waits on to its left and what waits on it to its right, each in its state, the edges drawn as `FlowGraph` draws them | `DependencyGraph` |
+| one record's history | its moments on a time axis that ends at now, then the same moments in order with who did each and what they wrote | `TaskTimeline` |
 | where things are | a map, when place is the data (visitors by country), never as decoration | — |
 | a queue | its size, the spread of its items' ages, then the rows with age as a bar length | `DecisionQueue` |
 | a quantity over time and who contributed it | columns split by contributor in neutral colours, each contributor named beside the newest complete column, the current column outlined | `StackedWeeks` |
@@ -400,6 +402,17 @@ a day over two weeks as two dated `BarStrip`s on one scale, each project's
 week as the Wall's `WorkFlow` chart, and the most stuck epic as a `FlowGraph`
 whose blocked edges are drawn as broken lines. The full task table follows, with each task's
 assignee on its row.
+
+**A task's page shows one task whole**: a header band in its type's surface
+(the alert tint for an open bug, the neutral one for every other type) with
+the type's mark beside the title, the state, priority and holder chips, an
+epic's tasks as one segment each, and the actions; under it one raised card
+whose sections are divided inside it (the description in the task guide's
+labelled sections, **Done when** as a checklist, a `DependencyGraph` when the
+task waits on others or others wait on it, an epic's tasks, and a
+`TaskTimeline` ending in the comment box); and beside the card a rail of
+facts, each a `FactChip` that edits in place with an Undo. On a phone the
+facts wrap as one row of chips under the header.
 
 **Agents shows who did the work**: the tasks closed in the last seven days
 against the seven days before, eight weeks of closed tasks as `StackedWeeks`
@@ -657,7 +670,9 @@ event marks and keyboard inspection; `Sparkline` and `MinutePulse` for the
 compact shapes. `ListPanel` / `ListRow` for three rows that expand in place or
 link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
-`PriorityBar` for a state or a quantity with its icon. `EmptyState`,
+`PriorityBar` for a state or a quantity with its icon. `FactChip` for a
+record's fact that edits where it is read; `DependencyGraph` and
+`TaskTimeline` for one task's neighbours and its history. `EmptyState`,
 `ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
 designed empty, failed and loading state, `Skeleton` for one block of a
 loading shape, and `NavigationProgress` for a navigation under way. `InfoTooltip` and `EvidencePopover` for the fact behind the

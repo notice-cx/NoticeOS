@@ -1,15 +1,14 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
-import { type ReactNode, createContext, useContext, useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   ArrowLeft,
-  Check,
-  Circle,
-  CircleDot,
   CircleHelp,
-  MessageSquare,
+  Layers,
+  Lock,
   Pencil,
   Plus,
+  Snowflake,
   X,
 } from "lucide-react";
 import { Link, useLocation, useParams, useSearchParams } from "react-router-dom";
@@ -34,13 +33,19 @@ import {
 } from "@shared/tasks";
 import { DEMO_READ_ONLY } from '@shared/demo-viewer';
 import { PRIORITY_BANDS, type WorkEpic, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { AgentMark } from "@/components/AgentMark";
 import { EmptyState } from "@/components/EmptyState";
+import { FactChip, factChipClass, type FactChoice } from "@/components/FactChip";
 import type { PageHeaderCrumb } from "@/components/PageHeader";
+import { TaskTimeline, type TaskTimelineEntry } from "@/components/TaskTimeline";
+import { DependencyGraph, type DependencyNode } from "@/components/viz/DependencyGraph";
+import type { FlowEdgeState } from "@/components/viz/FlowGraph";
 import { PageSkeleton } from "@/components/Skeleton";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
+import { STATE_TONE } from "@/components/StateChip";
 import { StatusBanner } from "@/components/surface/StatusBanner";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
 import { refusalMessage } from "@/hooks/useConfigSave";
 import { useNow } from "@/hooks/useNow";
@@ -60,13 +65,16 @@ import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { TASK_STATUSES, askVerb, inboxAsk, liveRows, snapshotRows, type BoardTask } from "@/lib/task-board-read";
-import { epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { blockerEdgeState, epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } from "@/lib/task-board-viz";
+import { evidenceParts } from "@/lib/agent-work";
 import { formatInt } from "@/lib/format";
-import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
+import { EpicProgress, EpicTaskList, epicSegments, type EpicSegment } from "@/routes/tasks/epic-tasks";
 import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
-import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { TaskStatusGlyph } from "@/routes/tasks/task-face";
+import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
+import { GuideText, MarkdownText, TaskTextRefsProvider } from "@/routes/tasks/task-markdown";
+import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
 /**
@@ -77,6 +85,9 @@ import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/tas
  * shipped, not proven, so nothing here is green.
  */
 const TaskWritePermission = createContext(true);
+/** The read-only banner a deployed build draws under the header, which the
+ * header's disabled actions name as their reason. */
+const READ_ONLY_REASON_ID = "task-read-only-reason";
 const TaskActors = createContext<readonly TaskActor[] | undefined>(undefined);
 function useFieldPermission(field: string): boolean {
   const writable = useContext(TaskWritePermission);
@@ -86,7 +97,7 @@ function useTaskHref() {
   const [params] = useSearchParams();
   const capabilities = useTasksLive();
   const project = capabilities.projectSelection ? params.get('project') ?? undefined : undefined;
-  return (id: string) => taskPath(id, project);
+  return useCallback((id: string) => taskPath(id, project), [project]);
 }
 
 export function TaskRoute() {
@@ -126,6 +137,25 @@ export function TaskRoute() {
   const nextReady = epicTaskGroups(siblings, read).find((group) => group.word === "Ready")?.tasks[0] ?? null;
   const actors = detail.data?.actors;
   const taskHref = useTaskHref();
+  const parentEpic = task ? epicOf(board.data?.epics ?? null, task.parent) : null;
+  // This task among its siblings, on the parent's bar: the board read holds
+  // every unfinished one and a week of closes; the epic's count, the rest.
+  const parentSegments = task && parentEpic && parentEpic.total > 0
+    ? epicSegments({
+        children: [...siblings, ...(read.find((row) => row.id === task.id) ? [read.find((row) => row.id === task.id)!] : [{ ...task, project: project ?? "" }])],
+        self: task.id,
+        next: nextReady?.id ?? null,
+        closed: parentEpic.closed,
+        total: parentEpic.total,
+      })
+    : null;
+  const blockers = task ? blockerRows(task, board.data?.tasks ?? [], actors) : [];
+  const blocked = task ? blockedByThis(board.data?.tasks ?? [], task.id).map((other) => taskRowFacts(other, actors)) : [];
+  const textRefs = useMemo(() => ({
+    prefixes: [...new Set([detail.data?.prefix, ...(snapshot.data?.projects ?? []).map((row) => row.prefix)].filter((prefix): prefix is string => Boolean(prefix)))],
+    taskHref,
+    repoUrl: /^https:\/\/\S+$/.test(detail.data?.repo ?? "") ? detail.data!.repo : null,
+  }), [detail.data, snapshot.data, taskHref]);
 
   const head: TaskHeadFacts | null = task
     ? {
@@ -191,7 +221,9 @@ export function TaskRoute() {
   return (
     <TaskWritePermission.Provider value={writable}>
     <TaskActors.Provider value={actors}>
-    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6">
+    {/* Every button on the page gives under a press, as the board's rows and
+        the fact chips do; under reduced motion it holds still. */}
+    <div className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 p-4 md:p-6 motion-safe:[&_button:not(:disabled):active]:translate-y-px" data-task-page="">
       {/* The breadcrumb leads back to the board; a page opened from Home or a
           site keeps one link back to where it was opened. */}
       {returnTo.startsWith("/tasks") ? null : (
@@ -228,28 +260,33 @@ export function TaskRoute() {
       ) : (
         // A laptop reads the work on the left and its facts on the right; a
         // phone reads the facts first, in the same order the keyboard visits.
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(17rem,22rem)] lg:items-start lg:gap-6">
           <Facts
             className="lg:col-start-2 lg:row-start-1"
             task={task}
             project={project}
             projectName={spoke?.name ?? project ?? ""}
-            epic={epicOf(board.data?.epics ?? null, task.parent)}
+            prefix={detail.data?.prefix ?? null}
+            epic={parentEpic}
+            parentSegments={parentSegments}
+            epics={board.data?.epics ?? []}
+            people={holders(read)}
             parentTitle={parentTitle}
             nextReady={nextReady}
-            blocks={blockedByThis(board.data?.tasks ?? [], task.id)}
             nowMs={now}
           />
-          <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
-            <Body task={task} />
-            {epicView ? <EpicTasks view={epicView} /> : null}
-            <Comments
-              id={task.id}
-              comments={detail.data?.comments ?? []}
-              nowMs={now}
-            />
-            <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
-          </div>
+          <TaskTextRefsProvider value={textRefs}>
+            {/* The page's one content card, its sections divided inside it;
+                the facts beside it are a rail, not a second box. */}
+            <Card className="viz-arrive min-w-0 divide-y divide-border/70 shadow-raised lg:col-start-1 lg:row-start-1" style={{ "--viz-i": 1 } as CSSProperties} data-task-content="">
+              <Body task={task} />
+              {blockers.length > 0 || blocked.length > 0 ? (
+                <Dependencies task={task} blockers={blockers} blocked={blocked} />
+              ) : null}
+              {epicView ? <EpicTasks view={epicView} className={CONTENT_SECTION} /> : null}
+              <Activity task={task} comments={detail.data?.comments ?? []} nowMs={now} />
+            </Card>
+          </TaskTextRefsProvider>
         </div>
       )}
     </div>
@@ -300,18 +337,29 @@ function TaskHeader({
   const capabilities = useTasksLive();
   const [closing, setClosing] = useState(false);
   const { hides: answerHides } = useOwnerAnswers();
+  const reasonId = useId();
   const claimable = head !== null && head.status === "open" && head.holder === null;
   const closed = head?.status === "closed";
   const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
+  const waitsOnOperator = (head?.ask ?? null) !== null;
+  const unavailable = "Unavailable in this workspace.";
+  const askReason = blocked ?? (taskOperationAvailable(capabilities, head?.ask === 'approve' ? 'resolve' : 'respond') ? null : unavailable);
+  const claimReason = blocked ?? (taskFieldAvailable(capabilities, 'claim') ? null : unavailable);
+  // Why the actions are disabled, as text a reader sees beside them: a hover
+  // title sits over the next button and never shows on a phone. A deployed
+  // build's banner under the header already says it, so the buttons point at
+  // that sentence instead of repeating it.
+  const reason = waitsOnOperator ? (answered ? null : askReason) : closed || !head ? null : claimable ? claimReason : blocked;
+  const describedBy = reason === null ? undefined : capabilities.live ? reasonId : READ_ONLY_REASON_ID;
   const ask = useAskActions({
     ask: answered ? null : (head?.ask ?? null),
     id,
     title: head?.title ?? id,
-    disabledReason: blocked ?? (taskOperationAvailable(capabilities, head?.ask === 'approve' ? 'resolve' : 'respond') ? null : 'Unavailable in this workspace.'),
+    disabledReason: askReason,
+    describedBy,
     placement: "header",
   });
-  const waitsOnOperator = (head?.ask ?? null) !== null;
 
   return (
     <TaskHead
@@ -320,29 +368,31 @@ function TaskHeader({
       crumbs={crumbs}
       nowMs={nowMs}
       actions={
-        waitsOnOperator ? (
-          ask.buttons
-        ) : (
-          <>
-            {claimable ? (
-              <ClaimAction id={id} disabledReason={blocked ?? (taskFieldAvailable(capabilities, 'claim') ? null : 'Unavailable in this workspace.')} />
-            ) : null}
-            {closed || !head ? null : (
-              <Button
-                type="button"
-                variant={claimable ? "outline" : "default"}
-                size="sm"
-                disabled={blocked !== null}
-                title={blocked ?? undefined}
-                aria-expanded={closing}
-                data-primary-action={claimable ? undefined : ""}
-                onClick={() => setClosing((open) => !open)}
-              >
-                Close
-              </Button>
-            )}
-          </>
-        )
+        <ActionArea reason={capabilities.live ? reason : null} reasonId={reasonId}>
+          {waitsOnOperator ? (
+            ask.buttons
+          ) : (
+            <>
+              {claimable ? (
+                <ClaimAction id={id} disabledReason={claimReason} describedBy={describedBy} />
+              ) : null}
+              {closed || !head ? null : (
+                <Button
+                  type="button"
+                  variant={claimable ? "outline" : "default"}
+                  size="sm"
+                  disabled={blocked !== null}
+                  aria-describedby={blocked === null ? undefined : describedBy}
+                  aria-expanded={closing}
+                  data-primary-action={claimable ? undefined : ""}
+                  onClick={() => setClosing((open) => !open)}
+                >
+                  Close
+                </Button>
+              )}
+            </>
+          )}
+        </ActionArea>
       }
     >
       {children}
@@ -353,7 +403,23 @@ function TaskHeader({
   );
 }
 
-function ClaimAction({ id, disabledReason }: { id: string; disabledReason: string | null }) {
+/** The actions, primary first, with the reason they are disabled written
+ * under them. */
+function ActionArea({ reason, reasonId, children }: { reason: string | null; reasonId: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5 sm:items-end" data-task-actions="">
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      {reason ? (
+        <p id={reasonId} className="m-0 inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-action-reason="">
+          <Lock className="size-3.5 shrink-0" aria-hidden />
+          {reason}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ClaimAction({ id, disabledReason, describedBy }: { id: string; disabledReason: string | null; describedBy?: string }) {
   const toast = useOwnerToast();
   const claim = useClaimTask();
   return (
@@ -362,7 +428,7 @@ function ClaimAction({ id, disabledReason }: { id: string; disabledReason: strin
       size="sm"
       data-primary-action=""
       disabled={disabledReason !== null || claim.isPending}
-      title={disabledReason ?? "Assign it to you and mark it in progress."}
+      aria-describedby={disabledReason === null ? undefined : describedBy}
       onClick={() => {
         claim.mutate(id, {
           onSuccess: () => toast.success(`Claimed — ${id}`),
@@ -393,7 +459,7 @@ function CloseForm({
   const ready = reason.trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-3">
+    <div className="flex flex-col gap-2" data-task-form="close">
       <label htmlFor={`close-${id}`} className="text-sm font-medium">
         What shipped, and the commit
       </label>
@@ -411,7 +477,6 @@ function CloseForm({
           type="button"
           size="sm"
           disabled={!ready || close.isPending}
-          title={ready ? undefined : "A close carries its evidence — say what shipped."}
           onClick={() => {
             close.mutate(
               { id, reason: reason.trim() },
@@ -443,29 +508,30 @@ function CloseForm({
 function Body({ task }: { task: LiveTask }) {
   const save = useFieldSave(task.id);
   return (
-    <Card>
-      <CardContent className="flex flex-col gap-5 pt-4">
-        <LongTextField
-          label="Description"
-          addLabel="Add a description"
-          value={task.description}
-          onCommit={(next) =>
-            save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
-          }
-        />
-        <LongTextField
-          // The board's word for the same field (TasksBoard's "Done when").
-          label="Done when"
-          addLabel="Add when it is done"
-          value={task.acceptance}
-          onCommit={(next) =>
-            save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
-          }
-        />
-      </CardContent>
-    </Card>
+    <div className={cn(CONTENT_SECTION, "gap-6")}>
+      <LongTextField
+        label="Description"
+        addLabel="Add a description"
+        value={task.description}
+        onCommit={(next) =>
+          save({ label: "the description", edit: { description: next }, undo: { description: task.description } })
+        }
+      />
+      <LongTextField
+        // The board's word for the same field (TasksBoard's "Done when").
+        label="Done when"
+        addLabel="Add when it is done"
+        value={task.acceptance}
+        onCommit={(next) =>
+          save({ label: "the acceptance criteria", edit: { acceptance: next }, undo: { acceptance: task.acceptance } })
+        }
+      />
+    </div>
   );
 }
+
+/** One section of the page's one content card; the card draws the dividers. */
+const CONTENT_SECTION = "flex min-w-0 flex-col gap-3 p-4 md:p-5";
 
 /** One Markdown field, read in place and edited in place: the rendered text
  * with a quiet Edit beside its eyebrow, or — when there is none — one Add
@@ -546,8 +612,10 @@ function LongTextField({
         <Button type="button" variant="outline" size="sm" className="w-fit" disabled={!writable} onClick={() => setEditing(true)}>
           <Plus aria-hidden /> {addLabel}
         </Button>
+      ) : label === "Description" ? (
+        <GuideText source={value} />
       ) : (
-        <MarkdownText source={value} />
+        <MarkdownText source={value} checklist />
       )}
     </section>
   );
@@ -557,20 +625,88 @@ function SectionLabel({ children }: { children: ReactNode }) {
   return <span className={eyebrowClass}>{children}</span>;
 }
 
-// --- Comments ---------------------------------------------------------------
+// --- What happened, and the next comment --------------------------------------
 
-/** The conversation, oldest first, with the composer where the next line
- * goes. The operator's own answers to `human` tasks land here. */
-function Comments({
-  id,
+/**
+ * Filing, the claim, every comment and the close on one time axis that ends
+ * at now, then the same moments in order with who did each, and the box for
+ * the next comment last. Every moment is dated, and an undated fact is not a
+ * moment: a claim with no `started_at` would otherwise be dated by the last
+ * edit. A comment nobody dated is still listed, last, and says so.
+ */
+function Activity({
+  task,
   comments,
   nowMs,
 }: {
-  id: string;
+  task: LiveTask;
   comments: TaskComment[];
   nowMs: number;
 }) {
   const actors = useContext(TaskActors);
+  const entries = useMemo(() => {
+    const out: TaskTimelineEntry[] = [];
+    if (task.createdAt) out.push({ id: "filed", at: task.createdAt, kind: "filed", label: "Filed", said: "Filed" });
+    if (task.startedAt) {
+      const name = task.assignee ? taskActorLabel(task.assignee, actors) : null;
+      const model = claimedModel(task);
+      out.push({
+        id: "claimed",
+        at: task.startedAt,
+        kind: "claimed",
+        who: name ? { name, model } : null,
+        label: name ? <>Claimed by <b className="font-semibold">{name}</b>{model ? <span className="text-muted-foreground"> · {model}</span> : null}</> : "Claimed",
+        said: name ? `Claimed by ${name}${model ? ` · ${model}` : ""}` : "Claimed",
+      });
+    }
+    for (const entry of comments) {
+      const name = taskActorLabel(entry.author, actors);
+      out.push({
+        id: `comment-${entry.id}`,
+        at: entry.createdAt,
+        kind: "comment",
+        who: { name, model: null },
+        label: <>Comment from <b className="font-semibold">{name}</b></>,
+        said: `Comment from ${name}`,
+        body: <MarkdownText source={entry.text} />,
+      });
+    }
+    if (task.closedAt) {
+      const closer = closeAttribution(task);
+      const name = closer ? taskActorLabel(closer.by, actors) : null;
+      // The reason's sentence is the body; its commits and links are chips.
+      const sentence = task.closeReason ? evidenceParts(task.closeReason).filter((part) => part.kind === "text").map((part) => part.text).join(" · ") : "";
+      out.push({
+        id: "closed",
+        at: task.closedAt,
+        kind: "closed",
+        who: name ? { name, model: closer?.model ?? null } : null,
+        label: name ? <>Closed by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : "Closed",
+        said: name ? `Closed by ${name}${closer?.model ? ` · ${closer.model}` : ""}` : "Closed",
+        body: sentence ? <MarkdownText source={sentence} /> : undefined,
+        evidence: task.closeReason,
+      });
+    }
+    return out;
+  }, [task, comments, actors]);
+
+  return (
+    <section className={CONTENT_SECTION} data-task-activity-section="">
+      <SectionLabelRow title="Activity" caption={comments.length > 0 ? `${formatInt(comments.length)} ${comments.length === 1 ? "comment" : "comments"}` : undefined} />
+      <TaskTimeline
+        entries={entries}
+        nowMs={nowMs}
+        age={(at) => <Age iso={at} nowMs={nowMs} />}
+        composer={<CommentBox id={task.id} />}
+        ariaLabel="What happened to this task"
+      />
+    </section>
+  );
+}
+
+/** The next comment. The operator's own answers to `human` tasks land in the
+ * timeline above it. */
+function CommentBox({ id }: { id: string }) {
   const toast = useOwnerToast();
   const permitted = useContext(TaskWritePermission);
   const writable = taskOperationAvailable(useTasksLive(), 'comment') && permitted;
@@ -579,105 +715,91 @@ function Comments({
   const ready = draft.trim().length > 0;
 
   return (
-    <Card>
-      <CardHeader className="pb-2">
-        {/* One heading style on the page: the eyebrow Description and Done
-            when wear. */}
-        <h2 className="m-0 flex items-center gap-2">
-          <SectionLabel>Comments</SectionLabel>
-          {comments.length > 0 ? (
-            <span className="text-xs tabular-nums text-muted-foreground">
-              {comments.length}
-            </span>
-          ) : null}
-        </h2>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-3">
-        {/* No comments is no list — the box below is where the first one goes,
-            and the header's missing count already says there are none. */}
-        {comments.length === 0 ? null : (
-          <ol className="flex flex-col gap-3" data-task-comments>
-            {comments.map((entry) => (
-              <li key={entry.id} className="flex min-w-0 flex-col gap-1">
-                <div className="flex flex-wrap items-baseline gap-x-2">
-                  <span className="text-sm font-medium">{taskActorLabel(entry.author, actors)}</span>
-                  <Age iso={entry.createdAt} nowMs={nowMs} />
-                </div>
-                <MarkdownText source={entry.text} className="text-sm" />
-              </li>
-            ))}
-          </ol>
-        )}
-
-        <div className={cn("flex flex-col gap-2", comments.length > 0 && "border-t border-border pt-3")}>
-          <textarea
-            aria-label="Add a comment"
-            disabled={!writable}
-            rows={2}
-            value={draft}
-            placeholder="What you found, decided, or need."
-            onChange={(event) => setDraft(event.target.value)}
-            className={cn(fieldClass, "w-full py-1.5")}
-          />
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              disabled={!writable || !ready || comment.isPending}
-              onClick={() => {
-                comment.mutate(
-                  { id, text: draft.trim() },
-                  {
-                    onSuccess: () => {
-                      toast.success("Comment added");
-                      setDraft("");
-                    },
-                    onError: (err) => toast.error(refusalMessage(err)),
-                  },
-                );
-              }}
-            >
-              {comment.isPending ? "Sending…" : "Comment"}
-            </Button>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
+    <div className="flex flex-col gap-2">
+      <textarea
+        aria-label="Add a comment"
+        disabled={!writable}
+        rows={2}
+        value={draft}
+        placeholder="What you found, decided, or need."
+        onChange={(event) => setDraft(event.target.value)}
+        className={cn(fieldClass, "w-full py-1.5")}
+      />
+      <div className="flex justify-end">
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          disabled={!writable || !ready || comment.isPending}
+          onClick={() => {
+            comment.mutate(
+              { id, text: draft.trim() },
+              {
+                onSuccess: () => {
+                  toast.success("Comment added");
+                  setDraft("");
+                },
+                onError: (err) => toast.error(refusalMessage(err)),
+              },
+            );
+          }}
+        >
+          {comment.isPending ? "Sending…" : "Comment"}
+        </Button>
+      </div>
+    </div>
   );
 }
 
-// --- The right column: the facts, most of them editable in place ------------
+// --- The right column: the facts, each drawn as its value and edited in place
 
 function Facts({
   className,
   task,
   project,
   projectName,
+  prefix,
   epic,
+  epics,
+  people,
   parentTitle,
+  parentSegments,
   nextReady,
-  blocks,
   nowMs,
 }: {
   className?: string;
   task: LiveTask;
   project: string | null;
   projectName: string;
+  /** The project's task id prefix, the hint for a typed parent id. */
+  prefix: string | null;
   epic: LiveEpic | null;
+  /** The project's open epics, offered as parents. */
+  epics: readonly LiveEpic[];
+  /** Who holds work in this project, offered as assignees where the read
+   * carries no member list. */
+  people: readonly string[];
   /** The parent's title from the board read, when it is not an epic the
    * board's progress read covers. */
   parentTitle: string | null;
+  /** This task among its siblings, as the parent's bar draws them. */
+  parentSegments: readonly EpicSegment[] | null;
   /** The first sibling ready to be claimed. */
   nextReady: BoardTask | null;
-  blocks: LiveTask[];
   nowMs: number;
 }) {
   const save = useFieldSave(task.id);
   const actors = useContext(TaskActors);
   const taskHref = useTaskHref();
-  const blockedBy = task.dependencies.filter((dep) => dep.type !== "parent-child");
   const origin = handoffOrigin(task.metadata);
+  const can = {
+    status: useFieldPermission("status"),
+    priority: useFieldPermission("priority"),
+    assignee: useFieldPermission("assignee"),
+    parent: useFieldPermission("parent"),
+    labels: useFieldPermission("addLabels"),
+    defer: useFieldPermission("defer"),
+  };
   const saveAssignee = (next: string) => save({
     label: 'assignee',
     edit: { assignee: next },
@@ -686,194 +808,239 @@ function Facts({
     undo: task.status === 'in_progress' && next !== '' && next !== task.assignee
       ? undefined : { assignee: task.assignee ?? '' },
   });
+  const status = statusFace(task.status);
+  const StatusIcon = status.icon;
+  const band = priorityFace(task.priority).band;
+  const holder = task.assignee ? taskActorLabel(task.assignee, actors) : null;
+  const model = task.assignee ? claimedModel(task) : null;
+  const parked = (task.deferUntil ?? "").slice(0, 10);
+  const parentName = epic?.title ?? parentTitle ?? task.parent;
 
   return (
-    <Card className={className}>
-      <CardContent className="flex flex-col pt-4" data-task-facts>
-        {project ? (
-          <Fact label="Project">
-            <Link
-              to={`/assets/${encodeURIComponent(project)}`}
-              className="inline-flex min-w-0 items-center gap-1.5 text-sm hover:underline"
+    <aside
+      aria-label="Facts"
+      className={cn("viz-arrive min-w-0 px-1 max-lg:border-b max-lg:border-border/70 max-lg:pb-4 lg:border-s lg:border-border/70 lg:ps-5", className)}
+      style={{ "--viz-i": 2 } as CSSProperties}
+    >
+        {/* A phone reads the facts as one wrapped row under the header; a
+            laptop as a rail beside the work. */}
+        <dl className="m-0 flex flex-wrap gap-x-5 gap-y-3 lg:flex-col lg:flex-nowrap lg:gap-0" data-task-facts>
+          {project ? (
+            <Fact label="Project">
+              <FactChip label="Project" valueText={projectName || project} to={`/assets/${encodeURIComponent(project)}`}>
+                <PropertyFavicon domain={project} displayName={projectName || project} className="size-4" />
+                {projectName || project}
+              </FactChip>
+            </Fact>
+          ) : null}
+
+          <Fact label="Parent epic" wide>
+            <FactChip
+              label="Parent epic"
+              valueText={parentName ?? "Hangs off nothing"}
+              to={task.parent ? taskHref(task.parent) : undefined}
+              quiet={!task.parent}
+              readOnly={!can.parent}
+              editor={{
+                kind: "choice",
+                value: task.parent ?? "",
+                choices: [
+                  ...epics.filter((row) => row.id !== task.id && row.status !== "closed").map((row) => ({
+                    value: row.id, label: row.title, mark: <Layers className="size-3.5 text-muted-foreground" />,
+                  })),
+                  { value: "", label: "No epic" },
+                ],
+                other: { label: "Another task id", placeholder: prefix ? `${prefix}-…` : "A task id", mono: true },
+              }}
+              onSave={(next) => save({ label: "the parent", edit: { parent: next }, undo: { parent: task.parent ?? "" } })}
             >
-              <PropertyFavicon domain={project} displayName={projectName || project} />
-              <span className="truncate">{projectName || project}</span>
-            </Link>
+              {task.parent ? <Layers aria-hidden className="size-3.5 shrink-0 text-muted-foreground" /> : null}
+              <span className={cn(!epic && !parentTitle && task.parent && "font-mono")}>{parentName ?? "Hangs off nothing"}</span>
+            </FactChip>
+            {task.parent ? (
+              <div className="flex basis-full flex-col gap-1.5 pt-0.5">
+                {/* The epic's all-time child progress (`bd epic status`): the only
+                    honest denominator, since a list read is a window. */}
+                {epic ? <EpicProgress closed={epic.closed} total={epic.total} segments={parentSegments} /> : null}
+                {nextReady ? (
+                  <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
+                    {/* The dot the bar marks this task with. */}
+                    <span aria-hidden className="me-1.5 inline-block size-1 rounded-full bg-foreground align-middle" />
+                    Next ready:{" "}
+                    <Link to={taskHref(nextReady.id)} className="text-foreground underline-offset-4 hover:underline">
+                      <span className="font-mono">{nextReady.id}</span> {nextReady.title}
+                    </Link>
+                  </span>
+                ) : null}
+              </div>
+            ) : null}
           </Fact>
-        ) : null}
 
-        <Fact label="Parent epic">
-          {task.parent ? (
-            <div className="flex flex-col gap-1">
-              <Link
-                to={taskHref(task.parent)}
-                className={cn("text-sm hover:underline", !epic && !parentTitle && "font-mono")}
-              >
-                {epic?.title ?? parentTitle ?? task.parent}
-              </Link>
-              {/* The epic's all-time child progress (`bd epic status`): the only
-                  honest denominator, since a list read is a window. */}
-              {epic ? <EpicProgress closed={epic.closed} total={epic.total} /> : null}
-              {nextReady ? (
-                <span className="text-xs text-muted-foreground" data-next-ready={nextReady.id}>
-                  Next ready:{" "}
-                  <Link to={taskHref(nextReady.id)} className="text-foreground hover:underline">
-                    <span className="font-mono">{nextReady.id}</span> {nextReady.title}
-                  </Link>
-                </span>
-              ) : null}
-            </div>
-          ) : (
-            <span className="text-sm text-muted-foreground">Hangs off nothing</span>
-          )}
-          <div className="mt-1.5">
-            <TextEditor
-              name="Parent epic"
-              value={task.parent ?? ""}
-              placeholder="A task id, or empty to un-parent"
-              mono
-              onCommit={(next) =>
-                save({
-                  label: "the parent",
-                  edit: { parent: next },
-                  undo: { parent: task.parent ?? "" },
-                })
-              }
+          <Fact label="Status">
+            <FactChip
+              label="Status"
+              valueText={status.label}
+              readOnly={!can.status}
+              editor={{ kind: "choice", value: task.status, choices: STATUS_CHOICES }}
+              onSave={(next) => save({ label: "status", edit: { status: next }, undo: { status: task.status } })}
+            >
+              <StatusIcon aria-hidden className={cn("size-3.5 shrink-0", STATE_TONE[status.tone].text)} />
+              <span className={STATE_TONE[status.tone].text}>{status.label}</span>
+            </FactChip>
+          </Fact>
+
+          <Fact label="Priority">
+            <FactChip
+              label="Priority"
+              valueText={band}
+              readOnly={!can.priority}
+              editor={{ kind: "choice", value: String(task.priority), choices: PRIORITY_CHOICES }}
+              onSave={(next) => save({ label: "priority", edit: { priority: Number(next) }, undo: { priority: task.priority } })}
+            >
+              <PriorityMark priority={task.priority} size="chip" hint={false} />
+              {band}
+            </FactChip>
+          </Fact>
+
+          <Fact label="Assignee">
+            <FactChip
+              label="Assignee"
+              valueText={holder ?? "Nobody"}
+              quiet={holder === null}
+              readOnly={!can.assignee}
+              editor={{
+                kind: "choice",
+                value: task.assignee ?? "",
+                choices: assigneeChoices(task.assignee, actors, people),
+                // A member list is the whole of who can hold a hosted task;
+                // a local one takes any name an agent goes by.
+                other: actors === undefined ? { label: "Someone else", placeholder: "A name or an agent" } : undefined,
+              }}
+              onSave={saveAssignee}
+            >
+              {holder ? <AgentMark name={holder} models={[model]} size="small" /> : null}
+              <span>{holder ?? "Nobody"}</span>
+              {holder && model ? <span className="font-normal text-muted-foreground">· {model}</span> : null}
+            </FactChip>
+          </Fact>
+
+          <Fact label="Labels" wide>
+            <Labels
+              labels={task.labels}
+              writable={can.labels}
+              onAdd={(label) => save({ label: `label ${label}`, edit: { addLabels: [label] }, undo: { removeLabels: [label] } })}
+              onRemove={(label) => save({ label: `label ${label}`, edit: { removeLabels: [label] }, undo: { addLabels: [label] } })}
             />
-          </div>
-        </Fact>
-
-        {blockedBy.length > 0 ? (
-          <Fact label="Blocked by">
-            <DependencyList items={blockedBy.map((dep) => dependencyRow(dep))} />
           </Fact>
-        ) : null}
 
-        {blocks.length > 0 ? (
-          <Fact label="Blocks">
-            <DependencyList
-              items={blocks.map((other) => ({
-                id: other.id,
-                title: other.title,
-                status: other.status,
-              }))}
-            />
+          {/* "Parked", the board's own word for `deferred` — so the status chip,
+              the board's state column and this fact name one state one way. */}
+          <Fact label="Parked until">
+            <FactChip
+              label="Parked until"
+              valueText={parked === "" ? "Not parked" : calendarDay(parked, nowMs)}
+              quiet={parked === ""}
+              readOnly={!can.defer}
+              editor={{ kind: "date", value: parked, presets: parkPresets(nowMs), clearLabel: "Not parked" }}
+              // The empty string is `--defer ""`: clearing is an edit, not an
+              // absent one (the lane passes it through deliberately).
+              onSave={(next) => save({ label: "the deferral", edit: { defer: next }, undo: { defer: parked } })}
+            >
+              {parked === "" ? null : <Snowflake aria-hidden className="size-3.5 shrink-0 text-muted-foreground" />}
+              <span className="tabular-nums">{parked === "" ? "Not parked" : calendarDay(parked, nowMs)}</span>
+            </FactChip>
           </Fact>
-        ) : null}
 
-        <Fact label="Status">
-          <SelectEditor
-            name="Status"
-            value={task.status}
-            options={STATUS_OPTIONS}
-            onCommit={(next) =>
-              save({ label: "status", edit: { status: next }, undo: { status: task.status } })
-            }
-          />
-        </Fact>
+          {origin ? <CameFrom origin={origin} /> : null}
 
-        <Fact label="Priority">
-          <SelectEditor
-            name="Priority"
-            value={String(task.priority)}
-            options={PRIORITY_BANDS.map((band, index) => ({
-              value: String(index),
-              label: band,
-            }))}
-            onCommit={(next) =>
-              save({
-                label: "priority",
-                edit: { priority: Number(next) },
-                undo: { priority: task.priority },
-              })
-            }
-          />
-        </Fact>
-
-        <Fact label="Assignee">
-          {actors === undefined ? <TextEditor
-            name="Assignee"
-            value={task.assignee ?? ""}
-            placeholder="Nobody"
-            onCommit={saveAssignee}
-          /> : <SelectEditor
-            name="Assignee"
-            value={task.assignee ?? ""}
-            options={[
-              { value: '', label: 'Nobody' },
-              ...actors.map(actor => ({ value: actor.principalId, label: actor.displayName.trim() || 'Unknown actor' })),
-              ...(task.assignee && !actors.some(actor => actor.principalId === task.assignee)
-                ? [{ value: task.assignee, label: taskActorLabel(task.assignee, actors) }] : []),
-            ]}
-            onCommit={saveAssignee}
-          />}
-        </Fact>
-
-        <Fact label="Labels">
-          <LabelsEditor
-            labels={task.labels}
-            onAdd={(label) =>
-              save({
-                label: `label ${label}`,
-                edit: { addLabels: [label] },
-                undo: { removeLabels: [label] },
-              })
-            }
-            onRemove={(label) =>
-              save({
-                label: `label ${label}`,
-                edit: { removeLabels: [label] },
-                undo: { addLabels: [label] },
-              })
-            }
-          />
-        </Fact>
-
-        {/* "Parked", the board's own word for `deferred` — so the status chip,
-            the board's state column and this field name one state one way. */}
-        <Fact label="Parked until">
-          <DateEditor
-            name="Parked until"
-            value={(task.deferUntil ?? "").slice(0, 10)}
-            onCommit={(next) =>
-              save({
-                label: "the deferral",
-                edit: { defer: next },
-                undo: { defer: (task.deferUntil ?? "").slice(0, 10) },
-              })
-            }
-          />
-        </Fact>
-
-        {origin ? <CameFrom origin={origin} /> : null}
-
-        <Fact label="Ages">
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm">
-            <span className="text-muted-foreground">
+          <Fact label="Ages">
+            <span className="text-xs text-muted-foreground">
               created <Age iso={task.createdAt} nowMs={nowMs} />
             </span>
-            <span className="text-muted-foreground">
+            <span aria-hidden className="text-xs text-muted-foreground">·</span>
+            <span className="text-xs text-muted-foreground">
               updated <Age iso={task.updatedAt} nowMs={nowMs} />
             </span>
-          </div>
-        </Fact>
-      </CardContent>
-    </Card>
+          </Fact>
+        </dl>
+    </aside>
   );
 }
 
+/** One fact: its eyebrow and its value, side by side on a laptop. A wide fact
+ * takes the whole row when the facts wrap on a phone. */
 function Fact({
   label,
+  wide = false,
   children,
 }: {
   label: string;
+  wide?: boolean;
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-1 border-b border-border py-2.5 first:pt-0 last:border-0">
-      <span className={eyebrowClass}>{label}</span>
-      <div className="min-w-0">{children}</div>
+    <div
+      className={cn(
+        "flex min-w-0 flex-col gap-1.5 lg:grid lg:grid-cols-[6.5rem_minmax(0,1fr)] lg:items-baseline lg:gap-x-3",
+        "lg:border-b lg:border-border/70 lg:py-2.5 lg:first:pt-0 lg:last:border-0 lg:last:pb-0",
+        wide && "basis-full",
+      )}
+    >
+      <dt className={eyebrowClass}>{label}</dt>
+      <dd className="m-0 flex min-w-0 flex-wrap items-center gap-1.5">{children}</dd>
     </div>
+  );
+}
+
+/** Labels as chips, each with its own remove, and one more chip that adds. */
+function Labels({
+  labels,
+  writable,
+  onAdd,
+  onRemove,
+}: {
+  labels: string[];
+  writable: boolean;
+  onAdd: (label: string) => Promise<boolean>;
+  onRemove: (label: string) => Promise<boolean>;
+}) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <>
+      {labels.length === 0 && !writable ? <span className="text-xs text-muted-foreground">No labels</span> : null}
+      {labels.map((label) => (
+        <span key={label} className={cn(factChipClass, "gap-1 font-normal", writable && "pe-1")} data-task-label={label}>
+          {label}
+          {writable ? (
+            <button
+              type="button"
+              aria-label={`Remove label ${label}`}
+              disabled={busy}
+              onClick={() => {
+                setBusy(true);
+                void onRemove(label).finally(() => setBusy(false));
+              }}
+              className="grid size-5 place-items-center rounded-full text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 max-sm:size-8"
+            >
+              <X className="size-3" aria-hidden />
+            </button>
+          ) : null}
+        </span>
+      ))}
+      {writable ? (
+        <FactChip
+          label="Add a label"
+          valueText=""
+          quiet
+          className="border-dashed"
+          editor={{ kind: "text", value: "", inputLabel: "New label", placeholder: "human, tower, ux…" }}
+          onSave={(label) => onAdd(label)}
+        >
+          <Plus aria-hidden className="size-3.5 shrink-0" />
+          Label
+        </FactChip>
+      ) : null}
+    </>
   );
 }
 
@@ -895,43 +1062,39 @@ function CameFrom({ origin }: { origin: HandoffOrigin }) {
   );
 }
 
-function DependencyList({ items }: { items: { id: string; title: string | null; status: string | null }[] }) {
+/**
+ * Who blocks whom, drawn: what this task waits on to its left, what waits on
+ * it to its right, each card in its task's own status glyph, because a closed
+ * blocker is no longer in the way and a drawing that could not say so would
+ * read as five things blocking work that only two of them block.
+ */
+function Dependencies({ task, blockers, blocked }: { task: LiveTask; blockers: TaskRowFacts[]; blocked: TaskRowFacts[] }) {
   const taskHref = useTaskHref();
+  const node = (row: TaskRowFacts, edge: FlowEdgeState): DependencyNode => ({
+    id: row.id,
+    title: row.title,
+    mark: row.status === null
+      ? <CircleHelp role="img" className="size-3.5 shrink-0 text-muted-foreground/60" aria-label="State — unknown" />
+      : <TaskStatusGlyph status={row.status} />,
+    said: taskRowSaid(row),
+    href: taskHref(row.id),
+    edge,
+  });
   return (
-    <ul className="flex flex-col gap-1.5">
-      {items.map((item) => (
-        <li key={item.id} className="flex min-w-0 items-start gap-1.5">
-          <DependencyGlyph status={item.status} />
-          <Link
-            to={taskHref(item.id)}
-            className="min-w-0 text-sm hover:underline"
-          >
-            <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
-            {item.title ? <span className="ml-1.5">{item.title}</span> : null}
-          </Link>
-        </li>
-      ))}
-    </ul>
+    <section className={CONTENT_SECTION} data-task-dependencies="">
+      <DependencyGraph
+        subject={{ id: task.id, caption: "This task", mark: <TaskStatusGlyph status={task.status} /> }}
+        before={blockers.map((row) => node(row, blockerEdgeState(row.status)))}
+        after={blocked.map((row) => node(row, blockerEdgeState(task.status)))}
+        beforeLabel="Blocked by"
+        afterLabel="Blocks"
+        ariaLabel={`What ${task.id} waits on and what waits on it`}
+      />
+    </section>
   );
 }
 
-/** A blocker's own status, as the lifecycle glyph the board and the header
- * draw. A closed blocker is no longer in the way, and a list that could not
- * say so would read as five things blocking work that only two of them block. */
-function DependencyGlyph({ status }: { status: string | null }) {
-  if (status === null) {
-    return (
-      <CircleHelp
-        role="img"
-        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60"
-        aria-label="status unknown"
-      />
-    );
-  }
-  return <TaskStatusGlyph status={status} className="mt-0.5" />;
-}
-
-// --- The editors: buffer a draft, Save writes it, the toast carries the way back
+// --- Saving a fact: one write, and the toast carries the way back -----------
 
 type FieldSave = (input: { label: string; edit: TaskEdit; undo?: TaskEdit }) => Promise<boolean>;
 
@@ -971,374 +1134,6 @@ function useFieldSave(id: string): FieldSave {
       return true;
     },
     [id, update, writable],
-  );
-}
-
-function TextEditor({
-  name,
-  value,
-  placeholder,
-  mono,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  placeholder?: string;
-  mono?: boolean;
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission(name === 'Title' ? 'title' : name === 'Assignee' ? 'assignee' : 'parent');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  // The hub moved underneath us (a write from this session, a poll): the field
-  // follows reality rather than holding a value typed against an older one.
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <input
-        type="text"
-        aria-label={name}
-        value={draft}
-        placeholder={placeholder}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(
-          fieldClass,
-          "min-w-0 flex-1",
-          mono && "font-mono text-xs",
-        )}
-      />
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function SelectEditor({
-  name,
-  value,
-  options,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission(name === 'Status' ? 'status' : name === 'Assignee' ? 'assignee' : 'priority');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-
-  // `bd` accepts values this build has never heard of; a stored one outside the
-  // list is offered as itself rather than silently reset by the control.
-  const known = options.some((option) => option.value === value);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select
-        aria-label={name}
-        value={draft}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(fieldClass, "min-w-0 flex-1")}
-      >
-        {known ? null : <option value={value}>{value}</option>}
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-    </div>
-  );
-}
-
-function DateEditor({
-  name,
-  value,
-  onCommit,
-}: {
-  name: string;
-  value: string;
-  onCommit: (next: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission('defer');
-  const [draft, setDraft] = useState(value);
-  const [saving, setSaving] = useState(false);
-  useEffect(() => setDraft(value), [value]);
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <input
-        type="date"
-        aria-label={name}
-        value={draft}
-        disabled={!writable || saving}
-        onChange={(event) => setDraft(event.target.value)}
-        className={cn(fieldClass, "min-w-0")}
-      />
-      <SaveButton
-        name={name}
-        dirty={draft !== value}
-        saving={saving}
-        onClick={async () => {
-          setSaving(true);
-          try {
-            await onCommit(draft);
-          } finally {
-            setSaving(false);
-          }
-        }}
-      />
-      {value === "" ? null : (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          disabled={!writable || saving}
-          onClick={async () => {
-            setSaving(true);
-            try {
-              // The empty string is `--defer ""` — "clear this" is an edit, not
-              // an absent one (the lane passes it through deliberately).
-              await onCommit("");
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          Clear
-        </Button>
-      )}
-    </div>
-  );
-}
-
-function LabelsEditor({
-  labels,
-  onAdd,
-  onRemove,
-}: {
-  labels: string[];
-  onAdd: (label: string) => Promise<boolean>;
-  onRemove: (label: string) => Promise<boolean>;
-}) {
-  const writable = useFieldPermission('addLabels');
-  const [draft, setDraft] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  async function add() {
-    const value = draft.trim();
-    if (value === "") return;
-    setBusy(true);
-    try {
-      if (await onAdd(value)) setDraft("");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-2">
-      {labels.length === 0 ? (
-        <span className="text-sm text-muted-foreground">No labels</span>
-      ) : (
-        <div className="flex flex-wrap gap-1">
-          {labels.map((label) => (
-            <span
-              key={label}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-xs"
-            >
-              {label}
-              <button
-                type="button"
-                aria-label={`Remove label ${label}`}
-                disabled={!writable || busy}
-                onClick={() => {
-                  setBusy(true);
-                  void onRemove(label).finally(() => setBusy(false));
-                }}
-                className="text-muted-foreground outline-none hover:text-foreground focus-visible:text-foreground disabled:opacity-50"
-              >
-                <X className="size-3" aria-hidden />
-              </button>
-            </span>
-          ))}
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          aria-label="Add a label"
-          value={draft}
-          placeholder="human, tower, ux…"
-          disabled={!writable || busy}
-          onChange={(event) => setDraft(event.target.value)}
-          className={cn(fieldClass, "min-w-0 flex-1")}
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          disabled={!writable || busy || draft.trim() === ""}
-          onClick={() => void add()}
-        >
-          Add
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-/** The Save every field shares — one word, one disabled rule (nothing to
- * write), one pending label, so "did that save?" never depends on which kind of
- * field it was. Named per field so a page of them stays addressable. */
-function SaveButton({
-  name,
-  dirty,
-  saving,
-  onClick,
-}: {
-  name: string;
-  dirty: boolean;
-  saving: boolean;
-  onClick: () => void;
-}) {
-  const writable = useContext(TaskWritePermission);
-  return (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      aria-label={`Save ${name}`}
-      disabled={!writable || !dirty || saving}
-      onClick={onClick}
-    >
-      {saving ? "Saving…" : "Save"}
-    </Button>
-  );
-}
-
-// --- The activity timeline --------------------------------------------------
-
-/**
- * What happened to this task, in `Timeline`'s grammar, but not the `Timeline`
- * component: that renders `annotations`, a different vocabulary over a
- * different table. Every node is dated, and an undated fact is not a node: a
- * claim with no `started_at` would otherwise be dated by the last edit.
- */
-function Activity({
-  task,
-  comments,
-  nowMs,
-}: {
-  task: LiveTask;
-  comments: TaskComment[];
-  nowMs: number;
-}) {
-  const actors = useContext(TaskActors);
-  const events = useMemo(() => {
-    const out: { key: string; at: string; icon: typeof Circle; label: string; note: string | null }[] =
-      [];
-    if (task.createdAt) {
-      out.push({ key: "created", at: task.createdAt, icon: Circle, label: "Filed", note: null });
-    }
-    if (task.startedAt) {
-      const model = claimedModel(task);
-      out.push({
-        key: "claimed",
-        at: task.startedAt,
-        icon: CircleDot,
-        label: task.assignee ? `Claimed by ${taskActorLabel(task.assignee, actors)}${model ? ` · ${model}` : ""}` : "Claimed",
-        note: null,
-      });
-    }
-    for (const entry of comments) {
-      if (!entry.createdAt) continue;
-      out.push({
-        key: `comment-${entry.id}`,
-        at: entry.createdAt,
-        icon: MessageSquare,
-        label: `Comment from ${taskActorLabel(entry.author, actors)}`,
-        note: entry.text,
-      });
-    }
-    if (task.closedAt) {
-      const closer = closeAttribution(task);
-      out.push({
-        key: "closed",
-        at: task.closedAt,
-        icon: Check,
-        label: closer ? `Closed by ${taskActorLabel(closer.by, actors)}${closer.model ? ` · ${closer.model}` : ""}` : "Closed",
-        note: task.closeReason,
-      });
-    }
-    return out.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  }, [task, comments, actors]);
-
-  return (
-    <Card>
-      <CardHeader className="pb-2">
-        <h2 className="m-0"><SectionLabel>Activity</SectionLabel></h2>
-      </CardHeader>
-      <CardContent>
-        {events.length === 0 ? (
-          <EmptyState title="Nothing dated yet" />
-        ) : (
-          <ol className="flex flex-col" data-task-activity>
-            {events.map((event, index) => {
-              const Icon = event.icon;
-              const isLast = index === events.length - 1;
-              return (
-                <li key={event.key} className="flex gap-3 pb-3 last:pb-0">
-                  <div className="flex flex-col items-center">
-                    <span className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-border bg-muted text-muted-foreground">
-                      <Icon className="size-3" aria-hidden />
-                    </span>
-                    {isLast ? null : <span aria-hidden className="mt-1 w-px flex-1 bg-border" />}
-                  </div>
-                  <div className="flex min-w-0 flex-col gap-0.5 pb-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-sm font-medium">{event.label}</span>
-                      <Age iso={event.at} nowMs={nowMs} />
-                    </div>
-                    {event.note ? (
-                      <span className="text-sm text-muted-foreground">{event.note}</span>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-      </CardContent>
-    </Card>
   );
 }
 
@@ -1394,9 +1189,11 @@ function ReadOnly({
   const parent = row?.parent ? project?.epics?.find((epic) => epic.id === row.parent) ?? null : null;
   return (
     <div className="flex flex-col gap-4" data-task-readonly>
-      <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
-        {READ_ONLY_TASKS_HINT}
-      </StatusBanner>
+      <div id={READ_ONLY_REASON_ID}>
+        <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
+          {READ_ONLY_TASKS_HINT}
+        </StatusBanner>
+      </div>
       <Card>
         <CardContent className="flex flex-col gap-3 pt-4">
           {row === null ? (
@@ -1475,9 +1272,19 @@ function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; proje
 
 /** The epic's task list, opening each task the way every link on this page
  * does. */
-function EpicTasks({ view }: { view: EpicView }) {
+function EpicTasks({ view, className }: { view: EpicView; className?: string }) {
   const taskHref = useTaskHref();
-  return <EpicTaskList groups={view.groups} missing={view.missing} graphHref={view.graphHref} taskHref={taskHref} />;
+  return (
+    <EpicTaskList
+      groups={view.groups}
+      missing={view.missing}
+      graphHref={view.graphHref}
+      taskHref={taskHref}
+      // Inside the content card a section; on its own (a deployed build) a card.
+      frame={className ? "none" : "card"}
+      className={className}
+    />
+  );
 }
 
 /** A dead end's one way out, as a link rather than a sentence about it. */
@@ -1517,13 +1324,89 @@ function LaneFailed({ error }: { error: Error | null }) {
 
 // --- Pure helpers -----------------------------------------------------------
 
-/** The statuses `bd` ships with, in the board's own words. Not exhaustive by
- * design — `bd` supports custom statuses, and `SelectEditor` offers a stored one
- * outside this list as itself. */
-const STATUS_OPTIONS = TASK_STATUSES.map((status) => ({ value: status.stored, label: status.label }));
+/** The statuses `bd` ships with, in the board's own words and glyphs. Not
+ * exhaustive by design — `bd` supports custom statuses, and the fact's editor
+ * offers a stored one outside this list as itself. */
+const STATUS_CHOICES: FactChoice[] = TASK_STATUSES.map((status) => {
+  const face = statusFace(status.stored);
+  const Icon = face.icon;
+  return { value: status.stored, label: status.label, mark: <Icon className={cn("size-3.5", STATE_TONE[face.tone].text)} /> };
+});
 
-function dependencyRow(dep: TaskDependency): { id: string; title: string | null; status: string | null } {
-  return { id: dep.id, title: dep.title, status: dep.status };
+const PRIORITY_CHOICES: FactChoice[] = PRIORITY_BANDS.map((band, index) => ({
+  value: String(index),
+  label: band,
+  mark: <PriorityMark priority={index} size="chip" hint={false} />,
+}));
+
+/** Who a task can be given to: a hosted workspace's members, else the names
+ * that hold work in this project; the current holder always, and nobody. */
+function assigneeChoices(current: string | null, actors: readonly TaskActor[] | undefined, people: readonly string[]): FactChoice[] {
+  const named = actors === undefined
+    ? people.map((name) => ({ value: name, label: name }))
+    : actors.map((actor) => ({ value: actor.principalId, label: actor.displayName.trim() || "Unknown actor" }));
+  const held = current && !named.some((choice) => choice.value === current)
+    ? [{ value: current, label: taskActorLabel(current, actors) }] : [];
+  return [
+    ...[...named, ...held].map((choice) => ({ ...choice, mark: <AgentMark name={choice.label} size="small" /> })),
+    { value: "", label: "Nobody" },
+  ];
+}
+
+/** A calendar day in local time, `YYYY-MM-DD`, the form `--defer` takes. */
+function localDay(ms: number, addDays = 0): string {
+  const at = new Date(ms);
+  at.setDate(at.getDate() + addDays);
+  return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
+}
+
+/** The days a task is most often parked until. */
+function parkPresets(nowMs: number): { label: string; value: string }[] {
+  return [
+    { label: "Tomorrow", value: localDay(nowMs, 1) },
+    { label: "In a week", value: localDay(nowMs, 7) },
+    { label: "In a month", value: localDay(nowMs, 30) },
+  ];
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+const DAY_YEAR_FORMAT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+/** `2026-10-20` as "Oct 20", with the year when it is not this one. */
+function calendarDay(day: string, nowMs: number): string {
+  const [year, month, date] = day.split("-").map(Number);
+  if (!year || !month || !date) return day;
+  const at = new Date(year, month - 1, date);
+  return (year === new Date(nowMs).getFullYear() ? DAY_FORMAT : DAY_YEAR_FORMAT).format(at);
+}
+
+/** A task as a row: who holds open work, and the model they named. */
+function taskRowFacts(task: LiveTask, actors: readonly TaskActor[] | undefined): TaskRowFacts {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    holder: task.status !== "closed" && task.assignee
+      ? { name: taskActorLabel(task.assignee, actors), model: claimedModel(task) }
+      : null,
+  };
+}
+
+/** What this task waits on: its own read names each edge, and the board
+ * read, where it holds the other task, adds its priority and holder. */
+function blockerRows(task: LiveTask, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts[] {
+  return task.dependencies
+    .filter((dep) => dep.type !== "parent-child")
+    .map((dep: TaskDependency) => {
+      const other = known.find((row) => row.id === dep.id);
+      return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
+    });
+}
+
+/** Who holds work in a project's read, each name once. */
+function holders(rows: readonly BoardTask[]): string[] {
+  return [...new Set(rows.flatMap((row) => (row.assignee ? [row.assignee] : [])))].sort((a, b) => a.localeCompare(b));
 }
 
 /** What this task blocks. `bd show` reports only the edges pointing out of a
@@ -1579,7 +1462,8 @@ function findInSnapshot(
  * the tasks the read leaves out, and the board's graph when it draws one. */
 interface EpicView {
   groups: EpicTaskGroup[];
-  progress: { closed: number; total: number } | null;
+  /** Closed of total, and, from the live read, each task as a segment. */
+  progress: { closed: number; total: number; segments?: readonly EpicSegment[] } | null;
   missing: string | null;
   graphHref: string | null;
 }
@@ -1590,11 +1474,16 @@ function liveEpicView(payload: LiveTasksPayload, read: BoardTask[], task: LiveTa
   const children = read.filter((row) => row.parent === task.id);
   if (task.issueType !== "epic" && children.length === 0) return null;
   const earlier = epic ? Math.max(0, epic.total - children.length) : 0;
+  const count = epic && epic.total > 0
+    ? { closed: epic.closed, total: epic.total }
+    : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null;
+  const groups = epicTaskGroups(children, read);
   return {
-    groups: epicTaskGroups(children, read),
-    progress: epic && epic.total > 0
-      ? { closed: epic.closed, total: epic.total }
-      : children.length > 0 ? { closed: children.filter((row) => row.status === "closed").length, total: children.length } : null,
+    groups,
+    progress: count === null ? null : {
+      ...count,
+      segments: epicSegments({ children, next: groups.find((group) => group.word === "Ready")?.tasks[0]?.id ?? null, ...count }),
+    },
     missing: earlier === 0 ? null
       : `${formatInt(earlier)} ${children.length > 0 ? "more" : earlier === 1 ? "task" : "tasks"}, closed over ${TASKS_CLOSED_WINDOW_DAYS} days ago`,
     graphHref: epic && epicDrawsGraph(liveRows(payload), task.id) ? `/tasks?epic=${encodeURIComponent(task.id)}` : null,
@@ -1663,207 +1552,3 @@ function handoffOrigin(metadata: Record<string, unknown> | null): HandoffOrigin 
   };
 }
 
-// --- Markdown, the safe subset ----------------------------------------------
-
-/**
- * A task's description, acceptance criteria and comments are Markdown written
- * by whoever filed them. No dependency and no raw HTML: the renderer parses
- * into blocks and emits React elements, so there is no `dangerouslySetInnerHTML`
- * on the path and a `<script>` in a description is text by construction. A link
- * is rendered only when its href is `http(s)`, `mailto:` or site-relative;
- * anything else renders as the literal Markdown it was written as.
- */
-export function MarkdownText({ source, className }: { source: string; className?: string }) {
-  const blocks = useMemo(() => parseBlocks(source), [source]);
-  return (
-    <div className={cn("flex min-w-0 flex-col gap-2 text-sm leading-relaxed", className)}>
-      {blocks.map((block, index) => {
-        const key = `${block.kind}-${index}`;
-        if (block.kind === "heading") {
-          return (
-            <h3
-              key={key}
-              className={cn(
-                "font-semibold text-foreground",
-                block.level <= 2 ? "text-base" : "text-sm",
-              )}
-            >
-              {inline(block.text, key)}
-            </h3>
-          );
-        }
-        if (block.kind === "code") {
-          return (
-            <pre
-              key={key}
-              className="min-w-0 overflow-x-auto rounded-md border border-border bg-muted/50 p-2 font-mono text-xs"
-            >
-              <code>{block.text}</code>
-            </pre>
-          );
-        }
-        if (block.kind === "quote") {
-          return (
-            <blockquote
-              key={key}
-              className="border-l-2 border-border pl-3 text-muted-foreground"
-            >
-              {inline(block.text, key)}
-            </blockquote>
-          );
-        }
-        if (block.kind === "list") {
-          const items = block.items.map((item, i) => (
-            <li key={`${key}-${i}`}>{inline(item, `${key}-${i}`)}</li>
-          ));
-          return block.ordered ? (
-            <ol key={key} className="ml-5 list-decimal space-y-0.5">
-              {items}
-            </ol>
-          ) : (
-            <ul key={key} className="ml-5 list-disc space-y-0.5">
-              {items}
-            </ul>
-          );
-        }
-        return <p key={key}>{inline(block.text, key)}</p>;
-      })}
-    </div>
-  );
-}
-
-type Block =
-  | { kind: "heading"; level: number; text: string }
-  | { kind: "paragraph"; text: string }
-  | { kind: "list"; ordered: boolean; items: string[] }
-  | { kind: "code"; text: string }
-  | { kind: "quote"; text: string };
-
-function parseBlocks(source: string): Block[] {
-  const lines = source.replace(/\r\n?/g, "\n").split("\n");
-  const out: Block[] = [];
-  let paragraph: string[] = [];
-
-  const flush = () => {
-    if (paragraph.length > 0) {
-      out.push({ kind: "paragraph", text: paragraph.join(" ") });
-      paragraph = [];
-    }
-  };
-
-  for (let i = 0; i < lines.length; i += 1) {
-    const line = lines[i] ?? "";
-    if (line.trimStart().startsWith("```")) {
-      flush();
-      const body: string[] = [];
-      i += 1;
-      while (i < lines.length && !(lines[i] ?? "").trimStart().startsWith("```")) {
-        body.push(lines[i] ?? "");
-        i += 1;
-      }
-      out.push({ kind: "code", text: body.join("\n") });
-      continue;
-    }
-    if (line.trim() === "") {
-      flush();
-      continue;
-    }
-    const heading = /^(#{1,6})\s+(.*)$/.exec(line);
-    if (heading) {
-      flush();
-      out.push({ kind: "heading", level: (heading[1] ?? "#").length, text: (heading[2] ?? "").trim() });
-      continue;
-    }
-    const quote = /^>\s?(.*)$/.exec(line);
-    if (quote) {
-      flush();
-      const last = out[out.length - 1];
-      if (last && last.kind === "quote") last.text = `${last.text} ${quote[1] ?? ""}`;
-      else out.push({ kind: "quote", text: quote[1] ?? "" });
-      continue;
-    }
-    const bullet = /^\s*[-*+]\s+(.*)$/.exec(line);
-    const numbered = bullet ? null : /^\s*\d+[.)]\s+(.*)$/.exec(line);
-    if (bullet || numbered) {
-      flush();
-      const ordered = bullet === null;
-      const item = ((bullet ?? numbered)?.[1] ?? "").trim();
-      const last = out[out.length - 1];
-      if (last && last.kind === "list" && last.ordered === ordered) last.items.push(item);
-      else out.push({ kind: "list", ordered, items: [item] });
-      continue;
-    }
-    paragraph.push(line.trim());
-  }
-  flush();
-  return out;
-}
-
-/** Inline spans: code, bold, emphasis, links. Split on the token pattern so the
- * delimiters survive as their own parts, then each part becomes an element —
- * never a string of markup. */
-const INLINE_TOKEN =
-  /(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*|_[^_\s][^_]*_|\[[^\]]*\]\([^)\s]+\))/g;
-
-function inline(text: string, keyPrefix: string): ReactNode[] {
-  return text.split(INLINE_TOKEN).map((part, index) => {
-    const key = `${keyPrefix}-i${index}`;
-    if (part === "") return null;
-    if (part.startsWith("`") && part.endsWith("`") && part.length > 1) {
-      return (
-        <code key={key} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.9em]">
-          {part.slice(1, -1)}
-        </code>
-      );
-    }
-    if (part.startsWith("**") && part.endsWith("**") && part.length > 3) {
-      return (
-        <strong key={key} className="font-semibold">
-          {part.slice(2, -2)}
-        </strong>
-      );
-    }
-    if (
-      (part.startsWith("*") && part.endsWith("*") && part.length > 1) ||
-      (part.startsWith("_") && part.endsWith("_") && part.length > 1)
-    ) {
-      return <em key={key}>{part.slice(1, -1)}</em>;
-    }
-    const link = /^\[([^\]]*)\]\(([^)\s]+)\)$/.exec(part);
-    if (link) {
-      const label = link[1] ?? "";
-      const href = safeHref(link[2] ?? "");
-      if (href === null) return <span key={key}>{part}</span>;
-      if (href.startsWith("/")) {
-        return (
-          <Link key={key} to={href} className="underline underline-offset-2">
-            {label}
-          </Link>
-        );
-      }
-      return (
-        <a
-          key={key}
-          href={href}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="underline underline-offset-2"
-        >
-          {label}
-        </a>
-      );
-    }
-    return <span key={key}>{part}</span>;
-  });
-}
-
-/** An allowlist, not a denylist: three shapes are safe to put in an `href` and
- * everything else — `javascript:`, `data:`, a protocol-relative `//host` — is
- * not a link this page will make. */
-function safeHref(raw: string): string | null {
-  const href = raw.trim();
-  if (/^https?:\/\//i.test(href)) return href;
-  if (/^mailto:[^\s]+$/i.test(href)) return href;
-  if (href.startsWith("/") && !href.startsWith("//")) return href;
-  return null;
-}

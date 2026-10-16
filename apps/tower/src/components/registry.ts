@@ -454,6 +454,20 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["connected", "affirmative", "caution", "critical", "declined", "na", "neutral", "hollow dot", "attention halo", "lifecycle glyph"],
   },
   {
+    name: "FactChip",
+    file: "components/FactChip.tsx",
+    purpose:
+      "A record's fact as its value, sized to its content, that edits where it is read: a press opens a small popover with the choices, a typed value or a date, a choice or Enter saves at once (the caller's save carries the Undo toast) and Escape leaves it as it was. Without write permission it is the same chip with nothing to press. KnobEditor edits a setting with its own Save and range; this is for a record's field that changes now and then (the task page's facts rail).",
+    variants: ["plain", "link", "choice", "choice with a typed value", "text", "date with presets", "split (link + editor)", "quiet (an absence)"],
+  },
+  {
+    name: "TaskTimeline",
+    file: "components/TaskTimeline.tsx",
+    purpose:
+      "What happened to one task, and when: a compact EventTimeline strip ending at now over the same moments as a column in time order (filed, claimed, each comment, the close), each with who did it as the Wall's feed draws an agent, a close's commits and links as chips, and the next comment's box last. EventTimeline alone has no room for who and what was written.",
+    variants: ["filed, claimed, comment, closed", "an undated comment listed last", "with the comment box"],
+  },
+  {
     name: "UnknownPriceCount",
     file: "components/UnknownPriceCount.tsx",
     purpose:
@@ -1296,6 +1310,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     purpose:
       "How parts connect and where it is broken: live nodes with figures and state, edges that flow, idle or break, a loop routed around. Across or stacked by its own width, with a spoken list of every edge.",
     variants: ["the Sense to Learn loop", "system topology", "task dependencies", "not connected"],
+  },
+  {
+    name: "DependencyGraph",
+    file: "components/viz/DependencyGraph.tsx",
+    purpose:
+      "One item between its neighbours in a chain of work: what it waits on to its left, what waits on it to its right, each a card that opens its page, the edges routed and drawn by FlowGraph's own `flowRoutes` and `FlowEdgePath`. FlowGraph lays out a whole graph from its nodes' states; this keeps one item in the middle and draws each neighbour in its own status mark.",
+    variants: ["blockers and blocked", "only blockers", "stacked in a narrow column", "a broken and a moving edge"],
   },
   {
     name: "IncidentList",

@@ -8,7 +8,7 @@ import { ageMs, formatAge } from "@shared/freshness";
 import { sumWorkHistory, type WorkEpic, type WorkProject } from "@shared/work";
 import type { BarStripPoint } from "@/components/viz/BarStrip";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
-import { flowLayers, type FlowEdge, type FlowNode } from "@/components/viz/FlowGraph";
+import { flowLayers, type FlowEdge, type FlowEdgeState, type FlowNode } from "@/components/viz/FlowGraph";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
 import { IN_PROGRESS, PARKED, inboxAsk, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 
@@ -275,15 +275,22 @@ export function epicTaskGroups(
   });
 }
 
-/** An edge as its blocker leaves it: released once the blocker is done, moving
- * while someone works it, held when the blocker is blocked or parked, and
- * waiting on the operator when the blocker is an ask. */
+/** An edge as its blocker's status leaves it: released once the blocker is
+ * done, moving while someone works it, held when the blocker is blocked or
+ * parked. A status the read does not carry is a waiting edge. */
+export function blockerEdgeState(status: string | null): FlowEdgeState {
+  if (status === "blocked" || status === PARKED) return "broken";
+  if (status === IN_PROGRESS) return "flowing";
+  return "idle";
+}
+
+/** The same edge on the board's graph, which also marks a blocker waiting on
+ * the operator. */
 function epicEdge(from: BoardTask, to: string): FlowEdge {
-  if (from.status === "closed") return { from: from.id, to, state: "idle" };
-  if (from.status === "blocked" || from.status === PARKED) return { from: from.id, to, state: "broken" };
-  if (inboxAsk(from) !== null) return { from: from.id, to, state: "idle", label: "needs attention" };
-  if (from.status === IN_PROGRESS) return { from: from.id, to, state: "flowing" };
-  return { from: from.id, to, state: "idle" };
+  if (from.status !== "closed" && from.status !== "blocked" && from.status !== PARKED && inboxAsk(from) !== null) {
+    return { from: from.id, to, state: "idle", label: "needs attention" };
+  }
+  return { from: from.id, to, state: blockerEdgeState(from.status) };
 }
 
 /**
