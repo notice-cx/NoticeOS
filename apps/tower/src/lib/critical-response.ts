@@ -82,7 +82,7 @@ export function decodeConfigWritable(value: unknown): ConfigWritability {
     versions: item => record(item) && Object.entries(item).every(([file, version]) => configFile(file) && nullable(integer)(version)),
     store: item => fields(item, { ready: boolean, reason: nullable(string) }), unseeded: list(configFile),
   })) invalidResponse('Settings availability');
-  // The local lane omits source facts. This empty map explicitly means unknown.
+  // A deployment that omits source facts answers an empty map, which means unknown.
   return { writable: value.writable as boolean, reason: value.reason as string | null,
     sources: Object.hasOwn(value, 'sources') ? value.sources as ConfigWritability['sources'] : {} };
 }

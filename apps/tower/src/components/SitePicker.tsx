@@ -157,7 +157,7 @@ export function SitePicker({
                     row={row}
                     outcome={outcome(row.asset.id)}
                     status={shown}
-                    detail={row.lanes.map((lane) => choiceDetail(row, lane, selection, plan.kind)).filter(Boolean).join(" · ")}
+                    detail={rowDetail(row, selection, plan.kind)}
                   />
                 </span>
                 {result === null || result.ok ? (
@@ -323,12 +323,15 @@ export function SitePicker({
   );
 }
 
-/** What a row's picker chooses, where a provider collects more than one kind
- * of site on one row (Google: a GA4 property and a Search Console site). */
-const LANE_PICK: Record<string, string> = {
-  ga4: "GA4 property",
-  gsc: "Search Console site",
+/** Where a provider collects more than one kind of site on one row (Google: a
+ * GA4 property and a Search Console site): each kind's short name, which the
+ * row's detail uses, and what its picker chooses. */
+const LANE_PICK: Record<string, { name: string; pick: string }> = {
+  ga4: { name: "GA4", pick: "GA4 property" },
+  gsc: { name: "Search Console", pick: "Search Console site" },
 };
+
+const NOT_IN_ACCOUNT = "Not in this account";
 
 const EXCLUSION: Record<SiteExclusion, string> = {
   "not-using": "Not using",
@@ -397,7 +400,8 @@ function ChoiceRow({
       data-site-decision={decision === "undecided" || decision === "not-using" ? decision : undefined}
     >
       {/* Wide enough to read its detail whole: on a phone the row's action
-          drops under it rather than clipping "Not in this account". */}
+          drops under it, and the detail wraps rather than clipping which
+          kind of site is not in the account. */}
       <label htmlFor={id} className={cn("flex min-h-11 min-w-[13rem] flex-1 items-center gap-3", collectable ? "cursor-pointer" : "cursor-default")}>
         <input
           id={id}
@@ -410,8 +414,8 @@ function ChoiceRow({
         <PropertyFavicon domain={row.asset.domain ?? row.asset.id} displayName={row.asset.label} />
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.asset.label}</span>
-          <span className="truncate font-mono text-xs text-muted-foreground" data-site-detail>
-            {row.lanes.map((lane) => choiceDetail(row, lane, selection, kind)).filter(Boolean).join(" · ") || "Not in this account"}
+          <span className="break-words font-mono text-xs text-muted-foreground" data-site-detail>
+            {rowDetail(row, selection, kind) || NOT_IN_ACCOUNT}
           </span>
         </span>
       </label>
@@ -419,13 +423,13 @@ function ChoiceRow({
       {choosable.map((lane) => (
         <select
           key={lane.lane}
-          aria-label={`${LANE_PICK[lane.lane] ?? "Site"} for ${row.asset.label}`}
+          aria-label={`${LANE_PICK[lane.lane]?.pick ?? "Site"} for ${row.asset.label}`}
           value={selection.picks[row.asset.id]?.[lane.lane] ?? ""}
           onChange={(event) => onPick(lane, event.target.value)}
           className={cn(fieldClass, "h-11 max-w-full basis-full px-2 text-sm sm:h-9 sm:basis-auto")}
           data-site-pick={lane.lane}
         >
-          <option value="">{LANE_PICK[lane.lane] ?? "Choose site"}</option>
+          <option value="">{LANE_PICK[lane.lane]?.pick ?? "Choose site"}</option>
           {lane.choices.map((site) => (
             <option key={site.ref} value={site.ref}>
               {site.label}
@@ -445,12 +449,26 @@ function ChoiceRow({
   );
 }
 
-/** What a row says under its name while choosing: the site it will be
- * collected from, its market, or that the account lists nothing for it. */
+/** What a row says under its name: each kind of site's detail, joined. A row
+ * the account holds nothing for at all says so once. */
+function rowDetail(row: SiteRow, selection: SiteSelection, kind: "account" | "portfolio"): string {
+  const absent = (lane: SiteLane) => !(chosenSite(row, lane, selection) ?? lane.site) && lane.choices.length === 0;
+  if (kind === "account" && row.lanes.length > 1 && row.lanes.every(absent)) return NOT_IN_ACCOUNT;
+  return row.lanes.map((lane) => choiceDetail(row, lane, selection, kind)).filter(Boolean).join(" · ");
+}
+
+/** One kind of site's part of a row's detail while choosing: the site it will
+ * be collected from, its market, or that the account lists nothing for it —
+ * named, on a row that collects more than one kind, so the phrase cannot be
+ * read as being about the other. */
 function choiceDetail(row: SiteRow, lane: SiteLane, selection: SiteSelection, kind: "account" | "portfolio"): string {
   if (kind === "portfolio") return lane.site ? marketLabel(marketOf(lane)) : "";
   const site = chosenSite(row, lane, selection) ?? lane.site;
-  if (!site) return lane.choices.length > 0 ? "" : "Not in this account";
+  if (!site) {
+    if (lane.choices.length > 0) return "";
+    const name = row.lanes.length > 1 ? LANE_PICK[lane.lane]?.name : undefined;
+    return name === undefined ? NOT_IN_ACCOUNT : `${name}: not in this account`;
+  }
   // A PostHog project reads as its name and the number its PostHog address
   // shows; a GA4 property as its number.
   const project = site.mapping.projectId;

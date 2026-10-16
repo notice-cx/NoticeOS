@@ -6,6 +6,7 @@ import { DATAFORSEO_BASELINE, DATAFORSEO_MARKETS, marketLabel } from "@shared/si
 import { InlineSaveState, type InlineSave } from "@/components/InlineSaveState";
 import { fieldClass } from "@/components/ui/field";
 import type { GoogleDiscoveredProperty } from "@shared/integrations-page";
+import { googleListingGrant } from "@shared/connect-panel";
 import type { DiscoveredSite, PosthogFunnel } from "@noticeos/contract";
 import {
   LANE_FALLBACK_LABEL,
@@ -52,7 +53,8 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
   // than four disabled ones; the refusal is said once on the tab by SavesPaused.
   const { writable, sources } = useConfigWritable();
   // When a save here takes effect, derived from the same field the payload
-  // was built from, so the promise and the behaviour cannot disagree.
+  // was built from, so the promise and the behaviour cannot disagree. Null
+  // until the deployment says where it read the file.
   const mappingTiming = laneMappingTiming(sources["config/integrations.json"]);
   const fallback = LANE_MAPPING[cell.laneId]?.fallback ?? null;
   // What the connected Google account can see, asked only where it could be
@@ -116,7 +118,7 @@ export function LaneConfig({ lane, asset }: { lane: AssetIntegrationLane; asset:
                 subject={`source:${asset}:${cell.laneId}`}
               />
             ) : null}
-            {writable ? (
+            {writable && mappingTiming !== null ? (
               <StateChip
                 tone={mappingTiming === "after-restart" ? "caution" : "neutral"}
                 label={LANE_MAPPING_TIMING_LABEL[mappingTiming]}
@@ -397,6 +399,9 @@ interface LanePickerState {
   /** Why there is no list — in Google's own sentence where it had one — or null
    * when there is one. */
   unavailable: string | null;
+  /** Whose access the list shows and what makes a missing one appear, or null
+   * while the credential is unknown. */
+  grant: string | null;
 }
 
 /**
@@ -426,7 +431,8 @@ function lanePicker(
         : options.length === 0
           ? `No ${label}`
           : null;
-  return { lane, loading, options, unavailable };
+  const grant = loading || query.isError ? null : googleListingGrant(lane, payload);
+  return { lane, loading, options, unavailable, grant };
 }
 
 /**
@@ -533,6 +539,7 @@ function LaneMappingField({
             {picker.loading ? "Reading Google…" : picker.unavailable}
           </p>
         )}
+        {picker === null ? null : <ListingGrant laneId={laneId} grant={picker.grant} />}
         {remove}
       </div>
     );
@@ -561,6 +568,7 @@ function LaneMappingField({
   return (
     <div data-lane-picker={laneId} data-lane-picker-state="ready">
       {editor(field.label, { type: "select", options })}
+      <ListingGrant laneId={laneId} grant={picker.grant} />
       <details className="pb-2">
         <summary className="cursor-pointer text-[11px] text-muted-foreground marker:text-muted-foreground">
           Not in the list? Type it instead
@@ -571,6 +579,17 @@ function LaneMappingField({
       </details>
       {remove}
     </div>
+  );
+}
+
+/** Under a Google picker: whose access the list shows, and the grant that
+ * makes a missing one appear (`googleListingGrant`). */
+function ListingGrant({ laneId, grant }: { laneId: string; grant: string | null }) {
+  if (grant === null) return null;
+  return (
+    <p className="break-words pb-2 text-[11px] leading-snug text-muted-foreground" data-lane-picker-grant={laneId}>
+      {grant}
+    </p>
   );
 }
 

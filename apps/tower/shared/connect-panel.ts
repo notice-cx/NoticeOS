@@ -68,6 +68,32 @@ export function replaceLabel(provider: Pick<IntegrationProvider, "fields"> & Par
   return noun === null ? null : `Replace ${noun}`;
 }
 
+// --- what the Google credential can read ------------------------------------
+
+/**
+ * The line under a site's GA4 or Search Console picker: whose access the list
+ * shows, and what makes a missing one appear. A service account is granted at
+ * Google, with the role each collector needs (docs/11-integrations.md); a
+ * sign-in is replaced by one that can read it. Null when the listing named no
+ * credential.
+ */
+export function googleListingGrant(
+  kind: "ga4" | "gsc",
+  listing: { auth?: unknown; account?: unknown } | undefined,
+): string | null {
+  const account = typeof listing?.account === "string" ? listing.account.trim() : "";
+  if (account === "") return null;
+  const missing = kind === "ga4" ? "a GA4 property" : "a Search Console site";
+  if (listing?.auth === "oauth") {
+    return `Listed for ${account}. Missing ${missing}? Sign in on Integrations with a Google account that can read it.`;
+  }
+  if (listing?.auth !== "service-account") return null;
+  const grant = kind === "ga4"
+    ? "In Google Analytics, add this account as Viewer on that GA4 property or its account"
+    : "In Search Console, add this account as a Full user on that site";
+  return `Listed for the service account ${account}. Missing ${missing}? ${grant}, then reload this page.`;
+}
+
 // --- a list of named feeds (calendar feeds) -----------------------------------
 
 /** One feed as the panel's rows hold it: its name (optional) and its URL. */

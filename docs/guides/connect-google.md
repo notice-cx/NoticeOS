@@ -69,6 +69,11 @@ You decide which GA4 property and Search Console site belong to each of your sit
 1. On the site's **Data sources** tab, open the Google row.
 2. Under **Mapping**, set the **Site** (as `sc-domain:example.com` or `https://example.com/`) and the **GA4 property id**. Each choice is saved on its own with **Undo** beside it.
 
+The two lists show only what the connected Google credential can read, and the line under each list names that credential. When a GA4 property or Search Console site is missing:
+
+- **Service account**: in Google Analytics, add the service account's email as **Viewer** on that GA4 property or its account; in Search Console, add it as a **Full user** on that site. Then reload the page.
+- **Sign-in**: on **Integrations**, sign in with a Google account that can read it.
+
 ## Verify
 
 - Each site's row moves from **Collecting** to **Working** when its first result arrives.

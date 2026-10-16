@@ -237,8 +237,9 @@ export declare const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister>
  * compiled-in copy. */
 export type LaneMappingTiming = 'next-run' | 'after-restart';
 /** The one true answer, given where this deployment read the file.
- * `source` is `'store'` or `'file'`, straight off `GET /api/config`. */
-export declare function laneMappingTiming(source: 'store' | 'file' | undefined): LaneMappingTiming;
+ * `source` is `'store'` or `'file'`, straight off `GET /api/config`; null
+ * when the deployment did not say, which the card draws as no chip. */
+export declare function laneMappingTiming(source: 'store' | 'file' | undefined): LaneMappingTiming | null;
 /** The chip for each timing — a state, not the sentence above. */
 export declare const LANE_MAPPING_TIMING_LABEL: Readonly<Record<LaneMappingTiming, string>>;
 /** The chip for each fallback, beside a lane nothing is mapped on. A mapped

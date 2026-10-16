@@ -14,6 +14,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import type { Connect, Plugin, ViteDevServer } from "vite";
+import { TOWER_CONFIG_FILES } from "@noticeos/contract/configuration";
 import {
   ChangesetError,
   MISSING,
@@ -149,6 +150,20 @@ export function doorConfigStore(): ConfigStoreLane {
   };
 }
 
+/** Per file, where this deployment's pages read it from, in the shape the
+ * deployed Worker answers (`resolveTowerConfig`): a document the ready store
+ * holds is read from the store, and anything else from the compiled copy. */
+export function configSources(
+  state: { ready: boolean; unseeded: readonly string[] } | null,
+): Record<string, "store" | "file"> {
+  return Object.fromEntries(
+    Object.values(TOWER_CONFIG_FILES).map((file) => [
+      file,
+      state?.ready === true && !state.unseeded.includes(file) ? "store" : "file",
+    ]),
+  );
+}
+
 /** A lost response may follow a committed write: claim neither success nor
  * rollback, and never make a second write to a different source of truth. */
 function storeUnknownReply(): ConfigStoreReply {
@@ -202,6 +217,7 @@ export async function handleConfigRequest(
       body: {
         writable: state === null || state.ready,
         reason: state?.ready === false ? state.reason : null,
+        sources: configSources(state),
         ...(state === null
           ? {}
           : { store: { ready: state.ready, reason: state.reason }, unseeded: state.unseeded }),

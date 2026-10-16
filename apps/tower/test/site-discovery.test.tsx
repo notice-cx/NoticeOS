@@ -595,4 +595,24 @@ describe("Google's two kinds of site on one row", () => {
     expect(within(second).getByRole("combobox", { name: "GA4 property for Second" })).toBeTruthy();
     expect(document.querySelector('[data-other-site="987654321"]')?.textContent).toContain("another.example");
   });
+
+  it("names the kind of site the account does not hold, and says it once when it holds neither", () => {
+    render(
+      <MemoryRouter>
+        <SitePicker
+          provider={GOOGLE}
+          payload={payload(
+            [ga4("538680421", "journey.example")],
+            [asset("journey.example", { cells: cells() }), asset("second.example", { cells: cells() })],
+          )}
+          onStart={async () => null}
+          onClose={() => {}}
+        />
+      </MemoryRouter>,
+    );
+    const row = document.querySelector('[data-site-row="journey.example"]') as HTMLElement;
+    expect(row.querySelector("[data-site-detail]")?.textContent).toBe("GA4 538680421 · Search Console: not in this account");
+    const second = document.querySelector('[data-site-row="second.example"]') as HTMLElement;
+    expect(second.querySelector("[data-site-detail]")?.textContent).toBe("Not in this account");
+  });
 });

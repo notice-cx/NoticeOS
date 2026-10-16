@@ -41,8 +41,8 @@ import { typeScriptSources, withoutComments } from "./source-files";
 let client: QueryClient;
 
 /** What this deployment's `GET /api/config` says. The store answer is the one
- * the wait has to disappear on; `FILE_BACKED` is the local dev server, which
- * really does restart. */
+ * the wait has to disappear on; `FILE_BACKED` is a local dev server with no
+ * store, which really does restart. */
 let configAnswer: ConfigWritability;
 
 const FILE_BACKED: ConfigWritability = {
@@ -132,8 +132,8 @@ describe("a config save refreshes every page built from a config file", () => {
 
 describe("a save waits only for a restart that is actually going to happen", () => {
   it("is decided by where the config came from, not by the deployment", () => {
-    // Unknown waits: the local dev lane answers this route itself and reports
-    // no sources at all, and it is the one deployment that really restarts.
+    // Unknown waits: a deployment that does not say may still be reading the
+    // compiled copy, which changes only after a restart.
     expect(configSaveDelayMs(STORE_BACKED.sources)).toBe(0);
     expect(configSaveDelayMs(FILE_BACKED.sources)).toBe(WORKER_RESTART_MS);
     expect(configSaveDelayMs({})).toBe(WORKER_RESTART_MS);
