@@ -6,7 +6,6 @@ import {
   Check,
   Circle,
   CircleDot,
-  CircleHelp,
   Lock,
   MessageSquare,
   Pencil,
@@ -67,7 +66,7 @@ import { EpicProgress, EpicTaskList } from "@/routes/tasks/epic-tasks";
 import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
-import { TaskStatusGlyph } from "@/routes/tasks/task-face";
+import { TaskRow, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
 
 /**
@@ -241,7 +240,8 @@ export function TaskRoute() {
             epic={epicOf(board.data?.epics ?? null, task.parent)}
             parentTitle={parentTitle}
             nextReady={nextReady}
-            blocks={blockedByThis(board.data?.tasks ?? [], task.id)}
+            blockers={blockerRows(task, board.data?.tasks ?? [], actors)}
+            blocked={blockedByThis(board.data?.tasks ?? [], task.id).map((other) => taskRowFacts(other, actors))}
             nowMs={now}
           />
           <div className="flex min-w-0 flex-col gap-4 lg:col-start-1 lg:row-start-1">
@@ -689,7 +689,8 @@ function Facts({
   epic,
   parentTitle,
   nextReady,
-  blocks,
+  blockers,
+  blocked,
   nowMs,
 }: {
   className?: string;
@@ -702,13 +703,14 @@ function Facts({
   parentTitle: string | null;
   /** The first sibling ready to be claimed. */
   nextReady: BoardTask | null;
-  blocks: LiveTask[];
+  /** What this task waits on, and what waits on it. */
+  blockers: TaskRowFacts[];
+  blocked: TaskRowFacts[];
   nowMs: number;
 }) {
   const save = useFieldSave(task.id);
   const actors = useContext(TaskActors);
   const taskHref = useTaskHref();
-  const blockedBy = task.dependencies.filter((dep) => dep.type !== "parent-child");
   const origin = handoffOrigin(task.metadata);
   const saveAssignee = (next: string) => save({
     label: 'assignee',
@@ -775,21 +777,15 @@ function Facts({
           </div>
         </Fact>
 
-        {blockedBy.length > 0 ? (
+        {blockers.length > 0 ? (
           <Fact label="Blocked by">
-            <DependencyList items={blockedBy.map((dep) => dependencyRow(dep))} />
+            <DependencyList items={blockers} />
           </Fact>
         ) : null}
 
-        {blocks.length > 0 ? (
+        {blocked.length > 0 ? (
           <Fact label="Blocks">
-            <DependencyList
-              items={blocks.map((other) => ({
-                id: other.id,
-                title: other.title,
-                status: other.status,
-              }))}
-            />
+            <DependencyList items={blocked} />
           </Fact>
         ) : null}
 
@@ -927,40 +923,18 @@ function CameFrom({ origin }: { origin: HandoffOrigin }) {
   );
 }
 
-function DependencyList({ items }: { items: { id: string; title: string | null; status: string | null }[] }) {
+/** Each row wears its task's own status glyph: a closed blocker is no longer
+ * in the way, and a list that could not say so would read as five things
+ * blocking work that only two of them block. */
+function DependencyList({ items }: { items: TaskRowFacts[] }) {
   const taskHref = useTaskHref();
   return (
-    <ul className="flex flex-col gap-1.5">
+    <ul className="-mx-2 flex flex-col">
       {items.map((item) => (
-        <li key={item.id} className="flex min-w-0 items-start gap-1.5">
-          <DependencyGlyph status={item.status} />
-          <Link
-            to={taskHref(item.id)}
-            className="min-w-0 text-sm hover:underline"
-          >
-            <span className="font-mono text-xs text-muted-foreground">{item.id}</span>
-            {item.title ? <span className="ml-1.5">{item.title}</span> : null}
-          </Link>
-        </li>
+        <TaskRow key={item.id} task={item} href={taskHref(item.id)} marks={{ "data-dependency": item.id }} />
       ))}
     </ul>
   );
-}
-
-/** A blocker's own status, as the lifecycle glyph the board and the header
- * draw. A closed blocker is no longer in the way, and a list that could not
- * say so would read as five things blocking work that only two of them block. */
-function DependencyGlyph({ status }: { status: string | null }) {
-  if (status === null) {
-    return (
-      <CircleHelp
-        role="img"
-        className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/60"
-        aria-label="status unknown"
-      />
-    );
-  }
-  return <TaskStatusGlyph status={status} className="mt-0.5" />;
 }
 
 // --- The editors: buffer a draft, Save writes it, the toast carries the way back
@@ -1556,8 +1530,28 @@ function LaneFailed({ error }: { error: Error | null }) {
  * outside this list as itself. */
 const STATUS_OPTIONS = TASK_STATUSES.map((status) => ({ value: status.stored, label: status.label }));
 
-function dependencyRow(dep: TaskDependency): { id: string; title: string | null; status: string | null } {
-  return { id: dep.id, title: dep.title, status: dep.status };
+/** A task as a row: who holds open work, and the model they named. */
+function taskRowFacts(task: LiveTask, actors: readonly TaskActor[] | undefined): TaskRowFacts {
+  return {
+    id: task.id,
+    title: task.title,
+    status: task.status,
+    priority: task.priority,
+    holder: task.status !== "closed" && task.assignee
+      ? { name: taskActorLabel(task.assignee, actors), model: claimedModel(task) }
+      : null,
+  };
+}
+
+/** What this task waits on: its own read names each edge, and the board
+ * read, where it holds the other task, adds its priority and holder. */
+function blockerRows(task: LiveTask, known: readonly LiveTask[], actors: readonly TaskActor[] | undefined): TaskRowFacts[] {
+  return task.dependencies
+    .filter((dep) => dep.type !== "parent-child")
+    .map((dep: TaskDependency) => {
+      const other = known.find((row) => row.id === dep.id);
+      return other ? taskRowFacts(other, actors) : { id: dep.id, title: dep.title, status: dep.status };
+    });
 }
 
 /** What this task blocks. `bd show` reports only the edges pointing out of a

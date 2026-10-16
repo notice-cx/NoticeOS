@@ -436,6 +436,51 @@ describe("no hint covers the header's actions", () => {
   });
 });
 
+// A row is one target: the whole row is the link, named by its id and title.
+describe("every task row opens its task from anywhere on the row", () => {
+  it("opens a dependency from a press on the row's far end, and names the row by its id and title", async () => {
+    renderTask();
+    const row = await screen.findByRole("link", { name: "ro-l1ed.4 The composer replaces the copied bd create" });
+    expect(row).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    // The row's whole content sits inside the one link: the glyph, the id, the
+    // title and the priority mark at its far end.
+    const item = row.closest("[data-dependency]") as HTMLElement;
+    expect(item.querySelectorAll("a")).toHaveLength(1);
+    const far = row.querySelector("[data-priority-mark]") as HTMLElement;
+    expect(row).toContainElement(far);
+    expect(row).toContainElement(row.querySelector("[data-task-status-glyph]") as HTMLElement);
+    expect(row).toHaveAccessibleDescription("Open, high priority");
+    fireEvent.click(far);
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.4", expect.any(AbortSignal)));
+  });
+
+  it("opens a row with Enter once it has focus, the way a link activates", async () => {
+    renderTask();
+    const row = await screen.findByRole("link", { name: "ro-l1ed.1 A local task lane" });
+    row.focus();
+    expect(document.activeElement).toBe(row);
+    expect(row.tagName).toBe("A");
+    expect(row).not.toHaveAttribute("tabindex");
+    // A browser turns Enter on a focused link into its click.
+    fireEvent.keyDown(row, { key: "Enter" });
+    fireEvent.click(row);
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith("ro-l1ed.1", expect.any(AbortSignal)));
+  });
+
+  it("opens an epic's task from a press on its holder", async () => {
+    const EPIC = "ro-l1ed";
+    api.fetchTask.mockResolvedValue(detail({ task: task({ id: EPIC, title: "Tasks are managed in the Tower", issueType: "epic", parent: null,
+      status: "open", assignee: null, startedAt: null, dependencies: [], metadata: null }), comments: [] }));
+    const { container } = renderTask(EPIC);
+    await waitFor(() => expect(container.querySelector(`[data-epic-task="${ID}"]`)).not.toBeNull());
+    const item = container.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement;
+    const row = within(item).getByRole("link", { name: `${ID} A task has a page` });
+    const holder = within(row).getByText("claude/task-page-agent");
+    fireEvent.click(holder);
+    await waitFor(() => expect(api.fetchTask).toHaveBeenLastCalledWith(ID, expect.any(AbortSignal)));
+  });
+});
+
 describe("the core task page before the snapshot hub status answers", () => {
   it("reads the linked task through the live lane without an optional connection", async () => {
     taskSourceMock.connected = null;
@@ -1077,7 +1122,7 @@ describe("an epic's page and its tasks", () => {
     const ready = within(list.querySelector('[data-epic-group="Ready"]') as HTMLElement);
     expect(ready.getByRole("link", { name: /ro-l1ed\.5/ })).toHaveAttribute("href", "/tasks/ro-l1ed.5");
     // Who holds a task in progress is on its row.
-    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText(/claude\/task-page-agent/)).toBeInTheDocument();
+    expect(within(list.querySelector(`[data-epic-task="${ID}"]`) as HTMLElement).getByText("claude/task-page-agent")).toBeInTheDocument();
     // The read holds a week of closes; the epic's all-time count names the rest.
     expect(within(list).getByText("1 more, closed over 7 days ago")).toBeInTheDocument();
     expect(within(list).getByRole("link", { name: "Epic graph →" })).toHaveAttribute("href", `/tasks?epic=${EPIC}`);

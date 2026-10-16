@@ -1,6 +1,4 @@
-import { Link } from "react-router-dom";
 import { claimedModel, taskActorLabel } from "@shared/tasks";
-import { AgentMark } from "@/components/AgentMark";
 import { Meter } from "@/components/Meter";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -8,7 +6,7 @@ import { formatInt } from "@/lib/format";
 import type { BoardTask } from "@/lib/task-board-read";
 import type { EpicTaskGroup } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
-import { PriorityMark, TaskStatusGlyph } from "./task-face";
+import { TaskRow } from "./task-row";
 
 /** An epic's all-time progress: closed of total, as a bar with its figure. */
 export function EpicProgress({ closed, total, className }: { closed: number; total: number; className?: string }) {
@@ -59,7 +57,7 @@ export function EpicTaskList({
               {group.word}
               <span className="tabular-nums text-muted-foreground">{formatInt(group.tasks.length)}</span>
             </h3>
-            <ul className="flex flex-col">
+            <ul className="-mx-2 flex flex-col">
               {group.tasks.map((task) => (
                 <EpicTaskRow key={task.id} task={task} href={taskHref(task.id)} />
               ))}
@@ -78,22 +76,10 @@ function EpicTaskRow({ task, href }: { task: BoardTask; href: string }) {
   const holder = task.assignee ? taskActorLabel(task.assignee, task.actors) : null;
   const model = claimedModel({ metadata: (task as BoardTask & { metadata?: Record<string, unknown> | null }).metadata ?? null });
   return (
-    <li className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1 border-b border-border/60 py-2 last:border-0" data-epic-task={task.id}>
-      <TaskStatusGlyph status={task.status} className="mt-0.5" />
-      <Link to={href} className="min-w-0 flex-1 basis-48 text-sm hover:underline">
-        <span className="font-mono text-xs text-muted-foreground">{task.id}</span>
-        <span className="ml-1.5">{task.title}</span>
-      </Link>
-      <span className="ms-auto flex items-center gap-2">
-        {holder ? (
-          <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
-            <AgentMark name={holder} models={[model]} size="small" />
-            {holder}
-            {model ? ` · ${model}` : ""}
-          </span>
-        ) : null}
-        <PriorityMark priority={task.priority} />
-      </span>
-    </li>
+    <TaskRow
+      task={{ id: task.id, title: task.title, status: task.status, priority: task.priority, holder: holder ? { name: holder, model } : null }}
+      href={href}
+      marks={{ "data-epic-task": task.id }}
+    />
   );
 }
