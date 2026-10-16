@@ -2451,7 +2451,7 @@ describe("buildAssetDetailPayload", () => {
     expect(cj.catalog).not.toHaveProperty("perProperty");
     const gsc = p.integrations.lanes.find((l) => l.cell.laneId === "gsc")!;
     expect(gsc.cell.evidence[0]).toMatchObject({
-      polarity: "against",
+      polarity: "supporting",
       source: "Search Console collector",
       detail: "No run yet",
       at: null,

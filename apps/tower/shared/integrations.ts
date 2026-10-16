@@ -198,7 +198,8 @@ export interface CollectionVerification {
 
 export interface IntegrationEvidence {
   /** Which way the evidence cuts. `against` explains an error/stale state;
-   * `supporting` shows data actually arriving (or a manual revenue path). */
+   * `supporting` shows data actually arriving, a manual revenue path, or a
+   * source with no run owed yet ("No run yet"). */
   polarity: "against" | "supporting";
   /** What happened, as a short title ("Nightly report overdue", "Affiliate revenue added by hand"). */
   source: string;
