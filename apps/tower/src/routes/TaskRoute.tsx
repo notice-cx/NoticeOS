@@ -1,12 +1,13 @@
 import { useDemoReadonly } from '@/lib/browser-context';
 import { useOwnerToast } from '@/lib/browser-context';
-import { type ReactNode, createContext, useContext, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, createContext, useContext, useCallback, useEffect, useId, useMemo, useState } from "react";
 import {
   ArrowLeft,
   Check,
   Circle,
   CircleDot,
   CircleHelp,
+  Lock,
   MessageSquare,
   Pencil,
   Plus,
@@ -77,6 +78,9 @@ import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/tas
  * shipped, not proven, so nothing here is green.
  */
 const TaskWritePermission = createContext(true);
+/** The read-only banner a deployed build draws under the header, which the
+ * header's disabled actions name as their reason. */
+const READ_ONLY_REASON_ID = "task-read-only-reason";
 const TaskActors = createContext<readonly TaskActor[] | undefined>(undefined);
 function useFieldPermission(field: string): boolean {
   const writable = useContext(TaskWritePermission);
@@ -300,18 +304,29 @@ function TaskHeader({
   const capabilities = useTasksLive();
   const [closing, setClosing] = useState(false);
   const { hides: answerHides } = useOwnerAnswers();
+  const reasonId = useId();
   const claimable = head !== null && head.status === "open" && head.holder === null;
   const closed = head?.status === "closed";
   const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
+  const waitsOnOperator = (head?.ask ?? null) !== null;
+  const unavailable = "Unavailable in this workspace.";
+  const askReason = blocked ?? (taskOperationAvailable(capabilities, head?.ask === 'approve' ? 'resolve' : 'respond') ? null : unavailable);
+  const claimReason = blocked ?? (taskFieldAvailable(capabilities, 'claim') ? null : unavailable);
+  // Why the actions are disabled, as text a reader sees beside them: a hover
+  // title sits over the next button and never shows on a phone. A deployed
+  // build's banner under the header already says it, so the buttons point at
+  // that sentence instead of repeating it.
+  const reason = waitsOnOperator ? (answered ? null : askReason) : closed || !head ? null : claimable ? claimReason : blocked;
+  const describedBy = reason === null ? undefined : capabilities.live ? reasonId : READ_ONLY_REASON_ID;
   const ask = useAskActions({
     ask: answered ? null : (head?.ask ?? null),
     id,
     title: head?.title ?? id,
-    disabledReason: blocked ?? (taskOperationAvailable(capabilities, head?.ask === 'approve' ? 'resolve' : 'respond') ? null : 'Unavailable in this workspace.'),
+    disabledReason: askReason,
+    describedBy,
     placement: "header",
   });
-  const waitsOnOperator = (head?.ask ?? null) !== null;
 
   return (
     <TaskHead
@@ -320,29 +335,31 @@ function TaskHeader({
       crumbs={crumbs}
       nowMs={nowMs}
       actions={
-        waitsOnOperator ? (
-          ask.buttons
-        ) : (
-          <>
-            {claimable ? (
-              <ClaimAction id={id} disabledReason={blocked ?? (taskFieldAvailable(capabilities, 'claim') ? null : 'Unavailable in this workspace.')} />
-            ) : null}
-            {closed || !head ? null : (
-              <Button
-                type="button"
-                variant={claimable ? "outline" : "default"}
-                size="sm"
-                disabled={blocked !== null}
-                title={blocked ?? undefined}
-                aria-expanded={closing}
-                data-primary-action={claimable ? undefined : ""}
-                onClick={() => setClosing((open) => !open)}
-              >
-                Close
-              </Button>
-            )}
-          </>
-        )
+        <ActionArea reason={capabilities.live ? reason : null} reasonId={reasonId}>
+          {waitsOnOperator ? (
+            ask.buttons
+          ) : (
+            <>
+              {claimable ? (
+                <ClaimAction id={id} disabledReason={claimReason} describedBy={describedBy} />
+              ) : null}
+              {closed || !head ? null : (
+                <Button
+                  type="button"
+                  variant={claimable ? "outline" : "default"}
+                  size="sm"
+                  disabled={blocked !== null}
+                  aria-describedby={blocked === null ? undefined : describedBy}
+                  aria-expanded={closing}
+                  data-primary-action={claimable ? undefined : ""}
+                  onClick={() => setClosing((open) => !open)}
+                >
+                  Close
+                </Button>
+              )}
+            </>
+          )}
+        </ActionArea>
       }
     >
       {children}
@@ -353,7 +370,23 @@ function TaskHeader({
   );
 }
 
-function ClaimAction({ id, disabledReason }: { id: string; disabledReason: string | null }) {
+/** The actions, primary first, with the reason they are disabled written
+ * under them. */
+function ActionArea({ reason, reasonId, children }: { reason: string | null; reasonId: string; children: ReactNode }) {
+  return (
+    <div className="flex flex-col items-start gap-1.5 sm:items-end" data-task-actions="">
+      <div className="flex flex-wrap items-center gap-2">{children}</div>
+      {reason ? (
+        <p id={reasonId} className="m-0 inline-flex items-center gap-1.5 text-xs text-muted-foreground" data-action-reason="">
+          <Lock className="size-3.5 shrink-0" aria-hidden />
+          {reason}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function ClaimAction({ id, disabledReason, describedBy }: { id: string; disabledReason: string | null; describedBy?: string }) {
   const toast = useOwnerToast();
   const claim = useClaimTask();
   return (
@@ -362,7 +395,7 @@ function ClaimAction({ id, disabledReason }: { id: string; disabledReason: strin
       size="sm"
       data-primary-action=""
       disabled={disabledReason !== null || claim.isPending}
-      title={disabledReason ?? "Assign it to you and mark it in progress."}
+      aria-describedby={disabledReason === null ? undefined : describedBy}
       onClick={() => {
         claim.mutate(id, {
           onSuccess: () => toast.success(`Claimed — ${id}`),
@@ -411,7 +444,6 @@ function CloseForm({
           type="button"
           size="sm"
           disabled={!ready || close.isPending}
-          title={ready ? undefined : "A close carries its evidence — say what shipped."}
           onClick={() => {
             close.mutate(
               { id, reason: reason.trim() },
@@ -1394,9 +1426,11 @@ function ReadOnly({
   const parent = row?.parent ? project?.epics?.find((epic) => epic.id === row.parent) ?? null : null;
   return (
     <div className="flex flex-col gap-4" data-task-readonly>
-      <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
-        {READ_ONLY_TASKS_HINT}
-      </StatusBanner>
+      <div id={READ_ONLY_REASON_ID}>
+        <StatusBanner severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
+          {READ_ONLY_TASKS_HINT}
+        </StatusBanner>
+      </div>
       <Card>
         <CardContent className="flex flex-col gap-3 pt-4">
           {row === null ? (

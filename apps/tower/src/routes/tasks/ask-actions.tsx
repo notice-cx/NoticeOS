@@ -19,6 +19,7 @@ export function useAskActions({
   title,
   project,
   disabledReason = null,
+  describedBy,
   placement,
 }: {
   ask: InboxAsk | null;
@@ -28,6 +29,9 @@ export function useAskActions({
   project?: string;
   /** Why the verbs cannot run here (a read-only snapshot), or null. */
   disabledReason?: string | null;
+  /** The header writes the reason as text beside the buttons; this is that
+   * text's id. A row, which has no room for it, keeps it as the hover title. */
+  describedBy?: string;
   /** The row indents the box under its title; the header sets it in a panel. */
   placement: "row" | "header";
 }): { buttons: ReactNode; box: ReactNode } {
@@ -41,7 +45,8 @@ export function useAskActions({
     if (answering) form.current?.scrollIntoView?.({ block: "center" });
   }, [answering]);
   const disabled = disabledReason !== null;
-  const blockedTitle = disabledReason ?? undefined;
+  const blockedTitle = placement === "row" ? disabledReason ?? undefined : undefined;
+  const describes = disabled && placement === "header" ? describedBy : undefined;
 
   function send() {
     const words = text.trim();
@@ -60,6 +65,7 @@ export function useAskActions({
         size="sm"
         disabled={disabled}
         title={blockedTitle}
+        aria-describedby={describes}
         onClick={() => answer({ kind: "approve", id, title, ...(project === undefined ? {} : { project }) })}
         data-task-action="approve"
       >
@@ -75,6 +81,7 @@ export function useAskActions({
           aria-expanded={answering}
           disabled={disabled}
           title={blockedTitle}
+          aria-describedby={describes}
           onClick={() => setAnswering((open) => !open)}
           data-task-action="answer"
         >
@@ -88,6 +95,7 @@ export function useAskActions({
           className="text-muted-foreground"
           disabled={disabled}
           title={blockedTitle}
+          aria-describedby={describes}
           onClick={() => answer({ kind: "dismiss", id, title, ...(project === undefined ? {} : { project }) })}
           data-task-action="dismiss"
         >

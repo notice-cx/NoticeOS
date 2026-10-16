@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
-import { validateDemoViewer } from '@shared/demo-viewer';
+import { DEMO_READ_ONLY, validateDemoViewer } from '@shared/demo-viewer';
 
 // `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
 // `useTask` / `useUpdateTask` / `useCloseTask` run against fake `@/lib/api`
@@ -380,6 +380,62 @@ describe('live task details in a read-only demo', () => {
   });
 });
 
+// A hint over Claim or Close hides the page's one job. The header carries no
+// hover title at all, and a disabled action says why in text beside it.
+describe("no hint covers the header's actions", () => {
+  const header = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const actions = () => header().querySelector<HTMLElement>("[data-task-actions]")!;
+
+  it("opens no hint over Claim or Close, and the header holds no hover title", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    const claim = await screen.findByRole("button", { name: "Claim" });
+    const close = screen.getByRole("button", { name: "Close" });
+    for (const node of [claim, close, ...header().querySelectorAll("[data-status-for]")]) {
+      fireEvent.pointerEnter(node);
+      fireEvent.mouseOver(node);
+      fireEvent.focus(node);
+    }
+    expect(document.querySelector("[role=tooltip]")).toBeNull();
+    expect([...header().querySelectorAll("[title]")].map((node) => node.getAttribute("title"))).toEqual([]);
+    expect(actions()).toContainElement(claim);
+    expect(actions()).toContainElement(close);
+    expect(actions().querySelector("[data-action-reason]")).toBeNull();
+  });
+
+  it("writes a disabled Claim's reason as visible text beside it in a read-only demo", async () => {
+    vi.stubGlobal('__DEMO_VIEWER__', validateDemoViewer({ version: 1, synthetic: true, release: '1'.repeat(40),
+      scenarioHash: '2'.repeat(64), workspaceId: '11111111-1111-4111-8111-111111111111',
+      cutoff: '2026-09-15T12:00:00.000Z', generatedAt: null }));
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    await screen.findByText("A task has a page");
+    const claim = await within(header()).findByRole("button", { name: "Claim" });
+    await waitFor(() => expect(claim).toBeDisabled());
+    const reason = actions().querySelector("[data-action-reason]") as HTMLElement;
+    expect(reason).toHaveTextContent(DEMO_READ_ONLY);
+    expect(reason).toBeVisible();
+    expect(reason.className).not.toContain("sr-only");
+    expect(claim).not.toHaveAttribute("title");
+    expect(claim).toHaveAccessibleDescription(DEMO_READ_ONLY);
+    expect(screen.getByRole("button", { name: "Close" })).toHaveAccessibleDescription(DEMO_READ_ONLY);
+  });
+
+  it("names a workspace that cannot claim as the reason, in text", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: true, writable: true, reason: null,
+      operations: ["update", "comment", "close"], editableFields: ["status", "priority"] });
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    const claim = await within(header()).findByRole("button", { name: "Claim" });
+    await waitFor(() => expect(claim).toBeDisabled());
+    expect(actions().querySelector("[data-action-reason]")).toHaveTextContent("Unavailable in this workspace.");
+    expect(claim).toHaveAccessibleDescription("Unavailable in this workspace.");
+    // Close can still run, so it names no reason.
+    expect(screen.getByRole("button", { name: "Close" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Close" })).not.toHaveAccessibleDescription();
+  });
+});
+
 describe("the core task page before the snapshot hub status answers", () => {
   it("reads the linked task through the live lane without an optional connection", async () => {
     taskSourceMock.connected = null;
@@ -748,9 +804,12 @@ describe("the task page", () => {
     expect(document.querySelector("[data-task-readonly] [role=status]")).toHaveTextContent(READ_ONLY_TASKS_HINT);
     expect(document.querySelector("[data-owner-chip]")).toBeNull();
 
+    // The reason is the banner under the header, which the button names; no
+    // hover title repeats it over the next button.
     const claim = screen.getByRole("button", { name: "Claim" });
     expect(claim).toBeDisabled();
-    expect(claim).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
+    expect(claim).not.toHaveAttribute("title");
+    expect(claim).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
     expect(screen.getByRole("button", { name: "Close" })).toBeDisabled();
 
     expect(api.fetchTask).not.toHaveBeenCalled();
@@ -848,7 +907,8 @@ describe("a waiting task's page offers what its inbox row offers", () => {
 
     const approve = await header().findByRole("button", { name: "Approve" });
     expect(approve).toBeDisabled();
-    expect(approve).toHaveAttribute("title", READ_ONLY_TASKS_HINT);
+    expect(approve).not.toHaveAttribute("title");
+    expect(approve).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
     expect(headerButtons()).toEqual(["Approve"]);
   });
 });

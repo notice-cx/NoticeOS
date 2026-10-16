@@ -55,24 +55,25 @@ export function markRingClass(size: "row" | "chip"): string {
 export function PriorityChip({ priority, subject }: { priority: number; subject: StatusSubject }) {
   const { band } = priorityFace(priority);
   const tone: StateTone = priority <= 2 ? "neutral" : "na";
+  // The word is on the chip, so no hover title repeats it over the page.
   return (
     <StateChip
       tone={tone}
-      glyph={<PriorityMark priority={priority} size="chip" />}
+      glyph={<PriorityMark priority={priority} size="chip" hint={false} />}
       label={`${band} priority`}
-      title={`P${priority}`}
       subject={subject}
     />
   );
 }
 
-/** A task's priority as its mark. */
-export function PriorityMark({ priority, size = "row", className }: { priority: number; size?: "row" | "chip"; className?: string }) {
+/** A task's priority as its mark. `hint` names the band on hover, for a mark
+ * drawn without its word (a board row). */
+export function PriorityMark({ priority, size = "row", hint = true, className }: { priority: number; size?: "row" | "chip"; hint?: boolean; className?: string }) {
   const face = priorityFace(priority);
   return (
     <span
       aria-hidden
-      title={`Priority — ${face.band}`}
+      title={hint ? `Priority — ${face.band}` : undefined}
       data-priority-mark={face.band}
       className={cn(markRingClass(size), face.ink, className)}
     >
@@ -212,7 +213,6 @@ export function TaskStatusChip({ status, subject, className }: { status: string;
       className={className}
       subject={subject}
       tone={face.tone}
-      title={face.key === "unknown" ? `A status this build does not know: ${status}.` : undefined}
       glyph={<Icon className="size-3.5" data-task-status-glyph={face.key} />}
       label={<span data-task-status={face.key}>{face.label}</span>}
     />

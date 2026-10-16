@@ -87,7 +87,7 @@ export function TaskHead({
                 <span className="font-medium text-foreground">{facts.holder.name}</span>
                 {facts.holder.model ? <span>· {facts.holder.model}</span> : null}
                 {holderAge !== null ? (
-                  <span className="tabular-nums" title={facts.holder.since ?? undefined}>· claimed {formatAge(holderAge)} ago</span>
+                  <time className="tabular-nums" dateTime={facts.holder.since ?? undefined}>· claimed {formatAge(holderAge)} ago</time>
                 ) : null}
               </span>
             ) : null}
@@ -131,7 +131,7 @@ export function ClosedSummary({
         <Check className="size-3.5 shrink-0" aria-hidden />
         <h2 className={cn("m-0", eyebrowClass)}>Close reason</h2>
         {who ? <span className="font-medium text-foreground">{who}</span> : null}
-        {age !== null ? <span className="tabular-nums" title={at ?? undefined}>{formatAge(age)} ago</span> : null}
+        {age !== null ? <time className="tabular-nums" dateTime={at ?? undefined}>{formatAge(age)} ago</time> : null}
       </div>
       {children}
     </section>
