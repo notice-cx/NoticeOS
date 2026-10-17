@@ -21,10 +21,11 @@ export function choiceOrder(choices: TaskChoices): readonly TaskChoiceOption[] {
  * column on a phone. */
 const optionBox = "flex min-h-11 w-full min-w-0 items-start gap-2.5 rounded-lg border px-3 py-2 text-start";
 
+// Full height, so options side by side end on one line.
 const liveOption = cn(
   optionBox,
   pillControlClass,
-  "group/option bg-card text-foreground hover:border-foreground/30 hover:bg-muted/60 active:bg-muted",
+  "group/option h-full bg-card text-foreground hover:border-foreground/30 hover:bg-muted/60 active:bg-muted",
   "motion-safe:transition-[background-color,border-color,transform] motion-safe:active:scale-[0.99]",
   "disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-card",
 );
