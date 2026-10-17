@@ -25,8 +25,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PageAnswer",
     file: "components/surface/PageAnswer.tsx",
     purpose:
-      "A screen's one answer, first: one sentence at the display scale, a muted line under it and at most three figures (an eyebrow over a number) beside it. Every index page opens with one.",
-    variants: ["sentence only", "with detail", "with figures", "with a verdict mark"],
+      "A screen's one answer, first: one sentence at the display scale, a muted line under it and at most three figures (an eyebrow over a number, and under it the figure's change chip when it has one) beside it. Every index page opens with one.",
+    variants: ["sentence only", "with detail", "with figures", "with a verdict mark", "figures with their change"],
   },
   {
     name: "FinishLine",

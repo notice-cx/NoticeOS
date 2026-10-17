@@ -126,6 +126,7 @@ import { ConnectBlockers } from "@/components/ConnectBlockers";
 import { CopyCommand } from "@/components/CopyCommand";
 import { GoogleSignInSetup } from "@/components/GoogleSignInSetup";
 import { PageAnswer } from "@/components/surface/PageAnswer";
+import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip } from "@/components/viz/WorkFlow";
 import { FinishLine } from "@/components/surface/FinishLine";
 import {
   ProviderCard,
@@ -2901,6 +2902,15 @@ export function KitchenSinkRoute() {
               <PageAnswer answer="1 of 7 sites at risk" detail="Plume Studio · since 2h ago" figures={[{ label: "Visitors yesterday", value: "2,497" }, { label: "October pace", value: "$1,310", note: "↑ 16%" }]} />
               <PageAnswer answer="All 7 sites on track" mark={<StateChip label="On track" tone="affirmative" subject="asset:example.com" />} />
               <PageAnswer answer="No decisions for you" detail="read 1m ago" />
+              <PageAnswer
+                answer="3 decisions for you"
+                detail={<WorkWeekChip move={demoWorkWeeks.waiting.move} against={A_WEEK_AGO} added={demoWorkWeeks.waiting.added} />}
+                figures={[
+                  { label: "Urgent", value: "3", change: <WorkWeekChip move={demoWorkWeeks.urgent.move} against={A_WEEK_AGO} added={demoWorkWeeks.urgent.added} /> },
+                  { label: "Blocked", value: "1", change: <WorkWeekChip move={demoWorkWeeks.blocked.move} against={A_WEEK_AGO} added={demoWorkWeeks.blocked.added} /> },
+                  { label: "Closed this week", value: "3", change: <WorkWeekChip move={demoWorkWeeks.done.move} against={LAST_WEEK_BY_TODAY} /> },
+                ]}
+              />
               <FinishLine line="That's every open alert." age="data as of 4m ago" />
               <FinishLine quiet line="No decisions for you." age="read 1m ago" />
               <FinishLine line="That's everything." />

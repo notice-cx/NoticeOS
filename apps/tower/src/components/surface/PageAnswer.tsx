@@ -17,6 +17,9 @@ export interface AnswerFigure {
   tone?: string;
   /** A `data-*` hook for tests and the audit. */
   mark?: string;
+  /** The figure's move against an earlier reading (a change chip), on its
+   * own line under the value. */
+  change?: ReactNode;
 }
 
 export interface PageAnswerProps {
@@ -57,6 +60,7 @@ export function PageAnswer({ id, answer, mark, detail, figures = [], aside, clas
                 {figure.value}
                 {figure.note ? <span className="ms-1.5 text-xs font-medium text-muted-foreground">{figure.note}</span> : null}
               </dd>
+              {figure.change ? <dd className="m-0" data-page-answer-change="">{figure.change}</dd> : null}
             </div>
           ))}
         </dl>
