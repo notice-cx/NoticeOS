@@ -72,8 +72,15 @@ describe("work as flow", () => {
 
   it("splits open work into ready and blocked, and leaves out a site with no snapshot", () => {
     const rows = workFlowRows([work(10, 3), { id: "b.example", displayName: "Summit", work: null } as unknown as AssetCard]);
-    expect(rows).toEqual([{ id: "a.example", name: "Acorn Atlas", to: undefined, done: 5, inProgress: 2, ready: 7, blocked: 3, urgent: 1 }]);
+    expect(rows).toEqual([{ id: "a.example", name: "Acorn Atlas", to: undefined, done: 5, doneLastWeek: null, inProgress: 2, ready: 7, blocked: 3, urgent: 1 }]);
     expect(workQueue(rows[0]!)).toBe(12);
+  });
+
+  it("takes done from this calendar week, with last week's beside it, where the history holds the week", () => {
+    const card = work(10, 3);
+    const done = { now: 2, partial: false, before: 1, lastWeek: 6, move: null };
+    const rows = workFlowRows([{ ...card, work: { ...card.work!, weeks: { weekStart: "2026-10-05", daysIn: 7, done } as never } }]);
+    expect(rows[0]).toMatchObject({ done: 2, doneLastWeek: 6 });
   });
 
   it("draws both sides of every row on one scale", () => {

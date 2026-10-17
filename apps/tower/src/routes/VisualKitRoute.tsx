@@ -18,10 +18,10 @@ import { PortfolioRows } from "@/components/viz/PortfolioRows";
 import { RaceChart } from "@/components/viz/RaceChart";
 import { StackedWeeks } from "@/components/viz/StackedWeeks";
 import { StatTile } from "@/components/viz/StatTile";
-import { WorkFlow } from "@/components/viz/WorkFlow";
+import { WorkFlow, weekDaysIn } from "@/components/viz/WorkFlow";
 import { formatInt, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { DEMO_MARKER, DEMO_NOW, INCIDENTS, MONEY, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, WORK } from "@/routes/visual-kit/demo-data";
+import { DEMO_MARKER, DEMO_NOW, INCIDENTS, MONEY, PEOPLE_14, PORTFOLIO, QUEUE, REVENUE_14, WORK, WORK_WEEKS } from "@/routes/visual-kit/demo-data";
 import { MoneyHero } from "@/routes/home/MoneyHero";
 
 /**
@@ -192,8 +192,9 @@ export function VisualKitGallery() {
       </Group>
 
       <Group title="Work">
-        <Specimen id="work-flow" title="WorkFlow — per project: done this week grows left, the open queue grows right (in progress, ready, blocked)" className="w-[44rem]">
-          <WorkFlow rows={WORK} waiting={{ count: 4, urgent: 1 }} title="Work this week" />
+        <Specimen id="work-flow" title="WorkFlow — each figure's move over the week, done this week against last week on one bar, then per project: done this week grows left over last week's outline, the open queue grows right (in progress, ready, blocked)" className="w-[44rem]">
+          <WorkFlow rows={WORK} waiting={{ count: 4, urgent: 1 }} weeks={WORK_WEEKS} title="Work this week"
+            action={<span className="text-xs tabular-nums text-muted-foreground">{weekDaysIn(WORK_WEEKS.daysIn)}</span>} />
         </Specimen>
       </Group>
 

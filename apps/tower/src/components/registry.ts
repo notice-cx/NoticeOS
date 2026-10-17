@@ -994,7 +994,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWork",
     file: "components/wall/WallWork.tsx",
     purpose:
-      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, then one row per project. No links. With nothing read at all it is one quiet line, Tasks unknown.",
+      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with how many days into the week today is, what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, each with its move over the week (the cards' weeks summed with sumWorkWeeks), done this week against last week on a PaceBar, then one row per project. No links. With nothing read at all it is one quiet line, Tasks unknown.",
     variants: ["counted", "partial inbox", "nothing read (one line)"],
   },
   {
@@ -1364,8 +1364,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WorkFlow",
     file: "components/viz/WorkFlow.tsx",
     purpose:
-      "Work as flow, one row per project around a centre line: done this week grows left in the win's green, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked.",
-    variants: ["six projects with the key", "compact for the Wall"],
+      "Work as flow, one row per project around a centre line: done this week grows left in the win's green over last week's done as a dashed outline, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked, each with its move over the week as WorkWeekChip (DeltaChip toned by weekMove's verdict, with how many entered the state), and done this week against last week on a PaceBar. WorkWeekChip is the same chip on the Tasks board's figures.",
+    variants: ["six projects with the key and their weeks", "compact for the Wall"],
   },
   {
     name: "ChangeRows",

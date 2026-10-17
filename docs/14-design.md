@@ -491,9 +491,10 @@ against this month (the revenue figure, its pace, the month's line against
 last month's total); which sites need attention and how each is doing right
 now (one row per site: live people, today against the same weekday last week,
 a 30-day trend, the month's money); and whether work is moving (waiting on the
-operator, in progress, done this week and blocked, one row per project, done
-work as a bar extending left of a centre line and the open queue extending
-right). Anything else belongs on the Tower page for its subject; the Needs
+operator, in progress, done this week and blocked, each with its change chip
+against a week ago, this week's done against last week's on a `PaceBar`, one
+row per project, done work as a bar extending left of a centre line over last
+week's done as a dashed outline, and the open queue extending right). Anything else belongs on the Tower page for its subject; the Needs
 attention, live feed and agents widgets stay in the widget library for an
 operator who wants them on the Wall.
 

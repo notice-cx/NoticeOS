@@ -197,7 +197,9 @@ export function timelineFromWall(
 }
 
 /** Each site's task snapshot as a work-flow row; a site with no snapshot is
- * left out rather than drawn as an empty project. */
+ * left out rather than drawn as an empty project. Done is this calendar
+ * week's closes from the daily history, with last week's beside it; a card
+ * without a week reading keeps the snapshot's trailing seven days. */
 export function workFlowRows(assets: readonly AssetCard[], sitePath?: (asset: AssetCard) => string): WorkFlowRow[] {
   return assets.flatMap((asset) => {
     const work = asset.work;
@@ -206,7 +208,8 @@ export function workFlowRows(assets: readonly AssetCard[], sitePath?: (asset: As
       id: asset.id,
       name: asset.displayName,
       to: sitePath?.(asset),
-      done: work.closedRecent,
+      done: work.weeks?.done.now ?? work.closedRecent,
+      doneLastWeek: work.weeks?.done.lastWeek ?? null,
       inProgress: work.inProgress,
       ready: Math.max(0, work.open - work.blocked),
       blocked: work.blocked,

@@ -36,6 +36,7 @@ import type {
   WallPayload,
 } from "@shared/wall";
 import { CADENCE_HOURS } from "@shared/wall";
+import type { WorkWeeks } from "@shared/work";
 import {
   DEFAULT_WALL_LAYOUT,
   WALL_LAYOUT_VERSION,
@@ -2095,6 +2096,29 @@ const systemNoPulse: SystemData = {
   ingest: { fresh: 2, stale: 0, notExpected: 2, expected: 2 },
 };
 
+/** A site's week two days in: closes ahead of last week by today, one more
+ * blocked than a week ago, one fewer in progress. */
+const demoWorkWeeks: WorkWeeks = {
+  weekStart: "2026-06-22",
+  daysIn: 2,
+  done: { now: 3, partial: false, before: 2, lastWeek: 6, move: { by: 1, direction: "up", verdict: "good" } },
+  waiting: { now: 1, before: 1, added: 1, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  urgent: { now: 3, before: 2, added: 1, move: { by: 1, direction: "up", verdict: "bad" } },
+  inProgress: { now: 2, before: 3, added: 1, move: { by: -1, direction: "down", verdict: "neutral" } },
+  blocked: { now: 1, before: 0, added: 1, move: { by: 1, direction: "up", verdict: "bad" } },
+};
+
+/** The same week for a site with nothing in its queue either week. */
+const quietWorkWeeks: WorkWeeks = {
+  weekStart: "2026-06-22",
+  daysIn: 2,
+  done: { now: 0, partial: false, before: 0, lastWeek: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  waiting: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  urgent: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  inProgress: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  blocked: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+};
+
 const cardLive: AssetData = { netByMonthCurrency: 'USD',
   id: "plume.example.com",
   displayName: "Plume",
@@ -2138,6 +2162,7 @@ const cardLive: AssetData = { netByMonthCurrency: 'USD',
     closedRecent: 4,
     priorities: [1, 2, 8, 3, 1],
     capturedAt: iso(20_000),
+    weeks: demoWorkWeeks,
   },
   // Reviewed: the review is about the same panel day the archive holds as this
   // asset's newest, so it still covers it.
@@ -2178,6 +2203,7 @@ const cardWarn: AssetData = {
     closedRecent: 0,
     priorities: [0, 0, 0, 0, 0],
     capturedAt: iso(20_000),
+    weeks: quietWorkWeeks,
   },
   // Overdue: a panel collected and left unread, three days past its deadline,
   // so the badge takes the error tone and the warning glyph.
