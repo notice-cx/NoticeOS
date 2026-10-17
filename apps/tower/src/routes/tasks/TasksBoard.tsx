@@ -11,6 +11,8 @@ import {
   PRIORITY_BANDS,
   WORK_POLL_CADENCE_HOURS,
   priorityLabel,
+  weekMove,
+  type WeekMove,
 } from "@shared/work";
 import { ageMs, formatAge } from "@shared/freshness";
 import { AgeBadge } from "@/components/AgeBadge";
@@ -36,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { workQueue } from "@/components/viz/WorkFlow";
+import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip, workQueue } from "@/components/viz/WorkFlow";
 import { useNow } from "@/hooks/useNow";
 import {
   useClaimTask,
@@ -182,7 +184,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
     totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
-    closedHistoryState,
+    closedHistoryState, weeks, weekNotDone,
   } = useTaskBoard(scope, {
     project: projectFilter, status: statusFilter, priority: priorityFilter,
     label: labelFilter, assignee: assigneeFilter,
@@ -218,14 +220,14 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     next.set("project", project.asset);
     next.delete("new");
     return `${location.pathname}?${next}`;
-  });
+  }, new Map(spokes.flatMap((spoke) => (spoke.weeks ? [[spoke.asset, spoke.weeks] as const] : []))));
   const graphs = epicGraphs({
     projects,
     snapshots: data?.projects ?? [],
     nowMs: now,
     href: (task) => taskPath(task.id, projectSelection ? task.project : undefined),
   });
-  const inOutPanel = inOutDrawn(inOut) ? <InOutPanel inOut={inOut} /> : null;
+  const inOutPanel = inOutDrawn(inOut) ? <InOutPanel inOut={inOut} weeks={weeks} /> : null;
   // One project's row would repeat the answer's figures as a bar.
   const workPanel = workRows.length > 1 ? <WorkByProject rows={workRows} /> : null;
   const openWork = workRows.reduce((sum, row) => sum + workQueue(row), 0);
@@ -239,21 +241,44 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   // that change what you do next beside it.
   const waitingCount = bounded(counts.waiting, totals.waiting);
   const nothingWaits = totals.waiting === 0 && countsComplete;
+  // Each count's week, from the daily history the Wall reads, so the two
+  // screens show one number per figure. A board whose history holds no week
+  // keeps the counts its read drew, without a move. The inbox stays the live
+  // count (an answer leaves it at once); its move is against a week ago.
+  const waitingMove = countsComplete ? weekMove("waiting", totals.waiting, weeks?.waiting.before ?? null) : null;
+  const weekDone = weeks?.done.now != null ? weeks.done : null;
+  const detail = [
+    gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : null,
+    // The yardstick the three figures are read against.
+    workRows.length > 0 ? `${formatInt(openWork)}${countsComplete ? "" : "+"} open ${openWork === 1 ? "task" : "tasks"}` : null,
+  ].filter(Boolean).join(" · ");
+  const chip = (move: WeekMove | null | undefined, against: string, added?: number | null) =>
+    move ? { change: <WorkWeekChip move={move} against={against} added={added} /> } : {};
   const answer = (
     <PageAnswer
       answer={nothingWaits ? "No decisions for you" : waitingCount === "—" ? "Couldn't read your decisions" : `${waitingCount} ${totals.waiting === 1 && countsComplete ? "decision" : "decisions"} for you`}
-      detail={[
-        gates > 0 ? `${gates} ${gates === 1 ? "needs" : "need"} your approval` : null,
-        // The yardstick the three figures are read against.
-        workRows.length > 0 ? `${formatInt(openWork)}${countsComplete ? "" : "+"} open ${openWork === 1 ? "task" : "tasks"}` : null,
-      ].filter(Boolean).join(" · ") || undefined}
+      detail={waitingMove || detail ? (
+        <span className="inline-flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          {waitingMove ? <WorkWeekChip move={waitingMove} against={A_WEEK_AGO} added={weeks?.waiting.added} /> : null}
+          {waitingMove && detail ? <span aria-hidden>·</span> : null}
+          {detail ? <span>{detail}</span> : null}
+        </span>
+      ) : undefined}
       figures={[
-        { label: "Urgent", value: String(bounded(counts.urgent, totals.urgent)), mark: "tasks-urgent" },
-        { label: "Blocked", value: String(bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked" },
-        { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed",
-          // Split only when every close was read and some shipped nothing.
-          ...(counts.closed !== null && counts.notDone !== null && counts.notDone > 0
-            ? { note: `${formatInt(counts.closed - counts.notDone)} done · ${formatInt(counts.notDone)} not done` } : {}) },
+        { label: "Urgent", value: String(weeks?.urgent.now ?? bounded(counts.urgent, totals.urgent)), mark: "tasks-urgent",
+          ...chip(weeks?.urgent.move, A_WEEK_AGO, weeks?.urgent.added) },
+        { label: "Blocked", value: String(weeks?.blocked.now ?? bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked",
+          ...chip(weeks?.blocked.move, A_WEEK_AGO, weeks?.blocked.added) },
+        weekDone
+          ? { label: "Closed this week", value: `${weekDone.now}${weekDone.partial ? "+" : ""}`, mark: "tasks-closed",
+            // Split only when the rows hold every close since Monday and some shipped nothing.
+            ...(!weekDone.partial && weekNotDone !== null && weekNotDone > 0
+              ? { note: `${formatInt(weekDone.now! - weekNotDone)} done · ${formatInt(weekNotDone)} not done` } : {}),
+            ...chip(weekDone.move, LAST_WEEK_BY_TODAY) }
+          : { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed",
+            // Split only when every close was read and some shipped nothing.
+            ...(counts.closed !== null && counts.notDone !== null && counts.notDone > 0
+              ? { note: `${formatInt(counts.closed - counts.notDone)} done · ${formatInt(counts.notDone)} not done` } : {}) },
       ]}
       marks={{ "data-tasks-answer": nothingWaits ? "clear" : "waiting" }}
     />
@@ -539,7 +564,9 @@ function Filters({
         <option value="all">Any status</option>
         {TASK_STATUSES.map((status) => (
           <option key={status.key} value={status.key}>
-            {status.key === "closed" ? "Closed this week" : status.label} ·{" "}
+            {/* The rows hold seven days of closes; Closed this week above is
+                the calendar week. */}
+            {status.key === "closed" ? "Closed, last 7 days" : status.label} ·{" "}
             {status.key === "closed" && closedHistoryState !== "complete"
               ? "—"
               : (statusCounts.get(status.key) ?? 0)}

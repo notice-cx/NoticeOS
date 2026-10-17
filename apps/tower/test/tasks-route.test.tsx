@@ -4,7 +4,7 @@ import { MemoryRouter, Route, RouterProvider, Routes, createMemoryRouter, useLoc
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTasksPayload, TasksCapabilities } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
-import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { emptyWorkHistory, workWeeks, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import type { TaskChoices } from "@noticeos/contract/task-choices";
 
 // `/tasks`: the filters are the URL, every row opens at `/tasks/:id`, and the
@@ -668,7 +668,7 @@ describe("/tasks — the filters are the URL", () => {
     expect(labels).toContain("Open · 2");
     expect(labels).toContain("In progress · 1");
     expect(labels).toContain("Parked · 1");
-    expect(labels).toContain("Closed this week · —");
+    expect(labels).toContain("Closed, last 7 days · —");
   });
 
   it("puts a picked status in the query string and narrows the table to it", () => {
@@ -1137,7 +1137,7 @@ describe("/tasks — claim, close and defer in place", () => {
     const figure = container.querySelector("[data-tasks-closed]")!;
     expect(figure).toHaveTextContent("3");
     expect(figure).toHaveTextContent("1 done · 2 not done");
-    expect(screen.getByRole("option", { name: /^Closed this week · 3/ })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Closed, last 7 days · 3/ })).toBeInTheDocument();
     // A closed row offers no Close as.
     expect(within(row(container, "md-a2")).queryByRole("button", { name: "Close as" })).toBeNull();
     expect(within(row(container, "md-a4")).getByRole("button", { name: "Close as" })).toBeEnabled();
@@ -1313,7 +1313,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
       data: payload({ projects: [project({ recentlyClosed: closed.slice(0, 5) })] }),
     });
     expect(fig(container, "closed")).toHaveTextContent("60");
-    expect(screen.getByRole("option", { name: "Closed this week · 60" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Closed, last 7 days · 60" })).toBeInTheDocument();
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
     fireEvent.click(container.querySelector<HTMLElement>("[data-tasks-more]")!);
     fireEvent.click(container.querySelector<HTMLElement>("[data-tasks-more]")!);
@@ -1341,7 +1341,7 @@ describe("/tasks — live where the local read is, the photograph where it is no
       expect(container.querySelector("[data-lane-error]")).toBeNull();
     }
     expect(fig(container, "closed")).toHaveTextContent("—");
-    expect(screen.getByRole("option", { name: "Closed this week · —" })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: "Closed, last 7 days · —" })).toBeInTheDocument();
   });
 
   it("asks for every project the photograph names, in its order", () => {
@@ -2291,5 +2291,79 @@ describe("/tasks — Select on All tasks closes many tasks with one resolution a
 
     const none = renderBoard({ live: true, operations: ["create", "update", "comment"], boards: backlog() });
     expect(within(table(none.container)).queryByRole("button", { name: "Select" })).toBeNull();
+  });
+});
+
+describe("/tasks — each figure's week against the week before", () => {
+  const NOW = new Date("2026-08-01T12:00:00.000Z");
+  const DAYS = Array.from({ length: 14 }, (_, i) => new Date(Date.parse("2026-07-19T00:00:00.000Z") + i * 86_400_000).toISOString().slice(0, 10));
+  /** Two weeks of one project at `scale`: Saturday 08-01 is the sixth day of
+   * the week that began on Monday 07-27, closes doubled this week, blocked
+   * tripled today, the inbox emptied today, urgent level. */
+  function weekly(asset: string, prefix: string, name: string, scale: number): WorkProject {
+    const series = (value: (index: number) => number) => DAYS.map((t, i) => ({ t, v: value(i) }));
+    const history = {
+      ...emptyWorkHistory(),
+      closed: series((i) => (i >= 8 ? 2 * scale : scale)),
+      blocked: series((i) => (i === 13 ? 3 * scale : i >= 6 ? scale : 0)),
+      urgent: series(() => 2 * scale),
+      waiting: series((i) => (i === 13 ? 0 : 2 * scale)),
+      inProgress: series(() => 1),
+    };
+    return project({ asset, prefix, name, history, weeks: workWeeks(history, NOW, "UTC") });
+  }
+  const data = payload({ historyDays: 14, projects: [weekly("meadow.example", "md", "Meadow Board", 1), weekly("northwind.example", "nw", "Northwind", 2)] });
+  const value = (figure: HTMLElement) => figure.querySelector("dd")!.textContent;
+
+  it("gives Urgent, Blocked and Closed this week the daily history's count with its move, and the answer its own", () => {
+    const { container } = renderBoard({ data });
+    // The Wall's numbers: blocked from the history (3 + 6), not the snapshot's 0.
+    expect(value(fig(container, "blocked"))).toBe("9");
+    expect(within(fig(container, "blocked")).getByLabelText("6 more than a week ago")).toHaveAttribute("data-tone", "negative");
+    expect(fig(container, "blocked")).toHaveTextContent("· 6 added");
+    expect(value(fig(container, "urgent"))).toBe("6");
+    expect(within(fig(container, "urgent")).getByLabelText("Level with a week ago")).toHaveAttribute("data-tone", "neutral");
+    // Six days at 2 + 4 a day, against last week's same six days at 1 + 2.
+    expect(value(fig(container, "closed"))).toBe("36");
+    expect(within(fig(container, "closed")).getByLabelText("18 more than last week by today")).toHaveAttribute("data-tone", "positive");
+    // The inbox emptied: 0 decisions, 6 fewer than a week ago, which is better.
+    expect(answerLine(container)).toBe("No decisions for you");
+    const detail = container.querySelector<HTMLElement>("[data-page-answer-detail]")!;
+    expect(within(detail).getByLabelText("6 fewer than a week ago")).toHaveAttribute("data-tone", "positive");
+    // The rows hold seven days of closes; the figure above is the calendar week.
+    expect(screen.getByRole("option", { name: /^Closed, last 7 days · / })).toBeInTheDocument();
+  });
+
+  it("draws this week's closes against last week's under In and out, and says how they compare", () => {
+    const { container } = renderBoard({ data });
+    const panel = container.querySelector<HTMLElement>("[data-tasks-in-out]")!;
+    expect(panel.querySelector("[data-tasks-week-line]")).toHaveTextContent("Closed 18 more this week than last week by today");
+    const week = panel.querySelector<HTMLElement>("[data-tasks-week]")!;
+    expect(week).toHaveTextContent("Closed this week36 · 6 days in");
+    expect(week.querySelector("[data-pace-bar]")).toHaveAttribute("data-pace", "ahead");
+    expect(week).toHaveTextContent("Closed last week by today 18");
+    expect(week).toHaveTextContent("Closed last week total 21");
+    // Each project's row: this week's done over last week's outline.
+    expect(container.querySelector('[data-work-row="northwind.example"] [data-work-last-week]')).toHaveAttribute("data-work-last-week", "14");
+  });
+
+  it("shows the same figures from the live read as from the saved snapshot", () => {
+    const { container } = renderBoard({ data, live: true, boards: {
+      "meadow.example": board([liveTask({ id: "md-b", status: "blocked" })]),
+      "northwind.example": { ...board([liveTask({ id: "nw-a" })], null, "northwind.example"), prefix: "nw" },
+    } });
+    expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["6", "9", "36"]);
+  });
+
+  it("gives a site's Tasks tab its own project's week", () => {
+    const { container } = renderScoped("northwind.example", { data });
+    expect([value(fig(container, "urgent")), value(fig(container, "blocked")), value(fig(container, "closed"))]).toEqual(["4", "6", "24"]);
+    expect(within(fig(container, "closed")).getByLabelText("12 more than last week by today")).toBeInTheDocument();
+  });
+
+  it("draws no move where the store holds no daily history", () => {
+    const { container } = renderBoard();
+    expect(container.querySelector("[data-week-move]")).toBeNull();
+    expect(container.querySelector("[data-tasks-week]")).toBeNull();
   });
 });

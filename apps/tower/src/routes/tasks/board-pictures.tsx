@@ -1,10 +1,12 @@
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { fieldClass } from "@/components/ui/field";
+import type { WorkWeeks } from "@shared/work";
 import { BarStrip, type BarStripPoint } from "@/components/viz/BarStrip";
 import { FlowGraph } from "@/components/viz/FlowGraph";
-import { WorkFlow, type WorkFlowRow } from "@/components/viz/WorkFlow";
+import { PaceBar } from "@/components/viz/PaceBar";
+import { WorkFlow, weekDaysIn, type WorkFlowRow } from "@/components/viz/WorkFlow";
 import { formatInt } from "@/lib/format";
-import { netFlow, stripTotals, type EpicGraph, type InOut } from "@/lib/task-board-viz";
+import { netFlow, stripTotals, weekLine, type EpicGraph, type InOut } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
 
 /** The board's panels share one frame: flat, on a hairline ring. */
@@ -15,14 +17,17 @@ const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-bo
 /**
  * Is the work going out as fast as it comes in: the days' closings and
  * filings as two strips on one calendar, with the difference over the days
- * both were counted as the panel's one line. A strip nobody can count says so
- * in place of its bars.
+ * both were counted as the panel's one line, and this week's closes against
+ * last week's under them, as the Wall draws them. A strip nobody can count
+ * says so in place of its bars.
  */
-export function InOutPanel({ inOut, className }: { inOut: InOut; className?: string }) {
+export function InOutPanel({ inOut, weeks = null, className }: { inOut: InOut; weeks?: WorkWeeks | null; className?: string }) {
   const closed = stripTotals(inOut.closed, inOut.today);
   const filed = inOut.filed === null ? null : stripTotals(inOut.filed, inOut.today);
   if (closed.days === 0 && (filed === null || filed.days === 0)) return null;
   const net = netFlow(inOut);
+  const week = weeks?.done ?? null;
+  const compared = weekLine(week);
   const ceiling = Math.max(0, ...[...inOut.closed, ...(inOut.filed ?? [])].map((point) => point.v ?? 0));
   return (
     <section aria-label="In and out" data-tasks-in-out="" className={cn(PANEL, "h-full", className)}>
@@ -32,6 +37,7 @@ export function InOutPanel({ inOut, className }: { inOut: InOut; className?: str
           <span className="whitespace-nowrap text-xs text-muted-foreground">last {inOut.closed.length} days</span>
         </div>
         {net ? <p className="m-0 text-sm font-medium text-foreground [text-wrap:balance]">{netLine(net)}</p> : null}
+        {compared ? <p className="m-0 text-sm text-muted-foreground [text-wrap:balance]" data-tasks-week-line="">{compared}</p> : null}
       </header>
       <div className="flex flex-1 flex-col gap-5">
         <FlowStrip label="Closed" points={inOut.closed} today={inOut.today} tone="text-milestone" totals={closed} max={ceiling} />
@@ -43,6 +49,28 @@ export function InOutPanel({ inOut, className }: { inOut: InOut; className?: str
             <span>not in the saved snapshot</span>
           </div>
         )}
+        {/* The two weeks' closes as one bar: this week so far filled, where
+            last week stood by today marked, last week's whole the ruled end. */}
+        {weeks && week && week.now !== null && week.lastWeek !== null ? (
+          <div className="flex flex-col gap-1.5" data-tasks-week="">
+            <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
+              <span className="font-medium">Closed this week</span>
+              <span className="whitespace-nowrap tabular-nums">
+                <b className="text-sm font-semibold text-foreground">{formatInt(week.now)}{week.partial ? "+" : ""}</b> · {weekDaysIn(weeks.daysIn)}
+              </span>
+            </div>
+            <PaceBar
+              value={week.now}
+              label="Closed this week"
+              previousAtSameDay={week.before}
+              previousTotal={week.lastWeek}
+              previousLabel="Closed last week"
+              tone="text-milestone"
+              format={formatInt}
+              showValue={false}
+            />
+          </div>
+        ) : null}
       </div>
     </section>
   );

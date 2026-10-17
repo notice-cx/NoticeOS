@@ -396,10 +396,13 @@ closed bars), then one board grouped by site, worst first, each reading drawn
 on a `NormalBand` against the range its own rule computed, and anything open
 for over a week collapsed under one line.
 
-**Tasks shows the size and age of the queue**: the tasks waiting for the
-operator as a `DecisionQueue` with the spread of their ages, closed and filed
-a day over two weeks as two dated `BarStrip`s on one scale, each project's
-week as the Wall's `WorkFlow` chart, and the most stuck epic as a `FlowGraph`
+**Tasks shows the size and age of the queue**: the answer's figures each with
+its change chip against a week ago or last week by today (`WorkWeekChip`, the
+Wall's own), the tasks waiting for the operator as a `DecisionQueue` with the
+spread of their ages, closed and filed a day over two weeks as two dated
+`BarStrip`s on one scale with this week's closes against last week's on a
+`PaceBar`, each project's week as the Wall's `WorkFlow` chart, and the most
+stuck epic as a `FlowGraph`
 whose blocked edges are drawn as broken lines. The full task table follows, with each task's
 assignee on its row.
 

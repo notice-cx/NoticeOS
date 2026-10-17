@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { LiveTask, LiveTasksPayload } from "@shared/tasks";
-import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject, type WorkWeeks } from "@shared/work";
 import { liveRows, readTaskBoard, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
-import { boardInOut, boardWorkRows, epicDrawsGraph, epicGraphs, epicTaskGroups, inOutDrawn, netFlow, queueItem, stripTotals } from "@/lib/task-board-viz";
+import { boardInOut, boardWorkRows, epicDrawsGraph, epicGraphs, epicTaskGroups, inOutDrawn, netFlow, queueItem, stripTotals, weekLine } from "@/lib/task-board-viz";
 
 // The board's reads as the kit's shapes. Built through `readTaskBoard`, so the
 // projects these functions see are the ones the board itself renders.
@@ -68,6 +68,28 @@ describe("work by project", () => {
   it("leaves out a project neither read reached rather than drawing it empty", () => {
     const board_ = read(payload([project(), project({ asset: "northwind.example", prefix: "nw", ok: false, error: "no repo" })]), {}, false);
     expect(boardWorkRows(board_.projects).map((row) => row.id)).toEqual(["meadow.example"]);
+  });
+
+  it("takes each project's done from its calendar week, with last week's beside it, as the Wall does", () => {
+    const board_ = read(payload([project(), project({ asset: "northwind.example", prefix: "nw", name: "Northwind" })]), {}, false);
+    const done = { now: 3, partial: false, before: 2, lastWeek: 8, move: null };
+    const [meadow, northwind] = boardWorkRows(board_.projects, undefined, new Map([["meadow.example", { done } as unknown as WorkWeeks]]));
+    expect(meadow).toMatchObject({ done: 3, doneLastWeek: 8 });
+    // Without a week reading: the read's closes, and no outline.
+    expect(northwind).toMatchObject({ done: 4, doneLastWeek: null });
+  });
+});
+
+describe("the week's closes in words", () => {
+  const week = (by: number | null) => ({ now: 5, partial: false, before: 5 - (by ?? 0), lastWeek: 9,
+    move: by === null ? null : { by, direction: by > 0 ? "up" as const : by < 0 ? "down" as const : "flat" as const, verdict: "neutral" as const } });
+
+  it("says more, fewer or as many against last week by today, and nothing without a comparison", () => {
+    expect(weekLine(week(3))).toBe("Closed 3 more this week than last week by today");
+    expect(weekLine(week(-1))).toBe("Closed 1 fewer this week than last week by today");
+    expect(weekLine(week(0))).toBe("Closed as many this week as last week by today");
+    expect(weekLine(week(null))).toBeNull();
+    expect(weekLine(null)).toBeNull();
   });
 });
 

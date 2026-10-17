@@ -5,11 +5,12 @@
 import type { TaskActor, TaskDependency } from "@shared/tasks";
 import { taskActorLabel } from "@shared/tasks";
 import { ageMs, formatAge } from "@shared/freshness";
-import { sumWorkHistory, type WorkEpic, type WorkProject } from "@shared/work";
+import { sumWorkHistory, type WorkDoneWeek, type WorkEpic, type WorkProject, type WorkWeeks } from "@shared/work";
 import type { BarStripPoint } from "@/components/viz/BarStrip";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
 import { flowLayers, type FlowEdge, type FlowEdgeState, type FlowNode } from "@/components/viz/FlowGraph";
 import type { WorkFlowRow } from "@/components/viz/WorkFlow";
+import { formatInt } from "@/lib/format";
 import { IN_PROGRESS, PARKED, inboxAsk, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 
 const DAY_MS = 86_400_000;
@@ -43,16 +44,24 @@ export function queueItem({ project, task }: { project: BoardProject; task: Boar
  * live read `blocked` is the stored status and `open` excludes it, so the
  * Blocked figure, the status filter and the hatched segment count one set. A
  * project neither read reached is left out, never drawn as an empty queue.
+ * Done is this calendar week's closes from the project's week reading, as the
+ * Wall draws it, with last week's beside it; without one, the read's closes.
  */
-export function boardWorkRows(projects: readonly BoardProject[], to?: (project: BoardProject) => string): WorkFlowRow[] {
+export function boardWorkRows(
+  projects: readonly BoardProject[],
+  to?: (project: BoardProject) => string,
+  weeks: ReadonlyMap<string, WorkWeeks> = new Map(),
+): WorkFlowRow[] {
   return projects.flatMap((project) => {
     if (project.source === "unavailable") return [];
     const { open, inProgress, blocked, closed, urgent } = project.stats;
+    const week = weeks.get(project.asset)?.done;
     return [{
       id: project.asset,
       name: project.name,
       to: to?.(project),
-      done: closed,
+      done: week?.now ?? closed,
+      doneLastWeek: week?.lastWeek ?? null,
       inProgress,
       ready: project.source === "live" ? open : Math.max(0, open - blocked),
       blocked,
@@ -124,6 +133,15 @@ export function stripTotals(points: readonly BarStripPoint[], today: string): { 
     days: measured.length,
     average: settled.length >= 3 ? settled.reduce((sum, point) => sum + point.v!, 0) / settled.length : null,
   };
+}
+
+/** This week's closes against last week's over the same days, as one line
+ * under In and out; null when there is nothing to compare. */
+export function weekLine(week: WorkDoneWeek | null | undefined): string | null {
+  const move = week?.move ?? null;
+  if (move === null) return null;
+  if (move.by === 0) return "Closed as many this week as last week by today";
+  return `Closed ${formatInt(Math.abs(move.by))} ${move.by > 0 ? "more" : "fewer"} this week than last week by today`;
 }
 
 /** Closed against filed over the days both measured: positive when the queue
