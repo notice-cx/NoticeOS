@@ -37,6 +37,8 @@ export interface ToolContext {
     readonly proof: Request;
     readonly workspaceId: string;
     readonly operations: HostedTaskOperations;
+    /** The version of the guide this server serves (taskGuide), which a stale client is told. */
+    readonly guideVersion: string;
 }
 export interface TaskTool {
     readonly name: string;

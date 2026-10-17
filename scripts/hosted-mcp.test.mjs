@@ -527,12 +527,86 @@ test('a malformed set of choices is refused with the field at fault named, and f
     'invalid arguments: choices.options[1].key (b: keys run a, b, c… in the order the options are shown)');
   assert.match(await error({ ...PICK, question: '' }), /^invalid arguments: choices\.question \(empty\)/u);
   assert.match(await error({ ...PICK, options: PICK.options.slice(1, 2) }, 'create_tasks'), /^invalid arguments: tasks\[1\]: choices\.options/u);
-  assert.match((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: 'a or b',
-    idempotency_key: 'agent-update-0701' })).content[0].text, /^invalid arguments: choices \(an object/u);
+  assert.equal((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: ['a', 'b'],
+    idempotency_key: 'agent-update-0701' })).content[0].text, 'invalid arguments: choices (an object with question and options)');
   assert.equal(f.effects.length, 0);
   assert.equal(taskRefusal(new TaskStateRefused('tt-1', 'other', { kind: 'chosen', chosen: '(b) Redirect to the new page' })).message,
     'refused: tt-1 already carries a person\'s choice, (b) Redirect to the new page, and its choices stay as they were when it was made. '
     + 'get_task shows the choice; file work that remains with create_task.');
+});
+
+/** The line a client whose tool list predates this server is told. */
+const staleLine = names => `${names} arrived as text: your client's copy of the task tools predates this server `
+  + `(guide version ${taskGuide(false).version}); reconnect the noticeos server to get the current tools`;
+
+test('choices a client sends as JSON text land, and the reply opens with a line saying its tool list is stale', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'] });
+  const update = (choices, key) => call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices, idempotency_key: key });
+  const landed = await update(JSON.stringify(PICK), 'agent-update-0901');
+  assert.equal(landed.isError, undefined, JSON.stringify(landed));
+  assert.equal(landed.structuredContent.staleClient, staleLine('choices'));
+  assert.ok(landed.content[0].text.startsWith(`{"staleClient":${JSON.stringify(staleLine('choices'))},`), 'the first thing an agent reads');
+  assert.deepEqual([landed.structuredContent.task.choices, f.tasks.get('tt-1').metadata.noticeos_choices], [PICK, PICK]);
+  // "null" as text takes them off, where the argument takes null.
+  const cleared = (await update('null', 'agent-update-0902')).structuredContent;
+  assert.deepEqual([cleared.task.choices, cleared.staleClient], [null, staleLine('choices')]);
+  // The same choices sent as an object carry no line.
+  assert.equal('staleClient' in (await update(PICK, 'agent-update-0903')).structuredContent, false);
+
+  // create_task, and each entry of create_tasks by its place, read text the same way.
+  const made = (await call(f, 'create_task', { workspace: A, project: P, title: 'Pick again', choices: JSON.stringify(PICK),
+    idempotency_key: 'agent-create-0901' })).structuredContent;
+  assert.equal(made.staleClient, staleLine('choices'));
+  assert.deepEqual(f.tasks.get(made.id).metadata.noticeos_choices, PICK);
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'agent-batch-0901',
+    tasks: [{ title: 'Fine' }, { title: 'Ask', choices: JSON.stringify(PICK) }, { title: 'Ask too', choices: JSON.stringify(PICK) }] })).structuredContent;
+  assert.equal(batch.staleClient, staleLine('tasks[1].choices and tasks[2].choices'));
+  assert.deepEqual(batch.created.map(entry => f.tasks.get(entry.id).metadata.noticeos_choices ?? null), [null, PICK, PICK]);
+});
+
+test('choices sent as text that is not an object are refused with the stale-client line, then the shape rule', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'] });
+  const before = f.effects.length;
+  const refusal = async (choices, key) => (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices,
+    idempotency_key: key })).content[0].text;
+  for (const text of ['a or b', '{"question":', '["a","b"]', '"a"', '7']) {
+    assert.equal(await refusal(text, 'agent-update-1001'), `${staleLine('choices')}. invalid arguments: choices (an object with question and options)`, text);
+  }
+  // JSON text of an object with the wrong shape: the line, then the field at fault.
+  assert.equal(await refusal(JSON.stringify({ ...PICK, options: PICK.options.slice(0, 1) }), 'agent-update-1002'),
+    `${staleLine('choices')}. invalid arguments: choices.options (2 to 6 options)`);
+  // An object with the wrong shape keeps the refusal it had: no line.
+  assert.equal(await refusal({ ...PICK, options: PICK.options.slice(0, 1) }, 'agent-update-1003'), 'invalid arguments: choices.options (2 to 6 options)');
+  assert.equal(f.effects.length, before, 'nothing written');
+});
+
+test('every object argument of the task tools refuses text that is not an object, and writes nothing', async () => {
+  const f = fixture();
+  await filer(f)('Target');
+  const before = f.effects.length;
+  const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
+  const typed = (schema, type) => schema.type === type || Array.isArray(schema.type) && schema.type.includes(type);
+  const found = [];
+  for (const tool of tools.filter(entry => !READ_MODEL_TOOL_NAMES.includes(entry.name))) for (const [name, property] of Object.entries(tool.inputSchema.properties)) {
+    if (typed(property, 'object')) found.push([tool, name, null]);
+    if (typed(property, 'array') && property.items && typed(property.items, 'object')) {
+      for (const [inner, entry] of Object.entries(property.items.properties ?? {})) if (typed(entry, 'object')) found.push([tool, name, inner]);
+    }
+  }
+  const named = found.map(([tool, name, inner]) => `${tool.name}.${name}${inner ? `[].${inner}` : ''}`);
+  for (const path of ['create_task.choices', 'create_tasks.tasks[].choices', 'update_task.choices']) assert.ok(named.includes(path), path);
+  // The smallest call each tool takes: its required arguments, then the object as text.
+  const least = { workspace: A, project: P, task: 'tt-1', title: 'Guarded', reason: 'Guarded', text: 'Guarded', idempotency_key: 'agent-guard-0001' };
+  for (const [tool, name, inner] of found) {
+    const args = Object.fromEntries(tool.inputSchema.required.map(key => [key, least[key]]));
+    args[name] = inner ? [{ title: 'Guarded', [inner]: 'not json' }] : 'not json';
+    const reply = await call(f, tool.name, args);
+    assert.equal(reply.isError, true, `${tool.name}.${name}`);
+    assert.ok(reply.content[0].text.startsWith(staleLine(inner ? `${name}[0].${inner}` : name)), reply.content[0].text);
+  }
+  assert.equal(f.effects.length, before, 'nothing written');
 });
 
 test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {

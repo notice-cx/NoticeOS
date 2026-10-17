@@ -263,6 +263,50 @@ function choicesArg(args) {
         refuse(`invalid arguments: ${problem.field} (${problem.rule})`);
     return taskChoicesOf(value);
 }
+const typed = (schema, type) => schema.type === type || Array.isArray(schema.type) && schema.type.includes(type);
+/** A tool's arguments with each object-typed one that arrived as a string
+ * read as JSON: a client whose copy of the tool list predates an argument has
+ * no schema for it and sends it as text. `text` names those read; `unread`
+ * those whose text is not an object (or null, where the schema takes null),
+ * which stay strings for their own reader to refuse. Each entry of an array of
+ * objects is read the same way, named by its place. */
+function objectsFromText(schema, args, at = '') {
+    const read = { ...args }, text = [], unread = [];
+    for (const [name, property] of Object.entries(schema.properties ?? {})) {
+        const value = args[name];
+        if (typed(property, 'object') && typeof value === 'string') {
+            let parsed;
+            try {
+                parsed = JSON.parse(value);
+            }
+            catch {
+                parsed = undefined;
+            }
+            if (parsed === null ? typed(property, 'null') : typeof parsed === 'object' && !Array.isArray(parsed)) {
+                read[name] = parsed;
+                text.push(at + name);
+            }
+            else
+                unread.push(at + name);
+        }
+        else if (typed(property, 'array') && property.items && typed(property.items, 'object') && Array.isArray(value)) {
+            read[name] = value.map((entry, index) => {
+                if (!entry || typeof entry !== 'object' || Array.isArray(entry))
+                    return entry;
+                const inner = objectsFromText(property.items, entry, `${at}${name}[${index}].`);
+                text.push(...inner.text);
+                unread.push(...inner.unread);
+                return inner.args;
+            });
+        }
+    }
+    return { args: read, text, unread };
+}
+/** What a reply or refusal says when object arguments arrived as text. */
+function staleClientLine(names, guideVersion) {
+    return `${listed(names)} arrived as text: your client's copy of the task tools predates this server (guide version ${guideVersion}); `
+        + 'reconnect the noticeos server to get the current tools';
+}
 /** YYYY-MM-DD or an ISO time, as epoch milliseconds. */
 function instantArg(args, name) {
     const value = args[name];
@@ -485,6 +529,26 @@ function approvalOf(taskId, gate) {
  * place, so a retried call replays each entry it already made. */
 function entryKey(key, index) {
     return `batch.${createHash('sha256').update(`noticeos-task-batch-v1:${key}`).digest('hex').slice(0, 40)}.${index}`;
+}
+/** A tool that reads object arguments sent as JSON text (objectsFromText).
+ * Its reply then opens with the stale-client line, and an argument refusal
+ * starts with it; any other failure stands as it was. */
+function readingText(tool) {
+    return Object.freeze({ ...tool, async run(context, args) {
+            const read = objectsFromText(tool.inputSchema, args);
+            const sent = [...read.text, ...read.unread];
+            if (!sent.length)
+                return tool.run(context, args);
+            const line = staleClientLine(sent, context.guideVersion);
+            let reply;
+            try {
+                reply = await tool.run(context, read.args);
+            }
+            catch (error) {
+                throw error instanceof McpToolError ? new McpToolError(`${line}. ${error.message}`) : error;
+            }
+            return { staleClient: line, ...reply };
+        } });
 }
 export const TASK_MCP_TOOLS = Object.freeze([
     { name: 'list_projects', description: 'List the task projects in this workspace.',
@@ -750,4 +814,4 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 ...(model ? { model } : {}), ...(resolution === undefined ? {} : { resolution }), ...(duplicateOf === undefined ? {} : { duplicateOf }) }, key(args), () => ({}));
             return { task: await current(context, projectId, taskId), replayed };
         } },
-]);
+].map(readingText));

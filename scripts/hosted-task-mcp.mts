@@ -249,6 +249,42 @@ function choicesArg(args: Args): TaskChoices | undefined {
   if (problem !== null) refuse(`invalid arguments: ${problem.field} (${problem.rule})`);
   return taskChoicesOf(value)!;
 }
+/** A property of a tool's input schema, as far as reading text needs it. */
+interface PropertySchema { readonly type?: unknown; readonly properties?: Readonly<Record<string, PropertySchema>>; readonly items?: PropertySchema }
+const typed = (schema: PropertySchema, type: string) => schema.type === type || Array.isArray(schema.type) && schema.type.includes(type);
+/** A tool's arguments with each object-typed one that arrived as a string
+ * read as JSON: a client whose copy of the tool list predates an argument has
+ * no schema for it and sends it as text. `text` names those read; `unread`
+ * those whose text is not an object (or null, where the schema takes null),
+ * which stay strings for their own reader to refuse. Each entry of an array of
+ * objects is read the same way, named by its place. */
+function objectsFromText(schema: PropertySchema, args: Args, at = ''):
+  { readonly args: Args; readonly text: readonly string[]; readonly unread: readonly string[] } {
+  const read: Args = { ...args }, text: string[] = [], unread: string[] = [];
+  for (const [name, property] of Object.entries(schema.properties ?? {})) {
+    const value = args[name];
+    if (typed(property, 'object') && typeof value === 'string') {
+      let parsed: unknown;
+      try { parsed = JSON.parse(value); } catch { parsed = undefined; }
+      if (parsed === null ? typed(property, 'null') : typeof parsed === 'object' && !Array.isArray(parsed)) {
+        read[name] = parsed; text.push(at + name);
+      } else unread.push(at + name);
+    } else if (typed(property, 'array') && property.items && typed(property.items, 'object') && Array.isArray(value)) {
+      read[name] = value.map((entry: unknown, index) => {
+        if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return entry;
+        const inner = objectsFromText(property.items!, entry as Args, `${at}${name}[${index}].`);
+        text.push(...inner.text); unread.push(...inner.unread);
+        return inner.args;
+      });
+    }
+  }
+  return { args: read, text, unread };
+}
+/** What a reply or refusal says when object arguments arrived as text. */
+function staleClientLine(names: readonly string[], guideVersion: string): string {
+  return `${listed(names)} arrived as text: your client's copy of the task tools predates this server (guide version ${guideVersion}); `
+    + 'reconnect the noticeos server to get the current tools';
+}
 /** YYYY-MM-DD or an ISO time, as epoch milliseconds. */
 function instantArg(args: Args, name: string): number | undefined {
   const value = args[name];
@@ -365,7 +401,11 @@ function taskOf(value: unknown): Record<string, unknown> {
 }
 
 // ─── Tools ────────────────────────────────────────────────────────────────────
-export interface ToolContext { readonly proof: Request; readonly workspaceId: string; readonly operations: HostedTaskOperations }
+export interface ToolContext {
+  readonly proof: Request; readonly workspaceId: string; readonly operations: HostedTaskOperations;
+  /** The version of the guide this server serves (taskGuide), which a stale client is told. */
+  readonly guideVersion: string;
+}
 export interface TaskTool {
   readonly name: string;
   readonly description: string;
@@ -468,8 +508,24 @@ function approvalOf(taskId: string, gate: Record<string, unknown>): Record<strin
 function entryKey(key: string, index: number): string {
   return `batch.${createHash('sha256').update(`noticeos-task-batch-v1:${key}`).digest('hex').slice(0, 40)}.${index}`;
 }
+/** A tool that reads object arguments sent as JSON text (objectsFromText).
+ * Its reply then opens with the stale-client line, and an argument refusal
+ * starts with it; any other failure stands as it was. */
+function readingText(tool: TaskTool): TaskTool {
+  return Object.freeze({ ...tool, async run(context: ToolContext, args: Args) {
+    const read = objectsFromText(tool.inputSchema as PropertySchema, args);
+    const sent = [...read.text, ...read.unread];
+    if (!sent.length) return tool.run(context, args);
+    const line = staleClientLine(sent, context.guideVersion);
+    let reply: unknown;
+    try { reply = await tool.run(context, read.args); } catch (error) {
+      throw error instanceof McpToolError ? new McpToolError(`${line}. ${error.message}`) : error;
+    }
+    return { staleClient: line, ...(reply as Record<string, unknown>) };
+  } });
+}
 
-export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
+export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
   { name: 'list_projects', description: 'List the task projects in this workspace.',
     inputSchema: schema({}), annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
@@ -718,4 +774,4 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       key(args), () => ({}));
       return { task: await current(context, projectId, taskId), replayed };
     } },
-]);
+] satisfies TaskTool[]).map(readingText));

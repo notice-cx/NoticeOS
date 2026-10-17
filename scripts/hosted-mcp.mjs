@@ -191,7 +191,7 @@ export function createHostedMcp(options) {
                 const panel = panels ? PANEL_MCP_TOOLS.find(tool => tool.name === name) : undefined;
                 try {
                     if (task)
-                        return await task.run({ proof, workspaceId: workspace, operations }, rest);
+                        return await task.run({ proof, workspaceId: workspace, operations, guideVersion: guide.version }, rest);
                     if (panel)
                         return await panel.run({ proof, workspaceId: workspace, operations: panels }, rest);
                     return await readModel(original, name, workspace, rest);

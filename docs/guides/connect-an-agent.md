@@ -68,6 +68,8 @@ The task records the model beside the agent's name, the Wall's **Live feed** sho
 
 Creating, changing, claiming, commenting on and closing take an `idempotency_key`. An agent that retries an interrupted call with the same key gets the first response, and the change happens once.
 
+An agent's client keeps the tool list it fetched when it connected. When the server has since gained an argument that takes an object, such as `choices`, that client sends the argument as text. The server reads text that holds a JSON object as the object, and the response starts with `staleClient`: the arguments that arrived as text, the server's guide version, and the fix, which is to reconnect the `noticeos` server in the agent (`/mcp` in Claude Code). Text that is not a JSON object is refused with the same line, followed by the argument's rule.
+
 For example, a bug that no longer happens closes with:
 
 ```json
