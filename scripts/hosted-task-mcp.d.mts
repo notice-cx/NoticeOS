@@ -30,6 +30,9 @@ export declare function taskInstructions(panels: boolean): string;
  * failing. */
 export declare function taskRefusal(error: unknown): McpToolError;
 type Args = Record<string, unknown>;
+/** Whether a description offers a person lettered options in prose: lines
+ * for (a) and (b), or "(a) … (b) …" inside one line. */
+export declare function offersLetteredOptions(description: string): boolean;
 export interface ToolContext {
     readonly proof: Request;
     readonly workspaceId: string;

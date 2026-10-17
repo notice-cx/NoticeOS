@@ -8,7 +8,7 @@ import type { TaskDirectory } from '../packages/postgres/src/task-directory.mjs'
 import type { TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
-import type { HostedTaskStatus, HostedTaskRequest } from './hosted-task-command.mjs';
+import { decisionRefusal, hostedTaskAction, TaskStateRefused, type HostedTaskStatus, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { readHostedTaskCommand } from './hosted-task-http.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { CLOSED_HISTORY_DAYS, createHostedTaskOperations, HostedTaskReceiptsUnavailable, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
@@ -73,7 +73,7 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       workspace = profile === 'demo' ? demo! : header ?? '';
       if (!UUID.test(workspace) || profile === 'demo' && header !== null && header !== demo) invalid();
       const path = url.pathname;
-      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss))?))?$/iu.test(path)
+      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss|choose))?))?$/iu.test(path)
         && !/^\/api\/gates\/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*\/resolve$/iu.test(path)) invalid();
       if (original.method === 'GET' && original.body !== null) invalid();
       const supplied = original.headers.get(IDEMPOTENCY_HEADER);
@@ -117,6 +117,9 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
         query.closedDays === undefined ? undefined : Number(query.closedDays)));
     } catch (error) {
       if (error instanceof HostedTaskReceiptsUnavailable) return response(503, { error: 'idempotency_unavailable' });
+      // A person's own decision refused by the task's state: the sentence names why.
+      const detail = error instanceof TaskStateRefused && mutation && hostedTaskAction(mutation.operation) === 'tasks.decide' ? decisionRefusal(error) : null;
+      if (detail !== null) return response(409, { error: 'task_refused', detail });
       return response(403, { error: 'hosted_task_refused' });
     }
   };

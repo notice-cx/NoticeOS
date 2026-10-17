@@ -69,6 +69,12 @@ describe('hosted Tasks transport', () => {
       expect(JSON.parse(String(decisions[2]?.[1]?.body))).toEqual({ projectId: projectA, reason: 'Approved' });
       expect(decisions[0]?.[1]?.keepalive).toBe(true);expect(decisions[2]?.[1]?.keepalive).toBe(true);
       for (const [, init] of decisions) expect(new Headers(init?.headers).get('x-noticeos-session-id')).toBe(a.sessionId);
+      await runtime.api.chooseOnTask('tt-collision', 'b', 'Ship it Friday', { project: 'example', keepalive: true });
+      await runtime.api.chooseOnTask('tt-collision', 'a', ' ', { project: 'example' });
+      const picks = f.transport.mock.calls.filter(([input]) => new URL(String(input), 'https://tower.example.test').pathname === '/api/tasks/tt-collision/choose');
+      expect(picks.map(([, init]) => JSON.parse(String(init?.body)))).toEqual([{ projectId: projectA, option: 'b', note: 'Ship it Friday' },
+        { projectId: projectA, option: 'a' }]);
+      expect(picks[0]?.[1]?.keepalive).toBe(true);
       const count=f.transport.mock.calls.length;runtime.retire();
       await expect(runtime.api.resolveGate('tt-collision', undefined, { project: 'example' })).rejects.toThrow();
       expect(f.transport.mock.calls).toHaveLength(count);

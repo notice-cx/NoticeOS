@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const api = vi.hoisted(() => ({
   respondToTask: vi.fn(async () => undefined),
+  chooseOnTask: vi.fn(async () => undefined),
   dismissTask: vi.fn(async () => undefined),
   resolveGate: vi.fn(async () => undefined),
 }));
@@ -369,6 +370,27 @@ describe("each answer is one call on the lane the inbox always used", () => {
   it("asks the browser to finish the call only when the page is leaving", async () => {
     await sendInboxAnswer({ kind: "answer", id: "md-ask", title: "Ask", text: "Yes" }, true);
     expect(api.respondToTask).toHaveBeenCalledWith("md-ask", "Yes", { keepalive: true });
+  });
+
+  it("a pick names the option, the note when there is one, and the project it was made in", async () => {
+    await sendInboxAnswer({ kind: "choose", id: "md-pick", title: "Pick", option: "b" });
+    await sendInboxAnswer({ kind: "choose", id: "md-pick2", title: "Pick", option: "a", note: "Ship it Friday", project: "medley" }, true);
+    expect(api.chooseOnTask).toHaveBeenNthCalledWith(1, "md-pick", "b", undefined);
+    expect(api.chooseOnTask).toHaveBeenNthCalledWith(2, "md-pick2", "a", "Ship it Friday", { keepalive: true, project: "medley" });
+  });
+
+  it("a pick waits out the Undo window like an answer, and an Undo inside it sends nothing", async () => {
+    vi.useFakeTimers();
+    const pick = { kind: "choose", id: "md-pick", title: "Pick", option: "b" } as const;
+    scheduleAnswer({ id: "md-pick", send: (keepalive) => sendInboxAnswer(pick, keepalive) });
+    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS - 1);
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    expect(api.chooseOnTask).toHaveBeenCalledWith("md-pick", "b", undefined);
+    scheduleAnswer({ id: "md-pick2", send: (keepalive) => sendInboxAnswer({ ...pick, id: "md-pick2" }, keepalive) });
+    expect(undoAnswer("md-pick2")).toBe(true);
+    await vi.advanceTimersByTimeAsync(UNDO_WINDOW_MS * 2);
+    expect(api.chooseOnTask).toHaveBeenCalledOnce();
   });
 });
 

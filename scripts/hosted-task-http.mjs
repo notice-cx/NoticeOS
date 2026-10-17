@@ -115,7 +115,7 @@ function limit(value) {
 }
 /** Request parsing only. Callers still establish current admission separately. */
 export async function readHostedTaskCommand(request, url, workspaceId) {
-    const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history|comments|close|respond|dismiss))?)?$/iu.exec(url.pathname);
+    const match = /^\/api\/tasks(?:\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)(?:\/(history|comments|close|respond|dismiss|choose))?)?$/iu.exec(url.pathname);
     const gate = /^\/api\/gates\/([a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*)\/resolve$/iu.exec(url.pathname);
     if ((!match && !gate) || /%/u.test(url.pathname))
         invalid();
@@ -137,10 +137,12 @@ export async function readHostedTaskCommand(request, url, workspaceId) {
             : request.method === 'PATCH' && taskId && !suffix ? 'update'
                 : request.method === 'POST' && taskId && suffix === 'comments' ? 'comment'
                     : request.method === 'POST' && taskId && suffix === 'close' ? 'close'
-                        : request.method === 'POST' && taskId && ['respond', 'dismiss', 'resolve-gate'].includes(suffix ?? '') ? suffix : invalid();
+                        : request.method === 'POST' && taskId && ['respond', 'dismiss', 'resolve-gate', 'choose'].includes(suffix ?? '')
+                            ? suffix : invalid();
         const row = await body(request);
         const fields = kind === 'create' ? ['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']
-            : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'] : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : ['reason'];
+            : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']
+                : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : kind === 'choose' ? ['option', 'note'] : ['reason'];
         keys(row, ['projectId'], fields);
         projectId = uuid(row.projectId);
         delete row.projectId;

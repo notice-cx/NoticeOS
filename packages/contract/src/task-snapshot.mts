@@ -1,3 +1,5 @@
+import type { TaskChoice, TaskChoices } from './task-choices.mjs';
+
 /** The ordinary task snapshot input shape, shared by native pollers and the
  * validated Worker writer. These facts grant no workspace authority. */
 export const BEADS_HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'] as const;
@@ -25,6 +27,10 @@ export interface BeadsIssueInput {
    * Absent when the task names no filer, and from an older poller. */
   filedBy?: string | null;
   filedModel?: string | null;
+  /** The options a person picks from, and the pick once made (task-choices.mts).
+   * Absent when the task carries none, and from an older poller. */
+  choices?: TaskChoices | null;
+  choice?: TaskChoice | null;
 }
 
 /** One epic container plus what its children are doing. Entirely optional on
@@ -105,7 +111,7 @@ export interface BeadsProjectInput {
   /** Each worker and the model it named: closes in the closed window and
    * work it holds. Absent when nobody holds or closed work. */
   workers?: BeadsWorkerInput[] | null;
-  /** The newest claims and closes, newest first. Absent under the same rule. */
+  /** The newest claims, closes and picks, newest first. Absent under the same rule. */
   recentWork?: BeadsWorkEventInput[] | null;
 }
 
@@ -118,15 +124,19 @@ export interface BeadsWorkerInput {
   inProgress: number;
 }
 
-/** One claim or close, with a close's evidence as the closer gave it. */
+/** One claim, close or person's pick, with a close's evidence as the closer
+ * gave it and a pick's option and label. */
 export interface BeadsWorkEventInput {
-  kind: 'claimed' | 'closed';
+  kind: 'claimed' | 'closed' | 'chosen';
   taskId: string;
   title: string;
   by: string;
   model?: string | null;
   at: string;
   evidence?: string | null;
+  /** On a pick only. */
+  option?: string | null;
+  label?: string | null;
 }
 
 /**

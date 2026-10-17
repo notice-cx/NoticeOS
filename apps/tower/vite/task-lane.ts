@@ -23,6 +23,8 @@ import type {
 } from "../shared/tasks";
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
+import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
+import { answerSteps, choiceSteps, decisionRefusal, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import {
@@ -102,12 +104,15 @@ export const UPDATE_LABEL_FIELDS: Readonly<Record<string, string>> = {
   removeLabels: "--remove-label",
 };
 
-/** The sub-actions `POST /api/tasks/:id/<action>` accepts. */
+/** The sub-actions `POST /api/tasks/:id/<action>` accepts. An answer on a task
+ * that is not a decision, and every pick, run as the steps `answerSteps` and
+ * `choiceSteps` plan, each one of the verbs above. */
 export const TASK_ACTION_VERBS: Readonly<Record<string, string>> = {
   close: "close",
   comments: "comments add",
   respond: "human respond",
   dismiss: "human dismiss",
+  choose: "update",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -645,7 +650,11 @@ async function actOnTask(
     runVerb(verb, [id, commentText], spoke, opts);
   } else if (action === "respond") {
     const response = requiredString(input, "response");
-    respondToHuman(id, response, spoke, opts);
+    answerTask(id, response, spoke, opts);
+  } else if (action === "choose") {
+    const option = requiredString(input, "option");
+    const note = optionalString(input, "note");
+    chooseOnTask(id, option, note === null || note.trim() === "" ? undefined : note, spoke, opts);
   } else {
     // `bd human dismiss` takes an optional reason.
     const reason = optionalString(input, "reason");
@@ -710,6 +719,77 @@ function respondToHuman(id: string, response: string, spoke: Spoke, opts: Resolv
     }
     throw error;
   }
+}
+
+/** The task as `bd show` reads it, for a decision that depends on its state. */
+function readDecisionTask(id: string, spoke: Spoke, opts: Resolved, extra: string[] = []): Record<string, unknown> {
+  const { json } = runVerb("show", [id, ...extra], spoke, opts);
+  const row = Array.isArray(json) && json.length === 1 ? json[0] : json;
+  if (row === null || typeof row !== "object" || Array.isArray(row) || (row as Record<string, unknown>).id !== id || prefixOf(id) !== spoke.prefix) {
+    throw refuse(502, "bd_failed", "The task could not be read before recording your decision.");
+  }
+  return row as Record<string, unknown>;
+}
+
+/** A decision refused by the task's own state, in the sentence the person reads. */
+function refusedDecision(error: unknown): never {
+  if (error instanceof TaskStateRefused) throw refuse(409, "task_refused", decisionRefusal(error) ?? `${error.taskId} cannot take this decision.`);
+  throw error;
+}
+
+/** Each step of a person's decision, as the verb it is, under one operator. */
+function runDecisionSteps(steps: readonly DecisionStep[], spoke: Spoke, opts: Resolved & { actor: string }): void {
+  for (const step of steps) {
+    if (step.kind === "record-choice") {
+      runVerb("update", [step.taskId, "--metadata", JSON.stringify({ [TASK_METADATA.choice.name]: step.choice })], spoke, opts);
+    } else if (step.kind === "comment") {
+      runVerb("comments add", [step.taskId, step.text], spoke, opts);
+    } else if (step.kind === "close") {
+      const { json } = runVerb("close", [step.taskId, "--reason", step.reason, ...(step.force ? ["--force"] : [])], spoke, opts);
+      recordCloser(step.taskId, json, spoke, opts);
+    } else {
+      // --if-assignee names the holder as read: the task client allows the hand-over, and refuses it if the holder changed since.
+      runVerb("update", [step.taskId, "--status", "open", "--assignee", "", "--if-assignee", step.holder,
+        ...(step.removeHuman ? ["--remove-label", "human"] : [])], spoke, opts);
+    }
+  }
+}
+
+/** A free-text answer: a decision closes on `bd human respond`; any other task
+ * waiting on the operator takes the answer as a comment and goes back to ready
+ * work for any agent. */
+function answerTask(id: string, response: string, spoke: Spoke, opts: Resolved): void {
+  const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+  const issue = readDecisionTask(id, spoke, opts);
+  const steps = answerSteps({ kind: "respond", taskId: id, response }, issue);
+  if (steps === null) {
+    respondToHuman(id, response, spoke, operatorOpts);
+    return;
+  }
+  if (issue.status === "closed") throw refuse(409, "task_refused", `${id} is already closed.`);
+  if (!Array.isArray(issue.labels) || !issue.labels.includes("human")) {
+    throw refuse(409, "task_refused", `${id} is not waiting on your answer.`);
+  }
+  runDecisionSteps(steps, spoke, operatorOpts);
+}
+
+/** A pick of one of the task's options (`choiceSteps`): recorded on the task,
+ * then a decision closes and any other task goes back to ready work. */
+function chooseOnTask(id: string, option: string, note: string | undefined, spoke: Spoke, opts: Resolved): void {
+  if (!(TASK_CHOICE_KEYS as readonly string[]).includes(option)) throw refuse(422, "invalid_body", "option is one of a, b, c, d, e and f");
+  if (note !== undefined && note.length > TASK_CHOICE_LIMITS.note) throw refuse(422, "invalid_body", `note is at most ${TASK_CHOICE_LIMITS.note} characters`);
+  const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+  const issue = readDecisionTask(id, spoke, opts, ["--include-dependents"]);
+  // Its comments tell a pick interrupted after its record from a second pick.
+  const { json: comments } = runVerb("comments", [id], spoke, opts);
+  let steps: readonly DecisionStep[];
+  try {
+    steps = choiceSteps({ kind: "choose", taskId: id, option: option as TaskChoiceKey, ...(note === undefined ? {} : { note }) },
+      issue, comments, operatorOpts.actor, opts.now().toISOString());
+  } catch (error) {
+    refusedDecision(error);
+  }
+  runDecisionSteps(steps, spoke, operatorOpts);
 }
 
 async function resolveGate(id: string, request: LaneRequest, opts: Resolved): Promise<LaneReply> {

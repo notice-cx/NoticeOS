@@ -212,6 +212,8 @@ export const TASK_PROJECTS_PATH = "/settings/task-projects";
 export const READ_ONLY_TASKS_HINT = "Make changes from the local NoticeOS.";
 
 /** The verbs the lane will run, as the operator's own words. The client
- * renders it and the lane enforces it. */
-export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss"] as const;
+ * renders it and the lane enforces it. `respond` closes a decision and hands
+ * any other task back to ready work; `choose` records one of a task's choices,
+ * then does the same. */
+export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss", "choose"] as const;
 export type TaskAction = (typeof TASK_ACTIONS)[number];

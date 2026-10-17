@@ -13,6 +13,7 @@
 // count is stored absent, never defaulted to 0.
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
+import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
 export type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
@@ -145,6 +146,9 @@ interface StoredIssue {
   /** Who filed it and the model they named; present only when the poller sent them. */
   filedBy?: string;
   filedModel?: string;
+  /** The options a person picks from and the pick; present only when the poller sent them. */
+  choices?: TaskChoices;
+  choice?: TaskChoice;
 }
 
 interface StoredEpic {
@@ -179,7 +183,9 @@ interface StoredHandoff {
 
 /** Who did the work, normalized: `model` is always a key, null when none was named. */
 type StoredWorker = Omit<BeadsWorkerInput, 'model'> & { model: string | null };
-type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence'> & { model: string | null; evidence: string | null };
+/** A pick carries its option and label; a claim or close carries neither key. */
+type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence' | 'option' | 'label'>
+  & { model: string | null; evidence: string | null; option?: TaskChoiceKey; label?: string };
 export const BEADS_MAX_WORKERS = 20;
 export const BEADS_MAX_WORK = 12;
 export const BEADS_MODEL_MAX = 128;
@@ -262,6 +268,16 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
   const createdAt = optionalInstant(issues, raw.createdAt, `${path}.createdAt`);
   const filedBy = optionalString(issues, raw.filedBy, `${path}.filedBy`, BEADS_ASSIGNEE_MAX);
   const filedModel = optionalString(issues, raw.filedModel, `${path}.filedModel`, BEADS_MODEL_MAX);
+  // The shape's rules are the contract's (task-choices.mts), the ones the task tools enforce.
+  const choices = raw.choices === undefined || raw.choices === null ? null : taskChoicesOf(raw.choices);
+  if (raw.choices !== undefined && raw.choices !== null && choices === null) {
+    issues.add(`${path}.choices`, 'custom', `${path}.choices must be a question with two to six options, one recommended`);
+  }
+  const choice = raw.choice === undefined || raw.choice === null ? null : taskChoiceOf(raw.choice);
+  if (raw.choice !== undefined && raw.choice !== null && (choice === null || choice.by.length > BEADS_ASSIGNEE_MAX
+    || choice.label.length > TASK_CHOICE_LIMITS.label || (choice.note?.length ?? 0) > TASK_CHOICE_LIMITS.note)) {
+    issues.add(`${path}.choice`, 'custom', `${path}.choice must be a recorded pick: option, label, by and at`);
+  }
 
   if (id === null || title === null || status === null || issueType === null || priority === null) {
     return null;
@@ -272,6 +288,8 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     ...(createdAt === null ? {} : { createdAt }),
     ...(filedBy === null ? {} : { filedBy }),
     ...(filedModel === null ? {} : { filedModel }),
+    ...(choices === null ? {} : { choices }),
+    ...(choice === null ? {} : { choice }),
   };
 }
 
@@ -575,16 +593,21 @@ function parseRecentWork(issues: Issues, value: unknown, path: string): StoredWo
   const out: StoredWorkEvent[] = [];
   for (const [index, raw] of rows.entries()) {
     const at = `${path}.${index}`;
-    const kind = raw.kind === 'claimed' || raw.kind === 'closed' ? raw.kind : null;
-    if (kind === null) issues.add(`${at}.kind`, 'custom', `${at}.kind must be claimed or closed`);
+    const kind = raw.kind === 'claimed' || raw.kind === 'closed' || raw.kind === 'chosen' ? raw.kind : null;
+    if (kind === null) issues.add(`${at}.kind`, 'custom', `${at}.kind must be claimed, closed or chosen`);
     const taskId = requiredString(issues, raw.taskId, `${at}.taskId`, BEADS_ID_MAX);
     const title = requiredString(issues, raw.title, `${at}.title`, BEADS_TITLE_MAX);
     const by = requiredString(issues, raw.by, `${at}.by`, BEADS_ASSIGNEE_MAX);
     const model = optionalString(issues, raw.model, `${at}.model`, BEADS_MODEL_MAX);
     const instant = optionalInstant(issues, raw.at, `${at}.at`);
     const evidence = optionalString(issues, raw.evidence, `${at}.evidence`, BEADS_EVIDENCE_MAX);
+    // A pick names the option and its label; nothing else does.
+    const option = kind === 'chosen' && (TASK_CHOICE_KEYS as readonly unknown[]).includes(raw.option) ? raw.option as TaskChoiceKey : null;
+    const label = kind === 'chosen' ? requiredString(issues, raw.label, `${at}.label`, TASK_CHOICE_LIMITS.label) : null;
+    if (kind === 'chosen' && option === null) issues.add(`${at}.option`, 'custom', `${at}.option must be one of a to f`);
     if (kind === null || taskId === null || title === null || by === null || instant === null) return null;
-    out.push({ kind, taskId, title, by, model, at: instant, evidence });
+    if (kind === 'chosen' && (option === null || label === null)) return null;
+    out.push({ kind, taskId, title, by, model, at: instant, evidence, ...(option === null || label === null ? {} : { option, label }) });
   }
   return out;
 }

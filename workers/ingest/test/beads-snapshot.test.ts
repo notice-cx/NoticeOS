@@ -930,6 +930,25 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     expect('workers' in older || 'recentWork' in older).toBe(false);
   });
 
+  it('stores a task\'s choices, a person\'s pick and the pick as a line of who did the work, and refuses one it cannot read', async () => {
+    const choices = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+      { key: 'b', label: 'Redirect to the new page', recommended: true }] };
+    const choice = { option: 'b', label: 'Redirect to the new page', by: 'Dana', at: '2026-08-02T09:00:00.000Z', note: 'Ship it Friday' };
+    const recentWork = [{ kind: 'chosen', taskId: 'md-c1', title: 'Pick the page', by: 'Dana', model: null, at: '2026-08-02T09:00:00.000Z',
+      evidence: null, option: 'b', label: 'Redirect to the new page' }];
+    const stored = await storedProject({ projects: [project({ ready: [issue({ id: 'md-c1', choices, choice }), issue({ id: 'md-c2' })], recentWork })] });
+    const ready = stored.ready as Record<string, unknown>[];
+    expect([ready[0]!.choices, ready[0]!.choice]).toEqual([choices, choice]);
+    expect('choices' in ready[1]! || 'choice' in ready[1]!).toBe(false);
+    expect(stored.recentWork).toEqual(recentWork);
+    for (const bad of [
+      project({ ready: [issue({ id: 'md-c1', choices: { question: 'One?', options: [{ key: 'a', label: 'Only', recommended: true }] } })] }),
+      project({ ready: [issue({ id: 'md-c1', choice: { option: 'z', label: 'x', by: 'Dana', at: '2026-08-02T09:00:00Z' } })] }),
+      project({ recentWork: [{ ...recentWork[0], option: 'z' }] }),
+      project({ recentWork: [{ ...recentWork[0], label: undefined }] }),
+    ]) expect((await post({ projects: [bad] })).status).toBe(422);
+  });
+
   it('stores who filed a new task and the model they named, and nothing for a task that names no filer', async () => {
     const stored = await storedProject({ projects: [project({ recentlyCreated: [
       issue({ id: 'md-n1', createdAt: '2026-08-01T09:00:00Z', filedBy: 'claude', filedModel: 'Opus 5.5' }),

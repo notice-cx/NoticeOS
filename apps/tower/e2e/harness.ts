@@ -828,7 +828,28 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
     const answer = (value: unknown): BdResult => ({ code: 0, stdout: JSON.stringify(value), stderr: "" });
     if (verb === "ready") return answer(tasks.filter((row) => row.status === "open" && row.issue_type === "task"));
     if (verb === "epic" && arg === "status") return answer([]);
+    // An answer on a task that is not a decision: a comment, then the hand-back
+    // to ready work (open, unassigned, the human label off).
+    if (verb === "comments" && arg === "add") {
+      const row = tasks.find((task) => task.id === argv[4]);
+      if (!row || typeof argv[5] !== "string" || argv[5].trim() === "") return { code: 1, stdout: "", stderr: "A fixture task and comment text are required" };
+      row.comment_count += 1;
+      publishTasks();
+      return answer({ id: `jt-comment-${row.comment_count}`, issue_id: row.id, text: argv[5] });
+    }
     if (verb === "comments") return answer([]);
+    if (verb === "update") {
+      const row = tasks.find((task) => task.id === arg);
+      const value = (flag: string) => (argv.includes(flag) ? argv[argv.indexOf(flag) + 1] : undefined);
+      if (!row || row.issue_type === "gate") return { code: 1, stdout: "", stderr: "Unknown fixture task" };
+      if (value("--if-assignee") !== undefined && value("--if-assignee") !== (row.assignee ?? "")) return { code: 13, stdout: "", stderr: "assignee mismatch" };
+      const status = value("--status");
+      if (status !== undefined) row.status = status;
+      if (value("--assignee") !== undefined) row.assignee = value("--assignee") || null;
+      if (value("--remove-label") !== undefined) row.labels = row.labels.filter((label) => label !== value("--remove-label"));
+      publishTasks();
+      return answer([{ id: row.id, status: row.status }]);
+    }
     if (verb === "list") {
       const statuses = argv[argv.indexOf("--status") + 1]?.split(",") ?? ["open"];
       return answer(tasks.filter((row) => statuses.includes(row.status) && (row.issue_type !== "gate" || argv.includes("--include-gates"))));

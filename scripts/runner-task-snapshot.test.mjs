@@ -143,3 +143,31 @@ test('the snapshot names who did the work: each worker and model, and the newest
   assert.equal(recentWork[0].evidence.length, 300);
   assert.equal(recentWork[2].evidence, 'Lists print · 3f2a91c');
 });
+
+const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+  { key: 'b', label: 'Redirect to the new page', recommended: true }] };
+
+test('a task row carries its choices and a person\'s pick, and the pick is a line of who did the work', async () => {
+  const { beadsWork } = await import('./task-snapshot-summary.mjs');
+  const asking = { id: 'shop-4', title: 'Pick the page', status: 'open', issue_type: 'task', labels: ['human'], metadata: { noticeos_choices: PICK } };
+  const handed = { id: 'shop-5', title: 'Pick the copy', status: 'open', issue_type: 'task', metadata: { noticeos_choices: PICK,
+    noticeos_choice: { option: 'b', label: 'Redirect to the new page', by: 'Dana', at: '2026-10-16T09:30:00Z', note: 'Ship it Friday' } } };
+  const decided = { id: 'shop-6', title: 'Pick the vendor', status: 'closed', issue_type: 'decision', closed_at: '2026-10-16T10:00:00Z',
+    close_reason: 'Chose (a) Keep the old page', metadata: { noticeos_choices: PICK, noticeos_closed_by: 'Dana', noticeos_closed_at: '2026-10-16T10:00:00Z',
+      noticeos_choice: { option: 'a', label: 'Keep the old page', by: 'Dana', at: '2026-10-16T10:00:00Z' } } };
+  const broken = { id: 'shop-7', title: 'Hand-edited', status: 'open', issue_type: 'task', metadata: { noticeos_choices: 'a or b', noticeos_choice: 'b' } };
+  const entry = summarizeBeadsProject(PROJECT, {
+    active: ok([asking, handed, broken]), ready: ok([asking, handed, broken]), blocked: ok([]), closed: ok([decided]), deferred: ok([]),
+  });
+  const ready = Object.fromEntries(entry.ready.map(row => [row.id, row]));
+  assert.deepEqual([ready['shop-4'].choices, 'choice' in ready['shop-4']], [PICK, false]);
+  assert.deepEqual([ready['shop-5'].choice.option, ready['shop-5'].choice.by, ready['shop-5'].choice.note], ['b', 'Dana', 'Ship it Friday']);
+  assert.equal('choices' in ready['shop-7'] || 'choice' in ready['shop-7'], false, 'what cannot be read is left out');
+  assert.equal(entry.recentlyClosed[0].choice.option, 'a');
+  const { recentWork } = beadsWork([asking, handed, broken], [decided]);
+  assert.deepEqual(recentWork.filter(event => event.kind === 'chosen').map(event => [event.taskId, event.by, event.at, event.option, event.label, event.model]), [
+    ['shop-6', 'Dana', '2026-10-16T10:00:00.000Z', 'a', 'Keep the old page', null],
+    ['shop-5', 'Dana', '2026-10-16T09:30:00.000Z', 'b', 'Redirect to the new page', null],
+  ]);
+  assert.deepEqual(recentWork.slice(0, 2).map(event => event.kind), ['closed', 'chosen'], 'a close is listed before a pick at the same time');
+});

@@ -12,7 +12,8 @@ import { useSearchParams } from 'react-router-dom';
 
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
 import { TASKS_CLOSED_HISTORY_DAYS } from "@shared/tasks";
-import { dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
+import type { TaskChoiceKey } from "@noticeos/contract/task-choices";
+import { chooseOnTask, dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
@@ -244,22 +245,26 @@ export function useCommentOnTask() {
 }
 
 /**
- * The inbox's three answers, approve a gate, answer an ask, decline one, each
- * one call on the lane: `bd gate resolve`, `bd human respond`, `bd human
- * dismiss`. Each is one press on its row, the row leaves at once, and the call
- * is made when the Undo window closes (`lib/answer-queue.ts`), because none
- * of the three has an inverse the lane can run. All three close the task, so
- * all three invalidate everything a close does.
+ * The inbox's four answers, approve a gate, answer an ask, pick one of its
+ * choices, decline it, each one call on the lane: `bd gate resolve`, an answer,
+ * a pick, `bd human dismiss`. Each is one press on its row, the row leaves at
+ * once, and the call is made when the Undo window closes
+ * (`lib/answer-queue.ts`), because none has an inverse the lane can run. An
+ * answer or a pick closes a decision and hands any other task back to ready
+ * work with the human label off; either way the task leaves the inbox, so each
+ * invalidates everything a close does.
  */
 export type InboxAnswer = (
   | { kind: "approve"; id: string; title: string }
   | { kind: "answer"; id: string; title: string; text: string }
+  | { kind: "choose"; id: string; title: string; option: TaskChoiceKey; note?: string }
   | { kind: "dismiss"; id: string; title: string }) & { readonly project?: string };
 
 /** The lane call for one answer. Only the page-leaving flush passes
  * `keepalive`. */
-export function sendInboxAnswer(answer: InboxAnswer, keepalive = false, api: Pick<TowerApi, 'resolveGate' | 'respondToTask' | 'dismissTask'> = { resolveGate, respondToTask, dismissTask }): Promise<void> {
-  const { resolveGate, respondToTask, dismissTask } = api;
+export function sendInboxAnswer(answer: InboxAnswer, keepalive = false,
+  api: Pick<TowerApi, 'resolveGate' | 'respondToTask' | 'chooseOnTask' | 'dismissTask'> = { resolveGate, respondToTask, chooseOnTask, dismissTask }): Promise<void> {
+  const { resolveGate, respondToTask, chooseOnTask, dismissTask } = api;
   const options = keepalive || answer.project !== undefined
     ? { ...(keepalive ? { keepalive: true } : {}), ...(answer.project === undefined ? {} : { project: answer.project }) } : undefined;
   if (answer.kind === "approve") {
@@ -268,12 +273,16 @@ export function sendInboxAnswer(answer: InboxAnswer, keepalive = false, api: Pic
   if (answer.kind === "answer") {
     return options ? respondToTask(answer.id, answer.text, options) : respondToTask(answer.id, answer.text);
   }
+  if (answer.kind === "choose") {
+    return options ? chooseOnTask(answer.id, answer.option, answer.note, options) : chooseOnTask(answer.id, answer.option, answer.note);
+  }
   return options ? dismissTask(answer.id, undefined, options) : dismissTask(answer.id);
 }
 
 const ANSWERED: Record<InboxAnswer["kind"], string> = {
   approve: "Approved",
   answer: "Answered",
+  choose: "Chosen",
   dismiss: "Dismissed",
 };
 

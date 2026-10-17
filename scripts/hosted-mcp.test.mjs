@@ -8,7 +8,8 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY, TASK_WORKFLOW, taskGuide } from './hosted-task-mcp.mjs';
+import { TASK_QUALITY, TASK_WORKFLOW, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
+import { TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
@@ -95,6 +96,9 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.equal(init.result.instructions, discovered.instructions);
   for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
   assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
+  // A person's pick is data the Tower draws as buttons, never lettered prose.
+  assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
+  assert.doesNotMatch(discovered.instructions, /lettered options/u);
   assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
@@ -112,7 +116,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
     assert.doesNotMatch(JSON.stringify(tool), /\bbeads?\b|\bbd\b|\bissue/iu, `${tool.name} speaks in tasks`);
   }
   // No human decision is a tool: write access never answers its own question.
-  assert.equal(tools.some(tool => /respond|dismiss|resolve|gate|decide/u.test(tool.name)), false);
+  assert.equal(tools.some(tool => /respond|dismiss|resolve|gate|decide|choose|pick/u.test(tool.name)), false);
   for (const [request, status] of [
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { method: 'GET' }), 405],
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { path: '/api/mcp?x=1' }), 400],
@@ -479,6 +483,125 @@ test('the demo takes no credential, lists its one workspace and only reads', asy
   assert.equal((await (await anonymous('create_task', { workspace: DEMO, project: P, title: 'x', idempotency_key: 'demo-create-0001' })).json()).result.isError, true);
   assert.equal((await demo.mcp(post({ jsonrpc: '2.0', id: 1, method: 'ping' }))).status, 400, 'a demo token is never accepted');
   assert.deepEqual(demo.effects, []);
+});
+
+const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+  { key: 'b', label: 'Redirect to the new page', detail: 'The old page answers 301.', recommended: true }, { key: 'c', label: 'Keep both' }] };
+
+test('a task that needs a person\'s pick carries its choices as data, read back by get_task and list_tasks', async () => {
+  const f = fixture();
+  const create = filer(f);
+  const made = await create('Pick the page', { labels: ['human'], description: 'Choose which page keeps the traffic.', choices: PICK });
+  assert.equal('advice' in made.lint, false, 'choices given: no advice');
+  assert.deepEqual(f.tasks.get('tt-1').metadata.noticeos_choices, PICK, 'stored in the task\'s metadata');
+  const read = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent.task;
+  assert.deepEqual([read.choices, read.choice], [PICK, null]);
+  assert.deepEqual(read.choices.options.filter(option => option.recommended).map(option => option.key), ['b']);
+  const listed = (await call(f, 'list_tasks', { workspace: A, project: P })).structuredContent.tasks;
+  assert.deepEqual(listed.map(task => [task.id, task.choices, 'choice' in task]), [['tt-1', PICK, false]], 'a list leaves out a pick not made');
+  await create('No pick');
+  assert.equal('choices' in (await call(f, 'list_tasks', { workspace: A, project: P, query: 'No pick' })).structuredContent.tasks[0], false);
+
+  // update_task replaces the set whole, or takes it off with null.
+  const two = { question: 'Keep it?', options: [{ key: 'a', label: 'Yes', recommended: true }, { key: 'b', label: 'No' }] };
+  const update = async (choices, key) => (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices, idempotency_key: key })).structuredContent;
+  assert.deepEqual((await update(two, 'agent-update-0601')).task.choices, two);
+  assert.equal((await update(null, 'agent-update-0602')).task.choices, null);
+  assert.equal('noticeos_choices' in f.tasks.get('tt-1').metadata, false);
+
+  // create_tasks takes choices on each entry.
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'agent-batch-0601',
+    tasks: [{ title: 'Ask', labels: ['human'], choices: two }] })).structuredContent;
+  assert.deepEqual(f.tasks.get(batch.created[0].id).metadata.noticeos_choices, two);
+});
+
+test('a malformed set of choices is refused with the field at fault named, and files nothing', async () => {
+  const f = fixture();
+  const error = async (choices, name = 'create_task') => (await call(f, name, name === 'create_task'
+    ? { workspace: A, project: P, title: 'Pick', choices, idempotency_key: 'agent-create-0701' }
+    : { workspace: A, project: P, idempotency_key: 'agent-batch-0701', tasks: [{ title: 'Fine' }, { title: 'Pick', choices }] })).content[0].text;
+  assert.equal(await error({ ...PICK, options: PICK.options.slice(1, 2) }), 'invalid arguments: choices.options (2 to 6 options)');
+  assert.equal(await error({ ...PICK, options: PICK.options.map(option => ({ ...option, recommended: true })) }),
+    'invalid arguments: choices.options (exactly one option with recommended: true; these have 3)');
+  assert.equal(await error({ ...PICK, options: [PICK.options[0], { ...PICK.options[1], key: 'x' }, PICK.options[2]] }),
+    'invalid arguments: choices.options[1].key (b: keys run a, b, c… in the order the options are shown)');
+  assert.match(await error({ ...PICK, question: '' }), /^invalid arguments: choices\.question \(empty\)/u);
+  assert.match(await error({ ...PICK, options: PICK.options.slice(1, 2) }, 'create_tasks'), /^invalid arguments: tasks\[1\]: choices\.options/u);
+  assert.match((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: 'a or b',
+    idempotency_key: 'agent-update-0701' })).content[0].text, /^invalid arguments: choices \(an object/u);
+  assert.equal(f.effects.length, 0);
+  assert.equal(taskRefusal(new TaskStateRefused('tt-1', 'other', { kind: 'chosen', chosen: '(b) Redirect to the new page' })).message,
+    'refused: tt-1 already carries a person\'s choice, (b) Redirect to the new page, and its choices stay as they were when it was made. '
+    + 'get_task shows the choice; file work that remains with create_task.');
+});
+
+test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'], choices: PICK, acceptance: 'Picked' });
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-0901' });
+  const headers = { origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A };
+  const person = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  const agent = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, authorization: `Bearer ${FULL}` },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  const capabilities = await (await f.http(new Request(origin + '/api/tasks/capabilities',
+    { headers: { origin, 'sec-fetch-site': 'same-origin', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S } }))).json();
+  assert.ok(capabilities.operations.includes('choose'));
+  for (const body of [{ option: 'b' }, { option: 'b', note: 'From an agent' }]) assert.equal((await agent('/api/tasks/tt-1/choose', body)).status, 403);
+  assert.equal(f.effects.some(([kind]) => kind === 'choose'), false, 'an agent\'s pick never reaches the task');
+  for (const body of [{}, { option: 'g' }, { option: 'b', extra: 1 }, { option: 'b', note: '' }]) {
+    assert.equal((await person('/api/tasks/tt-1/choose', body)).status, 400, JSON.stringify(body));
+  }
+
+  assert.equal((await person('/api/tasks/tt-1/choose', { option: 'b', note: 'Ship it Friday' })).status, 200);
+  const { task, comments } = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  assert.deepEqual([task.status, task.assignee, task.labels, task.choice.option, task.choice.label, task.choice.by, task.choice.note],
+    ['open', null, [], 'b', 'Redirect to the new page', PERSON, 'Ship it Friday']);
+  assert.deepEqual(comments.map(comment => comment.text), ['Chose (b) Redirect to the new page. Ship it Friday']);
+  assert.ok((await call(f, 'list_tasks', { workspace: A, project: P, ready: true })).structuredContent.tasks.some(row => row.id === 'tt-1'),
+    'ready for any agent');
+  const again = await person('/api/tasks/tt-1/choose', { option: 'a' });
+  assert.deepEqual([again.status, await again.json()], [409, { error: 'task_refused', detail: 'tt-1 already has a choice: (b) Redirect to the new page.' }]);
+  await filer(f)('Plain', { acceptance: 'Done' });
+  const none = await person('/api/tasks/tt-2/choose', { option: 'a' });
+  assert.deepEqual([none.status, (await none.json()).detail], [409, 'tt-2 offers no options to choose from.']);
+});
+
+test('an answer hands a task that is not a decision back to ready work; a decision still closes on it', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Which host?', { labels: ['human'], acceptance: 'Answered' });
+  await create('Pick the host', { type: 'decision', labels: ['human'] });
+  const answer = (id, response) => f.http(new Request(`${origin}/api/tasks/${id}/respond`, { method: 'POST', headers: { origin,
+    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, response }) }));
+  assert.equal((await answer('tt-1', 'Use the managed one')).status, 200);
+  const first = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  assert.deepEqual([first.task.status, first.task.labels, first.comments.map(comment => comment.text)], ['open', [], ['Answered: Use the managed one']]);
+  assert.equal((await answer('tt-2', 'The managed one')).status, 200);
+  const second = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-2' })).structuredContent.task;
+  assert.deepEqual([second.status, second.closeReason], ['closed', 'Responded']);
+});
+
+test('lint advises a person\'s task whose description offers lettered options as prose', async () => {
+  const f = fixture();
+  const create = filer(f);
+  const advice = lint => lint.advice ?? [];
+  for (const [index, description] of ['Pick one.\n(a) Keep it\n(b) Drop it', 'Pick one.\na) Keep it\nb) Drop it', 'Pick one.\n- (a) Keep it\n- (b) Drop it',
+    'Pick one.\na. Keep it\nb. Drop it', 'FIX: Choose one. (a) Keep it (b) Drop it (c) Wait'].entries()) {
+    const made = await create(`Ask ${index}`, { labels: ['human'], description, acceptance: 'Answered' });
+    assert.deepEqual([made.lint.missing, advice(made.lint).length], [[], 1], description);
+    assert.match(advice(made.lint)[0], /^choices: the description offers lettered options/u);
+  }
+  assert.deepEqual(advice((await create('Not a person\'s', { description: '(a) Keep it\n(b) Drop it' })).lint), [], 'only a human task');
+  assert.deepEqual(advice((await create('Prose', { labels: ['human'], description: 'Pick a plan (a draft) and ship.' })).lint), []);
+  // A change that adds the human label to lettered prose is advised too, and choices settle it.
+  await create('Later ask', { description: '(a) Keep it\n(b) Drop it', acceptance: 'Answered' });
+  const id = [...f.tasks.values()].find(task => task.title === 'Later ask').id;
+  const marked = (await call(f, 'update_task', { workspace: A, project: P, task: id, add_labels: ['human'], idempotency_key: 'agent-update-0801' })).structuredContent;
+  assert.equal(advice(marked.lint).length, 1);
+  const settled = (await call(f, 'update_task', { workspace: A, project: P, task: id, choices: PICK, idempotency_key: 'agent-update-0802' })).structuredContent;
+  assert.deepEqual(settled.lint, { missing: [] });
 });
 
 test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {

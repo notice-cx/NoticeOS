@@ -102,7 +102,8 @@ async function snapshot(
   capturedAt: string,
   closed: Record<string, [string, string, string][]>,
   created: Record<string, Filed[]> = {},
-  work: Record<string, { kind: "claimed" | "closed"; taskId: string; title: string; by: string; model?: string; evidence?: string; at: string }[]> = {},
+  work: Record<string, { kind: "claimed" | "closed" | "chosen"; taskId: string; title: string; by: string; model?: string; evidence?: string; at: string;
+    option?: string; label?: string }[]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
   // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
@@ -143,6 +144,7 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  *   18:15 insights       refreshed for 2 sites
  *   18:00 collected      Bing · Medley (the run that brought it back)
  *   18:00 source back    Medley
+ *   17:40 chosen         Recipes   (Dana picked one of a task's choices)
  *   17:30 alert          Recipes
  *   17:05 task claimed   Recipes   (by claude)
  *   16:15 revenue        2 sites reported $55.25 for Sep 21
@@ -265,9 +267,10 @@ async function seedPostgres(pg: TestStore): Promise<void> {
     "medley.example.com": [["mn-7", "Catalog import skips closed stores", at("19:11")], ["mn-1", "Filed long ago", at("00:10")]],
   }, {
     // Who did it: md-1's close names its closer; a claim is its own line; a
-    // claim before the window is not.
+    // claim before the window is not; a person's pick is its own line.
     "recipes.example.com": [
       { kind: "closed", taskId: "md-1", title: "Recipe cards load faster", by: "claude", model: "Opus 5.5", evidence: "Cards load in 0.8s · 3f2a91c", at: at("19:24") },
+      { kind: "chosen", taskId: "md-2", title: "Pick the recipe card layout", by: "Dana", at: at("17:40"), option: "b", label: "Two columns" },
       { kind: "claimed", taskId: "md-1", title: "Recipe cards load faster", by: "claude", model: "Opus 5.5", at: at("17:05") },
       { kind: "claimed", taskId: "md-0", title: "Claimed long ago", by: "claude", at: at("00:20") },
     ],
@@ -379,6 +382,7 @@ needsPostgres("buildWallFeed", () => {
       "18:15 insights - · Insights refreshed for 2 sites",
       "18:00 collected Medley · Bing · 1 site, none failed",
       "18:00 source-back Medley · Bing daily reports working again",
+      "17:40 task-chosen Recipes · Pick the recipe card layout",
       "17:30 alert Recipes · Plans saved well below normal",
       "17:05 task-claimed Recipes · Recipe cards load faster",
       "16:15 revenue - · 2 sites reported $55.25 for Sep 21",
@@ -452,6 +456,19 @@ needsPostgres("buildWallFeed", () => {
     });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ id: "task:ac-2", kind: "task-done", site: "Codes", who: "codex", model: null });
+  });
+
+  it("draws a person's pick as a Chosen line with the person's name, the option and the task", async () => {
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    expect(items.filter((item) => item.kind === "task-chosen")).toEqual([{
+      id: `task-chosen:md-2:${at("17:40")}`, at: at("17:40"), kind: "task-chosen", label: "Chosen", asset: "recipes.example.com", site: "Recipes",
+      text: "Pick the recipe card layout", count: 1, tone: "info", who: "Dana", model: null, evidence: null, choice: "(b) Two columns",
+    }]);
+    // A pick the snapshot cannot name an option for draws no line.
+    await snapshot(pg.call, at("19:28"), {}, {}, {
+      "codes.example.com": [{ kind: "chosen", taskId: "ac-3", title: "Pick the export day", by: "Dana", at: at("19:27") }],
+    });
+    expect((await buildWallFeed(pg.call, DEPS)).items.some((item) => item.id.startsWith("task-chosen:ac-3"))).toBe(false);
   });
 
   it("keeps adjacent created and completed tasks individually named, once per event", async () => {

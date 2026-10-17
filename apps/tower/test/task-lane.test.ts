@@ -57,6 +57,10 @@ const LIST_ROW = {
 
 const SECOND_ROW = { ...LIST_ROW, id: "ro-bbb", title: "Not claimable yet", parent: null };
 const HUMAN_ROW = { ...LIST_ROW, labels: ["human"] };
+/** A decision waiting on the operator: an answer closes it with `bd human respond`. */
+const DECISION_ROW = { ...HUMAN_ROW, issue_type: "decision" };
+const PICK = { question: "Which page keeps the traffic?", options: [{ key: "a", label: "Keep the old page" },
+  { key: "b", label: "Redirect to the new page", recommended: true }, { key: "c", label: "Keep both" }] };
 
 const CANNED: Record<string, string> = {
   list: JSON.stringify([LIST_ROW, SECOND_ROW]),
@@ -564,8 +568,9 @@ describe("the writes", () => {
     expect(await spawned()).toEqual([]);
   });
 
-  it("closes with the reason, comments, answers and declines", async () => {
+  it("closes with the reason, comments, answers a decision and declines", async () => {
     await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([DECISION_ROW]) });
     await ask("POST", "/api/tasks/ro-aaa/close", { reason: "abc1234: done" });
     await ask("POST", "/api/tasks/ro-aaa/comments", { text: "a note" });
     await ask("POST", "/api/tasks/ro-aaa/respond", { response: "use OAuth2" });
@@ -576,10 +581,77 @@ describe("the writes", () => {
     expect(calls.map((argv) => argv.slice(2, 5))).toEqual([
       ["close", "ro-aaa", "--reason"],
       ["comments", "add", "ro-aaa"],
+      ["show", "ro-aaa", "--json"],
       ["human", "respond", "ro-aaa"],
       ["human", "dismiss", "ro-aaa"],
       ["gate", "resolve", "ro-5n5"],
     ]);
+  });
+
+  it("hands a task that is not a decision back to ready work with the answer as a comment", async () => {
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...HUMAN_ROW, status: "in_progress", assignee: "claude" }]) });
+    const reply = await ask("POST", "/api/tasks/ro-aaa/respond", { response: "use OAuth2" });
+    expect(reply.status).toBe(200);
+    expect((await spawned()).map((argv) => argv.slice(2))).toEqual([
+      ["show", "ro-aaa", "--json"],
+      ["comments", "add", "ro-aaa", "Answered: use OAuth2", "--json", "--actor", "test-operator"],
+      ["update", "ro-aaa", "--status", "open", "--assignee", "", "--if-assignee", "claude", "--remove-label", "human", "--json", "--actor", "test-operator"],
+    ]);
+
+    // A task nobody asked the operator about takes no answer, and nothing is written.
+    await reset();
+    const refused = await ask("POST", "/api/tasks/ro-aaa/respond", { response: "use OAuth2" });
+    expect(refused).toEqual({ status: 409, body: { error: "task_refused", detail: "ro-aaa is not waiting on your answer." } });
+    expect((await spawned()).map((argv) => argv[2])).toEqual(["show"]);
+  });
+
+  it("records a pick, comments it and hands the task back; a decision closes on it", async () => {
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...HUMAN_ROW, metadata: { noticeos_choices: PICK } }]) });
+    const reply = await ask("POST", "/api/tasks/ro-aaa/choose", { option: "b", note: "Ship it Friday" });
+    expect(reply).toEqual({ status: 200, body: { id: "ro-aaa", project: "root-os" } });
+    const calls = (await spawned()).map((argv) => argv.slice(2));
+    expect(calls.map((argv) => argv.slice(0, 2))).toEqual([["show", "ro-aaa"], ["comments", "ro-aaa"], ["update", "ro-aaa"],
+      ["comments", "add"], ["update", "ro-aaa"]]);
+    expect(calls[0]).toContain("--include-dependents");
+    expect(JSON.parse(calls[2]?.[calls[2].indexOf("--metadata") + 1] ?? "{}")).toEqual({ noticeos_choice: { option: "b",
+      label: "Redirect to the new page", by: "test-operator", at: "2026-09-04T12:00:00.000Z", note: "Ship it Friday" } });
+    expect(calls[3]).toEqual(["comments", "add", "ro-aaa", "Chose (b) Redirect to the new page. Ship it Friday", "--json", "--actor", "test-operator"]);
+    expect(calls[4]).toEqual(["update", "ro-aaa", "--status", "open", "--assignee", "", "--if-assignee", "", "--remove-label", "human",
+      "--json", "--actor", "test-operator"]);
+
+    await reset();
+    const closedAt = "2026-09-04T12:00:01Z";
+    // As `bd show` embeds a dependency: the whole task, with the edge's type. An open blocker is closed past.
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...DECISION_ROW, metadata: { noticeos_choices: PICK },
+      dependencies: [{ id: "ro-bbb", status: "open", issue_type: "task", dependency_type: "blocks" }] }]),
+      close: JSON.stringify([{ ...DECISION_ROW, status: "closed", closed_at: closedAt }]) });
+    expect((await ask("POST", "/api/tasks/ro-aaa/choose", { option: "c" })).status).toBe(200);
+    const decided = (await spawned()).map((argv) => argv.slice(2));
+    expect(decided.map((argv) => argv[0])).toEqual(["show", "comments", "update", "comments", "close", "update"]);
+    expect(decided[4]).toEqual(["close", "ro-aaa", "--reason", "Chose (c) Keep both", "--force", "--json", "--actor", "test-operator"]);
+    expect(JSON.parse(decided[5]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt });
+  });
+
+  it("refuses a pick with its cause named, before writing anything", async () => {
+    const chosen = { option: "b", label: "Redirect to the new page", by: "someone-else", at: "2026-09-01T00:00:00Z" };
+    for (const [row, body, status, detail] of [
+      [HUMAN_ROW, { option: "a" }, 409, "ro-aaa offers no options to choose from."],
+      [{ ...HUMAN_ROW, metadata: { noticeos_choices: PICK } }, { option: "e" }, 409, "ro-aaa offers (a), (b) and (c), not (e)."],
+      [{ ...HUMAN_ROW, metadata: { noticeos_choices: PICK, noticeos_choice: chosen } }, { option: "b" }, 409, "ro-aaa already has a choice: (b) Redirect to the new page."],
+      [{ ...HUMAN_ROW, status: "closed", metadata: { noticeos_choices: PICK } }, { option: "b" }, 409, "ro-aaa is already closed."],
+    ] as const) {
+      await reset();
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([row]) });
+      expect(await ask("POST", "/api/tasks/ro-aaa/choose", body)).toEqual({ status, body: { error: "task_refused", detail } });
+      expect((await spawned()).map((argv) => argv[2])).toEqual(["show", "comments"]);
+    }
+    for (const body of [{}, { option: "z" }, { option: 2 }]) {
+      await reset();
+      expect((await ask("POST", "/api/tasks/ro-aaa/choose", body)).status).toBe(422);
+      expect(await spawned()).toEqual([]);
+    }
   });
 
   it("records who closed a task after the close, and the close stands without it", async () => {
@@ -618,6 +690,7 @@ describe("the writes", () => {
 
   it("names the operator on EVERY write, and on no read", async () => {
     await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([DECISION_ROW]) });
     await ask("POST", "/api/tasks", { project: "root-os", title: "t" });
     await ask("PATCH", "/api/tasks/ro-aaa", { claim: true });
     await ask("POST", "/api/tasks/ro-aaa/close", { reason: "r" });
@@ -627,8 +700,13 @@ describe("the writes", () => {
     await ask("POST", "/api/gates/ro-5n5/resolve", {});
 
     const calls = await spawned();
-    expect(calls).toHaveLength(7);
-    for (const argv of calls) {
+    // An answer reads its task first, to tell a decision from a task that goes back to ready work.
+    const reads = calls.filter((argv) => argv[2] === "show");
+    expect(reads).toHaveLength(1);
+    expect(reads[0]).not.toContain("--actor");
+    const writes = calls.filter((argv) => argv[2] !== "show");
+    expect(writes).toHaveLength(7);
+    for (const argv of writes) {
       expect(argv[argv.indexOf("--actor") + 1]).toBe("test-operator");
     }
 
@@ -682,11 +760,12 @@ describe("when bd refuses", () => {
   it("records and closes a server-mode human response with the same operator and project", async () => {
     await reset();
     process.env.FAKE_BD_NIL_RESPONSE = "1";
-    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([HUMAN_ROW]) });
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([DECISION_ROW]) });
     const reply = await ask("POST", "/api/tasks/ro-aaa/respond", { response: "Use the chosen option" });
     expect(reply.status).toBe(200);
     const calls = await spawned();
     expect(calls.map(argv => argv.slice(2))).toEqual([
+      ["show", "ro-aaa", "--json"],
       ["human", "respond", "ro-aaa", "--response", "Use the chosen option", "--json", "--actor", "test-operator"],
       ["show", "ro-aaa", "--json"],
       ["comments", "add", "ro-aaa", "Response: Use the chosen option", "--json", "--actor", "test-operator"],
@@ -694,7 +773,7 @@ describe("when bd refuses", () => {
     ]);
     for (const argv of calls) expect(argv.slice(0, 2)).toEqual(["-C", repoRoot()]);
     for (const argv of calls.filter(argv => argv[2] !== "show")) expect(argv.slice(-2)).toEqual(["--actor", "test-operator"]);
-    expect(calls[1]).not.toContain("--actor");
+    for (const argv of calls.filter(argv => argv[2] === "show")) expect(argv).not.toContain("--actor");
   });
 
   it("does not replay a response for another native failure", async () => {
@@ -706,10 +785,11 @@ describe("when bd refuses", () => {
       "resolving issue ID ro-aaa: cannot resolve issue ID: storage is nil\nadding comment: unavailable",
     ]) {
       await reset();
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([DECISION_ROW]) });
       process.env.FAKE_BD_FAIL = "human respond";
       process.env.FAKE_BD_ERROR = error;
       expect((await ask("POST", "/api/tasks/ro-aaa/respond", { response: "An answer" })).status).toBe(502);
-      expect(await spawned()).toHaveLength(1);
+      expect((await spawned()).map(argv => argv[2])).toEqual(["show", "human"]);
     }
   });
 
@@ -717,7 +797,7 @@ describe("when bd refuses", () => {
     for (const status of ["open", "in_progress", "blocked", "deferred"]) {
       await reset();
       process.env.FAKE_BD_NIL_RESPONSE = "1";
-      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...HUMAN_ROW, status }]) });
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...DECISION_ROW, status }]) });
       const reply = await handleTasksRequest(
         { method: "POST", url: "/api/tasks/ro-aaa/respond", headers: SAME_ORIGIN, body: JSON.stringify({ response: "An answer" }) },
         { repoRoot: repoRoot(), readProjects: fixtureProjects },
@@ -730,33 +810,40 @@ describe("when bd refuses", () => {
   });
 
   it("refuses a closed or unreadable task before fallback writes", async () => {
+    // A decision the fallback's own read finds no longer active.
     for (const shown of [
-      [{ ...HUMAN_ROW, status: "closed" }], [],
-      [{ ...HUMAN_ROW, id: "ox-other" }], [{ ...HUMAN_ROW, id: "ro-other" }],
-      [LIST_ROW], [{ ...HUMAN_ROW, labels: undefined }], [{ ...HUMAN_ROW, labels: "human" }],
-      [{ ...HUMAN_ROW, status: "unknown" }], [{ ...HUMAN_ROW, status: undefined }], "not JSON",
+      [{ ...DECISION_ROW, status: "closed" }], [{ ...DECISION_ROW, labels: undefined }], [{ ...DECISION_ROW, labels: "human" }],
+      [{ ...DECISION_ROW, labels: ["ui"] }], [{ ...DECISION_ROW, status: "unknown" }], [{ ...DECISION_ROW, status: undefined }],
     ]) {
+      await reset();
+      process.env.FAKE_BD_NIL_RESPONSE = "1";
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify(shown) });
+      expect((await ask("POST", "/api/tasks/ro-aaa/respond", { response: "An answer" })).status).toBe(502);
+      expect((await spawned()).map(argv => argv[2])).toEqual(["show", "human", "show"]);
+    }
+    // A task the first read cannot place takes no answer at all.
+    for (const shown of [[], [{ ...DECISION_ROW, id: "ox-other" }], [{ ...DECISION_ROW, id: "ro-other" }], "not JSON"]) {
       await reset();
       process.env.FAKE_BD_NIL_RESPONSE = "1";
       process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: typeof shown === "string" ? shown : JSON.stringify(shown) });
       expect((await ask("POST", "/api/tasks/ro-aaa/respond", { response: "An answer" })).status).toBe(502);
-      expect((await spawned()).map(argv => argv[2])).toEqual(["human", "show"]);
+      expect((await spawned()).map(argv => argv[2])).toEqual(["show"]);
     }
   });
 
-  it("stops before fallback writes when the task read fails", async () => {
+  it("stops before any write when the task read fails", async () => {
     await reset();
     process.env.FAKE_BD_NIL_RESPONSE = "1";
     process.env.FAKE_BD_FAIL = "show";
     expect((await ask("POST", "/api/tasks/ro-aaa/respond", { response: "An answer" })).status).toBe(502);
-    expect((await spawned()).map(argv => argv[2])).toEqual(["human", "show"]);
+    expect((await spawned()).map(argv => argv[2])).toEqual(["show"]);
   });
 
   it("does not close after a failed comment or replay a saved comment after a failed close", async () => {
     for (const failing of ["comments add", "close"]) {
       await reset();
       process.env.FAKE_BD_NIL_RESPONSE = "1";
-      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([HUMAN_ROW]) });
+      process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([DECISION_ROW]) });
       process.env.FAKE_BD_FAIL = failing;
       const reply = await ask("POST", "/api/tasks/ro-aaa/respond", { response: "An answer" });
       expect(reply.status).toBe(502);

@@ -51,13 +51,19 @@ export const TASK_METADATA = Object.freeze({
   filedBy: Object.freeze({ name: "noticeos_filed_by", legacy: "noticeos_filed_by" }),
   /** The model the filer named. Server-set, with `filedBy`. */
   filedModel: Object.freeze({ name: "noticeos_filed_model", legacy: "noticeos_filed_model" }),
+  /** The options a person picks from, as the task tools validated them
+   * (task-choices.mts). Server-set from a task's `choices`. */
+  choices: Object.freeze({ name: "noticeos_choices", legacy: "noticeos_choices" }),
+  /** The option a person picked: written only by the choose operation, once. */
+  choice: Object.freeze({ name: "noticeos_choice", legacy: "noticeos_choice" }),
 } satisfies Record<string, TaskMetadataField>);
 
 /** The names only the server writes. A caller's metadata never carries them,
- * so no filer can forge who filed or closed a task or a write's identity. */
+ * so no filer can forge who filed or closed a task, a write's identity, an
+ * unvalidated set of choices or a person's pick. */
 export const SERVER_TASK_METADATA: readonly string[] = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
   TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt, TASK_METADATA.filedBy,
-  TASK_METADATA.filedModel].map(field => field.name));
+  TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice].map(field => field.name));
 
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 

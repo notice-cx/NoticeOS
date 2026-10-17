@@ -33,7 +33,7 @@ export function createHostedTaskTransport(fetch: ApiTransport): ApiTransport {
     if (typeof input !== 'string' || !(input === '/api/tasks' || input.startsWith('/api/tasks?') || input.startsWith('/api/tasks/') || input.startsWith('/api/gates/'))) return fetch(input, init);
     const url = new URL(input, 'https://task-adapter.invalid');
     if (['/api/tasks/projects', '/api/tasks/capabilities'].includes(url.pathname)) return fetch(input, init);
-    if (!/^\/api\/tasks(?:\/[^/]+(?:\/(?:comments|close|history|respond|dismiss))?)?$/u.test(url.pathname)
+    if (!/^\/api\/tasks(?:\/[^/]+(?:\/(?:comments|close|history|respond|dismiss|choose))?)?$/u.test(url.pathname)
       && !/^\/api\/gates\/[^/]+\/resolve$/u.test(url.pathname)) return fetch(input, init);
     const method = init?.method ?? 'GET';
     let logical: unknown, body: Record<string, unknown> | undefined;
