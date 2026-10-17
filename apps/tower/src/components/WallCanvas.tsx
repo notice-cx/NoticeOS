@@ -37,6 +37,8 @@ import type { CalendarReadState } from "@/lib/meetings";
 import {
   filterWallAssets,
   filterWallAttention,
+  sitesInWork,
+  wallOnTv,
   wallWidgetHasContent,
 } from "@/lib/wall-widgets";
 
@@ -132,7 +134,7 @@ function slotFloorRem(slot: WallSlot): number {
 
 export function WallCanvas({
   layout,
-  data,
+  data: payload,
   nowMs,
   meetings,
   calendarState,
@@ -142,6 +144,11 @@ export function WallCanvas({
   connections,
   editing,
 }: WallCanvasProps) {
+  // A site whose TV switch is off is in no widget, whatever the widget's own
+  // site list says. Revenue alone keeps the whole portfolio: hiding a site
+  // does not take its money out of the month.
+  const { data, hidden } = wallOnTv(payload);
+
   function draw(widget: WallWidget): ReactNode {
     switch (widget.type) {
       case "strip":
@@ -159,7 +166,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={nowMs} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.
@@ -179,7 +186,7 @@ export function WallCanvas({
         );
       }
       case "work":
-        return <WallWork assets={filterWallAssets(data.assets, widget.settings)} operator={data.operator} nowMs={nowMs} />;
+        return <WallWork assets={filterWallAssets(sitesInWork(data), widget.settings)} operator={data.operator} nowMs={nowMs} />;
       case "needs":
         return (
           <NeedsYou
@@ -215,7 +222,7 @@ export function WallCanvas({
       }
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
-        return <WallFeedWidget nowMs={nowMs} />;
+        return <WallFeedWidget nowMs={nowMs} hidden={hidden} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
     }

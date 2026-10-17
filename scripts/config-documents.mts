@@ -547,9 +547,19 @@ function rowMatch(file: string, pointer: string, kind: string) {
   return null;
 }
 
-/** The rows of an addable container, judged whole. */
+/** The rows of an addable container, judged whole: each key and each row by
+ * the register's own rules, as a row insert would judge them one at a time. */
 function containerRefusal(match: Pick<RegisterMatch, 'key' | 'register'>, value: unknown): string | null {
   if (match.key === 'product-use-stages') return productUseStagesRefusal(value);
+  if (match.register.shape === 'object') {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return 'The declared map must be an object';
+    for (const [token, row] of Object.entries(value)) {
+      if (!isRowToken(match.register, token)) return `${token} is not a valid key (${match.register.describe})`;
+      const refusal = rowRefusal(match.register, row);
+      if (refusal !== null) return `${token} — ${refusal}`;
+    }
+    return null;
+  }
   if (!Array.isArray(value)) return 'The declared list must be an array';
   for (const row of value) {
     const refusal = rowRefusal(match.register, row);
@@ -865,7 +875,8 @@ function clusterRefusal(op: FileJsonSetOp | FileJsonInsertOp, match: RegisterMat
  * A document that arrives whole (a Worker's compiled-in default) never passed
  * through an op, so this walks it with the same declarations a Save is judged
  * by. A list at the top of the document must be there, in its declared
- * shape; a list inside one site's entry may be absent ("not declared").
+ * shape, unless it is addable; a list inside one site's entry may be absent
+ * ("not declared").
  */
 export function documentRefusal(file: string, doc: unknown): string | null {
   const registers = registersForFile(file);
@@ -886,8 +897,11 @@ export function documentRefusal(file: string, doc: unknown): string | null {
           : [];
     for (const container of containers) {
       const rows = pointerGet(doc, container);
-      if (rows === MISSING) {
-        if (below === undefined) return `${container} is missing (${register.describe})`;
+      // An addable map at the top reads as unsaved when absent or null
+      // (`readsAsUnsaved`): a store seeded before it existed holds neither.
+      const unsaved = below === undefined && register.addableContainer === true && (rows === MISSING || rows === null);
+      if (rows === MISSING || unsaved) {
+        if (below === undefined && !unsaved) return `${container} is missing (${register.describe})`;
         continue;
       }
       if (register.shape === 'array' ? !Array.isArray(rows) : !isObject(rows)) {

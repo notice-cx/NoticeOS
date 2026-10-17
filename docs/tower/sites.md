@@ -25,6 +25,8 @@ The Sites page shows which sites need your attention.
 
 A site's tasks, search clicks and ledger are on its own tabs. Columns are hidden as the window narrows, the name last: on a phone each row shows the site, its status and yesterday's revenue.
 
+The page lists the sites whose **Home and Sites list** switch is on. The summary, the status bar and the stage counts count only those; the month's pace and yesterday's visitors stay the whole portfolio's. When a site is left out, the line above the rows counts it: **6 sites · 2 hidden**.
+
 **A site's page** has a header with the site's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
 
 **Overview** shows the most important figures on the first screen. A row of figures for money, people, search and the site's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with a dashed line at the level of the days before, the best and lowest day labelled, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, with the source that failed most recently or missed the most days first, and **Open alerts** for anything the chart does not already show. Under them: **Needs attention**, **What matters**, **Bets** (the site's outcome checks, open ones first with the days left to their verdict), **Search movers**, **Product use** and the site's totals. A provider's name appears only as a chart key beside its own line.
@@ -54,10 +56,27 @@ A site's tasks, search clicks and ledger are on its own tabs. Columns are hidden
 - On **Data sources**, **Connect** opens the connect panel and **Not using** records a reason for skipping a source.
 - On **Settings**, the cards hold everything that applies to this one site.
 
+## Where each site shows
+
+Each site has three switches:
+
+| Switch | When it is on, the site shows |
+|---|---|
+| **Home and Sites list** | as a row on Home (the data sources grid, the sites and the last 24 hours) and on the Sites page |
+| **TV** | in every widget on the TV |
+| **Work this week** | as a project row in the TV's **Work this week**, while its **TV** switch is on too |
+
+A switch nobody has set follows the site's lifecycle stage: on for every stage except **Retired**, and off for a retired site. A switch you set stays as you set it when the site's stage changes, so a site you take off the TV stays off after you restore it.
+
+A site whose switches are off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money.
+
+The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration.
+
 ## States and labels
 
 - A site that reported nothing shows a label in its row: **no visitors reported**, **no revenue**, never a zero.
 - With no sites the page shows **No sites yet**; with one, it is that site's row.
+- **2 hidden** beside the count is how many sites have their **Home and Sites list** switch off. **Every site is hidden** means every site's switch is off.
 - A site with no numbers yet opens on **Data sources** instead of an empty Overview.
 - A **hollow point** is a day still being counted; it fills in once the day is complete.
 - A **dashed line** is a projection or last week's comparison, never a measurement.

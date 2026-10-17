@@ -740,6 +740,46 @@ export const CONFIG_REGISTERS = {
             },
         ],
     },
+    // Where each site shows. A key is a switch the operator set; an absent key
+    // follows the site's stage (`siteShownOn`, apps/tower/shared/site-display.ts),
+    // so a lifecycle move never rewrites a hand-set switch. Addable: a store
+    // seeded before this map existed has no `/sites`, and the first switch
+    // inserts the whole map.
+    'site-display': {
+        file: 'config/tower.json',
+        container: '/sites',
+        shape: 'object',
+        keyRule: 'asset-id',
+        keyField: null,
+        addableContainer: true,
+        label: 'Where each site shows',
+        describe: 'where one site shows',
+        owner: 'config/tower.README.md',
+        surface: "Sites → Arrange, Settings → Sites, and the site's Settings tab (Where it shows)",
+        fields: [
+            {
+                name: 'list',
+                label: 'Home and Sites list',
+                type: 'boolean',
+                required: false,
+                describe: "a row on Home and on the Sites page",
+            },
+            {
+                name: 'tv',
+                label: 'TV',
+                type: 'boolean',
+                required: false,
+                describe: 'every widget on the TV',
+            },
+            {
+                name: 'work',
+                label: 'Work this week',
+                type: 'boolean',
+                required: false,
+                describe: "a row in the TV's Work this week",
+            },
+        ],
+    },
 };
 /** The one true answer, given where this deployment read the file.
  * `source` is `'store'` or `'file'`, straight off `GET /api/config`; null

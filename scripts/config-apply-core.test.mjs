@@ -1813,6 +1813,8 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
       { kind: 'file-json-delete', file: 'config/tower.json', pointer: '/countdown', expect: countdown },
     ]),
   );
+  // config/tower.json also holds a register (where each site shows), so a
+  // refusal there names the one row an insert may add instead.
   assert.throws(
     () =>
       validateSchemaAndSafety(
@@ -1820,7 +1822,7 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
           { kind: 'file-json-insert', file: 'config/tower.json', pointer: '/countdown/emoji', value: '🌁' },
         ]),
       ),
-    /may not touch/,
+    /is not a row of config\/tower\.json; pointer must be \/sites\/<asset-id>/,
   );
 
   // Exactly that pointer. Nothing under it, and no second key alongside it.
@@ -1832,10 +1834,40 @@ test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing
             { kind: 'file-json-insert', file: 'config/tower.json', pointer, value: {} },
           ]),
         ),
-      /may not touch/,
+      /is not a row of config\/tower\.json/,
       pointer,
     );
   }
+
+  // The site map beside them is one whole addable map, judged by the
+  // register's rows, and its rows are added and removed one site at a time.
+  const sites = { 'meadow.example': { tv: false } };
+  validateSchemaAndSafety(
+    changeset([{ kind: 'file-json-insert', file: 'config/tower.json', pointer: '/sites', value: sites }]),
+  );
+  validateSchemaAndSafety(
+    changeset([{ kind: 'file-json-delete', file: 'config/tower.json', pointer: '/sites', expect: sites }]),
+  );
+  validateSchemaAndSafety(
+    changeset([{ kind: 'file-json-insert', file: 'config/tower.json', pointer: '/sites/meadow.example', value: { work: false } }]),
+  );
+  validateSchemaAndSafety(
+    changeset([{ kind: 'file-json-set', file: 'config/tower.json', pointer: '/sites/meadow.example/list', expectAbsent: true, value: false }]),
+  );
+  assert.throws(
+    () =>
+      validateSchemaAndSafety(
+        changeset([{ kind: 'file-json-insert', file: 'config/tower.json', pointer: '/sites', value: { 'meadow.example': { tv: 'no' } } }]),
+      ),
+    /meadow\.example — TV must be true or false/,
+  );
+  assert.throws(
+    () =>
+      validateSchemaAndSafety(
+        changeset([{ kind: 'file-json-insert', file: 'config/tower.json', pointer: '/sites', value: [] }]),
+      ),
+    /The declared map must be an object/,
+  );
 
   // The guards are the ones every other insert and delete carries.
   assert.throws(

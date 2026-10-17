@@ -10,6 +10,7 @@ import { decodeConfigWritable } from "../src/lib/critical-response";
 import { handleConfigRequest } from "../vite/config-write-lane";
 import { DEFAULT_REPO_ROOT, crossOrigin, laneRepoRoot } from "../vite/lane";
 import { parseDashboardConfig } from "../shared/dashboard";
+import { readSiteDisplay, shownOnChange, type ShownOnSurface, type SiteDisplay } from "../shared/site-display";
 import { DEFAULT_WALL_LAYOUT } from "../shared/wall-layout";
 
 // The Tower's one direct write to the repo: it runs in the dev server's Node
@@ -1567,6 +1568,66 @@ describe("a layout the Wall could not draw", () => {
     );
     expect(reply.status).toBe(200);
     expect(await readJson(root, "config/tower.json")).not.toHaveProperty("wall");
+  });
+});
+
+// The switches for where each site shows live in `config/tower.json` at
+// `/sites`, a register a store seeded before it existed does not hold. Each
+// write `shownOnChange` mints goes through the lane and its Undo puts the
+// document back exactly.
+describe("where each site shows", () => {
+  const towerOf = async (root: string) => (await readJson(root, "config/tower.json")) as Record<string, unknown>;
+  async function save(root: string, ops: readonly unknown[]) {
+    return handleConfigRequest(put({ slug: "site-display", ops }), { repoRoot: root });
+  }
+
+  it("inserts the whole map first, then a row, a first key and a set, and undoes each", async () => {
+    const root = await tempRepoWithTower();
+    const before = await towerOf(root);
+    expect(before).not.toHaveProperty("sites");
+
+    const steps: { display: () => Promise<SiteDisplay | undefined>; site: string; surface: ShownOnSurface; on: boolean; after: unknown }[] = [
+      { display: async () => readSiteDisplay((await towerOf(root)).sites), site: "meadow.example", surface: "tv", on: false, after: { "meadow.example": { tv: false } } },
+      { display: async () => readSiteDisplay((await towerOf(root)).sites), site: "ferns.example", surface: "work", on: false, after: { "meadow.example": { tv: false }, "ferns.example": { work: false } } },
+      { display: async () => readSiteDisplay((await towerOf(root)).sites), site: "meadow.example", surface: "list", on: false, after: { "meadow.example": { tv: false, list: false }, "ferns.example": { work: false } } },
+      { display: async () => readSiteDisplay((await towerOf(root)).sites), site: "meadow.example", surface: "tv", on: true, after: { "meadow.example": { tv: true, list: false }, "ferns.example": { work: false } } },
+    ];
+    const undos: { ops: unknown[]; back: unknown }[] = [];
+    for (const step of steps) {
+      const was = (await towerOf(root)).sites;
+      const change = shownOnChange(await step.display(), step.site, step.surface, step.on);
+      const reply = await save(root, change.ops);
+      expect(reply.status).toBe(200);
+      expect((await towerOf(root)).sites).toEqual(step.after);
+      undos.unshift({ ops: change.undo, back: was });
+    }
+    for (const undo of undos) {
+      expect((await save(root, undo.ops)).status).toBe(200);
+      expect((await towerOf(root)).sites).toEqual(undo.back);
+    }
+    // The first insert's Undo takes the map away again, leaving the document
+    // as it was found.
+    expect(await towerOf(root)).toEqual(before);
+  });
+
+  it("refuses a switch that is not true or false, and a key that is not a switch", async () => {
+    const root = await tempRepoWithTower();
+    const notBoolean = await save(root, [{ kind: "file-json-insert", file: "config/tower.json", pointer: "/sites", value: { "meadow.example": { tv: "off" } } }]);
+    expect(notBoolean.status).toBe(422);
+    expect(String((notBoolean.body as { detail?: unknown }).detail)).toContain("TV must be true or false");
+    const unknown = await save(root, [{ kind: "file-json-insert", file: "config/tower.json", pointer: "/sites", value: { "meadow.example": { wall: false } } }]);
+    expect(unknown.status).toBe(422);
+    expect(String((unknown.body as { detail?: unknown }).detail)).toContain("wall is not a field here");
+    expect(await towerOf(root)).not.toHaveProperty("sites");
+  });
+
+  it("refuses a switch over a value somebody else changed", async () => {
+    const root = await tempRepoWithTower();
+    await save(root, shownOnChange(undefined, "meadow.example", "tv", false).ops);
+    const stale = shownOnChange({ "meadow.example": { tv: true } }, "meadow.example", "tv", false);
+    const reply = await save(root, stale.ops);
+    expect(reply.status).toBe(409);
+    expect((await towerOf(root)).sites).toEqual({ "meadow.example": { tv: false } });
   });
 });
 

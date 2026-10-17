@@ -200,7 +200,8 @@ export type ConfigRegisterKey =
   | 'signal-panels'
   | 'task-hub-spokes'
   | 'data-source-catalog'
-  | 'entities';
+  | 'entities'
+  | 'site-display';
 
 /**
  * What a collector reads for an asset that maps nothing on a lane, as a code
@@ -1015,6 +1016,46 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         type: 'string-list',
         required: false,
         describe: 'the site ids this entity owns',
+      },
+    ],
+  },
+  // Where each site shows. A key is a switch the operator set; an absent key
+  // follows the site's stage (`siteShownOn`, apps/tower/shared/site-display.ts),
+  // so a lifecycle move never rewrites a hand-set switch. Addable: a store
+  // seeded before this map existed has no `/sites`, and the first switch
+  // inserts the whole map.
+  'site-display': {
+    file: 'config/tower.json',
+    container: '/sites',
+    shape: 'object',
+    keyRule: 'asset-id',
+    keyField: null,
+    addableContainer: true,
+    label: 'Where each site shows',
+    describe: 'where one site shows',
+    owner: 'config/tower.README.md',
+    surface: "Sites → Arrange, Settings → Sites, and the site's Settings tab (Where it shows)",
+    fields: [
+      {
+        name: 'list',
+        label: 'Home and Sites list',
+        type: 'boolean',
+        required: false,
+        describe: "a row on Home and on the Sites page",
+      },
+      {
+        name: 'tv',
+        label: 'TV',
+        type: 'boolean',
+        required: false,
+        describe: 'every widget on the TV',
+      },
+      {
+        name: 'work',
+        label: 'Work this week',
+        type: 'boolean',
+        required: false,
+        describe: "a row in the TV's Work this week",
       },
     ],
   },

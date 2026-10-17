@@ -393,6 +393,7 @@ export function WallEditRoute() {
                   layout={state.layout}
                   selectedId={state.selectedId}
                   assets={data.assets}
+                  display={data.dashboard.sites}
                   countdown={data.dashboard.countdown}
                   countdownRefused={countdownRefused}
                   nowMs={now}

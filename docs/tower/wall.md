@@ -31,6 +31,8 @@ Three more tiles are available in the tile library: **Needs attention** (the top
 
 ![Rows of the live feed from the synthetic demo: codex and claude claim and close tasks, each line with the agent's logo and a claimed or closed badge, the site's icon and name, the model, and a close's commit and link.](../images/wall-feed.webp)
 
+A site whose **TV** switch is off is in no tile, whatever a tile's own site list holds: not in the loop's counts, the last 24 hours, the sites, the work, the problems or the live feed. **Revenue this month** still counts its money. A site whose **Work this week** switch is off has no row in **Work this week** and stays in every other tile. A retired site has both switches off until you turn one on. See [Where each site shows](/tower/sites#where-each-site-shows).
+
 On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order. On a television the background is true black, so unused pixels emit no light.
 
 ## What you can do

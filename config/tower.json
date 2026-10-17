@@ -1,4 +1,5 @@
 {
   "readme": "config/tower.README.md",
-  "wall": null
+  "wall": null,
+  "sites": {}
 }

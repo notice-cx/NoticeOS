@@ -4,6 +4,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { ASSET_STATUS_LABEL, assetStatusLabel } from "@shared/asset-detail";
 import { ageMs, formatAge } from "@shared/freshness";
 import { siteNoun } from "@shared/site-noun";
+import { sitesShownOn } from "@shared/site-display";
 import { sitePath } from "@shared/first-run";
 import { AddSiteButton } from "@/components/AddSite";
 import { EmptyState } from "@/components/EmptyState";
@@ -45,9 +46,10 @@ const ORDERS: { value: SitesOrder; label: string }[] = [
   { value: "name", label: "A–Z" },
 ];
 
-/** The answer, the health split and the stage are facts about the whole
- * portfolio; the comparison under them is what the controls narrow and
- * order. Every control is shareable URL state. */
+/** The answer, the health split and the stage counts are facts about every
+ * listed site; the comparison under them is what the controls narrow and
+ * order. A site whose Home and Sites list switch is off is counted as hidden
+ * and listed nowhere here. Every control is shareable URL state. */
 export function AssetsRoute() {
   const { data, isError, error, isFetching, refetch } = useWall();
   const now = useNow();
@@ -70,7 +72,11 @@ export function AssetsRoute() {
     setParams(next, { replace: true });
   }
 
-  const assets = data?.assets ?? [];
+  // The page lists the sites whose Home and Sites list switch is on; the
+  // money and visitors figures stay the whole portfolio's.
+  const all = data?.assets ?? [];
+  const assets = data ? sitesShownOn(all, data.dashboard.sites, "list") : [];
+  const hidden = all.length - assets.length;
   const lines = data ? siteLines(assets, data.portfolio, issues, connections, now) : [];
   const matches = lines.filter(
     (line) => (status === "all" || line.card.status === status) && (health === "all" || line.health.key === health),
@@ -78,8 +84,8 @@ export function AssetsRoute() {
   const visible = orderSites(matches, sort);
   const narrowed = status !== "all" || health !== "all";
 
-  /** Counts are over the whole portfolio, not over what the other control has
-   * already narrowed: "how many sites are live" is a fact about the portfolio. */
+  /** Counts are over every listed site, not over what the other control has
+   * already narrowed: "how many sites are live" is a fact about the list. */
   const statusCounts = new Map<string, number>();
   for (const card of assets) statusCounts.set(card.status, (statusCounts.get(card.status) ?? 0) + 1);
   // The five canonical stages always appear, in lifecycle order, even at zero.
@@ -99,10 +105,12 @@ export function AssetsRoute() {
     ? [...split, { key: health, word: SITE_HEALTH[health].word, count: 0 }]
     : split;
   const answer = sitesAnswer(lines);
-  const figures = data ? [monthFigure(data.portfolio, assets), visitorsAnswerFigure(assets)].filter((figure) => figure !== null) : [];
+  const figures = data ? [monthFigure(data.portfolio, all), visitorsAnswerFigure(all)].filter((figure) => figure !== null) : [];
 
   const narrowing = [
-    `${formatInt(visible.length)} of ${formatInt(assets.length)} ${siteNoun(assets.length)}`,
+    narrowed
+      ? `${formatInt(visible.length)} of ${formatInt(assets.length)} ${siteNoun(assets.length)}`
+      : `${formatInt(assets.length)} ${siteNoun(assets.length)}`,
     ...(status !== "all" ? [`stage: ${assetStatusLabel(status).toLowerCase()}`] : []),
     ...(health !== "all" ? [`health: ${SITE_HEALTH[health].word.toLowerCase()}`] : []),
   ].join(" · ");
@@ -119,7 +127,7 @@ export function AssetsRoute() {
           </AddSiteButton>
         }
         meta={
-          data && assets.length > 0 ? (
+          data && all.length > 0 ? (
             <span className="text-xs text-muted-foreground" data-assets-age>
               updated {formatAge(ageMs(now, data.generatedAt))} ago
             </span>
@@ -137,13 +145,22 @@ export function AssetsRoute() {
         ) : (
           <PageSkeleton subject="read:sites" shape="list" />
         )
-      ) : assets.length === 0 ? (
+      ) : all.length === 0 ? (
         <section data-surface-hero data-assets-empty className="rounded-[10px] border border-border bg-card px-4 py-3">
           <EmptyState title="No sites yet" />
         </section>
+      ) : assets.length === 0 ? (
+        <section data-surface-hero data-assets-all-hidden className="rounded-[10px] border border-border bg-card px-4 py-3">
+          <EmptyState title="Every site is hidden" hint={<HiddenSites count={hidden} />} />
+        </section>
       ) : assets.length === 1 ? (
-        <div data-surface-hero>
+        <div data-surface-hero className="flex flex-col gap-3">
           <AssetsTable lines={lines} />
+          {hidden > 0 ? (
+            <p className="m-0 text-sm text-muted-foreground" data-assets-summary>
+              <HiddenSites count={hidden} />
+            </p>
+          ) : null}
         </div>
       ) : (
         <>
@@ -190,16 +207,18 @@ export function AssetsRoute() {
               </div>
             </FilterFold>
 
-            {narrowed ? (
+            {narrowed || hidden > 0 ? (
               <p className="m-0 flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground" data-assets-summary>
                 <span>{narrowing}</span>
-                <Link
+                {hidden > 0 ? <span aria-hidden>·</span> : null}
+                {hidden > 0 ? <HiddenSites count={hidden} /> : null}
+                {narrowed ? <Link
                   to={{ search: sort === "seed" ? "" : `?sort=${sort}` }}
                   replace
                   className="font-medium text-foreground underline-offset-4 outline-none hover:underline max-sm:-my-3 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center focus-visible:underline focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   Clear
-                </Link>
+                </Link> : null}
               </p>
             ) : null}
 
@@ -255,6 +274,12 @@ function sitesAnswer(lines: readonly SiteLine[]): { key: string; line: string; d
     line: fine === 0 ? `${formatInt(lines.length)} ${noun} setting up` : `${formatInt(fine)} of ${formatInt(lines.length)} ${noun} on track`,
     detail: fine === 0 ? undefined : `${formatInt(settingUp.length)} setting up`,
   };
+}
+
+/** How many sites the list leaves out because their Home and Sites list
+ * switch is off. */
+function HiddenSites({ count }: { count: number }) {
+  return <span data-assets-hidden={count}>{formatInt(count)} hidden</span>;
 }
 
 function readKey<K extends string>(value: string | null, allowed: readonly K[]): K {
