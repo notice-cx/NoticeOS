@@ -71,6 +71,11 @@ export declare function providerCollectionArguments(input: unknown, request: Req
     start?: string;
     end?: string;
 }>;
+/** The one site the original path names; the duplicate RPC input cannot name
+ * another. Fresh receiver admission and site ownership still precede the read. */
+export declare function siteIconsReadArguments(input: unknown, request: Request): Promise<{
+    asset: string;
+}>;
 /** Fixed mutation RPC correspondence. Snapshot the candidate before any await;
  * callers use that same owned snapshot in the writer after fresh admission.
  * Actor/workspace/action fields never come from the public envelope. */

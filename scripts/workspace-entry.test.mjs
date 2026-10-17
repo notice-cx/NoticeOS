@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { atDeadline, fakeClock } from './test-deadline.mjs';
-import { configReadFiles, assetMutationArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, requireStandaloneWorkspace, withWorkspaceEntry, withLiveProviderReadEntry, storedResearchArguments, watchQueryHistoryArguments, workspaceProfile } from './workspace-entry.mjs';
+import { configReadFiles, assetMutationArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, siteIconsReadArguments, requireStandaloneWorkspace, withWorkspaceEntry, withLiveProviderReadEntry, storedResearchArguments, watchQueryHistoryArguments, workspaceProfile } from './workspace-entry.mjs';
 import { TOWER_CONFIG_FILES } from '../packages/contract/src/configuration.mjs';
 
 const [a, b, demo, principal, session] = Array.from({ length: 5 }, () => randomUUID());
@@ -352,6 +352,29 @@ test('collection original fields and fixed methods bind one current workflow act
     assert.equal(f.calls.opened, opened);
   }
   assert.deepEqual(f.calls.stores, Array(8).fill(a));
+});
+
+test('Read again binds its one site to the original path and a current workflow actor', async () => {
+  const f = fixture();
+  const path = '/api/assets/example.test/icons';
+  const make = (body = {}, workspace = a) => new Request(origin + path, { method: 'POST',
+    headers: { origin, 'content-type': 'application/json', 'x-noticeos-workspace-id': workspace,
+      [WORKSPACE_SESSION_HEADER]: session }, body: JSON.stringify(body) });
+  const proof = make();
+  assert.deepEqual(await siteIconsReadArguments({ asset: 'example.test' }, proof), { asset: 'example.test' });
+  assert.equal((await withWorkspaceEntry(env, proof, use, f.adapters)).actor, principal);
+  // The duplicate input names the path's site, exactly, and nothing more.
+  for (const forged of [{ asset: 'foreign.test' }, { asset: 'example.test', actor: 'owner' }, {}, 'example.test'])
+    await assert.rejects(siteIconsReadArguments(forged, proof));
+  await assert.rejects(withWorkspaceEntry(env, make({ asset: 'foreign.test' }), use, f.adapters));
+  f.memberships.set(a, 'viewer');
+  await assert.rejects(withWorkspaceEntry(env, proof, use, f.adapters));
+  f.memberships.set(a, 'operator');
+  const opened = f.calls.opened;
+  const foreign = proof.clone(); foreign.headers.set('origin', 'https://foreign.example.test');
+  await assert.rejects(withWorkspaceEntry(env, foreign, use, f.adapters));
+  await assert.rejects(withWorkspaceEntry({ ...env, NOTICEOS_WORKSPACE_PROFILE: 'demo' }, make({}, demo), use, f.adapters));
+  assert.equal(f.calls.opened, opened);
 });
 
 test('live panel admission uses fresh facts and truthful browser evidence without caller provider scope', async () => {

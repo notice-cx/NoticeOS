@@ -1521,11 +1521,21 @@ as the `icons` step of the 04:00 UTC job, and stores one row per site per read
 in `asset_icons` (migration 0017). The Tower's site cards (`AssetCard.icons`,
 read by `apps/tower/worker/site-icons.ts`) carry the newest read that reached
 the page, so a site that does not answer one morning keeps the icons it
-declared the day before.
+declared the day before, and an address the operator set on the site's
+Settings tab (`config/tower.json` `/sites/<id>/lightIcon`, `darkIcon`) in
+place of the one read.
 
 **Who is read:** every site with a domain that is not `retired` and is not the
 OS's own row, the same sites the hygiene checks read. A site added during the
 day is read at the next 04:00 run.
+
+**Read again:** the `readSiteIcons` RPC (the Tower's `POST
+/api/assets/<id>/icons`, the site's Settings tab) runs the same step now for
+one of those sites (`runSiteIconsNow` in `src/dispatch.ts`) and answers the
+read it stored. It refuses with `paused` while the 04:00 job is paused on its
+schedule, `no-site` for a site the daily read does not cover, and
+`not-migrated` before migration 0017, and records the press in the job's run
+history as a manual run.
 
 **The request:** one GET of `https://<domain>/`, and of `https://www.<domain>/`
 when the bare host returns no response or a 404, as

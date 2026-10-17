@@ -17,6 +17,8 @@ import type {
   CollectNowSite,
   IntegrationProviderId,
   ScheduledRunResult,
+  SiteIconsReadInput,
+  SiteIconsReadResult,
 } from '@noticeos/contract';
 import { OS_TIME_ZONE, capReserveExceeded, loadMeteredDataSpend, savedOsTimeZone } from '@noticeos/contract';
 import { type CountersConfig, runCountersScrape } from './counters.js';
@@ -38,7 +40,7 @@ import {
 import { resolveCredential } from './credentials.js';
 import { runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { runGoogleSignals } from './google-signals.js';
-import { runHygieneChecks, runUptimeChecks } from './hygiene.js';
+import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
@@ -47,7 +49,7 @@ import { runSiteIcons } from './site-icons.js';
 import { runWatchWindows } from './watch-windows.js';
 import { createWorkflowRecorder, settleWorkflowSteps, type WorkflowRecorder } from '../../../scripts/workflow-trace.mjs';
 import { redactLogText } from '../../../scripts/os-log.mjs';
-import { collectNowStep, ingestJobForCron, jobRunName } from '../../../scripts/scheduled-jobs.mjs';
+import { SCHEDULED_JOBS, collectNowStep, ingestJobForCron, jobRunName } from '../../../scripts/scheduled-jobs.mjs';
 import { recordManualRun, type JobRunOutcome } from './job-runs.js';
 
 /**
@@ -453,6 +455,49 @@ export async function runCollectNow(
     outcome: manualRunOutcome(sites),
   }, options.nowMs);
   return { ok: true, provider, job, startedAt, finishedAt: new Date().toISOString(), sites };
+}
+
+// --- read a site's icons now ---------------------------------------------------
+//
+// A site's Settings tab, Read again: the daily job's icons step, run now for
+// that one site through the same function, egress gate and store write, and
+// refused while that job is paused. Narrower than the job, never wider: a site
+// the job does not read (no domain, retired, the System) is refused.
+
+/** The job whose icons step a Read again runs. */
+const SITE_ICONS_JOB = 'hygiene';
+
+/** Read `input.asset`'s icons now. Never throws for a refusal. */
+export async function runSiteIconsNow(
+  env: IngestEnv,
+  input: SiteIconsReadInput,
+  options: LaneNarrowing = {},
+): Promise<SiteIconsReadResult> {
+  const asset = String(input.asset);
+  const cfg = runConfig(await readCollectorConfigs(env));
+  if (jobPaused(cfg, SITE_ICONS_JOB)) return { ok: false, asset, error: 'paused' };
+  const target = (await eligibleAssets(env)).find((site) => site.asset === asset);
+  if (!target) return { ok: false, asset, error: 'no-site' };
+  const startedAt = new Date(options.nowMs ?? Date.now()).toISOString();
+  const clockAtStart = Date.now();
+  // The read is stored at the press's own instant, so the answer's `readAt`
+  // is the stored row's.
+  const run = await runSiteIcons(env, {
+    assets: [target],
+    nowMs: Date.parse(startedAt),
+    ...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+  });
+  if (run.skipped === 'not-migrated') return { ok: false, asset, error: 'not-migrated' };
+  const read = run.reads.find((entry) => entry.asset === asset);
+  if (!read) return { ok: false, asset, error: 'failed' };
+  const job = SCHEDULED_JOBS.find((entry) => entry.id === SITE_ICONS_JOB)!;
+  await recordManualRun(env, {
+    job: jobRunName(job),
+    startedAt,
+    finishedAt: new Date(Date.parse(startedAt) + (Date.now() - clockAtStart)).toISOString(),
+    outcome: read.outcome === 'unmeasured' ? 'skipped' : 'ran',
+  }, options.nowMs);
+  return { ok: true, asset, readAt: startedAt, outcome: read.outcome, light: read.light, dark: read.dark };
 }
 
 /** The families a press names, each once and each one DataForSEO collects, or

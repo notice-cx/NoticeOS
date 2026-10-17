@@ -217,6 +217,27 @@ export async function providerCollectionInput(request) {
             ...(typeof body.end === 'string' ? { end: body.end } : {}),
         }) });
 }
+/** A site's Read again: one fixed workflow effect on the one site its path
+ * names. The body is an empty JSON object; nothing in it selects anything. */
+export function siteIconsReadRequest(request) {
+    if (!(request instanceof Request) || request.method !== 'POST' || request.url.length > 2048)
+        return null;
+    const url = new URL(request.url);
+    const match = /^\/api\/assets\/([^/]+)\/icons$/u.exec(url.pathname);
+    if (!match || request.url.includes('?') || url.hash || url.username || url.password
+        || /%|\\/u.test(url.pathname) || match[1].length > 253)
+        return null;
+    return Object.freeze({ asset: match[1] });
+}
+/** Snapshot the exact empty body before any identity or network I/O. The
+ * ingest keeps its own rule for which sites the daily read covers. */
+export async function siteIconsReadInput(request) {
+    const parsed = siteIconsReadRequest(request);
+    if (!parsed)
+        refuse();
+    onlyKeys(await jsonBody(request), []);
+    return parsed;
+}
 /** Fixed existing credential operations; no provider, actor or action comes
  * from the body. Provider field rules remain in the ordinary credential store. */
 export function credentialWriteRequest(request) {
@@ -686,10 +707,14 @@ export async function towerOperation(request) {
             return evidence;
         refuse();
     }
-    const asset = /^\/api\/assets\/[^/]+\/(decisions|annotations|watch-windows|watch-query-history)$/u.exec(pathname);
+    const asset = /^\/api\/assets\/[^/]+\/(decisions|annotations|watch-windows|watch-query-history|icons)$/u.exec(pathname);
     if (asset) {
         if (asset[1] === 'watch-windows' && method === 'POST')
             return operation('measurement.write', ['createWatchWindow']);
+        if (asset[1] === 'icons') {
+            await siteIconsReadInput(request);
+            return operation('workflows.run', ['readSiteIcons']);
+        }
         if (asset[1] === 'watch-query-history') {
             if (!watchQueryHistoryRequest(request))
                 refuse();

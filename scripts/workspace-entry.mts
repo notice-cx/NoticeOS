@@ -12,7 +12,7 @@ import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProvid
   credentialWriteRequest, credentialWriteInput, type CredentialWriteMethod,
   providerCollectionRequest, providerCollectionInput, type ProviderCollectionMethod, storedResearchReadRequest,
   assetMutationRequest, assetMutationInput, type AssetMutationMethod,
-  watchQueryHistoryRequest, watchQueryHistoryRange } from './workspace-operations.mjs';
+  watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
@@ -161,6 +161,17 @@ export async function providerCollectionArguments(input: unknown, request: Reque
     : { ...parsed.input };
 }
 
+/** The one site the original path names; the duplicate RPC input cannot name
+ * another. Fresh receiver admission and site ownership still precede the read. */
+export async function siteIconsReadArguments(input: unknown, request: Request): Promise<{ asset: string }> {
+  if (!(request instanceof Request)) refuse();
+  const parsed = await siteIconsReadInput(request);
+  const expected = { asset: parsed.asset };
+  if (!deepEqual(input, expected)) refuse();
+  await ingestOperation('readSiteIcons', request);
+  return expected;
+}
+
 /** Fixed mutation RPC correspondence. Snapshot the candidate before any await;
  * callers use that same owned snapshot in the writer after fresh admission.
  * Actor/workspace/action fields never come from the public envelope. */
@@ -244,7 +255,7 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
       && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
-      && !watchQueryHistoryRequest(proof) && !isCloudflareD1Request(proof))
+      && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof))
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);

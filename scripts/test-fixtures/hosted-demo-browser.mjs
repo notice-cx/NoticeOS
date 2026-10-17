@@ -176,6 +176,7 @@ export async function proveHostedDemoBrowser(t, options) {
         ['applyConfigOps', '/api/config', [{ ops: [{ kind: 'file-json-set', file: 'config/constants.json', pointer: '/os_time_zone', expect: 'UTC', value: 'Europe/London' }], expectVersions: { 'config/constants.json': 1 } }], { ops: [{ kind: 'file-json-set', file: 'config/constants.json', pointer: '/os_time_zone', expect: 'UTC', value: 'Europe/London' }], expectVersions: { 'config/constants.json': 1 } }],
         ['discoverGoogleProperties', '/api/integrations/google/properties', [], undefined],
         ['collectNow', '/api/integrations/ga4/collect', [{ provider: 'ga4', assets: [scenario.assets[0].id] }], { assets: [scenario.assets[0].id] }],
+        ['readSiteIcons', `/api/assets/${scenario.assets[0].id}/icons`, [{ asset: scenario.assets[0].id }], {}],
       ]) {
         const response = await rpc.dispatchFetch('https://owned-driver/', { method: 'POST', body: JSON.stringify({ method, args, url: origin + route,
           init: { method: method === 'discoverGoogleProperties' ? 'GET' : method === 'applyConfigOps' ? 'PUT' : 'POST', headers: { cookie, origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: workspace, [WORKSPACE_SESSION_HEADER]: session }, ...(body ? { body: JSON.stringify(body) } : {}) } }) });
