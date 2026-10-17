@@ -7,8 +7,9 @@ import { cn } from "@/lib/utils";
 export interface PropertyFaviconProps {
   domain: string;
   displayName: string;
-  /** The icons the site's card carries (`AssetCard.icons`). A caller that
-   * holds no card passes nothing and draws `/favicon.ico`. */
+  /** The icons the site's card carries (`AssetCard.icons`); a caller that
+   * holds only the site's id reads them with `useSiteIcons`. Nothing draws
+   * `/favicon.ico`. */
   icons?: SiteIcons | null;
   /** The surface's scheme. The Wall passes `dark`, because it is dark on a
    * light desk too; on the desk it follows the theme the page is drawn in. */

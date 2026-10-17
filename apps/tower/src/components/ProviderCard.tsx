@@ -53,6 +53,7 @@ import { StateChip, type StateTone, type StatusSubject } from "@/components/Stat
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { formatPeriodMonth, formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -941,6 +942,7 @@ function ServedAssets({
   perAsset: boolean;
   expanded?: boolean;
 }) {
+  const iconsOf = useSiteIcons();
   const held = rows.filter((row) => row.held).length;
   return (
     <div className={expanded ? "space-y-3" : "flex flex-wrap items-center gap-x-3 gap-y-1"} data-served-assets>
@@ -984,7 +986,7 @@ function ServedAssets({
                 }
               >
                 {asset.domain ? (
-                  <PropertyFavicon domain={asset.domain} displayName={asset.displayName} className="size-4" />
+                  <PropertyFavicon domain={asset.domain} icons={iconsOf(asset.id)} displayName={asset.displayName} className="size-4" />
                 ) : null}
                 {asset.displayName}
               </Link>
@@ -1226,6 +1228,7 @@ function LegacyEnvExplainer({
 }) {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState<string | null>(null);
+  const iconsOf = useSiteIcons();
   const bound = legacyBinding?.asset ? identities.get(legacyBinding.asset) ?? null : null;
   return (
     <div
@@ -1254,7 +1257,7 @@ function LegacyEnvExplainer({
               <span aria-hidden>→</span>
               <span className="inline-flex items-center gap-1.5 text-foreground">
                 {bound?.domain ? (
-                  <PropertyFavicon domain={bound.domain} displayName={bound.displayName} className="size-4" />
+                  <PropertyFavicon domain={bound.domain} icons={iconsOf(bound.id)} displayName={bound.displayName} className="size-4" />
                 ) : null}
                 {bound?.displayName ?? legacyBinding.asset}
               </span>

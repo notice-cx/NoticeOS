@@ -4,6 +4,7 @@ import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
+import type { WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
 import { DEMO_READ_ONLY, validateDemoViewer } from '@shared/demo-viewer';
 import type { TaskChoices } from "@noticeos/contract/task-choices";
@@ -198,10 +199,10 @@ function work(items: WorkItem[] = []): WorkPayload {
   };
 }
 
-function renderTask(id = ID, query = '', state?: { returnTo: string }) {
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, gcTime: 0 } },
-  });
+/** `client` is the desk's query cache, for a case about what it already holds. */
+function renderTask(id = ID, query = '', state?: { returnTo: string }, client = new QueryClient({
+  defaultOptions: { queries: { retry: false, gcTime: 0 } },
+})) {
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[{ pathname: `/tasks/${id}`, search: query, state }]}>
@@ -662,6 +663,37 @@ describe("a task's status looks the same here as on the board", () => {
 });
 
 describe("the task page", () => {
+  it("draws the project's site icon for the theme, from the card in the Wall read the desk holds", async () => {
+    const light = "https://www.example.com/brand/icon-32.png";
+    const dark = "https://www.example.com/brand/icon-32-dark.png";
+    const desk = () => {
+      // The shell's own observer keeps the read; here nothing does, so it is
+      // kept by the default collection time rather than this file's zero.
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      const card = { id: "root-os", displayName: "System", icons: { light, dark, readAt: null, outcome: null } };
+      client.setQueryData(["wall"], { assets: [card] } as unknown as WallPayload);
+      return client;
+    };
+    const requests = vi.fn(async (_input: RequestInfo | URL) => new Response("{}", { status: 404 }));
+    vi.stubGlobal("fetch", requests);
+    const chip = async () => {
+      const facts = (await screen.findByText("Came from")).closest("[data-task-facts]") as HTMLElement;
+      return within(facts).getByRole("link", { name: /System/ }).querySelector("[data-property-favicon] img");
+    };
+    try {
+      const onDark = renderTask(ID, "", undefined, desk());
+      expect(await chip()).toHaveAttribute("src", dark);
+      onDark.unmount();
+      document.documentElement.classList.add("light");
+      renderTask(ID, "", undefined, desk());
+      expect(await chip()).toHaveAttribute("src", light);
+      expect(requests.mock.calls.filter(([input]) => String(input).startsWith("/api/wall"))).toEqual([]);
+    } finally {
+      document.documentElement.classList.remove("light");
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("renders the task, its dependencies, its epic and its conversation", async () => {
     const { container } = renderTask();
 

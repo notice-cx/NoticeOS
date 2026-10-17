@@ -9,6 +9,7 @@ import { DataSourceIcons } from "@/components/DataSourceIcons";
 import { PageHeader } from "@/components/PageHeader";
 import { useConnections } from "@/hooks/useConnections";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { StateChip } from "@/components/StateChip";
 import { siteHealth } from "@/lib/site-health";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
@@ -44,6 +45,7 @@ export function Header({
   const { credentials, items } = useConnections();
   const sources = sourceReadings(asset.id, integrations.sources, { credentials, items }, nowMs);
   const verdict = siteHealth(asset, useSiteIssues());
+  const iconsOf = useSiteIcons();
   // The identity row is the heading: the page header renders it inside its
   // `h1` rather than repeating the name above a separate identity strip.
   return (
@@ -54,6 +56,7 @@ export function Header({
         <>
           <PropertyFavicon
             domain={asset.domain || asset.id}
+            icons={iconsOf(asset.id)}
             displayName={asset.displayName}
             className="size-7"
           />

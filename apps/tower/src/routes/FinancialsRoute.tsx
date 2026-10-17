@@ -37,6 +37,7 @@ import {
 } from "@/components/ui/table";
 import { useFinancials } from "@/hooks/useFinancials";
 import { useIntegrations } from "@/hooks/useIntegrations";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
 import { FinancialsPeriodError } from "@/lib/api";
 import {
@@ -402,6 +403,7 @@ function PortfolioRevenue({ history, sites }: { history: PortfolioDailyRevenue; 
  * missed days wears the warn ink on its own count; each is a door to that
  * asset's own financials. */
 function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
+  const iconsOf = useSiteIcons();
   return (
     <ul className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0" data-source-coverage>
       {history.sources.map((source) => {
@@ -418,7 +420,7 @@ function SourceCoverage({ history }: { history: PortfolioDailyRevenue }) {
               to={`/assets/${encodeURIComponent(source.asset)}/financials`}
               className="inline-flex items-center gap-1.5 hover:text-foreground max-sm:min-h-11"
             >
-              <PropertyFavicon domain={source.asset} displayName={source.displayName} />
+              <PropertyFavicon domain={source.asset} icons={iconsOf(source.asset)} displayName={source.displayName} />
               <span className="underline-offset-4 hover:underline">{source.displayName}</span>
               {days > 0 ? (
                 <span className={cn("tabular-nums", short ? "font-medium text-warn" : undefined)}>
@@ -840,6 +842,7 @@ function Costs({
  * They differ whenever `cost-import` has not run for the month yet.
  */
 function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: number }) {
+  const iconsOf = useSiteIcons();
   return (
     <div className="flex flex-col gap-2" data-declared-run-rate>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -857,7 +860,7 @@ function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: numbe
               className="flex items-center gap-2"
               data-declared-asset={line.asset}
             >
-              <PropertyFavicon domain={line.asset} displayName={line.displayName} />
+              <PropertyFavicon domain={line.asset} icons={iconsOf(line.asset)} displayName={line.displayName} />
               <span className="min-w-0 flex-1 break-words text-sm">{line.displayName}</span>
               <span className="tabular-nums text-sm">{formatUsd(line.perMonth, CENTS)}</span>
               <SegmentBar

@@ -2,6 +2,7 @@ import { KeyRound, Trash2, Unplug } from "lucide-react";
 import { useState } from "react";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { Button } from "@/components/ui/button";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { cn } from "@/lib/utils";
 
 /** A site a connection collects for, as the confirmation names it. */
@@ -61,6 +62,7 @@ export function ConnectionActions({
   const [confirming, setConfirming] = useState(false);
   const [working, setWorking] = useState(false);
   const [failed, setFailed] = useState(false);
+  const iconsOf = useSiteIcons();
   const open = (next: boolean) => {
     setConfirming(next);
     setFailed(false);
@@ -116,7 +118,7 @@ export function ConnectionActions({
           <ul aria-label="Sites that stop" className="flex flex-wrap gap-x-3 gap-y-1">
             {stops.map((site) => (
               <li key={site.id} className="inline-flex min-w-0 items-center gap-1.5 text-sm" data-disconnect-stop={site.id}>
-                <PropertyFavicon domain={site.domain ?? site.id} displayName={site.label} className="size-4" />
+                <PropertyFavicon domain={site.domain ?? site.id} icons={iconsOf(site.id)} displayName={site.label} className="size-4" />
                 <span className="truncate">{site.label}</span>
               </li>
             ))}

@@ -20,6 +20,7 @@ import { StateChip, type StatusSubject } from "@/components/StateChip";
 import { ListRow, type ListRowTone } from "@/components/surface/ListPanel";
 import { Badge } from "@/components/ui/badge";
 import { watchOutcome } from "@/components/watch-outcome";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { cn } from "@/lib/utils";
 
 /** The `16× in 27d` chip: how often a condition has re-fired, over the span
@@ -380,6 +381,7 @@ function TunedChip({ flag }: { flag: FlagRecord }) {
 
 /** Which asset, on a surface that holds several. */
 function AssetName({ asset }: { asset: AlertHistoryAsset }) {
+  const iconsOf = useSiteIcons();
   return (
     <Link
       to={siteAddress(asset.id, "/alerts")}
@@ -390,6 +392,7 @@ function AssetName({ asset }: { asset: AlertHistoryAsset }) {
     >
       <PropertyFavicon
         domain={asset.domain ?? asset.id}
+        icons={iconsOf(asset.id)}
         displayName={asset.displayName}
         className="size-4"
       />

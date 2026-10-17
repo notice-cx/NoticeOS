@@ -17,6 +17,7 @@ import { FileTaskButton } from "@/components/TaskComposer";
 import { Button } from "@/components/ui/button";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { NormalBand } from "@/components/viz/NormalBand";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useSitePath } from "@/hooks/useSitePath";
 import { alertBoard, alertNormal, readingNights, shortHeadline, type BoardSite } from "@/lib/alerts-board";
 import { alertTaskHandoff, isGrouped, memberNames } from "@/lib/attention";
@@ -134,6 +135,7 @@ function ColumnHeads({ reading, rows, count }: { reading: boolean; rows: boolean
 
 function SiteSection({ site, nowMs, focusId }: { site: BoardSite; nowMs: number; focusId: number | null }) {
   const sitePath = useSitePath();
+  const iconsOf = useSiteIcons();
   const errors = site.items.filter((item) => item.severity === "error").length;
   const warnings = site.items.length - errors;
   const counts = [errors > 0 ? `${formatInt(errors)} ${errors === 1 ? "error" : "errors"}` : null, warnings > 0 ? `${formatInt(warnings)} ${warnings === 1 ? "warning" : "warnings"}` : null]
@@ -144,7 +146,7 @@ function SiteSection({ site, nowMs, focusId }: { site: BoardSite; nowMs: number;
       <h3 className="m-0 flex min-w-0 items-center gap-2 px-5 pb-0.5 pt-3 text-sm">
         {site.asset ? (
           <>
-            <PropertyFavicon domain={site.asset} displayName={site.name} className="size-4" />
+            <PropertyFavicon domain={site.asset} icons={iconsOf(site.asset)} displayName={site.name} className="size-4" />
             <Link to={sitePath(site.asset)} className="min-w-0 font-semibold text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={site.name}>
               {site.name}
             </Link>
@@ -213,10 +215,11 @@ function Nights({ item }: { item: AttentionItem }) {
 
 /** Which site, where a list holds several: the favicon its own page wears. */
 function SiteTag({ id, name }: { id: string; name: string }) {
+  const iconsOf = useSiteIcons();
   return (
     <>
       <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-        <PropertyFavicon domain={id} displayName={name} className="size-4" />
+        <PropertyFavicon domain={id} icons={iconsOf(id)} displayName={name} className="size-4" />
         {name}
       </span>
       <span aria-hidden className="text-muted-foreground">

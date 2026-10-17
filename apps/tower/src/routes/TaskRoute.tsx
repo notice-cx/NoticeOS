@@ -49,6 +49,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { fieldClass } from "@/components/ui/field";
 import { refusalMessage } from "@/hooks/useConfigSave";
 import { useNow } from "@/hooks/useNow";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import {
   useClaimTask,
   useCloseTask,
@@ -143,6 +144,7 @@ export function TaskRoute() {
   const nextReady = epicTaskGroups(siblings, read).find((group) => group.word === "Ready")?.tasks[0] ?? null;
   const actors = detail.data?.actors;
   const taskHref = useTaskHref();
+  const iconsOf = useSiteIcons();
   const parentEpic = task ? epicOf(board.data?.epics ?? null, task.parent) : null;
   // This task among its siblings, on the parent's bar: the board read holds
   // every unfinished one and a week of closes; the epic's count, the rest.
@@ -214,7 +216,7 @@ export function TaskRoute() {
     ...(projectKey ? [{
       label: projectName,
       to: `/tasks?${new URLSearchParams({ project: projectKey })}`,
-      icon: <PropertyFavicon domain={projectKey} displayName={projectName} className="size-4" />,
+      icon: <PropertyFavicon domain={projectKey} icons={iconsOf(projectKey)} displayName={projectName} className="size-4" />,
     }] : []),
     ...(parentId ? [{ label: parentTitle ?? parentId, to: taskHref(parentId) }] : []),
   ];
@@ -855,6 +857,7 @@ function Facts({
   const save = useFieldSave(task.id);
   const actors = useContext(TaskActors);
   const taskHref = useTaskHref();
+  const iconsOf = useSiteIcons();
   const origin = handoffOrigin(task.metadata);
   const can = {
     status: useFieldPermission("status"),
@@ -892,7 +895,7 @@ function Facts({
           {project ? (
             <Fact label="Project">
               <FactChip label="Project" valueText={projectName || project} to={`/assets/${encodeURIComponent(project)}`}>
-                <PropertyFavicon domain={project} displayName={projectName || project} className="size-4" />
+                <PropertyFavicon domain={project} icons={iconsOf(project)} displayName={projectName || project} className="size-4" />
                 {projectName || project}
               </FactChip>
             </Fact>

@@ -8,6 +8,7 @@ import { FlagActions } from "@/components/FlagActions";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SnoozeUntil } from "@/components/SnoozeUntil";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { AlertMark, BoardRow } from "@/routes/alerts/BoardRow";
@@ -21,6 +22,7 @@ import { AlertMark, BoardRow } from "@/routes/alerts/BoardRow";
  * what it was is inside, with the way back.
  */
 export function SnoozedAlerts({ items, nowMs }: { items: readonly SnoozedItem[]; nowMs: number }) {
+  const iconsOf = useSiteIcons();
   if (items.length === 0) return null;
   const soonest = [...items].sort((a, b) => a.snoozeUntil.localeCompare(b.snoozeUntil));
   return (
@@ -41,7 +43,7 @@ export function SnoozedAlerts({ items, nowMs }: { items: readonly SnoozedItem[];
               title={
                 <>
                   <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                    <PropertyFavicon domain={item.asset} displayName={item.assetDisplayName} className="size-4" />
+                    <PropertyFavicon domain={item.asset} icons={iconsOf(item.asset)} displayName={item.assetDisplayName} className="size-4" />
                     {item.assetDisplayName}
                   </span>
                   <span aria-hidden className="text-muted-foreground">
