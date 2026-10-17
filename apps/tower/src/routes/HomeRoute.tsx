@@ -160,7 +160,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
           <HealthGrid
             rows={healthGridRows(listed, data.system, connections, nowMs, sitePath).map((row) => {
               const asset = listed.find((candidate) => candidate.id === row.id);
-              return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} displayName={asset.displayName} /> } : row;
+              return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} /> } : row;
             })}
             columns={sourceColumns(listed)}
             nowMs={nowMs}
@@ -305,7 +305,7 @@ function Sites({ assets, issues, money, nowMs }: { assets: readonly AssetCard[];
     return {
       id: asset.id,
       name: asset.displayName,
-      icon: <PropertyFavicon domain={asset.id} displayName={asset.displayName} />,
+      icon: <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} />,
       to: sitePath(asset),
       health: { word: health.word, tone: health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : "quiet" },
       people: asset.activeUsers.series,

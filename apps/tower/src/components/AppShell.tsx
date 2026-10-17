@@ -442,6 +442,7 @@ function AssetNav({
                   >
                     <PropertyFavicon
                       domain={asset.id}
+                      icons={asset.icons}
                       displayName={asset.displayName}
                       className="size-4"
                     />

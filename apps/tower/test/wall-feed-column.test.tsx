@@ -261,4 +261,21 @@ describe("a line's marks", () => {
     expect(label).toHaveTextContent("Task done · Recipes");
     expect(portfolio!.querySelector("[data-property-favicon]")).toBeNull();
   });
+
+  it("draws a site's dark icon from its card, because the Wall is dark on a light desk too", () => {
+    // The TV layout editor's preview draws the Wall inside a light desk.
+    document.documentElement.classList.add("light");
+    try {
+      const icons = new Map([[
+        "recipes.example.com",
+        { light: "https://recipes.example.com/icon.png", dark: "https://recipes.example.com/icon-dark.png", readAt: new Date(NOW).toISOString(), outcome: "read" as const },
+      ]]);
+      render(<WallFeed feed={payload([item("a", 5), item("b", 9, { asset: "other.example.com", site: "Other" })])} nowMs={NOW} icons={icons} />);
+      const [declared, plain] = screen.getAllByRole("listitem");
+      expect(declared!.querySelector("[data-property-favicon] img")).toHaveAttribute("src", "https://recipes.example.com/icon-dark.png");
+      expect(plain!.querySelector("[data-property-favicon] img")).toHaveAttribute("src", "https://other.example.com/favicon.ico");
+    } finally {
+      document.documentElement.classList.remove("light");
+    }
+  });
 });

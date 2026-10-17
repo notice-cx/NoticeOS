@@ -222,7 +222,7 @@ export function WallCanvas({
       }
       case "feed":
         // Its own read: only a Wall that places the feed asks for it.
-        return <WallFeedWidget nowMs={nowMs} hidden={hidden} />;
+        return <WallFeedWidget nowMs={nowMs} hidden={hidden} assets={data.assets} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
     }

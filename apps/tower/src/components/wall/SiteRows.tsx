@@ -241,6 +241,8 @@ function SiteName({ asset, favicon, name, mark }: { asset: AssetCard; favicon: s
     <>
       <PropertyFavicon
         domain={asset.id}
+        icons={asset.icons}
+        scheme="dark"
         displayName={asset.displayName}
         className={`${favicon} shrink-0 font-bold text-foreground`}
       />

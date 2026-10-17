@@ -219,7 +219,7 @@ function PaletteBody({
                 >
                   {page ? <page.icon className="size-4" /> : null}
                   {asset ? (
-                    <PropertyFavicon domain={asset.id} displayName={asset.displayName} />
+                    <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} />
                   ) : null}
                   <span className="text-foreground">{destination.label}</span>
                 </CommandItem>
@@ -253,7 +253,7 @@ function PaletteBody({
                   keywords={[asset.displayName, asset.id]}
                   onSelect={() => go(assetValue(asset.id), sitePath(asset))}
                 >
-                  <PropertyFavicon domain={asset.id} displayName={asset.displayName} />
+                  <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} />
                   <span className="text-foreground">{asset.displayName}</span>
                   <span className="font-mono text-xs text-muted-foreground">{asset.id}</span>
                   {/* Identity is the favicon; a dot appears only for open attention. */}

@@ -18,7 +18,7 @@ export function AssetsTable({ lines, className }: { lines: readonly SiteLine[]; 
     <PortfolioRows
       rows={lines.map((line) => ({
         ...line.row,
-        icon: <PropertyFavicon domain={line.card.id} displayName={line.card.displayName} />,
+        icon: <PropertyFavicon domain={line.card.id} icons={line.card.icons} displayName={line.card.displayName} />,
       }))}
       formatMoney={cents}
       className={cn("shadow-raised", className)}
