@@ -250,9 +250,11 @@ Fixture-only HTTP controls are available on **that isolated port**:
   projects saved at that moment (none, on a fresh fixture).
 - `POST /__journey/reset`: discard the in-memory fixture and return to empty.
 
-The fixture's `bd` answers the task lane's reads and its four operator writes:
-`gate resolve`, `human respond`, `human dismiss` and `create`; `taskCommands`
-in the status journal records each argv.
+The fixture's `bd` answers the task lane's reads and its operator writes:
+`gate resolve`, `human respond`, `human dismiss`, `create`, `close`, and the
+`comments add` and `update` an answer on a task that is not a decision runs to
+hand the task back to ready work; `taskCommands` in the status journal records
+each argv.
 
 These controls are not imported into or registered by the production server.
 Stopping the fixture process discards its data. `node --test

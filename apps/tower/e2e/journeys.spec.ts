@@ -1805,10 +1805,11 @@ test("empty install → saved asset → fake connection and mapping → real met
   await expect(page.getByRole("heading", { name: /Approve the synthetic launch/ })).toBeVisible();
   // Each decision is answered on its row. Approve is one press; Answer opens
   // a box, Enter sends. Each reaches `bd` through the real task lane once its
-  // Undo window closes.
+  // Undo window closes. The ask is not a decision, so the answer hands it back
+  // to ready work: a comment, then open with the human label off.
   await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
   const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
-    tasks: { id: string; status: string }[]; taskCommands: string[][];
+    tasks: { id: string; status: string; labels?: string[]; assignee?: string | null; comment_count?: number }[]; taskCommands: string[][];
   };
   const gateRow = page.locator('[data-inbox-row="jt-approve"]');
   await keyboardActivate(page, gateRow.getByRole("button", { name: "Approve", exact: true }));
@@ -1821,12 +1822,16 @@ test("empty install → saved asset → fake connection and mapping → real met
   await page.keyboard.press("Enter");
   await expect(askRow).toHaveCount(0);
   // Neither answer is written inside its Undo window.
-  expect((await status()).tasks.every((row) => row.status === "open")).toBe(true);
-  await expect.poll(async () => (await status()).tasks.map((row) => `${row.id}:${row.status}`).sort(), { timeout: 20_000 })
-    .toEqual(["jt-approve:closed", "jt-review:closed"]);
+  expect((await status()).tasks.every((row) => row.status === "open" && row.labels?.length !== 0)).toBe(true);
+  await expect.poll(async () => (await status()).tasks.map((row) => `${row.id}:${row.status}:${(row.labels ?? []).join(",")}`).sort(), { timeout: 20_000 })
+    .toEqual(["jt-approve:closed:human", "jt-review:open:"]);
   const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
   expect(commands.some((line) => line.startsWith("gate resolve jt-approve --json --actor"))).toBe(true);
-  expect(commands.some((line) => line.startsWith("human respond jt-review --response Approved wording: Example headline --json --actor"))).toBe(true);
+  expect(commands.some((line) => line.startsWith("comments add jt-review Answered: Approved wording: Example headline --json --actor"))).toBe(true);
+  expect(commands.some((line) => line.startsWith("update jt-review --status open --assignee  --if-assignee  --remove-label human --json --actor"))).toBe(true);
+  expect(commands.some((line) => line.startsWith("human respond"))).toBe(false);
+  const review = (await status()).tasks.find((row) => row.id === "jt-review")!;
+  expect([review.assignee, review.comment_count]).toEqual([null, 1]);
   // Said once, in the answer; an emptied queue draws no empty panel.
   await expect(page.locator("[data-tasks-answer]")).toContainText("No decisions for you");
   await expect(page.locator("[data-waiting-list]")).toHaveCount(0);

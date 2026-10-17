@@ -157,7 +157,7 @@ export const REFUSED_GATE = "jt-refused";
  * human" with the ask under `Reason:` in its description, so every journey
  * reads the gate's ask the way the live board and the snapshot both title it. */
 export function initialTasks() {
-  const shared = { status: "open", priority: 1, assignee: null, created_at: JOURNEY_NOW,
+  const shared = { status: "open", priority: 1, assignee: null as string | null, created_at: JOURNEY_NOW,
     updated_at: JOURNEY_NOW, closed_at: null as string | null, close_reason: null as string | null, labels: ["human"], dependencies: [], comment_count: 0 };
   return [
     { ...shared, priority: 0, id: "jt-review", title: "Review the synthetic launch copy", issue_type: "task", await_type: null,
