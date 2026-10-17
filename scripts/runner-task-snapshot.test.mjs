@@ -144,6 +144,34 @@ test('the snapshot names who did the work: each worker and model, and the newest
   assert.equal(recentWork[2].evidence, 'Lists print · 3f2a91c');
 });
 
+test('a close where nothing shipped carries its resolution on its row and its line, and is no one\'s work done', async () => {
+  const { beadsWork } = await import('./task-snapshot-summary.mjs');
+  const closer = (resolution, at, extra = {}) => ({ noticeos_closed_by: 'Dana', noticeos_closed_at: at,
+    ...(resolution === undefined ? {} : { noticeos_resolution: resolution }), ...extra });
+  const closed = [
+    { id: 'shop-1', title: 'Shipped', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T10:00:00Z', close_reason: 'Landed in 3f2a91c',
+      metadata: closer('done', '2026-10-16T10:00:00Z') },
+    { id: 'shop-2', title: 'Not worth it', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T11:00:00Z', close_reason: 'Nobody asked for it',
+      metadata: closer('wont-do', '2026-10-16T11:00:00Z') },
+    { id: 'shop-3', title: 'Same as shop-1', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T12:00:00Z', close_reason: 'See shop-1',
+      metadata: closer('duplicate', '2026-10-16T12:00:00Z', { noticeos_duplicate_of: 'shop-1' }) },
+    // A resolution recorded for an earlier close, and a close recorded before resolutions existed, both read as done.
+    { id: 'shop-4', title: 'Reopened', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T13:00:00Z', close_reason: 'Fixed after all',
+      metadata: closer('cant-reproduce', '2026-10-01T13:00:00Z') },
+    { id: 'shop-5', title: 'Older close', status: 'closed', issue_type: 'task', closed_at: '2026-10-16T14:00:00Z', close_reason: 'Done',
+      metadata: closer(undefined, '2026-10-16T14:00:00Z') },
+  ];
+  const entry = summarizeBeadsProject(PROJECT, { active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(closed), deferred: ok([]) });
+  const rows = Object.fromEntries(entry.recentlyClosed.map(row => [row.id, [row.resolution ?? null, row.duplicateOf ?? null]]));
+  assert.deepEqual(rows, { 'shop-1': [null, null], 'shop-2': ['wont-do', null], 'shop-3': ['duplicate', 'shop-1'], 'shop-4': [null, null],
+    'shop-5': [null, null] }, 'a done close carries no key, so its row reads as it always did');
+  const { workers, recentWork } = beadsWork([], closed);
+  // shop-4's record names an earlier close, and it has no holder, so its close is nobody's.
+  assert.deepEqual(workers, [{ id: 'Dana', model: null, closedRecent: 2, inProgress: 0 }], 'only done closes count as work done');
+  assert.deepEqual(recentWork.map(event => [event.taskId, event.resolution ?? null]), [['shop-5', null], ['shop-3', 'duplicate'],
+    ['shop-2', 'wont-do'], ['shop-1', null]]);
+});
+
 const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
   { key: 'b', label: 'Redirect to the new page', recommended: true }] };
 

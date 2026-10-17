@@ -159,6 +159,7 @@ import { TaskStatusChip } from "@/routes/tasks/task-face";
 import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
 import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
 import { ChoiceButtonsDemo } from "@/routes/kitchen-sink/choice-buttons-demo";
+import { CloseResolutionDemo } from "@/routes/kitchen-sink/close-resolution-demo";
 import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
@@ -4346,6 +4347,12 @@ export function KitchenSinkRoute() {
               the record a pick leaves. */}
           <Section title="ChoiceButtons (two, three and six options, a recorded pick, and a workspace that cannot pick)">
             <ChoiceButtonsDemo />
+          </Section>
+
+          {/* How a close ends: the task page's five chips over its line, a
+              row's Close as menu and its note, and the read-only face. */}
+          <Section title="ResolutionChips / CloseAsMenu / CloseNoteForm (Done first, the four closes where nothing shipped, a duplicate's line, read-only)">
+            <CloseResolutionDemo />
           </Section>
 
           {/* Who blocks whom on a task's page: blockers left, blocked right,

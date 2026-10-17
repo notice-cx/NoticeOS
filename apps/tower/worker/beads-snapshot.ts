@@ -7,6 +7,7 @@
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } from "@noticeos/contract/task-choices";
+import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
 import { PRIORITY_BANDS, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
@@ -96,6 +97,11 @@ function nullableText(value: unknown): string | null {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : null;
 }
 
+/** A close's resolution as a snapshot stores it: absent, or unreadable, is done. */
+function notDone(value: unknown): Exclude<TaskResolution, "done"> | null {
+  return isTaskResolution(value) && value !== "done" ? value : null;
+}
+
 function readItem(value: unknown): WorkItem | null {
   if (!isRecord(value)) return null;
   const id = text(value.id);
@@ -103,10 +109,14 @@ function readItem(value: unknown): WorkItem | null {
   const createdAt = nullableText(value.createdAt);
   // Read through the contract's own rules: an unreadable set or pick is left out.
   const choices = taskChoicesOf(value.choices), choice = taskChoiceOf(value.choice);
+  const ended = notDone(value.resolution);
+  const duplicateOf = ended === "duplicate" ? nullableText(value.duplicateOf) : null;
   return {
     ...(createdAt ? { createdAt } : {}),
     ...(choices ? { choices } : {}),
     ...(choice ? { choice } : {}),
+    ...(ended ? { resolution: ended } : {}),
+    ...(duplicateOf ? { duplicateOf } : {}),
     id,
     title: text(value.title, id),
     status: text(value.status, "open"),
@@ -301,9 +311,11 @@ function readWork(value: Record<string, unknown>): Pick<SnapshotProject, "worker
     // A pick without its option and label tells nothing; it is left out.
     const option = (TASK_CHOICE_KEYS as readonly unknown[]).includes(entry.option) ? entry.option as TaskChoiceKey : null;
     if (entry.kind === "chosen" && (option === null || !text(entry.label))) return [];
+    const ended = entry.kind === "closed" ? notDone(entry.resolution) : null;
     return [{ kind: entry.kind, taskId: text(entry.taskId), title: text(entry.title, text(entry.taskId)), by: text(entry.by),
       model: nullableText(entry.model), at: text(entry.at), evidence: nullableText(entry.evidence),
-      ...(entry.kind === "chosen" ? { option: option!, label: text(entry.label) } : {}) }];
+      ...(entry.kind === "chosen" ? { option: option!, label: text(entry.label) } : {}),
+      ...(ended ? { resolution: ended } : {}) }];
   });
   return { ...(workers.length ? { workers } : {}), ...(recentWork.length ? { recentWork } : {}) };
 }

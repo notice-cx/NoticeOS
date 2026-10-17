@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { taskFieldAvailable, taskOperationAvailable } from '@shared/tasks';
 import { AskQueue } from "./ask-queue";
+import { useCloseAs } from "./close-actions";
 import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
 import { OpenTaskLink } from "./open-task-link";
 import { PriorityMark, RestingMark, TaskStatusMark } from "./task-face";
@@ -70,6 +71,9 @@ const PAGE_ROWS = 25;
 
 /** Location state that opens the board's composer without changing the URL. */
 const COMPOSE_STATE = "newTask";
+
+/** The read-only banner's sentence, which a row's disabled Close as names as its reason. */
+const BOARD_READ_ONLY_REASON_ID = "tasks-read-only-reason";
 
 function composeRequested(state: unknown): boolean {
   return typeof state === "object" && state !== null && (state as Record<string, unknown>)[COMPOSE_STATE] === true;
@@ -188,6 +192,8 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   const { hides: answerHides } = useOwnerAnswers();
   const inbox = read.filter(({ project, task }) => !answerHides(task.id, project.readAt));
   const answered = read.length - inbox.length;
+  // A row closed from the table leaves it the same way, while its Undo window runs.
+  const tableRows = rows.filter((task) => !answerHides(task.id, byId.get(task.project)?.readAt ?? null));
   const totals = { ...readTotals, waiting: Math.max(0, readTotals.waiting - answered) };
   const counts = { ...readCounts, waiting: readCounts.waiting === null ? null : Math.max(0, readCounts.waiting - answered) };
   const gates = inbox.filter(({ task }) => isGate(task)).length;
@@ -242,7 +248,10 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
       figures={[
         { label: "Urgent", value: String(bounded(counts.urgent, totals.urgent)), mark: "tasks-urgent" },
         { label: "Blocked", value: String(bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked" },
-        { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed" },
+        { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed",
+          // Split only when every close was read and some shipped nothing.
+          ...(counts.closed !== null && counts.notDone !== null && counts.notDone > 0
+            ? { note: `${formatInt(counts.closed - counts.notDone)} done · ${formatInt(counts.notDone)} not done` } : {}) },
       ]}
       marks={{ "data-tasks-answer": nothingWaits ? "clear" : "waiting" }}
     />
@@ -270,7 +279,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
           A read-only board is the saved snapshot. */}
       <div data-tasks-readonly={live ? undefined : ""}>
         <StatusBanner open={!live} severity="info" lead="Read-only snapshot" subject="tasks:snapshot">
-          {READ_ONLY_TASKS_HINT}
+          <span id={BOARD_READ_ONLY_REASON_ID}>{READ_ONLY_TASKS_HINT}</span>
         </StatusBanner>
       </div>
 
@@ -386,7 +395,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
 
           <Board
-            rows={rows}
+            rows={tableRows}
             shown={shown}
             onMore={() => setShown((count) => count + PAGE_ROWS)}
             total={allTasks.length}
@@ -681,6 +690,8 @@ function Board({
                 <TableHead className="whitespace-nowrap">Who</TableHead>
                 <TableHead className="whitespace-nowrap text-right">Age</TableHead>
                 <TableHead className="whitespace-nowrap">State</TableHead>
+                {/* The row's Close as menu: it names itself, so its column has no word. */}
+                <TableHead><span className="sr-only">Close</span></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -741,12 +752,27 @@ function BoardRow({
   const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
   const epic = task.parent ? (project?.epicNames.get(task.parent) ?? null) : null;
-  const columns = showProject ? 6 : 5;
+  const columns = showProject ? 7 : 6;
   const holder = task.assignee ? taskActorLabel(task.assignee, task.actors) : null;
+  // A close where nothing shipped, one press from the row. A task waiting on
+  // a person is declined with it, as its Dismiss did. A read-only snapshot
+  // draws the menu disabled, its reason the banner's sentence; a live
+  // project that cannot close here draws none.
+  const capabilities = useTasksLive();
+  const closable = task.status !== "closed"
+    && (!capabilities.live || (actionable && taskOperationAvailable(capabilities, "close")));
+  const closeAs = useCloseAs({
+    id: task.id,
+    title: task.title,
+    project: task.project,
+    ...(task.labels.includes("human") ? { via: "dismiss" as const } : {}),
+    disabledReason: actionable ? null : READ_ONLY_TASKS_HINT,
+    ...(actionable ? {} : { describedBy: BOARD_READ_ONLY_REASON_ID }),
+  });
 
   return (
     <>
-      <TableRow foldedWhenStacked={!open} data-task-row={task.id}>
+      <TableRow foldedWhenStacked={!open} className="group/task" data-task-row={task.id}>
         <TableCell className="py-1 ps-1 @min-[40rem]:w-full @min-[40rem]:max-w-0">
           <button
             type="button"
@@ -805,6 +831,15 @@ function BoardRow({
         <TableCell label="State" foldWhenStacked className="whitespace-nowrap py-1">
           <TaskStatusMark status={task.status} />
         </TableCell>
+        {/* Quiet until the row is pointed at, as an ask's verbs are, so a page
+            of rows never shows a page of menus. */}
+        <TableCell foldWhenStacked className="whitespace-nowrap py-0.5 pe-1 text-right" data-task-close-as={task.id}>
+          {closable ? (
+            <span className="inline-flex opacity-50 transition-opacity group-hover/task:opacity-100 group-focus-within/task:opacity-100 max-sm:opacity-100 has-[[aria-expanded=true]]:opacity-100">
+              {closeAs.menu}
+            </span>
+          ) : null}
+        </TableCell>
         {/* The summary a folded phone row shows in place of its fields — the
             header row the desk has and a stacked card does not. It carries the
             state's own dot too: on a phone this line IS the row. */}
@@ -823,6 +858,13 @@ function BoardRow({
         <tr data-task-detail={task.id}>
           <td colSpan={columns + 1} className="px-3 pb-2.5 max-sm:px-2">
             <RowDetail task={task} epic={epic} actionable={actionable} />
+          </td>
+        </tr>
+      ) : null}
+      {closeAs.box ? (
+        <tr data-task-close-note={task.id}>
+          <td colSpan={columns + 1} className="px-3 pb-2.5 max-sm:px-2">
+            <div className="rounded-md bg-muted/40 p-2.5">{closeAs.box}</div>
           </td>
         </tr>
       ) : null}

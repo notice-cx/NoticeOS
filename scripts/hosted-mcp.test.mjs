@@ -567,6 +567,74 @@ test('only a person picks: the pick hands the task back to ready work, and an ag
   assert.deepEqual([none.status, (await none.json()).detail], [409, 'tt-2 offers no options to choose from.']);
 });
 
+test('a close names how it ended: each resolution reads back from get_task and list_tasks, and a duplicate links the other task', async () => {
+  const f = fixture();
+  for (const index of [1, 2, 3, 4, 5, 6, 7]) {
+    await call(f, 'create_task', { workspace: A, project: P, title: `Task ${index}`, idempotency_key: `agent-create-091${index}` });
+  }
+  const close = (task, extra, key) => call(f, 'close_task', { workspace: A, project: P, task, reason: 'What decided it', ...extra, idempotency_key: key });
+  const ended = { 'tt-1': 'done', 'tt-2': 'done', 'tt-3': 'wont-do', 'tt-4': 'cant-reproduce', 'tt-5': 'already-handled', 'tt-6': 'duplicate' };
+  await close('tt-1', {}, 'agent-close-0911');
+  await close('tt-2', { resolution: 'done' }, 'agent-close-0912');
+  await close('tt-3', { resolution: 'wont-do' }, 'agent-close-0913');
+  await close('tt-4', { resolution: 'cant-reproduce' }, 'agent-close-0914');
+  await close('tt-5', { resolution: 'already-handled' }, 'agent-close-0915');
+  const duplicate = (await close('tt-6', { resolution: 'duplicate', duplicate_of: 'tt-7' }, 'agent-close-0916')).structuredContent.task;
+  assert.deepEqual([duplicate.closeReason, duplicate.resolution, duplicate.duplicateOf], ['What decided it', 'duplicate', 'tt-7'],
+    'the reason stays the caller\'s own text');
+  assert.ok(f.edges.some(edge => edge.from === 'tt-6' && edge.to === 'tt-7' && edge.type === 'related'));
+  for (const [id, resolution] of Object.entries(ended)) {
+    const { task } = (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent;
+    assert.deepEqual([task.status, task.resolution, task.duplicateOf], ['closed', resolution, id === 'tt-6' ? 'tt-7' : null], id);
+  }
+  const listed = (await call(f, 'list_tasks', { workspace: A, project: P })).structuredContent.tasks;
+  assert.deepEqual(Object.fromEntries(listed.map(row => [row.id, row.resolution ?? null])), { ...ended, 'tt-7': null },
+    'an open task carries no resolution');
+  assert.equal(listed.find(row => row.id === 'tt-6').duplicateOf, 'tt-7');
+
+  // A close recorded before resolutions existed, or for an earlier close, reads as done.
+  f.tasks.get('tt-3').closed_at = '2026-10-08T12:00:00Z';
+  assert.equal((await call(f, 'get_task', { workspace: A, project: P, task: 'tt-3' })).structuredContent.task.resolution, 'done');
+
+  const refused = async (extra, cause) => {
+    const before = f.effects.length;
+    const reply = await close('tt-7', extra, `agent-close-0919-${f.effects.length}-${Object.keys(extra).join('')}`);
+    assert.equal(reply.isError, true, String(cause));
+    assert.match(reply.content[0].text, cause);
+    assert.equal(f.effects.length, before, 'nothing closed');
+  };
+  await refused({ resolution: 'fixed' }, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)$/u);
+  await refused({ resolution: 'duplicate' }, /^invalid arguments: duplicate_of \(required with resolution duplicate/u);
+  await refused({ duplicate_of: 'tt-1' }, /^invalid arguments: duplicate_of \(only with resolution duplicate\)$/u);
+  await refused({ resolution: 'duplicate', duplicate_of: 'tt-9' }, /^refused: tt-9 is not a task in projectId .* \(Example\)/u);
+
+  // The Tower's close action carries the same two fields, and names a refused one's cause.
+  const person = (id, body) => f.http(new Request(`${origin}/api/tasks/${id}/close`, { method: 'POST', headers: { origin,
+    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  assert.equal((await person('tt-7', { reason: 'Nobody asked', resolution: 'fixed' })).status, 400);
+  const missing = await person('tt-7', { reason: 'Same work', resolution: 'duplicate', duplicateOf: 'tt-9' });
+  assert.deepEqual([missing.status, (await missing.json()).detail], [409, 'tt-9 is not a task in Example.']);
+  assert.equal((await person('tt-7', { reason: 'Nobody asked for it' , resolution: 'wont-do' })).status, 200);
+  const seven = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-7' })).structuredContent.task;
+  assert.deepEqual([seven.closeReason, seven.resolution, seven.metadata.noticeos_closed_by], ['Nobody asked for it', 'wont-do', PERSON]);
+
+  // Dismiss on a person's ask closes as won't do, or as the resolution the person names; never as done.
+  const dismiss = (id, body) => f.http(new Request(`${origin}/api/tasks/${id}/dismiss`, { method: 'POST', headers: { origin,
+    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  for (const [index, title] of ['Should we?', 'Is it still needed?'].entries()) {
+    await call(f, 'create_task', { workspace: A, project: P, title, labels: ['human'], idempotency_key: `agent-create-092${index}` });
+  }
+  assert.equal((await dismiss('tt-8', { resolution: 'done' })).status, 400);
+  assert.equal((await dismiss('tt-8', {})).status, 200);
+  assert.equal((await dismiss('tt-9', { reason: 'tt-5 covered it', resolution: 'already-handled' })).status, 200);
+  for (const [id, reason, resolution] of [['tt-8', 'Dismissed', 'wont-do'], ['tt-9', 'Dismissed: tt-5 covered it', 'already-handled']]) {
+    const asked = (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent.task;
+    assert.deepEqual([asked.status, asked.closeReason, asked.resolution], ['closed', reason, resolution], id);
+  }
+});
+
 test('an answer hands a task that is not a decision back to ready work; a decision still closes on it', async () => {
   const f = fixture();
   const create = filer(f);

@@ -1,6 +1,7 @@
 import { Check, Reply } from "lucide-react";
 import type { TaskChoices } from "@noticeos/contract/task-choices";
 import { ChoiceButtons } from "@/components/ChoiceButtons";
+import { CloseAsMenu } from "@/components/CloseResolution";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { Button } from "@/components/ui/button";
 import type { BoardTask } from "@/lib/task-board-read";
@@ -9,8 +10,8 @@ import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/ro
 
 // The task page's header in each state it is read in, with invented tasks:
 // an epic with its progress, a task somebody holds, decisions waiting on the
-// operator, a pick and a closed task with its reason. Each action is inert
-// here.
+// operator, a pick, a closed task with its reason and closes where nothing
+// shipped. Each action is inert here.
 
 const HOUR = 3_600_000;
 const CHOICES: TaskChoices = {
@@ -83,11 +84,11 @@ export function TaskHeadDemo() {
           facts={{ ...base, title: "Which sentence goes over the close reason box?", ask: "answer" }}
           crumbs={crumbs("Tasks are managed in the Tower")}
           nowMs={now}
-          actions={<><Button size="sm"><Reply aria-hidden />Answer</Button><Button size="sm" variant="ghost">Dismiss</Button></>}
+          actions={<><Button size="sm"><Reply aria-hidden />Answer</Button><CloseAsMenu subject="Which sentence goes over the close reason box?" onPick={() => undefined} /></>}
         />
       </div>
       {/* A question with choices: the options under the header, Answer and
-          Dismiss under them; then the same task once a person has picked. */}
+          Close as under them; then the same task once a person has picked. */}
       <div className="border-t border-border pt-4">
         <TaskHead
           id="os-8f7p.11"
@@ -98,7 +99,7 @@ export function TaskHeadDemo() {
           <ChoiceButtons
             choices={CHOICES}
             onChoose={() => undefined}
-            footer={<><Button size="sm" variant="outline"><Reply aria-hidden />Answer</Button><Button size="sm" variant="ghost">Dismiss</Button></>}
+            footer={<><Button size="sm" variant="outline"><Reply aria-hidden />Answer</Button><CloseAsMenu subject="Retire the old recipe page" onPick={() => undefined} /></>}
           />
         </TaskHead>
       </div>
@@ -154,6 +155,31 @@ export function TaskHeadDemo() {
           <ClosedSummary by="claude" model="Opus 5.5" at={new Date(now - 30 * HOUR).toISOString()} nowMs={now}>
             <p className="m-0 text-sm">Landed in 1a2b3c4: the board and the task page read the same tasks.</p>
           </ClosedSummary>
+        </TaskHead>
+      </div>
+      {/* Closes where nothing shipped: the resolution leads, with who, when
+          and the note; a duplicate links the task it names. */}
+      <div className="border-t border-border pt-4">
+        <TaskHead
+          id="os-8f7p.12"
+          facts={{ ...base, title: "Print view for the task board", status: "closed" }}
+          crumbs={crumbs("Tasks are managed in the Tower")}
+          nowMs={now}
+        >
+          <ClosedSummary by="Dana" model={null} at={new Date(now - 2 * HOUR).toISOString()} nowMs={now} resolution="wont-do">
+            <p className="m-0 text-sm">Nobody prints the board; the export covers it.</p>
+          </ClosedSummary>
+        </TaskHead>
+      </div>
+      <div className="border-t border-border pt-4">
+        <TaskHead
+          id="os-8f7p.13"
+          facts={{ ...base, title: "The board reads the task database", issueType: "bug", status: "closed" }}
+          crumbs={crumbs("Tasks are managed in the Tower")}
+          nowMs={now}
+        >
+          <ClosedSummary by="claude" model="Opus 5.5" at={new Date(now - 5 * HOUR).toISOString()} nowMs={now} resolution="duplicate"
+            duplicate={<a href="/tasks/os-8f7p.1" className="font-mono text-xs text-foreground underline underline-offset-4">os-8f7p.1</a>} />
         </TaskHead>
       </div>
     </div>

@@ -24,7 +24,8 @@ import type {
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
-import { answerSteps, choiceSteps, decisionRefusal, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
+import { answerSteps, choiceSteps, closerMetadata, decisionRefusal, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
 import {
@@ -78,6 +79,8 @@ export const ALLOWED_VERBS: Readonly<Record<string, BdVerb>> = {
   update: { tokens: ["update"], write: true },
   close: { tokens: ["close"], write: true },
   "comments add": { tokens: ["comments", "add"], write: true },
+  /** Only the related link a close or a dismissal as a duplicate adds. */
+  "dep add": { tokens: ["dep", "add"], write: true },
   "human respond": { tokens: ["human", "respond"], write: true },
   "human dismiss": { tokens: ["human", "dismiss"], write: true },
   "gate resolve": { tokens: ["gate", "resolve"], write: true },
@@ -118,6 +121,12 @@ export const TASK_ACTION_VERBS: Readonly<Record<string, string>> = {
 // ─────────────────────────────────────────────────────────────────────────────
 // Options and wiring
 // ─────────────────────────────────────────────────────────────────────────────
+
+/** How a close ended, as the close action takes it; absent fields close as done. */
+interface CloseResolution {
+  resolution?: TaskResolution;
+  duplicateOf?: string;
+}
 
 export interface BdResult {
   code: number;
@@ -641,10 +650,12 @@ async function actOnTask(
   if (action === "close") {
     // A close without a reason is one nobody can audit.
     const reason = requiredString(input, "reason");
+    const ended = closeResolution(input, id, spoke, opts);
     // One actor for the close and the closer it records.
     const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+    linkDuplicate(id, ended, spoke, operatorOpts);
     const { json } = runVerb(verb, [id, "--reason", reason], spoke, operatorOpts);
-    recordCloser(id, json, spoke, operatorOpts);
+    recordCloser(id, json, spoke, operatorOpts, ended);
   } else if (action === "comments") {
     const commentText = requiredString(input, "text");
     runVerb(verb, [id, commentText], spoke, opts);
@@ -658,19 +669,70 @@ async function actOnTask(
   } else {
     // `bd human dismiss` takes an optional reason.
     const reason = optionalString(input, "reason");
-    runVerb(verb, reason === null ? [id] : [id, "--reason", reason], spoke, opts);
+    const ended = closeResolution(input, id, spoke, opts);
+    if (ended.resolution === "done") throw refuse(422, "invalid_body", "a dismissed task is not done; resolution is one of the others");
+    const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
+    linkDuplicate(id, ended, spoke, operatorOpts);
+    runVerb(verb, reason === null ? [id] : [id, "--reason", reason], spoke, operatorOpts);
+    // A dismissed ask closes as won't do unless another resolution was named,
+    // recorded with its closer as a close is.
+    let shown: unknown;
+    try {
+      shown = runVerb("show", [id], spoke, opts).json;
+    } catch {
+      shown = undefined;
+    }
+    recordCloser(id, shown, spoke, operatorOpts, { ...ended, resolution: ended.resolution ?? "wont-do" });
   }
   return { status: 200, body: { id, project: spoke.asset } };
 }
 
-/** Who closed it, written onto the task after the close: `bd` keeps no
- * closer. The close stands whether or not this lands. */
-function recordCloser(id: string, closed: unknown, spoke: Spoke, opts: Resolved & { actor: string }): void {
+/** Before a close as a duplicate: the related link that lets either task's
+ * page reach the other. A link the two already have, of any type, stays, and
+ * the close goes ahead without a new one. */
+function linkDuplicate(id: string, ended: CloseResolution, spoke: Spoke, opts: Resolved & { actor: string }): void {
+  if (ended.duplicateOf === undefined) return;
+  try {
+    runVerb("dep add", [id, ended.duplicateOf, "--type", "related"], spoke, opts);
+  } catch {
+    // See above.
+  }
+}
+
+/** A close's resolution, and the other task a duplicate names: one of this
+ * project's tasks, read before anything closes. Absent fields close as done. */
+function closeResolution(input: Record<string, unknown>, id: string, spoke: Spoke, opts: Resolved): CloseResolution {
+  const resolution = optionalString(input, "resolution");
+  const duplicateOf = optionalString(input, "duplicateOf");
+  if (resolution !== null && !isTaskResolution(resolution)) {
+    throw refuse(422, "invalid_body", `resolution is one of ${TASK_RESOLUTIONS.join(", ")}`);
+  }
+  if (resolution === "duplicate" && duplicateOf === null) {
+    throw refuse(422, "invalid_body", "duplicateOf is required with resolution duplicate");
+  }
+  if (duplicateOf === null) return resolution === null ? {} : { resolution };
+  if (resolution !== "duplicate") throw refuse(422, "invalid_body", "duplicateOf goes with resolution duplicate only");
+  if (!isTaskId(duplicateOf) || duplicateOf === id) throw refuse(422, "invalid_body", "duplicateOf is the id of another task");
+  if (prefixOf(duplicateOf) !== spoke.prefix) {
+    throw refuse(409, "task_refused", `${duplicateOf} is not a task in this project, whose tasks start ${spoke.prefix}-.`);
+  }
+  try {
+    readDecisionTask(duplicateOf, spoke, opts);
+  } catch {
+    throw refuse(409, "task_refused", `${duplicateOf} is not a task in this project.`);
+  }
+  return { resolution, duplicateOf };
+}
+
+/** Who closed it and how it ended, written onto the task after the close:
+ * `bd` keeps no closer. The close stands whether or not this lands; a task
+ * without it shows no closer and reads as done. */
+function recordCloser(id: string, closed: unknown, spoke: Spoke, opts: Resolved & { actor: string }, ended: CloseResolution = {}): void {
   const row = (Array.isArray(closed) ? closed : [closed]).find((entry): entry is Record<string, unknown> =>
     entry !== null && typeof entry === "object" && (entry as Record<string, unknown>).id === id);
   if (row?.status !== "closed" || typeof row.closed_at !== "string") return;
-  const metadata = { [TASK_METADATA.closedBy.name]: opts.actor, [TASK_METADATA.closedAt.name]: row.closed_at };
   try {
+    const metadata = closerMetadata({ kind: "attribute", taskId: id, closedBy: opts.actor, closedAt: row.closed_at, ...ended });
     runVerb("update", [id, "--metadata", JSON.stringify(metadata)], spoke, opts);
   } catch {
     // The task shows its close without a closer.

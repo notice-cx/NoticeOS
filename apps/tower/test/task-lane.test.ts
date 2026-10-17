@@ -258,6 +258,7 @@ describe("the guards", () => {
       "comments",
       "comments add",
       "create",
+      "dep add",
       "epic status",
       "gate resolve",
       "human dismiss",
@@ -584,8 +585,79 @@ describe("the writes", () => {
       ["show", "ro-aaa", "--json"],
       ["human", "respond", "ro-aaa"],
       ["human", "dismiss", "ro-aaa"],
+      // The dismissal's close time, read for its record; this one is not closed, so nothing is written.
+      ["show", "ro-aaa", "--json"],
       ["gate", "resolve", "ro-5n5"],
     ]);
+  });
+
+  it("records a dismissed ask as closed as won't do by the operator who dismissed it", async () => {
+    await reset();
+    const closedAt = "2026-10-17T12:00:00Z";
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...HUMAN_ROW, status: "closed", closed_at: closedAt }]) });
+    expect((await ask("POST", "/api/tasks/ro-aaa/dismiss", {})).status).toBe(200);
+    const calls = (await spawned()).map((argv) => argv.slice(2));
+    expect(calls.map((argv) => argv.slice(0, 2))).toEqual([["human", "dismiss"], ["show", "ro-aaa"], ["update", "ro-aaa"]]);
+    expect(JSON.parse(calls[2]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "wont-do" });
+
+    // Another resolution for what was declined, and a duplicate linked first; a dismissal is never done.
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...CANNED, show: JSON.stringify([{ ...SECOND_ROW, status: "closed", closed_at: closedAt }]) });
+    expect((await ask("POST", "/api/tasks/ro-aaa/dismiss", { reason: "Asked twice", resolution: "duplicate", duplicateOf: "ro-bbb" })).status)
+      .toBe(200);
+    expect((await spawned()).map((argv) => argv.slice(2, 4))).toEqual([["show", "ro-bbb"], ["dep", "add"], ["human", "dismiss"], ["show", "ro-aaa"]]);
+    await reset();
+    expect((await ask("POST", "/api/tasks/ro-aaa/dismiss", { resolution: "done" })).status).toBe(422);
+    expect(await spawned()).toEqual([]);
+  });
+
+  it("closes with a resolution, the reason as given, and a duplicate linked to the task it names", async () => {
+    const closedAt = "2026-10-17T12:00:00Z";
+    const closing = { ...CANNED, close: JSON.stringify([{ ...LIST_ROW, status: "closed", closed_at: closedAt }]) };
+    await reset();
+    process.env.FAKE_BD_CANNED = JSON.stringify(closing);
+    expect((await ask("POST", "/api/tasks/ro-aaa/close", { reason: "Nobody asked for it", resolution: "wont-do" })).status).toBe(200);
+    const plain = (await spawned()).map((argv) => argv.slice(2));
+    expect(plain[0]).toEqual(["close", "ro-aaa", "--reason", "Nobody asked for it", "--json", "--actor", "test-operator"]);
+    expect(JSON.parse(plain[1]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "wont-do" });
+
+    await reset();
+    // The other task is read first: a show of it answers with it.
+    process.env.FAKE_BD_CANNED = JSON.stringify({ ...closing, show: JSON.stringify([SECOND_ROW]) });
+    expect((await ask("POST", "/api/tasks/ro-aaa/close", { reason: "Same work as ro-bbb", resolution: "duplicate", duplicateOf: "ro-bbb" })).status)
+      .toBe(200);
+    const duplicate = (await spawned()).map((argv) => argv.slice(2));
+    expect(duplicate.map((argv) => argv.slice(0, 2))).toEqual([["show", "ro-bbb"], ["dep", "add"], ["close", "ro-aaa"], ["update", "ro-aaa"]]);
+    expect(duplicate[1]).toEqual(["dep", "add", "ro-aaa", "ro-bbb", "--type", "related", "--json", "--actor", "test-operator"]);
+    expect(JSON.parse(duplicate[3]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "duplicate", noticeos_duplicate_of: "ro-bbb" });
+  });
+
+  it("refuses a close's resolution with its cause named, before writing anything", async () => {
+    for (const [body, status, detail] of [
+      [{ reason: "x", resolution: "fixed" }, 422, "resolution is one of done, wont-do, duplicate, cant-reproduce, already-handled"],
+      [{ reason: "x", resolution: "duplicate" }, 422, "duplicateOf is required with resolution duplicate"],
+      [{ reason: "x", resolution: "wont-do", duplicateOf: "ro-bbb" }, 422, "duplicateOf goes with resolution duplicate only"],
+      [{ reason: "x", resolution: "duplicate", duplicateOf: "ro-aaa" }, 422, "duplicateOf is the id of another task"],
+      [{ reason: "x", resolution: "duplicate", duplicateOf: "ox-111" }, 409, "ox-111 is not a task in this project, whose tasks start ro-."],
+    ] as const) {
+      await reset();
+      const reply = await ask("POST", "/api/tasks/ro-aaa/close", body);
+      expect(reply).toEqual({ status, body: { error: status === 409 ? "task_refused" : "invalid_body", detail } });
+      expect(await spawned()).toEqual([]);
+    }
+    // A task this project does not hold is read and refused.
+    await reset();
+    process.env.FAKE_BD_FAIL = "show";
+    try {
+      expect(await ask("POST", "/api/tasks/ro-aaa/close", { reason: "x", resolution: "duplicate", duplicateOf: "ro-zzz" }))
+        .toEqual({ status: 409, body: { error: "task_refused", detail: "ro-zzz is not a task in this project." } });
+    } finally {
+      delete process.env.FAKE_BD_FAIL;
+    }
+    expect((await spawned()).map((argv) => argv[2])).toEqual(["show"]);
   });
 
   it("hands a task that is not a decision back to ready work with the answer as a comment", async () => {
@@ -631,7 +703,8 @@ describe("the writes", () => {
     const decided = (await spawned()).map((argv) => argv.slice(2));
     expect(decided.map((argv) => argv[0])).toEqual(["show", "comments", "update", "comments", "close", "update"]);
     expect(decided[4]).toEqual(["close", "ro-aaa", "--reason", "Chose (c) Keep both", "--force", "--json", "--actor", "test-operator"]);
-    expect(JSON.parse(decided[5]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt });
+    expect(JSON.parse(decided[5]?.[3] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "done" });
   });
 
   it("refuses a pick with its cause named, before writing anything", async () => {
@@ -662,7 +735,8 @@ describe("the writes", () => {
     const [close, record] = await spawned();
     expect(close?.slice(2, 4)).toEqual(["close", "ro-aaa"]);
     expect(record?.slice(2, 5)).toEqual(["update", "ro-aaa", "--metadata"]);
-    expect(JSON.parse(record?.[5] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt });
+    expect(JSON.parse(record?.[5] ?? "{}")).toEqual({ noticeos_closed_by: "test-operator", noticeos_closed_at: closedAt,
+      noticeos_resolution: "done" });
     expect(record?.[record.indexOf("--actor") + 1]).toBe("test-operator");
 
     await reset();
@@ -700,10 +774,11 @@ describe("the writes", () => {
     await ask("POST", "/api/gates/ro-5n5/resolve", {});
 
     const calls = await spawned();
-    // An answer reads its task first, to tell a decision from a task that goes back to ready work.
+    // An answer reads its task first, to tell a decision from a task that goes back to ready work,
+    // and a dismissal reads its close time after.
     const reads = calls.filter((argv) => argv[2] === "show");
-    expect(reads).toHaveLength(1);
-    expect(reads[0]).not.toContain("--actor");
+    expect(reads).toHaveLength(2);
+    for (const argv of reads) expect(argv).not.toContain("--actor");
     const writes = calls.filter((argv) => argv[2] !== "show");
     expect(writes).toHaveLength(7);
     for (const argv of writes) {

@@ -14,6 +14,7 @@
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
+import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
 export type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
@@ -66,7 +67,8 @@ export function supersededPayload(payload: string): string {
       counts: project.counts,
       recentlyClosed: closed
         .filter(isRecord)
-        .map((item) => ({ id: item.id, title: item.title, closedAt: item.closedAt ?? null })),
+        .map((item) => ({ id: item.id, title: item.title, closedAt: item.closedAt ?? null,
+          ...(item.resolution === undefined ? {} : { resolution: item.resolution }) })),
       ...(created === undefined
         ? {}
         : {
@@ -149,6 +151,19 @@ interface StoredIssue {
   /** The options a person picks from and the pick; present only when the poller sent them. */
   choices?: TaskChoices;
   choice?: TaskChoice;
+  /** How a close that is not done ended, and the task a duplicate names;
+   * present only when the poller sent them. */
+  resolution?: NotDone;
+  duplicateOf?: string;
+}
+
+/** A close's resolution as a snapshot carries it: done is the absence of one. */
+type NotDone = Exclude<TaskResolution, 'done'>;
+function optionalResolution(issues: Issues, value: unknown, path: string): NotDone | null {
+  if (value === undefined || value === null) return null;
+  if (isTaskResolution(value) && value !== 'done') return value;
+  issues.add(path, 'custom', `${path} must be one of ${TASK_RESOLUTIONS.filter(entry => entry !== 'done').join(', ')}`);
+  return null;
 }
 
 interface StoredEpic {
@@ -184,8 +199,8 @@ interface StoredHandoff {
 /** Who did the work, normalized: `model` is always a key, null when none was named. */
 type StoredWorker = Omit<BeadsWorkerInput, 'model'> & { model: string | null };
 /** A pick carries its option and label; a claim or close carries neither key. */
-type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence' | 'option' | 'label'>
-  & { model: string | null; evidence: string | null; option?: TaskChoiceKey; label?: string };
+type StoredWorkEvent = Omit<BeadsWorkEventInput, 'model' | 'evidence' | 'option' | 'label' | 'resolution'>
+  & { model: string | null; evidence: string | null; option?: TaskChoiceKey; label?: string; resolution?: NotDone };
 export const BEADS_MAX_WORKERS = 20;
 export const BEADS_MAX_WORK = 12;
 export const BEADS_MODEL_MAX = 128;
@@ -278,6 +293,11 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     || choice.label.length > TASK_CHOICE_LIMITS.label || (choice.note?.length ?? 0) > TASK_CHOICE_LIMITS.note)) {
     issues.add(`${path}.choice`, 'custom', `${path}.choice must be a recorded pick: option, label, by and at`);
   }
+  const resolution = optionalResolution(issues, raw.resolution, `${path}.resolution`);
+  const duplicateOf = optionalString(issues, raw.duplicateOf, `${path}.duplicateOf`, BEADS_ID_MAX);
+  if (duplicateOf !== null && resolution !== 'duplicate') {
+    issues.add(`${path}.duplicateOf`, 'custom', `${path}.duplicateOf goes with resolution duplicate only`);
+  }
 
   if (id === null || title === null || status === null || issueType === null || priority === null) {
     return null;
@@ -290,6 +310,8 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     ...(filedModel === null ? {} : { filedModel }),
     ...(choices === null ? {} : { choices }),
     ...(choice === null ? {} : { choice }),
+    ...(resolution === null ? {} : { resolution }),
+    ...(duplicateOf === null || resolution !== 'duplicate' ? {} : { duplicateOf }),
   };
 }
 
@@ -605,9 +627,13 @@ function parseRecentWork(issues: Issues, value: unknown, path: string): StoredWo
     const option = kind === 'chosen' && (TASK_CHOICE_KEYS as readonly unknown[]).includes(raw.option) ? raw.option as TaskChoiceKey : null;
     const label = kind === 'chosen' ? requiredString(issues, raw.label, `${at}.label`, TASK_CHOICE_LIMITS.label) : null;
     if (kind === 'chosen' && option === null) issues.add(`${at}.option`, 'custom', `${at}.option must be one of a to f`);
+    // A close names how it ended when it is not done; nothing else does.
+    const resolution = optionalResolution(issues, raw.resolution, `${at}.resolution`);
+    if (resolution !== null && kind !== 'closed') issues.add(`${at}.resolution`, 'custom', `${at}.resolution goes with a close only`);
     if (kind === null || taskId === null || title === null || by === null || instant === null) return null;
     if (kind === 'chosen' && (option === null || label === null)) return null;
-    out.push({ kind, taskId, title, by, model, at: instant, evidence, ...(option === null || label === null ? {} : { option, label }) });
+    out.push({ kind, taskId, title, by, model, at: instant, evidence, ...(option === null || label === null ? {} : { option, label }),
+      ...(resolution === null || kind !== 'closed' ? {} : { resolution }) });
   }
   return out;
 }

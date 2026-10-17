@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { answerComment, answerSteps, choiceCloseReason, choiceComment, choiceSteps, createHostedTaskPlanner, decisionGuardTargets, decisionRefusal,
+import { answerComment, answerSteps, choiceCloseReason, choiceComment, choiceSteps, closerMetadata, createHostedTaskPlanner, decisionGuardTargets, decisionRefusal,
   guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, refusalFromState, TaskStateRefused,
   writeGuardReads } from './hosted-task-command.mjs';
 
@@ -292,8 +292,9 @@ test('a claim keeps its model in the same write; only the server records who clo
     plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Done' })).argv);
   const attributed = plan(A, request({ kind: 'attribute', taskId: 'tt-a', closedBy: 'claude', closedAt: '2026-10-15T16:00:00Z', model: 'Opus 5.5' }));
   assert.equal(attributed.readOnly, false);
+  // A close that names no resolution is recorded as done, so a reopened task's next close never reads an earlier one's.
   assert.deepEqual(attributed.argv.slice(2), ['update', `--metadata=${JSON.stringify({ noticeos_closed_by: 'claude',
-    noticeos_closed_at: '2026-10-15T16:00:00Z', noticeos_closed_model: 'Opus 5.5' })}`, '--', 'tt-a']);
+    noticeos_closed_at: '2026-10-15T16:00:00Z', noticeos_closed_model: 'Opus 5.5', noticeos_resolution: 'done' })}`, '--', 'tt-a']);
   for (const operation of [
     { kind: 'update', taskId: 'tt-a', title: 'x', model: 'Opus 5.5' },
     { kind: 'update', taskId: 'tt-a', claim: true, model: 'two\nlines' },
@@ -302,8 +303,43 @@ test('a claim keeps its model in the same write; only the server records who clo
     { kind: 'close', taskId: 'tt-a', reason: 'Done', model: '' },
     { kind: 'attribute', taskId: 'tt-a', closedBy: 'claude', closedAt: 'yesterday' },
     { kind: 'attribute', taskId: 'tt-a', closedAt: '2026-10-15T16:00:00Z' },
-    ...['noticeos_closed_by', 'noticeos_closed_model', 'noticeos_closed_at', 'noticeos_claimed_model', 'noticeos_filed_by', 'noticeos_filed_model']
+    ...['noticeos_closed_by', 'noticeos_closed_model', 'noticeos_closed_at', 'noticeos_claimed_model', 'noticeos_filed_by', 'noticeos_filed_model',
+      'noticeos_resolution', 'noticeos_duplicate_of']
       .map(name => ({ kind: 'create', title: 'Task', metadata: { [name]: 'forged' } })),
+  ]) denied(() => plan(A, request(operation)));
+});
+
+test('a close names how it ended for its attribution, and the close itself keeps the caller\'s reason unchanged', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const plain = plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Nothing to do here' })).argv;
+  for (const resolution of ['done', 'wont-do', 'cant-reproduce', 'already-handled']) {
+    assert.deepEqual(plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Nothing to do here', resolution })).argv, plain, resolution);
+    const attributed = plan(A, request({ kind: 'attribute', taskId: 'tt-a', closedBy: 'dana', closedAt: '2026-10-17T12:00:00Z', resolution }));
+    assert.deepEqual(attributed.argv.slice(2), ['update', `--metadata=${JSON.stringify({ noticeos_closed_by: 'dana',
+      noticeos_closed_at: '2026-10-17T12:00:00Z', noticeos_resolution: resolution })}`, '--', 'tt-a'], resolution);
+  }
+  assert.deepEqual(plan(A, request({ kind: 'close', taskId: 'tt-a', reason: 'Nothing to do here', resolution: 'duplicate', duplicateOf: 'tt-b' })).argv, plain);
+  assert.deepEqual(plan(A, request({ kind: 'attribute', taskId: 'tt-a', closedBy: 'dana', closedAt: '2026-10-17T12:00:00Z',
+    resolution: 'duplicate', duplicateOf: 'tt-b' })).argv.slice(2), ['update', `--metadata=${JSON.stringify({ noticeos_closed_by: 'dana',
+    noticeos_closed_at: '2026-10-17T12:00:00Z', noticeos_resolution: 'duplicate', noticeos_duplicate_of: 'tt-b' })}`, '--', 'tt-a']);
+  assert.deepEqual(closerMetadata({ kind: 'attribute', taskId: 'tt-a', closedBy: 'dana', closedAt: '2026-10-17T12:00:00Z', resolution: 'wont-do' }),
+    { noticeos_closed_by: 'dana', noticeos_closed_at: '2026-10-17T12:00:00Z', noticeos_resolution: 'wont-do' });
+  // A dismissal takes the resolution its record will carry, never done; its own command is unchanged.
+  const dismissed = plan(A, request({ kind: 'dismiss', taskId: 'tt-a' })).argv;
+  assert.deepEqual(plan(A, request({ kind: 'dismiss', taskId: 'tt-a', resolution: 'already-handled' })).argv, dismissed);
+  assert.deepEqual(plan(A, request({ kind: 'dismiss', taskId: 'tt-a', resolution: 'duplicate', duplicateOf: 'tt-b' })).argv, dismissed);
+  for (const operation of [
+    { kind: 'dismiss', taskId: 'tt-a', resolution: 'done' },
+    { kind: 'dismiss', taskId: 'tt-a', resolution: 'duplicate' },
+    { kind: 'dismiss', taskId: 'tt-a', duplicateOf: 'tt-b' },
+    { kind: 'resolve-gate', taskId: 'tt-a', resolution: 'wont-do' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', resolution: 'fixed' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', resolution: 'duplicate' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', resolution: 'wont-do', duplicateOf: 'tt-b' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', duplicateOf: 'tt-b' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', resolution: 'duplicate', duplicateOf: 'tt-a' },
+    { kind: 'close', taskId: 'tt-a', reason: 'Done', resolution: 'duplicate', duplicateOf: '--force' },
+    { kind: 'attribute', taskId: 'tt-a', closedBy: 'dana', closedAt: '2026-10-17T12:00:00Z', resolution: 'Done' },
   ]) denied(() => plan(A, request(operation)));
 });
 
@@ -523,9 +559,12 @@ test('a pick names why it is refused, and an interrupted one is finished by the 
   refusedWith({ ...chosen, status: 'closed' }, choosing('b'), { kind: 'chosen', chosen: '(b) Redirect to the new page' });
   const sentence = (reason) => decisionRefusal(new TaskStateRefused('tt-a', 'other', reason));
   assert.deepEqual([sentence({ kind: 'chosen', chosen: '(b) Redirect' }), sentence({ kind: 'chosen', chosen: null }), sentence({ kind: 'no-choices' }),
-    sentence({ kind: 'no-option', option: 'e', offered: ['a', 'b', 'c'] }), sentence({ kind: 'closed' }), sentence({ kind: 'held', holder: 'x' })], [
+    sentence({ kind: 'no-option', option: 'e', offered: ['a', 'b', 'c'] }), sentence({ kind: 'closed' }), sentence({ kind: 'held', holder: 'x' }),
+    sentence({ kind: 'missing', project: { projectId: 'p', name: 'Example', prefix: 'tt' } }),
+    sentence({ kind: 'not-open', status: 'blocked', blockers: [] })], [
     'tt-a already has a choice: (b) Redirect.', 'tt-a already has a choice.', 'tt-a offers no options to choose from.',
-    'tt-a offers (a), (b) and (c), not (e).', 'tt-a is already closed.', null]);
+    'tt-a offers (a), (b) and (c), not (e).', 'tt-a is already closed.', 'tt-a is held by x, and only its holder closes it.',
+    'tt-a is not a task in Example.', null]);
 });
 
 test('an answer on a task that is not a decision is a comment and a hand-back; a decision keeps the task client\'s own response', () => {

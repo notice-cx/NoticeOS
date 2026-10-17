@@ -949,6 +949,27 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
     ]) expect((await post({ projects: [bad] })).status).toBe(422);
   });
 
+  it('stores how a close that was not done ended, on its row and its line, and refuses one it cannot read', async () => {
+    const recentWork = [{ kind: 'closed', taskId: 'md-r2', title: 'Same as the export', by: 'Dana', model: null, at: '2026-08-02T10:00:00.000Z',
+      evidence: 'See md-r1', resolution: 'duplicate' }];
+    const stored = await storedProject({ projects: [project({ recentlyClosed: [
+      issue({ id: 'md-r1', status: 'closed', closedAt: '2026-08-02T09:00:00Z' }),
+      issue({ id: 'md-r2', status: 'closed', closedAt: '2026-08-02T10:00:00Z', resolution: 'duplicate', duplicateOf: 'md-r1' }),
+      issue({ id: 'md-r3', status: 'closed', closedAt: '2026-08-02T11:00:00Z', resolution: 'wont-do' }),
+    ], recentWork })] });
+    const closed = stored.recentlyClosed as Record<string, unknown>[];
+    expect(closed.map(row => [row.id, row.resolution ?? null, row.duplicateOf ?? null])).toEqual([
+      ['md-r1', null, null], ['md-r2', 'duplicate', 'md-r1'], ['md-r3', 'wont-do', null]]);
+    expect(stored.recentWork).toEqual(recentWork);
+    for (const bad of [
+      project({ recentlyClosed: [issue({ id: 'md-r1', status: 'closed', resolution: 'done' })] }),
+      project({ recentlyClosed: [issue({ id: 'md-r1', status: 'closed', resolution: 'fixed' })] }),
+      project({ recentlyClosed: [issue({ id: 'md-r1', status: 'closed', resolution: 'wont-do', duplicateOf: 'md-r0' })] }),
+      project({ recentWork: [{ ...recentWork[0], kind: 'claimed' }] }),
+      project({ recentWork: [{ ...recentWork[0], resolution: 'Done' }] }),
+    ]) expect((await post({ projects: [bad] })).status).toBe(422);
+  });
+
   it('stores who filed a new task and the model they named, and nothing for a task that names no filer', async () => {
     const stored = await storedProject({ projects: [project({ recentlyCreated: [
       issue({ id: 'md-n1', createdAt: '2026-08-01T09:00:00Z', filedBy: 'claude', filedModel: 'Opus 5.5' }),
@@ -1263,6 +1284,17 @@ describe('POST /api/beads-snapshot — keeps only what is read', () => {
     expect(JSON.parse(supersededPayload(payload)).projects[0].recentlyCreated).toEqual([
       { id: 'md-n1', title: 'Fix the recipe schema', createdAt: '2026-08-01T09:00:00.000Z', filedBy: 'claude', filedModel: 'Opus 5.5' },
       { id: 'md-n2', title: 'Fix the recipe schema', createdAt: '2026-08-01T08:00:00.000Z' },
+    ]);
+  });
+
+  it('keeps how a close that was not done ended, and adds nothing to a done one', () => {
+    const payload = JSON.stringify({ projects: [project({ recentlyClosed: [
+      issue({ id: 'md-r1', status: 'closed', closedAt: '2026-08-02T09:00:00.000Z' }),
+      issue({ id: 'md-r2', status: 'closed', closedAt: '2026-08-02T10:00:00.000Z', resolution: 'wont-do' }),
+    ] })] });
+    expect(JSON.parse(supersededPayload(payload)).projects[0].recentlyClosed).toEqual([
+      { id: 'md-r1', title: 'Fix the recipe schema', closedAt: '2026-08-02T09:00:00.000Z' },
+      { id: 'md-r2', title: 'Fix the recipe schema', closedAt: '2026-08-02T10:00:00.000Z', resolution: 'wont-do' },
     ]);
   });
 

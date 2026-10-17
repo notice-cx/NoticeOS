@@ -5,6 +5,7 @@
 /** The closed vocabulary, one entry per kind of line. */
 export const WALL_FEED_KINDS = [
   "task-done",
+  "task-closed",
   "task-claimed",
   "task-filed",
   "task-chosen",
@@ -30,9 +31,12 @@ export type WallFeedKind = (typeof WALL_FEED_KINDS)[number];
  * neutral ink. The glyph carries the kind, so colour is never alone. */
 export type WallFeedTone = "healthy" | "error" | "warn" | "info" | "revenue" | "cost" | "neutral";
 
-/** The kind's word, shown in capitals above the line. */
+/** The kind's word, shown in capitals above the line. A close where nothing
+ * shipped (`task-closed`) shows its resolution's word instead (Won't do,
+ * Duplicate, Can't reproduce, Already handled). */
 export const WALL_FEED_LABEL: Readonly<Record<WallFeedKind, string>> = {
   "task-done": "Task done",
+  "task-closed": "Closed",
   "task-claimed": "Claimed",
   "task-filed": "New task",
   "task-chosen": "Chosen",

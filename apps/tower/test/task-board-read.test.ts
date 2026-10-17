@@ -184,7 +184,7 @@ describe("task board read", () => {
     expect(view.counts.closed).toBeNull();
     expect(view.totals.urgent).toBeNull();
     expect(view.countsComplete).toBe(false);
-    expect(view.counts).toEqual({ waiting: null, urgent: null, open: null, inProgress: null, blocked: null, closed: null });
+    expect(view.counts).toEqual({ waiting: null, urgent: null, open: null, inProgress: null, blocked: null, closed: null, notDone: null });
     expect(view.shownAt).toBeNull();
   });
 

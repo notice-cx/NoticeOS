@@ -4464,7 +4464,8 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </span>
 <span class="min-w-0">
 <span class="font-semibold text-foreground">Read-only snapshot</span>
-<span> · Make changes from the local NoticeOS.</span>
+<span> · <span id="tasks-read-only-reason">Make changes from the local NoticeOS.</span>
+</span>
 </span>
 </div>
 </div>

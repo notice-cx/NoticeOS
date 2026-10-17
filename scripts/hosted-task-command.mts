@@ -10,6 +10,7 @@
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice,
   type TaskChoiceKey, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
+import { TASK_RESOLUTIONS, type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
 
 export const HOSTED_TASK_LIMITS = Object.freeze({
   projects: 4096, identifier: 128, title: 512, body: 8192,
@@ -63,12 +64,15 @@ export type HostedTaskOperation =
       /** With a claim only: the model the claimer names, kept on the task. */
       readonly model?: string }
   | { readonly kind: 'comment'; readonly taskId: string; readonly text: string }
-  /** `model` is the closer's, recorded by the attribution that follows the close.
-   * `force` closes a task someone else holds; only a workspace service may send
-   * it, and request parsers never construct it. */
-  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string; readonly model?: string; readonly force?: true }
-  /** Server-only: who closed a task, written after its close. Request parsers never construct it. */
-  | { readonly kind: 'attribute'; readonly taskId: string; readonly closedBy: string; readonly closedAt: string; readonly model?: string }
+  /** `model` and `resolution` (done when absent) are the closer's, recorded by
+   * the attribution that follows the close; `duplicateOf`, with a duplicate
+   * only, names the other task. `force` closes a task someone else holds; only
+   * a workspace service may send it, and request parsers never construct it. */
+  | { readonly kind: 'close'; readonly taskId: string; readonly reason: string; readonly model?: string; readonly force?: true;
+      readonly resolution?: TaskResolution; readonly duplicateOf?: string }
+  /** Server-only: who closed a task and how, written after its close. Request parsers never construct it. */
+  | { readonly kind: 'attribute'; readonly taskId: string; readonly closedBy: string; readonly closedAt: string; readonly model?: string;
+      readonly resolution?: TaskResolution; readonly duplicateOf?: string }
   | { readonly kind: 'depend'; readonly taskId: string; readonly dependsOn: string; readonly type: HostedTaskDependencyType }
   | { readonly kind: 'undepend'; readonly taskId: string; readonly dependsOn: string }
   /** Opens a human gate the task waits on. Only a person's resolve-gate clears it. */
@@ -76,7 +80,11 @@ export type HostedTaskOperation =
   | { readonly kind: 'lint'; readonly taskIds: readonly string[] }
   /** A decision task closes with the answer; any other task goes back to ready work with it (answerSteps). */
   | { readonly kind: 'respond'; readonly taskId: string; readonly response: string }
-  | { readonly kind: 'dismiss'; readonly taskId: string; readonly reason?: string }
+  /** A person declining an ask: it closes with the task client's own
+   * dismissal, recorded with `resolution` (won't do when absent; never done)
+   * and, for a duplicate, the other task. */
+  | { readonly kind: 'dismiss'; readonly taskId: string; readonly reason?: string;
+      readonly resolution?: Exclude<TaskResolution, 'done'>; readonly duplicateOf?: string }
   | { readonly kind: 'resolve-gate'; readonly taskId: string; readonly reason?: string }
   /** A person's pick of one of the task's choices, run as the steps choiceSteps plans. */
   | { readonly kind: 'choose'; readonly taskId: string; readonly option: TaskChoiceKey; readonly note?: string }
@@ -213,6 +221,18 @@ function choiceSet(value: unknown): TaskChoices {
   if (Object.hasOwn(row, 'options')) copy.options = entries(row.options, 0, TASK_CHOICE_LIMITS.most).map(option => ({ ...record(option) }));
   return taskChoicesOf(copy) ?? invalid();
 }
+/** A close's resolution as the attribution records it: done when the close
+ * names none, and the other task a duplicate names, which only a duplicate
+ * takes and must take. Written on every attributed close, so a reopened
+ * task's next close never reads an earlier one's. */
+function resolutionMetadata(op: Record<string, unknown>, taskId: string): Readonly<Record<string, string>> {
+  const resolution = Object.hasOwn(op, 'resolution') ? choice(op.resolution, TASK_RESOLUTIONS) : 'done';
+  if ((resolution === 'duplicate') !== Object.hasOwn(op, 'duplicateOf')) invalid();
+  if (resolution !== 'duplicate') return { [TASK_METADATA.resolution.name]: resolution };
+  const other = task(op.duplicateOf);
+  if (other === taskId) invalid();
+  return { [TASK_METADATA.resolution.name]: resolution, [TASK_METADATA.duplicateOf.name]: other };
+}
 function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
   // What only the server writes is never a caller's metadata.
   const row = record(value); keys(row, [], Object.values(TASK_METADATA).map(field => field.name)
@@ -220,6 +240,19 @@ function handoffMetadata(value: unknown): Readonly<Record<string, string>> {
   const result: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const [key, entry] of Object.entries(row)) result[key] = text(entry, HOSTED_TASK_LIMITS.metadataValue);
   return Object.freeze(result);
+}
+
+/** What a close's attribution writes onto its task: who closed it, when, the
+ * model they named and how it ended. The one copy for both writers of a
+ * close, the planner here and the Tower's local task lane. */
+export function closerMetadata(attribution: Extract<HostedTaskOperation, { kind: 'attribute' }>): Readonly<Record<string, string>> {
+  const op = record(attribution);
+  keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model', 'resolution', 'duplicateOf']);
+  if (op.kind !== 'attribute' || typeof op.closedAt !== 'string' || !Number.isFinite(Date.parse(op.closedAt)) || op.closedAt.length > 64) invalid();
+  return Object.freeze({ [TASK_METADATA.closedBy.name]: text(op.closedBy, HOSTED_TASK_LIMITS.identifier),
+    [TASK_METADATA.closedAt.name]: op.closedAt,
+    ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.closedModel.name]: model(op.model) } : {}),
+    ...resolutionMetadata(op, task(op.taskId)) });
 }
 
 function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'argv'> {
@@ -356,21 +389,18 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       argv.push('comments', 'add', '--', task(op.taskId), text(op.text, HOSTED_TASK_LIMITS.comment));
       break;
     case 'close':
-      keys(op, ['kind', 'taskId', 'reason'], ['model', 'force']);
+      keys(op, ['kind', 'taskId', 'reason'], ['model', 'force', 'resolution', 'duplicateOf']);
       if (Object.hasOwn(op, 'model')) model(op.model);
       if (Object.hasOwn(op, 'force') && op.force !== true) invalid();
+      // The resolution is the attribution's to write; the close reason stays the caller's own text.
+      resolutionMetadata(op, task(op.taskId));
       argv.push('close', `--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`, ...(op.force ? ['--force'] : []), '--', task(op.taskId));
       break;
-    case 'attribute': {
+    case 'attribute':
       // The task client's close carries no metadata, so the closer follows it.
-      keys(op, ['kind', 'taskId', 'closedBy', 'closedAt'], ['model']);
-      if (typeof op.closedAt !== 'string' || !Number.isFinite(Date.parse(op.closedAt)) || op.closedAt.length > 64) invalid();
-      const metadata = { [TASK_METADATA.closedBy.name]: text(op.closedBy, HOSTED_TASK_LIMITS.identifier),
-        [TASK_METADATA.closedAt.name]: op.closedAt,
-        ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.closedModel.name]: model(op.model) } : {}) };
-      argv.push('update', `--metadata=${JSON.stringify(metadata)}`, '--', task(op.taskId));
+      argv.push('update', `--metadata=${JSON.stringify(closerMetadata(op as unknown as Extract<HostedTaskOperation, { kind: 'attribute' }>))}`,
+        '--', task(op.taskId));
       break;
-    }
     case 'depend':
     case 'undepend': {
       keys(op, ['kind', 'taskId', 'dependsOn', ...(kind === 'depend' ? ['type'] : [])]);
@@ -391,7 +421,10 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     case 'dismiss':
     case 'resolve-gate':
-      keys(op, ['kind', 'taskId'], ['reason']);
+      keys(op, ['kind', 'taskId'], kind === 'dismiss' ? ['reason', 'resolution', 'duplicateOf'] : ['reason']);
+      // A dismissal records how it ended after it lands; nothing declined is done.
+      if (kind === 'dismiss' && (op.resolution === 'done' || Object.hasOwn(op, 'duplicateOf') && !Object.hasOwn(op, 'resolution'))) invalid();
+      if (kind === 'dismiss') resolutionMetadata(op, task(op.taskId));
       argv.push(...(kind === 'dismiss' ? ['human', 'dismiss'] : ['gate', 'resolve']));
       if (Object.hasOwn(op, 'reason')) argv.push(`--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`);
       argv.push('--', task(op.taskId));
@@ -672,11 +705,13 @@ export function answerSteps(operation: Extract<HostedTaskOperation, { kind: 'res
 function inWords(items: readonly string[]): string {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
 }
-/** A refused decision as the person who made it reads it on Tasks, or null
- * for a cause this does not name. */
+/** A refused decision or close as the person who made it reads it on Tasks,
+ * or null for a cause this does not name. */
 export function decisionRefusal({ taskId: id, reason }: TaskStateRefused): string | null {
   switch (reason.kind) {
     case 'closed': return `${id} is already closed.`;
+    case 'held': return `${id} is held by ${reason.holder}, and only its holder closes it.`;
+    case 'missing': return `${id} is not a task in ${reason.project.name}.`;
     case 'chosen': return reason.chosen === null ? `${id} already has a choice.` : `${id} already has a choice: ${reason.chosen}.`;
     case 'no-choices': return `${id} offers no options to choose from.`;
     case 'no-option': return `${id} offers ${inWords(reason.offered.map(key => `(${key})`))}, not (${reason.option}).`;

@@ -1,6 +1,7 @@
 import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
 import type { TaskChoiceKey } from '@noticeos/contract/task-choices';
+import type { TaskResolution } from '@noticeos/contract/task-resolution';
 import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
@@ -1239,10 +1240,23 @@ async function actOnTaskRequest(fetch: ApiTransport,
   if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
 }
 
+/** How a close ended when it is not done: the resolution and, for a
+ * duplicate, the other task's id. */
+export interface CloseTaskOptions extends TaskWriteOptions {
+  resolution?: TaskResolution;
+  duplicateOf?: string;
+}
+
 /** The reason is required, not decoration: completion is evidence, and the
- * closer cites what proves it. */
-function closeTaskRequest(fetch: ApiTransport, id: string, reason: string, project?: string): Promise<void> {
-  return actOnTaskRequest(fetch, id, "close", { reason }, project === undefined ? undefined : { project });
+ * closer cites what proves it, or says why nothing shipped. A close with no
+ * resolution is done. */
+function closeTaskRequest(fetch: ApiTransport, id: string, reason: string, options?: CloseTaskOptions): Promise<void> {
+  const { resolution, duplicateOf, ...write } = options ?? {};
+  return actOnTaskRequest(fetch, id, "close", {
+    reason,
+    ...(resolution === undefined || resolution === "done" ? {} : { resolution }),
+    ...(duplicateOf === undefined ? {} : { duplicateOf }),
+  }, write.project === undefined && write.keepalive === undefined ? undefined : write);
 }
 
 function commentOnTaskRequest(fetch: ApiTransport, id: string, text: string, project?: string): Promise<void> {
@@ -1263,9 +1277,15 @@ function chooseOnTaskRequest(fetch: ApiTransport, id: string, option: TaskChoice
 }
 
 /** Decline one permanently. The reason is optional — declining is itself the
- * answer. */
-function dismissTaskRequest(fetch: ApiTransport, id: string, reason?: string, options?: TaskWriteOptions): Promise<void> {
-  return actOnTaskRequest(fetch, id, "dismiss", reason === undefined ? {} : { reason }, options);
+ * answer. It closes as Won't do unless the options name another resolution
+ * (never Done) and, for a duplicate, the other task. */
+function dismissTaskRequest(fetch: ApiTransport, id: string, reason?: string, options?: CloseTaskOptions): Promise<void> {
+  const { resolution, duplicateOf, ...write } = options ?? {};
+  return actOnTaskRequest(fetch, id, "dismiss", {
+    ...(reason === undefined ? {} : { reason }),
+    ...(resolution === undefined || resolution === "wont-do" ? {} : { resolution }),
+    ...(duplicateOf === undefined ? {} : { duplicateOf }),
+  }, write.project === undefined && write.keepalive === undefined ? undefined : write);
 }
 
 /** Release a gate holding a task out of `bd ready`. Its own path because a gate

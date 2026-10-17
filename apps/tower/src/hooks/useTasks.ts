@@ -13,8 +13,13 @@ import { useSearchParams } from 'react-router-dom';
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
 import { TASKS_CLOSED_HISTORY_DAYS } from "@shared/tasks";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
-import { chooseOnTask, dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
+import { TASK_RESOLUTION_LABELS, type TaskResolution } from "@noticeos/contract/task-resolution";
+import { chooseOnTask, closeTask, dismissTask, resolveGate, respondToTask, type CloseTaskOptions, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
+
+/** A close where nothing shipped. */
+type NotDone = Exclude<TaskResolution, "done">;
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
+import { closeAsReason } from "@/lib/close-as";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
 
@@ -225,8 +230,14 @@ export function useCloseTask() {
   const refresh = useTaskRefresh();
   const selected = useTaskSelection();
   return useMutation({
-    mutationFn: ({ id, reason, project }: { id: string; reason: string; project?: string }) => {
-      const ownerProject = selected(project); return ownerProject === undefined ? closeTask(id, reason) : closeTask(id, reason, ownerProject);
+    mutationFn: ({ id, reason, project, resolution, duplicateOf }: { id: string; reason: string; project?: string } & Pick<CloseTaskOptions, "resolution" | "duplicateOf">) => {
+      const ownerProject = selected(project);
+      const options: CloseTaskOptions = {
+        ...(ownerProject === undefined ? {} : { project: ownerProject }),
+        ...(resolution === undefined || resolution === "done" ? {} : { resolution }),
+        ...(duplicateOf === undefined ? {} : { duplicateOf }),
+      };
+      return Object.keys(options).length === 0 ? closeTask(id, reason) : closeTask(id, reason, options);
     },
     onSuccess: () => refresh(),
   });
@@ -245,28 +256,42 @@ export function useCommentOnTask() {
 }
 
 /**
- * The inbox's four answers, approve a gate, answer an ask, pick one of its
- * choices, decline it, each one call on the lane: `bd gate resolve`, an answer,
- * a pick, `bd human dismiss`. Each is one press on its row, the row leaves at
- * once, and the call is made when the Undo window closes
- * (`lib/answer-queue.ts`), because none has an inverse the lane can run. An
- * answer or a pick closes a decision and hands any other task back to ready
- * work with the human label off; either way the task leaves the inbox, so each
- * invalidates everything a close does.
+ * The inbox's answers, approve a gate, answer an ask, pick one of its
+ * choices, decline it, and a close where nothing shipped, each one call on the
+ * lane: `bd gate resolve`, an answer, a pick, `bd human dismiss`, a close with
+ * its resolution. Each is one press on its row, the row leaves at once, and
+ * the call is made when the Undo window closes (`lib/answer-queue.ts`),
+ * because none has an inverse the lane can run. An answer or a pick closes a
+ * decision and hands any other task back to ready work with the human label
+ * off; either way the task leaves the inbox, so each invalidates everything a
+ * close does.
  */
 export type InboxAnswer = (
   | { kind: "approve"; id: string; title: string }
   | { kind: "answer"; id: string; title: string; text: string }
   | { kind: "choose"; id: string; title: string; option: TaskChoiceKey; label?: string; note?: string }
-  | { kind: "dismiss"; id: string; title: string }) & { readonly project?: string };
+  | { kind: "dismiss"; id: string; title: string }
+  /** A close where nothing shipped, held by the same Undo window. A question
+   * waiting on the operator is declined (`dismiss`) with the resolution; any
+   * other task is closed with it. */
+  | { kind: "close"; id: string; title: string; resolution: NotDone; note?: string; duplicateOf?: string; via?: "dismiss" }
+) & { readonly project?: string };
 
 /** The lane call for one answer. Only the page-leaving flush passes
  * `keepalive`. */
 export function sendInboxAnswer(answer: InboxAnswer, keepalive = false,
-  api: Pick<TowerApi, 'resolveGate' | 'respondToTask' | 'chooseOnTask' | 'dismissTask'> = { resolveGate, respondToTask, chooseOnTask, dismissTask }): Promise<void> {
-  const { resolveGate, respondToTask, chooseOnTask, dismissTask } = api;
+  api: Pick<TowerApi, 'resolveGate' | 'respondToTask' | 'chooseOnTask' | 'dismissTask' | 'closeTask'> = { resolveGate, respondToTask, chooseOnTask, dismissTask, closeTask }): Promise<void> {
+  const { resolveGate, respondToTask, chooseOnTask, dismissTask, closeTask } = api;
   const options = keepalive || answer.project !== undefined
     ? { ...(keepalive ? { keepalive: true } : {}), ...(answer.project === undefined ? {} : { project: answer.project }) } : undefined;
+  if (answer.kind === "close") {
+    const other = answer.duplicateOf === undefined ? {} : { duplicateOf: answer.duplicateOf };
+    if (answer.via !== "dismiss") return closeTask(answer.id, closeAsReason(answer), { ...options, resolution: answer.resolution, ...other });
+    // A plain Won't do is the dismissal it always was; another resolution rides with it.
+    const note = answer.note?.trim() ? answer.note.trim() : undefined;
+    const ended = { ...options, ...(answer.resolution === "wont-do" ? {} : { resolution: answer.resolution }), ...other };
+    return Object.keys(ended).length > 0 ? dismissTask(answer.id, note, ended) : note === undefined ? dismissTask(answer.id) : dismissTask(answer.id, note);
+  }
   if (answer.kind === "approve") {
     return options ? resolveGate(answer.id, undefined, options) : resolveGate(answer.id);
   }
@@ -284,7 +309,16 @@ const ANSWERED: Record<InboxAnswer["kind"], string> = {
   answer: "Answered",
   choose: "Chosen",
   dismiss: "Dismissed",
+  close: "Closed",
 };
+
+/** The toast's heading for one answer: a pick names its option and a close
+ * its resolution, so Undo is offered against what was sent. */
+function answeredAs(answer: InboxAnswer): string {
+  if (answer.kind === "choose" && answer.label !== undefined) return `Chose ${choiceName(answer.option, answer.label)}`;
+  if (answer.kind === "close") return `Closed as ${TASK_RESOLUTION_LABELS[answer.resolution]}`;
+  return ANSWERED[answer.kind];
+}
 
 /** How many tasks a failure names before it counts the rest. */
 const FAILED_NAMED = 3;
@@ -367,10 +401,7 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
       const project = selected(answer.project);
       const captured: InboxAnswer = Object.freeze({ ...answer, project });
       const toastId = `inbox-answer-${answer.id}`;
-      // A pick names the option it sends, so Undo is offered against it.
-      const heading = answer.kind === "choose" && answer.label !== undefined
-        ? `Chose ${choiceName(answer.option, answer.label)}` : ANSWERED[answer.kind];
-      toast.success(heading, {
+      toast.success(answeredAs(answer), {
         id: toastId,
         description: answer.title,
         duration: UNDO_WINDOW_MS,

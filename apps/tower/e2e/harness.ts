@@ -892,7 +892,8 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       row.closed_at = JOURNEY_NOW;
       row.close_reason = reason;
       publishTasks();
-      return answer({ id: row.id });
+      // As `bd close --json` answers: the closed row, whose close time the closer's record copies.
+      return answer([{ id: row.id, status: row.status, closed_at: row.closed_at }]);
     }
     return { code: 1, stdout: "", stderr: "This synthetic task executor does not implement that command" };
   }

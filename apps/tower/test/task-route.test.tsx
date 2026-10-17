@@ -219,6 +219,11 @@ async function openFact(name: string | RegExp): Promise<HTMLElement> {
   return screen.findByRole("dialog");
 }
 
+/** The page's header band, where a close's summary and the actions sit. */
+function headerBand(): HTMLElement {
+  return document.querySelector<HTMLElement>("[data-page-header]")!;
+}
+
 /** The Undo the toast carried, invoked the way the operator would. */
 function pressUndo() {
   const call = toasts.success.mock.calls.at(-1);
@@ -1023,6 +1028,99 @@ describe("the task page", () => {
     );
   });
 
+  it("opens Close on five resolution chips, Done first and picked, with the shipped line under Done", async () => {
+    renderTask();
+    await screen.findByText("A task has a page");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    const chips = screen.getByRole("radiogroup", { name: "How it ended" });
+    expect(within(chips).getAllByRole("radio").map((chip) => [chip.textContent, chip.getAttribute("aria-checked")])).toEqual([
+      ["Done", "true"], ["Won't do", "false"], ["Duplicate", "false"], ["Can't reproduce", "false"], ["Already handled", "false"],
+    ]);
+    expect(screen.getByText("What shipped, and the commit")).toBeInTheDocument();
+    // The arrow keys move the pick, as a radio group's do.
+    fireEvent.keyDown(within(chips).getByRole("radio", { name: "Done" }), { key: "ArrowRight" });
+    expect(within(chips).getByRole("radio", { name: "Won't do" })).toHaveAttribute("aria-checked", "true");
+    expect(within(chips).getByRole("radio", { name: "Won't do" })).toHaveFocus();
+    expect(screen.queryByText("What shipped, and the commit")).toBeNull();
+    expect(screen.getByLabelText("Note")).toBeInTheDocument();
+  });
+
+  it("closes a bug nobody holds as Can't reproduce from its page: one line, through the Undo window", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: task({ issueType: "bug", status: "open", assignee: null, startedAt: null }) }));
+    renderTask();
+    await screen.findByRole("button", { name: "Claim" });
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Can't reproduce" }));
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Ran the import three times; no error." } });
+    fireEvent.submit(document.querySelector<HTMLFormElement>('[data-task-form="close-as"]')!);
+    expect(toasts.success).toHaveBeenLastCalledWith("Closed as Can't reproduce", expect.objectContaining({
+      description: "A task has a page", action: expect.objectContaining({ label: "Undo" }) }));
+    // While the window runs the header offers nothing, and nothing has been sent.
+    expect(within(headerBand()).queryByRole("button", { name: "Claim" })).toBeNull();
+    expect(within(headerBand()).queryByRole("button", { name: "Close" })).toBeNull();
+    expect(api.closeTask).not.toHaveBeenCalled();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith(ID, "Ran the import three times; no error.", { resolution: "cant-reproduce" }));
+  });
+
+  it("takes a close where nothing shipped back with Undo, and the actions return", async () => {
+    renderTask();
+    await screen.findByText("A task has a page");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Duplicate" }));
+    const form = document.querySelector<HTMLFormElement>('[data-task-form="close-as"]')!;
+    fireEvent.change(within(form).getByLabelText("Duplicate of"), { target: { value: "ro-l1ed.4" } });
+    fireEvent.submit(form);
+    const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    expect(vi.mocked(toasts.success).mock.calls.at(-1)![0]).toBe("Closed as Duplicate");
+    act(() => undo.action.onClick());
+    act(() => flushAnswers());
+    expect(api.closeTask).not.toHaveBeenCalled();
+    expect(await within(headerBand()).findByRole("button", { name: "Close" })).toBeEnabled();
+  });
+
+  it("reads a close where nothing shipped as Closed as its resolution, with who, when and the note; a duplicate links the other task", async () => {
+    const closer = { noticeos_closed_by: "Dana", noticeos_closed_at: "2026-09-04T11:30:00Z" };
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Nobody asked for it",
+      resolution: "wont-do", metadata: { ...closer, noticeos_resolution: "wont-do" } }) }));
+    const { unmount } = renderTask();
+    const fact = await screen.findByText("Closed as Won't do");
+    const summary = headerBand().querySelector("[data-task-closed]") as HTMLElement;
+    expect(summary).toHaveAttribute("data-task-resolution", "wont-do");
+    expect(summary).toContainElement(fact);
+    expect(within(summary).getByText("Dana")).toBeInTheDocument();
+    expect(within(summary).getByText("30m ago")).toBeInTheDocument();
+    expect(within(summary).getByText("Nobody asked for it")).toBeInTheDocument();
+    const activity = document.querySelector("[data-task-activity]") as HTMLElement;
+    expect(activity.querySelector('[data-entry="closed"] [data-entry-label]')).toHaveTextContent("Closed as Won't do by Dana");
+    // The resolution's glyph, not the done close's tick.
+    expect(activity.querySelector('[data-entry="closed"] svg.lucide-circle-slash')).not.toBeNull();
+    expect(activity.querySelector('[data-entry="closed"] svg.lucide-check')).toBeNull();
+    unmount();
+
+    // A duplicate closed with no note: its words are the reason, which the summary does not repeat.
+    api.fetchTask.mockResolvedValue(detail({ task: task({ status: "closed", closedAt: "2026-09-04T11:30:00Z", closeReason: "Duplicate of ro-l1ed.4",
+      resolution: "duplicate", duplicateOf: "ro-l1ed.4", metadata: { ...closer, noticeos_resolution: "duplicate", noticeos_duplicate_of: "ro-l1ed.4" } }) }));
+    renderTask();
+    const heading = await screen.findByText((_, node) => node?.getAttribute("data-task-resolution-fact") === "" && node.textContent === "Closed as Duplicate of ro-l1ed.4");
+    expect(within(heading).getByRole("link", { name: "ro-l1ed.4" })).toHaveAttribute("href", "/tasks/ro-l1ed.4");
+    expect(within(headerBand().querySelector("[data-task-closed]") as HTMLElement).queryByText("Duplicate of ro-l1ed.4")).toBeNull();
+  });
+
+  it("reads the saved snapshot's resolution where there is no live read", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work([]);
+    snapshot.projects[0]!.recentlyClosed = [snapshotItem({ status: "closed", closedAt: "2026-09-04T11:00:00.000Z", resolution: "already-handled" })];
+    snapshot.projects[0]!.recentWork = [{ kind: "closed", taskId: ID, title: "A task has a page", by: "Dana", model: null,
+      at: "2026-09-04T11:00:00.000Z", evidence: "ro-l1ed.4 covered it", resolution: "already-handled" }];
+    state.work = snapshot;
+    renderTask();
+    const fact = await screen.findByText("Closed as Already handled");
+    const summary = fact.closest("[data-task-closed]") as HTMLElement;
+    expect(within(summary).getByText("ro-l1ed.4 covered it")).toBeInTheDocument();
+    expect(within(summary).getByText("Dana")).toBeInTheDocument();
+  });
+
   it("sends a comment through commentOnTask", async () => {
     renderTask();
 
@@ -1149,12 +1247,12 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     expect(api.resolveGate).not.toHaveBeenCalled();
   });
 
-  it("gives an ask Answer and Dismiss, and the answer box sends through the inbox's call", async () => {
+  it("gives an ask Answer and Close as, and the answer box sends through the inbox's call", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: ask() }));
     renderTask();
 
     fireEvent.click(await header().findByRole("button", { name: "Answer" }));
-    expect(headerButtons().slice(0, 2)).toEqual(["Answer", "Dismiss"]);
+    expect(headerButtons().slice(0, 2)).toEqual(["Answer", "Close as"]);
     expect(header().queryByRole("button", { name: "Claim" })).toBeNull();
     expect(header().queryByRole("button", { name: "Close" })).toBeNull();
     const box = header().getByLabelText(`Your answer to ${ID}`);
@@ -1165,11 +1263,14 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     await waitFor(() => expect(api.respondToTask).toHaveBeenCalledWith(ID, "Ship it"));
   });
 
-  it("dismisses an ask through the inbox's call", async () => {
+  it("dismisses an ask as the Close as menu's Won't do, through the inbox's call", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: ask() }));
     renderTask();
 
-    fireEvent.click(await header().findByRole("button", { name: "Dismiss" }));
+    fireEvent.click(await header().findByRole("button", { name: "Close as" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Won't do" }));
+    fireEvent.submit(document.querySelector<HTMLFormElement>('[data-task-form="close-as"]')!);
+    expect(toasts.success).toHaveBeenCalledWith("Closed as Won't do", expect.anything());
     act(() => flushAnswers());
     await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith(ID));
   });
@@ -1216,7 +1317,7 @@ describe("a task with choices is answered with one press", () => {
   const header = () => within(headerNode());
   const optionKeys = () => [...headerNode().querySelectorAll<HTMLElement>("[data-choice-option]")].map((node) => node.dataset.choiceOption);
 
-  it("reads Needs your choice, and draws the question and one button per option, the recommended first, Answer and Dismiss under them", async () => {
+  it("reads Needs your choice, and draws the question and one button per option, the recommended first, Answer and Close as under them", async () => {
     api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
     const { container } = renderTask();
     const group = await header().findByRole("group", { name: CHOICES.question });
@@ -1224,7 +1325,7 @@ describe("a task with choices is answered with one press", () => {
     expect(optionKeys()).toEqual(["b", "a", "c"]);
     const buttons = within(group).getAllByRole("button");
     expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
-      "(b) Redirect to the new page", "(a) Keep the old page", "(c) Remove it", "Answer", "Dismiss",
+      "(b) Redirect to the new page", "(a) Keep the old page", "(c) Remove it", "Answer", "Close as",
     ]);
     expect(within(buttons[0]!).getByText("Recommended")).toBeInTheDocument();
     expect(within(buttons[1]!).getByText("It stays reachable at its address.")).toBeInTheDocument();

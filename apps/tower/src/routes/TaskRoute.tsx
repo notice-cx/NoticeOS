@@ -53,12 +53,16 @@ import {
   useClaimTask,
   useCloseTask,
   useCommentOnTask,
+  useInboxAnswer,
   useTask,
   useTasks,
   useTasksLive,
   useTaskProjects,
   useUpdateTask,
 } from "@/hooks/useTasks";
+import { CloseNoteForm, RESOLUTION_GLYPH, ResolutionChips } from "@/components/CloseResolution";
+import { closeNote } from "@/lib/close-as";
+import { TASK_RESOLUTION_LABELS, type TaskResolution } from "@noticeos/contract/task-resolution";
 import { useWork } from "@/hooks/useWork";
 import { ApiError, type TaskEdit } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -322,7 +326,8 @@ export function taskReturnPath(state: unknown): string {
  * the header offers nothing until the task is read again (a pressed option
  * stays drawn as the pick); the toast holds the Undo. A recorded pick is a
  * fact under the header from then on. Otherwise Claim leads while nobody
- * holds the task, and Close leads once somebody does.
+ * holds the task, and Close leads once somebody does; a close where nothing
+ * shipped hides them the same way while its Undo window runs.
  */
 function TaskHeader({
   id,
@@ -364,7 +369,7 @@ function TaskHeader({
   // build's banner under the header already says it, so the buttons point at
   // that sentence instead of repeating it.
   const reason = waitsOnOperator ? (answered ? null : choosing ? chooseReason ?? askReason : askReason)
-    : closed || !head ? null : claimable ? claimReason : blocked;
+    : closed || !head || answered ? null : claimable ? claimReason : blocked;
   const describedBy = reason === null ? undefined : capabilities.live ? reasonId : READ_ONLY_REASON_ID;
   // The option pressed, drawn as the pick while its Undo window runs.
   const [picked, setPicked] = useState<TaskChoiceKey | null>(null);
@@ -397,7 +402,7 @@ function TaskHeader({
         <ActionArea reason={capabilities.live ? reason : null} reasonId={reasonId}>
           {waitsOnOperator ? (
             ask.buttons
-          ) : (
+          ) : answered ? null : (
             <>
               {claimable ? (
                 <ClaimAction id={id} disabledReason={claimReason} describedBy={describedBy} />
@@ -423,8 +428,8 @@ function TaskHeader({
     >
       {children}
       {choiceRecord}
-      {waitsOnOperator ? ask.box : closing ? (
-        <CloseForm id={id} onDone={() => setClosing(false)} onCancel={() => setClosing(false)} />
+      {waitsOnOperator ? ask.box : closing && !answered ? (
+        <CloseForm id={id} title={head?.title ?? id} onDone={() => setClosing(false)} onCancel={() => setClosing(false)} />
       ) : null}
     </TaskHead>
   );
@@ -468,25 +473,49 @@ function ClaimAction({ id, disabledReason, describedBy }: { id: string; disabled
   );
 }
 
-/** Close, with the reason in front of it rather than behind a confirm. The
- * reason is required because completion is evidence, so the button that
- * writes stays disabled until there is something to write. */
+/** Close, with the reason in front of it rather than behind a confirm, under
+ * the five ways a close ends, Done first and picked. Done is evidence: the
+ * shipped line is required, so the button that writes stays disabled until
+ * there is something to write, and the close is sent at once. Any other is
+ * one line, a Note (and for a duplicate the other task's id), sent through
+ * the Undo window as a row's close is. */
 function CloseForm({
   id,
+  title,
   onDone,
   onCancel,
 }: {
   id: string;
+  title: string;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const toast = useOwnerToast();
+  const [resolution, setResolution] = useState<TaskResolution>("done");
+  const [byKey, setByKey] = useState(false);
   const [reason, setReason] = useState("");
   const close = useCloseTask();
+  const answer = useInboxAnswer();
   const ready = reason.trim().length > 0;
 
   return (
-    <div className="flex flex-col gap-2" data-task-form="close">
+    <div className="flex flex-col gap-2.5" data-task-form="close">
+      <ResolutionChips value={resolution} onChange={(next, key) => { setResolution(next); setByKey(key); }} />
+      {resolution !== "done" ? (
+        <CloseNoteForm
+          key={resolution}
+          id={id}
+          resolution={resolution}
+          named={false}
+          autoFocus={!byKey}
+          onCancel={onCancel}
+          onSend={(input) => {
+            answer({ kind: "close", id, title, resolution, ...input });
+            onDone();
+          }}
+        />
+      ) : (
+      <>
       <label htmlFor={`close-${id}`} className="text-sm font-medium">
         What shipped, and the commit
       </label>
@@ -523,6 +552,8 @@ function CloseForm({
           Cancel
         </Button>
       </div>
+      </>
+      )}
     </div>
   );
 }
@@ -701,17 +732,23 @@ function Activity({
     if (task.closedAt) {
       const closer = closeAttribution(task);
       const name = closer ? taskActorLabel(closer.by, actors) : null;
+      const resolution = task.resolution ?? "done";
+      // "Closed", or "Closed as Won't do" when nothing shipped; a duplicate names the other task.
+      const closedAs = resolution === "done" ? "Closed"
+        : `Closed as ${TASK_RESOLUTION_LABELS[resolution]}${task.duplicateOf ? ` of ${task.duplicateOf}` : ""}`;
       // The reason's sentence is the body; its commits and links are chips.
-      const sentence = task.closeReason ? evidenceParts(task.closeReason).filter((part) => part.kind === "text").map((part) => part.text).join(" · ") : "";
+      const note = closeNote(task.closeReason, resolution, task.duplicateOf ?? null);
+      const sentence = note ? evidenceParts(note).filter((part) => part.kind === "text").map((part) => part.text).join(" · ") : "";
       out.push({
         id: "closed",
         at: task.closedAt,
         kind: "closed",
         who: name ? { name, model: closer?.model ?? null } : null,
-        label: name ? <>Closed by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : "Closed",
-        said: name ? `Closed by ${name}${closer?.model ? ` · ${closer.model}` : ""}` : "Closed",
+        label: name ? <>{closedAs} by <b className="font-semibold">{name}</b>{closer?.model ? <span className="text-muted-foreground"> · {closer.model}</span> : null}</> : closedAs,
+        said: name ? `${closedAs} by ${name}${closer?.model ? ` · ${closer.model}` : ""}` : closedAs,
         body: sentence ? <MarkdownText source={sentence} /> : undefined,
-        evidence: task.closeReason,
+        evidence: note,
+        ...(resolution === "done" ? {} : { glyph: RESOLUTION_GLYPH[resolution], mark: "note" as const }),
       });
     }
     return out;
@@ -1272,13 +1309,16 @@ function ReadOnly({
 function LiveClosedSummary({ task, nowMs }: { task: LiveTask; nowMs: number }) {
   const actors = useContext(TaskActors);
   const closer = closeAttribution(task);
+  const resolution = task.resolution ?? "done";
+  const note = closeNote(task.closeReason, resolution, task.duplicateOf ?? null);
   return (
-    <ClosedSummary by={closer ? taskActorLabel(closer.by, actors) : null} model={closer?.model ?? null} at={task.closedAt} nowMs={nowMs}>
-      {task.closeReason ? (
-        <MarkdownText source={task.closeReason} />
-      ) : (
+    <ClosedSummary by={closer ? taskActorLabel(closer.by, actors) : null} model={closer?.model ?? null} at={task.closedAt} nowMs={nowMs}
+      resolution={resolution} duplicate={task.duplicateOf ? <TaskIdLink id={task.duplicateOf} /> : null}>
+      {note ? (
+        <MarkdownText source={note} />
+      ) : resolution === "done" ? (
         <span className="text-sm text-muted-foreground">No close reason recorded</span>
-      )}
+      ) : null}
     </ClosedSummary>
   );
 }
@@ -1286,14 +1326,27 @@ function LiveClosedSummary({ task, nowMs }: { task: LiveTask; nowMs: number }) {
 /** The same from the saved snapshot, whose recent closes carry their evidence. */
 function SnapshotClosedSummary({ item, project, nowMs }: { item: WorkItem; project: WorkProject; nowMs: number }) {
   const close = project.recentWork?.find((event) => event.kind === "closed" && event.taskId === item.id) ?? null;
+  const resolution = item.resolution ?? close?.resolution ?? "done";
+  const note = close?.evidence ? closeNote(close.evidence, resolution, item.duplicateOf ?? null) : null;
   return (
-    <ClosedSummary by={close?.by ?? null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}>
-      {close?.evidence ? (
-        <MarkdownText source={close.evidence} />
-      ) : (
+    <ClosedSummary by={close?.by ?? null} model={close?.model ?? null} at={close?.at ?? item.closedAt} nowMs={nowMs}
+      resolution={resolution} duplicate={item.duplicateOf ? <TaskIdLink id={item.duplicateOf} /> : null}>
+      {note ? (
+        <MarkdownText source={note} />
+      ) : resolution === "done" ? (
         <span className="text-sm text-muted-foreground">Close reason not in the saved snapshot</span>
-      )}
+      ) : null}
     </ClosedSummary>
+  );
+}
+
+/** Another task's id as a link to its page, in the project this page reads. */
+function TaskIdLink({ id }: { id: string }) {
+  const href = useTaskHref();
+  return (
+    <Link to={href(id)} className="font-mono text-xs text-foreground underline underline-offset-4 hover:text-primary" data-task-duplicate-of={id}>
+      {id}
+    </Link>
   );
 }
 

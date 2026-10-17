@@ -468,6 +468,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["two options", "three options", "six options", "picked", "unavailable (the reason written under them)"],
   },
   {
+    name: "ResolutionChips / CloseAsMenu / CloseNoteForm",
+    file: "components/CloseResolution.tsx",
+    purpose:
+      "How a task's close ends. ResolutionChips is the task page's Close: five chips in one radio group, Done first and picked (Done, Won't do, Duplicate, Can't reproduce, Already handled). CloseAsMenu is a row's quick menu of the four closes where nothing shipped, each with its glyph. CloseNoteForm is the one line such a close takes: its resolution named, a Note, and for a duplicate the other task's id first; Enter sends and Escape steps back, and the caller's send carries the Undo. ChoiceButtons answers an agent's question; these close a task.",
+    variants: ["Done picked (the page's shipped line under it)", "Won't do picked (one line)", "a row's menu open", "a duplicate's line", "read-only (the reason written beside it)"],
+  },
+  {
     name: "TaskTimeline",
     file: "components/TaskTimeline.tsx",
     purpose:

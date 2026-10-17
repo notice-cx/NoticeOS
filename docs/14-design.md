@@ -408,7 +408,10 @@ assignee on its row.
 the type's mark beside the title, the state, priority and holder chips, an
 epic's tasks as one segment each, and the actions (a question with choices
 draws its options in the band, as `ChoiceButtons`, and the pick stays there as
-a record once made); under it one raised card
+a record once made; Close opens the five ways a close ends as one row of
+chips, `ResolutionChips`, Done first, and a close where nothing shipped is
+one line sent through the inbox's Undo, then read in the band as "Closed as
+Won't do"); under it one raised card
 whose sections are divided inside it (the description in the task guide's
 labelled sections, **Done when** as a checklist, a `DependencyGraph` when the
 task waits on others or others wait on it, an epic's tasks, and a
@@ -593,6 +596,8 @@ from its starting point to its result:
   question's row.
 - **Approve several decisions at once** — Tasks: Select, Select all, then one
   Approve for every selected approval, with one Undo.
+- **Close a question as Won't do** — Tasks: Close as on the question's row,
+  Won't do, a note, Close task, with Undo.
 - **File a task from a finding** — the site page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.
@@ -676,7 +681,8 @@ link to more detail. `Table`, which stacks into labelled cards on a phone.
 `SeverityDot`, `StateChip`, `DeltaChip`, `AgeBadge`, `Meter`, `ProgressRing`,
 `PriorityBar` for a state or a quantity with its icon. `FactChip` for a
 record's fact that edits where it is read; `ChoiceButtons` for a person's
-one-press pick between the options an agent offered; `DependencyGraph` and
+one-press pick between the options an agent offered; `ResolutionChips`,
+`CloseAsMenu` and `CloseNoteForm` for how a task's close ends; `DependencyGraph` and
 `TaskTimeline` for one task's neighbours and its history. `EmptyState`,
 `ReadFailed`, `PageSkeleton` and `RouteLoading` so every surface has a
 designed empty, failed and loading state, `Skeleton` for one block of a

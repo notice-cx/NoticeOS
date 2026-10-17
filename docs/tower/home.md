@@ -21,7 +21,7 @@ Home shows three things, in this order: how the business is doing, what is broke
 
 **Problems.** The open problems the grid does not already show, ranked: what started since you last looked first, then what is still open, and anything open for over a week collapsed into one line. An alert that has a usual range shows the reading against it.
 
-**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Dismiss** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board.
+**Decide.** How many decisions are waiting for you, how old the oldest is, and how the waiting decisions split by age. Then the first four, each with its age drawn as a length and its buttons: **Approve** for an approval, **Answer** or **Close as** for a question. **Show N more** opens the rest in place; **All tasks →** opens the board.
 
 **Sites.** One row per site, in your order: its status, people a day as a line with the latest day's count, yesterday's revenue with its change, and its share of the month. With one site, Home shows that site's own numbers and chart instead.
 
@@ -33,7 +33,7 @@ Home shows three things, in this order: how the business is doing, what is broke
 
 - Open a site from its row in the grid, the sites list or the timeline.
 - Open a problem from its row in **Problems**; **All alerts →** opens Alerts.
-- **Approve**, **Answer** or **Dismiss** a decision from its row.
+- **Approve**, **Answer** or **Close as** a decision from its row; **Close as** declines it as **Won't do**, **Duplicate**, **Can't reproduce** or **Already handled**.
 - Open Money from **Revenue, yesterday**, and the Sites page from **Visitors, yesterday** or **All sites →**.
 - **Integrations →** opens the data sources' connections.
 - **Add your first site**, on the first run, opens the **Add a site** dialog.

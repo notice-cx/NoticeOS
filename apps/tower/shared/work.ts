@@ -4,6 +4,7 @@
 // and there is no write path from the Tower to the hub.
 
 import type { TaskChoice, TaskChoiceKey, TaskChoices } from "@noticeos/contract/task-choices";
+import type { TaskResolution } from "@noticeos/contract/task-resolution";
 import type { SeriesPoint } from "./wall";
 
 /** The file that owns the asset ↔ prefix ↔ repo map the board joins on. */
@@ -53,6 +54,11 @@ export interface WorkItem {
   choices?: TaskChoices | null;
   /** The option a person picked, null until one is. */
   choice?: TaskChoice | null;
+  /** How a closed task's close ended; null on a task not closed. A snapshot
+   * row carries it only when it is not done, so absent reads as done. */
+  resolution?: TaskResolution | null;
+  /** The task a close as a duplicate names, null otherwise. */
+  duplicateOf?: string | null;
 }
 
 /**
@@ -208,6 +214,8 @@ export interface WorkEvent {
   /** A person's pick: the option's key and label. */
   option?: TaskChoiceKey;
   label?: string;
+  /** A close that is not done: how it ended. */
+  resolution?: Exclude<TaskResolution, "done">;
 }
 
 export interface WorkPayload {

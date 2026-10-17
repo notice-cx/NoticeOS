@@ -27,6 +27,10 @@ export interface TaskTimelineEntry {
   body?: ReactNode;
   /** A close's reason, whose commits and links are drawn as chips. */
   evidence?: string | null;
+  /** In place of the kind's glyph and strip mark: a close where nothing
+   * shipped wears its resolution's glyph and is no shipped mark. */
+  glyph?: ComponentType<{ className?: string }>;
+  mark?: TimelineEvent["kind"];
 }
 
 export interface TaskTimelineProps {
@@ -82,7 +86,7 @@ export function TaskTimeline({ entries, nowMs, composer, age, ariaLabel, classNa
         <EventTimeline
           compact
           lanes={[{ id: "task", label: ariaLabel }]}
-          events={dated.map((entry) => ({ id: entry.id, lane: "task", at: entry.at!, kind: STRIP_KIND[entry.kind], label: entry.said }))}
+          events={dated.map((entry) => ({ id: entry.id, lane: "task", at: entry.at!, kind: entry.mark ?? STRIP_KIND[entry.kind], label: entry.said }))}
           window={{ from: new Date(from).toISOString(), to: new Date(nowMs).toISOString() }}
           nowMs={nowMs}
           ariaLabel={`${ariaLabel}, on a time axis`}
@@ -113,7 +117,7 @@ function Entry({ entry, nowMs, age, index, latest, last }: {
   latest: boolean;
   last: boolean;
 }) {
-  const Glyph = GLYPH[entry.kind];
+  const Glyph = entry.glyph ?? GLYPH[entry.kind];
   const maker = entry.who ? agentMaker(entry.who.name, [entry.who.model]) : null;
   const ms = ageMs(nowMs, entry.at);
   const pointers = entry.evidence ? evidenceParts(entry.evidence).filter((part) => part.kind !== "text") : [];

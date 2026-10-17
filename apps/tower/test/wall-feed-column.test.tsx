@@ -201,6 +201,22 @@ describe("an agent's line", () => {
   });
 });
 
+describe("a close where nothing shipped", () => {
+  it("is labelled with its resolution's word under the slashed circle, its verb in muted ink", () => {
+    render(<WallFeed feed={payload([
+      item("a", 5, { kind: "task-closed", label: "Won't do", tone: "neutral", text: "Drop the old ticker", who: "Dana", model: null, evidence: null }),
+      item("b", 9, { text: "Fix the export button", who: "Dana", model: null, evidence: null }),
+    ])} nowMs={NOW} />);
+    const [notDone, done] = screen.getAllByRole("listitem");
+    expect(notDone).toHaveTextContent("Won't do · Recipes");
+    expect(notDone!.querySelector("[data-feed-text]")).toHaveTextContent(/^Dana closed Drop the old ticker$/);
+    expect(notDone!.querySelector("[data-feed-verb]")).toHaveClass("text-muted-foreground");
+    expect(notDone!.querySelector("svg.lucide-circle-slash")).not.toBeNull();
+    expect(done).toHaveTextContent("Task done · Recipes");
+    expect(done!.querySelector("[data-feed-verb]")).toHaveClass("text-healthy");
+  });
+});
+
 describe("a person's pick", () => {
   it("reads as a claim line does, with the person's name, the option chosen and the task, under the list glyph", () => {
     render(<WallFeed feed={payload([

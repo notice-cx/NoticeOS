@@ -7,14 +7,16 @@ import { fieldClass } from "@/components/ui/field";
 import { useInboxAnswer } from "@/hooks/useTasks";
 import type { InboxAsk } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
+import { useCloseAs } from "./close-actions";
 
 /**
  * What a task waiting on the operator offers, for its board row and its own
- * page: Approve on a gate (`bd gate resolve`), Answer and Dismiss on an ask
- * (`bd human respond` / `dismiss`), and on an ask that carries choices one
- * button per option (the choose operation) with Answer and Dismiss under
- * them, each after the Undo window (`lib/answer-queue.ts`). `buttons` sit
- * beside the title and `box` under it, because each surface seats them
+ * page: Approve on a gate (`bd gate resolve`), Answer and Close as on an ask
+ * (`bd human respond`, and `dismiss` with the resolution picked: Won't do,
+ * Duplicate, Can't reproduce or Already handled), and on an ask that carries
+ * choices one button per option (the choose operation) with Answer and Close
+ * as under them, each after the Undo window (`lib/answer-queue.ts`). `buttons`
+ * sit beside the title and `box` under it, because each surface seats them
  * differently; both are null when nothing is asked.
  */
 export function useAskActions({
@@ -51,6 +53,17 @@ export function useAskActions({
   const [answering, setAnswering] = useState(false);
   const [text, setText] = useState("");
   const answer = useInboxAnswer();
+  // Declining is a close where nothing shipped: Won't do, or the resolution that says why.
+  const closeAs = useCloseAs({
+    id,
+    title,
+    ...(project === undefined ? {} : { project }),
+    via: "dismiss",
+    disabledReason,
+    describedBy: placement === "header" ? describedBy : undefined,
+    onOpen: () => setAnswering(false),
+    boxClassName: placement === "row" ? "pb-2 pe-2 ps-9" : undefined,
+  });
   // The box opens mid-screen, clear of the corner an Undo toast occupies on a
   // phone (a previous answer's toast would otherwise cover Send).
   const form = useRef<HTMLFormElement>(null);
@@ -85,25 +98,16 @@ export function useAskActions({
         disabled={disabled}
         title={blockedTitle}
         aria-describedby={describes}
-        onClick={() => setAnswering((open) => !open)}
+        onClick={() => {
+          setAnswering((open) => !open);
+          closeAs.cancel();
+        }}
         data-task-action="answer"
       >
         <Reply aria-hidden />
         Answer
       </Button>
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="text-muted-foreground"
-        disabled={disabled}
-        title={blockedTitle}
-        aria-describedby={describes}
-        onClick={() => answer({ kind: "dismiss", id, title, ...scope })}
-        data-task-action="dismiss"
-      >
-        Dismiss
-      </Button>
+      {closeAs.menu}
     </>
   );
 
@@ -183,6 +187,6 @@ export function useAskActions({
     </form>
   ) : null;
 
-  const box = options || answerBox ? <>{options}{answerBox}</> : null;
+  const box = options || answerBox || closeAs.box ? <>{options}{answerBox}{closeAs.box}</> : null;
   return { buttons, box };
 }

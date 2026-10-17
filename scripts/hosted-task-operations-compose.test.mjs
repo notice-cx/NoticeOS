@@ -18,6 +18,7 @@ import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-
 const origin = 'https://tower.example.com';
 const SESSION = '55555555-5555-4555-8555-555555555555';
 const ALICE = 'aaaaaaaa-1111-4111-8111-111111111111', BOB = 'bbbbbbbb-1111-4111-8111-111111111111';
+const OTHER_PROJECT = 'cccccccc-1111-4111-8111-111111111111';
 const ACTIVE = ['open', 'in_progress', 'blocked', 'deferred'];
 const first = value => Array.isArray(value) ? value[0] : value;
 
@@ -37,7 +38,9 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
       project: async (workspace, project) => facts.mappings.find(m => m.workspaceId === workspace && m.projectId === project) ?? null,
       withProjectMutation: async (workspace, project, controls, work) => work(Object.freeze({
         project: () => directory.project(workspace, project), signal: controls.signal ?? new AbortController().signal })),
-      catalog: async () => Object.freeze([{ projectId, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]),
+      // A second project, never mapped, holds the prefix a refusal names as another project's.
+      catalog: async () => Object.freeze([{ projectId, logicalKey: 'example', displayName: 'Example', prefix: 'tt' },
+        { projectId: OTHER_PROJECT, logicalKey: 'other', displayName: 'Other', prefix: 'zz' }]),
     };
     const expiresAt = () => new Date(Date.now() + 60_000).toISOString();
     const server = principalId => {
@@ -231,5 +234,40 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     const zone = await ok('create_task', { title: 'Pick a zone', type: 'decision', labels: ['human'], idempotency_key: 'compose-answer-0002' });
     assert.deepEqual(await decide({ kind: 'respond', taskId: zone.id, response: 'The closest one' }), { id: zone.id, status: 'closed' });
     assert.equal((await ok('get_task', { task: zone.id })).task.closeReason, 'Responded');
+
+    // A close names how it ended, beside its closer: each resolution reads
+    // back from get_task and list_tasks with the reason as given, no
+    // resolution reads as done, a duplicate links the other task, and Dismiss
+    // reads as won't do.
+    const ended = new Map();
+    for (const [index, resolution] of [undefined, 'done', 'wont-do', 'cant-reproduce', 'already-handled'].entries()) {
+      const item = await ok('create_task', { title: `Resolve ${index}`, acceptance: 'Closed', idempotency_key: `compose-resolve-000${index}` });
+      const closed = (await ok('close_task', { task: item.id, reason: `Evidence ${index}`, ...(resolution === undefined ? {} : { resolution }),
+        idempotency_key: `compose-resolve-010${index}` })).task;
+      assert.deepEqual([closed.status, closed.closeReason, closed.resolution, closed.metadata?.noticeos_closed_by],
+        ['closed', `Evidence ${index}`, resolution ?? 'done', ALICE]);
+      ended.set(item.id, resolution ?? 'done');
+    }
+    const original = await ok('create_task', { title: 'The original', acceptance: 'Kept', idempotency_key: 'compose-resolve-0201' });
+    const copy = await ok('create_task', { title: 'The copy', acceptance: 'Closed', idempotency_key: 'compose-resolve-0202' });
+    assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'fixed', idempotency_key: 'compose-resolve-0203' }))
+      .content[0].text, /^invalid arguments: resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)$/u);
+    assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'duplicate', duplicate_of: 'zz-1',
+      idempotency_key: 'compose-resolve-0204' })).content[0].text, /^refused: zz-1 is not in projectId .*tasks with prefix zz are in projectId/u);
+    assert.match((await tool('close_task', { task: copy.id, reason: 'Same work', resolution: 'duplicate', duplicate_of: `${original.id}9`,
+      idempotency_key: 'compose-resolve-0205' })).content[0].text, new RegExp(`^refused: ${original.id}9 is not a task in projectId`, 'u'));
+    assert.equal((await ok('get_task', { task: copy.id })).task.status, 'open', 'a refused duplicate closes nothing');
+    const duplicate = (await ok('close_task', { task: copy.id, reason: 'Same work as the original', resolution: 'duplicate', duplicate_of: original.id,
+      idempotency_key: 'compose-resolve-0206' })).task;
+    assert.deepEqual([duplicate.closeReason, duplicate.resolution, duplicate.duplicateOf], ['Same work as the original', 'duplicate', original.id]);
+    assert.ok(duplicate.dependencies.some(edge => edge.id === original.id && edge.type === 'related'), JSON.stringify(duplicate.dependencies));
+    ended.set(copy.id, 'duplicate');
+    const listed = (await ok('list_tasks', { status: ['closed'], limit: 200 })).tasks;
+    for (const [id, resolution] of ended) assert.equal(listed.find(task => task.id === id)?.resolution, resolution, id);
+    assert.equal(listed.find(task => task.id === copy.id)?.duplicateOf, original.id);
+    const ask = await ok('create_task', { title: 'Should we?', labels: ['human'], acceptance: 'Answered', idempotency_key: 'compose-resolve-0301' });
+    assert.deepEqual(await decide({ kind: 'dismiss', taskId: ask.id }), { id: ask.id, status: 'closed' });
+    const dismissed = (await ok('get_task', { task: ask.id })).task;
+    assert.deepEqual([dismissed.closeReason, dismissed.resolution, dismissed.metadata?.noticeos_closed_by], ['Dismissed', 'wont-do', ALICE]);
   });
 });

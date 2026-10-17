@@ -12,10 +12,11 @@ import {
   Rows2,
   Trash2,
 } from "lucide-react";
-import { useState, type KeyboardEvent, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { WALL_WIDGET_LIBRARY, type WallLayout } from "@shared/wall-layout";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { focusFirstMenuItem, roveMenuFocus } from "@/lib/menu-keys";
 import { cn } from "@/lib/utils";
 import { wallMovePlan, wallStackChoices, type WallMove } from "@/lib/wall-editor";
 
@@ -42,22 +43,6 @@ const OUT: { move: Exclude<WallMove, object>; label: string; icon: ReactNode }[]
   { move: "row-above", label: "Into a new row above", icon: <ArrowUpToLine /> },
   { move: "row-below", label: "Into a new row below", icon: <ArrowDownToLine /> },
 ];
-
-/** Move focus among a menu's enabled items with the arrow keys, Home and End. */
-function roveFocus(event: KeyboardEvent<HTMLElement>) {
-  const keys = ["ArrowDown", "ArrowUp", "Home", "End"];
-  if (!keys.includes(event.key)) return;
-  const items = [...event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not([disabled])')];
-  if (items.length === 0) return;
-  event.preventDefault();
-  const at = items.indexOf(document.activeElement as HTMLButtonElement);
-  const next =
-    event.key === "Home" ? 0
-      : event.key === "End" ? items.length - 1
-        : event.key === "ArrowDown" ? (at + 1) % items.length
-          : (at - 1 + items.length) % items.length;
-  items[next]?.focus();
-}
 
 /**
  * Every place a drag can put a widget, as a menu: for a keyboard, a tap, or
@@ -151,13 +136,8 @@ export function WallMoveMenu({
         aria-label={`Move ${label}`}
         className="w-64 p-1.5"
         onClick={(event) => event.stopPropagation()}
-        onKeyDown={roveFocus}
-        onOpenAutoFocus={(event) => {
-          // The first item that can act, rather than the panel itself.
-          event.preventDefault();
-          const panel = event.currentTarget as HTMLElement | null;
-          panel?.querySelector<HTMLButtonElement>('[role="menuitem"]:not([disabled])')?.focus();
-        }}
+        onKeyDown={roveMenuFocus}
+        onOpenAutoFocus={focusFirstMenuItem}
         data-wall-move-menu={widgetId}
       >
         {stacking ? (

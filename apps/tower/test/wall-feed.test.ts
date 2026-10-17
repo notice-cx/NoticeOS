@@ -100,10 +100,10 @@ type Filed = [id: string, title: string, createdAt: string, filedBy?: string, fi
 async function snapshot(
   store: WorkspaceStore,
   capturedAt: string,
-  closed: Record<string, [string, string, string][]>,
+  closed: Record<string, [id: string, title: string, closedAt: string, resolution?: string][]>,
   created: Record<string, Filed[]> = {},
   work: Record<string, { kind: "claimed" | "closed" | "chosen"; taskId: string; title: string; by: string; model?: string; evidence?: string; at: string;
-    option?: string; label?: string }[]> = {},
+    option?: string; label?: string; resolution?: string }[]> = {},
 ): Promise<void> {
   // The shape the store keeps for a photograph a newer one replaced
   // (supersededPayload, workers/ingest/src/beads-snapshots.ts): only the two
@@ -113,7 +113,7 @@ async function snapshot(
   const projects = [...new Set([...Object.keys(closed), ...Object.keys(created), ...Object.keys(work)])].map((a) => ({
     asset: a, ok: true,
     counts: { open: 0, ready: 0, inProgress: 0, blocked: 0, closedRecent: closed[a]?.length ?? 0 },
-    recentlyClosed: (closed[a] ?? []).map(([id, title, closedAt]) => ({ id, title, closedAt })),
+    recentlyClosed: (closed[a] ?? []).map(([id, title, closedAt, resolution]) => ({ id, title, closedAt, ...(resolution ? { resolution } : {}) })),
     ...(created[a]
       ? { recentlyCreated: created[a].map(([id, title, createdAt, filedBy, filedModel]) => ({ id, title, createdAt,
           ...(filedBy ? { filedBy } : {}), ...(filedModel ? { filedModel } : {}) })) }
@@ -156,6 +156,7 @@ function insight(id: string, a: string, generatedAt: string, findings: [string, 
  *   14:25 task done      Feed reads the store
  *   14:20 task done      Feed folds runs
  *   14:15 task done      Score table loads
+ *   14:10 won't do       Feed drops the old ticker (closed with nothing shipped)
  *   14:00 source failed  Money (a failed PostHog report, no health event)
  *   13:00 cost           Booked $12.00 infra cost (System)
  *   12:00 setting saved
@@ -250,10 +251,12 @@ async function seedSignalRuns(store: WorkspaceStore): Promise<void> {
 async function seedPostgres(pg: TestStore): Promise<void> {
   await seedSignalRuns(pg.call);
   await seedProviderReports(pg.call);
-  // The task hub: an early photograph holds three closures the newest no
-  // longer does (five later ones pushed them out); ro-9 is in two.
+  // The task hub: an early photograph holds four closures the newest no
+  // longer does (five later ones pushed them out); ro-9 is in two, and ro-11
+  // closed as won't do.
   await snapshot(pg.call, at("14:30"), {
-    "os.example.com": [["ro-9", "Feed reads the store", at("14:25")], ["ro-10", "Feed folds runs", at("14:20")], ["ro-0", "Before the window", at("00:30")]],
+    "os.example.com": [["ro-9", "Feed reads the store", at("14:25")], ["ro-10", "Feed folds runs", at("14:20")],
+      ["ro-11", "Feed drops the old ticker", at("14:10"), "wont-do"], ["ro-0", "Before the window", at("00:30")]],
     "lantern.example.com": [["pb-1", "Score table loads", at("14:15")]],
   });
   await snapshot(pg.call, at("16:00"), { "os.example.com": [["ro-9", "Feed reads the store", at("14:25")]] });
@@ -394,6 +397,7 @@ needsPostgres("buildWallFeed", () => {
       "14:25 task-done System · Feed reads the store",
       "14:20 task-done System · Feed folds runs",
       "14:15 task-done Lantern · Score table loads",
+      "14:10 task-closed System · Feed drops the old ticker",
       "14:00 source-failed Money · PostHog report failed",
       "13:00 cost System · Booked $12.00 infra cost for September",
       "12:00 setting-saved - · Moved the feed to the right",
@@ -456,6 +460,27 @@ needsPostgres("buildWallFeed", () => {
     });
     const next = await buildWallFeed(pg.call, DEPS);
     expect(next.items[0]).toMatchObject({ id: "task:ac-2", kind: "task-done", site: "Codes", who: "codex", model: null });
+  });
+
+  it("labels a close where nothing shipped with its resolution's word, from the board's row or the named close", async () => {
+    await snapshot(pg.call, at("19:28"), {
+      "codes.example.com": [["ac-4", "Codes print view", at("19:26"), "wont-do"], ["ac-5", "Codes CSV export", at("19:25"), "duplicate"],
+        ["ac-6", "Codes cache misses", at("19:24"), "cant-reproduce"], ["ac-7", "Codes time zone", at("19:22")]],
+    }, {}, {
+      "codes.example.com": [{ kind: "closed", taskId: "ac-8", title: "Codes legend", by: "Dana", at: at("19:27"), resolution: "already-handled" },
+        { kind: "closed", taskId: "ac-5", title: "Codes CSV export", by: "codex", at: at("19:25"), resolution: "duplicate" },
+        { kind: "closed", taskId: "ac-9", title: "Codes nightly run", by: "codex", at: at("19:23") }],
+    });
+    const { items } = await buildWallFeed(pg.call, DEPS);
+    const lines = Object.fromEntries(items.filter((item) => /^task:ac-[4-9]$/.test(item.id)).map((item) => [item.id, [item.kind, item.label, item.tone, item.who ?? null]]));
+    expect(lines).toEqual({
+      "task:ac-4": ["task-closed", "Won't do", "neutral", null],
+      "task:ac-5": ["task-closed", "Duplicate", "neutral", "codex"],
+      "task:ac-6": ["task-closed", "Can't reproduce", "neutral", null],
+      "task:ac-7": ["task-done", "Task done", "healthy", null],
+      "task:ac-8": ["task-closed", "Already handled", "neutral", "Dana"],
+      "task:ac-9": ["task-done", "Task done", "healthy", "codex"],
+    });
   });
 
   it("draws a person's pick as a Chosen line with the person's name, the option and the task", async () => {

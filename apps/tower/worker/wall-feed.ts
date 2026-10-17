@@ -18,6 +18,7 @@ import { readSites } from "./asset-registry";
 import { cents } from "./ledger-history";
 import { configDocumentFile } from "../../../scripts/config-documents.mjs";
 import { assetDisplayName } from "@noticeos/contract/asset-name";
+import { isTaskResolution, TASK_RESOLUTION_LABELS } from "@noticeos/contract/task-resolution";
 import { INTEGRATION_MONITORS } from "@noticeos/contract/integration-health";
 import { settledAtSql } from "./flag-scope";
 import { SCHEDULED_JOBS } from "../../../scripts/scheduled-jobs.mjs";
@@ -261,7 +262,8 @@ export const FEED_JOBS_SQL = `SELECT j.job_run_number::text AS id, j.job, j.fini
  * (`BEADS_SNAPSHOT_RETENTION_DAYS`, workers/ingest/src/beads-snapshots.ts),
  * which covers this window's farthest reach; keep the two in step. An item's
  * time is the text the writer stored (`toISOString`), compared byte by byte.
- * A filed task carries its filer and model (`filedBy`, `filedModel`).
+ * A filed task carries its filer and model (`filedBy`, `filedModel`), and a
+ * closed one how its close ended when it was not done (`resolution`).
  */
 export const FEED_TASKS_SQL = `WITH RECURSIVE ticks(t) AS (
     SELECT $1::timestamptz
@@ -276,7 +278,7 @@ export const FEED_TASKS_SQL = `WITH RECURSIVE ticks(t) AS (
   first_seen AS (
 SELECT DISTINCT ON (i.list, i.value ->> 'id')
        i.list, p.value ->> 'asset' AS asset, i.value ->> 'id' AS id, i.value ->> 'title' AS title, i.at,
-       i.value ->> 'filedBy' AS who, i.value ->> 'filedModel' AS model
+       i.value ->> 'filedBy' AS who, i.value ->> 'filedModel' AS model, i.value ->> 'resolution' AS resolution
   FROM picks
   JOIN noticeos.task_snapshots s ON s.snapshot_id = picks.id
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END)
@@ -291,7 +293,7 @@ SELECT DISTINCT ON (i.list, i.value ->> 'id')
  WHERE i.at COLLATE "C" >= $3::text
  ORDER BY i.list, i.value ->> 'id', s.captured_at, s.snapshot_id, p.n, i.list_n, i.item_n
   )
-SELECT list, asset, id, title, at, who, model FROM first_seen
+SELECT list, asset, id, title, at, who, model, resolution FROM first_seen
  ORDER BY at COLLATE "C" DESC, list, id
  LIMIT $4`;
 
@@ -304,7 +306,7 @@ SELECT list, asset, id, title, at, who, model FROM first_seen
 export const FEED_WORK_SQL = `SELECT p.value ->> 'asset' AS asset, w.value ->> 'kind' AS kind, w.value ->> 'taskId' AS id,
        w.value ->> 'title' AS title, w.value ->> 'by' AS who, w.value ->> 'model' AS model,
        w.value ->> 'evidence' AS evidence, w.value ->> 'at' AS at,
-       w.value ->> 'option' AS option, w.value ->> 'label' AS label
+       w.value ->> 'option' AS option, w.value ->> 'label' AS label, w.value ->> 'resolution' AS resolution
   FROM (SELECT payload FROM noticeos.task_snapshots ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1) s
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END) AS p(value)
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(p.value -> 'recentWork') WHEN 'array' THEN p.value -> 'recentWork' ELSE '[]' END) AS w(value)
@@ -579,6 +581,8 @@ type WorkRow = {
   /** A pick's option key and label. */
   option: string | null;
   label: string | null;
+  /** A close that was not done: how it ended. */
+  resolution: string | null;
 };
 type TaskRow = {
   list: "recentlyClosed" | "recentlyCreated";
@@ -589,7 +593,16 @@ type TaskRow = {
   /** A filed task's filer and model. */
   who: string | null;
   model: string | null;
+  /** A closed task whose close was not done: how it ended. */
+  resolution: string | null;
 };
+
+/** A close's line: Task done, or the resolution's word when nothing shipped. */
+function closeLine(resolution: string | null | undefined): Pick<FeedEvent, "kind" | "label" | "tone"> {
+  return isTaskResolution(resolution) && resolution !== "done"
+    ? { kind: "task-closed", label: TASK_RESOLUTION_LABELS[resolution], tone: "neutral" }
+    : { kind: "task-done", tone: "healthy" };
+}
 
 /** A collection attempt, whichever table recorded it. */
 interface Attempt {
@@ -1228,10 +1241,9 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     add({
       id: `${done ? "task" : "task-filed"}:${row.id}`,
       atMs: ms(row.at),
-      kind: done ? "task-done" : "task-filed",
+      ...(done ? closeLine(closer?.resolution ?? row.resolution) : { kind: "task-filed" as const, tone: "neutral" as const }),
       asset: known(row.asset),
       text: row.title?.trim() || row.id,
-      tone: done ? "healthy" : "neutral",
       foldKey: null,
       ...(closer ? { who: closer.who!, model: closer.model, evidence: closer.evidence } : {}),
       ...(filer ? { who: filer, model: row.model?.trim() || null } : {}),
@@ -1242,10 +1254,9 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     add({
       id: `task:${row.id}`,
       atMs: ms(row.at!),
-      kind: "task-done",
+      ...closeLine(row.resolution),
       asset: known(row.asset),
       text: row.title?.trim() || row.id!,
-      tone: "healthy",
       foldKey: null,
       who: row.who!,
       model: row.model,

@@ -50,8 +50,9 @@ function invalid() { throw new Error('Hosted task operation refused'); }
 function tasksNamed(operation) {
     const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]
         : operation.kind === 'update' ? [operation.taskId, operation.parent]
-            : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
-                : 'taskId' in operation ? [operation.taskId] : [];
+            : operation.kind === 'close' || operation.kind === 'dismiss' ? [operation.taskId, operation.duplicateOf]
+                : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
+                    : 'taskId' in operation ? [operation.taskId] : [];
     return [...new Set(ids.filter((id) => typeof id === 'string' && id !== ''))];
 }
 /** A catalog entry as a refusal names it. */
@@ -78,10 +79,11 @@ function canonical(value) {
     }
     return JSON.stringify(value);
 }
-/** Who closed a task, written onto it after its close: the task client keeps
- * no closer. The close stands whether or not this lands; a task without it
- * shows its close and no closer. `closeOutput` is the close's own answer. */
-export async function recordCloser(run, taskId, closeOutput, closedBy, model) {
+/** Who closed a task and how it ended, written onto it after its close: the
+ * task client keeps no closer. The close stands whether or not this lands; a
+ * task without it shows its close, no closer, and reads as done.
+ * `closeOutput` is the close's own answer. */
+export async function recordCloser(run, taskId, closeOutput, closedBy, model, ended = {}) {
     try {
         const closedAt = (found) => {
             const row = (Array.isArray(found) ? found : [found]).map(entry => entry && typeof entry === 'object' ? entry : {})
@@ -91,7 +93,9 @@ export async function recordCloser(run, taskId, closeOutput, closedBy, model) {
         const at = closedAt(closeOutput) ?? closedAt(await run({ kind: 'show', taskId }));
         if (at === null)
             return;
-        await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }) }));
+        await run(Object.freeze({ kind: 'attribute', taskId, closedBy, closedAt: at, ...(model === undefined ? {} : { model }),
+            ...(ended.resolution === undefined ? {} : { resolution: ended.resolution }),
+            ...(ended.duplicateOf === undefined ? {} : { duplicateOf: ended.duplicateOf }) }));
     }
     catch { /* The close itself is the outcome; its closer stays unrecorded. */ }
 }
@@ -241,7 +245,24 @@ export function createHostedTaskOperations(options) {
         const operation = request.operation;
         if (operation.kind !== 'close')
             return;
-        await recordCloser(step => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step }), operation.taskId, value, principalId, operation.model);
+        await recordCloser(step => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step }), operation.taskId, value, principalId, operation.model, operation);
+    }
+    /** Before a close or a dismissal as a duplicate: the other task must be one
+     * of this project's, and the two are linked as related so either task's
+     * page reaches the other. A link the two already have, of any type, stays
+     * as it is, and the close goes ahead without a new one. */
+    async function duplicateLinked(proof, workspaceId, request, project) {
+        const operation = request.operation;
+        if (operation.kind !== 'close' && operation.kind !== 'dismiss' || operation.duplicateOf === undefined)
+            return;
+        const run = (step) => executor.execute(proof, workspaceId, { projectId: request.projectId, operation: step });
+        const found = rows(await run({ kind: 'find', taskIds: [operation.duplicateOf] })).map(row => record(row).id);
+        if (!found.includes(operation.duplicateOf))
+            throw new TaskStateRefused(operation.duplicateOf, 'other', { kind: 'missing', project: named(project) });
+        try {
+            await run({ kind: 'depend', taskId: operation.taskId, dependsOn: operation.duplicateOf, type: 'related' });
+        }
+        catch { /* See above. */ }
     }
     return Object.freeze({
         projects(proof, workspaceId) {
@@ -363,8 +384,13 @@ export function createHostedTaskOperations(options) {
             const primary = 'taskId' in request.operation ? request.operation.taskId : undefined;
             return explained(proof, workspaceId, request.projectId, tasksNamed(request.operation), () => admitted(proof, workspaceId, action, async (context, catalog) => {
                 const project = await selected(workspaceId, catalog, request.projectId, primary);
+                // Another project's task is refused by name, as a primary task is.
+                if ((request.operation.kind === 'close' || request.operation.kind === 'dismiss') && request.operation.duplicateOf !== undefined) {
+                    await selected(workspaceId, catalog, request.projectId, request.operation.duplicateOf);
+                }
                 const answer = (value) => kind === 'create' ? created(value, project) : value;
                 const effect = async (planned) => {
+                    await duplicateLinked(proof, workspaceId, planned, project);
                     const value = await executor.execute(proof, workspaceId, planned);
                     await attribute(proof, workspaceId, planned, value, context.principalId);
                     return answer(value);

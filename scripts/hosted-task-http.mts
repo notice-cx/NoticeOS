@@ -112,7 +112,8 @@ export async function readHostedTaskCommand(request: Request, url: URL, workspac
     const row = await body(request);
     const fields = kind === 'create' ? ['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata']
       : kind === 'update' ? ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']
-      : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : kind === 'choose' ? ['option', 'note'] : ['reason'];
+      : kind === 'comment' ? ['text'] : kind === 'respond' ? ['response'] : kind === 'choose' ? ['option', 'note']
+      : kind === 'close' || kind === 'dismiss' ? ['reason', 'resolution', 'duplicateOf'] : ['reason'];
     keys(row, ['projectId'], fields); projectId = uuid(row.projectId);
     delete row.projectId;
     operation = { kind, ...(taskId ? { taskId } : {}), ...row } as HostedTaskOperation;
