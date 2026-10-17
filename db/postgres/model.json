@@ -273,6 +273,14 @@
       },
       "rule": "Append-only; a same-day resend of a site's codebase report is a new revision."
     },
+    "asset_icons": {
+      "revision": {
+        "insert": true,
+        "update": [],
+        "delete": false
+      },
+      "rule": "Append-only; each read of a site's home page is a new row, and a site's card shows the newest read that reached the page."
+    },
     "integration_connections": {
       "revision": {
         "insert": true,

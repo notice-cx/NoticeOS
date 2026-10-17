@@ -88,7 +88,7 @@ export const SCHEDULED_JOBS: ScheduledJob[] = [
     collectNow: [{ provider: 'bing-webmaster', step: 'bing' }] },
   { id: 'asset-zero', surface: 'system', label: 'NoticeOS report', group: 'System maintenance', cron: '0 3 * * *' },
   { id: 'watch-windows', surface: 'workflow', label: 'Outcome checks', group: 'Outcomes', cron: '30 3 * * *' },
-  { id: 'hygiene', surface: 'system', label: 'Search accessibility checks', group: 'Site health', cron: '0 4 * * *', keywords: ['robots', 'sitemap', 'indexing', 'page structure'] },
+  { id: 'hygiene', surface: 'system', label: 'Search accessibility checks', group: 'Site health', cron: '0 4 * * *', keywords: ['robots', 'sitemap', 'indexing', 'page structure', 'site icons'] },
   { id: 'clarity', surface: 'system', label: 'Clarity recordings summary', group: 'Business signals', cron: '30 4 * * *',
     collectNow: [{ provider: 'clarity', step: 'clarity' }], connections: ['clarity'] },
   { id: 'signal-dumps', surface: 'system', label: 'Traffic and search archives', group: 'Business signals', cron: '15 12 * * *', source: 'Google Analytics · Search Console · Bing',

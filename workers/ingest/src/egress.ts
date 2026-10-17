@@ -112,6 +112,8 @@ export const EGRESS_LANES = [
   'posthog',
   // The hourly home-page check (hygiene.ts `runUptimeChecks`).
   'uptime',
+  // The daily read of each site's declared icons (site-icons.ts).
+  'icons',
 ] as const;
 export type EgressLaneId = (typeof EGRESS_LANES)[number];
 

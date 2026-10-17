@@ -751,6 +751,37 @@ BEGIN
   END;
 END $$;
 
+-- ─── A site's icon reads ─────────────────────────────────────────────────────
+DO $$
+BEGIN
+  -- ACCEPTED: a read that found a dark icon only; one that found none; one
+  -- that reached nothing.
+  INSERT INTO noticeos.asset_icons (workspace_id, asset_id, read_at, outcome, light_url, dark_url)
+  VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-10T04:00:00Z', 'read', NULL, 'https://a.example/dark.svg'),
+         (noticeos.current_workspace_id(), 'a.example', '2026-09-11T04:00:00Z', 'no-icon', NULL, NULL),
+         (noticeos.current_workspace_id(), 'a.example', '2026-09-12T04:00:00Z', 'unreachable', NULL, NULL);
+  -- REFUSED: a read naming no icon, an icon on a read that found none, and an
+  -- icon that is not a web address.
+  BEGIN
+    INSERT INTO noticeos.asset_icons (workspace_id, asset_id, read_at, outcome)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-13T04:00:00Z', 'read');
+    RAISE EXCEPTION 'an icon read naming no icon was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO noticeos.asset_icons (workspace_id, asset_id, read_at, outcome, light_url)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-13T04:00:00Z', 'unreachable', 'https://a.example/icon.png');
+    RAISE EXCEPTION 'an icon on an unreachable read was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO noticeos.asset_icons (workspace_id, asset_id, read_at, outcome, light_url)
+    VALUES (noticeos.current_workspace_id(), 'a.example', '2026-09-13T04:00:00Z', 'read', 'data:image/png;base64,AAAA');
+    RAISE EXCEPTION 'an icon that is not a web address was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+
 -- ─── A retry replaces its earlier revision's untouched alerts ───────────────
 DO $$
 DECLARE first_rev bigint; second_rev bigint; touched bigint; untouched bigint; shown integer; day integer;

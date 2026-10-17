@@ -206,27 +206,37 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
  * `www.` address is asked once. A redirect from the bare host is followed by
  * {@link fetchDoc}, so it counts as an answer.
  */
-interface HomeFetch {
-  /** The host that answered, and the one this run reads robots.txt and the
-   * sitemap from; the stored domain when neither answered. */
+export interface HomeAsked<T extends { status: number | null }> {
+  /** The host that answered, the one the hygiene checks read robots.txt and
+   * the sitemap from; the stored domain when neither answered. */
   host: string;
-  response: FetchOutcome;
+  response: T;
   /** The `www.` address's outcome when it did not answer either; `response`
    * is then the bare host's. */
-  wwwTry?: FetchOutcome;
+  wwwTry?: T;
 }
+type HomeFetch = HomeAsked<FetchOutcome>;
 
 /** No response, or a 404: no site at this host, as opposed to a site that errs. */
-function noAnswer(outcome: FetchOutcome): boolean {
+function noAnswer(outcome: { status: number | null }): boolean {
   return outcome.status === null || outcome.status === 404;
 }
 
-async function fetchHome(fetchImpl: typeof fetch, domain: string): Promise<HomeFetch> {
-  const bare = await fetchDoc(fetchImpl, `https://${domain}/`, 'text/html');
+/** Ask a domain's home page with `ask(host)`, and its `www.` host once when the
+ * bare host does not answer. Every lane that reads a home page asks this way. */
+export async function askHome<T extends { status: number | null }>(
+  domain: string,
+  ask: (host: string) => Promise<T>,
+): Promise<HomeAsked<T>> {
+  const bare = await ask(domain);
   if (!noAnswer(bare) || domain.startsWith('www.')) return { host: domain, response: bare };
   const wwwHost = `www.${domain}`;
-  const www = await fetchDoc(fetchImpl, `https://${wwwHost}/`, 'text/html');
+  const www = await ask(wwwHost);
   return noAnswer(www) ? { host: domain, response: bare, wwwTry: www } : { host: wwwHost, response: www };
+}
+
+async function fetchHome(fetchImpl: typeof fetch, domain: string): Promise<HomeFetch> {
+  return askHome(domain, (host) => fetchDoc(fetchImpl, `https://${host}/`, 'text/html'));
 }
 
 /** A failed GET in a flag message: its status, or the transport error. */
@@ -968,7 +978,7 @@ async function confirmHomeFailures(
  * including it would mean a permanent "no sitemap" warn). Pre-launch
  * properties are included: that is where a robots block sits unnoticed.
  */
-async function eligibleAssets(env: IngestEnv): Promise<HygieneAsset[]> {
+export async function eligibleAssets(env: IngestEnv): Promise<HygieneAsset[]> {
   // The assets table's CHECK already refuses an empty domain.
   return env.STORE.read((tx) =>
     tx.query<{ asset: string; domain: string }>(

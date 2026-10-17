@@ -112,7 +112,7 @@ and the operator-facing error body must not vary per route.
 | `30 2 * * *` (02:30 UTC) | pull adapter + Bing signals | Pull each enabled pull-mode asset's self-report endpoint (`config/pull.json`) through the pulse path, then collect daily Bing Webmaster clicks/impressions for every non-retired portfolio property verified under the central key. This includes Sense-only pre-launch properties; observation does not authorize publication or action. The jobs are failure-isolated. |
 | `0 3 * * *` (03:00 UTC) | asset-#0 self-pulse | The OS writes its own pulse (`asset = <os-asset-id>`) with pulses received, ledger rows ingested, open flags, and `cronRunSuccess` — derived from the job-run record (`job_runs`). Three-valued: `1` while every lane's latest firing ran or stood down, `0` the moment one lane's latest firing failed *or* nothing has fired for a day (a dead runner stops writing, so stale evidence must not read as health), and absent — capability and metric both — while the record is empty, because nothing observed is not success. See [Job runs](#job-runs-proof-that-the-scheduled-lanes-fired). |
 | `30 3 * * *` (03:30 UTC) | watch-window evaluation | Read out every open watch window whose next check has come due: record an interim reading, or close the window on its final offset with an outcome and a flag. Runs after the 02:30 signal pulls so a check due today reads today's data. See [Watch windows](#watch-windows-pre-registered-outcome-checks). |
-| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible property's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, or a sitemap outage. Six plain HTTPS requests per property, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). |
+| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible property's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, or a sitemap outage. Six plain HTTPS requests per property, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each property's declared light and dark icons from one more GET of its home page and stores one row per property in `asset_icons`. See [Site icons](#site-icons). |
 | `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per property that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. A property with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
 | `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive eight completed-day GA4 families and ten GSC breakdowns for the previous four dates, plus the BWT report families a property is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier GA4 / Search Console dates an outage cost. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
 | `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then six aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run and lists the families it did not ask for; the next run asks them. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to six earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
@@ -1514,6 +1514,63 @@ to see whether GPTBot is allowed is a different act from fetching a page *as*
 GPTBot, and only the first is ours to do — so a property that serves different
 HTML to crawlers than to us is outside what this check can see.
 
+## Site icons
+
+`src/site-icons.ts` reads the icons each site's home page declares, once a day
+as the `icons` step of the 04:00 UTC job, and stores one row per site per read
+in `asset_icons` (migration 0017). The Tower's site cards (`AssetCard.icons`,
+read by `apps/tower/worker/site-icons.ts`) carry the newest read that reached
+the page, so a site that does not answer one morning keeps the icons it
+declared the day before.
+
+**Who is read:** every site with a domain that is not `retired` and is not the
+OS's own row, the same sites the hygiene checks read. A site added during the
+day is read at the next 04:00 run.
+
+**The request:** one GET of `https://<domain>/`, and of `https://www.<domain>/`
+when the bare host returns no response or a 404, as
+`NoticeOS-Icons/1.0 (+https://www.notice.cx; site icon read)`. Redirects are
+followed by the lane, at most five; no cookie is sent; the whole read stops
+after 10 seconds; the body is read only to the end of its head, at most 256 KB.
+
+**What it keeps:** the head's `<link>` tags whose `rel` holds `icon` (which
+includes `shortcut icon`), `apple-touch-icon` or `apple-touch-icon-precomposed`.
+A tag whose `media` matches `prefers-color-scheme: dark` is a dark icon; every
+other tag, one with no `media` included, is a light icon. For each scheme the
+lane keeps one icon, the first in this order:
+
+| Order | Icon |
+|---|---|
+| 1 | SVG (`type="image/svg+xml"`, or an address ending in `.svg`) |
+| 2 | a raster icon of 32 px or more, the largest first |
+| 3 | a raster icon with no `sizes`, usually a multi-size `.ico` |
+| 4 | an `apple-touch-icon`, the largest first |
+| 5 | a raster icon under 32 px, the largest first |
+
+Between two icons of one rank, the one earlier in the page is kept. Each
+address is resolved against the head's `<base href>`, or else against the
+address the page was read from after redirects, and only `http:` and `https:`
+addresses are kept. Links inside comments, scripts and templates, and links
+after the head, are not read; `rel="mask-icon"` is not an icon here.
+
+| `outcome` | Stored when | `light_url`, `dark_url` |
+|---|---|---|
+| `read` | the page declared at least one icon | the kept addresses; one of the two can be NULL |
+| `no-icon` | the page answered 2xx and declared none | NULL |
+| `unreachable` | no 2xx page came back | NULL |
+
+`detail` records the address read, its HTTP status and any transport error.
+A read that got no HTTP status at all asks the [egress gate](#egress-gate-before-accusing-anybody-of-being-dark)
+first: when the OS itself cannot get out, the lane stores nothing for that site
+and adds it to the `icons` entry of the `os-egress-down` flag. A site whose
+read or write throws is listed in the run's `failed`, and the run goes on to
+the next site.
+
+**Before migration 0017 is applied:** the lane looks for the `asset_icons`
+table first and, without it, asks no site and returns
+`skipped: 'not-migrated'`; the Tower's reader returns no icons, so every card
+carries `icons: null`.
+
 ## Egress gate (before accusing anybody of being dark)
 
 This OS runs local-first, so every nightly lane runs from one machine. When
@@ -1555,7 +1612,7 @@ at the transport level, which is the same evidence the property fetch produced.
   `lastFailedAt`, `connectionBackAt`) while `fired_at` keeps dating the onset.
 - **Every collector keeps its own entry on that one flag.** `lanes` holds, per
   collector (`pull`, `hygiene`, `google-signals`, `bing-signals`,
-  `signal-dumps`, `dataforseo`, `posthog`), the properties its runs left
+  `signal-dumps`, `dataforseo`, `posthog`, `uptime`, `icons`), the properties its runs left
   unmeasured and have not measured since — down to the report family where the
   collector can name one. `N` in the message is the **union** across collectors,
   not whichever ran last. A collector's run replaces only its own entry (a scoped
@@ -1582,8 +1639,8 @@ at the transport level, which is the same evidence the property fetch produced.
 
 Gated branches, and only these: `checkHtmlDepth`'s home-unreachable path,
 `checkSitemap`'s parent-fetch failure, `checkRobotsAiAccess`'s
-robots-vanished logic, and `pullOne`'s catch when the request reached the wire
-without a status. A missing pull token is **not** gated — that failure never
+robots-vanished logic, `pullOne`'s catch when the request reached the wire
+without a status, and the icon read's home-page GET (`runSiteIcons`). A missing pull token is **not** gated — that failure never
 touched the network, so it stays a configuration alert even mid-outage. Child
 sitemaps are not gated either: to reach them the parent fetch had to succeed,
 which is itself proof the OS could reach that origin moments earlier.

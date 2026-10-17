@@ -24,7 +24,7 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | Nightly reports | 02:30 | Collects the daily provider reports, including Bing Webmaster |
 | NoticeOS report | 03:00 | The installation's own report about itself |
 | Outcome checks | 03:30 | Reads the follow-up window of each shipped change |
-| Search accessibility checks | 04:00 | Robots, sitemap and indexing checks |
+| Search accessibility checks | 04:00 | Robots, sitemap and indexing checks, and a read of the light and dark icons each site's home page declares |
 | Backups | 04:00 | The nightly backup; see [Backups and restore](/operate/backups-and-restore) |
 | Clarity recordings summary | 04:30 | Summarises Microsoft Clarity data |
 | Traffic and search archives | 12:15 | Archives the day's Google Analytics, Search Console and Bing reports |

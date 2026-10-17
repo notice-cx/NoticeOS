@@ -18,6 +18,7 @@ import { beadsReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
 import { readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
+import { loadSiteIcons } from "./site-icons";
 import {
   WALL_SIGNAL_CHART_DAYS,
   emptySignalTrendSet,
@@ -621,6 +622,7 @@ export async function buildWallPayload(
     nowMs,
     panelAssetIds,
   );
+  const iconsByAsset = await loadSiteIcons(store);
 
   const assets: AssetCard[] = cardAssets.map((a) => {
     const f = flagsByAsset.get(a.id);
@@ -684,6 +686,7 @@ export async function buildWallPayload(
       // nothing.
       panelReview: latestPanelDate ? (panelReviewByAsset.get(a.id) ?? null) : null,
       latestPanelDate,
+      icons: iconsByAsset.get(a.id) ?? null,
     };
   });
 
