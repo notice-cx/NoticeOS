@@ -290,11 +290,10 @@ function addressOf(section: string): string {
     : `/settings${section ? `#${section}` : ""}`;
 }
 
-function renderPage(section = initialSection) {
+/** `client` is the desk's query cache, for a case about what it already holds. */
+function renderPage(section = initialSection, client = new QueryClient({ defaultOptions: { queries: { retry: false } } })) {
   return render(
-    <QueryClientProvider
-      client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
-    >
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[addressOf(section)]}>
         <Routes>
           <Route path="/settings/:tab?" element={<SettingsRoute />} />
@@ -1073,6 +1072,30 @@ describe("/settings — the task-hub project map", () => {
     expect(projectRow("root-os").querySelector("[data-task-project-site]")).toHaveTextContent("System");
     expect(within(projectRow("root-os")).getByLabelText("Site")).toHaveValue("root-os");
     expect(projectRow("meadow.example").querySelector("[data-task-project-site]")).toHaveTextContent("Meadow Board");
+  });
+
+  it("draws each project's site icon for the theme, from the card in the Wall read the desk holds", () => {
+    state.integrations = matrix(11.4, "2026-09", [{ id: "meadow.example", displayName: "Meadow Board", isOs: false }]);
+    const calls = stubFetch();
+    const light = "https://www.meadow.example/brand/icon-32.png";
+    const dark = "https://www.meadow.example/brand/icon-32-dark.png";
+    const desk = () => {
+      const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      client.setQueryData(["wall"], wall([assetCard({ id: "meadow.example", icons: { light, dark, readAt: null, outcome: null } })]));
+      return client;
+    };
+    const icon = () => projectRow("meadow.example").querySelector("[data-task-project-site] [data-property-favicon] img");
+    try {
+      const onDark = renderPage(initialSection, desk());
+      expect(icon()).toHaveAttribute("src", dark);
+      onDark.unmount();
+      document.documentElement.classList.add("light");
+      renderPage(initialSection, desk());
+      expect(icon()).toHaveAttribute("src", light);
+      expect(calls.filter((call) => call.url.startsWith("/api/wall"))).toEqual([]);
+    } finally {
+      document.documentElement.classList.remove("light");
+    }
   });
 
   it("keeps a site the store does not list under its id alone", () => {

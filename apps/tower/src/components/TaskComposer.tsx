@@ -28,6 +28,7 @@ import { fieldClass } from "@/components/ui/field";
 import { useCreateTask, useTasksLive, useTaskProjects } from "@/hooks/useTasks";
 import { taskPath } from '@/lib/task-path';
 import { useSettings } from "@/hooks/useSettings";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWork } from "@/hooks/useWork";
 import { ApiError, type NewTask } from "@/lib/api";
 import type { TaskHandoffKind } from "@/lib/task-handoff";
@@ -119,6 +120,7 @@ export function TaskComposer({
   const createTask = useCreateTask();
   const capability = useTasksLive();
   const catalog = useTaskProjects();
+  const iconsOf = useSiteIcons();
   const hostedFields = capability.projectSelection === true && !onFile;
 
   const spokes = projects ?? (hostedFields ? (catalog.data ?? []).map(row => ({ asset: row.logicalKey, prefix: row.prefix, name: row.displayName })) : settings.data?.taskHub.spokes ?? []);
@@ -325,6 +327,7 @@ export function TaskComposer({
                 {spoke ? (
                   <PropertyFavicon
                     domain={spoke.asset}
+                    icons={iconsOf(spoke.asset)}
                     displayName={projectName(spoke)}
                   />
                 ) : null}

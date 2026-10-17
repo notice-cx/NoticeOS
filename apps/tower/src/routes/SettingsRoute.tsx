@@ -65,6 +65,7 @@ import { useConfigWritable } from "@/hooks/useConfigWritable";
 import { useIntegrations } from "@/hooks/useIntegrations";
 import { useNow } from "@/hooks/useNow";
 import { useSettings } from "@/hooks/useSettings";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWall } from "@/hooks/useWall";
 import { useWork } from "@/hooks/useWork";
 import { ScheduleRows } from "@/routes/workflows/ScheduleEditor";
@@ -730,6 +731,7 @@ function AlertRulePreview({
           >
             <PropertyFavicon
               domain={candidate.id}
+              icons={candidate.icons}
               displayName={candidate.displayName}
               className="size-4"
             />
@@ -873,6 +875,7 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
   const historyWindow = byKey.get("panel-refresh-window");
   const { knobs } = collection;
   const [zone] = useState(localTimezone);
+  const iconsOf = useSiteIcons();
 
   return (
     <>
@@ -942,7 +945,7 @@ function CollectionSection({ settings }: { settings: SettingsPayload }) {
               data-pull-asset={entry.asset}
             >
               <div className="flex min-w-0 items-center gap-2">
-                <PropertyFavicon domain={entry.asset} displayName={entry.asset} />
+                <PropertyFavicon domain={entry.asset} icons={iconsOf(entry.asset)} displayName={entry.asset} />
                 <div className="flex min-w-0 flex-col">
                   <span className="text-sm font-medium text-foreground">{entry.asset}</span>
                   <span className="break-all font-mono text-[11px] text-muted-foreground">{entry.url}</span>
@@ -1143,6 +1146,7 @@ function EntityOwnership({
 
 /** The assets on one line, each a link to the Identity card that changes it. */
 function AssetLinks({ ids }: { ids: string[] }) {
+  const iconsOf = useSiteIcons();
   return (
     <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
       {ids.map((id) => (
@@ -1151,7 +1155,7 @@ function AssetLinks({ ids }: { ids: string[] }) {
           to={`/assets/${encodeURIComponent(id)}/settings`}
           className="inline-flex items-center gap-1 text-foreground underline-offset-2 hover:underline"
         >
-          <PropertyFavicon domain={id} displayName={id} />
+          <PropertyFavicon domain={id} icons={iconsOf(id)} displayName={id} />
           {id}
         </Link>
       ))}
@@ -1270,9 +1274,10 @@ function InstallationSection() {
 
 /** A project's site by its on-screen name, beside the Site cell that edits its id. */
 function ProjectSite({ id, name }: { id: string; name: string | undefined }) {
+  const iconsOf = useSiteIcons();
   return (
     <span className="flex items-center gap-1.5" data-task-project-site={id}>
-      <PropertyFavicon domain={id} displayName={name ?? id} />
+      <PropertyFavicon domain={id} icons={iconsOf(id)} displayName={name ?? id} />
       {name === undefined ? null : <span className="max-w-40 truncate text-sm font-medium text-foreground">{name}</span>}
     </span>
   );

@@ -39,11 +39,14 @@ export function AlertWeek({
     settledHref: (row) => `/alerts/history?asset=${encodeURIComponent(row.asset.id)}`,
   });
   if (timeline.spans.length === 0) return null;
-  const names = new Map(assets.map((asset) => [asset.id, asset.displayName]));
-  const lanes = timeline.lanes.map((lane) => ({
-    ...lane,
-    icon: <PropertyFavicon domain={lane.id} displayName={names.get(lane.id) ?? lane.label} className="size-4" />,
-  }));
+  const cards = new Map(assets.map((asset) => [asset.id, asset]));
+  const lanes = timeline.lanes.map((lane) => {
+    const card = cards.get(lane.id);
+    return {
+      ...lane,
+      icon: <PropertyFavicon domain={lane.id} icons={card?.icons} displayName={card?.displayName ?? lane.label} className="size-4" />,
+    };
+  });
   return (
     <section aria-label="The last 7 days" data-alert-week="" className="rounded-xl bg-card px-5 pb-3 pt-4 ring-1 ring-border/70">
       <h2 className={cn("m-0 pb-1", eyebrowClass)}>Last 7 days</h2>

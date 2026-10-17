@@ -7,6 +7,7 @@ import { InfoTooltip } from "@/components/InfoTooltip";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SectionLabel } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { formatMoney, formatPercent, formatPeriodMonth, formatPeriodMonthLong, formatPeriodMonthYear, formatSeriesDate, formatSignedMoney } from "@/lib/format";
 import { siteNetSeries, type SiteChange, type SiteMoneyRow } from "@/lib/money-page";
 import { cn } from "@/lib/utils";
@@ -102,6 +103,7 @@ export function SiteMoneyRows({
 function SiteRow({ row, index, period, openPeriod }: { row: SiteMoneyRow; index: number; period: string; openPeriod: string }) {
   const { property, share, change } = row;
   const { figure } = property;
+  const iconsOf = useSiteIcons();
   return (
     <div
       role="row"
@@ -111,7 +113,7 @@ function SiteRow({ row, index, period, openPeriod }: { row: SiteMoneyRow; index:
       style={{ "--viz-i": index } as CSSProperties}
     >
       <span role="rowheader" className="flex min-w-0 items-center gap-2.5">
-        <PropertyFavicon domain={property.asset} displayName={property.displayName} />
+        <PropertyFavicon domain={property.asset} icons={iconsOf(property.asset)} displayName={property.displayName} />
         {/* The name is the row's one way out, so on a phone it takes the 44px
             thumb floor: `inline-flex` grows the box and `-my-3` gives the row
             its height back. */}

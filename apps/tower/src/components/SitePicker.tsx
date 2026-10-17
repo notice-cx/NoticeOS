@@ -35,6 +35,7 @@ import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { StateChip, type StatusSubject } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { formatUsd } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -104,6 +105,7 @@ export function SitePicker({
   onClose,
 }: SitePickerProps) {
   const plan = useMemo(() => (payload ? planSites(payload, preselect) : null), [payload, preselect]);
+  const iconsOf = useSiteIcons();
   // The selection belongs to the plan it was made on: a new plan starts from
   // its own suggestions in the same render, so Start is never drawn disabled
   // for one frame over rows that are already ticked.
@@ -155,7 +157,7 @@ export function SitePicker({
             const kind: ConnectionKind = result !== null && !result.ok ? "not-checked" : shown?.kind ?? "collecting";
             return (
               <li key={row.asset.id} className="flex min-h-14 items-center gap-3 border-t border-border px-4 py-3 first:border-t-0" data-site-row={row.asset.id} data-subject={`site:${provider.id}:${row.asset.id}`}>
-                <PropertyFavicon domain={row.asset.domain ?? row.asset.id} displayName={row.asset.label} />
+                <PropertyFavicon domain={row.asset.domain ?? row.asset.id} icons={iconsOf(row.asset.id)} displayName={row.asset.label} />
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="truncate font-medium">{row.asset.label}</span>
                   <StartedCaption
@@ -175,7 +177,7 @@ export function SitePicker({
               operator's words, and the state the Data sources row now reads. */}
           {declinedRows.map((row) => (
             <li key={row.asset.id} className="flex min-h-14 items-center gap-3 border-t border-border px-4 py-3 first:border-t-0" data-site-row={row.asset.id} data-site-decision="not-using" data-subject={`site:${provider.id}:${row.asset.id}`}>
-              <PropertyFavicon domain={row.asset.domain ?? row.asset.id} displayName={row.asset.label} />
+              <PropertyFavicon domain={row.asset.domain ?? row.asset.id} icons={iconsOf(row.asset.id)} displayName={row.asset.label} />
               <span className="flex min-w-0 flex-1 flex-col">
                 <span className="truncate font-medium">{row.asset.label}</span>
                 <span className="truncate text-xs text-muted-foreground">{selection.declined?.[row.asset.id] ?? ""}</span>
@@ -389,6 +391,7 @@ function ChoiceRow({
   onPick: (lane: SiteLane, ref: string) => void;
   onDecline: (reason: string) => void;
 }) {
+  const iconsOf = useSiteIcons();
   const collectable = rowCollectable(row, selection);
   const checked = collectable && selection.checked.has(row.asset.id);
   const unlisted = row.lanes.filter((lane) => lane.state === "unlisted");
@@ -439,7 +442,7 @@ function ChoiceRow({
           onChange={(event) => onToggle(event.target.checked)}
           className="size-4 shrink-0 accent-primary disabled:opacity-40"
         />
-        <PropertyFavicon domain={row.asset.domain ?? row.asset.id} displayName={row.asset.label} />
+        <PropertyFavicon domain={row.asset.domain ?? row.asset.id} icons={iconsOf(row.asset.id)} displayName={row.asset.label} />
         <span className="flex min-w-0 flex-col">
           <span className="truncate font-medium">{row.asset.label}</span>
           <span className="break-words font-mono text-xs text-muted-foreground" data-site-detail>

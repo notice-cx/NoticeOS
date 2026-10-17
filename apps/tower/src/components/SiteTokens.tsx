@@ -6,6 +6,7 @@ import { IntegrationStateChip } from "@/components/IntegrationStateChip";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
+import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { cn } from "@/lib/utils";
 
 /** One site the provider's tokens are pasted for. */
@@ -54,6 +55,7 @@ export function SiteTokens({ provider, sites, statusOf, remaining, cap, onSave, 
   const [running, setRunning] = useState(false);
   const [ran, setRan] = useState<CollectNowResult | null>(null);
   const inFlight = useRef(new Set<string>());
+  const iconsOf = useSiteIcons();
 
   const runnable = sites.filter((site) => site.held && (remaining(site.id) ?? cap) > 0).map((site) => site.id);
   // The fewest calls any runnable site has left: what the press can promise.
@@ -103,7 +105,7 @@ export function SiteTokens({ provider, sites, statusOf, remaining, cap, onSave, 
             return (
               <li key={site.id} className="flex flex-col gap-2 border-t border-border px-4 py-3 first:border-t-0" data-site-token-row={site.id} data-site-token-held={site.held ? "" : undefined}>
                 <div className="flex min-h-7 items-center gap-3">
-                  <PropertyFavicon domain={site.domain ?? site.id} displayName={site.label} />
+                  <PropertyFavicon domain={site.domain ?? site.id} icons={iconsOf(site.id)} displayName={site.label} />
                   <label htmlFor={inputId} className="min-w-0 flex-1 truncate font-medium">{site.label}</label>
                   {row.state === "saving" ? (
                     <span className="inline-flex items-center gap-1 text-xs text-muted-foreground" data-save-state="saving">
