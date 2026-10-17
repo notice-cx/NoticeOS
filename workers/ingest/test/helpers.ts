@@ -43,6 +43,7 @@ const EMPTIED_BEFORE_EACH_TEST = [
   'reclamation_targets',
   'pulses',
   'codebase_reports',
+  'asset_icons',
   'flags',
   'flag_evidence',
   'flag_tunes',

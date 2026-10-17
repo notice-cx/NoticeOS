@@ -43,6 +43,7 @@ import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
 import { type Ga4CustomDimensionConfig, runSignalDumps } from './signal-dumps.js';
+import { runSiteIcons } from './site-icons.js';
 import { runWatchWindows } from './watch-windows.js';
 import { createWorkflowRecorder, settleWorkflowSteps, type WorkflowRecorder } from '../../../scripts/workflow-trace.mjs';
 import { redactLogText } from '../../../scripts/os-log.mjs';
@@ -151,7 +152,9 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   },
   'asset-zero': { steps: { report: (env) => runAssetZeroPulse(env) } },
   'watch-windows': { steps: { outcomes: (env) => runWatchWindows(env) } },
-  hygiene: { steps: { hygiene: (env) => runHygieneChecks(env) } },
+  // The daily tick also reads each site's declared icons, a second home-page
+  // GET of its own, isolated from the checks.
+  hygiene: { steps: { hygiene: (env) => runHygieneChecks(env), icons: (env) => runSiteIcons(env) } },
   clarity: { steps: { clarity: (env, cfg) => runClarityDumps(env, { laneRegister: cfg.laneRegister }) } },
   // The daily tick also re-collects the DataForSEO families an offline weekly
   // sweep skipped, 30 minutes clear of the sweep it shares a lane lock with.
