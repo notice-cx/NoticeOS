@@ -296,6 +296,19 @@ and `noticeos_closed_at`. The closer applies only to the close at
 shows its close and no closer. A task filed with `bd` directly, or by one of
 the runner's filers, carries no `noticeos_filed_by` and names no filer.
 
+Two more server-written keys hold a person's pick, as JSON objects rather
+than text. `noticeos_choices` is the set of options a task offers, written
+from the `choices` an agent passes to `create_task`, `create_tasks` or
+`update_task` once they pass the rules in
+[`packages/contract/src/task-choices.mts`](../packages/contract/src/task-choices.mts):
+`{ question, options: [{ key, label, detail?, recommended? }] }`, two to six
+options keyed `a` to `f` in the order shown, exactly one with
+`recommended: true`. `noticeos_choice` is the pick, written once by the
+choose operation that only a person can call:
+`{ option, label, by, at, note? }`, where `label` is the option's label when
+it was chosen and `by` is the person. Once `noticeos_choice` is present,
+`update_task` refuses to change `noticeos_choices`.
+
 **Four kinds, and what each one's key is.** `noticeos_kind` names the surface
 that raised the work, and `noticeos_key` is the join back to the exact row:
 

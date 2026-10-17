@@ -93,9 +93,21 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_filed_model";
         legacy: "noticeos_filed_model";
     }>;
+    /** The options a person picks from, as the task tools validated them
+     * (task-choices.mts). Server-set from a task's `choices`. */
+    choices: Readonly<{
+        name: "noticeos_choices";
+        legacy: "noticeos_choices";
+    }>;
+    /** The option a person picked: written only by the choose operation, once. */
+    choice: Readonly<{
+        name: "noticeos_choice";
+        legacy: "noticeos_choice";
+    }>;
 }>;
 /** The names only the server writes. A caller's metadata never carries them,
- * so no filer can forge who filed or closed a task or a write's identity. */
+ * so no filer can forge who filed or closed a task, a write's identity, an
+ * unvalidated set of choices or a person's pick. */
 export declare const SERVER_TASK_METADATA: readonly string[];
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 /** The label every Tower handoff bead carries from now on. */

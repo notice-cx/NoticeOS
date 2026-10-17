@@ -1,6 +1,7 @@
 // Pure Beads row normalization shared by standalone and hosted readers.
 import type { LiveTask, LiveEpic, TaskDependency, TaskComment } from "../apps/tower/shared/tasks";
 import { gateTitle } from "../packages/contract/src/task-gate.mjs";
+import { readTaskChoice, readTaskChoices } from "../packages/contract/src/task-choices.mjs";
 
 function text(value: unknown, fallback = ""): string {
   return typeof value === "string" && value.trim() !== "" ? value.trim() : fallback;
@@ -83,6 +84,8 @@ export function toLiveTask(row: unknown, ready: ReadonlySet<string>): LiveTask {
     startedAt: instant(source.started_at),
     closeReason: text(source.close_reason) || null,
     awaitType,
+    choices: readTaskChoices(metadata),
+    choice: readTaskChoice(metadata),
   };
 }
 

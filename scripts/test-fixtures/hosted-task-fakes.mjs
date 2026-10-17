@@ -66,7 +66,8 @@ export function fakeTaskExecutor({ principal, clock }) {
           ...(operation.acceptance ? { acceptance_criteria: operation.acceptance } : {}), created_at: at, updated_at: at,
           metadata: { ...(operation.operationId ? { noticeos_operation_id: operation.operationId } : {}),
             ...(operation.filedBy ? { noticeos_filed_by: operation.filedBy } : {}),
-            ...(operation.model ? { noticeos_filed_model: operation.model } : {}) } });
+            ...(operation.model ? { noticeos_filed_model: operation.model } : {}),
+            ...(operation.choices ? { noticeos_choices: structuredClone(operation.choices) } : {}) } });
         if (operation.parent) edges.push({ from: id, to: operation.parent, type: 'parent-child' });
         for (const link of operation.links ?? []) {
           if (link.type === 'blocks') edges.push({ from: link.taskId, to: id, type: 'blocks' });
@@ -85,6 +86,9 @@ export function fakeTaskExecutor({ principal, clock }) {
           closed_at: new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z') });
         if (operation.claim) Object.assign(task, { status: 'in_progress', assignee: principal() });
         if (operation.model !== undefined) task.metadata = { ...task.metadata, noticeos_claimed_model: operation.model };
+        // As --metadata merges the new set in and --unset-metadata takes it off.
+        if (operation.choices === null) { const { noticeos_choices: _gone, ...kept } = task.metadata ?? {}; task.metadata = kept; }
+        else if (operation.choices !== undefined) task.metadata = { ...task.metadata, noticeos_choices: structuredClone(operation.choices) };
         for (const field of ['status', 'priority', 'title']) if (operation[field] !== undefined) task[field] = operation[field];
         if (operation.acceptance !== undefined) task.acceptance_criteria = operation.acceptance;
         if (operation.addLabels) task.labels = [...new Set([...(task.labels ?? []), ...operation.addLabels])];

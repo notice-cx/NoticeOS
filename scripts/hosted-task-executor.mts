@@ -14,6 +14,7 @@ import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
   isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
+import { taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 
 export interface HostedTaskTarget {
@@ -134,7 +135,11 @@ function snapshotRequest(input: unknown, workspaceId: string): HostedTaskRequest
   // New labels/metadata are data too. Copy them synchronously so a caller
   // cannot change the planned payload while fresh authority is being read.
   for (const [key, value] of Object.entries(operation)) {
-    if (Array.isArray(value)) operation[key] = Object.freeze([...value]);
+    if (key === 'choices' && value !== null) {
+      // Nested data: the copy is checked again, so what runs is what was checked.
+      const set = record(value);
+      operation[key] = taskChoicesOf({ ...set, options: (Array.isArray(set.options) ? set.options : []).map(option => ({ ...record(option) })) }) ?? fail();
+    } else if (Array.isArray(value)) operation[key] = Object.freeze([...value]);
     else if (value !== null && typeof value === 'object') operation[key] = Object.freeze(record(value));
   }
   return Object.freeze({ projectId, operation: Object.freeze(operation) }) as unknown as HostedTaskRequest;

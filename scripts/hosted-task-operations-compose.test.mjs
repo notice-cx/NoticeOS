@@ -167,5 +167,27 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     assert.deepEqual([done.status, done.metadata?.noticeos_closed_by, done.metadata?.noticeos_closed_model, done.metadata?.noticeos_claimed_model],
       ['closed', ALICE, 'Example Model 1', 'Example Model 1']);
     assert.ok(Math.abs(Date.parse(done.metadata.noticeos_closed_at) - Date.parse(done.closedAt)) <= 1000, JSON.stringify(done));
+
+    // A person's pick as data: filed with three choices, read back by get_task
+    // and list_tasks, replaced whole and taken off; a malformed set files nothing.
+    const pick = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+      { key: 'b', label: 'Redirect to the new page', detail: 'The old page answers 301.', recommended: true }, { key: 'c', label: 'Keep both' }] };
+    const asking = await ok('create_task', { title: 'Pick the page', labels: ['human'], description: 'Choose which page keeps the traffic.',
+      acceptance: 'A person chose', choices: pick, model: 'Example Model 1', idempotency_key: 'compose-choices-0001' });
+    assert.equal('advice' in asking.lint, false);
+    const filedPick = (await ok('get_task', { task: asking.id })).task;
+    assert.deepEqual([filedPick.choices, filedPick.choice, filedPick.metadata.noticeos_choices, filedPick.metadata.noticeos_filed_model],
+      [pick, null, pick, 'Example Model 1']);
+    assert.deepEqual(filedPick.choices.options.filter(option => option.recommended).map(option => option.key), ['b']);
+    assert.deepEqual((await ok('list_tasks', { labels: ['human'] })).tasks.find(task => task.id === asking.id)?.choices, pick);
+    const two = { question: 'Keep it?', options: [{ key: 'a', label: 'Yes', recommended: true }, { key: 'b', label: 'No' }] };
+    assert.deepEqual((await ok('update_task', { task: asking.id, choices: two, idempotency_key: 'compose-choices-0002' })).task.choices, two);
+    const cleared = (await ok('update_task', { task: asking.id, choices: null, idempotency_key: 'compose-choices-0003' })).task;
+    assert.deepEqual([cleared.choices, 'noticeos_choices' in (cleared.metadata ?? {}), cleared.metadata?.noticeos_filed_model], [null, false, 'Example Model 1']);
+    const prose = await ok('update_task', { task: asking.id, description: 'Pick one.\n(a) Keep the old page\n(b) Redirect it',
+      idempotency_key: 'compose-choices-0004' });
+    assert.match(prose.lint.advice?.[0] ?? '', /^choices: the description offers lettered options/u);
+    assert.equal((await tool('create_task', { title: 'Bad pick', choices: { ...pick, options: pick.options.slice(0, 1) },
+      idempotency_key: 'compose-choices-0005' })).content[0].text, 'invalid arguments: choices.options (2 to 6 options)');
   });
 });

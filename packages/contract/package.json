@@ -30,6 +30,10 @@
       "types": "./src/task-metadata.d.mts",
       "default": "./src/task-metadata.mjs"
     },
+    "./task-choices": {
+      "types": "./src/task-choices.d.mts",
+      "default": "./src/task-choices.mjs"
+    },
     "./task-gate": {
       "types": "./src/task-gate.d.mts",
       "default": "./src/task-gate.mjs"

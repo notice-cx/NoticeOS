@@ -12,6 +12,7 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
+import { taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
     name = 'HostedTaskRefused';
@@ -90,7 +91,12 @@ function snapshotRequest(input, workspaceId) {
     // New labels/metadata are data too. Copy them synchronously so a caller
     // cannot change the planned payload while fresh authority is being read.
     for (const [key, value] of Object.entries(operation)) {
-        if (Array.isArray(value))
+        if (key === 'choices' && value !== null) {
+            // Nested data: the copy is checked again, so what runs is what was checked.
+            const set = record(value);
+            operation[key] = taskChoicesOf({ ...set, options: (Array.isArray(set.options) ? set.options : []).map(option => ({ ...record(option) })) }) ?? fail();
+        }
+        else if (Array.isArray(value))
             operation[key] = Object.freeze([...value]);
         else if (value !== null && typeof value === 'object')
             operation[key] = Object.freeze(record(value));

@@ -17,6 +17,7 @@ import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, TaskProjectRefused } from './hosted-task-operations.mjs';
 import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
+import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoicesOf, taskChoicesProblem } from '../packages/contract/src/task-choices.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
@@ -40,7 +41,7 @@ export const TASK_QUALITY = Object.freeze([
     '- description: plain labelled lines, unwrapped: WHAT, WHY with the numbers, WHERE as pointers that resolve in a repo (file paths, commits, doc sections), FIX. A bug also has a "## Steps to Reproduce" section.',
     '- acceptance: the proof that completes it, provable the day the work lands. Never "watch for N days": close on today\'s proof and name where a recurrence would show.',
     '- Never cite a session, a transcript, an agent\'s report or a temporary file; cite the repo evidence under it.',
-    '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask first, lettered options with one marked recommended, technical notes last. A step that must wait for approval uses request_human_approval.',
+    '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
 ]);
@@ -105,6 +106,8 @@ function stateRefusal({ taskId: id, attempted, reason }) {
         case 'children': return `refused: ${id} has open children: ${listed(reason.children)}. Close them first, or give them another parent with update_task.`;
         case 'linked': return `refused: ${id} already depends on ${reason.dependsOn} as ${reason.type}, and a dependency keeps the type it was `
             + `added with. To record it as ${reason.wanted}, remove_dependency first, then add it again.`;
+        case 'chosen': return `refused: ${id} already carries a person's choice${reason.chosen === null ? '' : `, ${reason.chosen}`}, and its choices `
+            + 'stay as they were when it was made. get_task shows the choice; file work that remains with create_task.';
     }
 }
 /** A call naming a project the catalog does not hold, or another project's
@@ -244,6 +247,16 @@ function strings(args, name) {
     }
     return value;
 }
+/** A task's choices, refused with the field at fault named (task-choices.mts holds the rules). */
+function choicesArg(args) {
+    const value = args.choices;
+    if (value === undefined)
+        return undefined;
+    const problem = taskChoicesProblem(value);
+    if (problem !== null)
+        refuse(`invalid arguments: ${problem.field} (${problem.rule})`);
+    return taskChoicesOf(value);
+}
 /** YYYY-MM-DD or an ISO time, as epoch milliseconds. */
 function instantArg(args, name) {
     const value = args[name];
@@ -258,7 +271,7 @@ function instantArg(args, name) {
 /** A new task's fields, from create_task or one entry of create_tasks. `target`
  * reads each task id it names: a parent or a linked task. */
 const CREATE_FIELDS = Object.freeze(['title', 'description', 'type', 'priority', 'labels', 'parent', 'acceptance',
-    ...LINKS.map(([name]) => name), 'approval']);
+    ...LINKS.map(([name]) => name), 'approval', 'choices']);
 function creation(args, target) {
     const parent = args.parent === undefined ? undefined : target('parent', args.parent);
     const links = [];
@@ -281,8 +294,32 @@ function creation(args, target) {
     return { operation: defined({ kind: 'create', title: textArg(args, 'title', HOSTED_TASK_LIMITS.title),
             description: textArg(args, 'description', HOSTED_TASK_LIMITS.body, false, true), type: taskType(args),
             priority: priority(args), labels: labels(args, 'labels'), parent,
-            acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true), links: links.length ? links : undefined }),
+            acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true), links: links.length ? links : undefined,
+            choices: choicesArg(args) }),
         approval: textArg(args, 'approval', GATE_REASON_MAX, false) };
+}
+/** Lines that open with an option letter: (a), a), a. or a list dash before (a). */
+const LETTERED_LINE = /^\s*(?:[-*]\s*)?(?:\(([a-f])\)|([a-f])[.)])\s/u;
+/** Whether a description offers a person lettered options in prose: lines
+ * for (a) and (b), or "(a) … (b) …" inside one line. */
+export function offersLetteredOptions(description) {
+    const letters = new Set();
+    for (const line of description.split(/\r?\n/u)) {
+        if (/\(a\)\s.*\(b\)\s/u.test(line))
+            return true;
+        const match = LETTERED_LINE.exec(line);
+        if (match)
+            letters.add(match[1] ?? match[2]);
+    }
+    return letters.has('a') && letters.has('b');
+}
+const CHOICES_ADVICE = 'choices: the description offers lettered options. Pass them as choices, so the person picks one with a button '
+    + 'and the pick is recorded on the task.';
+/** Advice beside lint's missing sections: a person's task whose options are prose a button cannot press. */
+function choiceAdvice(task) {
+    if (task === null || !Array.isArray(task.labels) || !task.labels.includes('human') || task.choices)
+        return [];
+    return typeof task.description === 'string' && offersLetteredOptions(task.description) ? [CHOICES_ADVICE] : [];
 }
 /** A task in full. `live` when it was read with the project's ready work, which
  * readiness and the person's inbox need; a past version from history is not. */
@@ -291,7 +328,8 @@ function presentTask(task, live) {
         id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
         assignee: task.assignee, labels: task.labels, parent: task.parent,
         ...(live ? { ready: task.ready, awaitingHuman: waitsOnPerson(task) } : {}),
-        description: task.description, acceptance: task.acceptance, deferUntil: task.deferUntil,
+        description: task.description, acceptance: task.acceptance, choices: task.choices ?? null, choice: task.choice ?? null,
+        deferUntil: task.deferUntil,
         dependencies: task.dependencies, commentCount: task.comments, metadata: task.metadata,
         createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt,
         closedAt: task.closedAt, closeReason: task.closeReason,
@@ -303,6 +341,7 @@ function summaryOf(task) {
     const row = {
         id: task.id, title: task.title, status: task.status, priority: task.priority, type: task.issueType,
         assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: waitsOnPerson(task),
+        choices: task.choices ?? null, choice: task.choice ?? null,
         deferUntil: task.deferUntil, createdAt: task.createdAt, updatedAt: task.updatedAt, closedAt: task.closedAt,
     };
     return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null && !(Array.isArray(value) && !value.length)));
@@ -346,6 +385,17 @@ function schema(properties, required = []) {
     return { type: 'object', properties, required, additionalProperties: false };
 }
 const TASK_IDS = (description) => ({ type: 'array', items: { type: 'string' }, maxItems: HOSTED_TASK_LIMITS.links, description });
+/** The options a person picks from (task-choices.mts holds the rules the call is checked against). */
+const CHOICES = Object.freeze({ type: 'object', additionalProperties: false, required: ['question', 'options'],
+    description: 'When the task needs a person to pick one option. The Tower shows one button per option; the pick comes back on the task as choice.',
+    properties: {
+        question: { type: 'string', maxLength: TASK_CHOICE_LIMITS.question, description: 'What the person decides, asked as a question.' },
+        options: { type: 'array', minItems: TASK_CHOICE_LIMITS.fewest, maxItems: TASK_CHOICE_LIMITS.most,
+            items: schema({ key: { type: 'string', enum: TASK_CHOICE_KEYS, description: 'a for the first option, b for the second, and so on in order.' },
+                label: { type: 'string', maxLength: TASK_CHOICE_LIMITS.label, description: 'One line: the words on the option\'s button.' },
+                detail: { type: 'string', maxLength: TASK_CHOICE_LIMITS.detail, description: 'What choosing it means, when the label leaves it out.' },
+                recommended: { type: 'boolean', description: 'true on exactly one option: the one you recommend.' } }, ['key', 'label']) },
+    } });
 /** A new task's fields, for create_task and each entry of create_tasks. */
 const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK_LIMITS.title },
     description: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
@@ -359,7 +409,8 @@ const NEW_TASK = Object.freeze({ title: { type: 'string', maxLength: HOSTED_TASK
     related: TASK_IDS('Tasks it relates to, without waiting on them.'),
     discovered_from: TASK_IDS('Tasks whose work turned this one up.'),
     approval: { type: 'string', maxLength: GATE_REASON_MAX,
-        description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' } });
+        description: 'What a person must approve before it proceeds. Opens a gate that holds it out of ready work, as request_human_approval does.' },
+    choices: CHOICES });
 const READ = Object.freeze({ readOnlyHint: true, idempotentHint: true, openWorldHint: false });
 const WRITE = Object.freeze({ readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false });
 async function write(context, projectId, operation, idempotencyKey, present) {
@@ -399,8 +450,12 @@ async function linted(context, projectId, taskIds) {
         return null;
     }
 }
-function lintOf(found, taskId) {
-    return found === null ? null : { missing: found.get(taskId) ?? [] };
+/** Lint's missing sections, with advice when there is some. Missing is left
+ * out when lint could not be read. */
+function lintOf(found, taskId, advice = []) {
+    if (found === null)
+        return advice.length ? { advice } : null;
+    return { missing: found.get(taskId) ?? [], ...(advice.length ? { advice } : {}) };
 }
 /** A task as it is after a write, read back whole: the task client's own reply
  * to a change leaves out its parent and links. Null when it could not be read;
@@ -515,7 +570,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
             const id = result.id;
             const asked = approval === undefined ? {}
                 : approvalOf(id, (await context.operations.approval(context.proof, context.workspaceId, projectId, id, approval)).gate);
-            return { ...result, ...asked, lint: lintOf(await linted(context, projectId, [id]), id) };
+            return { ...result, ...asked, lint: lintOf(await linted(context, projectId, [id]), id, choiceAdvice(operation)) };
         } },
     { name: 'create_tasks', description: `Create up to ${BATCH} tasks in one call, in order, naming your model. A parent or link may name an earlier `
             + 'task of the same call as #0 for the first, #1 for the second. Stops at the first task refused and says which; '
@@ -574,7 +629,7 @@ export const TASK_MCP_TOOLS = Object.freeze([
             return { project: projectKey,
                 created: made.map(({ index, id, replayed, approval }) => ({ index, id, replayed,
                     ...(approval ? { approval: { id: approval.id, status: approval.status, reason: gateReason(approval.description) }, held: true } : {}),
-                    lint: lintOf(found, id) })),
+                    lint: lintOf(found, id, choiceAdvice(planned[index].operation)) })),
                 ...(made.some(entry => entry.approval) ? { note: 'A task with an approval is out of ready work until a person approves it on Tasks in the Tower.' } : {}),
                 ...(failed ? { failed, notAttempted: planned.length - made.length - 1,
                     retry: 'Retry with the same idempotency_key and tasks to finish after a passing failure; tasks already filed are not repeated. '
@@ -597,11 +652,13 @@ export const TASK_MCP_TOOLS = Object.freeze([
             defer: { type: 'string', description: 'YYYY-MM-DD to hide it until then, or "" to clear.' },
             acceptance: { type: 'string', maxLength: HOSTED_TASK_LIMITS.body },
             add_labels: { type: 'array', items: { type: 'string' } }, remove_labels: { type: 'array', items: { type: 'string' } },
+            choices: { ...CHOICES, type: ['object', 'null'],
+                description: 'A whole new set of choices, or null to take them off. Refused once a person has chosen.' },
             idempotency_key: IDEMPOTENCY }, ['project', 'task', 'idempotency_key']),
         annotations: WRITE,
         async run(context, args) {
             only(args, ['project', 'task', 'status', 'priority', 'title', 'description', 'assignee', 'parent', 'defer',
-                'acceptance', 'add_labels', 'remove_labels', 'idempotency_key']);
+                'acceptance', 'add_labels', 'remove_labels', 'choices', 'idempotency_key']);
             const operation = defined({ kind: 'update', taskId: task(args),
                 status: choice(args, 'status', STATUSES.filter(status => status !== 'closed')), priority: priority(args),
                 title: textArg(args, 'title', HOSTED_TASK_LIMITS.title, false),
@@ -609,13 +666,14 @@ export const TASK_MCP_TOOLS = Object.freeze([
                 assignee: textArg(args, 'assignee', HOSTED_TASK_LIMITS.identifier, false, true),
                 parent: args.parent === undefined || args.parent === '' ? args.parent : task(args, 'parent'),
                 defer: deferArg(args), acceptance: textArg(args, 'acceptance', HOSTED_TASK_LIMITS.body, false, true),
-                addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1) });
+                addLabels: labels(args, 'add_labels', 1), removeLabels: labels(args, 'remove_labels', 1),
+                choices: args.choices === null ? null : choicesArg(args) });
             if (Object.keys(operation).length === 2)
                 refuse('invalid arguments: name at least one field to change');
             const projectId = project(args);
             const { replayed } = await write(context, projectId, operation, key(args), () => ({}));
-            return { task: await current(context, projectId, operation.taskId), replayed,
-                lint: lintOf(await linted(context, projectId, [operation.taskId]), operation.taskId) };
+            const changed = await current(context, projectId, operation.taskId);
+            return { task: changed, replayed, lint: lintOf(await linted(context, projectId, [operation.taskId]), operation.taskId, choiceAdvice(changed)) };
         } },
     { name: 'comment_on_task', description: 'Add a comment to a task.',
         inputSchema: schema({ project: PROJECT, task: TASK, text: { type: 'string', maxLength: HOSTED_TASK_LIMITS.comment },

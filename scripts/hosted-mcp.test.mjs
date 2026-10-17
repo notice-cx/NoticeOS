@@ -8,7 +8,8 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY, TASK_WORKFLOW, taskGuide } from './hosted-task-mcp.mjs';
+import { TASK_QUALITY, TASK_WORKFLOW, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
+import { TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
 // connection and one token reach every tool in every workspace its person
@@ -95,6 +96,9 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.equal(init.result.instructions, discovered.instructions);
   for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
   assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
+  // A person's pick is data the Tower draws as buttons, never lettered prose.
+  assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
+  assert.doesNotMatch(discovered.instructions, /lettered options/u);
   assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
@@ -479,6 +483,77 @@ test('the demo takes no credential, lists its one workspace and only reads', asy
   assert.equal((await (await anonymous('create_task', { workspace: DEMO, project: P, title: 'x', idempotency_key: 'demo-create-0001' })).json()).result.isError, true);
   assert.equal((await demo.mcp(post({ jsonrpc: '2.0', id: 1, method: 'ping' }))).status, 400, 'a demo token is never accepted');
   assert.deepEqual(demo.effects, []);
+});
+
+const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+  { key: 'b', label: 'Redirect to the new page', detail: 'The old page answers 301.', recommended: true }, { key: 'c', label: 'Keep both' }] };
+
+test('a task that needs a person\'s pick carries its choices as data, read back by get_task and list_tasks', async () => {
+  const f = fixture();
+  const create = filer(f);
+  const made = await create('Pick the page', { labels: ['human'], description: 'Choose which page keeps the traffic.', choices: PICK });
+  assert.equal('advice' in made.lint, false, 'choices given: no advice');
+  assert.deepEqual(f.tasks.get('tt-1').metadata.noticeos_choices, PICK, 'stored in the task\'s metadata');
+  const read = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent.task;
+  assert.deepEqual([read.choices, read.choice], [PICK, null]);
+  assert.deepEqual(read.choices.options.filter(option => option.recommended).map(option => option.key), ['b']);
+  const listed = (await call(f, 'list_tasks', { workspace: A, project: P })).structuredContent.tasks;
+  assert.deepEqual(listed.map(task => [task.id, task.choices, 'choice' in task]), [['tt-1', PICK, false]], 'a list leaves out a pick not made');
+  await create('No pick');
+  assert.equal('choices' in (await call(f, 'list_tasks', { workspace: A, project: P, query: 'No pick' })).structuredContent.tasks[0], false);
+
+  // update_task replaces the set whole, or takes it off with null.
+  const two = { question: 'Keep it?', options: [{ key: 'a', label: 'Yes', recommended: true }, { key: 'b', label: 'No' }] };
+  const update = async (choices, key) => (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices, idempotency_key: key })).structuredContent;
+  assert.deepEqual((await update(two, 'agent-update-0601')).task.choices, two);
+  assert.equal((await update(null, 'agent-update-0602')).task.choices, null);
+  assert.equal('noticeos_choices' in f.tasks.get('tt-1').metadata, false);
+
+  // create_tasks takes choices on each entry.
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'agent-batch-0601',
+    tasks: [{ title: 'Ask', labels: ['human'], choices: two }] })).structuredContent;
+  assert.deepEqual(f.tasks.get(batch.created[0].id).metadata.noticeos_choices, two);
+});
+
+test('a malformed set of choices is refused with the field at fault named, and files nothing', async () => {
+  const f = fixture();
+  const error = async (choices, name = 'create_task') => (await call(f, name, name === 'create_task'
+    ? { workspace: A, project: P, title: 'Pick', choices, idempotency_key: 'agent-create-0701' }
+    : { workspace: A, project: P, idempotency_key: 'agent-batch-0701', tasks: [{ title: 'Fine' }, { title: 'Pick', choices }] })).content[0].text;
+  assert.equal(await error({ ...PICK, options: PICK.options.slice(1, 2) }), 'invalid arguments: choices.options (2 to 6 options)');
+  assert.equal(await error({ ...PICK, options: PICK.options.map(option => ({ ...option, recommended: true })) }),
+    'invalid arguments: choices.options (exactly one option with recommended: true; these have 3)');
+  assert.equal(await error({ ...PICK, options: [PICK.options[0], { ...PICK.options[1], key: 'x' }, PICK.options[2]] }),
+    'invalid arguments: choices.options[1].key (b: keys run a, b, c… in the order the options are shown)');
+  assert.match(await error({ ...PICK, question: '' }), /^invalid arguments: choices\.question \(empty\)/u);
+  assert.match(await error({ ...PICK, options: PICK.options.slice(1, 2) }, 'create_tasks'), /^invalid arguments: tasks\[1\]: choices\.options/u);
+  assert.match((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: 'a or b',
+    idempotency_key: 'agent-update-0701' })).content[0].text, /^invalid arguments: choices \(an object/u);
+  assert.equal(f.effects.length, 0);
+  assert.equal(taskRefusal(new TaskStateRefused('tt-1', 'other', { kind: 'chosen', chosen: '(b) Redirect to the new page' })).message,
+    'refused: tt-1 already carries a person\'s choice, (b) Redirect to the new page, and its choices stay as they were when it was made. '
+    + 'get_task shows the choice; file work that remains with create_task.');
+});
+
+test('lint advises a person\'s task whose description offers lettered options as prose', async () => {
+  const f = fixture();
+  const create = filer(f);
+  const advice = lint => lint.advice ?? [];
+  for (const [index, description] of ['Pick one.\n(a) Keep it\n(b) Drop it', 'Pick one.\na) Keep it\nb) Drop it', 'Pick one.\n- (a) Keep it\n- (b) Drop it',
+    'Pick one.\na. Keep it\nb. Drop it', 'FIX: Choose one. (a) Keep it (b) Drop it (c) Wait'].entries()) {
+    const made = await create(`Ask ${index}`, { labels: ['human'], description, acceptance: 'Answered' });
+    assert.deepEqual([made.lint.missing, advice(made.lint).length], [[], 1], description);
+    assert.match(advice(made.lint)[0], /^choices: the description offers lettered options/u);
+  }
+  assert.deepEqual(advice((await create('Not a person\'s', { description: '(a) Keep it\n(b) Drop it' })).lint), [], 'only a human task');
+  assert.deepEqual(advice((await create('Prose', { labels: ['human'], description: 'Pick a plan (a draft) and ship.' })).lint), []);
+  // A change that adds the human label to lettered prose is advised too, and choices settle it.
+  await create('Later ask', { description: '(a) Keep it\n(b) Drop it', acceptance: 'Answered' });
+  const id = [...f.tasks.values()].find(task => task.title === 'Later ask').id;
+  const marked = (await call(f, 'update_task', { workspace: A, project: P, task: id, add_labels: ['human'], idempotency_key: 'agent-update-0801' })).structuredContent;
+  assert.equal(advice(marked.lint).length, 1);
+  const settled = (await call(f, 'update_task', { workspace: A, project: P, task: id, choices: PICK, idempotency_key: 'agent-update-0802' })).structuredContent;
+  assert.deepEqual(settled.lint, { missing: [] });
 });
 
 test('an agent names its model on claim and close; the task shows who closed it with that model', async () => {

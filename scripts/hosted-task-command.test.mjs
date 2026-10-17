@@ -404,3 +404,51 @@ test('after the store refuses a write, the task as it stands names the cause, or
   assert.deepEqual(refusalFromState(closing, shown({ status: 'closed', close_reason: 'Earlier' }), 'agent-1')?.reason, { kind: 'closed' });
   assert.equal(refusalFromState({ kind: 'comment', taskId: 'tt-a', text: 'Note' }, shown(), 'agent-1'), null);
 });
+
+const CHOICES = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+  { key: 'b', label: 'Redirect to the new page', detail: 'The old page answers 301.', recommended: true }, { key: 'c', label: 'Keep both' }] };
+
+test('a task\'s choices travel as metadata in the create itself, and an update replaces or takes them off whole', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const metadataOf = operation => JSON.parse(plan(A, request(operation)).argv.find(arg => arg.startsWith('--metadata=')).slice(11));
+  assert.deepEqual(metadataOf({ kind: 'create', title: 'Pick the page', labels: ['human'], choices: CHOICES, filedBy: 'claude' }),
+    { noticeos_filed_by: 'claude', noticeos_choices: CHOICES });
+  assert.deepEqual(plan(A, request({ kind: 'update', taskId: 'tt-a', choices: CHOICES })).argv.slice(2),
+    ['update', `--metadata=${JSON.stringify({ noticeos_choices: CHOICES })}`, '--', 'tt-a']);
+  assert.deepEqual(plan(A, request({ kind: 'update', taskId: 'tt-a', title: 'Pick', choices: null })).argv.slice(2),
+    ['update', '--title=Pick', '--unset-metadata=noticeos_choices', '--', 'tt-a']);
+  // A recommended: false is the same as leaving it out.
+  assert.deepEqual(metadataOf({ kind: 'update', taskId: 'tt-a', choices: { ...CHOICES,
+    options: CHOICES.options.map(option => option.recommended ? option : { ...option, recommended: false }) } }), { noticeos_choices: CHOICES });
+  const getter = { question: 'Q?', options: [] };
+  Object.defineProperty(getter.options, 0, { get: () => ({ key: 'a', label: 'A', recommended: true }), enumerable: true });
+  for (const operation of [
+    { kind: 'create', title: 'Pick', choices: null },
+    { kind: 'create', title: 'Pick', choices: { ...CHOICES, options: CHOICES.options.slice(0, 1) } },
+    { kind: 'create', title: 'Pick', choices: { ...CHOICES, options: [CHOICES.options[1], CHOICES.options[0], CHOICES.options[2]] } },
+    { kind: 'create', title: 'Pick', choices: { ...CHOICES, options: CHOICES.options.map(option => ({ ...option, recommended: true })) } },
+    { kind: 'create', title: 'Pick', choices: getter },
+    { kind: 'create', title: 'Pick', metadata: { noticeos_choices: 'a,b' } },
+    { kind: 'create', title: 'Pick', metadata: { noticeos_choice: 'b' } },
+    { kind: 'update', taskId: 'tt-a', claim: true, choices: CHOICES },
+    { kind: 'update', taskId: 'tt-a', choices: 'a,b' },
+  ]) denied(() => plan(A, request(operation)));
+});
+
+test('a change to a task\'s choices reads the task first and is refused once a person has chosen', () => {
+  const changing = { kind: 'update', taskId: 'tt-a', choices: CHOICES };
+  assert.deepEqual(writeGuardReads(changing), ['tt-a']);
+  assert.deepEqual(writeGuardReads({ ...changing, choices: null }), ['tt-a']);
+  const open = shown({ status: 'open', assignee: '', metadata: { noticeos_choices: CHOICES } });
+  assert.equal(guardedWrite(changing, open, 'agent-1'), changing);
+  assert.equal(guardedWrite(changing, shown({ assignee: 'alice' }), 'agent-1'), changing, 'choices are not the holder\'s alone');
+  const chosen = { ...open, metadata: { ...open.metadata,
+    noticeos_choice: { option: 'b', label: 'Redirect to the new page', by: 'person', at: '2026-10-16T12:00:00Z' } } };
+  for (const operation of [changing, { ...changing, choices: null }, { ...changing, assignee: 'bob' }]) {
+    assert.throws(() => guardedWrite(operation, chosen, 'agent-1'), error => error instanceof TaskStateRefused
+      && assert.deepEqual(error.reason, { kind: 'chosen', chosen: '(b) Redirect to the new page' }) === undefined);
+  }
+  assert.deepEqual(refusalFromState(changing, { ...open, metadata: { noticeos_choice: 'unreadable' } }, 'agent-1')?.reason,
+    { kind: 'chosen', chosen: null }, 'a pick that cannot be read still stands');
+  assert.equal(guardedWrite({ kind: 'update', taskId: 'tt-a', title: 'New' }, undefined, 'agent-1').title, 'New', 'other changes read nothing');
+});

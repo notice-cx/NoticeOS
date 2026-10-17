@@ -9,6 +9,7 @@
  * checkout with --readonly. The executor proof must exercise the exact plans.
  */
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import { choiceName, readTaskChoice, TASK_CHOICE_LIMITS, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 export const HOSTED_TASK_LIMITS = Object.freeze({
     projects: 4096, identifier: 128, title: 512, body: 8192,
     comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
@@ -134,6 +135,15 @@ function deferDate(value) {
         invalid();
     return value;
 }
+/** A task's choices, read through data properties only and checked against
+ * the one copy of their rules (task-choices.mts). */
+function choiceSet(value) {
+    const row = record(value);
+    const copy = { ...row };
+    if (Object.hasOwn(row, 'options'))
+        copy.options = entries(row.options, 0, TASK_CHOICE_LIMITS.most).map(option => ({ ...record(option) }));
+    return taskChoicesOf(copy) ?? invalid();
+}
 function handoffMetadata(value) {
     // What only the server writes is never a caller's metadata.
     const row = record(value);
@@ -232,7 +242,7 @@ function command(input) {
             break;
         }
         case 'create':
-            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'model',
+            keys(op, ['kind', 'title'], ['description', 'type', 'priority', 'labels', 'parent', 'acceptance', 'metadata', 'links', 'choices', 'model',
                 'operationId', 'filedBy']);
             argv.push('create');
             if (Object.hasOwn(op, 'description'))
@@ -255,20 +265,24 @@ function command(input) {
                 argv.push(`--deps=${linkList(op.links, Object.hasOwn(op, 'parent') ? task(op.parent) : undefined).join(',')}`);
             if (Object.hasOwn(op, 'acceptance'))
                 argv.push(`--acceptance=${text(op.acceptance, HOSTED_TASK_LIMITS.body, true)}`);
-            // In the create itself, so a task and its filer land together.
-            if (['metadata', 'operationId', 'filedBy', 'model'].some(key => Object.hasOwn(op, key))) {
+            // In the create itself, so a task, its filer and its choices land together.
+            if (['metadata', 'operationId', 'filedBy', 'model', 'choices'].some(key => Object.hasOwn(op, key))) {
                 const metadata = { ...(Object.hasOwn(op, 'metadata') ? handoffMetadata(op.metadata) : {}),
                     ...(Object.hasOwn(op, 'operationId') ? { [TASK_METADATA.operation.name]: uuid(op.operationId) } : {}),
                     ...(Object.hasOwn(op, 'filedBy') ? { [TASK_METADATA.filedBy.name]: text(op.filedBy, HOSTED_TASK_LIMITS.identifier) } : {}),
-                    ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}) };
+                    ...(Object.hasOwn(op, 'model') ? { [TASK_METADATA.filedModel.name]: model(op.model) } : {}),
+                    ...(Object.hasOwn(op, 'choices') ? { [TASK_METADATA.choices.name]: choiceSet(op.choices) } : {}) };
                 argv.push(`--metadata=${JSON.stringify(metadata)}`);
             }
             argv.push(`--title=${text(op.title, HOSTED_TASK_LIMITS.title)}`, '--');
             break;
         case 'update': {
-            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels'];
+            const fields = ['status', 'priority', 'title', 'description', 'claim', 'assignee', 'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels', 'choices'];
             keys(op, ['kind', 'taskId'], [...fields, 'model']);
             if (!fields.some(key => Object.hasOwn(op, key)) || Object.hasOwn(op, 'model') && op.claim !== true)
+                invalid();
+            // A claim writes its model with --metadata, which the task client will not combine with --unset-metadata.
+            if (Object.hasOwn(op, 'choices') && Object.hasOwn(op, 'claim'))
                 invalid();
             argv.push('update');
             if (Object.hasOwn(op, 'status'))
@@ -296,6 +310,10 @@ function command(input) {
                 argv.push(`--add-label=${labelList(op.addLabels).join(',')}`);
             if (Object.hasOwn(op, 'removeLabels'))
                 argv.push(`--remove-label=${labelList(op.removeLabels).join(',')}`);
+            if (Object.hasOwn(op, 'choices')) {
+                argv.push(op.choices === null ? `--unset-metadata=${TASK_METADATA.choices.name}`
+                    : `--metadata=${JSON.stringify({ [TASK_METADATA.choices.name]: choiceSet(op.choices) })}`);
+            }
             // In the claim itself, so the claim and its model land together.
             if (Object.hasOwn(op, 'model'))
                 argv.push(`--metadata=${JSON.stringify({ [TASK_METADATA.claimedModel.name]: model(op.model) })}`);
@@ -415,12 +433,22 @@ function canonicalActor(name) {
 }
 function sameActor(a, b) { return a === b || canonicalActor(a) === canonicalActor(b); }
 /** A write whose own task's state decides how it runs: a close, a claim, a
- * change of assignee. A caller's forced close is a service closing for the
- * agent it named, and decides for itself. */
+ * change of assignee or of choices. A caller's forced close is a service
+ * closing for the agent it named, and decides for itself. */
 function stateGuarded(operation) {
     if (operation.kind === 'close')
         return operation.force !== true;
-    return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined);
+    return operation.kind === 'update' && (operation.claim === true || operation.assignee !== undefined || operation.choices !== undefined);
+}
+/** Whether a person has chosen on this task: its pick named, or null when the
+ * recorded pick cannot be read; undefined when it carries none. */
+function chosenOn(row) {
+    const metadata = row.metadata;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)
+        || metadata[TASK_METADATA.choice.name] === undefined)
+        return undefined;
+    const chosen = readTaskChoice(metadata);
+    return chosen === null ? null : choiceName(chosen.option, chosen.label);
 }
 /** The tasks an executor reads before this write: the decisions it must not
  * stand in for, then the task whose own state decides it. */
@@ -448,13 +476,20 @@ export function guardedWrite(operation, row, actor) {
         return operation;
     if (!row || row.id !== operation.taskId)
         invalid();
-    const attempted = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim' : 'reassign';
+    const attempted = operation.kind === 'close' ? 'close' : operation.claim === true ? 'claim'
+        : operation.assignee !== undefined ? 'reassign' : 'other';
     const refuse = (reason) => { throw new TaskStateRefused(operation.taskId, attempted, reason); };
     const status = stringOf(row.status), holder = stringOf(row.assignee);
     const held = holder !== '' && !sameActor(holder, actor);
     const open = (edge) => stringOf(edge.status) !== 'closed';
     const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
     if (operation.kind === 'update') {
+        // A pick is recorded against the options the person saw.
+        const chosen = operation.choices === undefined ? undefined : chosenOn(row);
+        if (chosen !== undefined)
+            refuse({ kind: 'chosen', chosen });
+        if (attempted === 'other')
+            return operation;
         if (attempted === 'reassign') {
             // The task client lets only its holder hand on a task someone is working.
             if (status === 'in_progress' && held && !sameActor(holder, operation.assignee))
