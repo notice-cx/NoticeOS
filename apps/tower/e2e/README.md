@@ -14,6 +14,25 @@ journey TypeScript (harness, fixtures, specs) is also checked by the Tower's own
 `typecheck`, the first CI gate, so a contract change the harness stubs fails
 there first.
 
+## Running some of the journeys
+
+The Tower's own `test:journeys` runs the journeys alone, through
+[`run-journeys.mjs`](run-journeys.mjs), and passes everything after `--` to
+`playwright test`:
+
+```sh
+pnpm --filter @noticeos/tower run test:journeys -- -g "exact task and approval"   # journeys whose title matches, desktop and mobile
+pnpm --filter @noticeos/tower run test:journeys -- --project desktop              # desktop only; --project mobile for the phone
+pnpm --filter @noticeos/tower run test:journeys -- --project desktop -g "Wall"    # both together
+pnpm --filter @noticeos/tower run test:journeys -- --list -g "Wall"               # lists the matches and runs nothing
+```
+
+`-g` takes a regular expression, matched ignoring case against the project
+name, the file name and the journey's title. The root `pnpm test:journeys`
+takes no options: it runs the journey type check, the harness test, every
+journey and the flow walker below. `scripts/journey-runner.test.mjs` checks
+that `-g` and `--project` narrow the run.
+
 ## Parallel workers, each with its own server
 
 The tests run in parallel. Each Playwright worker starts

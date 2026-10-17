@@ -13,7 +13,7 @@
     "test:watch": "vitest",
     "journey:serve": "node e2e/server.mjs",
     "journey:install": "node e2e/install-browser.mjs",
-    "test:journeys": "playwright test -c e2e/playwright.config.ts",
+    "test:journeys": "node e2e/run-journeys.mjs",
     "test:journey-harness": "node --test e2e/harness.test.mjs",
     "test:ux-flows": "node e2e/flow-gate.mjs",
     "typecheck:journeys": "tsc -p e2e/tsconfig.json",
