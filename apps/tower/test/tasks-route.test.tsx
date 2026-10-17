@@ -206,6 +206,8 @@ interface Options {
   errors?: Record<string, string>;
   entry?: string;
   isPending?: boolean;
+  /** The task operations a live workspace offers; every one when absent. */
+  operations?: string[];
 }
 
 function renderBoard({
@@ -215,11 +217,12 @@ function renderBoard({
   errors = {},
   entry = "/tasks",
   isPending = false,
+  operations,
 }: Options = {}) {
   state.work = data;
   state.isPending = isPending;
   state.capabilities = live
-    ? { live: true, reason: null }
+    ? { live: true, reason: null, ...(operations === undefined ? {} : { operations }) }
     : { live: false, reason: READ_ONLY_DEPLOYMENT };
   state.boards = boards;
   state.errors = errors;
@@ -1844,7 +1847,7 @@ describe("/tasks — several decisions taken in one action", () => {
     // Each verb names how many rows it would send, and only rows it fits.
     expect(bar.getByRole("button", { name: "Approve 2" })).toBeEnabled();
     expect(bar.getByRole("button", { name: "Answer 1" })).toBeEnabled();
-    expect(bar.getByRole("button", { name: "Dismiss 1" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Close 1 as" })).toBeEnabled();
 
     let release: () => void = () => undefined;
     api.resolveGate.mockImplementationOnce(() => new Promise<undefined>((resolve) => { release = () => resolve(undefined); }));
@@ -1875,9 +1878,12 @@ describe("/tasks — several decisions taken in one action", () => {
     const { container } = renderBoard({ data: waiting(["md-g1", "md-g2", "md-a1", "md-a2"]), live: true, boards: mixed() });
     fireEvent.click(within(container).getByRole("button", { name: "Select" }));
     pick(container, "md-a1", "md-a2");
-    fireEvent.click(selection(container).getByRole("button", { name: "Dismiss 2" }));
+    // Dismiss is the selection's Close as: Won't do, then Enter on its one line.
+    fireEvent.click(selection(container).getByRole("button", { name: "Close 2 as" }));
+    closeAsPicked(container, "Won't do");
     expect(rowOf(container, "md-a1")).toBeNull();
     expect(rowOf(container, "md-a2")).toBeNull();
+    expect(vi.mocked(toasts.success).mock.calls.at(-1)![0]).toBe("Closed as Won't do · 2");
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => undo.action.onClick());
     expect(rowOf(container, "md-a1")).not.toBeNull();
@@ -1944,10 +1950,12 @@ describe("/tasks — several decisions taken in one action", () => {
     fireEvent.click(selection(container).getByRole("button", { name: "Select all 7" }));
     expect(selection(container).getByRole("status")).toHaveTextContent("7 selected");
     expect(selection(container).getByRole("button", { name: "Clear" })).toBeEnabled();
-    fireEvent.click(selection(container).getByRole("button", { name: "Dismiss 7" }));
+    fireEvent.click(selection(container).getByRole("button", { name: "Close 7 as" }));
+    closeAsPicked(container, "Won't do");
     expect(container.querySelectorAll("[data-inbox-row]")).toHaveLength(0);
     act(() => flushAnswers());
     await waitFor(() => expect(api.dismissTask).toHaveBeenCalledTimes(7));
+    expect(api.dismissTask).toHaveBeenCalledWith("md-a6");
   });
 
   it("offers no selection in a workspace that does not let this person decide", () => {
@@ -2042,7 +2050,7 @@ describe("/tasks — a decision with choices is one press from Your decisions", 
     expect(bar.getByRole("status")).toHaveTextContent("4 selected · 2 need a choice");
     expect(bar.getByRole("button", { name: "Approve 1" })).toBeEnabled();
     expect(bar.getByRole("button", { name: "Answer 1" })).toBeEnabled();
-    expect(bar.getByRole("button", { name: "Dismiss 3" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Close 3 as" })).toBeEnabled();
 
     fireEvent.click(bar.getByRole("button", { name: "Answer 1" }));
     const box = screen.getByLabelText("Your answer to 1 questions");
@@ -2070,6 +2078,218 @@ describe("/tasks — a decision with choices is one press from Your decisions", 
     const bar = within(container.querySelector("[data-inbox-selection]") as HTMLElement);
     expect(bar.getByRole("status")).toHaveTextContent("1 selected · 1 needs a choice");
     expect(bar.queryByRole("button", { name: /^Answer/ })).toBeNull();
-    expect(bar.getByRole("button", { name: "Dismiss 1" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Close 1 as" })).toBeEnabled();
+  });
+});
+
+describe("/tasks — Select on All tasks closes many tasks with one resolution and one note", () => {
+  const backlog = (...extra: LiveTask[]) => ({ "meadow.example": board([
+    liveTask({ id: "md-b1", title: "Retire the old FAQ", labels: ["seo"] }),
+    liveTask({ id: "md-b2", title: "Move the sitemap", labels: ["seo"] }),
+    liveTask({ id: "md-b3", title: "Rename the newsletter", labels: ["copy"] }),
+    ...extra,
+  ]) });
+  const table = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-tasks-table]")!;
+  const bar = (container: HTMLElement) => within(container.querySelector<HTMLElement>("[data-tasks-selection]")!);
+  const startSelecting = (container: HTMLElement) => fireEvent.click(within(table(container)).getByRole("button", { name: "Select" }));
+  const pickRows = (container: HTMLElement, ...ids: string[]) => {
+    for (const id of ids) fireEvent.click(within(row(container, id)).getByRole("checkbox"));
+  };
+  const rowGone = (container: HTMLElement, id: string) => container.querySelector(`tr[data-task-row="${id}"]`) === null;
+
+  it("offers Select where two or more rows can be closed, puts a box on each, and shows every row while selecting", () => {
+    // A read-only board closes nothing, so it offers no Select.
+    const snapshot = renderBoard();
+    expect(within(table(snapshot.container)).queryByRole("button", { name: "Select" })).toBeNull();
+    snapshot.unmount();
+
+    const many = Array.from({ length: 30 }, (_, index) => liveTask({ id: `md-t${index}`, title: `Task ${index}` }));
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board(many) } });
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
+    expect(container.querySelector("[data-task-select]")).toBeNull();
+    startSelecting(container);
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(30);
+    expect(container.querySelectorAll("[data-task-select]")).toHaveLength(30);
+    expect(container.querySelector("[data-tasks-more]")).toBeNull();
+    // While selecting, the selection's Close as stands in for each row's own.
+    expect(within(row(container, "md-t0")).queryByRole("button", { name: "Close as" })).toBeNull();
+    expect(bar(container).getByRole("status")).toHaveTextContent("0 selected");
+    fireEvent.click(bar(container).getByRole("button", { name: "Select all 30" }));
+    expect(bar(container).getByRole("status")).toHaveTextContent("30 selected");
+    expect(bar(container).getByRole("button", { name: "Close 30 as" })).toBeEnabled();
+    fireEvent.click(bar(container).getByRole("button", { name: "Clear" }));
+    expect(bar(container).getByRole("status")).toHaveTextContent("0 selected");
+    expect(bar(container).queryByRole("button", { name: /^Close/ })).toBeNull();
+    fireEvent.click(within(table(container)).getByRole("button", { name: "Done" }));
+    expect(container.querySelector("[data-tasks-selection]")).toBeNull();
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
+    expect(within(row(container, "md-t0")).getByRole("button", { name: "Close as" })).toBeEnabled();
+  });
+
+  it("closes every selected task with one resolution and one note: one toast, one Undo, then one call at a time", async () => {
+    const { container } = renderBoard({ live: true, boards: backlog(
+      liveTask({ id: "md-h1", title: "Confirm the sponsor", labels: ["human"], status: "in_progress", assignee: "dana" }),
+    ) });
+    startSelecting(container);
+    pickRows(container, "md-b1", "md-b2", "md-h1");
+    expect(bar(container).getByRole("status")).toHaveTextContent("3 selected");
+    fireEvent.click(bar(container).getByRole("button", { name: "Close 3 as" }));
+    const menu = screen.getByRole("menu", { name: "Close 3 tasks as" });
+    // Never Done: a done close carries its own evidence, task by task.
+    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled"]);
+    fireEvent.click(within(menu).getByRole("menuitem", { name: "Already handled" }));
+    const form = container.querySelector<HTMLFormElement>('[data-tasks-selection] [data-task-form="close-as"]')!;
+    expect(within(form).getByText("Already handled")).toBeInTheDocument();
+    fireEvent.change(within(form).getByLabelText("Note"), { target: { value: "Shipped with the spring launch" } });
+    let release: () => void = () => undefined;
+    api.closeTask.mockImplementationOnce(() => new Promise<undefined>((resolve) => { release = () => resolve(undefined); }));
+    fireEvent.click(within(form).getByRole("button", { name: "Close 3 tasks" }));
+
+    for (const id of ["md-b1", "md-b2", "md-h1"]) expect(rowGone(container, id)).toBe(true);
+    expect(rowGone(container, "md-b3")).toBe(false);
+    expect(toasts.success).toHaveBeenLastCalledWith("Closed as Already handled · 3", expect.objectContaining({
+      description: expect.stringMatching(/ and 2 more$/),
+      action: expect.objectContaining({ label: "Undo" }),
+    }));
+    // The selection ends with the action; each row's own Close as is back.
+    expect(container.querySelector("[data-tasks-selection]")).toBeNull();
+    expect(within(row(container, "md-b3")).getByRole("button", { name: "Close as" })).toBeEnabled();
+    expect(api.closeTask).not.toHaveBeenCalled();
+
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(1));
+    await act(async () => undefined);
+    // The next call waits for the first to settle.
+    expect(api.closeTask).toHaveBeenCalledTimes(1);
+    await act(async () => release());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(api.dismissTask).toHaveBeenCalledOnce());
+    expect(api.closeTask).toHaveBeenCalledWith("md-b1", "Shipped with the spring launch", { resolution: "already-handled" });
+    expect(api.closeTask).toHaveBeenCalledWith("md-b2", "Shipped with the spring launch", { resolution: "already-handled" });
+    // A task waiting on a person is declined with the resolution, as its row's Close as declines it.
+    expect(api.dismissTask).toHaveBeenCalledWith("md-h1", "Shipped with the spring launch", { resolution: "already-handled" });
+    expect(toasts.error).not.toHaveBeenCalled();
+  });
+
+  it("takes the whole close back with its one Undo, and the next one closes each task with the resolution and note", async () => {
+    const { container } = renderBoard({ live: true, boards: backlog() });
+    const closeAll = () => {
+      startSelecting(container);
+      fireEvent.click(bar(container).getByRole("button", { name: "Select all 3" }));
+      fireEvent.click(bar(container).getByRole("button", { name: "Close 3 as" }));
+      closeAsPicked(container, "Won't do", { note: "Out of scope this year" });
+    };
+    closeAll();
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(0);
+    expect(vi.mocked(toasts.success).mock.calls.at(-1)![0]).toBe("Closed as Won't do · 3");
+    const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => undo.action.onClick());
+    expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(3);
+    act(() => flushAnswers());
+    expect(api.closeTask).not.toHaveBeenCalled();
+
+    closeAll();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(3));
+    for (const id of ["md-b1", "md-b2", "md-b3"]) {
+      expect(api.closeTask).toHaveBeenCalledWith(id, "Out of scope this year", { resolution: "wont-do" });
+    }
+  });
+
+  it("names a selected task that was closed already, and leaves it as it is", async () => {
+    const { container } = renderBoard({ live: true, boards: backlog(
+      liveTask({ id: "md-c1", title: "Fix the footer", status: "closed", closedAt: "2026-07-31T10:00:00.000Z" }),
+    ) });
+    startSelecting(container);
+    fireEvent.click(bar(container).getByRole("button", { name: "Select all 4" }));
+    expect(bar(container).getByRole("status")).toHaveTextContent("4 selected · 1 closed already");
+    fireEvent.click(bar(container).getByRole("button", { name: "Close 3 as" }));
+    closeAsPicked(container, "Can't reproduce");
+    expect(toasts.success).toHaveBeenLastCalledWith("Closed as Can't reproduce · 3", expect.objectContaining({
+      description: expect.stringMatching(/ and 2 more · md-c1 closed already$/),
+    }));
+    expect(rowGone(container, "md-c1")).toBe(false);
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(3));
+    expect(api.closeTask).not.toHaveBeenCalledWith("md-c1", expect.anything(), expect.anything());
+    expect(api.closeTask).toHaveBeenCalledWith("md-b1", "Can't reproduce", { resolution: "cant-reproduce" });
+  });
+
+  it("names a refused close, brings its row back and keeps the others closed", async () => {
+    api.closeTask.mockImplementation(async (id: string) => {
+      if (id === "md-b2") throw new Error("md-b2 is held by dana.");
+      return undefined;
+    });
+    try {
+      const { container } = renderBoard({ live: true, boards: backlog() });
+      startSelecting(container);
+      pickRows(container, "md-b1", "md-b2");
+      fireEvent.click(bar(container).getByRole("button", { name: "Close 2 as" }));
+      closeAsPicked(container, "Won't do");
+      act(() => flushAnswers());
+      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith("Not sent: md-b2", { description: "md-b2 is held by dana." }));
+      expect(rowGone(container, "md-b2")).toBe(false);
+      expect(rowGone(container, "md-b1")).toBe(true);
+    } finally {
+      api.closeTask.mockReset();
+      api.closeTask.mockImplementation(async () => undefined);
+    }
+  });
+
+  it("takes one other task for every selected duplicate, says so under the field, and never a selected task's own id", async () => {
+    const { container } = renderBoard({ live: true, boards: backlog() });
+    startSelecting(container);
+    pickRows(container, "md-b1", "md-b2");
+    fireEvent.click(bar(container).getByRole("button", { name: "Close 2 as" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    const form = container.querySelector<HTMLFormElement>('[data-tasks-selection] [data-task-form="close-as"]')!;
+    const other = within(form).getByLabelText("Duplicate of");
+    expect(other).toHaveAccessibleDescription("All 2 become duplicates of this one task, which is rarely right.");
+    const send = within(form).getByRole("button", { name: "Close 2 tasks" });
+    expect(send).toBeDisabled();
+    fireEvent.change(other, { target: { value: "md-b2" } });
+    expect(send).toBeDisabled();
+    fireEvent.change(other, { target: { value: "md-b3" } });
+    expect(send).toBeEnabled();
+    fireEvent.submit(form);
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(2));
+    expect(api.closeTask).toHaveBeenCalledWith("md-b1", "Duplicate of md-b3", { resolution: "duplicate", duplicateOf: "md-b3" });
+    expect(api.closeTask).toHaveBeenCalledWith("md-b2", "Duplicate of md-b3", { resolution: "duplicate", duplicateOf: "md-b3" });
+  });
+
+  it("keeps the filters in force while selecting: Select all picks the rows they show, and only those are closed", async () => {
+    const filtered = renderBoard({ live: true, boards: backlog(), entry: "/tasks?label=seo" });
+    startSelecting(filtered.container);
+    expect(bar(filtered.container).getByRole("button", { name: "Select all 2" })).toBeEnabled();
+    filtered.unmount();
+
+    const { container } = renderBoard({ live: true, boards: backlog() });
+    startSelecting(container);
+    fireEvent.click(bar(container).getByRole("button", { name: "Select all 3" }));
+    // Narrowing the board while selecting keeps the selection to what it shows.
+    fireEvent.change(container.querySelector("#tasks-label")!, { target: { value: "seo" } });
+    expect(screen.getByTestId("search")).toHaveTextContent("?label=seo");
+    expect(bar(container).getByRole("status")).toHaveTextContent("2 selected");
+    fireEvent.click(bar(container).getByRole("button", { name: "Close 2 as" }));
+    closeAsPicked(container, "Already handled", { note: "Moved with the redesign" });
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledTimes(2));
+    expect(api.closeTask).not.toHaveBeenCalledWith("md-b3", expect.anything(), expect.anything());
+  });
+
+  it("puts no box on a row this workspace cannot close, and offers no Select where nothing can be closed", () => {
+    // Declining a task waiting on a person needs the decide permission.
+    const { container, unmount } = renderBoard({ live: true, operations: ["create", "update", "comment", "close"], boards: backlog(
+      liveTask({ id: "md-h1", title: "Confirm the sponsor", labels: ["human"], status: "in_progress", assignee: "dana" }),
+    ) });
+    startSelecting(container);
+    expect(row(container, "md-b1").querySelector("[data-task-select]")).not.toBeNull();
+    expect(row(container, "md-h1").querySelector("[data-task-select]")).toBeNull();
+    expect(bar(container).getByRole("button", { name: "Select all 3" })).toBeEnabled();
+    unmount();
+
+    const none = renderBoard({ live: true, operations: ["create", "update", "comment"], boards: backlog() });
+    expect(within(table(none.container)).queryByRole("button", { name: "Select" })).toBeNull();
   });
 });

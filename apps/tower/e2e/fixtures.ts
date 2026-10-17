@@ -164,6 +164,24 @@ export const JOURNEY_CHOICES = {
   ],
 } as const;
 
+/** A backlog `/__journey/backlog` files for the journey that closes several
+ * tasks at once: three open tasks and one closed task under one label, and an
+ * open task outside it, none of them waiting on the operator. */
+export const BACKLOG_LABEL = "groom";
+export const BACKLOG_OPEN = ["jt-g1", "jt-g2", "jt-g3"] as const;
+export const BACKLOG_CLOSED = "jt-g4";
+export const BACKLOG_OUTSIDE = "jt-keep";
+export function backlogTasks() {
+  const base = { ...initialTasks()[0]!, priority: 2, labels: [BACKLOG_LABEL], description: "A synthetic backlog task.", acceptance_criteria: "" };
+  return [
+    { ...base, id: BACKLOG_OPEN[0], title: "Retire the synthetic FAQ page" },
+    { ...base, id: BACKLOG_OPEN[1], title: "Move the synthetic sitemap" },
+    { ...base, id: BACKLOG_OPEN[2], title: "Rename the synthetic newsletter" },
+    { ...base, id: BACKLOG_CLOSED, title: "Fix the synthetic footer", status: "closed", closed_at: JOURNEY_NOW, close_reason: "Fixed in the fixture" },
+    { ...base, id: BACKLOG_OUTSIDE, title: "Keep the synthetic changelog", labels: [] },
+  ];
+}
+
 /** The operator's two asks: a top-priority one, so every journey walks the
  * inbox's warn register, and a human gate in `bd`'s own shape, titled "Gate:
  * human" with the ask under `Reason:` in its description, so every journey

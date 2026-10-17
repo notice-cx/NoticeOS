@@ -320,32 +320,50 @@ function answeredAs(answer: InboxAnswer): string {
   return ANSWERED[answer.kind];
 }
 
-/** How many tasks a failure names before it counts the rest. */
-const FAILED_NAMED = 3;
+/** How many task ids a message names before it counts the rest. */
+const NAMED = 3;
 let batches = 0;
+
+/** "ex-1, ex-2, ex-3 and 4 more". */
+function nameIds(ids: readonly string[]): string {
+  const more = ids.length > NAMED ? ` and ${ids.length - NAMED} more` : "";
+  return `${ids.slice(0, NAMED).join(", ")}${more}`;
+}
+
+/** The batch toast's heading: what was done and to how many, a close naming
+ * its one resolution ("Closed as Won't do · 4"). */
+function answeredMany(answers: readonly InboxAnswer[]): string {
+  const first = answers[0]!;
+  if (first.kind === "close") return `Closed as ${TASK_RESOLUTION_LABELS[first.resolution]} · ${answers.length}`;
+  return `${ANSWERED[first.kind]} ${answers.length}`;
+}
 
 /**
  * Answer several inbox rows in one action, each with the call one row's own
  * press makes: one toast, one Undo for all of them, the calls one at a time
  * once the window closes, and one refresh when the last has settled. A row
- * whose call is refused returns, and the failure names it.
+ * whose call is refused returns, and the failure names it. Every answer in a
+ * batch is the same verb, and a batch of closes has one resolution.
+ * `closedAlready` names the selected tasks the action left out because they
+ * were closed when it was taken.
  */
-export function useInboxAnswers(): (answers: readonly InboxAnswer[]) => void {
+export function useInboxAnswers(): (answers: readonly InboxAnswer[], options?: { closedAlready?: readonly string[] }) => void {
   const toast = useOwnerToast();
   const { schedule: scheduleAnswer, undoGroup } = useOwnerAnswers();
   const refresh = useTaskRefresh();
   const api = useTowerApi();
   const selected = useTaskSelection();
   return useCallback(
-    (answers: readonly InboxAnswer[]) => {
+    (answers: readonly InboxAnswer[], { closedAlready = [] }: { closedAlready?: readonly string[] } = {}) => {
       const kinds = new Set(answers.map((answer) => answer.kind));
-      if (answers.length === 0 || kinds.size !== 1) return;
-      const kind = answers[0]!.kind;
+      const resolutions = new Set(answers.map((answer) => (answer.kind === "close" ? answer.resolution : null)));
+      if (answers.length === 0 || kinds.size !== 1 || resolutions.size !== 1) return;
       batches += 1;
       const group = `inbox-batch-${batches}`;
-      toast.success(`${ANSWERED[kind]} ${answers.length}`, {
+      const titles = answers.length === 1 ? answers[0]!.title : `${answers[0]!.title} and ${answers.length - 1} more`;
+      toast.success(answeredMany(answers), {
         id: group,
-        description: answers.length === 1 ? answers[0]!.title : `${answers[0]!.title} and ${answers.length - 1} more`,
+        description: closedAlready.length === 0 ? titles : `${titles} · ${nameIds(closedAlready)} closed already`,
         duration: UNDO_WINDOW_MS,
         action: { label: "Undo", onClick: () => undoGroup(group) },
       });
@@ -358,10 +376,8 @@ export function useInboxAnswers(): (answers: readonly InboxAnswer[]) => void {
         toast.dismiss(group);
         void refresh();
         if (failed.length === 0) return;
-        const named = failed.slice(0, FAILED_NAMED).map((entry) => entry.id).join(", ");
-        const more = failed.length > FAILED_NAMED ? ` and ${failed.length - FAILED_NAMED} more` : "";
         const reason = failed[0]!.error instanceof Error && failed[0]!.error.message !== "" ? failed[0]!.error.message : undefined;
-        toast.error(`Not sent: ${named}${more}`, reason === undefined ? undefined : { description: reason });
+        toast.error(`Not sent: ${nameIds(failed.map((entry) => entry.id))}`, reason === undefined ? undefined : { description: reason });
       };
       for (const answer of answers) {
         const captured: InboxAnswer = Object.freeze({ ...answer, project: selected(answer.project) });

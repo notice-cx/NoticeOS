@@ -160,6 +160,7 @@ import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
 import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
 import { ChoiceButtonsDemo } from "@/routes/kitchen-sink/choice-buttons-demo";
 import { CloseResolutionDemo } from "@/routes/kitchen-sink/close-resolution-demo";
+import { SelectionBarDemo } from "@/routes/kitchen-sink/selection-bar-demo";
 import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
@@ -4353,6 +4354,13 @@ export function KitchenSinkRoute() {
               row's Close as menu and its note, and the read-only face. */}
           <Section title="ResolutionChips / CloseAsMenu / CloseNoteForm (Done first, the four closes where nothing shipped, a duplicate's line, read-only)">
             <CloseResolutionDemo />
+          </Section>
+
+          {/* A list's Select, as Your decisions and All tasks draw it: the
+              toggle, a box per row, the bar's count and Select all, and
+              Close N as with the one line it opens. */}
+          <Section title="SelectionBar / SelectToggle / SelectBox (nothing picked, some picked, all picked, Close N as and a duplicate's line)">
+            <SelectionBarDemo />
           </Section>
 
           {/* Who blocks whom on a task's page: blockers left, blocked right,

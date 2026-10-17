@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Check, Reply, SendHorizontal } from "lucide-react";
+import { SelectionBar } from "@/components/SelectionBar";
 import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { useInboxAnswers, type InboxAnswer } from "@/hooks/useTasks";
@@ -7,16 +8,18 @@ import { askVerb, isGate } from "@/lib/task-board-read";
 import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Ask } from "./ask-queue";
+import { useCloseSelected } from "./close-actions";
 
 /**
  * The verbs for every selected decision at once. Each is the call that row's
  * own verb makes, so approvals take Approve and questions take Answer or
- * Dismiss, and a press sends only the rows it names (`useInboxAnswers`: one
- * Undo, then the calls one at a time). A question with choices is left out of
- * Answer and counted beside the selection instead, so a batch never answers
- * one of those for the owner; its pick is made on its own row. A person makes
- * every decision here: a selection is a person's clicks, and no agent tool
- * reaches it.
+ * Close as, and a press sends only the rows it names (`useInboxAnswers`: one
+ * Undo, then the calls one at a time). Close as declines each question with
+ * the resolution picked, as a row's Close as does. A question with choices is
+ * left out of Answer and counted beside the selection instead, so a batch
+ * never answers one of those for the owner; its pick is made on its own row.
+ * A person makes every decision here: a selection is a person's clicks, and
+ * no agent tool reaches it.
  */
 export function AskSelection({ chosen, selectable, onPick, onSent }: {
   chosen: readonly Ask[];
@@ -33,11 +36,17 @@ export function AskSelection({ chosen, selectable, onPick, onSent }: {
   const picks = questions.filter((ask) => askVerb(ask.task) === "choose");
   const answerable = questions.filter((ask) => askVerb(ask.task) !== "choose");
   const of = ({ task }: Ask) => ({ id: task.id, title: task.title, project: task.project });
+  const closeAs = useCloseSelected({
+    tasks: questions.map((ask) => ({ ...of(ask), via: "dismiss" as const })),
+    onOpen: () => setAnswering(false),
+    onSent,
+  });
 
   function send(answers: InboxAnswer[]) {
     answerAll(answers);
     setAnswering(false);
     setText("");
+    closeAs.cancel();
     onSent();
   }
   function sendAnswer() {
@@ -46,22 +55,17 @@ export function AskSelection({ chosen, selectable, onPick, onSent }: {
   }
 
   return (
-    <div role="group" aria-label="Selected decisions" className="flex flex-col gap-2 border-t border-border/60 px-5 py-2.5" data-inbox-selection>
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm tabular-nums text-muted-foreground" role="status" data-status-for="selection:decisions">
-          {formatInt(chosen.length)} selected
-          {picks.length > 0 ? <span data-selection-picks=""> · {formatInt(picks.length)} {picks.length === 1 ? "needs" : "need"} a choice</span> : null}
-        </span>
-        {chosen.length < selectable.length ? (
-          <Button type="button" size="sm" variant="ghost" onClick={() => onPick(new Set(selectable.map((ask) => ask.task.id)))} data-inbox-select-all>
-            Select all {formatInt(selectable.length)}
-          </Button>
-        ) : (
-          <Button type="button" size="sm" variant="ghost" onClick={() => onPick(new Set())} data-inbox-select-none>
-            Clear
-          </Button>
-        )}
-        <span className="ms-auto flex flex-wrap items-center gap-2">
+    <SelectionBar
+      label="Selected decisions"
+      subject="selection:decisions"
+      marks={{ "data-inbox-selection": "" }}
+      chosen={chosen.length}
+      selectable={selectable.length}
+      detail={picks.length > 0 ? `${formatInt(picks.length)} ${picks.length === 1 ? "needs" : "need"} a choice` : null}
+      onAll={() => onPick(new Set(selectable.map((ask) => ask.task.id)))}
+      onNone={() => onPick(new Set())}
+      actions={(
+        <>
           {approvals.length > 0 ? (
             <Button type="button" size="sm" onClick={() => send(approvals.map((ask) => ({ kind: "approve", ...of(ask) })))} data-bulk-action="approve">
               <Check aria-hidden />
@@ -70,19 +74,18 @@ export function AskSelection({ chosen, selectable, onPick, onSent }: {
           ) : null}
           {answerable.length > 0 ? (
             <Button type="button" size="sm" variant={answering ? "outline" : "default"} aria-expanded={answering}
-              onClick={() => setAnswering((open) => !open)} data-bulk-action="answer">
+              onClick={() => {
+                setAnswering((open) => !open);
+                closeAs.cancel();
+              }} data-bulk-action="answer">
               <Reply aria-hidden />
               Answer {formatInt(answerable.length)}
             </Button>
           ) : null}
-          {questions.length > 0 ? (
-            <Button type="button" size="sm" variant="ghost" className="text-muted-foreground"
-              onClick={() => send(questions.map((ask) => ({ kind: "dismiss", ...of(ask) })))} data-bulk-action="dismiss">
-              Dismiss {formatInt(questions.length)}
-            </Button>
-          ) : null}
-        </span>
-      </div>
+          {closeAs.menu}
+        </>
+      )}
+    >
       {answering && answerable.length > 0 ? (
         <form
           className="flex items-start gap-2 max-sm:flex-wrap"
@@ -120,6 +123,7 @@ export function AskSelection({ chosen, selectable, onPick, onSent }: {
           </Button>
         </form>
       ) : null}
-    </div>
+      {closeAs.line}
+    </SelectionBar>
   );
 }

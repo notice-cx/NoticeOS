@@ -471,8 +471,15 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "ResolutionChips / CloseAsMenu / CloseNoteForm",
     file: "components/CloseResolution.tsx",
     purpose:
-      "How a task's close ends. ResolutionChips is the task page's Close: five chips in one radio group, Done first and picked (Done, Won't do, Duplicate, Can't reproduce, Already handled). CloseAsMenu is a row's quick menu of the four closes where nothing shipped, each with its glyph. CloseNoteForm is the one line such a close takes: its resolution named, a Note, and for a duplicate the other task's id first; Enter sends and Escape steps back, and the caller's send carries the Undo. ChoiceButtons answers an agent's question; these close a task.",
-    variants: ["Done picked (the page's shipped line under it)", "Won't do picked (one line)", "a row's menu open", "a duplicate's line", "read-only (the reason written beside it)"],
+      "How a task's close ends. ResolutionChips is the task page's Close: five chips in one radio group, Done first and picked (Done, Won't do, Duplicate, Can't reproduce, Already handled). CloseAsMenu is a row's quick menu of the four closes where nothing shipped, each with its glyph; with a count it is a selection's Close N as. CloseNoteForm is the one line such a close takes: its resolution named, a Note, and for a duplicate the other task's id first; Enter sends and Escape steps back, and the caller's send carries the Undo. Given several ids it is a selection's line: Close N tasks, and under Duplicate of the sentence that every one becomes a duplicate of that task. ChoiceButtons answers an agent's question; these close a task.",
+    variants: ["Done picked (the page's shipped line under it)", "Won't do picked (one line)", "a row's menu open", "a duplicate's line", "read-only (the reason written beside it)", "a selection's line (shown with SelectionBar)"],
+  },
+  {
+    name: "SelectionBar / SelectToggle / SelectBox",
+    file: "components/SelectionBar.tsx",
+    purpose:
+      "A list's Select, shared by Your decisions and the All tasks table: SelectToggle (Select, then Done) beside the list's heading, SelectBox on each row a person can act on, and SelectionBar over the rows with N selected, Select all N or Clear, the verbs for the picked rows (each naming how many it sends) and the line a verb opens. useSelection holds the picks; the list reads them against the rows it still shows. One action, one Undo.",
+    variants: ["nothing picked", "some picked with a detail beside the count", "all picked (Clear)", "a verb's line open (Close N as, Duplicate)"],
   },
   {
     name: "TaskTimeline",

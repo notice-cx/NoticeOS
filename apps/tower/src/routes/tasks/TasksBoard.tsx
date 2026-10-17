@@ -52,11 +52,13 @@ import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { taskPath } from '@/lib/task-path';
 import { taskFieldAvailable, taskOperationAvailable } from '@shared/tasks';
+import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar";
 import { AskQueue } from "./ask-queue";
-import { useCloseAs } from "./close-actions";
+import { closeOperation, declinedOnClose, useCloseAs } from "./close-actions";
 import { EpicPanel, InOutPanel, WorkByProject } from "./board-pictures";
 import { OpenTaskLink } from "./open-task-link";
 import { PriorityMark, RestingMark, TaskStatusMark } from "./task-face";
+import { TaskSelection } from "./task-selection";
 import { AGENTS_ROUTE } from "@/components/nav-items";
 
 /**
@@ -619,7 +621,13 @@ function Filters({
 // --- The board: one table, 25 rows at a time --------------------------------
 
 /** Every task, one line each, with the grouping on the row that expands: the
- * epic is a question about a task once you are looking at it. */
+ * epic is a question about a task once you are looking at it.
+ *
+ * Select, offered when two or more rows can be closed here, puts a box on
+ * every row this workspace can close, closed rows included, and shows every
+ * row the filters match, so nothing picked is out of sight; its one verb is
+ * `TaskSelection`'s Close N as. While selecting, a row's own Close as steps
+ * back. */
 function Board({
   rows,
   shown,
@@ -641,11 +649,21 @@ function Board({
   showProject: boolean;
   countsComplete: boolean;
 }) {
-  const page = rows.slice(0, shown);
+  const capabilities = useTasksLive();
+  const selection = useSelection();
+  const { selecting, picked } = selection;
+  // Only a picked row the board still shows, and this workspace can close,
+  // counts: a row a filter hides, or one under its Undo, is never sent.
+  const selectable = rows.filter((task) => projects.get(task.project)?.actionable === true
+    && taskOperationAvailable(capabilities, closeOperation(task)));
+  const selectableIds = new Set(selectable.map((task) => task.id));
+  const chosen = selectable.filter((task) => picked.has(task.id));
+  const offered = selectable.filter((task) => task.status !== "closed").length >= 2;
+  const page = selecting ? rows : rows.slice(0, shown);
   const remaining = rows.length - page.length;
 
   return (
-    <section className="flex flex-col rounded-[10px] border border-border bg-card">
+    <section className="flex flex-col rounded-[10px] border border-border bg-card" data-tasks-table="">
       {/* The desk's one eyebrow; the card's own padding rides in through
           `className`, as `ListPanel` does. */}
       <SectionLabel
@@ -661,7 +679,10 @@ function Board({
           </span>
         }
         className="px-4 pb-2 pt-3"
-      />
+      >
+        {selecting || offered ? <SelectToggle selection={selection} marks={{ "data-tasks-select-mode": "" }} className="-my-1.5" /> : null}
+      </SectionLabel>
+      {selecting ? <TaskSelection chosen={chosen} selectable={selectable} onPick={selection.pick} onSent={selection.leave} /> : null}
 
       {rows.length === 0 ? (
         <p className="px-4 pb-4 text-xs text-muted-foreground">
@@ -703,6 +724,8 @@ function Board({
                   actionable={projects.get(task.project)?.actionable ?? false}
                   nowMs={nowMs}
                   showProject={showProject}
+                  selection={!selecting ? null : selectableIds.has(task.id)
+                    ? { checked: picked.has(task.id), toggle: () => selection.flip(task.id) } : "none"}
                 />
               ))}
             </TableBody>
@@ -742,12 +765,16 @@ function BoardRow({
   actionable,
   nowMs,
   showProject,
+  selection,
 }: {
   task: BoardTask;
   project: BoardProject | null;
   actionable: boolean;
   nowMs: number;
   showProject: boolean;
+  /** While the table is a selection: this row's box, or "none" when this
+   * workspace cannot close the row. */
+  selection: { checked: boolean; toggle: () => void } | "none" | null;
 }) {
   const { pathname, search } = useLocation();
   const [open, setOpen] = useState(false);
@@ -757,41 +784,56 @@ function BoardRow({
   // A close where nothing shipped, one press from the row. A task waiting on
   // a person is declined with it, as its Dismiss did. A read-only snapshot
   // draws the menu disabled, its reason the banner's sentence; a live
-  // project that cannot close here draws none.
+  // project that cannot close here draws none. While selecting, the
+  // selection's Close as stands in for the row's.
   const capabilities = useTasksLive();
-  const closable = task.status !== "closed"
-    && (!capabilities.live || (actionable && taskOperationAvailable(capabilities, "close")));
+  const closable = selection === null && task.status !== "closed"
+    && (!capabilities.live || (actionable && taskOperationAvailable(capabilities, closeOperation(task))));
   const closeAs = useCloseAs({
     id: task.id,
     title: task.title,
     project: task.project,
-    ...(task.labels.includes("human") ? { via: "dismiss" as const } : {}),
+    ...(declinedOnClose(task) ? { via: "dismiss" as const } : {}),
     disabledReason: actionable ? null : READ_ONLY_TASKS_HINT,
     ...(actionable ? {} : { describedBy: BOARD_READ_ONLY_REASON_ID }),
   });
+  const fold = (
+    <button
+      type="button"
+      aria-expanded={open}
+      onClick={() => setOpen((current) => !current)}
+      className={cn(
+        // `items-start` so a wrapped title keeps its mark on the first
+        // line; centred on a phone, where the row has claimed its 44px
+        // thumb target and top-aligned text leaves a hole under it.
+        "flex w-full items-start gap-2.5 rounded-md p-1 text-left @max-[40rem]:items-center",
+        pillControlClass,
+        "hover:bg-muted/40 motion-safe:transition-colors",
+      )}
+    >
+      <RowMark task={task} />
+      <span className="min-w-0 text-[13px] text-foreground">
+        {task.title}
+      </span>
+    </button>
+  );
 
   return (
     <>
       <TableRow foldedWhenStacked={!open} className="group/task" data-task-row={task.id}>
         <TableCell className="py-1 ps-1 @min-[40rem]:w-full @min-[40rem]:max-w-0">
-          <button
-            type="button"
-            aria-expanded={open}
-            onClick={() => setOpen((current) => !current)}
-            className={cn(
-              // `items-start` so a wrapped title keeps its mark on the first
-              // line; centred on a phone, where the row has claimed its 44px
-              // thumb target and top-aligned text leaves a hole under it.
-              "flex w-full items-start gap-2.5 rounded-md p-1 text-left @max-[40rem]:items-center",
-              pillControlClass,
-              "hover:bg-muted/40 motion-safe:transition-colors",
-            )}
-          >
-            <RowMark task={task} />
-            <span className="min-w-0 text-[13px] text-foreground">
-              {task.title}
+          {selection === null ? fold : (
+            <span className="flex w-full min-w-0 items-start @max-[40rem]:items-center">
+              {selection === "none" ? (
+                // Keeps the titles in line with the rows that have a box.
+                <span aria-hidden className="size-8 shrink-0 max-sm:size-11" />
+              ) : (
+                <SelectBox checked={selection.checked} onToggle={selection.toggle} label={task.title}
+                  marks={{ "data-task-select": task.id }} className="size-8 max-sm:size-11" />
+              )}
+              {fold}
             </span>
-          </button>
+          )}
         </TableCell>
         <TableCell label="Id" foldWhenStacked className="whitespace-nowrap py-1">
           <Link
@@ -861,7 +903,7 @@ function BoardRow({
           </td>
         </tr>
       ) : null}
-      {closeAs.box ? (
+      {closeAs.box && selection === null ? (
         <tr data-task-close-note={task.id}>
           <td colSpan={columns + 1} className="px-3 pb-2.5 max-sm:px-2">
             <div className="rounded-md bg-muted/40 p-2.5">{closeAs.box}</div>

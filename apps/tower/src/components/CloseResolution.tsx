@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { fieldClass } from "@/components/ui/field";
 import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { formatInt } from "@/lib/format";
 import { focusFirstMenuItem, roveMenuFocus } from "@/lib/menu-keys";
 import { cn } from "@/lib/utils";
 
@@ -88,18 +89,25 @@ export function ResolutionChips({
 /**
  * The four closes where nothing shipped, as a menu beside a row's other verbs:
  * a press on one hands it back, and the caller opens its one-line note. With a
- * reason it cannot be pressed, and the reason is written beside it.
+ * reason it cannot be pressed, and the reason is written beside it. A
+ * selection's menu names how many tasks it closes, "Close 4 as".
  */
 export function CloseAsMenu({
   onPick,
   subject,
+  count,
+  variant = "ghost",
   disabledReason = null,
   describedBy,
   className,
 }: {
   onPick: (resolution: NotDone) => void;
-  /** What closes, as the menu names it to a screen reader: the task's title. */
+  /** What closes, as the menu names it to a screen reader: the task's title, or "4 tasks". */
   subject: string;
+  /** How many selected tasks the menu closes; a row's menu closes its own. */
+  count?: number;
+  /** A selection's one verb stands out; a row's menu stays behind the row's other verbs. */
+  variant?: "ghost" | "outline";
   /** Why it cannot be pressed here, or null. */
   disabledReason?: string | null;
   /** The id of the text that already states `disabledReason`, which is then not written again. */
@@ -117,14 +125,14 @@ export function CloseAsMenu({
           <Button
             type="button"
             size="sm"
-            variant="ghost"
-            className="text-muted-foreground aria-expanded:bg-muted aria-expanded:text-foreground"
+            variant={variant}
+            className={cn(variant === "ghost" && "text-muted-foreground", "aria-expanded:bg-muted aria-expanded:text-foreground")}
             aria-haspopup="menu"
             disabled={disabled}
             aria-describedby={disabled ? reasonId : undefined}
             data-close-as-trigger=""
           >
-            Close as
+            {count === undefined ? "Close as" : `Close ${formatInt(count)} as`}
             <ChevronDown aria-hidden className={cn("motion-safe:transition-transform", open && "rotate-180")} />
           </Button>
         </PopoverTrigger>
@@ -180,7 +188,9 @@ export interface CloseAsInput {
 /**
  * The one line a close where nothing shipped takes: its resolution named, a
  * Note, and for a duplicate the other task's id first. Enter sends, Escape
- * steps back; the caller's send carries the Undo.
+ * steps back; the caller's send carries the Undo. Given several tasks it is a
+ * selection's line: one Note for all of them, and under Duplicate of the
+ * sentence that every one becomes a duplicate of that task.
  */
 export function CloseNoteForm({
   id,
@@ -191,8 +201,8 @@ export function CloseNoteForm({
   autoFocus = true,
   className,
 }: {
-  /** The task that closes, which a duplicate cannot name as its other task. */
-  id: string;
+  /** The task or tasks that close, none of which a duplicate can name as its other task. */
+  id: string | readonly string[];
   resolution: NotDone;
   onSend: (close: CloseAsInput) => void;
   onCancel: () => void;
@@ -205,9 +215,11 @@ export function CloseNoteForm({
   const ids = useId();
   const [note, setNote] = useState("");
   const [other, setOther] = useState("");
+  const closing: readonly string[] = typeof id === "string" ? [id] : id;
+  const several = closing.length > 1;
   const duplicate = resolution === "duplicate";
   const otherId = other.trim();
-  const ready = !duplicate || (isTaskId(otherId) && otherId !== id);
+  const ready = !duplicate || (isTaskId(otherId) && !closing.includes(otherId));
   const Glyph = RESOLUTION_GLYPH[resolution];
 
   function send() {
@@ -253,8 +265,15 @@ export function CloseNoteForm({
             value={other}
             onChange={(event) => setOther(event.target.value)}
             aria-invalid={otherId !== "" && !ready ? true : undefined}
+            aria-describedby={several ? `${ids}-every` : undefined}
             data-close-duplicate-of=""
           />
+        </span>
+      ) : null}
+      {duplicate && several ? (
+        // The line's last item, a whole line of its own, under the fields.
+        <span id={`${ids}-every`} className="order-last basis-full text-xs text-muted-foreground" data-close-duplicate-every="">
+          All {formatInt(closing.length)} become duplicates of this one task, which is rarely right.
         </span>
       ) : null}
       <span className="flex min-w-0 flex-1 basis-56 items-center gap-2">
@@ -273,7 +292,7 @@ export function CloseNoteForm({
       </span>
       <span className="flex items-center gap-2">
         <Button type="submit" size="sm" disabled={!ready} data-task-confirm="close-as">
-          Close task
+          {several ? `Close ${formatInt(closing.length)} tasks` : "Close task"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel}>
           Cancel
