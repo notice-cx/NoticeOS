@@ -6,6 +6,7 @@ import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRun
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
+import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
@@ -119,9 +120,20 @@ const DAY_MS = 86_400_000;
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
   const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
   const money = homeMoney(data.portfolio, data.assets);
-  const oneSite = data.assets.length === 1 ? data.assets[0]! : null;
+  // The site rows (the data sources, the sites compared, the day's lanes)
+  // draw the sites whose Home and Sites list switch is on. A hidden site's
+  // problems are still counted and listed; the money stays the portfolio's.
+  const listed = sitesShownOn(data.assets, siteDisplayOf(data), "list");
+  const hiddenIds = new Set(data.assets.filter((asset) => !listed.includes(asset)).map((asset) => asset.id));
+  const aboutHidden = (ids: readonly string[]) => ids.length > 0 && ids.every((id) => hiddenIds.has(id));
+  const oneSite = data.assets.length === 1 && listed.length === 1 ? listed[0]! : null;
   const since = feed?.since ?? null;
-  const timeline = timelineFromWall(data.assets, issues, feed?.items ?? [], sitePath);
+  const timeline = timelineFromWall(
+    listed,
+    issues.filter((issue) => !aboutHidden(issue.assets)),
+    (feed?.items ?? []).filter((item) => item.asset === null || !aboutHidden([item.asset])),
+    sitePath,
+  );
   const changed = issues.filter((issue) => since !== null && issue.since !== null && issue.since >= since).length + timeline.events.length;
   // What the materiality suite reads: every open condition Home stands for, so
   // a problem the Wall lists is drawn here too.
@@ -146,11 +158,11 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
 
         <section aria-label="Data sources" className="self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8" data-home-health="">
           <HealthGrid
-            rows={healthGridRows(data.assets, data.system, connections, nowMs, sitePath).map((row) => {
-              const asset = data.assets.find((candidate) => candidate.id === row.id);
+            rows={healthGridRows(listed, data.system, connections, nowMs, sitePath).map((row) => {
+              const asset = listed.find((candidate) => candidate.id === row.id);
               return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} displayName={asset.displayName} /> } : row;
             })}
-            columns={sourceColumns(data.assets)}
+            columns={sourceColumns(listed)}
             nowMs={nowMs}
             calm
             action={<Link to="/integrations" className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Integrations →</Link>}
@@ -158,7 +170,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         </section>
         <div className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0">
           <IncidentList
-            items={incidentsFromIssues(issues, { besideGrid: true, to: (issue) => issueLink(issue, data.assets) })}
+            items={incidentsFromIssues(issues, { besideGrid: true, gridLeavesOut: hiddenIds, to: (issue) => issueLink(issue, data.assets) })}
             nowMs={nowMs}
             marker={since}
             action={{ label: "All alerts →", to: "/alerts" }}
@@ -168,7 +180,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         </div>
 
         <div className="@3xl:col-span-2 @6xl:col-span-12">
-          {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={data.assets} issues={issues} money={money} nowMs={nowMs} />}
+          {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
         </div>
 
         <section aria-label="The last 24 hours" className="rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">

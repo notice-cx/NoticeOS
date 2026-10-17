@@ -45,6 +45,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
 import { SavesPaused } from "@/components/SavesPaused";
+import { LiveSiteArrange } from "@/components/SiteArrange";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
 import {
@@ -356,6 +357,7 @@ function TvDashboardSection({
   // figure sitting under the editor that changes it. Its own clock, so the
   // rest of Settings does not repaint with it.
   const nowMs = useNow(1_000);
+  const { writable } = useConfigWritable();
   return (
     <>
       <SettingsPanel
@@ -369,6 +371,11 @@ function TvDashboardSection({
           </Button>
         }
       />
+      {/* The same list as Arrange on the Sites page: the order Home, Sites
+          and the TV use, and where each site shows. */}
+      <SettingsPanel id="sites" title="Sites" aside={writable ? undefined : <PanelLock data-sites-locked />} data-settings-sites>
+        <LiveSiteArrange statesReadOnly={false} />
+      </SettingsPanel>
       <SettingsPanel title="Countdown">
         {countdown ? (
           <CountdownWidget config={countdown} nowMs={nowMs} interactive statesReadOnly={false} />

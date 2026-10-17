@@ -127,10 +127,13 @@ export function drawnByHealthGrid(issue: Pick<WallIssue, "key">): boolean {
 
 /** Open problems as the problems list's rows. With `besideGrid`, the ones a
  * health grid on the same screen already draws are left to it, so each
- * problem appears once. */
-export function incidentsFromIssues(issues: readonly WallIssue[], options: { besideGrid?: boolean; to?: (issue: WallIssue) => string | undefined } = {}): Incident[] {
+ * problem appears once; a problem about a site the grid leaves out
+ * (`gridLeavesOut`) stays listed. */
+export function incidentsFromIssues(issues: readonly WallIssue[], options: { besideGrid?: boolean; gridLeavesOut?: ReadonlySet<string>; to?: (issue: WallIssue) => string | undefined } = {}): Incident[] {
+  const onGrid = (issue: WallIssue) =>
+    drawnByHealthGrid(issue) && !issue.assets.some((id) => options.gridLeavesOut?.has(id) === true);
   return issues
-    .filter((issue) => !(options.besideGrid && drawnByHealthGrid(issue)))
+    .filter((issue) => !(options.besideGrid && onGrid(issue)))
     .map((issue) => ({
       key: issue.key,
       severity: issue.severity,

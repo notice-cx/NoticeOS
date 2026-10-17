@@ -234,6 +234,7 @@ const OPEN_ATTENTION = payload.attention;
 const POPULATED_PORTFOLIO = payload.portfolio;
 const SEEDED_ASSETS = payload.assets;
 const SEEDED_SYSTEM = payload.system;
+const SEEDED_DASHBOARD = payload.dashboard;
 
 /** A second site beside the seeded one: Home's several-site view. */
 function withSecondSite() {
@@ -248,6 +249,7 @@ afterEach(() => {
   payload.portfolio = POPULATED_PORTFOLIO;
   payload.assets = SEEDED_ASSETS;
   payload.system = SEEDED_SYSTEM;
+  payload.dashboard = SEEDED_DASHBOARD;
   workState.data = undefined;
   workState.isError = false;
   reads.providers = undefined;
@@ -1024,6 +1026,46 @@ describe("Home — the answer, the money and what is broken", () => {
       .toEqual(["meadow.example", "second.example", "system"]);
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
+  });
+
+  // A retired site is watched by nobody: no row until its switch is on, then
+  // a row that reads Retired, and never a problem counted in the answer.
+  it("leaves a retired site out of its rows and its counts, and reads it Retired once its switch is on", () => {
+    withSecondSite();
+    payload.assets = [...payload.assets, { ...SEEDED_ASSETS[0]!, id: "old.example", displayName: "Old Example", status: "retired", work: null }];
+    payload.attention = [alert({ id: 9, severity: "error" }), alert({ id: 10, severity: "error", asset: "old.example", assetDisplayName: "Old Example" })];
+    const rows = (root: HTMLElement) => [...root.querySelectorAll<HTMLElement>("[data-portfolio-row]")];
+
+    const hidden = renderHome();
+    expect(rows(hidden.container).map((row) => row.getAttribute("data-portfolio-row"))).toEqual(["meadow.example", "second.example"]);
+    expect(incidentKeys(hidden.container)).toEqual(["alert-9"]);
+    expect(answerLine(hidden.container)).toHaveTextContent("1 thing is broken.");
+    hidden.unmount();
+
+    payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "old.example": { list: true } } };
+    const shown = renderHome();
+    const old = rows(shown.container).find((row) => row.getAttribute("data-portfolio-row") === "old.example")!;
+    expect(old).toHaveTextContent("Retired");
+    expect(old).not.toHaveTextContent("Off track");
+    expect(answerLine(shown.container)).toHaveTextContent("1 thing is broken.");
+  });
+
+  // Hiding a site from Home takes its rows away, never its problems: a source
+  // failing on a hidden site is listed, because no grid row draws it.
+  it("leaves a site whose Home and Sites list switch is off out of its rows, and still lists its problems", () => {
+    googleAnswers([{ capability: "ga4-daily", state: "failing" }]);
+    const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
+    withSecondSite();
+    payload.assets = [{ ...payload.assets[0]!, dataSources: [ga4] }, payload.assets[1]!];
+    payload.attention = [alert({ id: 9, severity: "error" })];
+    payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "meadow.example": { list: false } } };
+
+    const { container } = renderHome();
+    expect([...container.querySelectorAll("[data-portfolio-row]")].map((row) => row.getAttribute("data-portfolio-row"))).toEqual(["second.example"]);
+    expect([...container.querySelectorAll("[data-health-row]")].map((row) => row.getAttribute("data-health-row"))).toEqual(["second.example", "system"]);
+    expect(container.querySelector('[data-lane="meadow.example"]')).toBeNull();
+    expect(incidentKeys(container)).toEqual(expect.arrayContaining(["alert-9", expect.stringMatching(/^source-/u)]));
+    expect(answerLine(container)).toHaveTextContent("2 things are broken.");
   });
 });
 

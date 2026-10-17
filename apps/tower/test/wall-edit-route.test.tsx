@@ -5,6 +5,7 @@ import { RouterProvider, createMemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SettingOp } from "@shared/changeset";
 import type { AssetCard, WallPayload } from "@shared/wall";
+import type { SiteDisplay } from "@shared/site-display";
 import {
   DEFAULT_WALL_LAYOUT,
   WALL_LAYOUT_POINTER,
@@ -190,8 +191,9 @@ function payload(wall: WallConfig | unknown | null = null): WallPayload {
   };
 }
 
-function renderEditor(wall: WallConfig | unknown | null = null) {
-  state.wall = payload(wall);
+function renderEditor(wall: WallConfig | unknown | null = null, sites?: SiteDisplay, assets?: AssetCard[]) {
+  const read = { ...payload(wall), ...(assets ? { assets } : {}) };
+  state.wall = sites === undefined ? read : { ...read, dashboard: { ...read.dashboard, sites } };
   // A data router, not `MemoryRouter`: the page's unsaved-changes guard is
   // react-router's own blocker, which only exists on one.
   const router = createMemoryRouter(
@@ -729,6 +731,43 @@ describe("the selected widget's settings", () => {
     saveWith("Only Meadow Board on the TV");
     const sites = wallLayoutWidgets(savedLayout()).find((w) => w.id === "sites");
     expect(sites?.settings).toEqual({ assets: ["meadow.example"] });
+  });
+
+  it("draws a site off the TV by its own setting unticked and not tickable, saying why", () => {
+    renderEditor(null, { "northwind.example": { tv: false } });
+    fireEvent.click(widget("sites"));
+    const filter = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
+    const northwind = within(filter).getByRole("checkbox", { name: /Northwind/u });
+    expect(northwind).not.toBeChecked();
+    expect(northwind).toBeDisabled();
+    expect(filter).toHaveTextContent("Off on the TV by its own setting");
+    expect(within(filter).getByRole("checkbox", { name: /Meadow Board/u })).toBeChecked();
+    expect(filter).toHaveTextContent("Every site");
+  });
+
+  it("reads a retired site Retired in a widget's list, off the TV by its stage until its switch is on", () => {
+    const retired = ASSETS.map((asset) => (asset.id === "northwind.example" ? { ...asset, status: "retired" } : asset));
+    const off = renderEditor(null, undefined, retired);
+    fireEvent.click(widget("sites"));
+    const filter = () => document.querySelector("[data-wall-asset-filter]") as HTMLElement;
+    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeDisabled();
+    expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
+    off.unmount();
+    renderEditor(null, { "northwind.example": { tv: true } }, retired);
+    fireEvent.click(widget("sites"));
+    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
+    expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
+  });
+
+  it("draws a site off Work this week by its own setting unticked on the Work widget alone", () => {
+    renderEditor(null, { "northwind.example": { work: false } });
+    fireEvent.click(widget("work"));
+    const work = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
+    expect(within(work).getByRole("checkbox", { name: /Northwind/u })).toBeDisabled();
+    expect(work).toHaveTextContent("Off in Work this week by its own setting");
+    fireEvent.click(widget("sites"));
+    const sites = document.querySelector("[data-wall-asset-filter]") as HTMLElement;
+    expect(within(sites).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
   });
 
   it("offers no site filter on a widget the renderer does not filter", () => {

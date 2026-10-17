@@ -5,7 +5,8 @@
 // this answers whether one of them has anything today. A widget added with
 // `hidesWhenEmpty` must answer here, or the build's first render says so.
 
-import type { AttentionItem, AssetCard } from "@shared/wall";
+import type { AttentionItem, AssetCard, WallPayload } from "@shared/wall";
+import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import {
   type WallWidgetSettings,
   type WallWidgetType,
@@ -61,15 +62,49 @@ export function filterWallAttention(
 ): AttentionItem[] {
   const ids = settings?.assets;
   if (ids === undefined || ids.length === 0) return items;
-  const wanted = new Set(ids);
+  return attentionAbout(items, (asset) => ids.includes(asset));
+}
+
+/** The alerts about the sites `wanted` keeps: a cross-site row keeps only
+ * those members, and leaves when none is left. */
+function attentionAbout(items: AttentionItem[], wanted: (asset: string) => boolean): AttentionItem[] {
   const kept: AttentionItem[] = [];
   for (const item of items) {
     if (item.members === undefined) {
-      if (wanted.has(item.asset)) kept.push(item);
+      if (wanted(item.asset)) kept.push(item);
       continue;
     }
-    const members = item.members.filter((member) => wanted.has(member.asset));
+    const members = item.members.filter((member) => wanted(member.asset));
     if (members.length > 0) kept.push({ ...item, members });
   }
   return kept;
+}
+
+/** The payload the TV draws, and the sites left off it. */
+export interface WallOnTv {
+  data: WallPayload;
+  /** The site ids whose TV switch is off, for the widgets that read their
+   * own data (the live feed). */
+  hidden: ReadonlySet<string>;
+}
+
+/**
+ * The payload as the TV draws it: only the sites whose TV switch is on
+ * (`siteShownOn`) and only the alerts about them, before any widget's own
+ * site list narrows it further. The System's own alerts stay.
+ */
+export function wallOnTv(data: WallPayload): WallOnTv {
+  const shown = sitesShownOn(data.assets, siteDisplayOf(data), "tv");
+  if (shown.length === data.assets.length) return { data, hidden: new Set() };
+  const kept = new Set(shown.map((asset) => asset.id));
+  const hidden = new Set(data.assets.filter((asset) => !kept.has(asset.id)).map((asset) => asset.id));
+  const attention = attentionAbout(data.attention, (asset) => !hidden.has(asset));
+  return { data: { ...data, assets: shown, attention }, hidden };
+}
+
+/** The sites with a row in the TV's Work this week: their Work this week
+ * switch is on. Read on a payload `wallOnTv` already narrowed, so a site off
+ * the TV has no row either. */
+export function sitesInWork(data: Pick<WallPayload, "assets" | "dashboard">): AssetCard[] {
+  return sitesShownOn(data.assets, siteDisplayOf(data), "work");
 }

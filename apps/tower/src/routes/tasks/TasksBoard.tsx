@@ -40,6 +40,9 @@ import {
 } from "@/components/ui/table";
 import { A_WEEK_AGO, LAST_WEEK_BY_TODAY, WorkWeekChip, workQueue } from "@/components/viz/WorkFlow";
 import { useNow } from "@/hooks/useNow";
+import { useWall } from "@/hooks/useWall";
+import { ASSET_STATUS_LABEL } from "@shared/asset-detail";
+import { isRetired } from "@shared/asset-setup";
 import {
   useClaimTask,
   useCloseTask,
@@ -512,6 +515,9 @@ function Filters({
   onPick: (name: string, value: string) => void;
 }) {
   const assignees = [...assigneeCounts.keys()].sort();
+  // A retired site's project stays on the board and says so; the sites read
+  // is the sidebar's, already in hand.
+  const retired = new Set((useWall().data?.assets ?? []).filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const assigneeNames = new Map<string, string>();
   for (const project of projects) for (const task of project.tasks) {
     if (task.assignee) assigneeNames.set(task.assignee, taskActorLabel(task.assignee, task.actors));
@@ -544,7 +550,7 @@ function Filters({
             <option value="all">Every project</option>
             {projects.map((project) => (
               <option key={project.asset} value={project.asset}>
-                {project.name} · {projectCounts.get(project.asset) ?? 0}
+                {project.name}{retired.has(project.asset) ? ` · ${ASSET_STATUS_LABEL.retired}` : ""} · {projectCounts.get(project.asset) ?? 0}
               </option>
             ))}
           </select>

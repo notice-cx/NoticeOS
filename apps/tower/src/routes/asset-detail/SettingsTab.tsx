@@ -67,6 +67,7 @@ import { CardTotalsCard, FetchEndpointEditor } from "@/routes/asset-detail/Colle
 import { ArchiveCard } from "@/routes/asset-detail/AssetRetirement";
 import { useAssetLifecycle } from "@/hooks/useAssetLifecycle";
 import { NightlyReportScope } from "@/routes/asset-detail/NightlyReportSwitch";
+import { WhereItShowsCard } from "@/routes/asset-detail/WhereItShows";
 
 // --- edit op builders (what a Save writes) ---------------------------------
 /** A file-json-set op factory: `expect` is baked to the current value the UI
@@ -124,6 +125,8 @@ export function AssetSettingsPanel({
         <IdentityCard asset={asset} />
       </Hero>
       <LifecycleCard asset={asset} />
+      {/* The System is no site of the list: it has no place and no switches. */}
+      {asset.isOs ? null : <WhereItShowsCard assetId={asset.id} />}
       <AutomationCard asset={asset} />
       <DataCollectionCard wiring={wiring} asset={asset} nowMs={nowMs} />
       <CardTotalsCard asset={asset.id} stored={data.countersConfig} />

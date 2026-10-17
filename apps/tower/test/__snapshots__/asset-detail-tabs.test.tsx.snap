@@ -3882,6 +3882,14 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 </section>
+<section id="where-it-shows" class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Where it shows">
+<div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
+<h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Where it shows</h2>
+</div>
+<div class="px-4 pb-4">
+<span class="text-sm text-muted-foreground">—</span>
+</div>
+</section>
 <section class="flex scroll-mt-4 flex-col rounded-[10px] border border-border bg-card" aria-label="Automation">
 <div class="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 px-4 pb-2 pt-3">
 <h2 class="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">Automation</h2>

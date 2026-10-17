@@ -108,7 +108,8 @@ export declare function validateSchemaAndSafety(input: unknown): void;
  * A document that arrives whole (a Worker's compiled-in default) never passed
  * through an op, so this walks it with the same declarations a Save is judged
  * by. A list at the top of the document must be there, in its declared
- * shape; a list inside one site's entry may be absent ("not declared").
+ * shape, unless it is addable; a list inside one site's entry may be absent
+ * ("not declared").
  */
 export declare function documentRefusal(file: string, doc: unknown): string | null;
 /**

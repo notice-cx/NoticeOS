@@ -21,6 +21,12 @@ const state = vi.hoisted(() => ({
   errors: {} as Record<string, string>,
   /** Every project list `useTasksAcross` was asked for, in order. */
   acrossCalls: [] as string[][],
+  /** The sites read the sidebar keeps, as far as the board needs it. */
+  sites: [] as { id: string; status: string }[],
+}));
+
+vi.mock("@/hooks/useWall", () => ({
+  useWall: () => ({ data: { assets: state.sites } }),
 }));
 
 const api = vi.hoisted(() => ({
@@ -334,6 +340,7 @@ afterEach(() => {
   state.boards = {};
   state.errors = {};
   state.acrossCalls = [];
+  state.sites = [];
   resetAnswerQueue();
   vi.clearAllMocks();
 });
@@ -619,6 +626,14 @@ describe("/tasks — the filters are the URL", () => {
       project({ asset: "northwind.example", prefix: "nw", name: "Northwind", ready: [], inProgress: [],
       }),
     ],
+  });
+
+  it("names a retired site's project Retired in the project list, and keeps it there", () => {
+    state.sites = [{ id: "meadow.example", status: "live" }, { id: "northwind.example", status: "retired" }];
+    const { container } = renderBoard({ data: twoProjects });
+    const labels = [...container.querySelector<HTMLSelectElement>("#tasks-project")!.options].map((option) => option.textContent);
+    expect(labels.find((label) => label?.startsWith("Northwind"))).toMatch(/^Northwind · Retired · \d+$/u);
+    expect(labels.find((label) => label?.startsWith("Meadow"))).not.toContain("Retired");
   });
 
   it("is five controls and no more — the counts moved to the strip", () => {

@@ -1,4 +1,5 @@
 import {
+  ArrowDownUp,
   Bell,
   Bot,
   Globe,
@@ -118,8 +119,22 @@ export const TV_EDIT_ITEM: NavItem = {
   keywords: ["wall", "widgets", "arrange", "rows", "layout", "rearrange"],
 };
 
+/**
+ * The Sites page with Arrange open: the sites' order by drag, and each site's
+ * switches for where it shows. Reached from the Sites page, Settings, a
+ * site's Settings tab, the TV editor and the palette.
+ */
+export const SITES_ARRANGE_PARAM = "arrange";
+
+export const SITES_ARRANGE_ITEM: NavItem = {
+  to: `${ASSETS_ROUTE}?${SITES_ARRANGE_PARAM}=1`,
+  label: "Arrange the sites",
+  icon: ArrowDownUp,
+  keywords: ["order", "reorder", "drag", "hide", "show", "sites", "tv"],
+};
+
 /** Every page the palette can jump to, in the sidebar's order. */
-export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM];
+export const PAGE_ITEMS: NavItem[] = [...NAV_ITEMS, TV_ITEM, TV_EDIT_ITEM, SITES_ARRANGE_ITEM];
 
 /** Every core page remains reachable even when its service is unavailable. */
 export function shownPages(items: readonly NavItem[]): NavItem[] {

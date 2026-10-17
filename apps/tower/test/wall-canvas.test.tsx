@@ -555,3 +555,55 @@ describe("every default widget draws its own empty state", () => {
     expect(view.container.querySelector("[data-timeline-status]")).toHaveTextContent("Nothing broken");
   });
 });
+
+// A site's own TV switch (`config/tower.json` `/sites`) takes it off every
+// widget at once, whatever a widget's site list names; its Work this week
+// switch takes its row out of Work alone. Revenue keeps the whole month.
+describe("a site off the TV by its own setting", () => {
+  const everything: WallLayout = {
+    version: 1,
+    rows: [
+      { id: "top", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
+      { id: "loop", height: "auto", widgets: [{ id: "loop", type: "loop", width: 1 }] },
+      {
+        id: "body",
+        height: "fill",
+        widgets: [
+          { id: "sites", type: "sites", width: 1, settings: { assets: ["meadow.example", "northwind.example"] } },
+          { id: "timeline", type: "timeline", width: 1 },
+          { id: "work", type: "work", width: 1 },
+          { id: "needs", type: "needs", width: 1 },
+          { id: "feed", type: "feed", width: 1 },
+          { id: "revenue", type: "revenue", width: 1 },
+        ],
+      },
+    ],
+  };
+  const siteRows = (root: Element) => [...root.querySelectorAll("[data-site-row]")].map((row) => row.getAttribute("data-site-row"));
+
+  it("is in no widget, even one whose own list names it", () => {
+    const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "meadow.example": { tv: false } } } });
+    expect(siteRows(view.container)).toEqual(["northwind.example"]);
+    expect(view.container.querySelector('[data-wall-timeline] [data-lane="meadow.example"]')).toBeNull();
+    expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(1);
+    expect(view.container.querySelector("[data-wall-needs]")!.textContent).not.toMatch(/Meadow Board/u);
+    expect(view.container.querySelector("[data-wall-feed]")!.textContent).not.toMatch(/Recipe cards load faster/u);
+    // Only the other site's task is in progress on the loop.
+    expect(view.container.querySelector('[data-flow-node="act"]')?.textContent).toContain("1");
+  });
+
+  it("leaves Work this week alone when only its Work switch is off", () => {
+    const view = canvas(everything, { dashboard: { ...PAYLOAD.dashboard, sites: { "northwind.example": { work: false } } } });
+    expect(siteRows(view.container)).toEqual(["meadow.example", "northwind.example"]);
+    expect(view.container.querySelectorAll("[data-wall-work] [data-work-row]")).toHaveLength(1);
+  });
+
+  it("is a retired site until its TV switch is turned on", () => {
+    const retired = [asset("meadow.example", "Meadow Board"), { ...asset("northwind.example", "Northwind"), status: "retired" }];
+    const off = canvas(everything, { assets: retired });
+    expect(siteRows(off.container)).toEqual(["meadow.example"]);
+    off.unmount();
+    const on = canvas(everything, { assets: retired, dashboard: { ...PAYLOAD.dashboard, sites: { "northwind.example": { tv: true } } } });
+    expect(siteRows(on.container)).toEqual(["meadow.example", "northwind.example"]);
+  });
+});

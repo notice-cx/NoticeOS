@@ -1,6 +1,9 @@
 import { Trash2 } from "lucide-react";
 import type { CountdownConfig, DashboardRefusal } from "@shared/dashboard";
 import type { AssetCard } from "@shared/wall";
+import { isRetired } from "@shared/asset-setup";
+import { siteShownOn, type SiteDisplay } from "@shared/site-display";
+import { RetiredChip } from "@/components/SiteArrange";
 import {
   WALL_WIDGET_LIBRARY,
   wallLayoutWidgets,
@@ -33,6 +36,9 @@ export interface WallWidgetPanelProps {
   selectedId: string | null;
   /** The assets the payload actually carries — the only ids a filter may name. */
   assets: AssetCard[];
+  /** The switches set for where each site shows: a site off the TV by its
+   * own setting is in no widget, so no widget's list can tick it. */
+  display?: SiteDisplay;
   /** For the widget whose own configuration lives at `/countdown`. */
   countdown?: CountdownConfig;
   /** A saved countdown the Tower refused: the form saves
@@ -87,6 +93,7 @@ export function WallWidgetPanel({
   layout,
   selectedId,
   assets,
+  display,
   countdown,
   countdownRefused = null,
   nowMs,
@@ -292,6 +299,7 @@ export function WallWidgetPanel({
         {spec.settings.includes("assets") ? (
           <AssetFilter
             assets={assets}
+            offBy={(asset) => siteOffWords(asset, display, widget.type)}
             selected={filtered}
             disabled={disabled}
             label={spec.label}
@@ -331,15 +339,27 @@ export function WallWidgetPanel({
   );
 }
 
+/** Why a site cannot be ticked for this widget, in the words the list shows,
+ * or null when it can: off the TV by its own setting, or, for Work, off Work
+ * this week by its own. */
+function siteOffWords(asset: AssetCard, display: SiteDisplay | undefined, type: string): string | null {
+  const shown = siteShownOn(asset, display);
+  if (!shown.tv) return "Off on the TV by its own setting";
+  if (type === "work" && !shown.work) return "Off in Work this week by its own setting";
+  return null;
+}
+
 /**
  * Which assets a per-asset widget shows.
  *
  * Nothing ticked means every asset, so a new asset needs no edit here.
  * Un-ticking the last one restores that state, because the contract refuses
- * an empty list.
+ * an empty list. A site off by its own setting is drawn unticked and cannot
+ * be ticked; the widget's list keeps whatever it saved for it.
  */
 function AssetFilter({
   assets,
+  offBy,
   selected,
   disabled,
   label,
@@ -349,6 +369,7 @@ function AssetFilter({
   onPulseMetrics,
 }: {
   assets: AssetCard[];
+  offBy: (asset: AssetCard) => string | null;
   selected: string[] | null;
   disabled: boolean;
   label: string;
@@ -357,20 +378,23 @@ function AssetFilter({
   showPulseMetrics?: boolean;
   onPulseMetrics: (next: NonNullable<WallPulseMetrics>) => void;
 }) {
+  const tickable = assets.filter((asset) => offBy(asset) === null);
   const toggle = (id: string) => {
-    const current = selected ?? assets.map((asset) => asset.id);
+    const current = selected ?? tickable.map((asset) => asset.id);
     const next = current.includes(id)
       ? current.filter((value) => value !== id)
       : assets.filter((asset) => current.includes(asset.id) || asset.id === id).map((a) => a.id);
-    onChange(next.length === 0 || next.length === assets.length ? null : next);
+    const everyTickable = next.length === tickable.length && tickable.every((asset) => next.includes(asset.id));
+    onChange(next.length === 0 || everyTickable ? null : next);
   };
+  const ticked = (asset: AssetCard) => offBy(asset) === null && (selected === null || selected.includes(asset.id));
 
   return (
     <div className="flex flex-col gap-1.5 border-t border-border pt-3" data-wall-asset-filter>
       <div className="flex items-baseline justify-between gap-2">
         <span className="text-xs text-muted-foreground">Sites</span>
         <span className="text-xs text-foreground">
-          {selected === null ? "Every site" : `${selected.length} of ${assets.length}`}
+          {selected === null ? "Every site" : `${tickable.filter(ticked).length} of ${tickable.length}`}
         </span>
       </div>
       {assets.length === 0 ? (
@@ -380,18 +404,26 @@ function AssetFilter({
       ) : (
         <ul className="flex flex-col">
           {assets.map((asset) => (
-            <li key={asset.id}>
+            <li key={asset.id} data-wall-asset-off={offBy(asset) === null ? undefined : ""}>
               <label className="flex items-center gap-2 py-1 text-xs text-foreground max-sm:min-h-11">
                 <input
                   type="checkbox"
                   className="size-4 accent-foreground"
-                  checked={selected === null || selected.includes(asset.id)}
-                  disabled={disabled}
+                  checked={ticked(asset)}
+                  disabled={disabled || offBy(asset) !== null}
                   onChange={() => toggle(asset.id)}
                 />
-                <span className="min-w-0 break-words">{asset.displayName}</span>
+                <span className="flex min-w-0 flex-col items-start gap-0.5">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="break-words">{asset.displayName}</span>
+                    {isRetired(asset.status) ? <RetiredChip site={asset.id} /> : null}
+                  </span>
+                  {offBy(asset) === null ? null : (
+                    <span className="text-muted-foreground" data-wall-asset-off-words>{offBy(asset)}</span>
+                  )}
+                </span>
               </label>
-              {showPulseMetrics && (selected === null || selected.includes(asset.id)) ? (
+              {showPulseMetrics && ticked(asset) ? (
                 <fieldset className="mb-3 ml-6 flex min-w-0 flex-col gap-1" data-wall-pulse-picker={asset.id}>
                   <legend className="mb-1 text-xs text-muted-foreground">Totals</legend>
                   {availablePulseCounters(asset, pulseMetrics).length === 0 ? (

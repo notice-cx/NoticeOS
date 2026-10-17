@@ -31,7 +31,7 @@ Under the schedules are the search panels' history window (**Each pass requests*
 
 ### TV dashboard
 
-**TV layout** with **Edit layout**, which opens the Wall editor. Under it, the countdown the top strip can show, with **Set a countdown** or its three fields.
+**TV layout** with **Edit layout**, which opens the Wall editor. Under it, **Sites**: the same list as **Arrange** on the Sites page, every site in your order with its grip, **Move up** and **Move down**, and its three switches, **Home and Sites list**, **TV** and **Work this week** (see [Where each site shows](/tower/sites#where-each-site-shows)). Each move and each switch saves at once with **Undo**. Then the countdown the top strip can show, with **Set a countdown** or its three fields.
 
 ### Ownership
 

@@ -13,6 +13,7 @@
 // The mark is named from the rule, never truncated from the alert sentence.
 
 import { owesNightlyReport } from "@noticeos/contract/reporting";
+import { isRetired } from "@shared/asset-setup";
 import { humanizeMetric, translateAlert } from "@shared/alert-language";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import { isAmber } from "@shared/freshness";
@@ -158,7 +159,11 @@ export interface WallIssueInputs {
  * order Needs you shows and a site's mark takes its label from). A problem
  * whose onset is unknown sorts after the dated ones of its severity.
  */
-export function wallIssues({ assets, attention, connections, calendarState, nowMs }: WallIssueInputs): WallIssue[] {
+export function wallIssues({ assets: every, attention, connections, calendarState, nowMs }: WallIssueInputs): WallIssue[] {
+  // A retired site is watched by nobody: nothing about it counts as a
+  // problem here. Its alerts stay on Alerts.
+  const assets = every.filter((asset) => !isRetired(asset.status));
+  const retired = new Set(every.filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
   const byId = new Map(assets.map((asset) => [asset.id, asset]));
   const declared = (id: string) => byId.get(id)?.noNightlyReport === true;
   const issues: WallIssue[] = [];
@@ -179,6 +184,12 @@ export function wallIssues({ assets, attention, connections, calendarState, nowM
     const members = item.members && item.members.length > 1 ? item.members : null;
     let ids = members ? members.map((member) => member.asset) : [item.asset];
     let names = members ? members.map((member) => member.assetDisplayName) : [item.assetDisplayName];
+    if (ids.some((id) => retired.has(id))) {
+      const kept = ids.map((id, index) => ({ id, name: names[index]! })).filter(({ id }) => !retired.has(id));
+      if (kept.length === 0) continue;
+      ids = kept.map(({ id }) => id);
+      names = kept.map(({ name }) => name);
+    }
     // A site that declared it sends no nightly report is never marked for a
     // missing one, even by an alert that fired before the declaration.
     if (item.ruleId === "ingest-freshness") {
@@ -195,7 +206,13 @@ export function wallIssues({ assets, attention, connections, calendarState, nowM
       severity: item.severity,
       assets: ids,
       site: siteLabel(names),
-      line: translateAlert({ ...item, members: shownMembers && shownMembers.length > 1 ? shownMembers : undefined }).headline,
+      // Narrowed to one site, the sentence names that site, not the first
+      // member the alert was grouped under.
+      line: translateAlert({
+        ...item,
+        ...(ids.length === 1 ? { asset: ids[0]!, assetDisplayName: names[0]! } : {}),
+        members: shownMembers && shownMembers.length > 1 ? shownMembers : undefined,
+      }).headline,
       mark: alertMark(item),
       since: item.firstFiredAt ?? item.firedAt,
       conditions: [

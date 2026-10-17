@@ -163,6 +163,7 @@ import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
 import { ChoiceButtonsDemo } from "@/routes/kitchen-sink/choice-buttons-demo";
 import { CloseResolutionDemo } from "@/routes/kitchen-sink/close-resolution-demo";
 import { SelectionBarDemo } from "@/routes/kitchen-sink/selection-bar-demo";
+import { SiteArrangeDemo } from "@/routes/kitchen-sink/site-arrange-demo";
 import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
@@ -4397,6 +4398,13 @@ export function KitchenSinkRoute() {
               Close N as with the one line it opens. */}
           <Section title="SelectionBar / SelectToggle / SelectBox (nothing picked, some picked, all picked, Close N as and a duplicate's line)">
             <SelectionBarDemo />
+          </Section>
+
+          {/* The sites in their order with each site's switches, as Arrange,
+              Settings and a site's Settings tab draw them, and the line a drag
+              draws before the drop. */}
+          <Section title="SiteArrange / ShownOnSwitches / RetiredChip / DropLine (four sites, one retired, saves paused, one site's switches, a drop line)">
+            <SiteArrangeDemo />
           </Section>
 
           {/* Who blocks whom on a task's page: blockers left, blocked right,

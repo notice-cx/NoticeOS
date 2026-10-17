@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from "./render";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, WallPayload } from "@shared/wall";
+import type { SiteDisplay } from "@shared/site-display";
 
 const state = vi.hoisted(() => ({
   data: null as WallPayload | null,
@@ -154,8 +155,9 @@ function payload(assets: AssetCard[]): WallPayload {
   };
 }
 
-function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS) {
-  state.data = payload(assets);
+function renderAssets(url = "/assets", assets: AssetCard[] = ASSETS, sites?: SiteDisplay) {
+  const read = payload(assets);
+  state.data = sites === undefined ? read : { ...read, dashboard: { ...read.dashboard, sites } };
   return render(
     <QueryClientProvider client={new QueryClient()}>
       <MemoryRouter initialEntries={[url]}>
@@ -397,6 +399,48 @@ describe("/assets — the orderings", () => {
     expect(shown(container)).toEqual(["acorn.example", "ferns.example", "meadow.example", "northwind.example"]);
     fireEvent.click(within(screen.getByRole("group", { name: "Order" })).getByRole("button", { name: "Your order" }));
     expect(shown(container)).toEqual(["meadow.example", "northwind.example", "acorn.example", "ferns.example"]);
+  });
+});
+
+/** A site whose Home and Sites list switch is off is listed nowhere here and
+ * counted as hidden; a retired site is off until somebody turns it on. */
+describe("/assets — sites hidden by their own switch", () => {
+  it("leaves a list-off site out of the rows, the answer and the stage counts, and says how many are hidden", () => {
+    const { container } = renderAssets("/assets", ASSETS, { "northwind.example": { list: false } });
+    expect(shown(container)).toEqual(["meadow.example", "acorn.example", "ferns.example"]);
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites off track");
+    expect(container.querySelector("[data-assets-summary]")).toHaveTextContent(/^3 sites\s*·\s*1 hidden$/u);
+    expect(container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
+    expect(screen.getByRole("option", { name: "Live · 1" })).toBeInTheDocument();
+  });
+
+  it("hides a retired site by default and lists it once its switch is on", () => {
+    const retired = ASSETS.map((card) => (card.id === "acorn.example" ? { ...card, status: "retired" } : card));
+    const off = renderAssets("/assets", retired);
+    expect(shown(off.container)).toEqual(["meadow.example", "northwind.example", "ferns.example"]);
+    expect(off.container.querySelector("[data-assets-hidden]")).toHaveAttribute("data-assets-hidden", "1");
+    off.unmount();
+    // Your order sinks a retired site to the bottom.
+    const on = renderAssets("/assets", retired, { "acorn.example": { list: true } });
+    expect(shown(on.container)).toEqual(["meadow.example", "northwind.example", "ferns.example", "acorn.example"]);
+    expect(on.container.querySelector("[data-assets-hidden]")).toBeNull();
+  });
+
+  it("counts a listed retired site in neither the answer nor the bar, and reads it Retired", () => {
+    const retired = ASSETS.map((card) => (card.id === "meadow.example" ? { ...card, status: "retired" } : card));
+    const { container } = renderAssets("/assets", retired, { "meadow.example": { list: true } });
+    expect(row(container, "meadow.example")).toHaveTextContent("Retired");
+    expect(row(container, "meadow.example")).not.toHaveTextContent("Off track");
+    // Northwind at risk, of the three watched sites.
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites at risk");
+    expect(container.querySelector("[data-health-split]")).not.toHaveTextContent("Retired");
+  });
+
+  it("says every site is hidden rather than that there are none", () => {
+    const { container } = renderAssets("/assets", ASSETS.slice(0, 2), { "meadow.example": { list: false }, "northwind.example": { list: false } });
+    expect(screen.getByText("Every site is hidden")).toBeInTheDocument();
+    expect(screen.queryByText("No sites yet")).toBeNull();
+    expect(container.querySelector("[data-assets-hidden]")).toHaveTextContent("2 hidden");
   });
 });
 

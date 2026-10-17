@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import type { RevenueProjection } from "@shared/revenue-projection";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
-import { healthSplit, orderSites, siteLines, visitorsAnswerFigure, weekOnWeek } from "@/lib/sites-index";
+import { healthSplit, orderSites, siteLines, visitorsAnswerFigure, watchedLines, weekOnWeek } from "@/lib/sites-index";
+import { siteHealth } from "@/lib/site-health";
 import type { WallIssue } from "@/lib/wall-issues";
 
 const NOW = Date.parse("2026-08-10T12:00:00.000Z");
@@ -174,6 +175,30 @@ describe("the Sites orderings", () => {
       { key: "at-risk", word: "At risk", count: 1 },
       { key: "on-track", word: "On track", count: 2 },
     ]);
+  });
+});
+
+// A retired site is watched by nobody: it reads Retired whatever else is
+// true of it, and is in no part of the split and no count of who needs you.
+describe("a retired site among the rows", () => {
+  const three = siteLines(
+    [card({ id: "off.example", openError: 1 }), card({ id: "old.example", status: "retired", openError: 1, worstSeverity: "error" }), card({ id: "calm.example" })],
+    PORTFOLIO, [issue("old.example", "error")], NO_READS, NOW,
+  );
+
+  it("reads Retired, quiet, even with an open error alert", () => {
+    const old = three.find((line) => line.card.id === "old.example")!;
+    expect(old.health).toEqual({ key: "retired", word: "Retired", tone: "na" });
+    expect(old.row.health).toEqual({ word: "Retired", tone: "quiet" });
+    expect(siteHealth(card({ id: "x.example", status: "retired", openError: 2, openWarn: 3 }))).toMatchObject({ key: "retired", word: "Retired" });
+  });
+
+  it("is in no part of the split and in none of the watched sites", () => {
+    expect(healthSplit(three)).toEqual([
+      { key: "off-track", word: "Off track", count: 1 },
+      { key: "on-track", word: "On track", count: 1 },
+    ]);
+    expect(watchedLines(three).map((line) => line.card.id)).toEqual(["off.example", "calm.example"]);
   });
 });
 

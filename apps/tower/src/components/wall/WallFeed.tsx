@@ -356,8 +356,12 @@ function FeedEvidence({ model, evidence }: { model: string | null; evidence: str
   );
 }
 
-/** The widget the Wall draws: the column, polling its own read. */
-export function WallFeedWidget({ nowMs }: { nowMs: number }) {
+/** The widget the Wall draws: the column, polling its own read, without the
+ * lines about a site whose TV switch is off. */
+export function WallFeedWidget({ nowMs, hidden }: { nowMs: number; hidden?: ReadonlySet<string> }) {
   const { data, isError } = useWallFeed();
-  return <WallFeed feed={data} failed={isError} nowMs={nowMs} />;
+  const feed = data && hidden && hidden.size > 0
+    ? { ...data, items: data.items.filter((item) => item.asset === null || !hidden.has(item.asset)) }
+    : data;
+  return <WallFeed feed={feed} failed={isError} nowMs={nowMs} />;
 }

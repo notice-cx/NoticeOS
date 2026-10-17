@@ -1,4 +1,5 @@
 import { DEFAULT_WALL_LAYOUT, type WallConfig, parseWallConfig } from "./wall-layout";
+import { readSiteDisplay, type SiteDisplay } from "./site-display";
 
 /** The countdown card's three settings, read as one landmark. */
 export interface CountdownConfig {
@@ -21,6 +22,12 @@ export interface DashboardConfig {
    */
   wall?: WallConfig;
   /**
+   * Optional: the switches the operator set for where each site shows
+   * (`config/tower.json` at `/sites`, read by `siteShownOn`). Absent, nothing
+   * has been saved and every site follows its stage.
+   */
+  sites?: SiteDisplay;
+  /**
    * Read side only: the parts of the stored `config/tower.json` the Tower
    * could not read. A refused part is drawn as though nothing were saved and
    * named here, so the editor can say so and guard its Save on what the store
@@ -41,6 +48,7 @@ export interface DashboardRefusal {
 export interface DashboardRefusals {
   wall?: DashboardRefusal;
   countdown?: DashboardRefusal;
+  sites?: DashboardRefusal;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -67,15 +75,15 @@ export function isCountdownEmoji(value: string): boolean {
 export function parseDashboardConfig(value: unknown): DashboardConfig {
   const config = readDashboardConfig(value);
   // Layout before countdown, so a file broken in both names the layout.
-  const refusal = config.refused?.wall ?? config.refused?.countdown;
+  const refusal = config.refused?.wall ?? config.refused?.countdown ?? config.refused?.sites;
   if (refusal) throw new Error(refusal.reason);
   return config;
 }
 
 /**
- * Read a saved `config/tower.json` one part at a time: the layout and the
- * countdown are saved by different forms, so one broken part must not discard
- * the other. A part that does not read is left out and named in `refused`; a
+ * Read a saved `config/tower.json` one part at a time: the layout, the
+ * countdown and the site switches are saved by different forms, so one broken
+ * part must not discard another. A part that does not read is left out and named in `refused`; a
  * refused layout keeps the saved versions that still read, for Revert.
  * Throws only when the document is not an object at all.
  */
@@ -101,7 +109,13 @@ export function readDashboardConfig(value: unknown): DashboardConfig {
       refused.countdown = { saved: value.countdown, reason: messageOf(err) };
     }
   }
-  if (refused.wall || refused.countdown) config.refused = refused;
+  try {
+    const sites = readSiteDisplay(value.sites);
+    if (sites !== undefined) config.sites = sites;
+  } catch (err) {
+    refused.sites = { saved: value.sites, reason: messageOf(err) };
+  }
+  if (refused.wall || refused.countdown || refused.sites) config.refused = refused;
   return config;
 }
 

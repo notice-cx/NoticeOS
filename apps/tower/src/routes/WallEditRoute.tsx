@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Link, useBlocker } from "react-router-dom";
 import type { FileJsonSetOp, JsonValue } from "@shared/changeset";
 import type { DashboardConfig } from "@shared/dashboard";
+import { siteDisplayOf } from "@shared/site-display";
 import {
   EMPTY_WALL_CONFIG,
   WALL_LAYOUT_POINTER,
@@ -393,6 +394,7 @@ export function WallEditRoute() {
                   layout={state.layout}
                   selectedId={state.selectedId}
                   assets={data.assets}
+                  display={siteDisplayOf(data)}
                   countdown={data.dashboard.countdown}
                   countdownRefused={countdownRefused}
                   nowMs={now}
