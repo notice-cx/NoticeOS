@@ -12,7 +12,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
 import { TASKS_CLOSED_HISTORY_DAYS } from "@shared/tasks";
-import type { TaskChoiceKey } from "@noticeos/contract/task-choices";
+import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import { chooseOnTask, dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { useOwnerAnswers } from "@/lib/browser-context";
@@ -257,7 +257,7 @@ export function useCommentOnTask() {
 export type InboxAnswer = (
   | { kind: "approve"; id: string; title: string }
   | { kind: "answer"; id: string; title: string; text: string }
-  | { kind: "choose"; id: string; title: string; option: TaskChoiceKey; note?: string }
+  | { kind: "choose"; id: string; title: string; option: TaskChoiceKey; label?: string; note?: string }
   | { kind: "dismiss"; id: string; title: string }) & { readonly project?: string };
 
 /** The lane call for one answer. Only the page-leaving flush passes
@@ -367,7 +367,10 @@ export function useInboxAnswer(): (answer: InboxAnswer) => void {
       const project = selected(answer.project);
       const captured: InboxAnswer = Object.freeze({ ...answer, project });
       const toastId = `inbox-answer-${answer.id}`;
-      toast.success(ANSWERED[answer.kind], {
+      // A pick names the option it sends, so Undo is offered against it.
+      const heading = answer.kind === "choose" && answer.label !== undefined
+        ? `Chose ${choiceName(answer.option, answer.label)}` : ANSWERED[answer.kind];
+      toast.success(heading, {
         id: toastId,
         description: answer.title,
         duration: UNDO_WINDOW_MS,

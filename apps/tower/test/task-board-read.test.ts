@@ -227,6 +227,18 @@ describe("what the inbox asks of a task", () => {
     expect(askVerb(item({ issueType: "gate" }))).toBe("approve");
     expect(askVerb(item())).toBe("answer");
   });
+
+  it("asks for a choice while a ready human ask carries options nobody has picked, and for nothing once one is", () => {
+    const choices = { question: "Which?", options: [{ key: "a", label: "One", recommended: true }, { key: "b", label: "Two" }] } as const;
+    const choice = { option: "a", label: "One", by: "Dana", at: "2026-09-04T11:00:00.000Z" } as const;
+    expect(inboxAsk(liveTask({ labels: ["human"], ready: true, choices }))).toBe("choose");
+    expect(askVerb(item({ choices, choice: null }))).toBe("choose");
+    // A pick takes the human label off, so the ask is gone; a row still
+    // listed as waiting with its pick recorded is answered, never picked twice.
+    expect(inboxAsk(liveTask({ labels: [], ready: true, choices, choice }))).toBeNull();
+    expect(askVerb(item({ choices, choice }))).toBe("answer");
+    expect(askVerb(item({ issueType: "gate", choices }))).toBe("approve");
+  });
 });
 
 describe("a hosted catalog joined to the snapshot by prefix", () => {

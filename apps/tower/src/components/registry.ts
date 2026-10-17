@@ -461,6 +461,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["plain", "link", "choice", "choice with a typed value", "text", "date with presets", "split (link + editor)", "quiet (an absence)"],
   },
   {
+    name: "ChoiceButtons",
+    file: "components/ChoiceButtons.tsx",
+    purpose:
+      "A question and one button per option, the recommended option first with a star and the word Recommended, each option's detail under its label, a one-line Note and the caller's other verbs beside it; a press hands back the option and the note. With a recorded pick the options are a record with the chosen one filled. FactChip edits a record's field from a list; this is a person's one-press answer to a question an agent asked (the task page's header and the Your decisions row).",
+    variants: ["two options", "three options", "six options", "picked", "unavailable (the reason written under them)"],
+  },
+  {
     name: "TaskTimeline",
     file: "components/TaskTimeline.tsx",
     purpose:

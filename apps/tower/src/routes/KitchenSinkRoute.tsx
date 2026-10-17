@@ -158,6 +158,7 @@ import { UnknownPriceCount } from "@/components/UnknownPriceCount";
 import { TaskStatusChip } from "@/routes/tasks/task-face";
 import { TaskHeadDemo } from "@/routes/kitchen-sink/task-head-demo";
 import { FactChipDemo } from "@/routes/kitchen-sink/fact-chip-demo";
+import { ChoiceButtonsDemo } from "@/routes/kitchen-sink/choice-buttons-demo";
 import { DependencyGraphDemo, TaskTimelineDemo } from "@/routes/kitchen-sink/task-pieces-demo";
 import { Stepper, lifecycleStepper } from "@/components/Stepper";
 import { AddSiteButton, AddSitePanel, NoSitesYet, type AddSitePanelProps } from "@/components/AddSite";
@@ -4338,6 +4339,13 @@ export function KitchenSinkRoute() {
               editor kind, a link, a split chip and the read-only face. */}
           <Section title="FactChip (a fact that edits where it is read: choice, typed value, date, link, read-only)">
             <FactChipDemo />
+          </Section>
+
+          {/* A person's pick between an agent's options: the question, one
+              button per option with the recommended one first, the Note, and
+              the record a pick leaves. */}
+          <Section title="ChoiceButtons (two, three and six options, a recorded pick, and a workspace that cannot pick)">
+            <ChoiceButtonsDemo />
           </Section>
 
           {/* Who blocks whom on a task's page: blockers left, blocked right,

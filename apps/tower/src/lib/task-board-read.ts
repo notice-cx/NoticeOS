@@ -83,23 +83,28 @@ export function isGate(task: Pick<WorkItem, "issueType"> & { awaitType?: string 
 
 /**
  * What the operator's inbox asks of a task, or null when it is not waiting on
- * the operator: a human gate is approved (`bd gate resolve`), and a ready task
- * labelled `human` is answered or dismissed (`bd human respond` / `dismiss`).
- * The board's Waiting on you, a task's own page and the agents' task tools all
- * read the one rule, `waitsOnPerson`. A timer or GitHub gate asks nothing.
+ * the operator: a human gate is approved (`bd gate resolve`), a ready task
+ * labelled `human` is answered or dismissed (`bd human respond` / `dismiss`),
+ * and one that carries choices nobody has picked yet is chosen (the choose
+ * operation), with Answer and Dismiss still offered. The board's Waiting on
+ * you, a task's own page and the agents' task tools all read the one rule,
+ * `waitsOnPerson`. A timer or GitHub gate asks nothing.
  */
-export type InboxAsk = "approve" | "answer";
+export type InboxAsk = "approve" | "answer" | "choose";
+
+type AskFacts = Parameters<typeof isGate>[0] & Pick<WorkItem, "choices" | "choice">;
 
 export function inboxAsk(
-  task: Pick<LiveTask, "issueType" | "status" | "labels" | "ready"> & { awaitType?: string | null },
+  task: Pick<LiveTask, "issueType" | "status" | "labels" | "ready"> & AskFacts,
 ): InboxAsk | null {
   return waitsOnPerson(task) ? askVerb(task) : null;
 }
 
 /** The verb for a row ALREADY in the inbox — the photograph's `waiting` list
  * says it is, without the labels `inboxAsk` reads. */
-export function askVerb(task: Parameters<typeof isGate>[0]): InboxAsk {
-  return isGate(task) ? "approve" : "answer";
+export function askVerb(task: AskFacts): InboxAsk {
+  if (isGate(task)) return "approve";
+  return (task.choices ?? null) !== null && (task.choice ?? null) === null ? "choose" : "answer";
 }
 
 /** The live rows this board renders: not epic containers (they are grouping,

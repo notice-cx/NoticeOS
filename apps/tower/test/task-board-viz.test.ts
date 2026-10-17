@@ -177,6 +177,13 @@ describe("one epic's dependencies", () => {
     expect(graph).toMatchObject({ stuck: 1, asks: 1, hidden: 0 });
   });
 
+  it("names a task waiting on a pick between its options as waiting on your choice", () => {
+    const choices = { question: "Which subject line?", options: [{ key: "a", label: "Short", recommended: true }, { key: "b", label: "Long" }] } as const;
+    const withChoice = tasks.map((task) => (task.id === "md-e.5" ? live({ id: "md-e.5", title: "Write the email", parent: "md-e", labels: ["human"], ready: true, choices }) : task));
+    const [graph] = graphsOf(snapshot, { "meadow.example": ok(board(withChoice, "meadow.example", epic)) });
+    expect(graph!.nodes.find((node) => node.id === "md-e.5")).toMatchObject({ state: "warn", stateLabel: "Needs attention", caption: "your choice" });
+  });
+
   it("draws no graph from the saved snapshot, which carries no edges, nor for an epic without one", () => {
     expect(graphsOf(snapshot, {}, false)).toEqual([]);
     const flat = tasks.map((task) => ({ ...task, dependencies: [] }));

@@ -6,6 +6,7 @@ import type { LiveTask, LiveTaskDetail, LiveTasksPayload } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkEpic, type WorkItem, type WorkPayload } from "@shared/work";
 import { DEMO_READ_ONLY, validateDemoViewer } from '@shared/demo-viewer';
+import type { TaskChoices } from "@noticeos/contract/task-choices";
 
 // `/tasks/:id`, one task whole. The network is mocked, not the hooks: the real
 // `useTask` / `useUpdateTask` / `useCloseTask` run against fake `@/lib/api`
@@ -22,6 +23,7 @@ const api = vi.hoisted(() => ({
   commentOnTask: vi.fn(),
   resolveGate: vi.fn(async () => undefined),
   respondToTask: vi.fn(async () => undefined),
+  chooseOnTask: vi.fn(async (..._args: unknown[]) => undefined),
   dismissTask: vi.fn(async () => undefined),
 }));
 
@@ -1192,6 +1194,145 @@ describe("a waiting task's page offers what its inbox row offers", () => {
     expect(approve).not.toHaveAttribute("title");
     expect(approve).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
     expect(headerButtons()).toEqual(["Approve"]);
+  });
+});
+
+// A task that carries choices: the question and one button per option under
+// the header, one press to pick through the inbox's call, and the pick drawn
+// as a fact once the task is read back.
+describe("a task with choices is answered with one press", () => {
+  const CHOICES: TaskChoices = {
+    question: "What happens to the retired recipe page?",
+    options: [
+      { key: "a", label: "Keep the old page", detail: "It stays reachable at its address." },
+      { key: "b", label: "Redirect to the new page", detail: "A permanent redirect keeps its search traffic.", recommended: true },
+      { key: "c", label: "Remove it", detail: "Visitors get a not-found page." },
+    ],
+  };
+  const PICK = { option: "b", label: "Redirect to the new page", by: "Dana", at: "2026-09-04T11:00:00.000Z" } as const;
+  const choosing = (over: Partial<LiveTask> = {}) =>
+    task({ status: "open", assignee: null, labels: ["human"], ready: true, startedAt: null, choices: CHOICES, choice: null, ...over });
+  const headerNode = () => document.querySelector<HTMLElement>("[data-page-header]")!;
+  const header = () => within(headerNode());
+  const optionKeys = () => [...headerNode().querySelectorAll<HTMLElement>("[data-choice-option]")].map((node) => node.dataset.choiceOption);
+
+  it("reads Needs your choice, and draws the question and one button per option, the recommended first, Answer and Dismiss under them", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
+    const { container } = renderTask();
+    const group = await header().findByRole("group", { name: CHOICES.question });
+    expect(header().getByText("Needs your choice")).toHaveAttribute("data-task-ask", "choose");
+    expect(optionKeys()).toEqual(["b", "a", "c"]);
+    const buttons = within(group).getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim())).toEqual([
+      "(b) Redirect to the new page", "(a) Keep the old page", "(c) Remove it", "Answer", "Dismiss",
+    ]);
+    expect(within(buttons[0]!).getByText("Recommended")).toBeInTheDocument();
+    expect(within(buttons[1]!).getByText("It stays reachable at its address.")).toBeInTheDocument();
+    expect(header().queryByRole("button", { name: "Claim" })).toBeNull();
+    expect(header().queryByRole("button", { name: "Close" })).toBeNull();
+    // The options keep the page's hover, focus and press rules.
+    const page = container.querySelector("[data-task-page]") as HTMLElement;
+    expect(page.className).toContain("motion-safe:[&_button:not(:disabled):active]:translate-y-px");
+    for (const node of within(group).getAllByRole("button")) {
+      expect(node.className, node.textContent ?? "").toMatch(/hover:/);
+      expect(node.className, node.textContent ?? "").toMatch(/focus-visible:/);
+    }
+    expect(headerNode().querySelectorAll("[title]")).toHaveLength(0);
+  });
+
+  it("sends the pressed option and the note through the inbox's call after the Undo window, and draws the pick meanwhile", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
+    renderTask();
+    await header().findByRole("group", { name: CHOICES.question });
+    fireEvent.change(header().getByLabelText("Note"), { target: { value: "Keep the redirect for a year." } });
+    fireEvent.click(header().getByRole("button", { name: "(b) Redirect to the new page" }));
+    expect(toasts.success).toHaveBeenCalledWith("Chose (b) Redirect to the new page", expect.objectContaining({
+      description: "A task has a page",
+      action: expect.objectContaining({ label: "Undo" }),
+    }));
+    // While the window runs the options are the pick: nothing to press, (b) filled.
+    expect(header().queryByRole("button", { name: /^\([abc]\)/ })).toBeNull();
+    expect(headerNode().querySelector('[data-choice-option="b"]')).toHaveAttribute("data-choice-chosen");
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.chooseOnTask).toHaveBeenCalledWith(ID, "b", "Keep the redirect for a year."));
+    expect(api.respondToTask).not.toHaveBeenCalled();
+    expect(api.closeTask).not.toHaveBeenCalled();
+    expect(api.updateTask).not.toHaveBeenCalled();
+  });
+
+  it("takes the pick back with the toast's Undo, and offers the options again", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
+    renderTask();
+    fireEvent.click(await header().findByRole("button", { name: "(a) Keep the old page" }));
+    act(() => pressUndo());
+    expect(await header().findByRole("button", { name: "(a) Keep the old page" })).toBeEnabled();
+    expect(headerNode().querySelector("[data-choice-chosen]")).toBeNull();
+    act(() => flushAnswers());
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+  });
+
+  it("shows a refused pick in the lane's own words, and brings the options back", async () => {
+    api.chooseOnTask.mockRejectedValueOnce(new Error(`${ID} already has a choice: (b) Redirect to the new page.`));
+    api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
+    renderTask();
+    fireEvent.click(await header().findByRole("button", { name: "(c) Remove it" }));
+    act(() => flushAnswers());
+    await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(`${ID} already has a choice: (b) Redirect to the new page.`));
+    expect(await header().findByRole("button", { name: "(c) Remove it" })).toBeEnabled();
+  });
+
+  it("states a recorded pick under the header, who chose and how long ago, with the options inert and the chosen one filled", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: choosing({ labels: [], choice: { ...PICK, note: "Keep the redirect for a year." } }) }));
+    renderTask();
+    const fact = await header().findByRole("heading", { name: "Chose (b) Redirect to the new page" });
+    const record = fact.closest("section") as HTMLElement;
+    expect(record).toHaveTextContent(/^Chose \(b\) Redirect to the new pageDana1h ago/);
+    expect(within(record).getByText("Keep the redirect for a year.")).toBeInTheDocument();
+    expect(within(record).queryAllByRole("button")).toHaveLength(0);
+    expect(record.querySelector('[data-choice-option="b"]')).toHaveAttribute("data-choice-chosen");
+    expect(record.querySelector('[data-choice-option="a"]')).not.toHaveAttribute("data-choice-chosen");
+    expect(header().queryByText("Needs your choice")).toBeNull();
+    // Handed back to ready work, the task offers Claim again.
+    expect(header().getByRole("button", { name: "Claim" })).toBeInTheDocument();
+  });
+
+  it("draws a decision a pick closed with the pick alone, not the same words again as its close reason", async () => {
+    api.fetchTask.mockResolvedValue(detail({ task: choosing({ issueType: "decision", status: "closed", labels: ["human"],
+      closedAt: "2026-09-04T11:00:00Z", closeReason: "Chose (b) Redirect to the new page", choice: PICK }) }));
+    renderTask();
+    await header().findByRole("heading", { name: "Chose (b) Redirect to the new page" });
+    expect(document.querySelector("[data-task-closed]")).toBeNull();
+    expect(header().queryAllByRole("button")).toHaveLength(0);
+  });
+
+  it("shows a read-only snapshot's question and options as buttons that cannot be pressed, naming why", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: false, reason: READ_ONLY_DEPLOYMENT });
+    const snapshot = work();
+    snapshot.projects[0]!.waiting = [snapshotItem({ choices: CHOICES, choice: null })];
+    state.work = snapshot;
+    renderTask();
+    const group = await header().findByRole("group", { name: CHOICES.question });
+    expect(header().getByText("Needs your choice")).toBeInTheDocument();
+    const buttons = within(group).getAllByRole("button");
+    expect(buttons).toHaveLength(5);
+    for (const button of buttons) {
+      expect(button).toBeDisabled();
+      expect(button).toHaveAccessibleDescription(expect.stringContaining(READ_ONLY_TASKS_HINT));
+    }
+    expect(within(group).queryByLabelText("Note")).toBeNull();
+  });
+
+  it("names a workspace that may answer but not pick as the reason, and keeps the options inert", async () => {
+    api.fetchTasksCapabilities.mockResolvedValue({ live: true, writable: true, reason: null,
+      operations: ["create", "update", "comment", "close", "respond", "dismiss"] });
+    api.fetchTask.mockResolvedValue(detail({ task: choosing() }));
+    renderTask();
+    const option = await header().findByRole("button", { name: "(b) Redirect to the new page" });
+    await waitFor(() => expect(option).toBeDisabled());
+    expect(option).toHaveAccessibleDescription(expect.stringContaining("Unavailable in this workspace."));
+    expect(headerNode().querySelector("[data-action-reason]")).toHaveTextContent("Unavailable in this workspace.");
+    expect(header().getByRole("button", { name: "Answer" })).toBeEnabled();
   });
 });
 

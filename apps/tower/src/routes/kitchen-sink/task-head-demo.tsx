@@ -1,15 +1,26 @@
 import { Check, Reply } from "lucide-react";
+import type { TaskChoices } from "@noticeos/contract/task-choices";
+import { ChoiceButtons } from "@/components/ChoiceButtons";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { Button } from "@/components/ui/button";
 import type { BoardTask } from "@/lib/task-board-read";
 import { EpicTaskList } from "@/routes/tasks/epic-tasks";
-import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
+import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
 
 // The task page's header in each state it is read in, with invented tasks:
-// an epic with its progress, a task somebody holds, a decision waiting on the
-// operator and a closed task with its reason. Each action is inert here.
+// an epic with its progress, a task somebody holds, decisions waiting on the
+// operator, a pick and a closed task with its reason. Each action is inert
+// here.
 
 const HOUR = 3_600_000;
+const CHOICES: TaskChoices = {
+  question: "What happens to the retired recipe page?",
+  options: [
+    { key: "a", label: "Keep the old page", detail: "It stays reachable at its address; nothing links to it." },
+    { key: "b", label: "Redirect to the new page", detail: "A permanent redirect keeps its search traffic.", recommended: true },
+    { key: "c", label: "Remove it", detail: "Visitors get a not-found page." },
+  ],
+};
 const crumbs = (parent?: string) => [
   { label: "Tasks", to: "/tasks" },
   { label: "System", to: "/tasks?project=system", icon: <PropertyFavicon domain="system" displayName="System" className="size-4" /> },
@@ -74,6 +85,37 @@ export function TaskHeadDemo() {
           nowMs={now}
           actions={<><Button size="sm"><Reply aria-hidden />Answer</Button><Button size="sm" variant="ghost">Dismiss</Button></>}
         />
+      </div>
+      {/* A question with choices: the options under the header, Answer and
+          Dismiss under them; then the same task once a person has picked. */}
+      <div className="border-t border-border pt-4">
+        <TaskHead
+          id="os-8f7p.11"
+          facts={{ ...base, title: "Retire the old recipe page", ask: "choose", choices: CHOICES }}
+          crumbs={crumbs("Tasks are managed in the Tower")}
+          nowMs={now}
+        >
+          <ChoiceButtons
+            choices={CHOICES}
+            onChoose={() => undefined}
+            footer={<><Button size="sm" variant="outline"><Reply aria-hidden />Answer</Button><Button size="sm" variant="ghost">Dismiss</Button></>}
+          />
+        </TaskHead>
+      </div>
+      <div className="border-t border-border pt-4">
+        <TaskHead
+          id="os-8f7p.11"
+          facts={{ ...base, title: "Retire the old recipe page", choices: CHOICES }}
+          crumbs={crumbs("Tasks are managed in the Tower")}
+          nowMs={now}
+        >
+          <ChoiceSummary
+            choice={{ option: "b", label: "Redirect to the new page", by: "Dana", at: new Date(now - 2 * HOUR).toISOString(), note: "Keep the redirect for a year." }}
+            choices={CHOICES}
+            by="Dana"
+            nowMs={now}
+          />
+        </TaskHead>
       </div>
       {/* One header per remaining type: an open bug wears the alert band, the
           others the neutral one, each with its own mark. */}

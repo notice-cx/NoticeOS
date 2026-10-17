@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LiveTask, LiveTasksPayload, TasksCapabilities } from "@shared/tasks";
 import { READ_ONLY_DEPLOYMENT, READ_ONLY_TASKS_HINT } from "@shared/tasks";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import type { TaskChoices } from "@noticeos/contract/task-choices";
 
 // `/tasks`: the filters are the URL, every row opens at `/tasks/:id`, and the
 // same component draws the asset page's Tasks tab with one prop set. The reads
@@ -26,6 +27,7 @@ const api = vi.hoisted(() => ({
   updateTask: vi.fn(async () => undefined),
   closeTask: vi.fn(async () => undefined),
   respondToTask: vi.fn(async () => undefined),
+  chooseOnTask: vi.fn(async (..._args: unknown[]) => undefined),
   dismissTask: vi.fn(async () => undefined),
   resolveGate: vi.fn(async () => undefined),
   createTask: vi.fn(async () => ({ id: "md-new", project: "meadow.example" })),
@@ -1858,5 +1860,120 @@ describe("/tasks — several decisions taken in one action", () => {
     state.capabilities = { live: true, reason: null, operations: ["create", "update", "comment", "close"] };
     fireEvent.change(container.querySelector("#tasks-status")!, { target: { value: "open" } });
     expect(within(container).queryByRole("button", { name: "Select" })).toBeNull();
+  });
+});
+
+describe("/tasks — a decision with choices is one press from Your decisions", () => {
+  const CHOICES: TaskChoices = {
+    question: "Which day does the newsletter go out?",
+    options: [
+      { key: "a", label: "Monday" },
+      { key: "b", label: "Tuesday", detail: "Opens were highest on Tuesdays.", recommended: true },
+      { key: "c", label: "Friday" },
+    ],
+  };
+  const waiting = (ids: string[]) => payload({ projects: [project({ waiting: ids.map((id) => item({ id, title: id })) })] });
+  const choice = (id: string, title: string) => liveTask({ id, title, labels: ["human"], ready: true, choices: CHOICES });
+  const one = () => ({ "meadow.example": board([choice("md-c1", "Pick the newsletter day")]) });
+  const rowOf = (container: HTMLElement, id: string) => container.querySelector(`[data-inbox-row="${id}"]`) as HTMLElement | null;
+  const names = (scope: HTMLElement) => within(scope).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim());
+
+  it("draws the question and one button per option on the row, the recommended first, with Answer and Dismiss under them", () => {
+    const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
+    const row = rowOf(container, "md-c1")!;
+    expect(row).toHaveTextContent("Meadow Board · needs your choice");
+    const group = within(row).getByRole("group", { name: CHOICES.question });
+    expect(names(group)).toEqual(["(b) Tuesday", "(a) Monday", "(c) Friday", "Answer", "Dismiss"]);
+    expect(within(group).getByText("Recommended")).toBeInTheDocument();
+    expect(within(group).getByText("Opens were highest on Tuesdays.")).toBeInTheDocument();
+    expect(within(group).getByLabelText("Note")).toBeInTheDocument();
+  });
+
+  it("picks in one press: the row leaves, the toast names the pick with Undo, and choose is sent when the window closes", async () => {
+    const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
+    const row = within(rowOf(container, "md-c1")!);
+    fireEvent.change(row.getByLabelText("Note"), { target: { value: "Start next week." } });
+    fireEvent.click(row.getByRole("button", { name: "(c) Friday" }));
+    expect(rowOf(container, "md-c1")).toBeNull();
+    expect(toasts.success).toHaveBeenCalledWith("Chose (c) Friday", expect.objectContaining({
+      description: "Pick the newsletter day",
+      action: expect.objectContaining({ label: "Undo" }),
+    }));
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.chooseOnTask).toHaveBeenCalledOnce());
+    expect(api.chooseOnTask).toHaveBeenCalledWith("md-c1", "c", "Start next week.");
+    expect(api.respondToTask).not.toHaveBeenCalled();
+  });
+
+  it("takes a pick back inside its window, and the row returns with its options", () => {
+    const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
+    fireEvent.click(within(rowOf(container, "md-c1")!).getByRole("button", { name: "(b) Tuesday" }));
+    expect(rowOf(container, "md-c1")).toBeNull();
+    const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => undo.action.onClick());
+    expect(within(rowOf(container, "md-c1")!).getByRole("button", { name: "(b) Tuesday" })).toBeEnabled();
+    act(() => flushAnswers());
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+  });
+
+  it("answers a decision with choices in free text too, from under its options", async () => {
+    const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
+    fireEvent.click(within(rowOf(container, "md-c1")!).getByRole("button", { name: "Answer" }));
+    const box = screen.getByLabelText("Your answer to md-c1");
+    fireEvent.change(box, { target: { value: "Thursday, after the launch." } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.respondToTask).toHaveBeenCalledWith("md-c1", "Thursday, after the launch."));
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+  });
+
+  it("leaves decisions with choices out of Answer in Select, names them in the count, and still dismisses them", async () => {
+    const { container } = renderBoard({
+      data: waiting(["md-g1", "md-a1", "md-c1", "md-c2"]), live: true,
+      boards: { "meadow.example": board([
+        liveTask({ id: "md-g1", title: "Approve the spend", issueType: "gate", awaitType: "human" }),
+        liveTask({ id: "md-a1", title: "Name the newsletter", labels: ["human"], ready: true }),
+        choice("md-c1", "Pick the newsletter day"),
+        choice("md-c2", "Pick the newsletter hour"),
+      ]) },
+    });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    // While selecting, the selection's verbs stand in for a row's options too.
+    expect(within(rowOf(container, "md-c1")!).queryByRole("button", { name: "(b) Tuesday" })).toBeNull();
+    fireEvent.click(within(container.querySelector("[data-inbox-selection]") as HTMLElement).getByRole("button", { name: "Select all 4" }));
+    const bar = within(container.querySelector("[data-inbox-selection]") as HTMLElement);
+    expect(bar.getByRole("status")).toHaveTextContent("4 selected · 2 need a choice");
+    expect(bar.getByRole("button", { name: "Approve 1" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Answer 1" })).toBeEnabled();
+    expect(bar.getByRole("button", { name: "Dismiss 3" })).toBeEnabled();
+
+    fireEvent.click(bar.getByRole("button", { name: "Answer 1" }));
+    const box = screen.getByLabelText("Your answer to 1 questions");
+    fireEvent.change(box, { target: { value: "Weekly Notes" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(rowOf(container, "md-a1")).toBeNull();
+    expect(rowOf(container, "md-c1")).not.toBeNull();
+    expect(rowOf(container, "md-c2")).not.toBeNull();
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.respondToTask).toHaveBeenCalledOnce());
+    expect(api.respondToTask).toHaveBeenCalledWith("md-a1", "Weekly Notes");
+    expect(api.chooseOnTask).not.toHaveBeenCalled();
+  });
+
+  it("says one decision needs a choice in the singular, and offers no Answer when every question selected has choices", () => {
+    const { container } = renderBoard({
+      data: waiting(["md-g1", "md-c1"]), live: true,
+      boards: { "meadow.example": board([
+        liveTask({ id: "md-g1", title: "Approve the spend", issueType: "gate", awaitType: "human" }),
+        choice("md-c1", "Pick the newsletter day"),
+      ]) },
+    });
+    fireEvent.click(within(container).getByRole("button", { name: "Select" }));
+    fireEvent.click(within(rowOf(container, "md-c1")!).getByRole("checkbox"));
+    const bar = within(container.querySelector("[data-inbox-selection]") as HTMLElement);
+    expect(bar.getByRole("status")).toHaveTextContent("1 selected · 1 needs a choice");
+    expect(bar.queryByRole("button", { name: /^Answer/ })).toBeNull();
+    expect(bar.getByRole("button", { name: "Dismiss 1" })).toBeEnabled();
   });
 });
