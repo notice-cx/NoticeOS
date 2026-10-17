@@ -361,7 +361,8 @@ const hostedStoredRoutes = Object.freeze({
     '/api/financials': evidence,
     '/api/alerts/history': operation('evidence.read'),
     '/api/alerts/rules': operation('evidence.read'),
-    '/api/work': operation('tasks.read'),
+    // The board reads the saved time zone, where its week starts.
+    '/api/work': operation('tasks.read', [configRead]),
     '/api/task-source': operation('tasks.read', [configRead]),
     '/api/settings': operation('settings.read', [configRead]),
     '/api/integrations': operation('integrations.summary.read', [configRead]),
