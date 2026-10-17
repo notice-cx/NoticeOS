@@ -166,7 +166,7 @@ export async function handleStoredRead(request: Request, {
   // with no task source connected gets an empty board.
   if (url.pathname === "/api/work") {
     try {
-      const payload = await buildTaskBoard({ store }, new Date());
+      const payload = await buildTaskBoard({ store, timeZone: (await config()).osTimeZone }, new Date());
       return Response.json(payload, { headers: JSON_HEADERS });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

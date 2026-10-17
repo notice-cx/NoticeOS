@@ -93,6 +93,28 @@ describe("partial operator snapshots from the task poller", () => {
     expect(project.recentWork?.map((event) => [event.taskId, event.resolution ?? null])).toEqual([["md-c3", "wont-do"], ["md-c1", null]]);
   });
 
+  it("carries each figure's week on the work payload, an unmeasured count as unknown rather than zero", async () => {
+    await seedSnapshot(ctx, CAPTURED, [workProject({ waiting: [waiting[1]!] })]);
+    // The one day the rollup holds: a poller that measured neither the inbox
+    // nor urgency, on Saturday of the week that began on Monday 08-31.
+    await ctx.call.write((tx) => tx.execute(
+      `INSERT INTO noticeos.task_daily_counts (workspace_id, project, day, captured_at, waiting, urgent, open, in_progress, blocked, closed_ids)
+       VALUES ($1::uuid, 'meadow.example', '2026-09-05'::date, $2::timestamptz, NULL, NULL, 12, 1, 0, '[]'::jsonb)`,
+      [tx.workspaceId, CAPTURED],
+    ));
+    const weeks = (await buildWorkPayload(ctx.call, { now: NOW, timeZone: "UTC" })).projects[0]!.weeks;
+    expect(weeks).toEqual({
+      weekStart: "2026-08-31",
+      daysIn: 6,
+      // Five of the week's six days are not held: a lower bound, with nothing to compare.
+      done: { now: 0, partial: true, before: null, lastWeek: null, move: null },
+      waiting: { now: null, before: null, added: null, move: null },
+      urgent: { now: null, before: null, added: null, move: null },
+      inProgress: { now: 1, before: null, added: null, move: null },
+      blocked: { now: 0, before: null, added: null, move: null },
+    });
+  });
+
   it("returns to a complete zero only after a newer complete empty snapshot", async () => {
     await seedSnapshot(ctx, "2026-09-05T11:59:00.000Z", [workProject({ waiting })]);
     await seedSnapshot(ctx, CAPTURED, [workProject({ counts: { waiting: 0 }, waitingUrgent: 0, waiting: [] })]);

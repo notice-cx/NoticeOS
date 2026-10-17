@@ -27,6 +27,8 @@ export interface TaskSourceContext {
   /** How many projects the operator saved for each source. Absent where the
    * caller has no settings to hand; a source then counts what its read saw. */
   savedProjects?: Partial<Record<TaskSourceId, number>>;
+  /** The installation's clock, which decides where the board's week starts. */
+  timeZone?: string;
 }
 
 /** One source, read once, with every answer bound to that read. */
@@ -146,11 +148,12 @@ export function beadsReading(
   store: WorkspaceStore,
   snapshot: BeadsSnapshot | null,
   savedProjects?: number,
+  timeZone?: string,
 ): BeadsTaskSourceReading {
   return {
     snapshot,
     status: beadsStatus(snapshot, savedProjects),
-    board: (now) => buildWorkPayload(store, { now, snapshot }),
+    board: (now) => buildWorkPayload(store, { now, snapshot, timeZone }),
     needsYou: () => beadsNeedsYou(snapshot),
     inbox: (asset) => beadsInbox(snapshot, asset),
   };
@@ -158,8 +161,8 @@ export function beadsReading(
 
 export const beadsTaskSource = {
   id: BEADS,
-  async read({ store, savedProjects }: TaskSourceContext): Promise<BeadsTaskSourceReading> {
-    return beadsReading(store, await loadLatestBeadsSnapshot(store), savedProjects?.beads);
+  async read({ store, savedProjects, timeZone }: TaskSourceContext): Promise<BeadsTaskSourceReading> {
+    return beadsReading(store, await loadLatestBeadsSnapshot(store), savedProjects?.beads, timeZone);
   },
 } satisfies TaskSourceAdapter;
 

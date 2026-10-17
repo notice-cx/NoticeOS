@@ -15,6 +15,7 @@ import type { PullConfigEntry, SerpPanelConfig } from "./asset-config";
 import { loadDataForSeoSpend } from "./metered-spend";
 import { alertHandoffsOf, type BeadsSnapshot, loadLatestBeadsSnapshot } from "./beads-snapshot";
 import { beadsReading } from "./task-source";
+import { loadWorkWeeks } from "./work-payload";
 import { readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
 import {
@@ -60,6 +61,7 @@ import {
   type WallPayload,
   type WorkSummary,
 } from "../shared/wall";
+import type { WorkWeeks } from "../shared/work";
 
 /** The tunables the SYSTEM band needs, sourced from config/constants.json. */
 export interface WallConstants {
@@ -227,12 +229,13 @@ async function readChangesForAlerts(
  * measure travels as null and is dropped one chip at a time rather than
  * costing the asset its whole widget.
  */
-export function cardWorkOf(snapshot: BeadsSnapshot | null): Map<string, WorkSummary> {
+export function cardWorkOf(snapshot: BeadsSnapshot | null, weeks: ReadonlyMap<string, WorkWeeks> = new Map()): Map<string, WorkSummary> {
   const out = new Map<string, WorkSummary>();
   if (!snapshot) return out;
   for (const project of snapshot.projects) {
     if (!project.ok) continue;
     const { open, highPriority, inProgress, blocked, closedRecent } = project.counts;
+    const week = weeks.get(project.asset);
     out.set(project.asset, {
       open,
       highPriority,
@@ -241,6 +244,7 @@ export function cardWorkOf(snapshot: BeadsSnapshot | null): Map<string, WorkSumm
       closedRecent,
       priorities: project.priorities,
       capturedAt: snapshot.capturedAt,
+      ...(week ? { weeks: week } : {}),
     });
   }
   return out;
@@ -517,7 +521,7 @@ export async function buildWallPayload(
   // task source's one reading (`./task-source`).
   const beadsSnapshot = await loadLatestBeadsSnapshot(store);
   const tasks = beadsReading(store, beadsSnapshot);
-  const workByAsset = cardWorkOf(beadsSnapshot);
+  const workByAsset = cardWorkOf(beadsSnapshot, await loadWorkWeeks(store, now, osTimeZone));
 
   // --- system: what the strip's one state and Home's System tile read -------
   // The metered data cap alone.

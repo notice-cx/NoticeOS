@@ -11,8 +11,10 @@ import {
   WORK_OWNER,
   WORK_POLL_CADENCE_HOURS,
   emptyWorkHistory,
+  workWeeks,
   type WorkPayload,
   type WorkProject,
+  type WorkWeeks,
 } from "../shared/work";
 
 export interface WorkPayloadOptions {
@@ -20,12 +22,29 @@ export interface WorkPayloadOptions {
   /** The snapshot the caller already read (the task source seam reads it once
    * per request, `./task-source`); absent reads the newest one here. */
   snapshot?: BeadsSnapshot | null;
+  /** The installation's clock (`os_time_zone`), which decides where a week
+   * starts. UTC when the caller has none. */
+  timeZone?: string;
+}
+
+/** The days a week reading needs: this week and last (fourteen), the day
+ * before the seven-day window, and one for the history's UTC day running
+ * ahead of the installation's. */
+const WEEKS_HISTORY_DAYS = 16;
+
+/** Each project's week against the week before, keyed by asset id, from the
+ * daily rollup's last few days: what the Wall's work tile reads. A project
+ * the rollup holds no day for is absent. */
+export async function loadWorkWeeks(store: WorkspaceStore, now: Date, timeZone: string): Promise<Map<string, WorkWeeks>> {
+  const since = new Date(now.getTime() - WEEKS_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
+  const history = await loadBeadsDailyHistory(store, { since });
+  return new Map([...history.byProject].map(([asset, series]) => [asset, workWeeks(series, now, timeZone)]));
 }
 
 /** The whole board. */
 export async function buildWorkPayload(
   store: WorkspaceStore,
-  { now, snapshot: given }: WorkPayloadOptions,
+  { now, snapshot: given, timeZone = "UTC" }: WorkPayloadOptions,
 ): Promise<WorkPayload> {
   const generatedAt = now.toISOString();
 
@@ -55,13 +74,19 @@ export async function buildWorkPayload(
       handoffs: _findingOnly,
       waitingUrgent: _wallOnly,
       ...project
-    }): WorkProject => ({
-      ...project,
-      // An unknown asset id still renders under its own id, so config drift shows.
-      name: names.get(project.asset) ?? project.asset,
+    }): WorkProject => {
       // No rollup rows yet: an empty history, never a dropped project.
-      history: history.byProject.get(project.asset) ?? emptyWorkHistory(),
-    }),
+      const series = history.byProject.get(project.asset) ?? emptyWorkHistory();
+      return {
+        ...project,
+        // An unknown asset id still renders under its own id, so config drift shows.
+        name: names.get(project.asset) ?? project.asset,
+        history: series,
+        // A store with no rollup at all has no weeks to read, which is not a
+        // week of zeroes.
+        ...(history.days > 0 ? { weeks: workWeeks(series, now, timeZone) } : {}),
+      };
+    },
   );
 
   return {

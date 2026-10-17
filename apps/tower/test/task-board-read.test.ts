@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { LiveTask, LiveTasksPayload } from "@shared/tasks";
-import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { emptyWorkHistory, sumWorkWeeks, workWeeks, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import type { TaskProject } from "@shared/tasks";
 import { askVerb, catalogScope, inboxAsk, readTaskBoard, taskCatalogProjects, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
 
@@ -273,5 +273,55 @@ describe("a hosted catalog joined to the snapshot by prefix", () => {
     const board = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot, scope, reads: new Map(), roster, filters });
     expect(board.spokes).toHaveLength(1);
     expect(board.spokes[0]?.asset).toBe("lb");
+  });
+});
+
+describe("the board's week against the week before", () => {
+  const NOW = new Date("2026-08-01T12:00:00.000Z");
+  // 2026-07-19 .. 2026-08-01 is 14 days: Sunday 07-19, then Monday 07-20 .. Saturday 08-01.
+  const days = (values: readonly number[]) => values.map((v, i) => ({ t: new Date(Date.parse("2026-07-19T00:00:00.000Z") + i * 86_400_000).toISOString().slice(0, 10), v }));
+  const history = (closed: number) => ({
+    ...emptyWorkHistory(),
+    closed: days(Array.from({ length: 14 }, () => closed)),
+    blocked: days(Array.from({ length: 14 }, (_, i) => (i === 13 ? 4 : i >= 6 ? 2 : 0))),
+  });
+  const weekly = (asset: string, prefix: string, closed: number) => {
+    const series = history(closed);
+    return project({ asset, prefix, name: asset, history: series, weeks: workWeeks(series, NOW, "UTC") });
+  };
+  const snapshot = payload({ projects: [weekly("meadow.example", "md", 1), weekly("northwind.example", "nw", 2)] });
+
+  it("reads the projects' weeks through the one derivation the work payload serves, live read or not", () => {
+    const sampled = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot, reads: new Map(), filters });
+    expect(sampled.weeks).toEqual(sumWorkWeeks(snapshot.projects.map((row) => row.weeks)));
+    // Monday 07-27 to Saturday 08-01 is six days at 1 + 2 a day.
+    expect(sampled.weeks?.done).toMatchObject({ now: 18, before: 18, lastWeek: 21, move: { by: 0, verdict: "neutral" } });
+    expect(sampled.weeks?.blocked).toMatchObject({ now: 8, before: 4, move: { by: 4, verdict: "bad" } });
+    const live = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot, filters, reads: new Map([
+      ["meadow.example", success(board([liveTask()]))],
+      ["northwind.example", success({ ...board([liveTask({ id: "nw-1" })], null, "northwind.example"), prefix: "nw" })],
+    ]) });
+    expect(live.weeks).toEqual(sampled.weeks);
+  });
+
+  it("gives a site's Tasks tab its own project's week", () => {
+    const scoped = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot, scope: "northwind.example", reads: new Map(), filters });
+    expect(scoped.weeks).toEqual(snapshot.projects[1]!.weeks);
+  });
+
+  it("splits this week's closes into done and not done only where the rows hold every close since Monday", () => {
+    const closes = [
+      liveTask({ id: "md-c1", status: "closed", closedAt: "2026-07-28T10:00:00.000Z" }),
+      liveTask({ id: "md-c2", status: "closed", closedAt: "2026-07-29T10:00:00.000Z", resolution: "wont-do" }),
+      liveTask({ id: "md-c3", status: "closed", closedAt: "2026-07-26T10:00:00.000Z", resolution: "duplicate" }),
+    ];
+    const one = payload({ projects: [weekly("meadow.example", "md", 1)] });
+    const holds = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot: one, filters,
+      reads: new Map([["meadow.example", success({ ...board(closes), closedSince: "2026-07-25" })]]) });
+    // The duplicate closed on Sunday, last week.
+    expect(holds.weekNotDone).toBe(1);
+    const short = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot: one, filters,
+      reads: new Map([["meadow.example", success({ ...board(closes), closedSince: "2026-07-28" })]]) });
+    expect(short.weekNotDone).toBeNull();
   });
 });

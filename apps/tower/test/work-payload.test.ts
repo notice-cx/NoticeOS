@@ -559,6 +559,41 @@ describe("the daily history the strip's six numbers ride", () => {
     expect(payload.projects).toEqual([]);
     expect(payload.historyDays).toBe(0);
   });
+
+  /** Two weeks of one project's days: last week one close a day, this week
+   * four closes over six days, blocked rising from 1 to 3. */
+  async function seedTwoWeeks(): Promise<void> {
+    const thisWeek: Record<string, string[]> = {
+      "2026-07-27": ["md-a", "md-b"], "2026-07-28": ["md-c"], "2026-07-29": [], "2026-07-30": [], "2026-07-31": ["md-d"], "2026-08-01": [],
+    };
+    const lastWeek = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26"];
+    const blocked: Record<string, number> = { "2026-07-25": 1, "2026-07-26": 1, "2026-07-27": 2, "2026-07-28": 2, "2026-07-29": 1, "2026-07-30": 3, "2026-07-31": 3, "2026-08-01": 3 };
+    for (const day of lastWeek) await seedDay("meadow.example", day, { open: 4, inProgress: 1, blocked: blocked[day] ?? 1, closed: [`md-${day}`] });
+    for (const [day, closed] of Object.entries(thisWeek)) await seedDay("meadow.example", day, { open: 4, inProgress: 1, blocked: blocked[day]!, closed });
+  }
+
+  it("serves each project's week against the week before, on the installation's clock", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project()]);
+    await seedTwoWeeks();
+
+    // NOW is Saturday in UTC and already Sunday at UTC+14: the zone decides
+    // the day of the week, the same week either way.
+    const utc = (await buildWorkPayload(store.call, { now: NOW })).projects[0]!.weeks!;
+    expect([utc.weekStart, utc.daysIn]).toEqual(["2026-07-27", 6]);
+    expect(utc.done).toEqual({ now: 4, partial: false, before: 6, lastWeek: 7, move: { by: -2, direction: "down", verdict: "bad" } });
+    // 1 → 1 → 2 → 2 → 1 → 3 → 3 → 3: rises of 1 and 2.
+    expect(utc.blocked).toEqual({ now: 3, before: 1, added: 3, move: { by: 2, direction: "up", verdict: "bad" } });
+    // The history's Sunday has not begun in UTC, so last week is still
+    // compared over its first six days.
+    const ahead = (await buildWorkPayload(store.call, { now: NOW, timeZone: "Pacific/Kiritimati" })).projects[0]!.weeks!;
+    expect([ahead.weekStart, ahead.daysIn, ahead.done.before]).toEqual(["2026-07-27", 7, 6]);
+  });
+
+  it("serves no week where the store holds no daily history at all", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project()]);
+    const payload = await buildWorkPayload(store.call, { now: NOW });
+    expect(payload.projects[0]!.weeks).toBeUndefined();
+  });
 });
 
 describe("summing the daily history across the projects on a board", () => {

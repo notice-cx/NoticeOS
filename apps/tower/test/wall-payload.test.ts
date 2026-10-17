@@ -2316,6 +2316,30 @@ describe("buildWallPayload — the card's work slice", () => {
     });
   });
 
+  it("carries each site's week from the daily history on the installation's clock, and none where it holds no day", async () => {
+    await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
+      workProject(),
+      workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
+    ]);
+    for (const [day, closed, blocked] of [["2026-07-04", ["md-a"], 1], ["2026-07-05", ["md-b", "md-c"], 2]] as const) {
+      await ctx.call.write((tx) => tx.execute(
+        `INSERT INTO noticeos.task_daily_counts (workspace_id, project, day, captured_at, waiting, urgent, open, in_progress, blocked, closed_ids)
+         VALUES ($1::uuid, 'meadow.example', $2::date, $3::timestamptz, 0, 1, 12, 2, $4, $5::jsonb)`,
+        [tx.workspaceId, day, `${day}T11:00:00.000Z`, blocked, JSON.stringify(closed)],
+      ));
+    }
+
+    const wall = await buildWallPayload(ctx.call, OPTIONS);
+    // NOW is Sunday: the week began on Monday 06-29, and the history holds two of its days.
+    expect(wall.assets.find((asset) => asset.id === "meadow.example")?.work?.weeks).toMatchObject({
+      weekStart: "2026-06-29",
+      daysIn: 7,
+      done: { now: 3, partial: true, move: null },
+      blocked: { now: 2, before: null },
+    });
+    expect(wall.assets.find((asset) => asset.id === "northwind.example")?.work).not.toHaveProperty("weeks");
+  });
+
   it("joins the newest snapshot onto each asset by asset id", async () => {
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
       workProject(),
