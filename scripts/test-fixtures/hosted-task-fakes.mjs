@@ -1,4 +1,4 @@
-import { answerSteps, choiceSteps } from '../hosted-task-command.mjs';
+import { answerSteps, choiceSteps, closerMetadata } from '../hosted-task-command.mjs';
 
 // Shared fakes for the hosted task operation, HTTP and MCP tests.
 // The receipt store keeps packages/postgres/src/task-receipts.mts's
@@ -120,16 +120,23 @@ export function fakeTaskExecutor({ principal, clock }) {
         }
         effects.push([operation.kind, operation.taskId]); value = { id: task.id, status: task.status }; break;
       }
+      case 'dismiss': {
+        // As the real executor runs it: the task client's dismissal, then its record.
+        const task = tasks.get(operation.taskId), at = new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z');
+        Object.assign(task, { status: 'closed', close_reason: operation.reason === undefined ? 'Dismissed' : `Dismissed: ${operation.reason}`, closed_at: at });
+        task.metadata = { ...task.metadata, ...closerMetadata({ kind: 'attribute', taskId: task.id, closedBy: principal(), closedAt: at,
+          resolution: operation.resolution ?? 'wont-do', ...(operation.duplicateOf === undefined ? {} : { duplicateOf: operation.duplicateOf }) }) };
+        effects.push(['dismiss', task.id]); value = { id: task.id, status: task.status }; break;
+      }
       case 'attribute': {
         // As the task client merges --metadata into what the task carries.
         if (fail === 'attribute') { fail = null; throw new Error('the closer was not recorded'); }
         const task = tasks.get(operation.taskId);
-        task.metadata = { ...task.metadata, noticeos_closed_by: operation.closedBy, noticeos_closed_at: operation.closedAt,
-          ...(operation.model === undefined ? {} : { noticeos_closed_model: operation.model }) };
+        task.metadata = { ...task.metadata, ...closerMetadata(operation) };
         attributions.push([operation.taskId, operation.closedBy]); value = [row(task)]; break;
       }
       case 'active-board': value = [...tasks.values()].filter(task => task.status !== 'closed').map(row); break;
-      case 'closed-board': value = []; break;
+      case 'closed-board': value = [...tasks.values()].filter(task => task.status === 'closed' && task.closed_at >= operation.since).map(row); break;
       case 'ready': value = [...tasks.values()].filter(task => task.status === 'open' && task.issue_type !== 'gate' && !blocked(task.id))
         .map(task => ({ id: task.id })); break;
       case 'show': value = [{ ...row(tasks.get(operation.taskId) ?? { id: operation.taskId, title: 'Task', status: 'open' }),

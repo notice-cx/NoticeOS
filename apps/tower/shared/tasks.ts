@@ -6,7 +6,7 @@
 // board. `LiveTask` extends `WorkItem` rather than restating it. Tasks are
 // coordination state, not signals.
 
-import { TASK_METADATA } from "@noticeos/contract/task-metadata";
+import { recordsClose, TASK_METADATA } from "@noticeos/contract/task-metadata";
 import type { WorkItem } from "./work";
 
 /** Closed history is bounded in time, never sampled by row count. */
@@ -128,11 +128,9 @@ export function taskActorLabel(actor: string, actors?: readonly TaskActor[]): st
  * for this close. A task closed again since, without a record, shows its
  * close and no closer rather than an earlier one's. */
 export function closeAttribution(task: Pick<LiveTask, "status" | "closedAt" | "metadata">): { by: string; model: string | null } | null {
-  if (task.status !== "closed" || task.closedAt === null) return null;
+  if (task.status !== "closed" || !recordsClose(task.metadata, task.closedAt)) return null;
   const by = metadataText(task.metadata, TASK_METADATA.closedBy.name);
-  const at = metadataText(task.metadata, TASK_METADATA.closedAt.name);
-  if (by === null || at === null || Math.abs(Date.parse(at) - Date.parse(task.closedAt)) > 1000) return null;
-  return { by, model: metadataText(task.metadata, TASK_METADATA.closedModel.name) };
+  return by === null ? null : { by, model: metadataText(task.metadata, TASK_METADATA.closedModel.name) };
 }
 
 /** The model a task's claimer named when it claimed the task, or null. */

@@ -18,6 +18,7 @@ import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, TaskStoreFa
   type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType, type TaskProjectName } from './hosted-task-command.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoicesOf, taskChoicesProblem, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
+import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
 import { McpToolError } from './mcp-protocol.mjs';
 import { toComment, toLiveTask } from './task-row.mjs';
 import { IDEMPOTENCY_KEY } from '../packages/postgres/src/task-receipts.mjs';
@@ -46,6 +47,7 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
   '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
   '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
   '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
+  '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
 ]);
 
 /** How a session starts, said in every session's instructions. */
@@ -317,7 +319,7 @@ function presentTask(task: LiveTask, live: boolean): Record<string, unknown> {
     deferUntil: task.deferUntil,
     dependencies: task.dependencies, commentCount: task.comments, metadata: task.metadata,
     createdAt: task.createdAt, updatedAt: task.updatedAt, startedAt: task.startedAt,
-    closedAt: task.closedAt, closeReason: task.closeReason,
+    closedAt: task.closedAt, closeReason: task.closeReason, resolution: task.resolution ?? null, duplicateOf: task.duplicateOf ?? null,
   };
 }
 /** A task as a list shows it: enough to choose one, which get_task then reads
@@ -328,6 +330,7 @@ function summaryOf(task: LiveTask): Record<string, unknown> {
     assignee: task.assignee, labels: task.labels, parent: task.parent, ready: task.ready, awaitingHuman: waitsOnPerson(task),
     choices: task.choices ?? null, choice: task.choice ?? null,
     deferUntil: task.deferUntil, createdAt: task.createdAt, updatedAt: task.updatedAt, closedAt: task.closedAt,
+    resolution: task.resolution ?? null, duplicateOf: task.duplicateOf ?? null,
   };
   return Object.fromEntries(Object.entries(row).filter(([, value]) => value !== null && !(Array.isArray(value) && !value.length)));
 }
@@ -694,15 +697,25 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze([
       return { task: taskId, ...approvalOf(taskId, gate), created };
     } },
   { name: 'close_task', description: 'Close a task with the reason it is done, citing evidence such as a commit or URL, and naming your model. '
+      + 'When nothing shipped, pass the resolution that says why; the reason still cites the evidence. '
       + 'A task it depends on may still be open; an approval it waits on must be given first.',
     inputSchema: schema({ project: PROJECT, task: TASK, reason: { type: 'string', maxLength: HOSTED_TASK_LIMITS.reason },
+      resolution: { type: 'string', enum: TASK_RESOLUTIONS, description: 'How it ended: done (the default) when the work shipped; wont-do, '
+        + 'duplicate, cant-reproduce or already-handled when nothing did.' },
+      duplicate_of: { type: 'string', description: 'With resolution duplicate: the id of the task in this project it duplicates. The two are linked as related.' },
       model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'reason', 'idempotency_key']),
     annotations: WRITE,
     async run(context, args) {
-      only(args, ['project', 'task', 'reason', 'model', 'idempotency_key']);
+      only(args, ['project', 'task', 'reason', 'resolution', 'duplicate_of', 'model', 'idempotency_key']);
       const projectId = project(args), taskId = task(args), model = modelArg(args);
+      const resolution = choice(args, 'resolution', TASK_RESOLUTIONS);
+      const duplicateOf = args.duplicate_of === undefined ? undefined : task(args, 'duplicate_of');
+      if (resolution === 'duplicate' && duplicateOf === undefined) refuse('invalid arguments: duplicate_of (required with resolution duplicate: the task this one duplicates)');
+      if (duplicateOf !== undefined && resolution !== 'duplicate') refuse('invalid arguments: duplicate_of (only with resolution duplicate)');
+      if (duplicateOf === taskId) refuse('invalid arguments: duplicate_of (another task than the one closing)');
       const { replayed } = await write(context, projectId, { kind: 'close', taskId, reason: textArg(args, 'reason', HOSTED_TASK_LIMITS.reason)!,
-        ...(model ? { model } : {}) }, key(args), () => ({}));
+        ...(model ? { model } : {}), ...(resolution === undefined ? {} : { resolution }), ...(duplicateOf === undefined ? {} : { duplicateOf }) },
+      key(args), () => ({}));
       return { task: await current(context, projectId, taskId), replayed };
     } },
 ]);

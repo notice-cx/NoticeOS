@@ -68,7 +68,7 @@ else if(args.includes('sql')){
  else console.log(JSON.stringify({rows:[{database:db,branch:'main',user:process.env.BEADS_DOLT_SERVER_USER,host:'%',permissions:'write'}]}));
 }else if(c.failBlocked&&args.includes('blocked')){process.exit(1)}
 else if(c.overflow){process.stdout.write('x'.repeat(9*1024*1024))}
-else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents,metadata:c.metadata}))}
+else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,closed_at:c.closedAt,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents,metadata:c.metadata}))}
 else if(c.stateful&&!args.includes('--readonly')&&(args.includes('update')||args.includes('close')||args.includes('comments')&&args.includes('add'))){
  const flag=name=>args.find(a=>a.startsWith('--'+name+'='))?.slice(name.length+3);
  if(args.includes('comments'))c.comments=[...(c.comments??[]),{issue_id:args.at(-2),author:flag('actor'),text:args.at(-1)}];
@@ -86,7 +86,7 @@ else if(c.stateful&&!args.includes('--readonly')&&(args.includes('update')||args
 else if((args.includes('human')||args.includes('gate'))&&args.some(value=>['respond','dismiss','resolve'].includes(value))){
  if(c.decisionFailure)process.exit(1);
  const response=args.find(a=>a.startsWith('--response='))?.slice(11), reason=args.find(a=>a.startsWith('--reason='))?.slice(9);
- c.taskStatus='closed';c.closeReason=args.includes('respond')?'Responded':args.includes('dismiss')?(reason===undefined?'Dismissed':'Dismissed: '+reason):(reason??'Resolved');
+ c.taskStatus='closed';c.closedAt=c.closeTime;c.closeReason=args.includes('respond')?'Responded':args.includes('dismiss')?(reason===undefined?'Dismissed':'Dismissed: '+reason):(reason??'Resolved');
  if(response!==undefined)c.response={issue_id:args.at(-1),author:args.find(a=>a.startsWith('--actor='))?.slice(8),text:'Response: '+response};
  fs.writeFileSync(cwd+'/control.json',JSON.stringify(c));console.log('Decision recorded');
 }else if(args.includes('comments')&&args.includes('--readonly')){console.log(JSON.stringify([...(c.response?[c.response]:[]),...(c.comments??[])]))}
@@ -176,6 +176,25 @@ test('fixed decision verbs validate the current target and require authoritative
     const command = (await f.commands()).findLast(row => row.args.includes('human') || row.args.includes('gate'));
     assert.equal(command.args[2], '--actor=' + PERSON);
   }
+}));
+
+test('a dismissed ask is recorded as closed as won\'t do by the person who dismissed it, and stays dismissed without the record', () => fixture(async f => {
+  const AT = '2026-10-17T12:00:00Z';
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'open', closeTime: AT });
+  assert.deepEqual(await f.executor.execute(request(), A, task({ kind: 'dismiss', taskId: 'tt-human' })), { id: 'tt-human', status: 'closed' });
+  const state = await controlled(f);
+  assert.equal(state.closeReason, 'Dismissed', 'the task client\'s own dismissal is unchanged');
+  assert.deepEqual(state.metadata, { noticeos_closed_by: PERSON, noticeos_closed_at: AT, noticeos_resolution: 'wont-do' });
+  assert.deepEqual(state.writes.map(args => args[0]), ['update']);
+  // A person may name another resolution for what they declined.
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'open', closeTime: AT, metadata: undefined, writes: undefined });
+  await f.executor.execute(request(), A, task({ kind: 'dismiss', taskId: 'tt-human', resolution: 'duplicate', duplicateOf: 'tt-other' }));
+  assert.deepEqual((await controlled(f)).metadata, { noticeos_closed_by: PERSON, noticeos_closed_at: AT, noticeos_resolution: 'duplicate',
+    noticeos_duplicate_of: 'tt-other' });
+  // A close time the task client does not report leaves the dismissal standing, unrecorded.
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'open', closeTime: undefined, closedAt: undefined, metadata: undefined, writes: undefined });
+  assert.deepEqual(await f.executor.execute(request(), A, task({ kind: 'dismiss', taskId: 'tt-human' })), { id: 'tt-human', status: 'closed' });
+  assert.equal((await controlled(f)).writes, undefined);
 }));
 
 test('generic closure and human-marker removal cannot bypass a current decision target', () => fixture(async f => {

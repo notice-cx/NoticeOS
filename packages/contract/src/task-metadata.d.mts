@@ -104,11 +104,26 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_choice";
         legacy: "noticeos_choice";
     }>;
+    /** How the close at `closedAt` ended (task-resolution.mts). Server-set, with `closedBy`. */
+    resolution: Readonly<{
+        name: "noticeos_resolution";
+        legacy: "noticeos_resolution";
+    }>;
+    /** The task a close as a duplicate names. Server-set, with `resolution`. */
+    duplicateOf: Readonly<{
+        name: "noticeos_duplicate_of";
+        legacy: "noticeos_duplicate_of";
+    }>;
 }>;
 /** The names only the server writes. A caller's metadata never carries them,
- * so no filer can forge who filed or closed a task, a write's identity, an
- * unvalidated set of choices or a person's pick. */
+ * so no filer can forge who filed or closed a task and how, a write's
+ * identity, an unvalidated set of choices or a person's pick. */
 export declare const SERVER_TASK_METADATA: readonly string[];
+/** Whether the closer recorded in this metadata (`closedBy` and `closedAt`,
+ * and the keys written with them) describes the task's close at `closedAt`.
+ * A task reopened and closed again without a record no longer matches, so it
+ * shows no closer rather than an earlier close's. */
+export declare function recordsClose(metadata: unknown, closedAt: unknown): boolean;
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 /** The label every Tower handoff bead carries from now on. */
 export declare const HANDOFF_LABEL = "noticeos-handoff";

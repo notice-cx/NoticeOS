@@ -34,6 +34,10 @@
       "types": "./src/task-choices.d.mts",
       "default": "./src/task-choices.mjs"
     },
+    "./task-resolution": {
+      "types": "./src/task-resolution.d.mts",
+      "default": "./src/task-resolution.mjs"
+    },
     "./task-gate": {
       "types": "./src/task-gate.d.mts",
       "default": "./src/task-gate.mjs"

@@ -285,16 +285,31 @@ reader takes either name
 Never rewrite an old bead's metadata to the new names.
 
 **Who did the work.** `bd` records the assignee a claim sets but not who
-closed a task or the model a filer named, so NoticeOS writes six more keys
-itself, and metadata sent with a new task may not include them:
-`noticeos_filed_by` and `noticeos_filed_model` (who filed the task through the
-task tools and the model it named, written in the create itself),
-`noticeos_claimed_model` (the model an agent named when it claimed the task),
-and, written just after a close, `noticeos_closed_by`, `noticeos_closed_model`
-and `noticeos_closed_at`. The closer applies only to the close at
-`noticeos_closed_at`; a task reopened and closed again without a new record
-shows its close and no closer. A task filed with `bd` directly, or by one of
-the runner's filers, carries no `noticeos_filed_by` and names no filer.
+closed a task, how the close ended or the model a filer named, so NoticeOS
+writes eight more keys itself, and metadata sent with a new task may not
+include them: `noticeos_filed_by` and `noticeos_filed_model` (who filed the
+task through the task tools and the model it named, written in the create
+itself), `noticeos_claimed_model` (the model an agent named when it claimed
+the task), and, written in one update just after a close,
+`noticeos_closed_by`, `noticeos_closed_model`, `noticeos_closed_at`,
+`noticeos_resolution` and `noticeos_duplicate_of`. The closer applies only to
+the close at `noticeos_closed_at`; a task reopened and closed again without a
+new record shows its close and no closer. A task filed with `bd` directly, or
+by one of the runner's filers, carries no `noticeos_filed_by` and names no
+filer.
+
+`noticeos_resolution` is one of `done`, `wont-do`, `duplicate`,
+`cant-reproduce` and `already-handled`
+([`packages/contract/src/task-resolution.mts`](../packages/contract/src/task-resolution.mts)),
+shown as Done, Won't do, Duplicate, Can't reproduce and Already handled.
+Every close the task tools or the Tower make writes it, `done` when the close
+names none; a dismissed ask writes `wont-do`, or the other resolution the
+person picked, and is never `done`.
+`noticeos_duplicate_of` is written with `duplicate` only and names the other
+task, which must be in the same project and is linked to the closed one as
+`related`. A task with no `noticeos_resolution`, or one recorded for an
+earlier close, reads as `done`. The close reason stays the text the closer
+gave. Only a `done` close counts as work done on the Agents page.
 
 Two more server-written keys hold a person's pick, as JSON objects rather
 than text. `noticeos_choices` is the set of options a task offers, written

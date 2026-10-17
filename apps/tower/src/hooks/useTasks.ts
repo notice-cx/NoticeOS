@@ -13,7 +13,7 @@ import { useSearchParams } from 'react-router-dom';
 import type { LiveTaskDetail, LiveTasksPayload, TasksCapabilities, TaskProject } from "@shared/tasks";
 import { TASKS_CLOSED_HISTORY_DAYS } from "@shared/tasks";
 import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
-import { chooseOnTask, dismissTask, resolveGate, respondToTask, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
+import { chooseOnTask, dismissTask, resolveGate, respondToTask, type CloseTaskOptions, type NewTask, type TaskEdit, type TowerApi } from "@/lib/api";
 import { UNDO_WINDOW_MS } from "@/lib/answer-queue";
 import { useOwnerAnswers } from "@/lib/browser-context";
 import { useOwnerMutation as useMutation } from '@/lib/browser-context';
@@ -225,8 +225,14 @@ export function useCloseTask() {
   const refresh = useTaskRefresh();
   const selected = useTaskSelection();
   return useMutation({
-    mutationFn: ({ id, reason, project }: { id: string; reason: string; project?: string }) => {
-      const ownerProject = selected(project); return ownerProject === undefined ? closeTask(id, reason) : closeTask(id, reason, ownerProject);
+    mutationFn: ({ id, reason, project, resolution, duplicateOf }: { id: string; reason: string; project?: string } & Pick<CloseTaskOptions, "resolution" | "duplicateOf">) => {
+      const ownerProject = selected(project);
+      const options: CloseTaskOptions = {
+        ...(ownerProject === undefined ? {} : { project: ownerProject }),
+        ...(resolution === undefined || resolution === "done" ? {} : { resolution }),
+        ...(duplicateOf === undefined ? {} : { duplicateOf }),
+      };
+      return Object.keys(options).length === 0 ? closeTask(id, reason) : closeTask(id, reason, options);
     },
     onSuccess: () => refresh(),
   });

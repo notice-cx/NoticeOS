@@ -76,6 +76,23 @@ describe("partial operator snapshots from the task poller", () => {
       at: choice.at, evidence: null, option: "b", label: "Plans" }]);
   });
 
+  it("carries how a close that was not done ended, and reads one it cannot read as done", async () => {
+    const closed = (id: string, extra: Record<string, unknown> = {}) => ({ id, title: id, status: "closed", priority: 2, issueType: "task",
+      closedAt: "2026-09-05T11:00:00.000Z", ...extra });
+    await seedSnapshot(ctx, CAPTURED, [workProject({
+      recentlyClosed: [closed("md-c1"), closed("md-c2", { resolution: "duplicate", duplicateOf: "md-c1" }), closed("md-c3", { resolution: "wont-do" }),
+        closed("md-c4", { resolution: "fixed" })],
+      recentWork: [
+        { kind: "closed", taskId: "md-c3", title: "md-c3", by: "Dana", model: null, at: "2026-09-05T11:00:00.000Z", evidence: "Nobody asked", resolution: "wont-do" },
+        { kind: "closed", taskId: "md-c1", title: "md-c1", by: "claude", model: null, at: "2026-09-05T11:00:00.000Z", evidence: "Landed", resolution: "done" },
+      ],
+    })]);
+    const project = (await loadLatestBeadsSnapshot(ctx.call))!.projects[0]!;
+    expect(project.recentlyClosed.map((row) => [row.id, row.resolution ?? null, row.duplicateOf ?? null])).toEqual([
+      ["md-c1", null, null], ["md-c2", "duplicate", "md-c1"], ["md-c3", "wont-do", null], ["md-c4", null, null]]);
+    expect(project.recentWork?.map((event) => [event.taskId, event.resolution ?? null])).toEqual([["md-c3", "wont-do"], ["md-c1", null]]);
+  });
+
   it("returns to a complete zero only after a newer complete empty snapshot", async () => {
     await seedSnapshot(ctx, "2026-09-05T11:59:00.000Z", [workProject({ waiting })]);
     await seedSnapshot(ctx, CAPTURED, [workProject({ counts: { waiting: 0 }, waitingUrgent: 0, waiting: [] })]);

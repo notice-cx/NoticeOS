@@ -165,7 +165,60 @@ test('an agent\'s claim and close name its model, and its close records the agen
   const [close, recorded] = writes().slice(-2);
   assert.ok(close.includes('close') && close.includes('--actor=claude'));
   assert.deepEqual(JSON.parse(recorded.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)),
-    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_closed_model: 'Example Model 1' });
+    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_closed_model: 'Example Model 1', noticeos_resolution: 'done' });
+  await mcp.close();
+});
+
+test('a close as a duplicate checks and links the other task first, then records the resolution with the closer', async () => {
+  const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], CLOSED_AT = '2026-10-12T10:00:00Z';
+  // What the attribution writes, read back on the closed task.
+  let metadata = {};
+  const row = (id, status) => ({ id, title: 'Probe', status, issue_type: 'task', priority: 2, assignee: '', labels: [], metadata,
+    ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Same as ex-2' } : {}) });
+  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+    receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' },
+      { projectId: standaloneProjectId('other'), asset: 'other', prefix: 'ot', cwd: '/spokes/other' }],
+    run: async argv => {
+      commands.push(argv);
+      const written = argv.find(arg => arg.startsWith('--metadata='));
+      if (written) metadata = { ...metadata, ...JSON.parse(written.slice('--metadata='.length)) };
+      // ex-3 is the one id this project does not hold.
+      const listed = argv.find(arg => arg.startsWith('--id='));
+      const stdout = listed ? listed.slice('--id='.length).split(',').filter(id => id !== 'ex-3').map(id => row(id, 'open'))
+        : argv.includes('lint') ? { results: null } : argv.includes('comments') || argv.includes('ready') ? []
+        : argv.includes('dep') ? { status: 'added' } : [row('ex-1', argv.includes('close') || argv.includes('show') && commands.some(c => c.includes('close')) ? 'closed' : 'open')];
+      return { code: 0, stdout: JSON.stringify(stdout) };
+    } });
+  const call = (name, args) => mcp.handle(new Request('http://localhost/api/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-noticeos-actor': 'claude' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: { workspace: WORKSPACE, project: standaloneProjectId('example'), ...args } } }) }))
+    .then(response => response.json());
+  const writes = () => commands.filter(argv => !argv.includes('--readonly'));
+  const closing = { task: 'ex-1', reason: 'Same as ex-2', resolution: 'duplicate', duplicate_of: 'ex-2', idempotency_key: 'local-dup-0001' };
+  // Each refusal names the field or the task at fault, and nothing is written.
+  for (const [args, cause] of [
+    [{ ...closing, resolution: 'fixed' }, /resolution \(one of done, wont-do, duplicate, cant-reproduce, already-handled\)/u],
+    [{ ...closing, resolution: undefined }, /duplicate_of \(only with resolution duplicate\)/u],
+    [{ ...closing, duplicate_of: undefined }, /duplicate_of \(required with resolution duplicate/u],
+    [{ ...closing, duplicate_of: 'ex-1' }, /duplicate_of \(another task/u],
+    [{ ...closing, duplicate_of: 'ex-3', idempotency_key: 'local-dup-0002' }, /ex-3 is not a task in projectId/u],
+    [{ ...closing, duplicate_of: 'ot-1', idempotency_key: 'local-dup-0003' }, /ot-1 is not in projectId .*tasks with prefix ot are in projectId/u],
+  ]) {
+    const answer = (await call('close_task', args)).result;
+    assert.equal(answer.isError, true, String(cause));
+    assert.match(answer.content[0].text, cause);
+  }
+  assert.deepEqual(writes(), []);
+  const closed = (await call('close_task', closing)).result;
+  assert.equal(closed.isError, undefined);
+  assert.equal(closed.structuredContent.task.closeReason, 'Same as ex-2', 'the reason is the caller\'s own text');
+  assert.equal(closed.structuredContent.task.resolution, 'duplicate');
+  assert.equal(closed.structuredContent.task.duplicateOf, 'ex-2');
+  const [linked, close, recorded] = writes();
+  assert.deepEqual(linked.slice(2), ['--actor=claude', 'dep', 'add', '--type=related', '--', 'ex-1', 'ex-2']);
+  assert.deepEqual(close.slice(2), ['--actor=claude', 'close', '--reason=Same as ex-2', '--', 'ex-1']);
+  assert.deepEqual(JSON.parse(recorded.find(arg => arg.startsWith('--metadata=')).slice('--metadata='.length)),
+    { noticeos_closed_by: 'claude', noticeos_closed_at: CLOSED_AT, noticeos_resolution: 'duplicate', noticeos_duplicate_of: 'ex-2' });
   await mcp.close();
 });
 

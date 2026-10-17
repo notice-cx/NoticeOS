@@ -1,4 +1,5 @@
 import type { TaskChoice, TaskChoices } from './task-choices.mjs';
+import type { TaskResolution } from './task-resolution.mjs';
 
 /** The ordinary task snapshot input shape, shared by native pollers and the
  * validated Worker writer. These facts grant no workspace authority. */
@@ -31,6 +32,11 @@ export interface BeadsIssueInput {
    * Absent when the task carries none, and from an older poller. */
   choices?: TaskChoices | null;
   choice?: TaskChoice | null;
+  /** How a closed task's close ended, on a close that is not done, and the
+   * task a duplicate names (task-resolution.mts). Absent on a done close, an
+   * open task, and from an older poller. */
+  resolution?: Exclude<TaskResolution, 'done'> | null;
+  duplicateOf?: string | null;
 }
 
 /** One epic container plus what its children are doing. Entirely optional on
@@ -137,6 +143,8 @@ export interface BeadsWorkEventInput {
   /** On a pick only. */
   option?: string | null;
   label?: string | null;
+  /** On a close that is not done: how it ended. */
+  resolution?: Exclude<TaskResolution, 'done'> | null;
 }
 
 /**

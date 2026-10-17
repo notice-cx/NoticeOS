@@ -126,8 +126,9 @@ export function createHostedTasksApi(options) {
         catch (error) {
             if (error instanceof HostedTaskReceiptsUnavailable)
                 return response(503, { error: 'idempotency_unavailable' });
-            // A person's own decision refused by the task's state: the sentence names why.
-            const detail = error instanceof TaskStateRefused && mutation && hostedTaskAction(mutation.operation) === 'tasks.decide' ? decisionRefusal(error) : null;
+            // A person's own decision or close refused by the task's state, or naming a task the project lacks: the sentence names why.
+            const detail = error instanceof TaskStateRefused && mutation
+                && (hostedTaskAction(mutation.operation) === 'tasks.decide' || mutation.operation.kind === 'close') ? decisionRefusal(error) : null;
             if (detail !== null)
                 return response(409, { error: 'task_refused', detail });
             return response(403, { error: 'hosted_task_refused' });

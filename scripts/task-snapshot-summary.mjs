@@ -1,8 +1,9 @@
 // Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
 import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
-import { HANDOFF_LABELS, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
+import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
+import { readTaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
@@ -246,7 +247,16 @@ function beadsIssue(row) {
     // one.
     deferUntil: beadsInstant(row?.defer_until),
     ...beadsChoices(row),
+    ...beadsResolution(row),
   };
+}
+
+/** How a closed task's close ended, when it is not done; no keys for a done
+ * close or an open task, so a row without them reads as it always did. */
+function beadsResolution(row) {
+  if (row?.status !== 'closed') return {};
+  const { resolution, duplicateOf } = readTaskResolution(row?.metadata, row?.closed_at);
+  return resolution === 'done' ? {} : { resolution, ...(duplicateOf === null ? {} : { duplicateOf }) };
 }
 
 /** A task's choices and a person's pick, as the task tools and the choose
@@ -275,10 +285,7 @@ export const BEADS_EVIDENCE_MAX = 300;
 /** Who a closed row's close belongs to: the closer NoticeOS recorded for this
  * close, else whoever held it. */
 function beadsCloser(row) {
-  const by = beadsText(row?.metadata?.[TASK_METADATA.closedBy.name]);
-  const at = Date.parse(beadsText(row?.metadata?.[TASK_METADATA.closedAt.name]));
-  const closed = Date.parse(beadsText(row?.closed_at));
-  return by && Number.isFinite(at) && Math.abs(at - closed) <= 1000 ? by : beadsText(row?.assignee);
+  return recordsClose(row?.metadata, row?.closed_at) ? beadsText(row.metadata[TASK_METADATA.closedBy.name]) : beadsText(row?.assignee);
 }
 function beadsModel(row, closed) {
   return (closed ? beadsText(row?.metadata?.[TASK_METADATA.closedModel.name]) : '')
@@ -310,7 +317,8 @@ export function beadsWork(activeRows, closedRows) {
     if (!tally.has(key)) tally.set(key, { id, model, closedRecent: 0, inProgress: 0 });
     return tally.get(key);
   };
-  for (const row of closed) entry(beadsCloser(row), beadsModel(row, true)).closedRecent += 1;
+  // A close where nothing shipped is no one's work done.
+  for (const row of closed) if (beadsResolution(row).resolution === undefined) entry(beadsCloser(row), beadsModel(row, true)).closedRecent += 1;
   for (const row of held) entry(beadsText(row.assignee), beadsModel(row, false)).inProgress += 1;
   const workers = [...tally.values()]
     .sort((a, b) => b.closedRecent - a.closedRecent || b.inProgress - a.inProgress || a.id.localeCompare(b.id))
@@ -320,8 +328,11 @@ export function beadsWork(activeRows, closedRows) {
     return reason === '' ? null : reason.length > BEADS_EVIDENCE_MAX ? `${reason.slice(0, BEADS_EVIDENCE_MAX - 1)}…` : reason;
   };
   const events = [
-    ...closed.map((row) => ({ kind: 'closed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsCloser(row),
-      model: beadsModel(row, true), at: beadsInstant(row.closed_at), evidence: evidence(row) })),
+    ...closed.map((row) => {
+      const { resolution } = beadsResolution(row);
+      return { kind: 'closed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsCloser(row),
+        model: beadsModel(row, true), at: beadsInstant(row.closed_at), evidence: evidence(row), ...(resolution === undefined ? {} : { resolution }) };
+    }),
     ...[...held, ...closed].filter((row) => beadsInstant(row?.started_at) !== null && beadsText(row?.assignee) !== '')
       .map((row) => ({ kind: 'claimed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsText(row.assignee),
         model: beadsModel(row, false), at: beadsInstant(row.started_at), evidence: null })),

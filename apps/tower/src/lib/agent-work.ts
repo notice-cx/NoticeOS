@@ -46,6 +46,8 @@ export interface AgentTask {
   evidence: string | null;
   /** Who the close belongs to, or null for a task not closed. */
   closer: string | null;
+  /** Whether a close shipped work: only a done close counts on this page. */
+  done: boolean;
   /** The model the closer named, else the one the claimer named. */
   model: string | null;
 }
@@ -146,6 +148,7 @@ export function agentTasks(reads: readonly AgentProjectRead[]): AgentTask[] {
         closedAt: task.status === "closed" ? task.closedAt : null,
         evidence: task.status === "closed" ? task.closeReason : null,
         closer: task.status === "closed" ? closer?.by ?? task.assignee : null,
+        done: task.status === "closed" && (task.resolution ?? "done") === "done",
         model: closer?.model ?? claimedModel(task),
       });
     }
@@ -209,7 +212,8 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
   const actors = reads.flatMap((read) => read.actors ?? []);
   const label = (id: string) => taskActorLabel(id, reads.some((read) => read.actors) ? actors : undefined);
   const tasks = agentTasks(reads);
-  const closed = tasks.filter((task) => task.closedAt !== null && task.closer !== null && Date.parse(task.closedAt) <= nowMs
+  // A close where nothing shipped (Won't do, Duplicate…) is no one's work done: it is not ranked or counted.
+  const closed = tasks.filter((task) => task.done && task.closedAt !== null && task.closer !== null && Date.parse(task.closedAt) <= nowMs
     && nowMs - Date.parse(task.closedAt) <= TASKS_CLOSED_HISTORY_DAYS * DAY_MS);
   const today = Math.floor(nowMs / DAY_MS);
   const ids = new Set<string>([...closed.map((task) => task.closer!), ...tasks.filter((task) => task.closedAt === null && task.holder)
@@ -311,7 +315,7 @@ export function readAgentWork(reads: readonly AgentProjectRead[], nowMs: number,
     if (task.claimedAt && task.holder && nowMs - Date.parse(task.claimedAt) <= RACE_DAYS * DAY_MS) {
       events.push({ kind: "claimed", at: task.claimedAt, who: label(task.holder), model: task.model, task });
     }
-    if (task.closedAt && task.closer && nowMs - Date.parse(task.closedAt) <= RACE_DAYS * DAY_MS) {
+    if (task.done && task.closedAt && task.closer && nowMs - Date.parse(task.closedAt) <= RACE_DAYS * DAY_MS) {
       events.push({ kind: "closed", at: task.closedAt, who: label(task.closer), model: task.model, task });
     }
   }

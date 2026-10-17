@@ -567,9 +567,13 @@ optional `recentlyCreated: [...]` (newest-filed work, for the Wall feed's "New
 task", each item with an optional `filedBy` and `filedModel`: who filed it and
 the model they named) and an optional `createdAt` on every item. Any item may
 carry `choices` (the options a person picks from) and `choice` (the pick), each
-checked against `packages/contract/src/task-choices.mts`, and an entry of the
-optional `recentWork` list is a claim, a close or a pick (`kind: "chosen"`,
-with the pick's `option` and `label`).
+checked against `packages/contract/src/task-choices.mts`. A closed item whose
+close was not done carries `resolution` (`wont-do`, `duplicate`,
+`cant-reproduce` or `already-handled`, from
+`packages/contract/src/task-resolution.mts`) and, for a duplicate,
+`duplicateOf`; a closed item without one was done. An entry of the optional
+`recentWork` list is a claim, a close (with the same `resolution` when it was
+not done) or a pick (`kind: "chosen"`, with the pick's `option` and `label`).
 
 There is **no idempotent re-post**. Two snapshots a second apart are two
 observations of a changing hub, not the same event recorded twice, so every POST

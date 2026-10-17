@@ -27,6 +27,7 @@ import {
   Check,
   CheckCheck,
   CircleDot,
+  CircleSlash,
   DollarSign,
   FileText,
   GitCommitHorizontal,
@@ -59,6 +60,7 @@ import { cn } from "@/lib/utils";
 /** One glyph per kind: the shape says what happened, the tone how it went. */
 const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "task-done": Check,
+  "task-closed": CircleSlash,
   "task-claimed": CircleDot,
   "task-filed": Plus,
   "task-chosen": ListChecks,
@@ -82,6 +84,7 @@ const VERB: Partial<Record<WallFeedKind, string>> = {
   "task-filed": "filed",
   "task-claimed": "claimed",
   "task-done": "closed",
+  "task-closed": "closed",
   "task-chosen": "chose",
 };
 

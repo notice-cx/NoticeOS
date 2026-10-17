@@ -56,14 +56,36 @@ export const TASK_METADATA = Object.freeze({
   choices: Object.freeze({ name: "noticeos_choices", legacy: "noticeos_choices" }),
   /** The option a person picked: written only by the choose operation, once. */
   choice: Object.freeze({ name: "noticeos_choice", legacy: "noticeos_choice" }),
+  /** How the close at `closedAt` ended (task-resolution.mts). Server-set, with `closedBy`. */
+  resolution: Object.freeze({ name: "noticeos_resolution", legacy: "noticeos_resolution" }),
+  /** The task a close as a duplicate names. Server-set, with `resolution`. */
+  duplicateOf: Object.freeze({ name: "noticeos_duplicate_of", legacy: "noticeos_duplicate_of" }),
 } satisfies Record<string, TaskMetadataField>);
 
 /** The names only the server writes. A caller's metadata never carries them,
- * so no filer can forge who filed or closed a task, a write's identity, an
- * unvalidated set of choices or a person's pick. */
+ * so no filer can forge who filed or closed a task and how, a write's
+ * identity, an unvalidated set of choices or a person's pick. */
 export const SERVER_TASK_METADATA: readonly string[] = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
   TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt, TASK_METADATA.filedBy,
-  TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice].map(field => field.name));
+  TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice, TASK_METADATA.resolution,
+  TASK_METADATA.duplicateOf].map(field => field.name));
+
+/** How far apart a recorded close time and the task's own may be and still
+ * name one close: the server copies the task's close time when it records it. */
+const SAME_CLOSE_MS = 1000;
+
+/** Whether the closer recorded in this metadata (`closedBy` and `closedAt`,
+ * and the keys written with them) describes the task's close at `closedAt`.
+ * A task reopened and closed again without a record no longer matches, so it
+ * shows no closer rather than an earlier close's. */
+export function recordsClose(metadata: unknown, closedAt: unknown): boolean {
+  if (metadata === null || typeof metadata !== "object" || Array.isArray(metadata) || typeof closedAt !== "string") return false;
+  const record = metadata as Record<string, unknown>;
+  const by = record[TASK_METADATA.closedBy.name], at = record[TASK_METADATA.closedAt.name];
+  if (typeof by !== "string" || !by.trim() || typeof at !== "string") return false;
+  const recorded = Date.parse(at), closed = Date.parse(closedAt);
+  return Number.isFinite(recorded) && Number.isFinite(closed) && Math.abs(recorded - closed) <= SAME_CLOSE_MS;
+}
 
 export type TaskMetadataName = keyof typeof TASK_METADATA;
 

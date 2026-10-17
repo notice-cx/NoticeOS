@@ -540,6 +540,17 @@ export function createHostedTaskExecutor(options) {
                                     else if (operation.kind === 'dismiss') {
                                         if (after.close_reason !== (operation.reason === undefined ? 'Dismissed' : `Dismissed: ${operation.reason}`))
                                             fail();
+                                        // A dismissed ask closes as won't do unless the person named another resolution,
+                                        // recorded with its closer as any close is. The dismissal stands either way.
+                                        if (typeof after.closed_at === 'string') {
+                                            try {
+                                                const attributed = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId, { projectId: snapshot.projectId, operation: { kind: 'attribute', taskId: operation.taskId, closedBy: effect.principalId,
+                                                        closedAt: after.closed_at, resolution: operation.resolution ?? 'wont-do',
+                                                        ...(operation.duplicateOf === undefined ? {} : { duplicateOf: operation.duplicateOf }) } }).argv;
+                                                await run([attributed[0], attributed[1], `--actor=${effect.principalId}`, ...attributed.slice(2)]);
+                                            }
+                                            catch { /* The task shows its close without a closer, read as done. */ }
+                                        }
                                     }
                                     else if (operation.kind === 'resolve-gate' && operation.reason !== undefined && after.close_reason !== operation.reason)
                                         fail();
