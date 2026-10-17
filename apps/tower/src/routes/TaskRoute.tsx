@@ -69,13 +69,15 @@ import { blockerEdgeState, epicDrawsGraph, epicTaskGroups, type EpicTaskGroup } 
 import { evidenceParts } from "@/lib/agent-work";
 import { formatInt } from "@/lib/format";
 import { EpicProgress, EpicTaskList, epicSegments, type EpicSegment } from "@/routes/tasks/epic-tasks";
-import { ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
+import { ChoiceSummary, ClosedSummary, TaskHead, type TaskHeadFacts } from "@/routes/tasks/task-head";
 import { SectionLabel as SectionLabelRow, eyebrowClass } from "@/components/surface/SectionLabel";
 import { useAskActions } from "@/routes/tasks/ask-actions";
 import { PriorityMark, TaskStatusGlyph, priorityFace, statusFace } from "@/routes/tasks/task-face";
 import { GuideText, MarkdownText, TaskTextRefsProvider } from "@/routes/tasks/task-markdown";
 import { taskRowSaid, type TaskRowFacts } from "@/routes/tasks/task-row";
 import { taskMetadataValue, type TaskMetadataName } from "@noticeos/contract/task-metadata";
+import { choiceName, type TaskChoiceKey } from "@noticeos/contract/task-choices";
+import { ChoiceButtons } from "@/components/ChoiceButtons";
 
 /**
  * `/tasks/:id`: one task, whole. Three reads: `useTask(id)`, the live task;
@@ -169,6 +171,8 @@ export function TaskRoute() {
           : null,
         ask: inboxAsk(task),
         progress: epicView?.progress ?? null,
+        choices: task.choices ?? null,
+        choice: task.choice ?? null,
       }
     : fromSnapshot
       ? {
@@ -184,6 +188,8 @@ export function TaskRoute() {
           // poller's own answer to "is this in the operator's inbox".
           ask: fromSnapshot.waiting ? askVerb(fromSnapshot.item) : null,
           progress: epicView?.progress ?? null,
+          choices: fromSnapshot.item.choices ?? null,
+          choice: fromSnapshot.item.choice ?? null,
         }
       : null;
 
@@ -209,8 +215,11 @@ export function TaskRoute() {
     ...(parentId ? [{ label: parentTitle ?? parentId, to: taskHref(parentId) }] : []),
   ];
 
+  // A decision a pick closed carries the pick as its reason; the choice under
+  // the header already states it, with who chose and when.
+  const closedByPick = task?.choice ? task.closeReason?.trim() === `Chose ${choiceName(task.choice.option, task.choice.label)}` : false;
   const closedSummary = task?.status === "closed"
-    ? <LiveClosedSummary task={task} nowMs={now} />
+    ? closedByPick ? null : <LiveClosedSummary task={task} nowMs={now} />
     : !live && fromSnapshot?.item.status === "closed"
       ? <SnapshotClosedSummary item={fromSnapshot.item} project={fromSnapshot.project} nowMs={now} />
       : null;
@@ -308,10 +317,12 @@ export function taskReturnPath(state: unknown): string {
 /**
  * A task waiting on the operator offers its inbox row's verbs
  * (`routes/tasks/ask-actions`), never Close: that would run `bd close` instead
- * of the command the gate or ask was waiting for. Once answered, the header
- * offers nothing until the task is read again; the toast holds the Undo.
- * Otherwise Claim leads while nobody holds the task, and Close leads once
- * somebody does.
+ * of the command the gate or ask was waiting for. An ask that carries choices
+ * draws them under the header, Answer and Dismiss under them. Once answered,
+ * the header offers nothing until the task is read again (a pressed option
+ * stays drawn as the pick); the toast holds the Undo. A recorded pick is a
+ * fact under the header from then on. Otherwise Claim leads while nobody
+ * holds the task, and Close leads once somebody does.
  */
 function TaskHeader({
   id,
@@ -343,23 +354,38 @@ function TaskHeader({
   const blocked = writable ? null : !demoReadonly ? READ_ONLY_TASKS_HINT : DEMO_READ_ONLY;
   const answered = answerHides(id, readAt);
   const waitsOnOperator = (head?.ask ?? null) !== null;
+  const choosing = head?.ask === "choose";
   const unavailable = "Unavailable in this workspace.";
   const askReason = blocked ?? (taskOperationAvailable(capabilities, head?.ask === 'approve' ? 'resolve' : 'respond') ? null : unavailable);
+  const chooseReason = blocked ?? (taskOperationAvailable(capabilities, 'choose') ? null : unavailable);
   const claimReason = blocked ?? (taskFieldAvailable(capabilities, 'claim') ? null : unavailable);
   // Why the actions are disabled, as text a reader sees beside them: a hover
   // title sits over the next button and never shows on a phone. A deployed
   // build's banner under the header already says it, so the buttons point at
   // that sentence instead of repeating it.
-  const reason = waitsOnOperator ? (answered ? null : askReason) : closed || !head ? null : claimable ? claimReason : blocked;
+  const reason = waitsOnOperator ? (answered ? null : choosing ? chooseReason ?? askReason : askReason)
+    : closed || !head ? null : claimable ? claimReason : blocked;
   const describedBy = reason === null ? undefined : capabilities.live ? reasonId : READ_ONLY_REASON_ID;
+  // The option pressed, drawn as the pick while its Undo window runs.
+  const [picked, setPicked] = useState<TaskChoiceKey | null>(null);
+  const actors = useContext(TaskActors);
   const ask = useAskActions({
     ask: answered ? null : (head?.ask ?? null),
     id,
     title: head?.title ?? id,
+    choices: head?.choices ?? null,
     disabledReason: askReason,
+    chooseDisabledReason: chooseReason,
     describedBy,
     placement: "header",
+    onChosen: setPicked,
   });
+  const recorded = head?.choice ?? null;
+  const choiceRecord = recorded ? (
+    <ChoiceSummary choice={recorded} choices={head?.choices ?? null} by={taskActorLabel(recorded.by, actors)} nowMs={nowMs} />
+  ) : answered && choosing && picked !== null && head?.choices ? (
+    <ChoiceButtons choices={head.choices} chosen={picked} />
+  ) : null;
 
   return (
     <TaskHead
@@ -396,6 +422,7 @@ function TaskHeader({
       }
     >
       {children}
+      {choiceRecord}
       {waitsOnOperator ? ask.box : closing ? (
         <CloseForm id={id} onDone={() => setClosing(false)} onCancel={() => setClosing(false)} />
       ) : null}

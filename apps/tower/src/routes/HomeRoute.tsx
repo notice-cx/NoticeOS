@@ -417,8 +417,9 @@ function queueItem(row: WaitingRow, nowMs: number): QueueItem {
 /**
  * Decide: every project's operator inbox, flattened, drawn as a queue — how
  * many wait, how old the wait is, then the rows with their verbs. A gate
- * offers Approve; an ask offers Answer and Dismiss; both go through the Tasks
- * board's own path, with its Undo toast. The three empty states are three
+ * offers Approve; an ask offers Answer and Dismiss, and its options when it
+ * carries choices; all go through the Tasks board's own path, with its Undo
+ * toast. The three empty states are three
  * different facts: the read has not answered yet, nothing has ever been read,
  * or there is genuinely nothing to decide.
  */
@@ -474,6 +475,7 @@ function DecideRow({ row, item, index }: { row: WaitingRow; item: QueueItem; ind
     id: row.item.id,
     title: row.item.title,
     project: row.asset,
+    choices: row.item.choices ?? null,
     disabledReason: readonly ? "Read-only demo" : null,
     placement: "row",
   });

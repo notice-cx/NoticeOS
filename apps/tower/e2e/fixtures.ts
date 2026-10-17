@@ -152,13 +152,26 @@ export function journeySerpPanelSnapshot(market: { locationCode: number; languag
 /** The one approval the fixture's task client refuses; `/__journey/more-decisions` adds it. */
 export const REFUSED_GATE = "jt-refused";
 
+/** The question with three options `/__journey/choice-task` files, the second
+ * one recommended, as an agent files it through the task tools. */
+export const CHOICE_TASK = "jt-pick";
+export const JOURNEY_CHOICES = {
+  question: "What happens to the retired synthetic recipe page?",
+  options: [
+    { key: "a", label: "Keep the old page", detail: "It stays reachable at its address; nothing links to it." },
+    { key: "b", label: "Redirect to the new page", detail: "A permanent redirect keeps its search traffic.", recommended: true },
+    { key: "c", label: "Remove it", detail: "Visitors get a not-found page." },
+  ],
+} as const;
+
 /** The operator's two asks: a top-priority one, so every journey walks the
  * inbox's warn register, and a human gate in `bd`'s own shape, titled "Gate:
  * human" with the ask under `Reason:` in its description, so every journey
  * reads the gate's ask the way the live board and the snapshot both title it. */
 export function initialTasks() {
   const shared = { status: "open", priority: 1, assignee: null as string | null, created_at: JOURNEY_NOW,
-    updated_at: JOURNEY_NOW, closed_at: null as string | null, close_reason: null as string | null, labels: ["human"], dependencies: [], comment_count: 0 };
+    updated_at: JOURNEY_NOW, closed_at: null as string | null, close_reason: null as string | null, labels: ["human"], dependencies: [], comment_count: 0,
+    metadata: null as Record<string, unknown> | null };
   return [
     { ...shared, priority: 0, id: "jt-review", title: "Review the synthetic launch copy", issue_type: "task", await_type: null,
       description: "Confirm the example headline uses the approved wording.", acceptance_criteria: "The reviewed wording is recorded." },

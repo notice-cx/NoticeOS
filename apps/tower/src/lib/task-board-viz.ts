@@ -211,7 +211,7 @@ function epicNode(task: BoardTask, waitingOn: number, nowMs: number, actors: rea
     case "Parked":
       return { ...base, state: "absent", stateLabel: word, caption: task.deferUntil ? `until ${task.deferUntil.slice(0, 10)}` : task.id };
     case "Needs attention":
-      return { ...base, state: "warn", stateLabel: word, caption: ask === "approve" ? "your approval" : "your answer", since: task.updatedAt };
+      return { ...base, state: "warn", stateLabel: word, caption: ask === "approve" ? "your approval" : ask === "choose" ? "your choice" : "your answer", since: task.updatedAt };
     case "Blocked":
       return { ...base, state: "warn", stateLabel: word, since: task.updatedAt };
     case "In progress":

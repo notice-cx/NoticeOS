@@ -1,7 +1,9 @@
 import { Children, type ReactNode } from "react";
-import { Check } from "lucide-react";
+import { Check, CircleCheck } from "lucide-react";
+import { choiceName, type TaskChoice, type TaskChoices } from "@noticeos/contract/task-choices";
 import { ageMs, formatAge } from "@shared/freshness";
 import { AgentMark } from "@/components/AgentMark";
+import { ChoiceButtons } from "@/components/ChoiceButtons";
 import { PageHeader, type PageHeaderCrumb } from "@/components/PageHeader";
 import { StateChip } from "@/components/StateChip";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
@@ -24,7 +26,17 @@ export interface TaskHeadFacts {
   ask: InboxAsk | null;
   /** An epic's closed of total. */
   progress: { closed: number; total: number; segments?: readonly EpicSegment[] } | null;
+  /** The options it offers a person, and the one picked once it is. */
+  choices?: TaskChoices | null;
+  choice?: TaskChoice | null;
 }
+
+/** What the header's chip says a decision of the operator's waits on. */
+const ASK_LINE: Readonly<Record<InboxAsk, string>> = {
+  approve: "Needs your approval",
+  answer: "Needs your answer",
+  choose: "Needs your choice",
+};
 
 /**
  * The top of `/tasks/:id`, read in one look: where the item sits, what kind
@@ -92,7 +104,7 @@ export function TaskHead({
                   subject={subject}
                   className="py-1"
                   glyph={<span className="text-micro font-bold leading-none">{askFace(facts).glyph}</span>}
-                  label={<span data-task-ask={facts.ask}>{facts.ask === "approve" ? "Needs your approval" : "Needs your answer"}</span>}
+                  label={<span data-task-ask={facts.ask}>{ASK_LINE[facts.ask]}</span>}
                 />
               ) : null}
               {facts.holder ? (
@@ -156,6 +168,42 @@ export function ClosedSummary({
         {age !== null ? <time className="tabular-nums" dateTime={at ?? undefined}>{formatAge(age)} ago</time> : null}
       </div>
       {children}
+    </section>
+  );
+}
+
+/**
+ * A person's pick, directly under the header once it is recorded: "Chose (b)
+ * <label>", who chose and how long ago, their note, then the options as a
+ * record with the chosen one filled. The pick is a fact on the task, so it
+ * stays after an agent takes the task back.
+ */
+export function ChoiceSummary({
+  choice,
+  choices,
+  by,
+  nowMs,
+}: {
+  choice: TaskChoice;
+  /** The options the task offered; null when the read no longer carries them. */
+  choices: TaskChoices | null;
+  /** Who chose, in the words the page names people with. */
+  by: string;
+  nowMs: number;
+}) {
+  const age = ageMs(nowMs, choice.at);
+  return (
+    <section aria-label="Choice" data-task-choice={choice.option} className="flex flex-col gap-2">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <CircleCheck className="size-3.5 shrink-0" aria-hidden />
+        <h2 className="m-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]" data-task-choice-fact="">
+          Chose {choiceName(choice.option, choice.label)}
+        </h2>
+        <span className="font-medium text-foreground">{by}</span>
+        {age !== null ? <time className="tabular-nums" dateTime={choice.at}>{formatAge(age)} ago</time> : null}
+      </div>
+      {choice.note ? <p className="m-0 whitespace-pre-line text-sm [overflow-wrap:anywhere]" data-task-choice-note="">{choice.note}</p> : null}
+      {choices ? <ChoiceButtons choices={choices} chosen={choice.option} /> : null}
     </section>
   );
 }

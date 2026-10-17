@@ -4,7 +4,7 @@ import { ListRow } from "@/components/surface/ListPanel";
 import { Button } from "@/components/ui/button";
 import { DecisionQueue, ageLabel, ageLength } from "@/components/viz/DecisionQueue";
 import { useTasksLive } from "@/hooks/useTasks";
-import { askVerb, isGate, type BoardProject, type BoardTask } from "@/lib/task-board-read";
+import { askVerb, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 import { queueItem } from "@/lib/task-board-viz";
 import { cn } from "@/lib/utils";
 import { useAskActions } from "./ask-actions";
@@ -89,11 +89,20 @@ export function AskQueue({ asks, total, complete, nowMs, showProject, className 
   );
 }
 
+/** What a row's caption adds about its ask; a plain question adds nothing. */
+const ROW_ASKS: Readonly<Record<InboxAsk, string | null>> = {
+  approve: "needs your approval",
+  answer: null,
+  choose: "needs your choice",
+};
+
 /**
  * One ask, answered on its row (`useAskActions`): a claimable `human`-labelled
  * task, or an open gate holding other work. Warn at every priority: the
  * operator being the blocker is not a failure. The verbs stay quiet until the
- * row is pointed at, so six identical buttons never outshout six asks.
+ * row is pointed at, so six identical buttons never outshout six asks. A
+ * task with choices draws its question and options under its title, so the
+ * pick is one press from the inbox.
  */
 function AskRow({ project, task, ageDays, showProject, capabilities, selection }: Ask & {
   ageDays: number | null;
@@ -102,10 +111,14 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
   /** While the queue is a selection: whether this row is picked. */
   selection: { checked: boolean; toggle: () => void } | null;
 }) {
-  // The verbs and the answer box are the task page's too.
+  // The verbs, the options and the answer box are the task page's too.
+  const verb = askVerb(task);
+  const unavailable = "Unavailable in this workspace.";
   const supported = taskOperationAvailable(capabilities, isGate(task) ? "resolve" : "respond");
-  const { buttons, box } = useAskActions({ ask: askVerb(task), id: task.id, title: task.title, project: task.project, placement: "row",
-    disabledReason: supported ? null : "Unavailable in this workspace." });
+  const { buttons, box } = useAskActions({ ask: verb, id: task.id, title: task.title, project: task.project, placement: "row",
+    choices: task.choices ?? null,
+    disabledReason: supported ? null : unavailable,
+    chooseDisabledReason: taskOperationAvailable(capabilities, "choose") ? null : unavailable });
   const evidence = [task.description, task.acceptance].some((value) => (value ?? "").trim() !== "");
 
   return (
@@ -114,7 +127,7 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
       title={task.title}
       // The project and what the row asks, never the task's id, which is on
       // the task's own page.
-      caption={[showProject ? project.name : null, isGate(task) ? "needs your approval" : null].filter(Boolean).join(" · ") || null}
+      caption={[showProject ? project.name : null, ROW_ASKS[verb]].filter(Boolean).join(" · ") || null}
       value={<AskAge days={ageDays} />}
       marks={{ "data-inbox-row": task.id, "data-subject": `task:${task.id}` }}
       leading={selection ? (
@@ -124,7 +137,7 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
         </label>
       ) : undefined}
       // While selecting, the selection's verbs replace the row's own.
-      rowActions={project.actionable && !selection ? (
+      rowActions={project.actionable && !selection && buttons !== null ? (
         <span className="flex flex-wrap items-center gap-2 opacity-60 transition-opacity group-hover/ask:opacity-100 group-focus-within/ask:opacity-100 max-sm:opacity-100">
           {buttons}
         </span>

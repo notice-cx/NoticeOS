@@ -32,7 +32,7 @@ import {
 } from "./wall-feed-fixture";
 import {
   EVERY_SOURCE_CATALOG, INITIAL_DOCUMENTS, JOURNEY_ARCHIVED_SITE, JOURNEY_ASSET, JOURNEY_COUNTER_CARDS, JOURNEY_CREDENTIALS_KEY, JOURNEY_KEY, JOURNEY_NOW,
-  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, initialTasks, journeyFindingSnapshot,
+  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, CHOICE_TASK, JOURNEY_CHOICES, initialTasks, journeyFindingSnapshot,
   journeyPosthogSnapshot, journeySerpPanelSnapshot,
 } from "./fixtures";
 
@@ -847,6 +847,9 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       if (status !== undefined) row.status = status;
       if (value("--assignee") !== undefined) row.assignee = value("--assignee") || null;
       if (value("--remove-label") !== undefined) row.labels = row.labels.filter((label) => label !== value("--remove-label"));
+      // A pick is recorded as metadata first; `bd` merges the keys it is given.
+      const metadata = value("--metadata");
+      if (metadata !== undefined) row.metadata = { ...(row.metadata ?? {}), ...(JSON.parse(metadata) as Record<string, unknown>) };
       publishTasks();
       return answer([{ id: row.id, status: row.status }]);
     }
@@ -1203,6 +1206,14 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         more(REFUSED_GATE, "Approve the synthetic coupon"));
       publishTasks();
       response = Response.json({ added: 3 });
+    } else if (url.pathname === "/__journey/choice-task" && request.method === "POST") {
+      // A question with three options beside the fixture's own asks, filed
+      // with its choices in the task's metadata, for the journeys that pick.
+      tasks.push({ ...initialTasks()[0]!, priority: 1, id: CHOICE_TASK, title: "Retire the synthetic recipe page",
+        description: "The recipe page moved; the old address still gets visits.", acceptance_criteria: "The choice is recorded.",
+        metadata: { noticeos_choices: structuredClone(JOURNEY_CHOICES) } });
+      publishTasks();
+      response = Response.json({ added: CHOICE_TASK });
     } else if (url.pathname === "/__journey/core-tasks" && request.method === "POST") {
       // A provisioned core project uses the existing is_os asset model. Only
       // this fixture's Postgres and fake bd receive writes; no user site exists.
