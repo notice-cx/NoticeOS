@@ -1,7 +1,7 @@
 import { formatSeriesDate } from "../src/lib/format";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
+import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -1951,6 +1951,63 @@ test("several approvals are decided in one action: one Undo, each reaches the ta
   const resolved = (await status()).taskCommands.map((argv) => argv.slice(2)).filter((argv) => argv[0] === "gate" && argv[1] === "resolve");
   expect(resolved.map((argv) => argv[2]).sort()).toEqual([...approvals].sort());
   expect(resolved.every((argv) => argv.includes("--actor"))).toBe(true);
+  await assertNoPageOverflow(page);
+});
+
+// A backlog groomed in one sitting from All tasks: the board narrowed by a
+// label, Select, Select all, then one resolution and one note for every
+// selected task. The task closed already is counted, named in the message and
+// left as it is. Undo takes the whole close back; the second reaches the task
+// client one task at a time once its window closes, each with the resolution
+// beside its closer and the note as its reason.
+test("a filtered backlog is closed as Already handled in one action from All tasks: undone, closed again, and the task closed already is named and kept", async ({ page }) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/backlog"]) expect((await page.request.post(route)).ok()).toBe(true);
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}&label=${BACKLOG_LABEL}`);
+  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
+    tasks: { id: string; status: string; close_reason: string | null; metadata: Record<string, unknown> | null }[]; taskCommands: string[][];
+  };
+  const table = page.locator("[data-tasks-table]");
+  const rowOf = (id: string) => page.locator(`tr[data-task-row="${id}"]`);
+  await expect(table.locator("tr[data-task-row]")).toHaveCount(4);
+  await expect(rowOf(BACKLOG_OUTSIDE)).toHaveCount(0);
+  const closeAll = async () => {
+    await keyboardActivate(page, table.getByRole("button", { name: "Select", exact: true }));
+    const bar = page.locator("[data-tasks-selection]");
+    await keyboardActivate(page, bar.getByRole("button", { name: "Select all 4", exact: true }));
+    await expect(bar.getByRole("status")).toHaveText("4 selected · 1 closed already");
+    await keyboardActivate(page, bar.getByRole("button", { name: "Close 3 as", exact: true }));
+    await page.getByRole("menuitem", { name: "Already handled", exact: true }).click();
+    await expect(bar.locator('[data-task-form="close-as"]').getByLabel("Note")).toBeFocused();
+    await page.keyboard.type("Handled by the spring redesign");
+    await page.keyboard.press("Enter");
+  };
+  await closeAll();
+  for (const id of BACKLOG_OPEN) await expect(rowOf(id)).toHaveCount(0);
+  await expect(rowOf(BACKLOG_CLOSED)).toHaveCount(1);
+  const closedToast = page.locator("[data-sonner-toast]").filter({ hasText: "Closed as Already handled · 3" });
+  await expect(closedToast).toBeVisible();
+  await expect(closedToast).toContainText(`${BACKLOG_CLOSED} closed already`);
+  await assertNoPageOverflow(page);
+  await closedToast.getByRole("button", { name: "Undo", exact: true }).click();
+  for (const id of BACKLOG_OPEN) await expect(rowOf(id)).toHaveCount(1);
+  expect((await status()).taskCommands.some((argv) => argv[2] === "close")).toBe(false);
+
+  await closeAll();
+  await expect.poll(async () => (await status()).tasks.filter((row) => row.id.startsWith("jt-g") || row.id === BACKLOG_OUTSIDE)
+    .map((row) => `${row.id}:${row.status}`).sort(), { timeout: 20_000 })
+    .toEqual([...BACKLOG_OPEN.map((id) => `${id}:closed`), `${BACKLOG_CLOSED}:closed`, `${BACKLOG_OUTSIDE}:open`].sort());
+  const rows = (await status()).tasks;
+  for (const id of BACKLOG_OPEN) {
+    const row = rows.find((entry) => entry.id === id)!;
+    expect(row.close_reason).toBe("Handled by the spring redesign");
+    expect(row.metadata?.noticeos_resolution).toBe("already-handled");
+  }
+  const kept = rows.find((entry) => entry.id === BACKLOG_CLOSED)!;
+  expect([kept.close_reason, kept.metadata]).toEqual(["Fixed in the fixture", null]);
+  // One close per selected open task, and none for the task closed already.
+  const closes = (await status()).taskCommands.filter((argv) => argv[2] === "close").map((argv) => argv[3]);
+  expect(closes.sort()).toEqual([...BACKLOG_OPEN]);
   await assertNoPageOverflow(page);
 });
 

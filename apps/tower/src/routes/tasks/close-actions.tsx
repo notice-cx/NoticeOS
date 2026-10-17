@@ -1,6 +1,17 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { CloseAsMenu, CloseNoteForm, type NotDone } from "@/components/CloseResolution";
-import { useInboxAnswer } from "@/hooks/useTasks";
+import { useInboxAnswer, useInboxAnswers } from "@/hooks/useTasks";
+
+/** A task waiting on a person (labelled `human`) is declined with the
+ * resolution, the operation its Dismiss ran; any other task is closed with it. */
+export function declinedOnClose(task: { readonly labels: readonly string[] }): boolean {
+  return task.labels.includes("human");
+}
+
+/** The task operation a workspace must offer for that close. */
+export function closeOperation(task: { readonly labels: readonly string[] }): "dismiss" | "close" {
+  return declinedOnClose(task) ? "dismiss" : "close";
+}
 
 /**
  * A close where nothing shipped, on a task's row: the Close as menu beside the
@@ -68,4 +79,66 @@ export function useCloseAs({
     </div>
   );
   return { menu, box: form, cancel: () => setPicked(null) };
+}
+
+/** One selected task a selection's close sends. */
+export interface SelectedClose {
+  id: string;
+  title: string;
+  /** Explicit row selection, as an ask's verbs take it. */
+  project?: string;
+  via?: "dismiss";
+}
+
+/**
+ * A selection's close where nothing shipped: Close N as over the four
+ * resolutions, then one line for every selected task (one Note, and a
+ * duplicate's other task), and each task's own close through one Undo
+ * (`useInboxAnswers`). Never Done: a done close carries its own evidence.
+ * `closedAlready` are selected tasks that were closed when the selection was
+ * read; the close leaves them as they are and its message names them.
+ */
+export function useCloseSelected({
+  tasks,
+  closedAlready = [],
+  onOpen,
+  onSent,
+}: {
+  tasks: readonly SelectedClose[];
+  closedAlready?: readonly string[];
+  /** The line opened: the caller closes whatever else it had open under the bar. */
+  onOpen?: () => void;
+  /** The closes were handed to the Undo window; the caller leaves selecting. */
+  onSent: () => void;
+}): { menu: ReactNode; line: ReactNode; cancel: () => void } {
+  const [picked, setPicked] = useState<NotDone | null>(null);
+  const answerAll = useInboxAnswers();
+  const count = tasks.length;
+  const menu = count > 0 ? (
+    <CloseAsMenu
+      subject={`${count} ${count === 1 ? "task" : "tasks"}`}
+      count={count}
+      variant="outline"
+      onPick={(resolution) => {
+        setPicked(resolution);
+        onOpen?.();
+      }}
+    />
+  ) : null;
+  const line = picked === null || count === 0 ? null : (
+    <CloseNoteForm
+      key={picked}
+      id={tasks.map((task) => task.id)}
+      resolution={picked}
+      onCancel={() => setPicked(null)}
+      onSend={(close) => {
+        answerAll(tasks.map((task) => ({ kind: "close" as const, id: task.id, title: task.title, resolution: picked, ...close,
+          ...(task.via === undefined ? {} : { via: task.via }), ...(task.project === undefined ? {} : { project: task.project }) })),
+        { closedAlready });
+        setPicked(null);
+        onSent();
+      }}
+    />
+  );
+  return { menu, line, cancel: () => setPicked(null) };
 }

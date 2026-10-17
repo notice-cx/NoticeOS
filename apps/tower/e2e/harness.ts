@@ -32,7 +32,7 @@ import {
 } from "./wall-feed-fixture";
 import {
   EVERY_SOURCE_CATALOG, INITIAL_DOCUMENTS, JOURNEY_ARCHIVED_SITE, JOURNEY_ASSET, JOURNEY_COUNTER_CARDS, JOURNEY_CREDENTIALS_KEY, JOURNEY_KEY, JOURNEY_NOW,
-  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, CHOICE_TASK, JOURNEY_CHOICES, initialTasks, journeyFindingSnapshot,
+  JOURNEY_FINDING_KEY, JOURNEY_SITE, JOURNEY_TASK_PROJECT, JOURNEY_CORE_PROJECT, JOURNEY_TIME_ZONE, REFUSED_GATE, CHOICE_TASK, JOURNEY_CHOICES, backlogTasks, initialTasks, journeyFindingSnapshot,
   journeyPosthogSnapshot, journeySerpPanelSnapshot,
 } from "./fixtures";
 
@@ -1207,6 +1207,13 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
         more(REFUSED_GATE, "Approve the synthetic coupon"));
       publishTasks();
       response = Response.json({ added: 3 });
+    } else if (url.pathname === "/__journey/backlog" && request.method === "POST") {
+      // A labelled backlog beside the fixture's own asks, for the journey
+      // that closes several tasks at once from All tasks.
+      const added = backlogTasks();
+      tasks.push(...added);
+      publishTasks();
+      response = Response.json({ added: added.map((task) => task.id) });
     } else if (url.pathname === "/__journey/choice-task" && request.method === "POST") {
       // A question with three options beside the fixture's own asks, filed
       // with its choices in the task's metadata, for the journeys that pick.

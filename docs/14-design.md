@@ -598,6 +598,9 @@ from its starting point to its result:
   Approve for every selected approval, with one Undo.
 - **Close a question as Won't do** — Tasks: Close as on the question's row,
   Won't do, a note, Close task, with Undo.
+- **Close several tasks at once** — Tasks: a label in the filters, Select
+  beside All tasks, Select all, Close 3 as, Already handled, a note, Close 3
+  tasks, with one Undo.
 - **File a task from a finding** — the site page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.

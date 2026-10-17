@@ -492,6 +492,30 @@ FLOWS["inbox-bulk"] = {
   },
 };
 
+/** A backlog groomed in one sitting (Linear, Jira bulk change): the board
+ * narrowed by a label, Select, Select all, then one resolution and one note
+ * for every selected task, with one Undo after. */
+FLOWS["tasks-bulk-close"] = {
+  title: "Close several tasks at once (a label, Select all, Already handled)",
+  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/backlog"); await page.goto("/"); },
+  async run(w) {
+    await nav(w, "Tasks");
+    const fold = w.page.locator("[data-tasks-filters] [data-filter-toggle]");
+    if (await fold.isVisible()) await w.click(fold, "Filters", { role: "choose" });
+    await w.fill(w.page.locator("#tasks-label"), "groom", "Label");
+    const table = w.page.locator("[data-tasks-table]");
+    await w.click(table.getByRole("button", { name: "Select", exact: true }), "Select", { role: "choose" });
+    const bar = w.page.locator("[data-tasks-selection]");
+    await w.click(bar.getByRole("button", { name: "Select all 4", exact: true }), "Select all", { role: "choose" });
+    await w.click(bar.getByRole("button", { name: "Close 3 as", exact: true }), "Close 3 as", { role: "choose" });
+    await w.click(w.page.getByRole("menuitem", { name: "Already handled", exact: true }), "Already handled", { role: "choose" });
+    const line = bar.locator('[data-task-form="close-as"]');
+    await w.fill(line.getByLabel("Note"), "Handled by the spring redesign", "Note");
+    await w.click(line.getByRole("button", { name: "Close 3 tasks", exact: true }), "Close 3 tasks", { role: "commit" });
+    await w.end("closed");
+  },
+};
+
 /** A question declined with a resolution from its row (Jira's resolutions):
  * Close as, the resolution, a one-line note, then the commit, with Undo after. */
 FLOWS["inbox-close-as"] = {

@@ -1,7 +1,6 @@
-import { useState } from "react";
 import { taskOperationAvailable, type TasksCapabilities } from "@shared/tasks";
+import { SelectBox, SelectToggle, useSelection } from "@/components/SelectionBar";
 import { ListRow } from "@/components/surface/ListPanel";
-import { Button } from "@/components/ui/button";
 import { DecisionQueue, ageLabel, ageLength } from "@/components/viz/DecisionQueue";
 import { useTasksLive } from "@/hooks/useTasks";
 import { askVerb, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
@@ -37,7 +36,8 @@ function answerable(ask: Ask, capabilities: TasksCapabilities): boolean {
  *
  * Select turns the rows into a selection, every row shown, so several asks
  * decided together take one action (`AskSelection`) instead of one per row.
- * It is offered when two or more rows can be answered here.
+ * It is offered when two or more rows can be answered here. The All tasks
+ * table's Select is the same pieces (`SelectionBar`).
  */
 export function AskQueue({ asks, total, complete, nowMs, showProject, className }: {
   asks: readonly Ask[];
@@ -50,20 +50,11 @@ export function AskQueue({ asks, total, complete, nowMs, showProject, className 
 }) {
   const items = asks.map((ask) => queueItem(ask, nowMs));
   const capabilities = useTasksLive();
-  const [selecting, setSelecting] = useState(false);
-  const [picked, setPicked] = useState<ReadonlySet<string>>(() => new Set());
+  const selection = useSelection();
+  const { selecting, picked } = selection;
   const selectable = asks.filter((ask) => answerable(ask, capabilities));
   // A row answered or gone since it was picked leaves the selection with it.
   const chosen = selectable.filter((ask) => picked.has(ask.task.id));
-  const leave = () => {
-    setSelecting(false);
-    setPicked(new Set());
-  };
-  const toggle = (id: string) => setPicked((current) => {
-    const next = new Set(current);
-    if (!next.delete(id)) next.add(id);
-    return next;
-  });
   return (
     <DecisionQueue
       items={items}
@@ -72,18 +63,13 @@ export function AskQueue({ asks, total, complete, nowMs, showProject, className 
       title="Your decisions"
       limit={selecting ? Math.max(asks.length, ASK_ROWS) : ASK_ROWS}
       empty={complete ? "No decisions for you." : "Waiting work is unknown for unread projects."}
-      headerAction={selecting || selectable.length >= 2 ? (
-        <Button type="button" size="sm" variant="ghost" className="ms-auto text-muted-foreground" aria-pressed={selecting}
-          onClick={() => (selecting ? leave() : setSelecting(true))} data-inbox-select-mode>
-          {selecting ? "Done" : "Select"}
-        </Button>
-      ) : null}
-      toolbar={selecting ? <AskSelection chosen={chosen} selectable={selectable} onPick={setPicked} onSent={leave} /> : null}
+      headerAction={selecting || selectable.length >= 2 ? <SelectToggle selection={selection} marks={{ "data-inbox-select-mode": "" }} /> : null}
+      toolbar={selecting ? <AskSelection chosen={chosen} selectable={selectable} onPick={selection.pick} onSent={selection.leave} /> : null}
       className={className}
     >
       {asks.map((ask, index) => (
         <AskRow key={ask.task.id} {...ask} ageDays={items[index]!.ageDays} showProject={showProject} capabilities={capabilities}
-          selection={selecting && answerable(ask, capabilities) ? { checked: picked.has(ask.task.id), toggle: () => toggle(ask.task.id) } : null} />
+          selection={selecting && answerable(ask, capabilities) ? { checked: picked.has(ask.task.id), toggle: () => selection.flip(ask.task.id) } : null} />
       ))}
     </DecisionQueue>
   );
@@ -131,10 +117,7 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
       value={<AskAge days={ageDays} />}
       marks={{ "data-inbox-row": task.id, "data-subject": `task:${task.id}` }}
       leading={selection ? (
-        // The whole 44 px square is the target, not the 16 px box.
-        <label className="grid size-11 cursor-pointer place-items-center" data-inbox-select={task.id}>
-          <input type="checkbox" className="size-4 accent-primary" checked={selection.checked} onChange={selection.toggle} aria-label={`Select ${task.title}`} />
-        </label>
+        <SelectBox checked={selection.checked} onToggle={selection.toggle} label={task.title} marks={{ "data-inbox-select": task.id }} />
       ) : undefined}
       // While selecting, the selection's verbs replace the row's own.
       rowActions={project.actionable && !selection && buttons !== null ? (
