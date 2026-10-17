@@ -55,6 +55,9 @@ export interface WorkFlowProps {
   action?: ReactNode;
   /** For a fixed-height screen: one line of figures, no key, no second line per row. */
   compact?: boolean;
+  /** Compact only: the rows a box too short for every project draws, the
+   * rest counted on one line under them ("+2 more projects"). All when absent. */
+  shownRows?: number;
   /** Off where the screen states the same figures in its own answer. */
   figures?: boolean;
   /** The heading's type where the screen has its own eyebrow (the TV's). */
@@ -108,7 +111,23 @@ export function WorkWeekChip({ move, against, added = null, className }: {
   );
 }
 
-export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", action, compact = false, figures = true, headingClassName, className }: WorkFlowProps) {
+/** "+2 more projects": the rows a short box leaves out, as its last line says it. */
+export function moreProjects(count: number): string {
+  return `+${formatInt(count)} more ${count === 1 ? "project" : "projects"}`;
+}
+
+/**
+ * How many project rows a compact box draws: every row when they all fit
+ * under what is above them, else as many as fit with one row's height left
+ * for the line that counts the rest. In the box's own pixels: its height,
+ * where the first row starts, and one row's height (its border included).
+ */
+export function workRowsThatFit({ height, top, row, rows }: { height: number; top: number; row: number; rows: number }): number {
+  if (row <= 0 || top + rows * row <= height + 0.5) return rows;
+  return Math.max(0, Math.min(rows, Math.floor((height - top - row + 0.5) / row)));
+}
+
+export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", action, compact = false, shownRows, figures = true, headingClassName, className }: WorkFlowProps) {
   const scale = workScale(rows);
   const total = rows.reduce(
     (sum, row) => ({ done: sum.done + row.done, inProgress: sum.inProgress + row.inProgress, blocked: sum.blocked + row.blocked, open: sum.open + workQueue(row) }),
@@ -128,30 +147,35 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
   // A fixed-height screen keeps each move to one line: how many entered a
   // state stays in the chip's words on the desk only.
   const added = (count: number | null | undefined) => (compact ? null : count ?? null);
+  const drawn = compact && shownRows !== undefined ? rows.slice(0, shownRows) : rows;
+  const hidden = rows.length - drawn.length;
+  // On a fixed-height screen wide enough for it (80 rem, the TV's tile under
+  // the site rows), the heading and the four figures are one band.
+  const band = compact && figures;
 
   return (
-    <section aria-label={title} data-work-flow="" className={cn("@container flex min-w-0 flex-col gap-4", className)}>
-      <header className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 className={cn("m-0", headingClassName ?? eyebrowClass)}>{title}</h2>
-        {action}
-      </header>
-      {figures ? <div className={cn("flex flex-col", compact ? "gap-2" : "gap-4")}>
+    <section aria-label={title} data-work-flow="" className={cn("@container flex min-w-0 flex-col", compact ? "gap-2" : "gap-4", className)}>
+      <div className={cn(band ? "flex flex-col gap-2 @7xl:flex-row @7xl:items-start @7xl:justify-between @7xl:gap-x-10" : "contents")} data-work-band={band ? "" : undefined}>
+        <header className={cn("flex flex-wrap items-baseline justify-between gap-3", band && "@7xl:shrink-0 @7xl:flex-col @7xl:items-start @7xl:gap-1")}>
+          <h2 className={cn("m-0", headingClassName ?? eyebrowClass)}>{title}</h2>
+          {action}
+        </header>
         {/* On a fixed-height screen each figure takes its own width, so a
             move's words stay on one line beside the others. */}
-        <div className={cn("grid gap-x-6 gap-y-3", compact ? "grid-cols-2 @md:grid-cols-[repeat(4,minmax(0,auto))] @md:justify-between" : "grid-cols-2 @xl:grid-cols-4")}>
-          <Figure icon={<Hand aria-hidden className="size-4" />} label="Your decisions" ink={waiting && waiting.count > 0 ? "text-warn" : undefined} condition="human-gates"
+        {figures ? <div className={cn("grid gap-x-6 gap-y-3", compact ? "grid-cols-2 @md:grid-cols-[repeat(4,minmax(0,auto))] @md:justify-between @7xl:flex-1" : "grid-cols-2 @xl:grid-cols-4")}>
+          <Figure icon={<Hand aria-hidden className="size-4" />} label="Your decisions" ink={waiting && waiting.count > 0 ? "text-warn" : undefined} condition="human-gates" compact={compact}
             change={<WorkWeekChip move={waitingMove} against={A_WEEK_AGO} added={added(weeks?.waiting.added)} />}>
             <WaitingFigure waiting={waiting} />
           </Figure>
-          <Figure label="In progress"
+          <Figure label="In progress" compact={compact}
             change={counted ? <WorkWeekChip move={weekMove("inProgress", total.inProgress, weeks?.inProgress.before ?? null)} against={A_WEEK_AGO} added={added(weeks?.inProgress.added)} /> : null}>
             {counted ? formatInt(total.inProgress) : unread}
           </Figure>
-          <Figure icon={<CircleCheck aria-hidden className="size-4" />} label="Done this week" ink="text-milestone"
+          <Figure icon={<CircleCheck aria-hidden className="size-4" />} label="Done this week" ink="text-milestone" compact={compact}
             change={<WorkWeekChip move={doneMove} against={LAST_WEEK_BY_TODAY} />}>
             {counted ? formatInt(total.done) : unread}
           </Figure>
-          <Figure icon={<Hourglass aria-hidden className="size-4" />} label="Blocked" ink={total.blocked > 0 ? "text-warn" : undefined}
+          <Figure icon={<Hourglass aria-hidden className="size-4" />} label="Blocked" ink={total.blocked > 0 ? "text-warn" : undefined} compact={compact}
             change={counted ? <WorkWeekChip move={weekMove("blocked", total.blocked, weeks?.blocked.before ?? null)} against={A_WEEK_AGO} added={added(weeks?.blocked.added)} /> : null}>
             {counted ? (
               <>
@@ -160,25 +184,26 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
               </>
             ) : unread}
           </Figure>
+        </div> : null}
+      </div>
+      {/* The two weeks as one bar: this week's done so far filled, where
+          last week stood by today marked, last week's whole done the end of
+          the ruled track. On a fixed-height screen its words sit beside it. */}
+      {figures && lastWeek !== null ? (
+        <div data-work-weeks="">
+          <PaceBar
+            value={total.done}
+            label="Done this week"
+            previousAtSameDay={done?.before ?? null}
+            previousTotal={lastWeek}
+            previousLabel="Done last week"
+            tone="text-milestone"
+            format={formatInt}
+            showValue={false}
+            inline={compact}
+          />
         </div>
-        {/* The two weeks as one bar: this week's done so far filled, where
-            last week stood by today marked, last week's whole done the end of
-            the ruled track. */}
-        {lastWeek !== null ? (
-          <div data-work-weeks="">
-            <PaceBar
-              value={total.done}
-              label="Done this week"
-              previousAtSameDay={done?.before ?? null}
-              previousTotal={lastWeek}
-              previousLabel="Done last week"
-              tone="text-milestone"
-              format={formatInt}
-              showValue={false}
-            />
-          </div>
-        ) : null}
-      </div> : null}
+      ) : null}
       {/* One grid for the whole table, each row a subgrid of it: the name
           column is as wide as the longest name (up to half the table), so no
           name is cut and every row's bars start on the same line. */}
@@ -188,10 +213,12 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
           <span role="columnheader" className="text-end">Done this week</span>
           <span role="columnheader">Still open</span>
         </div>
-        {rows.map((row, index) => {
+        {drawn.map((row, index) => {
           const queue = workQueue(row);
           const name = (
-            <span className="text-sm font-medium text-foreground" title={row.name}>
+            // On a fixed-height screen the name's line is the bar's height,
+            // so the row is as tall as its bar and no taller.
+            <span className={cn("font-medium text-foreground", compact ? "text-wall-row" : "text-sm")} title={row.name}>
               {row.name}
             </span>
           );
@@ -201,7 +228,7 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
               role="row"
               data-work-row={row.id}
               aria-label={`${row.name}: ${row.done} done this week${row.doneLastWeek != null ? `, ${row.doneLastWeek} last week` : ""}; ${queue} open, ${row.inProgress} in progress, ${row.blocked} blocked${row.urgent ? `, ${row.urgent} high priority` : ""}`}
-              className={cn("viz-arrive col-span-3 grid grid-cols-subgrid items-start border-t border-border/40 @md:items-center", compact ? "py-1" : "py-2")}
+              className={cn("viz-arrive col-span-3 grid grid-cols-subgrid items-start border-t border-border/40 @md:items-center", !compact && "py-2")}
               style={{ "--viz-i": index } as CSSProperties}
             >
               <span role="cell" className="flex min-w-0 flex-col">
@@ -242,6 +269,13 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
             </div>
           );
         })}
+        {/* A box too short for every row draws whole rows and counts the
+            rest here, one row tall: never a cut row or a scroll bar. */}
+        {hidden > 0 ? (
+          <div role="row" data-work-more={hidden} className="col-span-3 grid grid-cols-subgrid border-t border-border/40">
+            <span role="cell" className="col-span-3 text-wall-row text-muted-foreground tabular-nums">{moreProjects(hidden)}</span>
+          </div>
+        ) : null}
       </div> : null}
       <div className={cn("flex flex-wrap gap-x-4 gap-y-1 text-micro text-muted-foreground", (compact || !counted) && "hidden")} aria-hidden>
         <span className="inline-flex items-center gap-1.5"><span className="h-2 w-3 rounded-xs bg-milestone/80" />done this week</span>
@@ -272,15 +306,18 @@ function WaitingFigure({ waiting }: { waiting: WorkWaiting | null }) {
   );
 }
 
-function Figure({ label, icon, ink, condition, change, children }: { label: string; icon?: ReactNode; ink?: string; condition?: string; change?: ReactNode; children: ReactNode }) {
+function Figure({ label, icon, ink, condition, compact = false, change, children }: { label: string; icon?: ReactNode; ink?: string; condition?: string; compact?: boolean; change?: ReactNode; children: ReactNode }) {
   return (
     <div className="flex min-w-0 flex-col gap-0.5" data-material-condition={condition} data-work-figure={label}>
       <span className={cn("inline-flex items-center gap-1.5 text-xs font-medium", ink ?? "text-muted-foreground")}>
         {icon}
         {label}
       </span>
-      <span className={cn("text-figure-sm tabular-nums", ink ?? "text-foreground")}>{children}</span>
-      {change}
+      {/* In the TV's one band the move sits on the figure's line. */}
+      <span className={cn("flex flex-col gap-0.5", compact && "@7xl:flex-row @7xl:items-baseline @7xl:gap-x-2.5 @7xl:whitespace-nowrap")} data-work-figure-value="">
+        <span className={cn("text-figure-sm tabular-nums", ink ?? "text-foreground")}>{children}</span>
+        {change}
+      </span>
     </div>
   );
 }

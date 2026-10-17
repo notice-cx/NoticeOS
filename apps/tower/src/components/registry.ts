@@ -1009,8 +1009,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WallWork",
     file: "components/wall/WallWork.tsx",
     purpose:
-      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with how many days into the week today is, what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, each with its move over the week (the cards' weeks summed with sumWorkWeeks), done this week against last week on a PaceBar, then one row per project. No links. With nothing read at all it is one quiet line, Tasks unknown.",
-    variants: ["counted", "partial inbox", "nothing read (one line)"],
+      "The Wall's work chart: a compact WorkFlow under the Wall's own eyebrow, with how many days into the week today is, what waits on the operator (operatorWaiting: unread, a lower bound, or stale, never a false zero), in progress, done this week and blocked, each with its move over the week (the cards' weeks summed with sumWorkWeeks), done this week against last week on a PaceBar, then one row per project. As tall as its content; given less height than every project needs, it draws the rows that fit whole and counts the rest on one line (+2 more projects). No links. With nothing read at all it is one quiet line, Tasks unknown.",
+    variants: ["counted", "partial inbox", "nothing read (one line)", "short box: rows that fit and +N more projects"],
   },
   {
     name: "AppShell / Sidebar",
@@ -1309,8 +1309,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PaceBar",
     file: "components/viz/PaceBar.tsx",
     purpose:
-      "Progress through a period against the last one: the period so far filled, where it is heading dashed, the last period's total as the end of the ruler, and the last period at the same day as a marker when that figure exists.",
-    variants: ["projected, against last month's total", "with a same-day marker", "figure printed beside it (showValue off)"],
+      "Progress through a period against the last one: the period so far filled, where it is heading dashed, the last period's total as the end of the ruler, and the last period at the same day as a marker when that figure exists. Inline, for a fixed-height screen, its words sit on the bar's own line where its container is 42 rem wide.",
+    variants: ["projected, against last month's total", "with a same-day marker", "figure printed beside it (showValue off)", "inline (words beside the bar)"],
   },
   {
     name: "NormalBand",
@@ -1379,8 +1379,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "WorkFlow",
     file: "components/viz/WorkFlow.tsx",
     purpose:
-      "Work as flow, one row per project around a centre line: done this week grows left in the win's green over last week's done as a dashed outline, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked, each with its move over the week as WorkWeekChip (DeltaChip toned by weekMove's verdict, with how many entered the state), and done this week against last week on a PaceBar. WorkWeekChip is the same chip on the Tasks board's figures.",
-    variants: ["six projects with the key and their weeks", "compact for the Wall"],
+      "Work as flow, one row per project around a centre line: done this week grows left in the win's green over last week's done as a dashed outline, the open queue grows right (in progress, ready, blocked hatched) on the same scale, under four figures: waiting on you, in progress, done this week, blocked, each with its move over the week as WorkWeekChip (DeltaChip toned by weekMove's verdict, with how many entered the state), and done this week against last week on a PaceBar. Compact (the Wall): one band for the heading and the figures at 80 rem, the PaceBar inline, each project one row as tall as its bar, and shownRows with a +N more projects line. WorkWeekChip is the same chip on the Tasks board's figures.",
+    variants: ["six projects with the key and their weeks", "compact for the Wall", "compact with rows left out"],
   },
   {
     name: "ChangeRows",

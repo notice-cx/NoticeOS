@@ -28,6 +28,7 @@ export const THEME_TEXT_SIZES = [
   "wall-list-label",
   "wall-list-line",
   "wall-list-meta",
+  "wall-row",
   "wall-site-name",
   "wall-site-live",
   "wall-site-stat",

@@ -565,6 +565,14 @@ or left out. `test/chart-series-contrast.test.ts` keeps the line at 3:1 and
 the dashed projection above 1.5:1 at that strength. On a phone the chart is
 drawn under the figures.
 
+Work this week on the TV is as tall as its content: where the tile is 80 rem
+wide its heading and four figures are one band, each change chip on its
+figure's line; the week bar's words sit beside the bar; each project is one
+row as tall as its 20 px bar, the row's border the only gap. Given less height
+than every project needs, the tile draws the rows that fit whole and one line
+counting the rest ("+2 more projects", `workRowsThatFit`), never a cut row or
+a scroll bar. The desk's `WorkFlow` keeps its spacing.
+
 The TV background is pure black so unused pixels emit no light; nothing on it
 needs a pointer; state is never colour-only; a failed poll keeps last-good
 values with their age. A landscape screen shows the TV's layout scaled by one

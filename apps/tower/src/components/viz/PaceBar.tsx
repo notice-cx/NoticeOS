@@ -26,6 +26,10 @@ export interface PaceBarProps {
   format?: (value: number) => string;
   /** Off where the figure is already printed large beside the bar. */
   showValue?: boolean;
+  /** For a fixed-height screen: where the enclosing container is 42 rem wide
+   * or more, the words on the bar's own line, the last period by today
+   * before it and its total after it. */
+  inline?: boolean;
   className?: string;
 }
 
@@ -39,6 +43,7 @@ export function PaceBar({
   tone,
   format = (amount) => formatUsd(amount),
   showValue = true,
+  inline = false,
   className,
 }: PaceBarProps) {
   const top = Math.max(value, previousTotal ?? 0, projected ?? 0, 1) * 1.04;
@@ -46,11 +51,11 @@ export function PaceBar({
   const ahead = paceVerdict(value, previousAtSameDay);
 
   return (
-    <div className={cn("flex flex-col gap-1.5", className)} data-pace-bar="" data-pace={ahead?.direction ?? "unknown"}>
+    <div className={cn("flex flex-col gap-1.5", inline && "@2xl:flex-row @2xl:items-center @2xl:gap-x-3", className)} data-pace-bar="" data-pace={ahead?.direction ?? "unknown"}>
       <div
         role="img"
         aria-label={paceSummary({ value, label, previousAtSameDay, previousTotal, previousLabel, projected, format })}
-        className={cn("relative h-7", tone)}
+        className={cn("relative h-7", inline && "@2xl:min-w-0 @2xl:flex-1", tone)}
       >
         {/* The track runs to the last period's total: the whole of last month is the ruler. */}
         <span aria-hidden className="absolute inset-y-2 start-0 end-0 rounded-full bg-viz-track" />
@@ -75,8 +80,9 @@ export function PaceBar({
           <span aria-hidden data-pace-total="" className="absolute inset-y-1 w-px -translate-x-1/2 bg-muted-foreground" style={{ insetInlineStart: at(previousTotal) }} />
         ) : null}
       </div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground" aria-hidden>
-        <span>
+      {/* Inline, this line dissolves so its two parts sit either side of the bar. */}
+      <div className={cn("flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-xs tabular-nums text-muted-foreground", inline && "@2xl:contents")} aria-hidden>
+        <span className={cn(inline && "@2xl:order-first @2xl:whitespace-nowrap")}>
           {showValue ? <span className="whitespace-nowrap">{label} <span className="font-medium text-foreground">{format(value)}</span></span> : null}
           {previousAtSameDay !== null ? (
             <>
@@ -89,7 +95,7 @@ export function PaceBar({
           ) : null}
         </span>
         {/* Each fact keeps its words together; the line may break between them. */}
-        <span>
+        <span className={cn(inline && "@2xl:whitespace-nowrap")}>
           {projected !== null ? <><span className="whitespace-nowrap">projected <span className="font-medium text-foreground">{format(projected)}</span></span> · </> : null}
           <span className="whitespace-nowrap">{previousTotal !== null ? `${previousLabel} total ${format(previousTotal)}` : `${previousLabel} total not known`}</span>
         </span>

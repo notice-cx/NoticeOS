@@ -638,6 +638,10 @@
   --text-wall-list-line--line-height: calc(var(--wall-body-line) * var(--wall-boost-body, 1));
   --text-wall-list-meta: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
   --text-wall-list-meta--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
+  /* A project's row in Work this week: its name at the list line's size on a
+     line as tall as the row's bar (`h-5`), so the row is the bar's height. */
+  --text-wall-row: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
+  --text-wall-row--line-height: calc(1.25rem * var(--wall-boost-body, 1));
 
   /* Revenue band and site-row floor; rows expand to fill their region. */
   --spacing-wall-band: 21rem;
