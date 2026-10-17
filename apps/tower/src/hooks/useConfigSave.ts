@@ -312,26 +312,52 @@ function invertLandmark(
 }
 
 export function useLandmarkSave() {
+  const save = useStructuralSave();
+  return useCallback(
+    ({ op, label, slug }: LandmarkSaveRequest): Promise<boolean> =>
+      save({ ops: [op], undo: [invertLandmark(op)], label, slug }),
+    [save],
+  );
+}
+
+/**
+ * A save whose ops may add or remove structure (a key, a row, a whole
+ * optional map) as well as set a value, with the way back given rather than
+ * derived: an insert's inverse is a delete guarded by what it inserted, which
+ * the caller that minted the insert already holds (`shownOnChange`).
+ */
+export interface StructuralSaveRequest {
+  ops: FileOp[];
+  undo: FileOp[];
+  /** What the toast names — the change, in a few words. */
+  label: string;
+  /** The changeset slug; also the commit subject. */
+  slug: string;
+}
+
+/** A structural save, confirmed in a toast that carries its Undo. */
+export function useStructuralSave() {
   const toast = useOwnerToast();
   const { saveConfig } = useTowerApi();
   const queryClient = useQueryClient();
   const delayMs = useConfigSaveDelay();
 
   const write = useCallback(
-    async (op: FileJsonInsertOp | FileJsonDeleteOp, slug: string) => {
-      warnConfigExport(await saveConfig([op], slug), toast);
-      // The same reads and the same wait the hook above uses: a landmark lives
-      // in a config file like any setting, so what a save of one invalidates and
-      // how long it waits for the restart are decided in one place.
+    async (ops: FileOp[], slug: string) => {
+      warnConfigExport(await saveConfig(ops, slug), toast);
+      // The same reads and the same wait the hook above uses: the structure
+      // lives in a config file like any setting, so what a save of it
+      // invalidates and how long it waits for the restart are decided in one
+      // place.
       refreshConfigBackedQueries(queryClient, delayMs);
     },
     [queryClient, delayMs],
   );
 
   return useCallback(
-    async ({ op, label, slug }: LandmarkSaveRequest): Promise<boolean> => {
+    async ({ ops, undo, label, slug }: StructuralSaveRequest): Promise<boolean> => {
       try {
-        await write(op, slug);
+        await write(ops, slug);
       } catch (err) {
         toast.error(refusalMessage(err));
         return false;
@@ -342,7 +368,7 @@ export function useLandmarkSave() {
           onClick: () => {
             void (async () => {
               try {
-                await write(invertLandmark(op), slug);
+                await write(undo, slug);
               } catch (err) {
                 toast.error(refusalMessage(err));
                 return;

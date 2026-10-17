@@ -33,6 +33,14 @@ export function formatInt(n: number): string {
   return INT.format(n);
 }
 
+const ORDINAL = new Intl.PluralRules("en-US", { type: "ordinal" });
+const ORDINAL_SUFFIX: Record<string, string> = { one: "st", two: "nd", few: "rd", other: "th" };
+
+/** A place in a list: 1st, 2nd, 3rd, 11th, 22nd. */
+export function formatOrdinal(n: number): string {
+  return `${formatInt(n)}${ORDINAL_SUFFIX[ORDINAL.select(n)] ?? "th"}`;
+}
+
 export function formatCompact(n: number): string {
   return COMPACT.format(n);
 }

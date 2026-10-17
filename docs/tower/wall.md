@@ -40,6 +40,7 @@ On a landscape laptop the television's layout is scaled by one factor, with smal
 - Open the Wall from the **TV dashboard** entry at the bottom of the sidebar, or at `/wall`.
 - Select the NoticeOS mark in the corner to return to Home.
 - Drag the widgets into place, stack and resize them, and set the site order in the Tower at `/wall/edit`. See [Arrange the Wall](/guides/arrange-the-wall).
+- Drag the sites into order and switch a site off the TV or out of **Work this week** with **Arrange** on the Sites page.
 
 ## States and labels
 

@@ -6,7 +6,7 @@ import { firstRunSite, firstRunSteps, sitePath, type FirstRunStep, type FirstRun
 import { viewCovers } from "@shared/asset-detail-views";
 import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
-import { sitesShownOn } from "@shared/site-display";
+import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
@@ -123,7 +123,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   // The site rows (the data sources, the sites compared, the day's lanes)
   // draw the sites whose Home and Sites list switch is on. A hidden site's
   // problems are still counted and listed; the money stays the portfolio's.
-  const listed = sitesShownOn(data.assets, data.dashboard.sites, "list");
+  const listed = sitesShownOn(data.assets, siteDisplayOf(data), "list");
   const hiddenIds = new Set(data.assets.filter((asset) => !listed.includes(asset)).map((asset) => asset.id));
   const aboutHidden = (ids: readonly string[]) => ids.length > 0 && ids.every((id) => hiddenIds.has(id));
   const oneSite = data.assets.length === 1 && listed.length === 1 ? listed[0]! : null;

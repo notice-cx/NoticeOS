@@ -54,8 +54,8 @@ const ASSETS = [
 
 /** The one path in the app that answers by moving. */
 function CurrentPath() {
-  const { pathname } = useLocation();
-  return <span data-testid="path">{pathname}</span>;
+  const { pathname, search } = useLocation();
+  return <><span data-testid="path">{pathname}</span><span data-testid="search">{search}</span></>;
 }
 
 /** The desk shell over a page that prints where it is. `/wall` sits outside
@@ -259,6 +259,17 @@ describe("navigating", () => {
     fireEvent.click(within(dialog).getByText("Money"));
 
     expect(screen.getByTestId("path")).toHaveTextContent("/financials");
+  });
+
+  it("opens Arrange on the Sites page from Arrange the sites, found by reorder too", () => {
+    renderShell();
+    const dialog = openWithShortcut();
+
+    fireEvent.change(paletteInput(), { target: { value: "reorder" } });
+    fireEvent.click(within(dialog).getByText("Arrange the sites"));
+
+    expect(screen.getByTestId("path")).toHaveTextContent("/assets");
+    expect(screen.getByTestId("search")).toHaveTextContent("?arrange=1");
   });
 
   it("offers a bead id as a task, and lands it on the task's page", () => {

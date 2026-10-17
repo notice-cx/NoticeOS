@@ -612,6 +612,9 @@ from its starting point to its result:
   before it is saved.
 - **Disconnect an integration** — Integrations → the connection: one
   confirmation naming what stops.
+- **Arrange the sites** — Sites → Arrange: on a desktop, drag the last site
+  to the top by its grip (Move up on a phone); switch one site off the TV;
+  Done.
 - **Arrange the TV Wall** — Edit beside the TV entry: on a desktop, drag a
   widget onto another's top edge to stack them; move the strip down through
   its Move menu (the phone's whole path); save.

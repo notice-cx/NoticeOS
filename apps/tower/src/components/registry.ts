@@ -482,6 +482,21 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["nothing picked", "some picked with a detail beside the count", "all picked (Clear)", "a verb's line open (Close N as, Duplicate)"],
   },
   {
+    name: "SiteArrange / ShownOnSwitches / LiveSiteArrange",
+    file: "components/SiteArrange.tsx",
+    purpose:
+      "The sites in the order Home, Sites and the TV use, to drag into a new one by each row's grip (the drop line shows where it lands) or move with Move up and Move down, with each site's three switches for where it shows: Home and Sites list, TV, Work this week. LiveSiteArrange is it on the wall read with the one move write and the one switch write, each with Undo; ShownOnSwitches is one site's three switches, which its Settings tab draws on its own. The TV editor's widget lists narrow one widget; these are the site's own.",
+    variants: ["four sites", "saves paused (the reason above the list)", "one site's switches"],
+    demo: "Mid-drag is pinned by the journey that drags a site to the top; the gallery shows the line on its own (DropLine).",
+  },
+  {
+    name: "DropLine",
+    file: "components/DropLine.tsx",
+    purpose:
+      "Where a drag will land, before the drop: a line in the accent colour with a short label on it (Above Sites). Drawn only where the drop moves something, so no refusal is needed. The TV editor's preview and Arrange place it.",
+    variants: ["on a row's top edge"],
+  },
+  {
     name: "TaskTimeline",
     file: "components/TaskTimeline.tsx",
     purpose:

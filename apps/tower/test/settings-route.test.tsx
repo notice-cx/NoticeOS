@@ -720,6 +720,28 @@ describe("/settings", () => {
     expect(container.querySelector("#clock")).toBeNull();
   });
 
+  it("draws the Sites card: every site in your order with its switches, as Arrange does", () => {
+    state.settings = payload({ dashboard: {} });
+    state.wall = {
+      ...wall([
+        assetCard({ id: "meadow.example", displayName: "Meadow Board", status: "live" }),
+        assetCard({ id: "northwind.example", displayName: "Northwind", status: "retired" }),
+      ]),
+      dashboard: { sites: { "meadow.example": { tv: false } } },
+    } as WallPayload;
+    stubFetch();
+    const { container } = renderPage("tv-dashboard");
+    const card = container.querySelector<HTMLElement>("[data-settings-sites]")!;
+    expect(within(card).getByRole("heading", { name: "Sites" })).toBeInTheDocument();
+    expect([...card.querySelectorAll("[data-site-arrange-row]")].map((row) => row.getAttribute("data-site-arrange-row")))
+      .toEqual(["meadow.example", "northwind.example"]);
+    expect(within(card).getByRole("switch", { name: "TV for Meadow Board" })).toHaveAttribute("aria-checked", "false");
+    expect(within(card).getByRole("switch", { name: "Home and Sites list for Meadow Board" })).toHaveAttribute("aria-checked", "true");
+    expect(within(card).getByRole("switch", { name: "Home and Sites list for Northwind" })).toHaveAttribute("aria-checked", "false");
+    // The page says once that saves are paused; the card does not repeat it.
+    expect(card.querySelector("[data-site-arrange-locked]")).toBeNull();
+  });
+
   it("makes the first countdown here, as ONE insert of the whole landmark", async () => {
     // A set never creates a key, so the first countdown is an insert. It is
     // one op because the emoji, the words and the moment are one landmark.

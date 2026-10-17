@@ -26,6 +26,7 @@ import {
   type WallLayout,
   type WallWidgetType,
 } from "@shared/wall-layout";
+import { DropLine } from "@/components/DropLine";
 import { WallCanvas } from "@/components/WallCanvas";
 import { WallDividers, type WallDividerGeometry } from "@/components/wall/WallDividers";
 import { WallMoveMenu } from "@/components/wall/WallMoveMenu";
@@ -458,21 +459,14 @@ export function WallPreview({
               />
             ) : null}
             {line ? (
-              <div
-                aria-hidden
-                data-wall-drop-line={landing?.line.anchor === "gap" ? "gap" : landing?.line.edge}
-                className="pointer-events-none absolute z-30 rounded-full bg-primary"
-                style={{ left: line.left, top: line.top, width: line.width, height: line.height }}
-              >
-                {/* The words sit on the side of the line the widget lands
-                    on, so a line at the TV's own edge keeps them in view. */}
-                <span
-                  className="absolute whitespace-nowrap rounded-md bg-primary px-2 py-0.5 text-xs font-medium text-primary-foreground"
-                  style={labelPlace(landing?.line.anchor === "gap" ? "gap" : landing?.line.edge ?? "gap", chromeScale)}
-                >
-                  {line.label}
-                </span>
-              </div>
+              <DropLine
+                marks={{ "data-wall-drop-line": landing?.line.anchor === "gap" ? "gap" : landing?.line.edge }}
+                box={{ left: line.left, top: line.top, width: line.width, height: line.height }}
+                label={line.label}
+                // The words sit on the side of the line the widget lands on,
+                // so a line at the TV's own edge keeps them in view.
+                labelStyle={labelPlace(landing?.line.anchor === "gap" ? "gap" : landing?.line.edge ?? "gap", chromeScale)}
+              />
             ) : null}
           </div>
         </div>

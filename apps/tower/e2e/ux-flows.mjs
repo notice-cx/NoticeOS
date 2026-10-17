@@ -712,6 +712,43 @@ FLOWS["arrange-wall"] = {
   },
 };
 
+/** Arrange the sites: Arrange beside the Sites page's order and stage; at a
+ * desk, drag the last site to the top by its grip; on a phone, its Move up;
+ * then one switch takes a site off the TV, saved with Undo; Done. */
+FLOWS["arrange-sites"] = {
+  title: "Arrange the sites (Sites → Arrange, drag to the top or Move up, one site off the TV, Done)",
+  async setup(page) {
+    await seedAsset(page);
+    await seedAsset(page, { domain: "second.example" });
+    await page.goto("/assets");
+  },
+  async run(w) {
+    await settle(w.page);
+    const open = w.page.locator("[data-assets-arrange-open]");
+    if (!(await open.isVisible())) await w.click(w.page.getByRole("button", { name: /Order & stage/ }), "Order & stage", { role: "reveal" });
+    await w.click(open, "Arrange", { role: "nav" });
+    await settle(w.page);
+    const row = (id) => w.page.locator(`[data-site-arrange-row="${id}"]`);
+    if (!w.mobile) {
+      await w.drag(row("second.example").locator("[data-site-arrange-grip]"), row(ASSET), "drag Second Example to the top", { at: { x: 0.5, y: 0.1 } });
+    } else {
+      await w.click(w.page.getByRole("button", { name: "Move Second Example up", exact: true }), "Move Second Example up", { role: "choose" });
+    }
+    await awaitSaved(w, "Site order saved");
+    await w.page.waitForFunction(
+      () => document.querySelector("[data-site-arrange-row]")?.getAttribute("data-site-arrange-row") === "second.example",
+      undefined,
+      { timeout: 10_000 },
+    );
+    await w.click(w.page.getByRole("switch", { name: "TV for Journey Example", exact: true }), "TV for Journey Example", { role: "commit" });
+    await awaitSaved(w, "Saved — Journey Example hidden on the TV", w.page.locator(SAVED).filter({ hasText: "hidden on the TV" }).first());
+    await w.click(w.page.getByRole("link", { name: "Done", exact: true }), "Done", { role: "nav" });
+    const state = await (await w.page.request.get("/__journey/status")).json();
+    if (state.documents["config/tower.json"].sites?.[ASSET]?.tv !== false) throw new Error("The TV switch did not reach config/tower.json");
+    await w.end("arranged");
+  },
+};
+
 // ── the screen survey: every main screen, populated ───────────────────────────
 //
 // Not a flow the operator performs: it opens every main screen by URL so the

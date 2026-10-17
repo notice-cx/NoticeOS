@@ -29,6 +29,13 @@ export const SHOWN_ON_LABEL: Readonly<Record<ShownOnSurface, string>> = {
   work: "Work this week",
 };
 
+/** The switches a wall read carries. A payload held from before they existed,
+ * or a fixture built for another slice, carries no `dashboard` at all, and
+ * reads as nothing set rather than taking the page down. */
+export function siteDisplayOf(read: { dashboard?: { sites?: SiteDisplay } } | null | undefined): SiteDisplay | undefined {
+  return read?.dashboard?.sites;
+}
+
 /** The fields a site needs for its switches to be read. */
 export interface DisplayedSite {
   id: string;

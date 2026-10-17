@@ -349,6 +349,72 @@ test('site order moves in the Wall editor, persists across every list, and suppo
   expect((await (await request.get('/api/wall')).json()).assets.map((asset: { id: string }) => asset.id)).toEqual(latest);
 });
 
+test('Arrange on the Sites page drags a site to the top and switches one off the TV, and Home, Sites and the Wall follow', async ({ page, request }, testInfo) => {
+  expect((await request.post('/__journey/wall-feed')).ok()).toBe(true);
+  const wall = await (await request.get('/api/wall')).json();
+  const sites = wall.assets as { id: string; displayName: string }[];
+  const initial = sites.map((site) => site.id);
+  const last = sites.at(-1)!;
+  const first = sites[0]!;
+  const reordered = [last.id, ...initial.filter((id) => id !== last.id)];
+  const ids = (selector: string, attribute: string) => page.locator(selector).evaluateAll((rows, name) => rows.map(row => row.getAttribute(name)), attribute);
+  const arranged = () => ids('[data-site-arrange-row]', 'data-site-arrange-row');
+
+  await page.goto('/assets');
+  await expect(page.locator('main [data-portfolio-row]').first()).toBeVisible();
+  const arrange = page.locator('[data-assets-arrange-open]');
+  // On a phone Arrange sits behind the fold with the order and the stage.
+  if (!(await arrange.isVisible())) await page.getByRole('button', { name: /Order & stage/ }).click();
+  await arrange.click();
+  await expect(page.getByRole('heading', { name: 'Arrange', exact: true })).toBeVisible();
+  await expect.poll(arranged).toEqual(initial);
+
+  const row = (id: string) => page.locator(`[data-site-arrange-row="${id}"]`);
+  if ((page.viewportSize()?.width ?? 1440) >= 640) {
+    // The browser's own drag, by the grip: pressed, carried in steps, released
+    // on the first row's top edge, where the line says it lands.
+    const grip = (await row(last.id).locator('[data-site-arrange-grip]').boundingBox())!;
+    const onto = (await row(first.id).boundingBox())!;
+    const from = { x: grip.x + grip.width / 2, y: grip.y + grip.height / 2 };
+    const to = { x: onto.x + onto.width / 2, y: onto.y + 4 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 10; i += 1) await page.mouse.move(from.x + ((to.x - from.x) * i) / 10, from.y + ((to.y - from.y) * i) / 10);
+    // The browser reports where a drag is on the moves after it arrives, so
+    // the hand rests there a moment, as a hand does.
+    for (let i = 0; i < 3; i += 1) await page.mouse.move(to.x, to.y + i % 2);
+    await expect(row(first.id).locator('[data-site-arrange-drop="top"]')).toBeVisible();
+    await expect(row(first.id).locator('[data-site-arrange-drop="top"]')).toHaveText(`Above ${first.displayName}`);
+    await testInfo.attach('arrange mid-drag', { body: await page.screenshot(), contentType: 'image/png' });
+    await page.mouse.up();
+  } else {
+    // A phone moves the same site with its arrows, one place a press.
+    for (let place = initial.length - 1; place > 0; place -= 1) {
+      await page.getByRole('button', { name: `Move ${last.displayName} up`, exact: true }).click();
+      await expect.poll(async () => (await arranged()).indexOf(last.id)).toBe(place - 1);
+      await expect(page.getByRole('button', { name: `Move ${last.displayName} up`, exact: true })).toBeEnabled({ enabled: place - 1 > 0 });
+    }
+  }
+  await expect.poll(arranged).toEqual(reordered);
+  await expect(page.locator('[data-sonner-toast]').filter({ hasText: 'Site order saved' }).last()).toBeVisible();
+
+  // One switch takes the first site off the TV, saved with its own Undo.
+  await page.getByRole('switch', { name: `TV for ${first.displayName}`, exact: true }).click();
+  await expect(page.locator('[data-sonner-toast]').filter({ hasText: `Saved — ${first.displayName} hidden on the TV` })).toBeVisible();
+  await expect.poll(async () => (await (await request.get('/api/wall')).json()).dashboard.sites?.[first.id]).toEqual({ tv: false });
+  await testInfo.attach('arrange switched', { body: await page.screenshot({ fullPage: true }), contentType: 'image/png' });
+  await page.getByRole('link', { name: 'Done', exact: true }).click();
+
+  // Home and the Sites list draw the dragged site first and keep the other.
+  for (const route of ['/', '/assets']) {
+    await page.goto(route); await page.reload();
+    await expect.poll(() => ids('main [data-portfolio-row]', 'data-portfolio-row')).toEqual(reordered);
+  }
+  // The TV draws it first too, and leaves the switched-off site out of every widget.
+  await page.goto('/wall'); await page.reload();
+  await expect.poll(() => ids('[data-wall-sites] [data-site-row]', 'data-site-row')).toEqual(reordered.filter((id) => id !== first.id));
+});
+
 test('Mediavine signs in in the panel, its site is matched by domain and synced on Start, and it disconnects', async ({ page }, testInfo) => {
   await createAsset(page);
   await page.goto('/integrations');

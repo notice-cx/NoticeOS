@@ -6,7 +6,7 @@
 // `hidesWhenEmpty` must answer here, or the build's first render says so.
 
 import type { AttentionItem, AssetCard, WallPayload } from "@shared/wall";
-import { sitesShownOn } from "@shared/site-display";
+import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import {
   type WallWidgetSettings,
   type WallWidgetType,
@@ -94,7 +94,7 @@ export interface WallOnTv {
  * site list narrows it further. The System's own alerts stay.
  */
 export function wallOnTv(data: WallPayload): WallOnTv {
-  const shown = sitesShownOn(data.assets, data.dashboard.sites, "tv");
+  const shown = sitesShownOn(data.assets, siteDisplayOf(data), "tv");
   if (shown.length === data.assets.length) return { data, hidden: new Set() };
   const kept = new Set(shown.map((asset) => asset.id));
   const hidden = new Set(data.assets.filter((asset) => !kept.has(asset.id)).map((asset) => asset.id));
@@ -106,5 +106,5 @@ export function wallOnTv(data: WallPayload): WallOnTv {
  * switch is on. Read on a payload `wallOnTv` already narrowed, so a site off
  * the TV has no row either. */
 export function sitesInWork(data: Pick<WallPayload, "assets" | "dashboard">): AssetCard[] {
-  return sitesShownOn(data.assets, data.dashboard.sites, "work");
+  return sitesShownOn(data.assets, siteDisplayOf(data), "work");
 }

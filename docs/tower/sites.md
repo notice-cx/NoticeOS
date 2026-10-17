@@ -41,13 +41,14 @@ The page lists the sites whose **Home and Sites list** switch is on. The summary
 - **Tasks**: the site's slice of the Tasks board.
 - **Activity**: the last 90 days of changes and bets on one timeline, a bet marked where it was registered and again where its verdict was recorded. Under it, the **Timeline** of recorded changes and the bets still being measured.
 - **Data sources**: how the site's data arrives, drawn as one diagram with a failing source outlined in red; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones.
-- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**.
+- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
 
 ## What you can do
 
 - **Add a site** opens the same dialog Home uses.
 - The legend of the bar that splits the sites by status is the **Health** filter: press **2 at risk** to show only those sites, press it again to show them all.
 - **Order** puts the sites in **Your order** (the saved order Home and the TV use), **Needs attention** first, by **Money** this month, by **People** or **A–Z**. The stage list narrows to one lifecycle stage. On a phone both are behind **Order & stage**.
+- **Arrange**, beside the stage list, lists every site in **Your order**, hidden ones included. Drag a site by its grip to a new place: a line and a label such as **Above Northwind** show where it lands before you let go. **Move Northwind up** and **Move Northwind down** on each row make the same move with a keyboard or on a phone. Each row has the site's three switches, **Home and Sites list**, **TV** and **Work this week**. A move and a switch save at once, each with **Undo** in its message: **Site order saved**, **Saved — Northwind hidden on the TV**. **Done** returns to the list in the order you chose, with the hidden sites left out and counted. **2 hidden** beside the count also opens Arrange, and so does **Arrange the sites** in the command palette.
 - A filtered list shows how many sites it includes, with **Clear**. Every choice is in the address, so a link includes it.
 - A site's name opens its page; the domain link on that page opens the site itself.
 - Press a figure on the Overview to draw it on the chart; arrow keys step through its days.
@@ -65,6 +66,8 @@ Each site has three switches:
 | **Home and Sites list** | as a row on Home (the data sources grid, the sites and the last 24 hours) and on the Sites page |
 | **TV** | in every widget on the TV |
 | **Work this week** | as a project row in the TV's **Work this week**, while its **TV** switch is on too |
+
+The switches are on every row of **Arrange** on the Sites page, on the **Sites** card of **Settings** > **TV dashboard**, and on the site's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
 
 A switch nobody has set follows the site's lifecycle stage: on for every stage except **Retired**, and off for a retired site. A switch you set stays as you set it when the site's stage changes, so a site you take off the TV stays off after you restore it.
 

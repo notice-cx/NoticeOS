@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SiteOrder } from '@/routes/wall-edit/SiteOrder';
 import { BrowserRuntimeProvider } from '@/lib/browser-context';
@@ -19,7 +20,7 @@ function setup(disabled = false) {
   runtimes.push(runtime);
   const invalidate = vi.spyOn(runtime.queries, 'invalidateQueries');
   const ui = render(<BrowserRuntimeProvider value={{ runtime, workspaceLabel: null }}>
-    <QueryClientProvider client={runtime.queries}><SiteOrder assets={assets} disabled={disabled} /></QueryClientProvider>
+    <QueryClientProvider client={runtime.queries}><MemoryRouter><SiteOrder assets={assets} disabled={disabled} /></MemoryRouter></QueryClientProvider>
   </BrowserRuntimeProvider>);
   return { ...ui, fetch, runtime, invalidate };
 }
@@ -29,6 +30,11 @@ function undo() {
   return action.onClick;
 }
 describe('site ordering from the Wall editor', () => {
+  it('links to Arrange on the Sites page, where the order is dragged and each site switched', () => {
+    setup();
+    expect(screen.getByRole('link', { name: /Arrange/ })).toHaveAttribute('href', '/assets?arrange=1');
+  });
+
   it('names the destination, refreshes shared data, and sends the exact saved revision on Undo', async () => {
     const f = setup();
     expect(screen.getByRole('button', { name: 'Move First up' })).toBeDisabled();
