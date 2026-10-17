@@ -311,7 +311,8 @@ export function ShownOnSwitches({
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={`Where ${site.displayName} shows`} className={cn("flex flex-wrap gap-1.5", className)}>
+    // Tighter under a thumb, so the three fit one line of a phone.
+    <div role="group" aria-label={`Where ${site.displayName} shows`} className={cn("flex flex-wrap gap-1.5 max-sm:gap-1", className)}>
       {SHOWN_ON.map((surface) => {
         const on = shown[surface];
         const pending = busy?.has(switchKey(site.id, surface)) === true;
@@ -325,7 +326,7 @@ export function ShownOnSwitches({
             aria-label={`${SHOWN_ON_LABEL[surface]} for ${site.displayName}`}
             disabled={disabled || pending}
             onClick={() => onSwitch(site, surface, !on)}
-            className={cn(pillChoiceClass, pillChoiceStateClass(on), "disabled:opacity-60")}
+            className={cn(pillChoiceClass, pillChoiceStateClass(on), "disabled:opacity-60 max-sm:px-1.5")}
             data-shown-on={surface}
             data-on={on ? "" : undefined}
           >
