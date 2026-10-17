@@ -17,6 +17,7 @@ import type { SignalVerification } from "./signal-liveness";
 import type { SeriesPointOrGap } from "./surface";
 import type { RevenueProjection } from './revenue-projection';
 import type { DailyRevenueSummary } from './daily-revenue';
+import type { WorkWeeks } from './work';
 
 /** `milestone` is a kind, not a severity — never here. */
 export type Severity = "error" | "warn" | "info";
@@ -470,6 +471,10 @@ export interface WorkSummary {
   /** When the poller photographed the hub; the widget ages itself against the
    * poller's cadence. */
   capturedAt: string;
+  /** Each figure's week against the week before, from the daily history on
+   * the installation's clock (`workWeeks`). Absent when the store holds no day
+   * of this project's history. */
+  weeks?: WorkWeeks;
 }
 
 /** The asset's serp-panel review obligation, as the newest task snapshot

@@ -1,5 +1,5 @@
 import type { LiveTask, LiveTasksPayload, TasksCapabilities, TaskProject, TaskActor } from "@shared/tasks";
-import { PRIORITY_BANDS, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
+import { PRIORITY_BANDS, sumWorkWeeks, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
 import { waitsOnPerson } from "@noticeos/contract/task-gate";
 
 export const IN_PROGRESS = "in_progress";
@@ -53,6 +53,21 @@ interface ProjectStats {
  * before resolutions existed carries none and was done. */
 export function closedNotDone(task: Pick<WorkItem, "status" | "resolution">): boolean {
   return task.status === "closed" && (task.resolution ?? "done") !== "done";
+}
+
+/**
+ * Of this week's closes, how many shipped nothing, counted from the rows the
+ * board read: a close counts in the week its UTC day falls in, as the daily
+ * history counts it. Null when the rows may not hold every close since
+ * `weekStart`: the live read holds every close from its `closedSince` day on,
+ * the saved snapshot only when its capped list holds every recent close.
+ */
+export function weekNotDone(project: BoardProject, snapshot: WorkProject | undefined, weekStart: string): number | null {
+  const holdsWeek = project.source === "live"
+    ? project.closedSince !== null && project.closedSince <= weekStart
+    : project.source === "snapshot" && snapshot !== undefined && snapshot.recentlyClosed.length >= snapshot.counts.closedRecent;
+  if (!holdsWeek) return null;
+  return project.tasks.filter((task) => closedNotDone(task) && (task.closedAt ?? "").slice(0, 10) >= weekStart).length;
 }
 
 export interface BoardProject {
@@ -425,9 +440,16 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
     ? projects.map(project => project.readAt!).sort()[0]! : null;
   const boundaries = new Set(projects.map(project => project.closedSince));
   const closedSince = complete && boundaries.size === 1 ? projects[0]!.closedSince : null;
+  // Every figure's week, from the daily history through the one derivation
+  // the Wall reads (`workWeeks`), whichever read drew the rows.
+  const weeks = sumWorkWeeks(spokes.map(project => project.weeks));
+  const notDoneByProject = weeks === null ? [] : projects.map(project =>
+    weekNotDone(project, spokes.find(row => row.asset === project.asset), weeks.weekStart));
+  const weekNotDoneTotal = weeks === null || notDoneByProject.some(count => count === null)
+    ? null : notDoneByProject.reduce<number>((sum, count) => sum + count!, 0);
   return {
     spokes, projects, allTasks, totals, complete, pendingProjects, shownAt, closedSince,
-    countsComplete, missingProjects,
+    countsComplete, missingProjects, weeks, weekNotDone: weekNotDoneTotal,
     counts: {
       waiting: countsComplete ? totals.waiting : null,
       urgent: countsComplete ? totals.urgent : null,

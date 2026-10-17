@@ -5,6 +5,8 @@
 
 import type { TaskChoice, TaskChoiceKey, TaskChoices } from "@noticeos/contract/task-choices";
 import type { TaskResolution } from "@noticeos/contract/task-resolution";
+import { revenueCalendarDate } from "./daily-revenue";
+import { shiftRevenueDate } from "./revenue-projection";
 import type { SeriesPoint } from "./wall";
 
 /** The file that owns the asset ↔ prefix ↔ repo map the board joins on. */
@@ -168,6 +170,10 @@ export interface WorkProject {
    * on every day of it when the store has no rollup table yet — see
    * `historyDays`, which is what tells the two apart. */
   history: WorkCountsHistory;
+  /** Each figure's week against the week before, from `history` on the
+   * installation's clock (`workWeeks`). Absent when the store has no daily
+   * history at all, or from a Worker older than the reading. */
+  weeks?: WorkWeeks;
   /** Open work per `bd` priority band, P0..P4. null when the poller that
    * wrote this row did not send one. */
   priorities: number[] | null;
@@ -272,6 +278,207 @@ export function sumWorkHistory(projects: readonly WorkProject[]): WorkCountsHist
       .map(([t, cell]) => ({ t, v: cell.sum }));
   }
   return out;
+}
+
+// --- the week against the week before -----------------------------------------
+
+/** Which way each figure is better: more closes is good; more waiting on the
+ * operator, more urgent and more blocked is worse; in progress has no better
+ * direction. Decided here once, so every chip on every screen agrees. */
+export const WORK_WEEK_IMPROVEMENT = {
+  done: "up",
+  waiting: "down",
+  urgent: "down",
+  inProgress: "none",
+  blocked: "down",
+} as const;
+
+export type WorkWeekMetric = keyof typeof WORK_WEEK_IMPROVEMENT;
+
+/** A figure's move against its earlier reading. */
+export interface WeekMove {
+  /** The figure now minus the earlier reading. */
+  by: number;
+  direction: "up" | "down" | "flat";
+  /** `good` when the figure moved its better way, `bad` against it, `neutral`
+   * when it did not move or has no better way. */
+  verdict: "good" | "bad" | "neutral";
+}
+
+/** The one rule for a move: null when either side is unknown. A screen that
+ * shows a fresher figure than the history's own pairs it with `before` here,
+ * so the chip always reads the figure beside it. */
+export function weekMove(metric: WorkWeekMetric, now: number | null, before: number | null): WeekMove | null {
+  if (now === null || before === null) return null;
+  const by = now - before;
+  const direction = by > 0 ? "up" : by < 0 ? "down" : "flat";
+  const better = WORK_WEEK_IMPROVEMENT[metric];
+  return { by, direction, verdict: direction === "flat" || better === "none" ? "neutral" : direction === better ? "good" : "bad" };
+}
+
+/** A state's week: how many are in it today, how many were seven days before,
+ * and how many entered it in between. */
+export interface WorkStateWeek {
+  /** Today's count; null when the history holds no count for today. */
+  now: number | null;
+  /** The count seven days before today; null where the history does not
+   * reach it. */
+  before: number | null;
+  /** The sum of the day-to-day rises over those seven days, so a task that
+   * entered and left the state on one day is not in it. Null unless all
+   * eight days are held. */
+  added: number | null;
+  move: WeekMove | null;
+}
+
+/** Closes this calendar week against last week's. */
+export interface WorkDoneWeek {
+  /** Closes so far this week; null when no day of it is held. */
+  now: number | null;
+  /** A day of this week is not held, so `now` is a lower bound and no move
+   * is drawn from it. */
+  partial: boolean;
+  /** Last week's closes over the same days of the week: what `now` is
+   * compared with. Null when one of those days is not held, or none has
+   * begun yet. */
+  before: number | null;
+  /** Last week's closes, all seven days; null when one is not held. */
+  lastWeek: number | null;
+  move: WeekMove | null;
+}
+
+/**
+ * Every work figure's week against the week before. The week starts on
+ * Monday in the installation's time zone; the history's days run midnight to
+ * midnight UTC (the clock the rollup keys by), so a day of the history counts
+ * in the week its date falls in.
+ */
+export interface WorkWeeks {
+  /** The Monday this week started on. */
+  weekStart: string;
+  /** Today's place in the week: Monday 1 to Sunday 7. */
+  daysIn: number;
+  done: WorkDoneWeek;
+  waiting: WorkStateWeek;
+  urgent: WorkStateWeek;
+  inProgress: WorkStateWeek;
+  blocked: WorkStateWeek;
+}
+
+/** The ISO weekday of a calendar date: Monday 1 to Sunday 7. */
+function isoWeekday(day: string): number {
+  return ((new Date(`${day}T12:00:00Z`).getUTCDay() + 6) % 7) + 1;
+}
+
+/** Every date from `from` to `to`, inclusive; empty when `to` is earlier. */
+function dateSpan(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let day = from; day <= to; day = shiftRevenueDate(day, 1)) out.push(day);
+  return out;
+}
+
+/** The sum over `days`, or null when one of them is not held. */
+function heldSum(byDay: ReadonlyMap<string, number>, days: readonly string[]): number | null {
+  let sum = 0;
+  for (const day of days) {
+    const value = byDay.get(day);
+    if (value === undefined) return null;
+    sum += value;
+  }
+  return sum;
+}
+
+function doneWeek(series: readonly SeriesPoint[], weekStart: string, utcToday: string): WorkDoneWeek {
+  const byDay = new Map(series.map((point) => [point.t, point.v]));
+  const lastStart = shiftRevenueDate(weekStart, -7);
+  const lastWeek = heldSum(byDay, dateSpan(lastStart, shiftRevenueDate(lastStart, 6)));
+  // The days of this week the history can hold by now: in a zone ahead of
+  // UTC the week starts before the history's day for it has begun.
+  const weekEnd = shiftRevenueDate(weekStart, 6);
+  const expected = dateSpan(weekStart, utcToday < weekEnd ? utcToday : weekEnd);
+  // A day after today's date still counts: in a zone behind UTC the
+  // history's newest day can start before the installation's own.
+  const thisWeek = series.filter((point) => point.t >= weekStart);
+  if (byDay.size === 0 || (expected.length > 0 && thisWeek.length === 0)) {
+    return { now: null, partial: false, before: null, lastWeek, move: null };
+  }
+  const now = thisWeek.reduce((sum, point) => sum + point.v, 0);
+  const partial = expected.some((day) => !byDay.has(day));
+  const before = expected.length === 0 ? null : heldSum(byDay, dateSpan(lastStart, shiftRevenueDate(lastStart, expected.length - 1)));
+  return { now, partial, before, lastWeek, move: partial ? null : weekMove("done", now, before) };
+}
+
+function stateWeek(metric: WorkWeekMetric, series: readonly SeriesPoint[], utcToday: string): WorkStateWeek {
+  const byDay = new Map(series.map((point) => [point.t, point.v]));
+  const now = byDay.get(utcToday) ?? null;
+  const before = byDay.get(shiftRevenueDate(utcToday, -7)) ?? null;
+  let added: number | null = 0;
+  for (let back = 6; back >= 0 && added !== null; back -= 1) {
+    const day = byDay.get(shiftRevenueDate(utcToday, -back));
+    const prior = byDay.get(shiftRevenueDate(utcToday, -back - 1));
+    added = day === undefined || prior === undefined ? null : added + Math.max(0, day - prior);
+  }
+  return { now, before, added, move: weekMove(metric, now, before) };
+}
+
+/** One project's (or a summed portfolio's) week from its daily history, on
+ * the installation's clock. */
+export function workWeeks(history: WorkCountsHistory, now: Date, timeZone: string): WorkWeeks {
+  const today = revenueCalendarDate(now, timeZone);
+  const daysIn = isoWeekday(today);
+  const weekStart = shiftRevenueDate(today, -(daysIn - 1));
+  const utcToday = now.toISOString().slice(0, 10);
+  return {
+    weekStart,
+    daysIn,
+    done: doneWeek(history.closed, weekStart, utcToday),
+    waiting: stateWeek("waiting", history.waiting, utcToday),
+    urgent: stateWeek("urgent", history.urgent, utcToday),
+    inProgress: stateWeek("inProgress", history.inProgress, utcToday),
+    blocked: stateWeek("blocked", history.blocked, utcToday),
+  };
+}
+
+/** Add where every side is known. */
+function knownSum(values: readonly (number | null)[]): number | null {
+  return values.some((value) => value === null) ? null : values.reduce<number>((sum, value) => sum + value!, 0);
+}
+
+/**
+ * Several projects' weeks as one: the figures the Wall and the board draw
+ * for every project they show. A project without a reading counts as not
+ * known, so a total never passes for one that includes it; a week's closes
+ * stay a lower bound (`partial`) rather than vanishing.
+ */
+export function sumWorkWeeks(readings: readonly (WorkWeeks | null | undefined)[]): WorkWeeks | null {
+  const first = readings.find((reading): reading is WorkWeeks => reading !== null && reading !== undefined);
+  if (!first) return null;
+  const all = readings.map((reading) => reading ?? null);
+  const state = (metric: Exclude<WorkWeekMetric, "done">): WorkStateWeek => {
+    const now = knownSum(all.map((reading) => reading?.[metric].now ?? null));
+    const before = knownSum(all.map((reading) => reading?.[metric].before ?? null));
+    return { now, before, added: knownSum(all.map((reading) => reading?.[metric].added ?? null)), move: weekMove(metric, now, before) };
+  };
+  const nows = all.map((reading) => reading?.done.now ?? null);
+  const measured = nows.filter((value): value is number => value !== null);
+  const partial = measured.length < nows.length || all.some((reading) => reading?.done.partial === true);
+  const now = measured.length === 0 ? null : measured.reduce((sum, value) => sum + value, 0);
+  const before = knownSum(all.map((reading) => reading?.done.before ?? null));
+  return {
+    weekStart: first.weekStart,
+    daysIn: first.daysIn,
+    done: {
+      now,
+      partial: now !== null && partial,
+      before,
+      lastWeek: knownSum(all.map((reading) => reading?.done.lastWeek ?? null)),
+      move: now === null || partial ? null : weekMove("done", now, before),
+    },
+    waiting: state("waiting"),
+    urgent: state("urgent"),
+    inProgress: state("inProgress"),
+    blocked: state("blocked"),
+  };
 }
 
 /** Does this project have anything worth a row? A project with no work is

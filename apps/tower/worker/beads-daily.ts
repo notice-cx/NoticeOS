@@ -40,11 +40,11 @@ function closedCount(stored: string | null): number | null {
 }
 
 /**
- * Every day the rollup holds, per project, in one read. A null count is a day
- * missing from that one series, never a zero: a zero would draw a queue that
- * emptied on the day nobody looked.
+ * Every day the rollup holds, per project, in one read, or the days from
+ * `since` on. A null count is a day missing from that one series, never a
+ * zero: a zero would draw a queue that emptied on the day nobody looked.
  */
-export async function loadBeadsDailyHistory(store: WorkspaceStore): Promise<BeadsDailyHistory> {
+export async function loadBeadsDailyHistory(store: WorkspaceStore, { since }: { since?: string } = {}): Promise<BeadsDailyHistory> {
   const rows = await store.read((tx) =>
     tx.query<DailyRow>(
       `SELECT project AS asset,
@@ -56,7 +56,9 @@ export async function loadBeadsDailyHistory(store: WorkspaceStore): Promise<Bead
               blocked,
               closed_ids::text AS "closedIds"
          FROM noticeos.task_daily_counts
+        WHERE $1::date IS NULL OR day >= $1::date
         ORDER BY day ASC, project COLLATE "C" ASC`,
+      [since ?? null],
     ),
   );
 
