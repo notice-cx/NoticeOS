@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import type { TaskChoiceKey, TaskChoices } from "@noticeos/contract/task-choices";
 import { choiceName } from "@noticeos/contract/task-choices";
 import { ChoiceButtons } from "@/components/ChoiceButtons";
+import { CloseAsMenu } from "@/components/CloseResolution";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
 import { Button } from "@/components/ui/button";
 import { useOwnerToast } from "@/lib/browser-context";
@@ -65,7 +66,7 @@ function LiveChoice({ choices }: { choices: TaskChoices }) {
       footer={
         <>
           <Button type="button" size="sm" variant="outline">Answer</Button>
-          <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">Dismiss</Button>
+          <CloseAsMenu subject={choices.question} onPick={() => undefined} />
         </>
       }
     />

@@ -492,6 +492,23 @@ FLOWS["inbox-bulk"] = {
   },
 };
 
+/** A question declined with a resolution from its row (Jira's resolutions):
+ * Close as, the resolution, a one-line note, then the commit, with Undo after. */
+FLOWS["inbox-close-as"] = {
+  title: "Close a question as Won't do (Close as on the row, a note)",
+  async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
+  async run(w) {
+    await nav(w, "Tasks");
+    const ask = w.page.locator('[data-inbox-row="jt-review"]');
+    await w.click(ask.getByRole("button", { name: "Close as", exact: true }), "Close as", { role: "choose" });
+    await w.click(w.page.getByRole("menuitem", { name: "Won't do", exact: true }), "Won't do", { role: "choose" });
+    const line = w.page.locator('[data-task-form="close-as"]');
+    await w.fill(line.getByLabel("Note"), "The launch copy is already approved", "Note");
+    await w.click(line.getByRole("button", { name: "Close task", exact: true }), "Close task", { role: "commit" });
+    await w.end("closed");
+  },
+};
+
 /** File task on a saved finding's row, prefilled from the finding (PagerDuty
  * → Jira): two presses, on the page it is read on. */
 FLOWS["file-task-from-finding"] = {

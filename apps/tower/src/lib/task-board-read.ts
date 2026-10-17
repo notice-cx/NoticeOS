@@ -44,6 +44,15 @@ interface ProjectStats {
   inProgress: number;
   blocked: number;
   closed: number;
+  /** Of `closed`, the closes where nothing shipped (Won't do, Duplicate…);
+   * null when the rows read do not hold every close. */
+  notDone: number | null;
+}
+
+/** A close where nothing shipped: a resolution other than done. A row read
+ * before resolutions existed carries none and was done. */
+export function closedNotDone(task: Pick<WorkItem, "status" | "resolution">): boolean {
+  return task.status === "closed" && (task.resolution ?? "done") !== "done";
 }
 
 export interface BoardProject {
@@ -219,8 +228,10 @@ function buildProject(
       readAt: project.ok ? capturedAt : null,
       closedSince: null,
       stats: project.ok
-        ? { open, urgent: highPriority, inProgress, blocked, closed: closedRecent }
-        : { open: 0, urgent: null, inProgress: 0, blocked: 0, closed: 0 },
+        ? { open, urgent: highPriority, inProgress, blocked, closed: closedRecent,
+            // The photograph's closed list is capped: it splits the count only when it holds every close.
+            notDone: project.recentlyClosed.length >= closedRecent ? project.recentlyClosed.filter(closedNotDone).length : null }
+        : { open: 0, urgent: null, inProgress: 0, blocked: 0, closed: 0, notDone: 0 },
       epicNames: new Map((project.epics ?? []).map((epic) => [epic.id, epic.title])),
       tasks: snapshotRows(project),
       waiting: (project.ok ? project.waiting : []).map((item) =>
@@ -250,6 +261,7 @@ function buildProject(
       inProgress: tasks.filter((task) => task.status === IN_PROGRESS).length,
       blocked: tasks.filter((task) => task.status === "blocked").length,
       closed: tasks.filter((task) => task.status === "closed").length,
+      notDone: tasks.filter(closedNotDone).length,
     },
     epicNames: new Map((live.epics ?? []).map((epic) => [epic.id, epic.title])),
     tasks,
@@ -273,11 +285,13 @@ function boardTotals(projects: BoardProject[]): {
   inProgress: number;
   blocked: number;
   closed: number;
+  notDone: number | null;
   live: number;
 } {
   let urgent = 0;
   let blindUrgent = 0;
   let measured = 0;
+  let notDone: number | null = 0;
   const sum = { waiting: 0, open: 0, inProgress: 0, blocked: 0, closed: 0 };
   for (const project of projects) {
     sum.waiting += project.totals.waiting;
@@ -285,6 +299,7 @@ function boardTotals(projects: BoardProject[]): {
     sum.inProgress += project.stats.inProgress;
     sum.blocked += project.stats.blocked;
     sum.closed += project.stats.closed;
+    notDone = notDone === null || project.stats.notDone === null ? null : notDone + project.stats.notDone;
     if (project.stats.urgent === null) blindUrgent += 1;
     else {
       urgent += project.stats.urgent;
@@ -293,6 +308,7 @@ function boardTotals(projects: BoardProject[]): {
   }
   return {
     ...sum,
+    notDone,
     urgent: measured === 0 && blindUrgent > 0 ? null : urgent,
     blindUrgent,
     live: sum.open + sum.inProgress + sum.blocked,
@@ -419,6 +435,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
       inProgress: countsComplete ? totals.inProgress : null,
       blocked: countsComplete ? totals.blocked : null,
       closed: countsComplete && (!capabilities.live || complete) ? totals.closed : null,
+      notDone: countsComplete && (!capabilities.live || complete) ? totals.notDone : null,
     },
     live: capabilities.live, reason: capabilities.reason,
     rows: allTasks.filter(task => matches(task) && !waitingIds.has(task.id)).sort(boardOrder), inbox,

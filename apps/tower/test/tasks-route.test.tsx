@@ -253,10 +253,35 @@ function row(container: HTMLElement, id: string): HTMLElement {
   return found!;
 }
 
+/** A close where nothing shipped from a row: Close as, the resolution, then
+ * the note line sent as Enter sends it. */
+function closeAs(container: HTMLElement, scope: HTMLElement, word: string, line: { note?: string; duplicateOf?: string } = {}) {
+  fireEvent.click(within(scope).getByRole("button", { name: "Close as" }));
+  closeAsPicked(container, word, line);
+}
+
+/** The same, once the menu is open. */
+function closeAsPicked(container: HTMLElement, word: string, { note, duplicateOf }: { note?: string; duplicateOf?: string } = {}) {
+  fireEvent.click(screen.getByRole("menuitem", { name: word }));
+  const form = container.querySelector<HTMLFormElement>('[data-task-form="close-as"]');
+  expect(form, "the note line under the row").not.toBeNull();
+  if (duplicateOf !== undefined) fireEvent.change(within(form!).getByLabelText("Duplicate of"), { target: { value: duplicateOf } });
+  if (note !== undefined) fireEvent.change(within(form!).getByLabelText("Note"), { target: { value: note } });
+  fireEvent.submit(form!);
+}
+
+/** The press on a row's title that opens it in place; the row's Close as menu
+ * is the other button with an expanded state. */
+function rowFold(container: HTMLElement, id: string): HTMLElement {
+  const fold = row(container, id).querySelector<HTMLElement>("td:first-child button[aria-expanded]");
+  expect(fold, `row ${id}'s fold`).not.toBeNull();
+  return fold!;
+}
+
 /** Open a row in place and hand back what it revealed: the claim/close/defer
  * verbs live behind the same press that shows the evidence. */
 function open(container: HTMLElement, id: string): HTMLElement {
-  fireEvent.click(within(row(container, id)).getByRole("button", { expanded: false }));
+  fireEvent.click(rowFold(container, id));
   const detail = container.querySelector<HTMLElement>(`[data-task-detail="${id}"]`);
   expect(detail, `expanded row ${id}`).not.toBeNull();
   return detail!;
@@ -857,7 +882,8 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     const ask = within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement);
     expect(gate.getByRole("button", { name: "Approve" })).toBeEnabled();
     expect(ask.getByRole("button", { name: "Answer" })).toBeEnabled();
-    expect(ask.getByRole("button", { name: "Dismiss" })).toBeEnabled();
+    expect(ask.getByRole("button", { name: "Close as" })).toBeEnabled();
+    expect(ask.queryByRole("button", { name: "Dismiss" })).toBeNull();
     // No row opens on arrival: `ListRow` reads `defaultExpanded` once, at
     // mount, and this panel mounts on the photograph and is reordered by the
     // live read.
@@ -969,11 +995,13 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
 
   it("takes a dismissal back inside its window, and sends nothing", async () => {
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    const ask = within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement);
+    const ask = container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement;
 
-    fireEvent.click(ask.getByRole("button", { name: "Dismiss" }));
+    // Dismiss is the Close as menu's Won't do: one pick, then Enter on its note.
+    closeAs(container, ask, "Won't do");
     expect(container.querySelector('[data-inbox-row="md-9k1"]')).toBeNull();
     expect(waitingCount(container)).toBe("1");
+    expect(vi.mocked(toasts.success).mock.calls.at(-1)![0]).toBe("Closed as Won't do");
 
     const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
     act(() => undo.action.onClick());
@@ -981,9 +1009,18 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     act(() => flushAnswers());
     expect(api.dismissTask).not.toHaveBeenCalled();
 
-    fireEvent.click(within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    closeAs(container, container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement, "Won't do");
     act(() => flushAnswers());
     await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith("md-9k1"));
+  });
+
+  it("declines a question with the resolution picked, the note as its reason and a duplicate's other task", async () => {
+    const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
+    closeAs(container, container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement, "Duplicate", { note: "Asked twice", duplicateOf: "md-1w2" });
+    expect(vi.mocked(toasts.success).mock.calls.at(-1)![0]).toBe("Closed as Duplicate");
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.dismissTask).toHaveBeenCalledWith("md-9k1", "Asked twice", { resolution: "duplicate", duplicateOf: "md-1w2" }));
+    expect(api.closeTask).not.toHaveBeenCalled();
   });
 
   it("takes the newest answer back with ⌘Z while no field has focus", () => {
@@ -999,7 +1036,7 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
   it("hands back the local read's own words when bd refuses, and the row returns", async () => {
     api.dismissTask.mockRejectedValueOnce(new Error("bd: no such issue md-9k1"));
     const { container } = renderBoard({ data: withInbox, live: true, boards: liveInbox() });
-    fireEvent.click(within(container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement).getByRole("button", { name: "Dismiss" }));
+    closeAs(container, container.querySelector('[data-inbox-row="md-9k1"]') as HTMLElement, "Won't do");
     act(() => flushAnswers());
 
     await waitFor(() =>
@@ -1046,6 +1083,61 @@ describe("/tasks — claim, close and defer in place", () => {
 
     await waitFor(() => expect(api.closeTask).toHaveBeenCalledOnce());
     expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "shipped in 6b08798");
+  });
+
+  it("closes a task nobody holds as Won't do from its row in one pick and Enter, with Undo", async () => {
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board([liveTask({ assignee: null })]) } });
+    const line = row(container, "md-1w2");
+    fireEvent.click(within(line).getByRole("button", { name: "Close as" }));
+    const menu = screen.getByRole("menu", { name: "Close Fix the recipe schema as" });
+    expect(within(menu).getAllByRole("menuitem").map((entry) => entry.textContent)).toEqual(["Won't do", "Duplicate", "Can't reproduce", "Already handled"]);
+    closeAsPicked(container, "Won't do", { note: "Nobody asked for it" });
+    // The row leaves at once, and the toast carries the Undo.
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).toBeNull();
+    expect(toasts.success).toHaveBeenLastCalledWith("Closed as Won't do", expect.objectContaining({
+      description: "Fix the recipe schema", action: expect.objectContaining({ label: "Undo" }) }));
+    const undo = vi.mocked(toasts.success).mock.calls.at(-1)![1] as { action: { onClick: () => void } };
+    act(() => undo.action.onClick());
+    expect(container.querySelector('tr[data-task-row="md-1w2"]')).not.toBeNull();
+    act(() => flushAnswers());
+    expect(api.closeTask).not.toHaveBeenCalled();
+
+    closeAs(container, row(container, "md-1w2"), "Won't do", { note: "Nobody asked for it" });
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "Nobody asked for it", { resolution: "wont-do" }));
+  });
+
+  it("sends a duplicate with the other task's id, and its words as the reason when no note is written", async () => {
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board([liveTask()]) } });
+    fireEvent.click(within(row(container, "md-1w2")).getByRole("button", { name: "Close as" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Duplicate" }));
+    const form = container.querySelector<HTMLFormElement>('[data-task-form="close-as"]')!;
+    const send = within(form).getByRole("button", { name: "Close task" });
+    // The other task is named before the line sends, and is never this one.
+    expect(send).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText("Duplicate of"), { target: { value: "md-1w2" } });
+    expect(send).toBeDisabled();
+    fireEvent.change(within(form).getByLabelText("Duplicate of"), { target: { value: "md-9x1" } });
+    expect(send).toBeEnabled();
+    fireEvent.submit(form);
+    act(() => flushAnswers());
+    await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "Duplicate of md-9x1", { resolution: "duplicate", duplicateOf: "md-9x1" }));
+  });
+
+  it("splits Closed this week into done and not done, and the Status filter counts every close", () => {
+    const { container } = renderBoard({ live: true, boards: { "meadow.example": board([
+      liveTask({ id: "md-a1", status: "closed", closedAt: "2026-09-21T10:00:00.000Z" }),
+      liveTask({ id: "md-a2", status: "closed", closedAt: "2026-09-21T11:00:00.000Z", resolution: "wont-do" }),
+      liveTask({ id: "md-a3", status: "closed", closedAt: "2026-09-21T12:00:00.000Z", resolution: "duplicate", duplicateOf: "md-a1" }),
+      liveTask({ id: "md-a4" }),
+    ]) } });
+    const figure = container.querySelector("[data-tasks-closed]")!;
+    expect(figure).toHaveTextContent("3");
+    expect(figure).toHaveTextContent("1 done · 2 not done");
+    expect(screen.getByRole("option", { name: /^Closed this week · 3/ })).toBeInTheDocument();
+    // A closed row offers no Close as.
+    expect(within(row(container, "md-a2")).queryByRole("button", { name: "Close as" })).toBeNull();
+    expect(within(row(container, "md-a4")).getByRole("button", { name: "Close as" })).toBeEnabled();
   });
 
   it("parks a task until a date it is given", async () => {
@@ -1317,6 +1409,10 @@ describe("/tasks — the read-only fallback", () => {
       open(container, "md-1w2").querySelector<HTMLButtonElement>('[data-task-action="claim"]')!
         .disabled,
     ).toBe(true);
+    // A row's Close as is drawn and cannot be pressed; its reason is the banner's sentence.
+    const closeAsButton = within(row(container, "md-1w2")).getByRole("button", { name: "Close as" });
+    expect(closeAsButton).toBeDisabled();
+    expect(closeAsButton).toHaveAccessibleDescription(READ_ONLY_TASKS_HINT);
   });
 
   it("still shows the board — the fallback is a degradation, not a dead end", () => {
@@ -1697,7 +1793,7 @@ describe("Task reasons support focus and tap", () => {
         total: 1, closed: 0, counts: { open: 1, inProgress: 0, blocked: 0, deferred: 0 }, priorities: [0, 1, 0, 0, 0] }],
       ready: [item({ parent: "md-epic" })],
     })] }) });
-    fireEvent.click(within(row(container, "md-1w2")).getByRole("button", { expanded: false }));
+    fireEvent.click(rowFold(container, "md-1w2"));
     fireEvent.click(screen.getByRole("button", { name: "Parent epic" }));
     expect(screen.getByRole("tooltip")).toHaveTextContent("The epic this task hangs off");
   });
@@ -1878,12 +1974,12 @@ describe("/tasks — a decision with choices is one press from Your decisions", 
   const rowOf = (container: HTMLElement, id: string) => container.querySelector(`[data-inbox-row="${id}"]`) as HTMLElement | null;
   const names = (scope: HTMLElement) => within(scope).getAllByRole("button").map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim());
 
-  it("draws the question and one button per option on the row, the recommended first, with Answer and Dismiss under them", () => {
+  it("draws the question and one button per option on the row, the recommended first, with Answer and Close as under them", () => {
     const { container } = renderBoard({ data: waiting(["md-c1"]), live: true, boards: one() });
     const row = rowOf(container, "md-c1")!;
     expect(row).toHaveTextContent("Meadow Board · needs your choice");
     const group = within(row).getByRole("group", { name: CHOICES.question });
-    expect(names(group)).toEqual(["(b) Tuesday", "(a) Monday", "(c) Friday", "Answer", "Dismiss"]);
+    expect(names(group)).toEqual(["(b) Tuesday", "(a) Monday", "(c) Friday", "Answer", "Close as"]);
     expect(within(group).getByText("Recommended")).toBeInTheDocument();
     expect(within(group).getByText("Opens were highest on Tuesdays.")).toBeInTheDocument();
     expect(within(group).getByLabelText("Note")).toBeInTheDocument();

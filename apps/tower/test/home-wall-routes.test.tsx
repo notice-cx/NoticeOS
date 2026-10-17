@@ -1050,7 +1050,7 @@ describe("Home — Decide", () => {
     expect(rows[1]).toHaveTextContent("Top-priority ask");
     expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("button", { name: "Answer" })).toBeInTheDocument();
-    expect(within(rows[1]!).getByRole("button", { name: "Dismiss" })).toBeInTheDocument();
+    expect(within(rows[1]!).getByRole("button", { name: "Close as" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
   });
 

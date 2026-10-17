@@ -7,6 +7,7 @@ const api = vi.hoisted(() => ({
   respondToTask: vi.fn(async () => undefined),
   chooseOnTask: vi.fn(async () => undefined),
   dismissTask: vi.fn(async () => undefined),
+  closeTask: vi.fn(async () => undefined),
   resolveGate: vi.fn(async () => undefined),
 }));
 
@@ -377,6 +378,21 @@ describe("each answer is one call on the lane the inbox always used", () => {
     await sendInboxAnswer({ kind: "choose", id: "md-pick2", title: "Pick", option: "a", note: "Ship it Friday", project: "medley" }, true);
     expect(api.chooseOnTask).toHaveBeenNthCalledWith(1, "md-pick", "b", undefined);
     expect(api.chooseOnTask).toHaveBeenNthCalledWith(2, "md-pick2", "a", "Ship it Friday", { keepalive: true, project: "medley" });
+  });
+
+  it("a close where nothing shipped closes with its resolution, or declines a question with it, the note as the reason", async () => {
+    await sendInboxAnswer({ kind: "close", id: "md-1", title: "One", resolution: "wont-do", note: "Nobody asked for it" });
+    await sendInboxAnswer({ kind: "close", id: "md-2", title: "Two", resolution: "duplicate", duplicateOf: "md-1", project: "medley" }, true);
+    await sendInboxAnswer({ kind: "close", id: "md-3", title: "Three", resolution: "cant-reproduce" });
+    expect(api.closeTask).toHaveBeenNthCalledWith(1, "md-1", "Nobody asked for it", { resolution: "wont-do" });
+    // With no note, the resolution's words are the reason; a duplicate's name the other task.
+    expect(api.closeTask).toHaveBeenNthCalledWith(2, "md-2", "Duplicate of md-1", { keepalive: true, project: "medley", resolution: "duplicate", duplicateOf: "md-1" });
+    expect(api.closeTask).toHaveBeenNthCalledWith(3, "md-3", "Can't reproduce", { resolution: "cant-reproduce" });
+    await sendInboxAnswer({ kind: "close", id: "md-ask", title: "Ask", resolution: "wont-do", via: "dismiss" });
+    await sendInboxAnswer({ kind: "close", id: "md-ask2", title: "Ask", resolution: "already-handled", note: "md-1 did it", via: "dismiss" });
+    expect(api.dismissTask).toHaveBeenNthCalledWith(1, "md-ask");
+    expect(api.dismissTask).toHaveBeenNthCalledWith(2, "md-ask2", "md-1 did it", { resolution: "already-handled" });
+    expect(api.closeTask).toHaveBeenCalledTimes(3);
   });
 
   it("a pick waits out the Undo window like an answer, and an Undo inside it sends nothing", async () => {

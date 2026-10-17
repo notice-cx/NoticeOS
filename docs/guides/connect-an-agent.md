@@ -71,7 +71,7 @@ Creating, changing, claiming, commenting on and closing take an `idempotency_key
 For example, a bug that no longer happens closes with:
 
 ```json
-{ "task": "ro-4f2", "resolution": "cant-reproduce", "reason": "Ran the import three times on 2026-10-17 with the reported file; each run finished without the error.", "model": "Claude Opus 5.5", "idempotency_key": "close-ro-4f2-01" }
+{ "task": "ex-4f2", "resolution": "cant-reproduce", "reason": "Ran the import three times on 2026-10-17 with the reported file; each run finished without the error.", "model": "Claude Opus 5.5", "idempotency_key": "close-ex-4f2-01" }
 ```
 
 A refused call names its cause and the next step: a project or task the workspace does not hold (with the project that holds tasks of that prefix, which also covers a `duplicate_of` in another project), an unknown `resolution` or a `duplicate_of` without `duplicate`, the task's own state (closed, held by someone else, waiting on an approval, with open children, or already carrying your choice when the call changes its choices), an argument over its limit, or the task store not completing the call. A call the connection is not allowed to make gets one general refusal.

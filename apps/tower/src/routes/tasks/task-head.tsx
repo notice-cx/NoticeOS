@@ -1,6 +1,8 @@
 import { Children, type ReactNode } from "react";
 import { Check, CircleCheck } from "lucide-react";
 import { choiceName, type TaskChoice, type TaskChoices } from "@noticeos/contract/task-choices";
+import { TASK_RESOLUTION_LABELS, type TaskResolution } from "@noticeos/contract/task-resolution";
+import { RESOLUTION_GLYPH } from "@/components/CloseResolution";
 import { ageMs, formatAge } from "@shared/freshness";
 import { AgentMark } from "@/components/AgentMark";
 import { ChoiceButtons } from "@/components/ChoiceButtons";
@@ -139,13 +141,17 @@ export function TaskHead({
 /**
  * A closed task's evidence, directly under its header: who closed it with the
  * model they named, when, and the reason they gave. Neutral ink: closing
- * records what shipped, not an outcome anyone has measured.
+ * records what shipped, not an outcome anyone has measured. A close where
+ * nothing shipped leads with its resolution, "Closed as Won't do", and a
+ * duplicate links the task it names; its note follows when it has one.
  */
 export function ClosedSummary({
   by,
   model,
   at,
   nowMs,
+  resolution = "done",
+  duplicate = null,
   children,
   className,
 }: {
@@ -153,17 +159,30 @@ export function ClosedSummary({
   model: string | null;
   at: string | null;
   nowMs: number;
-  /** The close reason, rendered by the caller. */
-  children: ReactNode;
+  resolution?: TaskResolution;
+  /** A duplicate's other task, as a link the caller renders. */
+  duplicate?: ReactNode;
+  /** The close reason, rendered by the caller; nothing when a close where
+   * nothing shipped has no note. */
+  children?: ReactNode;
   className?: string;
 }) {
   const age = ageMs(nowMs, at);
   const who = [by, model].filter(Boolean).join(" · ");
+  const Glyph = resolution === "done" ? Check : RESOLUTION_GLYPH[resolution];
+  const heading = resolution === "done" ? "Close reason" : `Closed as ${TASK_RESOLUTION_LABELS[resolution]}`;
   return (
-    <section aria-label="Close reason" data-task-closed="" className={cn("flex flex-col gap-1.5", className)}>
+    <section aria-label={heading} data-task-closed="" data-task-resolution={resolution} className={cn("flex flex-col gap-1.5", className)}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <Check className="size-3.5 shrink-0" aria-hidden />
-        <h2 className={cn("m-0", eyebrowClass)}>Close reason</h2>
+        <Glyph className="size-3.5 shrink-0" aria-hidden />
+        {resolution === "done" ? (
+          <h2 className={cn("m-0", eyebrowClass)}>Close reason</h2>
+        ) : (
+          <h2 className="m-0 text-sm font-medium text-foreground [overflow-wrap:anywhere]" data-task-resolution-fact="">
+            {heading}
+            {duplicate ? <> of {duplicate}</> : null}
+          </h2>
+        )}
         {who ? <span className="font-medium text-foreground">{who}</span> : null}
         {age !== null ? <time className="tabular-nums" dateTime={at ?? undefined}>{formatAge(age)} ago</time> : null}
       </div>

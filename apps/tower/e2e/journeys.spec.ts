@@ -1853,6 +1853,40 @@ test("empty install → saved asset → fake connection and mapping → real met
   expect(created[3]).toBe("Sitemap URLs fell from 120 to 80");
   expect(JSON.parse(created[created.indexOf("--metadata") + 1]!)).toMatchObject({ noticeos_kind: "finding", noticeos_key: "journey-sitemap-drop" });
   await assertNoPageOverflow(page);
+
+  // A task nobody holds closes as Won't do from its All tasks row: Close as,
+  // Won't do, a note and Enter. Undo takes the first one back; the second
+  // reaches the task client once its window closes, with the resolution
+  // recorded beside the closer and the note as the reason.
+  const filedId = (await status()).tasks.find((row) => row.id !== "jt-review" && row.id !== "jt-approve")!.id;
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  const filedRow = page.locator(`tr[data-task-row="${filedId}"]`);
+  const closeWontDo = async () => {
+    // A phone's row is folded to its summary line; its press opens the row, Close as included.
+    if (testInfo.project.name === "mobile") await keyboardActivate(page, filedRow.locator("td:first-child button"));
+    await keyboardActivate(page, filedRow.getByRole("button", { name: "Close as", exact: true }));
+    // The menu opens on its first item.
+    await expect(page.getByRole("menuitem", { name: "Won't do", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.locator('[data-task-form="close-as"]').getByLabel("Note")).toBeFocused();
+    await page.keyboard.type("The sitemap was rebuilt the next day");
+    await page.keyboard.press("Enter");
+  };
+  await closeWontDo();
+  await expect(filedRow).toHaveCount(0);
+  const closedToast = page.locator("[data-sonner-toast]").filter({ hasText: "Closed as Won't do" });
+  await expect(closedToast).toBeVisible();
+  await closedToast.getByRole("button", { name: "Undo", exact: true }).click();
+  await expect(filedRow).toHaveCount(1);
+  expect((await status()).taskCommands.some((argv) => argv[2] === "close")).toBe(false);
+  await closeWontDo();
+  await expect.poll(async () => (await status()).tasks.find((row) => row.id === filedId)?.status, { timeout: 20_000 }).toBe("closed");
+  const closing = (await status()).taskCommands.filter((argv) => argv[2] === "close" || (argv[2] === "update" && argv[3] === filedId));
+  expect(closing.map((argv) => argv.slice(2, 6).join(" "))).toEqual([
+    `close ${filedId} --reason The sitemap was rebuilt the next day`,
+    `update ${filedId} --metadata ${JSON.stringify({ noticeos_closed_by: closing[1]![closing[1]!.indexOf("--actor") + 1], noticeos_closed_at: JOURNEY_NOW, noticeos_resolution: "wont-do" })}`,
+  ]);
+  await assertNoPageOverflow(page);
   expect(pageErrors).toEqual([]);
 });
 
