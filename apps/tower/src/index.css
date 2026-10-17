@@ -141,6 +141,10 @@
   /* A dropdown's chevron in the muted ink; an image cannot read a variable,
      so each theme spells its own. */
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a4aec3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  /* The two grounds a site's icon is previewed on (its Identity card): white,
+     and the Wall's black. The same in both themes, which is the point. */
+  --swatch-light: oklch(1 0 0);
+  --swatch-dark: oklch(0 0 0);
 }
 
 /* The television is a box, not a viewport. `.wall-root` is drawn at
@@ -558,6 +562,8 @@
   --color-glass-line: var(--glass-line);
   --color-viz-track: var(--viz-track);
   --color-viz-grid: var(--viz-grid);
+  --color-swatch-light: var(--swatch-light);
+  --color-swatch-dark: var(--swatch-dark);
   --shadow-raised: var(--shadow-raised);
 
   /* The desk's type scale above Tailwind's own steps. Numbers own the top of

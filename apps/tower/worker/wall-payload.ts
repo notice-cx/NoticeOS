@@ -18,7 +18,8 @@ import { beadsReading } from "./task-source";
 import { loadWorkWeeks } from "./work-payload";
 import { readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
-import { loadSiteIcons } from "./site-icons";
+import { cardIcons, loadSiteIcons } from "./site-icons";
+import { siteIconAddresses } from "../shared/site-display";
 import {
   WALL_SIGNAL_CHART_DAYS,
   emptySignalTrendSet,
@@ -686,7 +687,7 @@ export async function buildWallPayload(
       // nothing.
       panelReview: latestPanelDate ? (panelReviewByAsset.get(a.id) ?? null) : null,
       latestPanelDate,
-      icons: iconsByAsset.get(a.id) ?? null,
+      icons: cardIcons(iconsByAsset.get(a.id), siteIconAddresses(dashboard.sites, a.id)),
     };
   });
 

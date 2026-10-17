@@ -1019,11 +1019,13 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
       },
     ],
   },
-  // Where each site shows. A key is a switch the operator set; an absent key
+  // Where each site shows, and the icon addresses that replace the ones read
+  // from its pages. A switch key is a switch the operator set; an absent key
   // follows the site's stage (`siteShownOn`, apps/tower/shared/site-display.ts),
-  // so a lifecycle move never rewrites a hand-set switch. Addable: a store
-  // seeded before this map existed has no `/sites`, and the first switch
-  // inserts the whole map.
+  // so a lifecycle move never rewrites a hand-set switch. An icon address wins
+  // over the read one on every surface (apps/tower/worker/site-icons.ts).
+  // Addable: a store seeded before this map existed has no `/sites`, and the
+  // first save inserts the whole map.
   'site-display': {
     file: 'config/tower.json',
     container: '/sites',
@@ -1032,9 +1034,9 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
     keyField: null,
     addableContainer: true,
     label: 'Where each site shows',
-    describe: 'where one site shows',
+    describe: 'where one site shows and the icons it uses',
     owner: 'config/tower.README.md',
-    surface: "Sites → Arrange, Settings → Sites, and the site's Settings tab (Where it shows)",
+    surface: "Sites → Arrange, Settings → Sites, and the site's Settings tab (Identity, Where it shows)",
     fields: [
       {
         name: 'list',
@@ -1056,6 +1058,23 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         type: 'boolean',
         required: false,
         describe: "a row in the TV's Work this week",
+      },
+      // The same ceiling the store keeps on a read icon address (migration 0017).
+      {
+        name: 'lightIcon',
+        label: 'Light icon',
+        type: 'url',
+        required: false,
+        maxLength: 2048,
+        describe: 'drawn on light screens in place of the one read',
+      },
+      {
+        name: 'darkIcon',
+        label: 'Dark icon',
+        type: 'url',
+        required: false,
+        maxLength: 2048,
+        describe: 'drawn on dark screens and the TV in place of the one read',
       },
     ],
   },

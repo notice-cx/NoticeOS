@@ -88,6 +88,7 @@ function refusingIngest(): TowerEnv["INGEST"] {
     syncMediavine: refuse('syncMediavine'),
     discoverSites: refuse("discoverSites"),
     collectNow: refuse("collectNow"),
+    readSiteIcons: refuse("readSiteIcons"),
     createAnnotation: refuse("createAnnotation"),
     readAssetState: refuse("readAssetState"),
     writeAssetColumn: refuse("writeAssetColumn"),

@@ -676,9 +676,10 @@ export interface AssetCard {
    * for one panel day are one landing, which is why this is a day and not a
    * write timestamp. null when none has landed. */
   latestPanelDate: string | null;
-  /** The light and dark icons this site's home page declares, from the newest
+  /** The light and dark icons every surface draws for this site: an address
+   * set on its Settings tab, else the one its home page declares in the newest
    * read that reached the page, with when it was read; null when no read has
-   * reached it yet. Absent on an older payload, which means the same. */
+   * run and nothing is set. Absent on an older payload, which means the same. */
   icons?: SiteIcons | null;
 }
 

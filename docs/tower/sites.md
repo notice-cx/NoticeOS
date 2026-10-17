@@ -41,7 +41,7 @@ The page lists the sites whose **Home and Sites list** switch is on. The summary
 - **Tasks**: the site's slice of the Tasks board: its decisions, **Urgent**, **Blocked** and **Done this week** for the site's project, each with its change since last week, and **In and out** with done this week against last week.
 - **Activity**: the last 90 days of changes and bets on one timeline, a bet marked where it was registered and again where its verdict was recorded. Under it, the **Timeline** of recorded changes and the bets still being measured.
 - **Data sources**: how the site's data arrives, drawn as one diagram with a failing source outlined in red; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones.
-- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
+- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Identity** holds the site's **Display name**, **Owning entity**, **Domain** and **Site id**, then **Icons**: what NoticeOS found the last time it read the site's home page (**Icons declared**, **Nothing declared**, **Page unreachable** or **Not read yet**), when that was, such as **Read 2h ago**, and **Read again**. Under them, **Light icon** and **Dark icon** each show one icon on a white square and on a black square, its address, and a field for an address of your own. A site with no domain, and the System, have no **Icons**. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
 
 ## What you can do
 
@@ -56,6 +56,8 @@ The page lists the sites whose **Home and Sites list** switch is on. The summary
 - On **Activity**, **Log a change** opens one form with two choices: **Something happened** records a change, and **Watch an outcome** registers an outcome check against one.
 - On **Data sources**, **Connect** opens the connect panel and **Not using** records a reason for skipping a source.
 - On **Settings**, the cards hold everything that applies to this one site.
+- On **Identity**, **Read again** reads the site's home page now, the same read the **Search accessibility checks** job makes once a day, and shows what it found and when.
+- On **Identity**, type an image address in **Light icon** or **Dark icon** and press **Save** to draw that image in place of the icon the page declares: **Light icon** on light screens, **Dark icon** on dark screens and the TV. The message names the change, such as **Saved — Light icon for Northwind**, with **Undo**, and the icon reads **Set here** with the page's own address under it as **From the page**. Save an empty field to draw the page's icon again.
 
 ## Where each site shows
 
@@ -75,7 +77,7 @@ A retired site that is shown reads **Retired** wherever it is: its status on Hom
 
 A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money.
 
-The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration.
+The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration. The **Light icon** and **Dark icon** addresses are stored in the same site entry.
 
 ## States and labels
 
@@ -83,6 +85,8 @@ The switches are stored in `config/tower.json` at `sites`, by site id, and are e
 - With no sites the page shows **No sites yet**; with one, it is that site's row.
 - **2 hidden** beside the count is how many sites have their **Home and Sites list** switch off. **Every site is hidden** means every site's switch is off.
 - A site with no numbers yet opens on **Data sources** instead of an empty Overview.
+- When **Read again** reads nothing, the line beside it says why: **Schedule paused** (the **Search accessibility checks** job is paused on **Settings**), **Not read for this site** (a retired site), **Needs a database update** (the store has no table for icon reads yet), **No network · nothing read** (NoticeOS itself could not reach the network) or **Read failed · try again**.
+- **Page unreachable** keeps the icons from the last read that reached the page.
 - A **hollow point** is a day still being counted; it fills in once the day is complete.
 - A **dashed line** is a projection or last week's comparison, never a measurement.
 - A **bracketed day** on the axis is a day that cannot be compared with others, such as a day a reporting time zone changed; it is not coloured as better or worse.

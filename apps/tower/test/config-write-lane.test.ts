@@ -10,7 +10,7 @@ import { decodeConfigWritable } from "../src/lib/critical-response";
 import { handleConfigRequest } from "../vite/config-write-lane";
 import { DEFAULT_REPO_ROOT, crossOrigin, laneRepoRoot } from "../vite/lane";
 import { parseDashboardConfig } from "../shared/dashboard";
-import { readSiteDisplay, shownOnChange, type ShownOnSurface, type SiteDisplay } from "../shared/site-display";
+import { readSiteDisplay, shownOnChange, siteDisplayChange, type ShownOnSurface, type SiteDisplay, type SiteIconKey } from "../shared/site-display";
 import { DEFAULT_WALL_LAYOUT } from "../shared/wall-layout";
 
 // The Tower's one direct write to the repo: it runs in the dev server's Node
@@ -1628,6 +1628,48 @@ describe("where each site shows", () => {
     const reply = await save(root, stale.ops);
     expect(reply.status).toBe(409);
     expect((await towerOf(root)).sites).toEqual({ "meadow.example": { tv: false } });
+  });
+
+  it("sets, replaces and clears a site's icon addresses beside its switches, and undoes each", async () => {
+    const root = await tempRepoWithTower();
+    const before = await towerOf(root);
+    const LIGHT = "https://cdn.example.com/meadow-light.svg";
+    const DARK = "https://cdn.example.com/meadow-dark.png";
+    const steps: { key: SiteIconKey | ShownOnSurface; value: string | boolean | null; after: unknown }[] = [
+      { key: "lightIcon", value: LIGHT, after: { "meadow.example": { lightIcon: LIGHT } } },
+      { key: "tv", value: false, after: { "meadow.example": { lightIcon: LIGHT, tv: false } } },
+      { key: "darkIcon", value: DARK, after: { "meadow.example": { lightIcon: LIGHT, tv: false, darkIcon: DARK } } },
+      { key: "lightIcon", value: `${LIGHT}?v=2`, after: { "meadow.example": { lightIcon: `${LIGHT}?v=2`, tv: false, darkIcon: DARK } } },
+      { key: "darkIcon", value: null, after: { "meadow.example": { lightIcon: `${LIGHT}?v=2`, tv: false } } },
+    ];
+    const undos: { ops: unknown[]; back: unknown }[] = [];
+    for (const step of steps) {
+      const was = (await towerOf(root)).sites;
+      const change = siteDisplayChange(readSiteDisplay(was), "meadow.example", step.key, step.value);
+      expect((await save(root, change.ops)).status).toBe(200);
+      expect((await towerOf(root)).sites).toEqual(step.after);
+      // What the lane wrote reads back through the one reading every card uses.
+      expect(readSiteDisplay((await towerOf(root)).sites)).toEqual(step.after);
+      undos.unshift({ ops: change.undo, back: was });
+    }
+    for (const undo of undos) {
+      expect((await save(root, undo.ops)).status).toBe(200);
+      expect((await towerOf(root)).sites).toEqual(undo.back);
+    }
+    expect(await towerOf(root)).toEqual(before);
+    // Clearing an address nobody set writes nothing.
+    expect(siteDisplayChange({ "meadow.example": { tv: false } }, "meadow.example", "darkIcon", null)).toEqual({ ops: [], undo: [] });
+  });
+
+  it("refuses an icon address that is not an http or https address, or is too long", async () => {
+    const root = await tempRepoWithTower();
+    const notWeb = await save(root, siteDisplayChange(undefined, "meadow.example", "lightIcon", "ftp://example.com/icon.png").ops);
+    expect(notWeb.status).toBe(422);
+    expect(String((notWeb.body as { detail?: unknown }).detail)).toContain("Light icon must be an http or https URL");
+    const long = await save(root, siteDisplayChange(undefined, "meadow.example", "darkIcon", `https://example.com/${"a".repeat(2048)}`).ops);
+    expect(long.status).toBe(422);
+    expect(String((long.body as { detail?: unknown }).detail)).toContain("Dark icon must be 2048 characters or fewer");
+    expect(await towerOf(root)).not.toHaveProperty("sites");
   });
 });
 

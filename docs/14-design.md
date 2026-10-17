@@ -100,6 +100,10 @@ The families, and what each means:
   type sizes above Tailwind's steps (`text-display`, `text-figure`,
   `text-figure-sm`, `text-micro`) are listed in `THEME_TEXT_SIZES`
   (`lib/utils.ts`) so a class merge never drops them.
+- **Icon swatches: `swatch-light` / `swatch-dark`.** White and the Wall's
+  black, the same in both themes: the two backgrounds a site's icon is
+  previewed on in its Identity card, so the operator sees it on the light
+  Tower and on the TV. They are used for nothing else.
 - **The Wall's scale.** Every type size on the TV (`text-wall-*`) and every
   gap between its regions (`spacing-wall-*`) is a token, because the Wall is
   the one surface with a fixed height and its whitespace is limited. The

@@ -23,7 +23,7 @@ import { demoViewerReadResponse, demoViewerResponse } from './demo-viewer-route'
 import { requireStandaloneWorkspace, withWorkspaceEntry, workspaceEntryOrigin, workspaceProfile, type WorkspaceEntryBindings } from '../../../scripts/workspace-entry.mjs';
 import { isCloudflareD1Request, cloudflareD1Request } from '../../../scripts/workspace-operations.mjs';
 import { crossOrigin } from './http';
-import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK, isHostedStoredRead, isHostedGoogleDiscovery, connectionReadinessRequest, credentialWriteRequest, providerCollectionRequest, liveProviderReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from '../../../scripts/workspace-operations.mjs';
+import { GOOGLE_INTEGRATION_START, GOOGLE_INTEGRATION_CALLBACK, isHostedStoredRead, isHostedGoogleDiscovery, connectionReadinessRequest, credentialWriteRequest, providerCollectionRequest, liveProviderReadRequest, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from '../../../scripts/workspace-operations.mjs';
 import { type AnnotationWriter, handleAnnotationRequest } from "./annotation-route";
 import { type AssetColumnWriter, handleAssetColumnRequest } from "./asset-column-route";
 import { type AssetOrderWriter, handleAssetOrderRequest } from './asset-order-route';
@@ -60,6 +60,7 @@ import {
 import { handleMediavineRequest, type MediavineBinding } from './mediavine-route';
 import { loadProviderMeter, loadSpendPreview } from "./metered-spend";
 import { SITES_PATH, handleSitesRequest, handleCollectRequest, type SiteDiscoveryIngest } from "./site-discovery-route";
+import { SITE_ICONS_PATH, handleSiteIconsReadRequest, type SiteIconsReader } from "./site-icons-route";
 import { handleGa4RealtimeRequest } from './ga4-realtime-route';
 import { SITE_NAME_PATH, handleSiteNameRequest } from "./site-name-route";
 import { ENV_IMPORT_PATH } from "../shared/env-import";
@@ -114,6 +115,7 @@ export interface TowerEnv extends WorkspaceEntryBindings, AuthEntryBindings, Dem
     MediavineBinding &
     McpIngest &
     SiteDiscoveryIngest &
+    SiteIconsReader &
     RuleBacktester &
     RunnerIngest &
     WatchQueryHistoryReader &
@@ -189,6 +191,9 @@ async function route(request: Request, env: CallEnv): Promise<Response> {
   const assetMatch = url.pathname.match(/^\/api\/assets\/([^/]+)$/);
   const orderMatch = url.pathname.match(/^\/api\/assets\/([^/]+)\/order$/);
   if (orderMatch) return handleAssetOrderRequest(request, url, env.INGEST, orderMatch[1]!);
+  // Read again on a site's Settings tab: the ingest's own icon read, now.
+  const iconsMatch = url.pathname.match(SITE_ICONS_PATH);
+  if (iconsMatch) return handleSiteIconsReadRequest(request, url, env.INGEST, iconsMatch[1]!);
   if (assetMatch && request.method === "PATCH") {
     return handleAssetColumnRequest(
       request,
@@ -663,6 +668,24 @@ const towerHandler = {
               },
             };
             const response = await handleWatchQueryHistoryRequest(request, new URL(request.url), ingest, watchHistory.asset);
+            if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
+            return response;
+          });
+        } catch { return Response.json({ error: 'workspace_entry_unavailable' }, { status: 403 }); }
+      }
+      const iconsRead = siteIconsReadRequest(request);
+      if (profile === 'hosted' && iconsRead) {
+        try {
+          const proof = request.clone();
+          return await withWorkspaceEntry(env, proof, async () => {
+            let receiverFailed = false;
+            const ingest: SiteIconsReader = {
+              async readSiteIcons(input) {
+                try { return await snapshotRpcData(env.INGEST.readSiteIcons(input, proof.clone())); }
+                catch (error) { receiverFailed = true; throw error; }
+              },
+            };
+            const response = await handleSiteIconsReadRequest(request, new URL(request.url), ingest, iconsRead.asset);
             if (receiverFailed) throw new Error('Workspace receiver rejected the request.');
             return response;
           });

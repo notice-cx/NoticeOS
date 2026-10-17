@@ -276,12 +276,14 @@ Delete must name.
 | `task-hub-spokes` | `beads.json` · `/spokes` | array · `asset` | `asset`, `prefix`, `database`, `repo` | `/settings` |
 | `data-source-catalog` | `integrations.json` · `/catalog` | array · `id` | `id`, `label`, `scope`, `layer`, `credential`, `docRef` | `/settings` |
 | `entities` | `entities.json` · `/entities` | array · `slug` | `slug`, `name`, `form`, `jurisdiction`, `assets` | `/settings`, and an asset's Identity card |
-| `site-display` | `tower.json` · `/sites` | object · asset id | `list`, `tv`, `work` | `/assets` (Arrange), `/settings`, and an asset's Settings tab |
+| `site-display` | `tower.json` · `/sites` | object · asset id | `list`, `tv`, `work`, `lightIcon`, `darkIcon` | `/assets` (Arrange), `/settings`, and an asset's Settings tab (Identity, Where it shows) |
 
 `site-display` is addable whole: a store seeded before `/sites` existed holds
-no map, so the first switch is a `file-json-insert` of the whole map at
-`/sites`, and its Undo the matching delete. After that a switch inserts the
-site's row, writes one key with `expectAbsent`, or sets it with `expect`.
+no map, so the first save is a `file-json-insert` of the whole map at
+`/sites`, and its Undo the matching delete. After that a save inserts the
+site's row, writes one key with `expectAbsent`, or sets it with `expect`; an
+icon address cleared is a `file-json-delete` of its key, undone by a set with
+`expectAbsent`.
 
 `asset-lane` is the one register keyed by something other than an asset id
 (`keyRule: 'lane-id'`): its rows are the data-source lanes INSIDE one asset's

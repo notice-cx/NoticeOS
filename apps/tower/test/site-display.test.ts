@@ -11,6 +11,8 @@ import {
   SHOWN_ON,
   readSiteDisplay,
   shownOnChange,
+  siteDisplayChange,
+  siteIconAddresses,
   siteShownOn,
   siteSwitchesSet,
   sitesShownOn,
@@ -67,6 +69,16 @@ describe("readSiteDisplay", () => {
     expect(() => readSiteDisplay({ "a.example": { wall: false } })).toThrow(new RegExp(SHOWN_ON.join(", ")));
   });
 
+  it("reads a site's icon addresses beside its switches, by the register's own rule", () => {
+    const row = { tv: false, lightIcon: "https://cdn.example.com/a.svg", darkIcon: "https://cdn.example.com/a-dark.png" };
+    expect(readSiteDisplay({ "a.example": row })).toEqual({ "a.example": row });
+    expect(siteIconAddresses({ "a.example": row }, "a.example")).toEqual({ light: row.lightIcon, dark: row.darkIcon });
+    expect(siteIconAddresses({ "a.example": { tv: false } }, "a.example")).toEqual({});
+    expect(siteIconAddresses(undefined, "a.example")).toEqual({});
+    expect(() => readSiteDisplay({ "a.example": { lightIcon: "icon.png" } })).toThrow(/Light icon must be an http or https URL/u);
+    expect(() => readSiteDisplay({ "a.example": { darkIcon: true } })).toThrow(/Dark icon must be a string/u);
+  });
+
   it("is one part of config/tower.json: a broken map is refused alone, the layout and countdown still read", () => {
     const read = readDashboardConfig({ countdown: { emoji: "🌁", label: "Trip", targetAt: "2026-11-16T08:00:00.000Z" }, sites: { "a.example": { tv: 1 } } });
     expect(read.countdown?.label).toBe("Trip");
@@ -103,5 +115,27 @@ describe("shownOnChange", () => {
       ops: [{ kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/tv", expect: false, value: true }],
       undo: [{ kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/tv", expect: true, value: false }],
     });
+  });
+});
+
+describe("siteDisplayChange, for an icon address", () => {
+  const URL_A = "https://cdn.example.com/a.svg";
+
+  it("writes an address the way a switch is written, guarded by the map as read", () => {
+    expect(siteDisplayChange(undefined, "a.example", "lightIcon", URL_A).ops).toEqual([
+      { kind: "file-json-insert", file: "config/tower.json", pointer: "/sites", value: { "a.example": { lightIcon: URL_A } } },
+    ]);
+    expect(siteDisplayChange({ "a.example": { tv: false } }, "a.example", "darkIcon", URL_A)).toEqual({
+      ops: [{ kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/darkIcon", expectAbsent: true, value: URL_A }],
+      undo: [{ kind: "file-json-delete", file: "config/tower.json", pointer: "/sites/a.example/darkIcon", expect: URL_A }],
+    });
+  });
+
+  it("clears an address by deleting its key, and Undo writes it back", () => {
+    expect(siteDisplayChange({ "a.example": { lightIcon: URL_A } }, "a.example", "lightIcon", null)).toEqual({
+      ops: [{ kind: "file-json-delete", file: "config/tower.json", pointer: "/sites/a.example/lightIcon", expect: URL_A }],
+      undo: [{ kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/lightIcon", expectAbsent: true, value: URL_A }],
+    });
+    expect(siteDisplayChange(undefined, "a.example", "lightIcon", null)).toEqual({ ops: [], undo: [] });
   });
 });
