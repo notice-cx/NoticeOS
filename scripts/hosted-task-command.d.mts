@@ -300,6 +300,7 @@ export declare class TaskStoreFailed extends Error {
     name: string;
     constructor(timedOut: boolean);
 }
+export declare function sameActor(a: string, b: string): boolean;
 /** The tasks an executor reads before this write: the decisions it must not
  * stand in for, then the task whose own state decides it. */
 export declare function writeGuardReads(operation: HostedTaskOperation): readonly string[];

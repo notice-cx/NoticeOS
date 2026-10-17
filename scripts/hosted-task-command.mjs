@@ -488,7 +488,7 @@ const stringOf = (value) => typeof value === 'string' ? value : '';
 function canonicalActor(name) {
     return name.replace(/[._-]+/gu, run => run === '--' ? '/' : '_');
 }
-function sameActor(a, b) { return a === b || canonicalActor(a) === canonicalActor(b); }
+export function sameActor(a, b) { return a === b || canonicalActor(a) === canonicalActor(b); }
 /** A write whose own task's state decides how it runs: a close, a claim, a
  * change of assignee or of choices. A caller's forced close is a service
  * closing for the agent it named, and decides for itself. */

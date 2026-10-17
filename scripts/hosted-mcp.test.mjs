@@ -8,7 +8,7 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY, TASK_WORKFLOW, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
+import { TASK_QUALITY, TASK_WORKFLOW, WHATS_CHANGED, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
 import { TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
@@ -25,7 +25,9 @@ const TOKENS = new Map([[FULL, ['tasks:read', 'tasks:write', 'evidence:read']], 
 const ROLES = new Map([[A, 'operator'], [B, 'viewer']]);
 const token = request => request.headers.get('authorization')?.slice('Bearer '.length);
 
-function fixture({ profile = 'hosted', readModels } = {}) {
+/** `more`: the workspace's other projects, each { catalog, executor }; a null
+ * executor is a project whose task store does not answer. */
+function fixture({ profile = 'hosted', readModels, more = [] } = {}) {
   let time = Date.parse('2026-10-07T12:00:00.000Z');
   const clock = () => time;
   const forwarded = [];
@@ -39,9 +41,17 @@ function fixture({ profile = 'hosted', readModels } = {}) {
         expiresAt: new Date(Date.now() + 60000).toISOString(), scopes: TOKENS.get(token(request)) } : null });
   const fake = fakeTaskExecutor({ principal: () => PERSON, clock });
   const receipts = memoryReceipts(clock);
-  const directory = { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]) };
+  const directory = { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' },
+    ...more.map(entry => entry.catalog)]) };
+  const others = new Map(more.map(entry => [entry.catalog.projectId, entry.executor]));
+  const executor = { async execute(proof, workspace, request, controls) {
+    if (!others.has(request.projectId)) return fake.executor.execute(proof, workspace, request, controls);
+    const other = others.get(request.projectId);
+    if (!other) throw new Error('the task store did not answer');
+    return other.execute(proof, workspace, request, controls);
+  } };
   const selection = profile === 'demo' ? { demoWorkspaceId: DEMO } : {};
-  const operations = createHostedTaskOperations({ admission, directory, executor: fake.executor, receipts, now: clock });
+  const operations = createHostedTaskOperations({ admission, directory, executor, receipts, now: clock });
   const agents = profile === 'demo' ? undefined : {
     verify: async request => TOKENS.has(token(request)) ? { scopes: TOKENS.get(token(request)) } : null,
     workspaces: async () => [{ workspaceId: A, displayName: 'Operated', role: 'operator', status: 'active' },
@@ -55,7 +65,7 @@ function fixture({ profile = 'hosted', readModels } = {}) {
         ? { content: [{ type: 'text', text: 'no property with id missing' }], isError: true }
         : { content: [{ type: 'text', text: '{}' }], structuredContent: { properties: [{ asset: 'example.com' }] } } });
     }) });
-  const http = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor: fake.executor, receipts });
+  const http = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor, receipts });
   return { ...fake, mcp, http, forwarded, advance: ms => { time += ms; } };
 }
 function post(body, { headers = {}, path = MCP_PATH, method = 'POST', bearer = FULL } = {}) {
@@ -96,6 +106,9 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.equal(init.result.instructions, discovered.instructions);
   for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
   assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
+  // Search before filing, so one piece of work is one task.
+  assert.match(discovered.instructions, /Before filing, search with list_tasks query for the title's key words, with no project to search every project\. Work already filed gets a comment, never a second task/u);
+  assert.match(discovered.instructions, /list_workspaces returns its version as guideVersion, so read it again when that changes/u);
   // A person's pick is data the Tower draws as buttons, never lettered prose.
   assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
   assert.doesNotMatch(discovered.instructions, /lettered options/u);
@@ -156,9 +169,30 @@ test('get_task_guide returns the whole guide with a version, and the instruction
   assert.notEqual(taskGuide(true).version, taskGuide(false).version);
 });
 
+test('the guide opens with what changed, at most three dated lines, and list_workspaces returns its version', async () => {
+  assert.ok(WHATS_CHANGED.length >= 1 && WHATS_CHANGED.length <= 3, `${WHATS_CHANGED.length} entries`);
+  for (const entry of WHATS_CHANGED) {
+    assert.match(entry, /^\d{4}-\d{2}-\d{2}: \S[^\n]*$/u, entry);
+    assert.equal(new Date(entry.slice(0, 10)).toISOString().slice(0, 10), entry.slice(0, 10), entry);
+  }
+  for (const panels of [false, true]) {
+    const { version, guide } = taskGuide(panels);
+    const sections = guide.split('\n').filter(line => line.startsWith('## '));
+    assert.equal(sections[0], '## What changed', 'the first section');
+    assert.ok(guide.includes(`## What changed\n\n${WHATS_CHANGED.map(entry => `- ${entry}`).join('\n')}\n\n## Start`), guide);
+    assert.match(guide, new RegExp(`^# Working with NoticeOS tasks\n\nGuide version ${version}; list_workspaces returns the current one as guideVersion\\.\n`, 'u'));
+  }
+  for (const profile of ['hosted', 'demo']) {
+    const f = fixture({ profile });
+    const bearer = profile === 'demo' ? null : READER;
+    const listed = (await call(f, 'list_workspaces', {}, { bearer })).structuredContent;
+    assert.equal(listed.guideVersion, (await call(f, 'get_task_guide', {}, { bearer })).structuredContent.version, profile);
+  }
+});
+
 test('list_workspaces shows every workspace with what this connection may do there', async () => {
   const f = fixture();
-  assert.deepEqual((await call(f, 'list_workspaces', {})).structuredContent, { workspaces: [
+  assert.deepEqual((await call(f, 'list_workspaces', {})).structuredContent, { guideVersion: taskGuide(false).version, workspaces: [
     { workspaceId: A, name: 'Operated', role: 'operator', status: 'active', access: ['tasks:read', 'tasks:write', 'evidence:read'] },
     { workspaceId: B, name: 'Viewed', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] });
   assert.match((await call(f, 'list_workspaces', { workspace: A })).content[0].text, /^invalid arguments/u);
@@ -527,12 +561,180 @@ test('a malformed set of choices is refused with the field at fault named, and f
     'invalid arguments: choices.options[1].key (b: keys run a, b, c… in the order the options are shown)');
   assert.match(await error({ ...PICK, question: '' }), /^invalid arguments: choices\.question \(empty\)/u);
   assert.match(await error({ ...PICK, options: PICK.options.slice(1, 2) }, 'create_tasks'), /^invalid arguments: tasks\[1\]: choices\.options/u);
-  assert.match((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: 'a or b',
-    idempotency_key: 'agent-update-0701' })).content[0].text, /^invalid arguments: choices \(an object/u);
+  assert.equal((await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices: ['a', 'b'],
+    idempotency_key: 'agent-update-0701' })).content[0].text, 'invalid arguments: choices (an object with question and options)');
   assert.equal(f.effects.length, 0);
   assert.equal(taskRefusal(new TaskStateRefused('tt-1', 'other', { kind: 'chosen', chosen: '(b) Redirect to the new page' })).message,
     'refused: tt-1 already carries a person\'s choice, (b) Redirect to the new page, and its choices stay as they were when it was made. '
     + 'get_task shows the choice; file work that remains with create_task.');
+});
+
+/** The line a client whose tool list predates this server is told. */
+const staleLine = names => `${names} arrived as text: your client's copy of the task tools predates this server `
+  + `(guide version ${taskGuide(false).version}); reconnect the noticeos server to get the current tools`;
+
+test('choices a client sends as JSON text land, and the reply opens with a line saying its tool list is stale', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'] });
+  const update = (choices, key) => call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices, idempotency_key: key });
+  const landed = await update(JSON.stringify(PICK), 'agent-update-0901');
+  assert.equal(landed.isError, undefined, JSON.stringify(landed));
+  assert.equal(landed.structuredContent.staleClient, staleLine('choices'));
+  assert.ok(landed.content[0].text.startsWith(`{"staleClient":${JSON.stringify(staleLine('choices'))},`), 'the first thing an agent reads');
+  assert.deepEqual([landed.structuredContent.task.choices, f.tasks.get('tt-1').metadata.noticeos_choices], [PICK, PICK]);
+  // "null" as text takes them off, where the argument takes null.
+  const cleared = (await update('null', 'agent-update-0902')).structuredContent;
+  assert.deepEqual([cleared.task.choices, cleared.staleClient], [null, staleLine('choices')]);
+  // The same choices sent as an object carry no line.
+  assert.equal('staleClient' in (await update(PICK, 'agent-update-0903')).structuredContent, false);
+
+  // create_task, and each entry of create_tasks by its place, read text the same way.
+  const made = (await call(f, 'create_task', { workspace: A, project: P, title: 'Pick again', choices: JSON.stringify(PICK),
+    idempotency_key: 'agent-create-0901' })).structuredContent;
+  assert.equal(made.staleClient, staleLine('choices'));
+  assert.deepEqual(f.tasks.get(made.id).metadata.noticeos_choices, PICK);
+  const batch = (await call(f, 'create_tasks', { workspace: A, project: P, idempotency_key: 'agent-batch-0901',
+    tasks: [{ title: 'Fine' }, { title: 'Ask', choices: JSON.stringify(PICK) }, { title: 'Ask too', choices: JSON.stringify(PICK) }] })).structuredContent;
+  assert.equal(batch.staleClient, staleLine('tasks[1].choices and tasks[2].choices'));
+  assert.deepEqual(batch.created.map(entry => f.tasks.get(entry.id).metadata.noticeos_choices ?? null), [null, PICK, PICK]);
+});
+
+test('choices sent as text that is not an object are refused with the stale-client line, then the shape rule', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'] });
+  const before = f.effects.length;
+  const refusal = async (choices, key) => (await call(f, 'update_task', { workspace: A, project: P, task: 'tt-1', choices,
+    idempotency_key: key })).content[0].text;
+  for (const text of ['a or b', '{"question":', '["a","b"]', '"a"', '7']) {
+    assert.equal(await refusal(text, 'agent-update-1001'), `${staleLine('choices')}. invalid arguments: choices (an object with question and options)`, text);
+  }
+  // JSON text of an object with the wrong shape: the line, then the field at fault.
+  assert.equal(await refusal(JSON.stringify({ ...PICK, options: PICK.options.slice(0, 1) }), 'agent-update-1002'),
+    `${staleLine('choices')}. invalid arguments: choices.options (2 to 6 options)`);
+  // An object with the wrong shape keeps the refusal it had: no line.
+  assert.equal(await refusal({ ...PICK, options: PICK.options.slice(0, 1) }, 'agent-update-1003'), 'invalid arguments: choices.options (2 to 6 options)');
+  assert.equal(f.effects.length, before, 'nothing written');
+});
+
+test('every object argument of the task tools refuses text that is not an object, and writes nothing', async () => {
+  const f = fixture();
+  await filer(f)('Target');
+  const before = f.effects.length;
+  const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
+  const typed = (schema, type) => schema.type === type || Array.isArray(schema.type) && schema.type.includes(type);
+  const found = [];
+  for (const tool of tools.filter(entry => !READ_MODEL_TOOL_NAMES.includes(entry.name))) for (const [name, property] of Object.entries(tool.inputSchema.properties)) {
+    if (typed(property, 'object')) found.push([tool, name, null]);
+    if (typed(property, 'array') && property.items && typed(property.items, 'object')) {
+      for (const [inner, entry] of Object.entries(property.items.properties ?? {})) if (typed(entry, 'object')) found.push([tool, name, inner]);
+    }
+  }
+  const named = found.map(([tool, name, inner]) => `${tool.name}.${name}${inner ? `[].${inner}` : ''}`);
+  for (const path of ['create_task.choices', 'create_tasks.tasks[].choices', 'update_task.choices']) assert.ok(named.includes(path), path);
+  // The smallest call each tool takes: its required arguments, then the object as text.
+  const least = { workspace: A, project: P, task: 'tt-1', title: 'Guarded', reason: 'Guarded', text: 'Guarded', idempotency_key: 'agent-guard-0001' };
+  for (const [tool, name, inner] of found) {
+    const args = Object.fromEntries(tool.inputSchema.required.map(key => [key, least[key]]));
+    args[name] = inner ? [{ title: 'Guarded', [inner]: 'not json' }] : 'not json';
+    const reply = await call(f, tool.name, args);
+    assert.equal(reply.isError, true, `${tool.name}.${name}`);
+    assert.ok(reply.content[0].text.startsWith(staleLine(inner ? `${name}[0].${inner}` : name)), reply.content[0].text);
+  }
+  assert.equal(f.effects.length, before, 'nothing written');
+});
+
+/** A project's list, two pages, as list_tasks answered it before it could read every project at once. */
+const ONE_PROJECT_REPLY = [
+  '{"project":"example","readAt":"2026-10-07T12:02:00.000Z","closedSince":"2026-09-30","total":3,"tasks":['
+    + '{"id":"tt-1","title":"Pick the page","status":"open","priority":1,"type":"task","labels":["human"],"ready":true,"awaitingHuman":true,'
+    + '"choices":{"question":"Which page keeps the traffic?","options":[{"key":"a","label":"Keep the old page"},'
+    + '{"key":"b","label":"Redirect to the new page","detail":"The old page answers 301.","recommended":true},{"key":"c","label":"Keep both"}]},'
+    + '"createdAt":"2026-10-07T12:00:00.000Z","updatedAt":"2026-10-07T12:00:00.000Z"},'
+    + '{"id":"tt-2","title":"Ship the page","status":"in_progress","priority":2,"type":"task","assignee":"55555555-1111-4111-8111-111111111111",'
+    + '"parent":"tt-1","ready":false,"awaitingHuman":false,"createdAt":"2026-10-07T12:01:00.000Z","updatedAt":"2026-10-07T12:01:00.000Z"}],'
+    + '"nextOffset":2}',
+  '{"project":"example","readAt":"2026-10-07T12:02:00.000Z","closedSince":"2026-09-30","total":3,"tasks":['
+    + '{"id":"tt-3","title":"Old idea","status":"closed","priority":2,"type":"task","ready":false,"awaitingHuman":false,'
+    + '"createdAt":"2026-10-07T12:02:00.000Z","updatedAt":"2026-10-07T12:02:00.000Z","closedAt":"2026-10-07T12:02:00.000Z","resolution":"wont-do"}],'
+    + '"nextOffset":null}',
+];
+
+test('list_tasks with a project answers byte for byte as it did before it could read every project', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Pick the page', { labels: ['human'], priority: 1, choices: PICK, description: 'Choose.' });
+  f.advance(60_000);
+  await create('Ship the page', { parent: 'tt-1', acceptance: 'Shipped' });
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-2', model: 'Example Model 1', idempotency_key: 'agent-claim-1101' });
+  f.advance(60_000);
+  await create('Old idea');
+  await call(f, 'close_task', { workspace: A, project: P, task: 'tt-3', reason: 'Not needed', resolution: 'wont-do', idempotency_key: 'agent-close-1101' });
+  const pages = [];
+  for (const offset of [0, 2]) pages.push((await call(f, 'list_tasks', { workspace: A, project: P, limit: 2, offset })).content[0].text);
+  assert.deepEqual(pages, ONE_PROJECT_REPLY);
+});
+
+const [Q, R] = ['66666666', '77777777'].map(prefix => `${prefix}-1111-4111-8111-111111111111`);
+/** The example project, a second project with tasks of its own (one held by
+ * the caller, one by another agent), and a third whose task store does not answer. */
+function portfolio() {
+  const second = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00.000Z') });
+  const at = minutes => new Date(Date.UTC(2026, 9, 1) + minutes * 60_000).toISOString();
+  for (const [id, title, priority, status, assignee] of [['yy-1', 'Second: held by me', 0, 'in_progress', PERSON],
+    ['yy-2', 'Second: held by another', 1, 'in_progress', 'example-agent'], ['yy-3', 'Second: ready', 3, 'open', undefined]]) {
+    second.tasks.set(id, { id, title, priority, status, ...(assignee ? { assignee } : {}), created_at: at(priority), updated_at: at(priority) });
+  }
+  return fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'second', displayName: 'Second', prefix: 'yy' }, executor: second.executor },
+    { catalog: { projectId: R, logicalKey: 'down', displayName: 'Down', prefix: 'dn' }, executor: null }] });
+}
+
+test('list_tasks with no project lists every project, each row naming its project, and names a project it could not read', async () => {
+  const f = portfolio();
+  const create = filer(f);
+  await create('Example: urgent', { priority: 0 });
+  await create('Example: later', { priority: 2 });
+  const list = async extra => (await call(f, 'list_tasks', { workspace: A, ...extra })).structuredContent;
+  const all = await list({});
+  // Most urgent first across projects, then oldest.
+  assert.deepEqual(all.tasks.map(task => [task.id, task.project, task.projectName, task.projectId]), [['yy-1', 'second', 'Second', Q],
+    ['tt-1', 'example', 'Example', P], ['yy-2', 'second', 'Second', Q], ['tt-2', 'example', 'Example', P], ['yy-3', 'second', 'Second', Q]]);
+  assert.deepEqual(Object.keys(all.tasks[0]).slice(0, 4), ['id', 'project', 'projectId', 'projectName']);
+  assert.deepEqual([all.total, all.nextOffset, all.readAt, all.closedSince], [5, null, '2026-10-07T12:00:00.000Z', '2026-09-30']);
+  assert.deepEqual(all.unavailable, [{ project: 'down', projectId: R, projectName: 'Down' }]);
+  // Each project's rows are its own list's rows, with the project named.
+  const strip = ({ project: _key, projectId: _id, projectName: _name, ...row }) => row;
+  for (const [projectId, key] of [[P, 'example'], [Q, 'second']]) {
+    const one = await list({ project: projectId });
+    assert.deepEqual(all.tasks.filter(task => task.project === key).map(strip), one.tasks, key);
+    assert.deepEqual(Object.keys(one).sort(), ['closedSince', 'nextOffset', 'project', 'readAt', 'tasks', 'total'], key);
+  }
+  // The same pages and filters as one project's list.
+  const first = await list({ limit: 2 }), rest = await list({ limit: 2, offset: first.nextOffset });
+  assert.deepEqual([first.total, first.nextOffset, rest.nextOffset], [5, 2, 4]);
+  assert.deepEqual([...first.tasks, ...rest.tasks].map(task => task.id), all.tasks.slice(0, 4).map(task => task.id));
+  assert.deepEqual((await list({ ready: true })).tasks.map(task => task.id), ['tt-1', 'tt-2', 'yy-3']);
+  assert.deepEqual((await list({ query: 'later' })).tasks.map(task => task.id), ['tt-2']);
+  // A project the call names must still be one of the workspace's, and the caller's own admission still refuses.
+  assert.equal((await call(f, 'list_tasks', { workspace: A, project: 'nope' })).content[0].text, 'invalid arguments: project (a projectId from list_projects)');
+  assert.equal((await call(f, 'list_tasks', { workspace: DEMO })).content[0].text, `refused: workspace ${DEMO} is not one of yours; list_workspaces lists yours.`);
+});
+
+test('list_tasks keeps the tasks an assignee holds, with "me" for the caller as a claim records it', async () => {
+  const f = portfolio();
+  const create = filer(f);
+  await create('Example: mine');
+  await create('Example: open');
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-1201' });
+  const ids = async extra => (await call(f, 'list_tasks', { workspace: A, ...extra })).structuredContent.tasks.map(task => task.id);
+  assert.deepEqual(await ids({ assignee: 'me' }), ['yy-1', 'tt-1'], 'every project');
+  assert.deepEqual(await ids({ assignee: 'me', project: P }), ['tt-1'], 'one project');
+  assert.deepEqual(await ids({ assignee: PERSON }), ['yy-1', 'tt-1'], 'the caller by name');
+  assert.deepEqual(await ids({ assignee: 'example-agent' }), ['yy-2']);
+  assert.deepEqual(await ids({ assignee: 'example_agent' }), ['yy-2'], 'matched as the task client matches a name');
+  assert.deepEqual(await ids({ assignee: 'nobody' }), []);
+  for (const bad of [{ assignee: '' }, { assignee: 7 }, { assignee: ' me' }, { assignee: 'a\nb' }]) {
+    assert.match((await call(f, 'list_tasks', { workspace: A, ...bad })).content[0].text, /^invalid arguments: assignee/u, JSON.stringify(bad));
+  }
 });
 
 test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {

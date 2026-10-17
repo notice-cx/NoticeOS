@@ -523,7 +523,7 @@ const stringOf = (value: unknown): string => typeof value === 'string' ? value :
 function canonicalActor(name: string): string {
   return name.replace(/[._-]+/gu, run => run === '--' ? '/' : '_');
 }
-function sameActor(a: string, b: string): boolean { return a === b || canonicalActor(a) === canonicalActor(b); }
+export function sameActor(a: string, b: string): boolean { return a === b || canonicalActor(a) === canonicalActor(b); }
 
 /** A write whose own task's state decides how it runs: a close, a claim, a
  * change of assignee or of choices. A caller's forced close is a service
