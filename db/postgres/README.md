@@ -497,6 +497,7 @@ by column; retention and maintenance privileges are checked separately.
 | `annotations` | append-only | Append-only. |
 | `archive_objects` | append-only | Append-only; objects are immutable. |
 | `archive_runs` | append-only | Append-only. |
+| `asset_icons` | append-only | Append-only; each read of a site's home page is a new row, and a site's card shows the newest read that reached the page. |
 | `asset_insight_snapshot_moves` | read-only | Read-only for the application: the mover records moves as noticeos_maint. A move names a stored snapshot by its site and hash, never one of the site's two newest. |
 | `asset_insight_snapshots` | append-only | Append-only for the application; republishing identical content is a no-op. Older snapshots move as maintenance. |
 | `assets` | insert; update only status, sense_only, display_name, list_position, updated_at | Identity never changes; a site is retired, never deleted, since history references it. A new site takes the next place in the list from the workspace's counter; a move deals the places of the sites it spans out again. |
@@ -602,6 +603,8 @@ real schema, as the application role unless the case says maintenance:
 | A reading that was not taken; a quiet night | NULL, never zero |
 | NaN or an infinity (a reading, a provider cost, a median open age), a negative count, more errors than open alerts | Refused |
 | A watch offset read twice | Refused |
+| A site icon read that found a dark icon only, found none, or reached nothing | Accepted |
+| A site icon read naming no icon; an icon on a read that found none; an icon that is not a web address | Refused |
 | Each writer's own change: acknowledging and resolving an alert, a same-day hygiene re-run, closing a watch, saving settings, upserting a day's counts (the whole-workspace row included), upserting an account-level capability, replacing counters, leases and retry state, re-stamping and sweeping task photographs, undoing a mark, retiring a site | Accepted |
 | A metric an integration does not report, an unknown integration, a watch on a metric its integration does not report, an unknown check | Refused by the shared vocabulary |
 | The application adding to the shared vocabulary | Refused |

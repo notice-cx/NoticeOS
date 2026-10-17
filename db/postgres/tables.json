@@ -5,6 +5,7 @@
     "annotations": { "shape": "history", "arrival": "created_at" },
     "archive_objects": { "shape": "history", "arrival": "first_stored_at" },
     "archive_runs": { "shape": "history", "arrival": "finished_at" },
+    "asset_icons": { "shape": "history", "arrival": "read_at" },
     "asset_insight_snapshot_moves": { "shape": "history", "arrival": "moved_at" },
     "asset_insight_snapshots": { "shape": "cache", "arrival": "created_at" },
     "assets": { "shape": "state", "arrival": "created_at" },

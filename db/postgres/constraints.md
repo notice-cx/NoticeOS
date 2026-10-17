@@ -108,6 +108,23 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Row checks:** `((cost_state = 'unknown') = (cost_usd IS NULL))`; `(((status IN ('success', 'unchanged')) AND (object_seq IS NOT NULL) AND (error_code IS NULL) AND (error_message IS NULL)) OR ((status = 'error') AND (object_seq IS NULL) AND (error_code IS NOT NULL) AND (error_message IS NOT NULL)))`
 - **Triggers:** `history_leaves_only_when_exported` (before delete)
 
+## `asset_icons`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `read_id` | bigint, identity | yes |  |
+| `asset_id` | text | yes |  |
+| `read_at` | timestamp with time zone | yes |  |
+| `outcome` | text | yes | `(outcome IN ('read', 'no-icon', 'unreachable'))` |
+| `light_url` | text | no | `((light_url ~ '^https?://') AND (length(light_url) <= 2048))` |
+| `dark_url` | text | no | `((dark_url ~ '^https?://') AND (length(dark_url) <= 2048))` |
+| `detail` | json | yes | `(json_typeof(detail) = 'object')` |
+
+- **Keys:** primary (workspace_id, read_id); unique (workspace_id, asset_id, read_at)
+- **Links:** (workspace_id, asset_id) → `assets`; (workspace_id) → `workspaces`
+- **Row checks:** `((outcome = 'read') = ((light_url IS NOT NULL) OR (dark_url IS NOT NULL)))`
+
 ## `asset_insight_snapshot_moves`
 
 | Column | Type | Required | Checks |
