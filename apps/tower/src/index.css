@@ -638,10 +638,20 @@
   --text-wall-list-line--line-height: calc(var(--wall-body-line) * var(--wall-boost-body, 1));
   --text-wall-list-meta: calc(var(--wall-micro-size) * var(--wall-boost-micro, 1));
   --text-wall-list-meta--line-height: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1));
+  /* A project's row in Work this week: its name at the list line's size on a
+     line as tall as the row's bar (`h-5`), so the row is the bar's height. */
+  --text-wall-row: calc(var(--wall-body-size) * var(--wall-boost-body, 1));
+  --text-wall-row--line-height: calc(1.25rem * var(--wall-boost-body, 1));
 
   /* Revenue band and site-row floor; rows expand to fill their region. */
   --spacing-wall-band: 21rem;
   --spacing-wall-site-row-min: 3.5rem;
+  /* The revenue tile's month chart behind its figures on the TV ends where
+     the first and last dates under it begin: their line, and the gap above. */
+  --spacing-wall-month-axis: calc(var(--wall-micro-line) * var(--wall-boost-micro, 1) + 0.375rem);
+  /* The figures drawn over that chart: a halo of the Wall's black around each
+     glyph, so a line passing behind the words breaks around them. */
+  --text-shadow-knockout: 0 0 0.375rem var(--background), 0 0 0.125rem var(--background);
 
   /* The Wall's frame: the page inset (24px top and bottom, 32px sides), 20px
      between stacked regions and 28px between regions side by side.

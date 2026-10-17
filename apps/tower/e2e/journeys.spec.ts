@@ -3,7 +3,7 @@ import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
 import { BACKLOG_CLOSED, BACKLOG_LABEL, BACKLOG_OPEN, BACKLOG_OUTSIDE, CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
-import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
+import { wallLayoutWidgets, type WallConfig, type WallLayout } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
 import { WALL_FIXTURE_NOW, WALL_FIXTURE_TIME_ZONE, WALL_FIXTURE_VARIANTS, wallFixturePayload, wallFixtureRealtime } from "./wall-fixture";
 import { WALL_FEED_OS } from "./wall-feed-fixture";
@@ -888,6 +888,192 @@ test.describe(() => {
       expectStackedInOrder(await page.evaluate(wallStack), `${width}`);
       await page.screenshot({ path: testInfo.outputPath(`wall-phone-${width}.png`), fullPage: true });
     }
+  });
+
+  // The revenue tile beside Needs attention, both at Fit content: on the TV
+  // the month's chart is a layer behind the figures, so the tile is no taller
+  // than Needs attention's three rows and the row is Needs attention's own
+  // height; the crossing and last month's total are written where the
+  // figures leave room. On a phone the chart is drawn under the figures.
+  test("the Wall's revenue tile on the TV is as tall as Needs attention beside it, its month chart behind the figures", desktopOnly("measures the TV and walks the phone width itself"), async ({ page, request }, testInfo) => {
+    expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
+    await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
+    await wallAt(page, [1920, 1080]);
+    const revenue = page.locator('[data-wall-revenue="pace"]');
+    await expect(revenue).toBeVisible();
+    await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(3);
+    // The screenshots below are of the tile, not of the boot splash over it.
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const tv = await page.evaluate(() => {
+      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
+      const needs = document.querySelector<HTMLElement>("[data-wall-needs]")!;
+      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
+      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
+      const box = (el: Element) => el.getBoundingClientRect();
+      const text: DOMRect[] = [];
+      const walker = document.createTreeWalker(section, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.nodeValue?.trim() || node.parentElement!.closest("[data-month-chart]")) continue;
+        range.selectNodeContents(node);
+        text.push(...[...range.getClientRects()].filter((rect) => rect.width > 0));
+      }
+      const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      const label = (selector: string) => {
+        const el = section.querySelector<HTMLElement>(selector)!;
+        return { hidden: getComputedStyle(el).visibility === "hidden", clear: text.every((rect) => apart(box(el), rect)) };
+      };
+      const needsContent = box(needs.lastElementChild!).bottom - box(needs).top;
+      return {
+        revenue: Math.round(box(section).height),
+        needs: Math.round(box(needs).height),
+        needsContent: Math.round(needsContent),
+        plot: { position: getComputedStyle(plot).position, z: getComputedStyle(plot).zIndex, top: Math.round(box(plot).top - box(section).top), height: Math.round(box(plot).height) },
+        figuresHeight: Math.round(figures.height),
+        crossing: section.querySelector("[data-month-crossing-label]")!.getAttribute("data-month-crossing-place"),
+        previous: section.querySelector("[data-previous-total-label]")!.getAttribute("data-previous-total-place"),
+        crossingLabel: label("[data-month-crossing-label]"),
+        previousLabel: label("[data-previous-total-label]"),
+        readings: ["[data-month-actual]", "[data-month-pace]", "[data-previous-total]", "[data-month-crossing]", "[data-month-today]"].filter((s) => !section.querySelector(s)),
+      };
+    });
+    // No taller than Needs attention: the row is Needs attention's own
+    // height, which the revenue tile takes too.
+    expect(Math.abs(tv.revenue - tv.needs), `revenue ${tv.revenue} px beside Needs attention ${tv.needs} px`).toBeLessThanOrEqual(1);
+    expect(Math.abs(tv.needsContent - tv.needs), "Needs attention's own rows set the row's height").toBeLessThanOrEqual(1);
+    // The chart is a layer filling the tile from its top, behind the text.
+    expect(tv.plot).toMatchObject({ position: "absolute", z: "-10", top: 0 });
+    expect(tv.plot.height).toBeGreaterThan(tv.figuresHeight);
+    // Every reading is drawn, both labels where the figures leave room.
+    expect(tv.readings).toEqual([]);
+    expect(tv.crossing).toBe("end-above");
+    expect(tv.previous).not.toBe("none");
+    expect(tv.crossingLabel).toEqual({ hidden: false, clear: true });
+    expect(tv.previousLabel).toEqual({ hidden: false, clear: true });
+    const measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(wallFitVerdict(measured).fits).toBe(true);
+    expect(measured.ink, "painting outside its own box").toEqual([]);
+    expect(measured.clipped, "text cut off").toEqual([]);
+    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-behind-1920.png") });
+
+    // A phone: the tile is its text, too short for the chart behind it.
+    await wallAt(page, [390, 844]);
+    const phone = await page.evaluate(() => {
+      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
+      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
+      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
+      return { position: getComputedStyle(plot).position, under: plot.getBoundingClientRect().top >= figures.bottom - 1 };
+    });
+    expect(phone).toEqual({ position: "relative", under: true });
+    await assertNoPageOverflow(page);
+    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-under-390.png") });
+  });
+
+  // Work this week under the site rows: at Fit content it is as tall as its
+  // content, which is one band for the heading and the four figures, the two
+  // weeks' bar with its words beside it, and one row per project as tall as
+  // its bar. Given a share of its column too short for every project, it
+  // draws the rows that fit whole and counts the rest on one line.
+  test("the Wall's Work this week tile on the TV takes only the height its rows need, and counts the projects a short box leaves out", desktopOnly("the TV's fixed height"), async ({ page, request }, testInfo) => {
+    expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
+    const column = (work: { height: "auto" | "fill"; size?: number }, sites: { height: "auto" | "fill"; size?: number }): WallLayout => ({
+      version: 1,
+      rows: [
+        { id: "strip", height: "auto", widgets: [{ id: "strip", type: "strip", width: 1 }] },
+        {
+          id: "body",
+          height: "fill",
+          widgets: [
+            {
+              id: "business",
+              type: "column",
+              width: 3.1,
+              rows: [
+                { id: "money", height: "auto", widgets: [{ id: "revenue", type: "revenue", width: 1.55 }, { id: "needs", type: "needs", width: 1 }] },
+                { id: "sites", ...sites, widgets: [{ id: "sites", type: "sites", width: 1 }] },
+                { id: "work", ...work, widgets: [{ id: "work", type: "work", width: 1 }] },
+              ],
+            },
+            { id: "feed", type: "feed", width: 1 },
+          ],
+        },
+      ],
+    });
+    const scene = await wallScene(page, "fire", { layout: column({ height: "auto" }, { height: "fill" }) });
+    const projects = wallFixturePayload(scene.variant).assets.filter((asset) => asset.work).length;
+    await wallAt(page, [1920, 1080]);
+    const tile = page.locator("[data-wall-work]");
+    await expect(tile.locator("[data-work-row]")).toHaveCount(projects);
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const fit = await tile.evaluate((element) => {
+      const box = (el: Element) => el.getBoundingClientRect();
+      const flow = element.querySelector("[data-work-flow]")!;
+      const heading = element.querySelector("header")!;
+      const figures = [...element.querySelectorAll("[data-work-figure]")];
+      const rows = [...element.querySelectorAll<HTMLElement>("[data-work-row]")].map((row) => {
+        const bar = row.querySelector("[role='cell']:last-child > span")!;
+        return { row: Math.round(box(row).height), bar: Math.round(box(bar).height), border: parseFloat(getComputedStyle(row).borderTopWidth) };
+      });
+      return {
+        tile: Math.round(box(element).height),
+        content: Math.round(box(flow).height),
+        scrolls: element.scrollHeight > element.clientHeight + 1,
+        more: element.querySelector("[data-work-more]") !== null,
+        band: figures.map((figure) => Math.round(box(figure).top - box(heading).top)),
+        values: figures.map((figure) => {
+          const value = figure.querySelector("[data-work-figure-value]")!;
+          return Math.round(box(value).height) <= Math.round(box(value.firstElementChild!).height) + 1;
+        }),
+        weeks: Math.round(box(element.querySelector("[data-work-weeks] [data-pace-bar]")!).height),
+        rows,
+      };
+    });
+    // As tall as its content, and well under the 415 px the same six
+    // projects took before the rows lost their padding: two thirds is 277.
+    expect(Math.abs(fit.tile - fit.content), `the tile ${fit.tile} px around ${fit.content} px of content`).toBeLessThanOrEqual(1);
+    expect(fit.tile).toBeLessThanOrEqual(277);
+    expect(fit).toMatchObject({ scrolls: false, more: false });
+    // The heading and the four figures on one band, each move on its figure's line.
+    expect(fit.band.every((offset) => Math.abs(offset) <= 2), `figures' tops against the heading's: ${fit.band}`).toBe(true);
+    expect(fit.values).toEqual([true, true, true, true]);
+    // The two weeks' words beside their bar: one line, the bar's 28 px.
+    expect(fit.weeks).toBeLessThanOrEqual(29);
+    // Each project one row as tall as its bar, its border the only gap.
+    for (const row of fit.rows) expect(row.row, `a row of ${row.row} px around a ${row.bar} px bar`).toBe(row.bar + row.border);
+    let measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(measured.ink, "painting outside its own box").toEqual([]);
+    expect(measured.clipped, "text cut off").toEqual([]);
+    await tile.screenshot({ path: testInfo.outputPath("wall-work-fit-1920.png") });
+
+    // A third of what the column leaves: too short for six rows.
+    await wallScene(page, "fire", { layout: column({ height: "auto", size: 1 }, { height: "fill", size: 2 }) });
+    await openWall(page, [1920, 1080]);
+    await expect(tile.locator("[data-work-more]")).toBeVisible();
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const short = await tile.evaluate((element) => {
+      const bottom = element.getBoundingClientRect().bottom;
+      const rows = [...element.querySelectorAll("[data-work-row]")];
+      const more = element.querySelector("[data-work-more]")!;
+      return {
+        shown: rows.length,
+        more: more.textContent,
+        whole: [...rows, more].every((row) => row.getBoundingClientRect().bottom <= bottom + 0.5),
+        scrollbar: getComputedStyle(element).overflowY !== "hidden" && element.scrollHeight > element.clientHeight,
+      };
+    });
+    expect(short.shown).toBeGreaterThan(0);
+    expect(short.shown).toBeLessThan(projects);
+    expect(short.more).toBe(`+${projects - short.shown} more ${projects - short.shown === 1 ? "project" : "projects"}`);
+    expect(short).toMatchObject({ whole: true, scrollbar: false });
+    measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(measured.clipped, "text cut off").toEqual([]);
+    await tile.screenshot({ path: testInfo.outputPath("wall-work-short-1920.png") });
   });
 
   // The Wall on a laptop and a landscape tablet, under a saved layout that

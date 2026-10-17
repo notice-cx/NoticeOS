@@ -1,5 +1,7 @@
 // The Wall's revenue and Needs attention widgets, drawn from the synthetic Wall fixture.
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { render, within } from "./render";
 import { describe, expect, it, vi } from "vitest";
 import { NO_READS } from "@shared/connection-status";
@@ -9,10 +11,15 @@ import { WallCanvas } from "@/components/WallCanvas";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import {
   RevenueHero,
+  chartLabelsPlace,
   crossingLabelPlace,
   crossingPlaceName,
+  previousLabelPlace,
+  type Box,
+  type ChartLabelScene,
   type CrossingPlacement,
   type CrossingScene,
+  type PreviousPlacement,
 } from "@/components/wall/RevenueHero";
 import { wallIssues } from "@/lib/wall-issues";
 import { WALL_FIXTURE_NOW, wallFixturePayload } from "../e2e/wall-fixture";
@@ -26,7 +33,13 @@ describe("the revenue widget", () => {
     const { container } = render(<RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={NOW} />);
     const section = container.querySelector("[data-wall-revenue='pace']")!;
     expect(section).not.toBeNull();
-    expect(section).toHaveClass("xl:h-72", "2xl:h-wall-band");
+    // No height of its own: the tile is as tall as its text, and in the TV's
+    // layout the chart is a layer behind that text, ending above the dates.
+    // On a phone it is a box under the figures.
+    expect(section.className).not.toMatch(/\bh-/);
+    expect(section).toHaveClass("relative", "isolate", "tv:text-shadow-knockout");
+    expect(section.querySelector("[data-month-chart]")).toHaveClass("h-40", "tv:contents");
+    expect(section.querySelector("[data-month-chart] [role='img']")).toHaveClass("tv:absolute", "tv:inset-x-0", "tv:top-0", "tv:bottom-wall-month-axis", "tv:-z-10");
     expect(within(section as HTMLElement).getByRole("heading").textContent).toBe("September revenue · estimated");
     expect(section.querySelector("[data-revenue-figure]")?.textContent).toBe("$1,185");
     // Plume Studio $1,310 + Mosaic Finder $385, the two ready projections.
@@ -291,6 +304,163 @@ describe("the month chart's crossing words", () => {
   });
 });
 
+// The TV draws the month's chart behind the figures, filling the tile. jsdom
+// has no layout, so the plot's size, the labels' sizes and where the tile's
+// lines of text fall over the plot are the ones a browser measured at 1920 ×
+// 1080: the tile beside Needs attention and stretched to its three rows, and
+// the same tile at the height of its own text.
+describe("the month chart behind the figures on the TV", () => {
+  const LABEL = { oneLine: { width: 232.75, height: 18 }, twoLines: { width: 160, height: 36 } };
+  const PREVIOUS = { width: 132, height: 24 };
+  const box = (left: number, top: number, right: number, bottom: number): Box => ({ left, top, right, bottom });
+  /** Beside Needs attention's three rows: 823 × 236, the pace at the tile's foot. */
+  const stretched = {
+    plot: { width: 823, height: 236 },
+    text: { eyebrow: box(0, 0, 325, 20), figure: box(0, 27, 384, 172), pace: box(408, 122, 690, 161), chip: box(432, 173, 569, 194), date: box(408, 203, 744, 224) },
+    today: { x: 563.84, y: 91.09 },
+    crossing: { x: 702.33, y: 57.96 },
+    lines: [[{ x: 9.9, y: 236 }, { x: 563.84, y: 91.09 }], [{ x: 563.84, y: 91.09 }, { x: 702.33, y: 57.96 }, { x: 813.1, y: 28.98 }]],
+  };
+  /** As tall as its own text: 762 × 174, the pace beside the figure. */
+  const own = {
+    plot: { width: 762, height: 174 },
+    text: { eyebrow: box(0, 0, 325, 20), figure: box(0, 27, 384, 172), pace: box(408, 60, 690, 99), chip: box(432, 111, 569, 132), date: box(408, 141, 744, 162) },
+    today: { x: 522.05, y: 67.16 },
+    crossing: { x: 650.27, y: 42.74 },
+    lines: [[{ x: 9.1, y: 174 }, { x: 522.05, y: 67.16 }], [{ x: 522.05, y: 67.16 }, { x: 650.27, y: 42.74 }, { x: 752.9, y: 21.37 }]],
+  };
+  const scene = (tile: typeof stretched, over: boolean): ChartLabelScene => ({
+    plot: tile.plot,
+    crossing: { at: tile.crossing, label: LABEL },
+    previous: { rule: tile.crossing.y, label: PREVIOUS },
+    today: tile.today,
+    lines: tile.lines,
+    over: over ? Object.values(tile.text) : null,
+  });
+  const wordsBox = (placed: CrossingPlacement): Box => {
+    const size = placed.wrapped ? LABEL.twoLines : LABEL.oneLine;
+    return box(placed.left, placed.top, placed.left + size.width, placed.top + size.height);
+  };
+  const previousBox = (placed: PreviousPlacement, rule: number): Box => {
+    const top = placed.vertical === "above" ? rule - PREVIOUS.height : rule;
+    return box(placed.left, top, placed.left + PREVIOUS.width, top + PREVIOUS.height);
+  };
+  const apart = (a: Box, b: Box) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+
+  it("puts both labels where the figures over the chart leave room, clear of each other", () => {
+    const placed = chartLabelsPlace(scene(stretched, true));
+    expect(crossingPlaceName(placed.crossing!)).toBe("end-above");
+    // Top left is under the figure, so last month's words take the first
+    // clear place along its line: right of the figure, under the line.
+    expect(placed.previous).toEqual({ vertical: "below", left: 392 });
+    const words = wordsBox(placed.crossing!);
+    const previous = previousBox(placed.previous!, stretched.crossing.y);
+    for (const [name, text] of Object.entries(stretched.text)) {
+      expect(apart(words, text), `the crossing's words over ${name}`).toBe(true);
+      expect(apart(previous, text), `last month's words over ${name}`).toBe(true);
+    }
+    expect(apart(words, previous)).toBe(true);
+  });
+
+  it("leaves a label out rather than drawing it over the figures where nothing is clear", () => {
+    const placed = chartLabelsPlace(scene(own, true));
+    expect(crossingPlaceName(placed.crossing!)).toBe("end-above");
+    expect(placed.previous).toBeNull();
+    // Under the figures the same chart keeps the phone's places.
+    const under = chartLabelsPlace(scene(own, false));
+    expect(under.previous).toEqual({ vertical: "above", left: 0 });
+    expect(under.crossing).not.toBeNull();
+  });
+
+  it("finds nowhere for last month's words when every place along the line is covered", () => {
+    const everywhere = box(-10, -10, 1000, 1000);
+    expect(previousLabelPlace({ plot: stretched.plot, label: PREVIOUS, rule: stretched.crossing.y, blocked: [everywhere], lines: [] })).toBeNull();
+    // With nothing over it, the line's left end, above it.
+    expect(previousLabelPlace({ plot: stretched.plot, label: PREVIOUS, rule: stretched.crossing.y, blocked: [], lines: [] })).toEqual({ vertical: "above", left: 0 });
+  });
+
+  it("draws the placements on the page from the tile's measured text, and hides a label with no clear place", () => {
+    const data = wallFixturePayload();
+    const drawn = (tile: typeof stretched) => {
+      const sizes = (element: HTMLElement): [number, number] => {
+        if (element.getAttribute("role") === "img" && element.parentElement?.hasAttribute("data-month-chart")) return [tile.plot.width, tile.plot.height];
+        if (element.hasAttribute("data-previous-total-label")) return [PREVIOUS.width, PREVIOUS.height];
+        const words = element.parentElement;
+        if (words?.hasAttribute("data-month-crossing-label")) return element === words.firstElementChild ? [160, 18] : [69, 18];
+        return [0, 0];
+      };
+      const lineOf = (node: Node): Box | null => {
+        const at = node.parentElement;
+        if (!at) return null;
+        if (at.closest("h2")) return tile.text.eyebrow;
+        if (at.closest("[data-revenue-figure]")) return tile.text.figure;
+        if (at.closest("[data-revenue-change]")) return tile.text.chip;
+        const pace = at.closest("[data-revenue-pace]");
+        if (!pace) return null;
+        return pace.firstElementChild?.contains(at) ? tile.text.pace : tile.text.date;
+      };
+      const width = vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (this: HTMLElement) {
+        return sizes(this)[0];
+      });
+      const height = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+        return sizes(this)[1];
+      });
+      // The TV's layer: the plot is positioned in the tile, behind its text.
+      const parent = vi.spyOn(HTMLElement.prototype, "offsetParent", "get").mockImplementation(function (this: HTMLElement) {
+        return this.getAttribute("role") === "img" ? this.closest("[data-wall-revenue]") : null;
+      });
+      const computed = globalThis.getComputedStyle;
+      const style = vi.spyOn(globalThis, "getComputedStyle").mockImplementation((element, pseudo) =>
+        element instanceof HTMLElement && element.getAttribute("role") === "img" ? ({ position: "absolute" } as CSSStyleDeclaration) : computed(element, pseudo),
+      );
+      const rects = Range.prototype.getClientRects;
+      Range.prototype.getClientRects = function (this: Range) {
+        const line = lineOf(this.startContainer);
+        const found = line ? [{ ...line, width: line.right - line.left, height: line.bottom - line.top }] : [];
+        return found as unknown as DOMRectList;
+      };
+      const { container, unmount } = render(<RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={NOW} />);
+      const crossing = container.querySelector<HTMLElement>("[data-month-crossing-label]")!;
+      const previous = container.querySelector<HTMLElement>("[data-previous-total-label]")!;
+      const seen = {
+        crossing: crossing.getAttribute("data-month-crossing-place"),
+        crossingHidden: crossing.classList.contains("invisible"),
+        previous: previous.getAttribute("data-previous-total-place"),
+        previousHidden: previous.classList.contains("invisible"),
+        previousLeft: previous.style.left,
+        previousBelow: previous.classList.contains("pt-1.5"),
+      };
+      unmount();
+      Range.prototype.getClientRects = rects;
+      style.mockRestore();
+      parent.mockRestore();
+      width.mockRestore();
+      height.mockRestore();
+      return seen;
+    };
+
+    const beside = drawn(stretched);
+    expect(beside).toMatchObject({ crossing: "end-above", crossingHidden: false, previous: "below", previousHidden: false, previousBelow: true });
+    expect(Number.parseFloat(beside.previousLeft)).toBeCloseTo((392 / 823) * 100, 3);
+
+    const alone = drawn(own);
+    expect(alone).toMatchObject({ crossing: "end-above", crossingHidden: false, previous: "none", previousHidden: true });
+  });
+
+  it("moves only with the chart kit's motion, all of which stops under reduced motion", () => {
+    const css = readFileSync(path.resolve(import.meta.dirname, "../src/index.css"), "utf8");
+    const reduced = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
+    const stilled = reduced.slice(0, reduced.indexOf("\n}\n"));
+    const data = wallFixturePayload();
+    const { container } = render(<RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={NOW} />);
+    const classes = new Set([...container.querySelectorAll("*")].flatMap((node) => (node.getAttribute("class") ?? "").split(/\s+/)));
+    const motion = [...classes].filter((name) => /^(chart-[a-z-]+|viz-[a-z-]+)$/.test(name) && /morph|breathe|arrive|grow|draw|flow/.test(name));
+    expect(motion).toContain("chart-morph");
+    for (const name of motion) expect(stilled, name).toContain(`.${name}`);
+    for (const name of classes) if (/animate-/.test(name)) expect(name, name).toMatch(/^motion-safe:/);
+  });
+});
+
 // A new installation's first three weeks: the revenue sites report daily, but
 // no projection is ready and the ledger has no row yet.
 describe("the revenue widget before the month has a pace or a ledger row", () => {
@@ -322,8 +492,7 @@ describe("the revenue widget before the month has a pace or a ledger row", () =>
     const { container } = render(<RevenueHero {...learningOnly(true)} nowMs={NOW} />);
     const section = container.querySelector("[data-wall-revenue]")!;
     expect(section.getAttribute("data-wall-revenue")).toBe("figure");
-    expect(section).not.toHaveClass("xl:h-72");
-    expect(section).not.toHaveClass("2xl:h-wall-band");
+    expect(section).not.toHaveClass("isolate");
     expect(section.textContent).not.toContain("No revenue source");
     expect(within(section as HTMLElement).getByRole("heading").textContent).toBe("September revenue · estimated");
     // Plume Studio $924 + Mosaic Finder $261 reported so far.
@@ -337,8 +506,7 @@ describe("the revenue widget before the month has a pace or a ledger row", () =>
     const { container } = render(<RevenueHero {...learningOnly(false)} nowMs={NOW} />);
     const section = container.querySelector("[data-wall-revenue]")!;
     expect(section.getAttribute("data-wall-revenue")).toBe("waiting");
-    expect(section).not.toHaveClass("xl:h-72");
-    expect(section).not.toHaveClass("2xl:h-wall-band");
+    expect(section).not.toHaveClass("isolate");
     expect(section.querySelector("[data-revenue-figure]")).toBeNull();
     expect(section.querySelector("[data-revenue-waiting]")?.textContent).toBe("Waiting for complete revenue reports.");
     expect(section.querySelector("[data-revenue-yesterday]")?.textContent).toBe("Sep 21 · Pacific $55.25 est.");

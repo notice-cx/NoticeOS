@@ -6,11 +6,12 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { render, within } from "./render";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { AssetCard, WorkSummary } from "@shared/wall";
 import type { WorkWeeks } from "@shared/work";
 import { WallWork } from "@/components/wall/WallWork";
-import { WorkWeekChip } from "@/components/viz/WorkFlow";
+import { WorkFlow, WorkWeekChip, moreProjects, workRowsThatFit } from "@/components/viz/WorkFlow";
+import { workFlowRows } from "@/lib/viz-adapters";
 
 const NOW = Date.parse("2026-09-22T19:30:00.000Z");
 const at = (hoursAgo: number) => new Date(NOW - hoursAgo * 3_600_000).toISOString();
@@ -128,6 +129,87 @@ describe("the Wall's work tile, week against week", () => {
     expect(motion).toEqual(expect.arrayContaining(["viz-arrive", "viz-grow-x"]));
     for (const name of motion) expect(stilled, name).toContain(`.${name}`);
     for (const name of classes) if (/animate-/.test(name)) expect(name, name).toMatch(/^motion-safe:/);
+  });
+});
+
+// On the TV the tile is as tall as its content: one band for the heading and
+// the four figures, the two weeks' bar with its words beside it, and each
+// project one row as tall as its bar. A box too short for every project
+// draws the rows that fit whole and counts the rest on one line.
+describe("the Work tile's height on the TV", () => {
+  const six = ["a", "b", "c", "d", "e", "f"].map((id) => asset(`${id}.example`, work(weeks())));
+
+  it("draws each project as one row as tall as its bar, with no padding, while the desk keeps its spacing", () => {
+    const { container } = render(<WallWork assets={six} operator={operator} nowMs={NOW} />);
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-work-row]")];
+    expect(rows).toHaveLength(6);
+    for (const row of rows) {
+      expect(row.className).not.toMatch(/\bpy-/);
+      // The name's line is the bar's height (`--text-wall-row`, 1.25 rem), and
+      // the two weeks' done bars sit inside the same h-5.
+      expect(row.querySelector("[title]")).toHaveClass("text-wall-row");
+      expect(row.querySelector("[data-work-last-week]")!.parentElement!.parentElement).toHaveClass("h-5");
+    }
+    const css = readFileSync(path.resolve(import.meta.dirname, "../src/index.css"), "utf8");
+    expect(css).toContain("--text-wall-row--line-height: calc(1.25rem * var(--wall-boost-body, 1));");
+
+    const desk = render(<WorkFlow rows={workFlowRows(six)} title="Work" />).container;
+    for (const row of desk.querySelectorAll("[data-work-row]")) {
+      expect(row).toHaveClass("py-2");
+      expect(row.querySelector("[title]")).toHaveClass("text-sm");
+    }
+  });
+
+  it("sets the heading and the four figures on one band and the two weeks' words beside their bar, where the tile is wide enough", () => {
+    const { container } = render(<WallWork assets={six} operator={operator} nowMs={NOW} />);
+    const band = container.querySelector("[data-work-band]")!;
+    expect(band).toHaveClass("@7xl:flex-row");
+    expect(band.querySelector("header")).not.toBeNull();
+    expect(band.querySelectorAll("[data-work-figure]")).toHaveLength(4);
+    for (const value of band.querySelectorAll("[data-work-figure-value]")) expect(value).toHaveClass("@7xl:flex-row", "@7xl:whitespace-nowrap");
+    expect(container.querySelector("[data-work-weeks] [data-pace-bar]")).toHaveClass("@2xl:flex-row");
+    // The desk keeps its heading over its figures and the bar's words under it.
+    const desk = render(<WorkFlow rows={workFlowRows(six)} weeks={weeks()} title="Work" />).container;
+    expect(desk.querySelector("[data-work-band]")).toBeNull();
+    expect(desk.querySelector("[data-pace-bar]")).not.toHaveClass("@2xl:flex-row");
+  });
+
+  it("counts the rows that fit whole, leaving one row's height for the line that counts the rest", () => {
+    // 124 px of figures and bar above the rows, 21 px rows.
+    expect(workRowsThatFit({ height: 250, top: 124, row: 21, rows: 6 })).toBe(6);
+    expect(workRowsThatFit({ height: 205, top: 124, row: 21, rows: 6 })).toBe(2);
+    expect(workRowsThatFit({ height: 130, top: 124, row: 21, rows: 6 })).toBe(0);
+    expect(workRowsThatFit({ height: 0, top: 0, row: 0, rows: 6 })).toBe(6);
+  });
+
+  it("draws the rows that fit and one line for the rest when the box is short, never a cut row", () => {
+    const sizes = vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.hasAttribute("data-wall-work") ? 205 : 0;
+    });
+    const tops = vi.spyOn(HTMLElement.prototype, "offsetTop", "get").mockImplementation(function (this: HTMLElement) {
+      return this.matches("[data-work-row], [data-work-more]") ? 124 : 0;
+    });
+    const heights = vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (this: HTMLElement) {
+      return this.matches("[data-work-row], [data-work-more]") ? 21 : 0;
+    });
+    const { container } = render(<WallWork assets={six} operator={operator} nowMs={NOW} />);
+    sizes.mockRestore();
+    tops.mockRestore();
+    heights.mockRestore();
+    expect(container.querySelector("[data-wall-work]")).toHaveAttribute("data-work-shown", "2");
+    expect(container.querySelectorAll("[data-work-row]")).toHaveLength(2);
+    const more = container.querySelector("[data-work-more]")!;
+    expect(more).toHaveTextContent("+4 more projects");
+    expect(more).toHaveAttribute("role", "row");
+  });
+
+  it("names one left-out project in the singular", () => {
+    const { container } = render(<WorkFlow rows={workFlowRows(six)} title="Work" compact shownRows={5} />);
+    expect(container.querySelector("[data-work-more]")).toHaveTextContent("+1 more project");
+    expect(moreProjects(2)).toBe("+2 more projects");
+    // Every row fits: no line at all.
+    const all = render(<WorkFlow rows={workFlowRows(six)} title="Work" compact shownRows={6} />).container;
+    expect(all.querySelector("[data-work-more]")).toBeNull();
   });
 });
 

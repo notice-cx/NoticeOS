@@ -11,9 +11,10 @@ import { describe, expect, it } from "vitest";
 import { THEME_TEXT_SIZES, cn } from "@/lib/utils";
 
 const css = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), "../src/index.css"), "utf8");
-/** Every `--text-<name>:` the theme declares, less its `--line-height` twins. */
+/** Every `--text-<name>:` the theme declares, less its `--line-height` twins
+ * and Tailwind's own `--text-shadow-*` namespace, which is a shadow. */
 const sizes = [...new Set([...css.matchAll(/--text-([a-z0-9-]+?):/g)].map((match) => match[1]!))].filter(
-  (name) => !name.endsWith("-") && !name.includes("--"),
+  (name) => !name.endsWith("-") && !name.includes("--") && !name.startsWith("shadow-"),
 );
 /** Every text colour the theme declares (`--color-<name>:`). */
 const colours = [...new Set([...css.matchAll(/--color-([a-z0-9-]+):/g)].map((match) => match[1]!))];

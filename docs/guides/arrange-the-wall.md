@@ -58,6 +58,8 @@ A direction that would not move it is greyed out. With a widget focused, **Alt**
 - **By dragging**: point at the gap between two columns, or between two widgets stacked in a column, and drag the handle. The size of each shows as you drag, and the handle snaps to a quarter, a third, a half, two thirds and three quarters. The handle stops before a neighbouring widget becomes too small to read. With the handle focused, the arrow keys move it a step and **Page Up** or **Page Down** jump to the next of those sizes.
 - **In one press**: in the widget's settings, set **Width** (or **Column width** for a stacked widget) to **¼**, **⅓**, **½**, **⅔** or **¾** of its row. Set **Height** to **Fit content** or **Fill the rest**, or for a stacked widget to a third, a half or two thirds of its column.
 
+With **Fit content** a widget is as tall as what it shows, and widgets side by side in one row are as tall as the tallest of them. **Revenue** draws its month chart behind its figures, so at **Fit content** it is as tall as its lines of text, and beside **Needs attention** it is as tall as Needs attention. **Work** at **Fit content** is as tall as its figures and one line per project. Given less height than that, Work shows the projects that fit and counts the rest, such as **+2 more projects**. To give the site rows the most room, set **Revenue** and **Work** to **Fit content** and **Sites** to **Fill the rest**.
+
 A widget drawn smaller than it can be read shows **Too narrow for Sites** (or **Too short**) in place of its content. Make it bigger or move it, and the widget's content is shown again.
 
 ## Undo and save

@@ -553,6 +553,26 @@ three metres, and colour comes from the token the calling component passes.
 The convention "today solid, last week dashed" is written down once, here,
 and not on the screen.
 
+The revenue tile draws its month chart behind its figures on the TV: the
+chart fills the tile, every mark at `MONTH_CHART_BEHIND_OPACITY` (60 %), and
+each glyph of the figures has a margin of the TV's black that interrupts a
+line passing behind it, so the tile is only as tall as its text. The figure
+sits top left and the pace at the tile's foot, because a running total rises
+from the bottom left to the top right and the room a taller tile adds above
+the pace is where today's point, the projection and the crossing are drawn.
+The crossing's words and last month's total are placed clear of the figures,
+or left out. `test/chart-series-contrast.test.ts` keeps the line at 3:1 and
+the dashed projection above 1.5:1 at that strength. On a phone the chart is
+drawn under the figures.
+
+Work this week on the TV is as tall as its content: where the tile is 80 rem
+wide its heading and four figures are one band, each change chip on its
+figure's line; the week bar's words sit beside the bar; each project is one
+row as tall as its 20 px bar, the row's border the only gap. Given less height
+than every project needs, the tile draws the rows that fit whole and one line
+counting the rest ("+2 more projects", `workRowsThatFit`), never a cut row or
+a scroll bar. The desk's `WorkFlow` keeps its spacing.
+
 The TV background is pure black so unused pixels emit no light; nothing on it
 needs a pointer; state is never colour-only; a failed poll keeps last-good
 values with their age. A landscape screen shows the TV's layout scaled by one
