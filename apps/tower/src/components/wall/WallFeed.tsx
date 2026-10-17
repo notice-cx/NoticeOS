@@ -17,10 +17,12 @@
 // glyph carries the kind, so colour is never alone. A task line by a known
 // agent draws that agent's mark in the glyph's place, with the glyph as a badge
 // on its corner; a person's pick keeps the glyph and leads with the person's
-// name and the option chosen; a line about a site draws the site's favicon
-// beside its name.
+// name and the option chosen; a line about a site draws the site's icon for a
+// dark surface beside its name.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from "react";
+import type { SiteIcons } from "@noticeos/contract/site-icons";
+import type { AssetCard } from "@shared/wall";
 import {
   ArrowUp,
   CalendarX,
@@ -201,10 +203,13 @@ export interface WallFeedProps {
   failed?: boolean;
   /** The Wall's slow clock, which ages the rows. */
   nowMs: number;
+  /** Each site's icons from its card, by site id; a site absent here draws
+   * its `/favicon.ico`. */
+  icons?: ReadonlyMap<string, SiteIcons | null | undefined>;
 }
 
 /** The feed column itself, from a payload; `WallFeedWidget` polls for it. */
-export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
+export function WallFeed({ feed, failed = false, nowMs, icons }: WallFeedProps) {
   const { visible, arrived } = useArrivals(feed?.items);
   const listRef = useRef<HTMLOListElement>(null);
   const fit = useWholeRows(listRef, visible);
@@ -297,6 +302,8 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
                           {item.asset ? (
                             <PropertyFavicon
                               domain={item.asset}
+                              icons={icons?.get(item.asset)}
+                              scheme="dark"
                               displayName={item.site}
                               className="mr-1.5 -my-[0.25em] inline-grid size-[1.45em] align-middle text-[0.8em] font-bold text-foreground"
                             />
@@ -357,11 +364,21 @@ function FeedEvidence({ model, evidence }: { model: string | null; evidence: str
 }
 
 /** The widget the Wall draws: the column, polling its own read, without the
- * lines about a site whose TV switch is off. */
-export function WallFeedWidget({ nowMs, hidden }: { nowMs: number; hidden?: ReadonlySet<string> }) {
+ * lines about a site whose TV switch is off, each site drawn with the icons on
+ * its card. */
+export function WallFeedWidget({
+  nowMs,
+  hidden,
+  assets,
+}: {
+  nowMs: number;
+  hidden?: ReadonlySet<string>;
+  assets?: readonly Pick<AssetCard, "id" | "icons">[];
+}) {
   const { data, isError } = useWallFeed();
   const feed = data && hidden && hidden.size > 0
     ? { ...data, items: data.items.filter((item) => item.asset === null || !hidden.has(item.asset)) }
     : data;
-  return <WallFeed feed={feed} failed={isError} nowMs={nowMs} />;
+  const icons = useMemo(() => new Map(assets?.map((asset) => [asset.id, asset.icons])), [assets]);
+  return <WallFeed feed={feed} failed={isError} nowMs={nowMs} icons={icons} />;
 }

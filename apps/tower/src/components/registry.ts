@@ -126,8 +126,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "PropertyFavicon",
     file: "components/PropertyFavicon.tsx",
     purpose:
-      "Neutral asset identity glyph for card and detail headers, loaded from the asset's own favicon with a monogram fallback. It is decoration and aria-hidden: every call site draws it beside a visible name.",
-    variants: ["site icon", "failed-image fallback", "card", "detail", "decorative (no accessible name)"],
+      "Neutral asset identity glyph for card and detail headers: the icon the site's pages declare for the surface (the dark one on the Wall and the dark desk, else the light one; the light one on the light desk), then the site's /favicon.ico, then a monogram. It is decoration and aria-hidden: every call site draws it beside a visible name.",
+    variants: ["dark surface · dark icon", "dark surface · light icon only", "light surface · light icon", "no icons · /favicon.ico", "failed-image fallback", "decorative (no accessible name)"],
   },
   {
     name: "AgeBadge",

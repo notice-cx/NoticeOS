@@ -724,8 +724,13 @@ arrow keys, the same readout the pointer shows; series keys expose their
 on/off state to screen readers. Toasts mount through `AppToaster` only, so a
 toast is one tab stop in the page's own theme. Contrast is checked at AA for
 text and 3:1 for series on the card, in both themes
-(`test/chart-series-contrast.test.ts`). A decorative logo (a favicon) is
-`aria-hidden` and sits beside a visible name. The phone layout is the same
+(`test/chart-series-contrast.test.ts`). A decorative logo (a site's icon) is
+`aria-hidden` and sits beside a visible name. The icon drawn for a site is
+the one its home page declares for the surface: on the Wall and on the dark
+desk the dark-scheme icon, or the light icon when the page declares no dark
+one; on the light desk the light icon. Where the page declares no icon for
+the surface, the site's `/favicon.ico` is drawn, and where that does not load
+either, the site's initial on a muted tile. The phone layout is the same
 components at a responsive breakpoint, never a separate mobile set. The Wall
 renders no interactive controls beyond one small muted link home, and its
 event marks open read-only explanations that a viewer who only watches never

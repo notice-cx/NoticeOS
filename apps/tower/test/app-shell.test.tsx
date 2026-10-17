@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from "./render";
+import { fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, WallPayload } from "@shared/wall";
@@ -515,6 +515,20 @@ describe("the theme toggle", () => {
     window.localStorage.setItem(THEME_STORAGE_KEY, "light");
     renderShell("/");
     expect(document.documentElement.classList.contains("light")).toBe(true);
+  });
+
+  it("redraws a site's icon for the new theme in the sidebar", async () => {
+    const light = "https://meadow.example/icon.png";
+    const dark = "https://meadow.example/icon-dark.png";
+    state.assets = [asset("meadow.example", "Meadow Board", { icons: { light, dark, readAt: "2026-09-01T04:00:00.000Z", outcome: "read" } })];
+    renderShell("/");
+    const icon = () => assetRows()[0]!.querySelector("[data-property-favicon] img");
+
+    expect(icon()).toHaveAttribute("src", dark);
+    fireEvent.click(screen.getAllByRole("button", { name: "Switch to light theme" })[0]!);
+    await waitFor(() => expect(icon()).toHaveAttribute("src", light));
+    fireEvent.click(screen.getAllByRole("button", { name: "Switch to dark theme" })[0]!);
+    await waitFor(() => expect(icon()).toHaveAttribute("src", dark));
   });
 });
 

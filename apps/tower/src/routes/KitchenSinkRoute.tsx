@@ -26,6 +26,7 @@ import { GOOGLE_TESTING_GRANT_DAYS } from "@noticeos/contract/integrations";
 import { REPORT_MAX_AGE_HOURS } from "@noticeos/contract/reporting";
 import type { CalendarFeed, CalendarUpcoming, UpcomingMeeting } from "@noticeos/contract/calendar-upcoming";
 import type { Ga4RealtimeAsset, Ga4RealtimePayload } from "@noticeos/contract/ga4-realtime";
+import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type {
   AssetCard as AssetData,
   AttentionItem,
@@ -299,6 +300,17 @@ const FEED_DEMO_ITEMS: WallFeedItem[] = (
   count: 1,
   tone,
 }));
+
+/** A site's declared icons as its card carries them, using the Tower's own
+ * mark: black for light surfaces, white for dark ones. */
+const DECLARED_ICONS: SiteIcons = {
+  light: "/brand/notice-icon-32.png",
+  dark: "/brand/notice-icon-32-dark.png",
+  readAt: new Date(NOW - 6 * 3_600_000).toISOString(),
+  outcome: "read",
+};
+/** The feed demo's one site with declared icons; the others draw their initial. */
+const FEED_DEMO_ICONS = new Map([["recipes.example.com", DECLARED_ICONS]]);
 
 function feedDemo(items: WallFeedItem[]): WallFeedPayload {
   return { generatedAt: new Date(NOW).toISOString(), since: new Date(NOW - 18 * 3_600_000).toISOString(), items, limit: 50 };
@@ -2329,7 +2341,7 @@ const cardCleanWindow: AssetData = {
  * the foot whatever order it arrives in, so the fixture hands it in second
  * place. */
 const sidebarAssets: AssetData[] = [
-  { ...cardLive, status: "live" },
+  { ...cardLive, status: "live", icons: DECLARED_ICONS },
   { ...cardThin, status: "retired" },
   cardWarn,
   cardSetup,
@@ -3160,22 +3172,27 @@ export function KitchenSinkRoute() {
             <Labeled name="lg"><SeverityDot severity="error" size="lg" /></Labeled>
           </Section>
 
-          <Section title="PropertyFavicon">
-            <Labeled name="ico">
-              <PropertyFavicon domain="plume.example.com" displayName="Plume" />
+          <Section title="PropertyFavicon (the declared icon for the surface · /favicon.ico · the initial)">
+            <Labeled name="dark surface · dark icon">
+              <span data-theme="dark" className="grid rounded-md bg-background p-1.5">
+                <PropertyFavicon domain="plume.example.com" displayName="Plume" icons={DECLARED_ICONS} scheme="dark" className="size-7" />
+              </span>
             </Labeled>
-            <Labeled name="svg + detail size">
-              <PropertyFavicon
-                domain="finance.example.org"
-                displayName="Finance"
-                className="size-7"
-              />
+            <Labeled name="dark surface · light icon only">
+              <span data-theme="dark" className="grid rounded-md bg-background p-1.5">
+                <PropertyFavicon domain="plume.example.com" displayName="Plume" icons={{ ...DECLARED_ICONS, dark: null }} scheme="dark" className="size-7" />
+              </span>
             </Labeled>
-            <Labeled name="fallback">
-              <PropertyFavicon
-                domain="missing.invalid"
-                displayName="Missing"
-              />
+            <Labeled name="light surface · light icon">
+              <span className="light grid rounded-md bg-background p-1.5">
+                <PropertyFavicon domain="plume.example.com" displayName="Plume" icons={DECLARED_ICONS} scheme="light" className="size-7" />
+              </span>
+            </Labeled>
+            <Labeled name="no icons · /favicon.ico">
+              <PropertyFavicon domain="finance.example.org" displayName="Finance" className="size-7" />
+            </Labeled>
+            <Labeled name="nothing loads · initial">
+              <PropertyFavicon domain="missing.invalid" displayName="Missing" />
             </Labeled>
           </Section>
 
@@ -4948,9 +4965,9 @@ export function KitchenSinkRoute() {
               arrival's slide and tint are proven by
               test/wall-feed-column.test.tsx and the Wall feed journey. */}
           <Section title="WallFeed (live rows · reconnecting · empty window)">
-            <div className="wall-root grid h-[40rem] w-full grid-cols-1 gap-3 rounded-lg border border-border bg-background p-2 md:grid-cols-3">
-              <WallFeed feed={feedDemo(FEED_DEMO_ITEMS)} nowMs={NOW} />
-              <WallFeed feed={feedDemo(FEED_DEMO_ITEMS.slice(0, 4))} failed nowMs={NOW} />
+            <div data-theme="dark" className="wall-root grid h-[40rem] w-full grid-cols-1 gap-3 rounded-lg border border-border bg-background p-2 md:grid-cols-3">
+              <WallFeed feed={feedDemo(FEED_DEMO_ITEMS)} nowMs={NOW} icons={FEED_DEMO_ICONS} />
+              <WallFeed feed={feedDemo(FEED_DEMO_ITEMS.slice(0, 4))} failed nowMs={NOW} icons={FEED_DEMO_ICONS} />
               <WallFeed feed={feedDemo([])} nowMs={NOW} />
             </div>
           </Section>
