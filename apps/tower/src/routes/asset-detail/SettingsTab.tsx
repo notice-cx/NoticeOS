@@ -5,6 +5,7 @@ import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ASSET_STATUS_LABEL as STATUS_LABEL } from "@shared/asset-detail";
+import { isRetired } from "@shared/asset-setup";
 import type {
   AssetInfo,
   AssetPanelConfig,
@@ -68,6 +69,7 @@ import { ArchiveCard } from "@/routes/asset-detail/AssetRetirement";
 import { useAssetLifecycle } from "@/hooks/useAssetLifecycle";
 import { NightlyReportScope } from "@/routes/asset-detail/NightlyReportSwitch";
 import { WhereItShowsCard } from "@/routes/asset-detail/WhereItShows";
+import { SiteIconsSection } from "@/routes/asset-detail/SiteIcons";
 
 // --- edit op builders (what a Save writes) ---------------------------------
 /** A file-json-set op factory: `expect` is baked to the current value the UI
@@ -122,7 +124,7 @@ export function AssetSettingsPanel({
           times out of ten, and it is the only card whose fields name the asset
           itself rather than the machinery around it. */}
       <Hero>
-        <IdentityCard asset={asset} />
+        <IdentityCard asset={asset} nowMs={nowMs} />
       </Hero>
       <LifecycleCard asset={asset} />
       {/* The System is no site of the list: it has no place and no switches. */}
@@ -181,9 +183,10 @@ function SecretPointer({ children }: { children: ReactNode }) {
 /**
  * Identity: the display name is editable (a store column, so it saves in every
  * deployment); the domain and id cannot move, because every observation and
- * all history are filed under them. The OS's own row has no name field.
+ * all history are filed under them; and the icons read from the site's pages.
+ * The OS's own row has no name field and no icons.
  */
-function IdentityCard({ asset }: { asset: AssetInfo }) {
+function IdentityCard({ asset, nowMs }: { asset: AssetInfo; nowMs: number }) {
   return (
     <Panel title="Identity">
       {asset.isOs ? null : (
@@ -220,6 +223,12 @@ function IdentityCard({ asset }: { asset: AssetInfo }) {
           }
         />
       </div>
+      {/* Icons are the daily read's, which covers the sites with a domain
+          that are not retired, the System aside. An archived site's tab opens
+          at Restore, which this section would push down while it loads. */}
+      {asset.domain && !asset.isOs && !isRetired(asset.status) ? (
+        <SiteIconsSection assetId={asset.id} siteName={asset.displayName} nowMs={nowMs} />
+      ) : null}
     </Panel>
   );
 }

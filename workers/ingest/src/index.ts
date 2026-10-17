@@ -3,7 +3,7 @@ import { authenticateOperator } from './auth.js';
 import { GOOGLE_OAUTH_MAINTENANCE_CRON, runOAuthMaintenance } from './oauth-maintenance.js';
 import { readIntegrationHealth } from './integration-health-read.js';
 import { readCredentialSummaries } from './credential-summaries-read.js';
-import { configReadFiles, assetMutationArguments, storedResearchArguments, watchQueryHistoryArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, googleOAuthArguments, withGoogleWorkspaceEntry, withIntegrationSummaryEntry, withLiveProviderReadEntry, workspaceEntryOrigin, withWorkspaceEntry, workspaceProfile, WorkspaceEntryRefused } from '../../../scripts/workspace-entry.mjs';
+import { configReadFiles, assetMutationArguments, storedResearchArguments, watchQueryHistoryArguments, configWriteArguments, connectionReadinessArguments, credentialWriteArguments, providerCollectionArguments, siteIconsReadArguments, googleOAuthArguments, withGoogleWorkspaceEntry, withIntegrationSummaryEntry, withLiveProviderReadEntry, workspaceEntryOrigin, withWorkspaceEntry, workspaceProfile, WorkspaceEntryRefused } from '../../../scripts/workspace-entry.mjs';
 import type { WorkspaceStore } from '@noticeos/postgres';
 import { integrationProvider } from '@noticeos/contract';
 import { ingestOperation } from '../../../scripts/workspace-operations.mjs';
@@ -54,6 +54,8 @@ import type {
   PutCredentialResult,
   SetCredentialExpiryInput,
   SetCredentialExpiryResult,
+  SiteIconsReadInput,
+  SiteIconsReadResult,
   WatchQueryHistory,
   WatchQueryHistoryInput,
   WriteAssetColumnInput,
@@ -139,7 +141,7 @@ import { calendarUpcoming as readCalendarUpcoming } from './calendar.js';
 import { readWatchQueryHistory } from './watch-windows.js';
 // The cron dispatch table and cron constants are not here: workerd requires
 // every named export of the entry module to be a handler.
-import { runCollectNow, runCron, runScheduledCron } from './dispatch.js';
+import { runCollectNow, runCron, runScheduledCron, runSiteIconsNow } from './dispatch.js';
 import { withCallStore } from './call-store.js';
 import { discoverSites } from './site-discovery.js';
 
@@ -614,6 +616,25 @@ export default class IngestWorker extends WorkerEntrypoint<IngestEnv> {
     }
     if (proof !== undefined) throw new WorkspaceEntryRefused();
     return withCallStore(this.env, this.ctx, (env) => runCollectNow(env, input));
+  }
+
+  /**
+   * A site's Read again: the daily job's icons step, run now for that one
+   * site through the same read and store write. It answers when the read has
+   * been stored, so what it reports is what the card reads next.
+   */
+  async readSiteIcons(input: SiteIconsReadInput, proof?: Request): Promise<SiteIconsReadResult> {
+    if (workspaceProfile(this.env) !== 'standalone') {
+      if (!(proof instanceof Request)) throw new WorkspaceEntryRefused();
+      const original = proof.clone();
+      const selected = await siteIconsReadArguments(input, original);
+      return withWorkspaceEntry(this.env, original, call => call.withStore(this.ctx, async store => {
+        await assertCollectionAssets(store, [selected.asset]);
+        return runSiteIconsNow({ ...this.env, STORE: store }, selected);
+      }));
+    }
+    if (proof !== undefined) throw new WorkspaceEntryRefused();
+    return withCallStore(this.env, this.ctx, (env) => runSiteIconsNow(env, input));
   }
 
   async mediavineStatus(asset: string) { return withCallStore(this.env, this.ctx, (env) => mediavineStatus(env, asset)); }

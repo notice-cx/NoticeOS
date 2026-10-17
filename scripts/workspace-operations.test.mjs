@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { atDeadline, fakeClock } from './test-deadline.mjs';
-import { GOOGLE_INTEGRATION_START, googleOAuthRequest, OperationRefused, ingestOperation, towerOperation, providerCollectionInput, liveProviderReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from './workspace-operations.mjs';
+import { GOOGLE_INTEGRATION_START, googleOAuthRequest, OperationRefused, ingestOperation, towerOperation, providerCollectionInput, liveProviderReadRequest, siteIconsReadInput, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from './workspace-operations.mjs';
 
 const origin = 'https://fixture.example.test';
 const request = (path, method = 'GET', body, headers = {}) => new Request(origin + path, {
@@ -167,10 +167,12 @@ test('mutations and execution use fixed receiver-specific catalog edges', async 
     ['/api/integrations/mediavine/settings', 'PUT', 'saveMediavineSettings', 'integrations.write'],
     ['/api/integrations/google/collect', 'POST', 'collectNow', 'workflows.run'],
     ['/api/integrations/mediavine/sync', 'POST', 'syncMediavine', 'workflows.run'],
+    ['/api/assets/example.com/icons', 'POST', 'readSiteIcons', 'workflows.run'],
   ]) {
     const body = ['putCredential', 'connectCredential'].includes(receiver) ? { fields: { apiKey: randomUUID() } }
       : receiver === 'setCredentialExpiry' ? { expiresAt: null }
       : receiver === 'putSiteToken' ? { asset: 'example.test', token: randomUUID() }
+      : receiver === 'readSiteIcons' ? {}
       : receiver === 'collectNow' ? { assets: ['example.test'] }
       : receiver === 'syncMediavine' ? { asset: 'example.test' }
       : receiver === 'moveAsset' ? { to: 'other.test' }
@@ -181,6 +183,19 @@ test('mutations and execution use fixed receiver-specific catalog edges', async 
   }
   assert.equal((await towerOperation(request('/api/flags/17', 'PATCH', { action: 'acknowledge' }))).action, 'findings.write');
   assert.equal((await towerOperation(request('/api/assets/example.com/decisions', 'DELETE', { kind: 'query', key: 'fixture' }))).action, 'findings.write');
+});
+
+test('Read again names its one site by its path, with an empty body and nothing else', async () => {
+  const path = '/api/assets/example.com/icons';
+  assert.deepEqual(siteIconsReadRequest(request(path, 'POST', {})), { asset: 'example.com' });
+  assert.deepEqual(await siteIconsReadInput(request(path, 'POST', {})), { asset: 'example.com' });
+  for (const body of [{ asset: 'foreign.test' }, { actor: 'owner' }, { action: 'settings.write' }, [], undefined])
+    await assert.rejects(towerOperation(request(path, 'POST', body)), OperationRefused);
+  for (const [candidate, method] of [[path + '?asset=foreign.test', 'POST'], [path + '#x', 'POST'], [path, 'GET'],
+    ['/api/assets/example%2Ecom/icons', 'POST'], ['/api/assets/example.com/icons/extra', 'POST']]) {
+    assert.equal(siteIconsReadRequest(request(candidate, method, method === 'GET' ? undefined : {})), null, `${method} ${candidate}`);
+  }
+  await assert.rejects(ingestOperation('collectNow', request(path, 'POST', {})), OperationRefused);
 });
 
 test('credential lifecycle grammar preserves the fixed body and rejects extra authority or secret metadata', async () => {

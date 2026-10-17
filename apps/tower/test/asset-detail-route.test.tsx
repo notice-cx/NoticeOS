@@ -5501,7 +5501,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
   it("offers no name field on the OS's own row, and keeps the rest of its settings", async () => {
     const data = payload();
     data.asset = { ...data.asset, id: "root-os", displayName: "System", domain: null, isOs: true };
-    stubFetch(200, data);
+    stubFetchWithWall(data);
     const { container, findByText, queryByLabelText } = renderRoute("root-os", "", "settings");
 
     await findByText("Identity");
@@ -5512,8 +5512,68 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     );
     await findByText("Alert rules in force");
     expect(container.querySelectorAll("[data-knob-editor]").length).toBeGreaterThan(0);
+    // No pages to read icons from: the Identity card has no Icons.
+    expect(container.querySelector("[data-site-icons]")).toBeNull();
+  });
+
+  it("puts Icons on the Identity card of a site the daily read covers, and none on one without a domain or retired", async () => {
+    stubFetchWithWall(payload());
+    const withDomain = renderRoute("meadow.example", "", "settings");
+    const icons = await waitFor(() => {
+      const found = withDomain.container.querySelector("[data-site-icons]");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    expect(icons.closest(CARD)).toHaveTextContent("Identity");
+    expect(icons).toHaveTextContent("Not read yet");
+    withDomain.unmount();
+
+    for (const asset of [{ domain: null }, { status: "retired" as const }]) {
+      const data = payload();
+      data.asset = { ...data.asset, ...asset };
+      stubFetchWithWall(data);
+      const { container, findByText, unmount } = renderRoute("meadow.example", "", "settings");
+      await findByText("Alert rules in force");
+      // The wall read the section waits on has landed: Where it shows draws from it.
+      await waitFor(() => expect(container.querySelector('[data-where-it-shows="meadow.example"]')).not.toBeNull());
+      expect(container.querySelector("[data-site-icons]"), JSON.stringify(asset)).toBeNull();
+      unmount();
+    }
   });
 });
+
+/** The detail payload for every read but the wall's, which answers one card,
+ * meadow.example, read by nothing yet. */
+function stubFetchWithWall(detail: unknown) {
+  const zero = { currency: "USD", revenue: 0, cost: 0, net: 0 };
+  const trend = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
+  const wall = {
+    generatedAt: "2026-07-05T12:00:00.000Z",
+    portfolio: {
+      netTrendCurrency: "USD", netTrendAllCurrency: "USD", period: "2026-07", periodIsCurrent: true,
+      booked: zero, forecast: zero, netTrend: [], netTrendAll: [], trendGranularity: "monthly", bookedDelta: null,
+      residue: { booked: zero, forecast: zero }, firstRun: true, daysIn: 5,
+    },
+    system: { assetId: "root-os", hasPulse: true, spendTodayUsd: 0, dailyCapUsd: 1, ingest: { fresh: 1, stale: 0, notExpected: 0, expected: 1 }, scheduledLanes: [] },
+    dashboard: {},
+    assets: [{
+      id: "meadow.example", displayName: "Meadow Board", status: "live", senseOnly: false, worstSeverity: null, openError: 0, openWarn: 0,
+      booked: zero, forecast: zero, netPeriod: "2026-07", pulseReceivedAt: null, firstReportAt: null, dataSources: [],
+      searchClicks: trend, activeUsers: trend, netByMonth: [], netByMonthCurrency: "USD", netByMonthProvisionalFrom: null,
+      work: null, panelReview: null, latestPanelDate: null, icons: null,
+    }],
+    attention: [], snoozed: [],
+    operator: { waiting: 0, urgent: 0, measuredProjects: 0, urgentMeasuredProjects: 0, projectCount: 0, capturedAt: "2026-07-05T12:00:00.000Z" },
+    ledgerRecordedAt: null,
+  };
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) =>
+    new Response(JSON.stringify(String(input).startsWith("/api/wall") ? wall : detail), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    }));
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
 
 describe("AssetDetailRoute — failed detail read", () => {
   it("renders a failure state with the status, not an endless Loading…", async () => {

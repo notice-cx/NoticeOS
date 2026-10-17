@@ -34,6 +34,7 @@ import {
 } from "@shared/connection-status";
 import type { CalendarUpcoming } from "@noticeos/contract/calendar-upcoming";
 import { GA4_PULSE_MINUTES, type Ga4RealtimePayload } from "@noticeos/contract/ga4-realtime";
+import type { SiteIconsReadResult } from "@noticeos/contract/site-icons";
 import type {
   AnnotationKind,
   DecisionKind,
@@ -1462,6 +1463,18 @@ async function collectProviderSitesRequest(fetch: ApiTransport, provider: string
 }
 
 /**
+ * Read again: the ingest's icon read, run now for one site. Answers once the
+ * read is stored; a refusal (the daily job paused, a site the read does not
+ * cover) is an answer, not a thrown error.
+ */
+async function readSiteIconsRequest(fetch: ApiTransport, asset: string): Promise<SiteIconsReadResult> {
+  const path = `/api/assets/${encodeURIComponent(asset)}/icons`;
+  const res = await fetch(path, { method: "POST", headers: JSON_WRITE_HEADERS, body: "{}" });
+  if (!res.ok) throw await refusal(res, `POST ${path} failed: ${res.status}`);
+  return (await res.json()) as SiteIconsReadResult;
+}
+
+/**
  * What the connected Google account can actually see: two free, read-only list
  * calls; nothing is stored. A failure inside Google is a 200 with `ok: false`
  * and the reason, exactly like the connection test.
@@ -1676,6 +1689,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     saveSiteToken: bind(saveSiteTokenRequest),
     fetchProviderSites: bind(fetchProviderSitesRequest),
     collectProviderSites: bind(collectProviderSitesRequest),
+    readSiteIcons: bind(readSiteIconsRequest),
     fetchGoogleProperties: bind(fetchGooglePropertiesRequest),
     fetchEnvImportAvailability: bind(fetchEnvImportAvailabilityRequest),
     importEnvCredentials: bind(importEnvCredentialsRequest),
@@ -1747,6 +1761,7 @@ export const {
   saveSiteToken,
   fetchProviderSites,
   collectProviderSites,
+  readSiteIcons,
   fetchGoogleProperties,
   fetchEnvImportAvailability,
   importEnvCredentials,

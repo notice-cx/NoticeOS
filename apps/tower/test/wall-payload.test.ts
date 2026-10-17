@@ -2543,14 +2543,73 @@ describe("buildWallPayload — the card's site icons", () => {
       dark: "https://meadow.example/brand/icon-32-dark.png",
       readAt: "2026-07-04T04:00:00.000Z",
       outcome: "read",
+      read: {
+        light: "https://meadow.example/brand/icon-32.png",
+        dark: "https://meadow.example/brand/icon-32-dark.png",
+      },
+      // The newer read that found the page unreachable, by its own time.
+      unreachableAt: "2026-07-05T04:00:00.000Z",
     });
     expect(cards.get("northwind.example")!.icons).toEqual({
       light: null,
       dark: null,
       readAt: "2026-07-05T04:00:00.000Z",
       outcome: "no-icon",
+      read: { light: null, dark: null },
     });
     expect(cards.get("pebble.example")!.icons).toBeNull();
+  });
+
+  it("names a site no read has reached by the time of its unreachable read", async () => {
+    await storeIconRead("pebble.example", "2026-07-05T04:00:00.000Z", "unreachable", null, null);
+
+    const cards = new Map((await buildWallPayload(ctx.call, OPTIONS)).assets.map((card) => [card.id, card]));
+
+    expect(cards.get("pebble.example")!.icons).toEqual({
+      light: null,
+      dark: null,
+      readAt: null,
+      outcome: null,
+      read: { light: null, dark: null },
+      unreachableAt: "2026-07-05T04:00:00.000Z",
+    });
+  });
+
+  it("draws an address set on the site's Settings tab in place of the one read, on every card", async () => {
+    await storeIconRead("meadow.example", "2026-07-04T04:00:00.000Z", "read",
+      "https://meadow.example/brand/icon-32.png", "https://meadow.example/brand/icon-32-dark.png");
+    const SET_DARK = "https://cdn.example.com/meadow-white.svg";
+    const SET_LIGHT = "https://cdn.example.com/pebble.svg";
+    const options = {
+      ...OPTIONS,
+      dashboard: {
+        ...OPTIONS.dashboard,
+        sites: { "meadow.example": { tv: false, darkIcon: SET_DARK }, "pebble.example": { lightIcon: SET_LIGHT } },
+      },
+    };
+
+    const cards = new Map((await buildWallPayload(ctx.call, options)).assets.map((card) => [card.id, card]));
+
+    // The dark address wins; the light one read from the page stands.
+    expect(cards.get("meadow.example")!.icons).toEqual({
+      light: "https://meadow.example/brand/icon-32.png",
+      dark: SET_DARK,
+      readAt: "2026-07-04T04:00:00.000Z",
+      outcome: "read",
+      read: {
+        light: "https://meadow.example/brand/icon-32.png",
+        dark: "https://meadow.example/brand/icon-32-dark.png",
+      },
+    });
+    // A site never read draws the address set for it.
+    expect(cards.get("pebble.example")!.icons).toEqual({
+      light: SET_LIGHT,
+      dark: null,
+      readAt: null,
+      outcome: null,
+      read: { light: null, dark: null },
+    });
+    expect(cards.get("northwind.example")!.icons).toBeNull();
   });
 
   it("builds every card with no icons on a store the icon migration has not reached", async () => {

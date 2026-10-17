@@ -98,6 +98,16 @@ type ProviderCollectionInput = {
 /** Snapshot exact public fields before any identity, credential or provider I/O.
  * Ordinary collectors retain their mapping, date, lease and budget validation. */
 export declare function providerCollectionInput(request: Request): Promise<ProviderCollectionInput>;
+/** A site's Read again: one fixed workflow effect on the one site its path
+ * names. The body is an empty JSON object; nothing in it selects anything. */
+export declare function siteIconsReadRequest(request: Request): {
+    readonly asset: string;
+} | null;
+/** Snapshot the exact empty body before any identity or network I/O. The
+ * ingest keeps its own rule for which sites the daily read covers. */
+export declare function siteIconsReadInput(request: Request): Promise<{
+    readonly asset: string;
+}>;
 /** Fixed existing credential operations; no provider, actor or action comes
  * from the body. Provider field rules remain in the ordinary credential store. */
 export declare function credentialWriteRequest(request: Request): {

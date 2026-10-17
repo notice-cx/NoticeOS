@@ -781,7 +781,7 @@ export function createJourneyHarness(ingestCode: JourneyIngest, postgresHandle: 
       return removed;
     },
     createAnnotation: refuse, readAssetState: refuse, writeAssetColumn: refuse,
-    calendarUpcoming: refuse, researchLookup: refuse,
+    calendarUpcoming: refuse, researchLookup: refuse, readSiteIcons: refuse,
     runScheduled: refuse, fetch: refuse, watchQueryHistory: refuse,
     createWatchWindow: refuse, backtestRule: refuse,
     // Signing in to Google: the production start and callback, the account's
