@@ -952,7 +952,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "RevenueHero",
     file: "components/wall/RevenueHero.tsx",
     purpose:
-      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the sites' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
+      "The Wall's revenue widget: the month's revenue so far as the largest type on the screen, 'on pace for $X' from the sites' projections, the change against last month in neutral ink, yesterday's estimate with the days left, and the month as a running total drawn in ChartMarks against last month's flat total with the crossing day named. On the TV the chart is a lower-contrast layer behind the figures filling the tile, so the tile is as tall as its text and its labels are placed clear of the figures; on a phone it is drawn under them. The arithmetic is lib/wall-revenue; the figure is portfolioHeadline's, so the TV and the desk quote one number.",
     variants: [
       "on pace to pass last month",
       "passed last month",

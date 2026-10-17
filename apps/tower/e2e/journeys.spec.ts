@@ -890,6 +890,87 @@ test.describe(() => {
     }
   });
 
+  // The revenue tile beside Needs attention, both at Fit content: on the TV
+  // the month's chart is a layer behind the figures, so the tile is no taller
+  // than Needs attention's three rows and the row is Needs attention's own
+  // height; the crossing and last month's total are written where the
+  // figures leave room. On a phone the chart is drawn under the figures.
+  test("the Wall's revenue tile on the TV is as tall as Needs attention beside it, its month chart behind the figures", desktopOnly("measures the TV and walks the phone width itself"), async ({ page, request }, testInfo) => {
+    expect((await request.post("/__journey/wall-feed")).ok()).toBe(true);
+    await wallScene(page, "fire", { layout: WALL_FEED_LAYOUT });
+    await wallAt(page, [1920, 1080]);
+    const revenue = page.locator('[data-wall-revenue="pace"]');
+    await expect(revenue).toBeVisible();
+    await expect(page.locator("[data-wall-needs] [data-needs-row]")).toHaveCount(3);
+    // The screenshots below are of the tile, not of the boot splash over it.
+    await expect(page.locator("#boot-splash")).toHaveCount(0);
+    await page.evaluate(() => document.fonts.ready);
+    const tv = await page.evaluate(() => {
+      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
+      const needs = document.querySelector<HTMLElement>("[data-wall-needs]")!;
+      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
+      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
+      const box = (el: Element) => el.getBoundingClientRect();
+      const text: DOMRect[] = [];
+      const walker = document.createTreeWalker(section, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (!node.nodeValue?.trim() || node.parentElement!.closest("[data-month-chart]")) continue;
+        range.selectNodeContents(node);
+        text.push(...[...range.getClientRects()].filter((rect) => rect.width > 0));
+      }
+      const apart = (a: DOMRect, b: DOMRect) => a.right <= b.left || b.right <= a.left || a.bottom <= b.top || b.bottom <= a.top;
+      const label = (selector: string) => {
+        const el = section.querySelector<HTMLElement>(selector)!;
+        return { hidden: getComputedStyle(el).visibility === "hidden", clear: text.every((rect) => apart(box(el), rect)) };
+      };
+      const needsContent = box(needs.lastElementChild!).bottom - box(needs).top;
+      return {
+        revenue: Math.round(box(section).height),
+        needs: Math.round(box(needs).height),
+        needsContent: Math.round(needsContent),
+        plot: { position: getComputedStyle(plot).position, z: getComputedStyle(plot).zIndex, top: Math.round(box(plot).top - box(section).top), height: Math.round(box(plot).height) },
+        figuresHeight: Math.round(figures.height),
+        crossing: section.querySelector("[data-month-crossing-label]")!.getAttribute("data-month-crossing-place"),
+        previous: section.querySelector("[data-previous-total-label]")!.getAttribute("data-previous-total-place"),
+        crossingLabel: label("[data-month-crossing-label]"),
+        previousLabel: label("[data-previous-total-label]"),
+        readings: ["[data-month-actual]", "[data-month-pace]", "[data-previous-total]", "[data-month-crossing]", "[data-month-today]"].filter((s) => !section.querySelector(s)),
+      };
+    });
+    // No taller than Needs attention: the row is Needs attention's own
+    // height, which the revenue tile takes too.
+    expect(Math.abs(tv.revenue - tv.needs), `revenue ${tv.revenue} px beside Needs attention ${tv.needs} px`).toBeLessThanOrEqual(1);
+    expect(Math.abs(tv.needsContent - tv.needs), "Needs attention's own rows set the row's height").toBeLessThanOrEqual(1);
+    // The chart is a layer filling the tile from its top, behind the text.
+    expect(tv.plot).toMatchObject({ position: "absolute", z: "-10", top: 0 });
+    expect(tv.plot.height).toBeGreaterThan(tv.figuresHeight);
+    // Every reading is drawn, both labels where the figures leave room.
+    expect(tv.readings).toEqual([]);
+    expect(tv.crossing).toBe("end-above");
+    expect(tv.previous).not.toBe("none");
+    expect(tv.crossingLabel).toEqual({ hidden: false, clear: true });
+    expect(tv.previousLabel).toEqual({ hidden: false, clear: true });
+    const measured = await page.evaluate(measureWallFit);
+    if ("error" in measured) throw new Error(measured.error);
+    expect(wallFitVerdict(measured).fits).toBe(true);
+    expect(measured.ink, "painting outside its own box").toEqual([]);
+    expect(measured.clipped, "text cut off").toEqual([]);
+    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-behind-1920.png") });
+
+    // A phone: the tile is its text, too short for the chart behind it.
+    await wallAt(page, [390, 844]);
+    const phone = await page.evaluate(() => {
+      const section = document.querySelector<HTMLElement>("[data-wall-revenue]")!;
+      const plot = section.querySelector<HTMLElement>("[data-month-chart] [role='img']")!;
+      const figures = section.querySelector("[data-revenue-figure]")!.parentElement!.getBoundingClientRect();
+      return { position: getComputedStyle(plot).position, under: plot.getBoundingClientRect().top >= figures.bottom - 1 };
+    });
+    expect(phone).toEqual({ position: "relative", under: true });
+    await assertNoPageOverflow(page);
+    await revenue.screenshot({ path: testInfo.outputPath("wall-revenue-under-390.png") });
+  });
+
   // The Wall on a laptop and a landscape tablet, under a saved layout that
   // places the feed: a landscape screen at least 1024 px wide draws the TV's
   // layout, zoomed by one scale (1470 × 830 is the TV at 77 %), so the feed is

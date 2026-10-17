@@ -5,9 +5,12 @@
 // financial trio (revenue, cost, net) must also stay apart from one another
 // to the eye and under colour-blind simulation, with their line patterns as
 // the second, colourless cue. Measured from the two stylesheets.
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { SERIES_TONE_CLASS } from "@/components/surface/Sparkline";
-import { contrastRatio, distance, over, simulate, themeColours, type Theme } from "./palette";
+import { MONTH_CHART_BEHIND_OPACITY } from "@/components/wall/RevenueHero";
+import { block, contrastRatio, distance, linearRgb, over, simulate, themeColours, type Theme } from "./palette";
 
 const colour = themeColours();
 const THEMES: Theme[] = ["dark", "light"];
@@ -67,4 +70,27 @@ describe("chart series ink on the desk card", () => {
       expect(measured.filter((one) => one.normal < 15 || one.colourBlind < 6)).toEqual([]);
     });
   }
+});
+
+// The Wall's revenue tile draws its month chart behind its figures, every mark
+// at one lower strength, on the TV's black. The month's line stays a graphic
+// a reader can see (3:1), the dashed projection keeps the rule for a series
+// drawn under another (visible, past 1.5:1), and the figures over them stay
+// the strongest ink in the tile.
+describe("the revenue tile's chart behind its figures on the TV", () => {
+  const wall = block(readFileSync(path.resolve(import.meta.dirname, "../src/index.css"), "utf8"), /\.wall-root\s*\{([^}]+)\}/);
+  const black = linearRgb(wall.get("--background")!);
+  // `ChartLine`'s projection is drawn at 55 % of its series' ink.
+  const PROJECTION = 0.55;
+
+  it("keeps the month's line and its projection visible, and under the figures' ink", () => {
+    const ink = colour("dark", "--financial-revenue");
+    const line = contrastRatio(over(ink, MONTH_CHART_BEHIND_OPACITY, black), black);
+    const projection = contrastRatio(over(ink, MONTH_CHART_BEHIND_OPACITY * PROJECTION, black), black);
+    expect(round(line)).toBeGreaterThanOrEqual(3);
+    expect(round(projection)).toBeGreaterThan(1.5);
+    expect(projection).toBeLessThan(line);
+    const figures = contrastRatio(colour("dark", "--foreground"), black);
+    expect(line).toBeLessThan(figures / 2);
+  });
 });

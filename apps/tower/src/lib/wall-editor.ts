@@ -431,7 +431,8 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   loop: { width: 900, height: 56 },
   timeline: { width: 720, height: 100 },
   sites: { width: 880, height: 360 },
-  revenue: { width: 560, height: 300 },
+  // Its month chart is drawn behind its text, so its text is all it needs.
+  revenue: { width: 560, height: 200 },
   work: { width: 340, height: 260 },
   needs: { width: 260, height: 160 },
   feed: { width: 336, height: 300 },
