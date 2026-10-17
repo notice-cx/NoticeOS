@@ -8,7 +8,7 @@ import { MCP_MODERN_VERSIONS } from './mcp-protocol.mjs';
 import { READ_MODEL_TOOL_NAMES } from './read-model-tools.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { fakeTaskExecutor, memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
-import { TASK_QUALITY, TASK_WORKFLOW, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
+import { TASK_QUALITY, TASK_WORKFLOW, WHATS_CHANGED, taskGuide, taskRefusal } from './hosted-task-mcp.mjs';
 import { TaskStateRefused } from './hosted-task-command.mjs';
 
 // scripts/hosted-mcp.mts: NoticeOS's one MCP endpoint. One
@@ -96,6 +96,9 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.equal(init.result.instructions, discovered.instructions);
   for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
   assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
+  // Search before filing, so one piece of work is one task.
+  assert.match(discovered.instructions, /Before filing, search with list_tasks query for the title's key words\. Work already filed gets a comment, never a second task/u);
+  assert.match(discovered.instructions, /list_workspaces returns its version as guideVersion, so read it again when that changes/u);
   // A person's pick is data the Tower draws as buttons, never lettered prose.
   assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
   assert.doesNotMatch(discovered.instructions, /lettered options/u);
@@ -156,9 +159,30 @@ test('get_task_guide returns the whole guide with a version, and the instruction
   assert.notEqual(taskGuide(true).version, taskGuide(false).version);
 });
 
+test('the guide opens with what changed, at most three dated lines, and list_workspaces returns its version', async () => {
+  assert.ok(WHATS_CHANGED.length >= 1 && WHATS_CHANGED.length <= 3, `${WHATS_CHANGED.length} entries`);
+  for (const entry of WHATS_CHANGED) {
+    assert.match(entry, /^\d{4}-\d{2}-\d{2}: \S[^\n]*$/u, entry);
+    assert.equal(new Date(entry.slice(0, 10)).toISOString().slice(0, 10), entry.slice(0, 10), entry);
+  }
+  for (const panels of [false, true]) {
+    const { version, guide } = taskGuide(panels);
+    const sections = guide.split('\n').filter(line => line.startsWith('## '));
+    assert.equal(sections[0], '## What changed', 'the first section');
+    assert.ok(guide.includes(`## What changed\n\n${WHATS_CHANGED.map(entry => `- ${entry}`).join('\n')}\n\n## Start`), guide);
+    assert.match(guide, new RegExp(`^# Working with NoticeOS tasks\n\nGuide version ${version}; list_workspaces returns the current one as guideVersion\\.\n`, 'u'));
+  }
+  for (const profile of ['hosted', 'demo']) {
+    const f = fixture({ profile });
+    const bearer = profile === 'demo' ? null : READER;
+    const listed = (await call(f, 'list_workspaces', {}, { bearer })).structuredContent;
+    assert.equal(listed.guideVersion, (await call(f, 'get_task_guide', {}, { bearer })).structuredContent.version, profile);
+  }
+});
+
 test('list_workspaces shows every workspace with what this connection may do there', async () => {
   const f = fixture();
-  assert.deepEqual((await call(f, 'list_workspaces', {})).structuredContent, { workspaces: [
+  assert.deepEqual((await call(f, 'list_workspaces', {})).structuredContent, { guideVersion: taskGuide(false).version, workspaces: [
     { workspaceId: A, name: 'Operated', role: 'operator', status: 'active', access: ['tasks:read', 'tasks:write', 'evidence:read'] },
     { workspaceId: B, name: 'Viewed', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] });
   assert.match((await call(f, 'list_workspaces', { workspace: A })).content[0].text, /^invalid arguments/u);

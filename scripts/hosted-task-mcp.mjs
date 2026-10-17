@@ -45,7 +45,16 @@ export const TASK_QUALITY = Object.freeze([
     '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
+    '- Before filing, search with list_tasks query for the title\'s key words. Work already filed gets a comment, never a second task; of two tasks already filed for one piece of work, close the later as duplicate with duplicate_of.',
     '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
+]);
+/** What the task tools gained lately, first in the guide so an agent that
+ * read an earlier version learns the new tools and arguments without a
+ * refusal: oldest first, each one line opening with its date, at most three
+ * (a new entry drops the first). */
+export const WHATS_CHANGED = Object.freeze([
+    '2026-10-17: create_task and update_task take choices; a person\'s pick or answer hands the task back to ready work, with choice on it; close_task takes resolution and duplicate_of.',
+    '2026-10-17: list_workspaces returns guideVersion, the version of this guide; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
 ]);
 /** How a session starts, said in every session's instructions. */
 export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
@@ -66,18 +75,22 @@ export const TASK_WORKFLOW = Object.freeze([
 /** What get_task_guide names in its description and the instructions point at. */
 export const TASK_GUIDE_TOOL = 'get_task_guide';
 /** The whole guide as Markdown, with a version that changes whenever its
- * text does. The server's instructions are a part of it (taskInstructions). */
+ * text does (list_workspaces returns it too). The server's instructions are a
+ * part of it (taskInstructions). */
 export function taskGuide(panels) {
-    const body = ['## Start', '', TASK_START, '', '## Workflow', '', ...TASK_WORKFLOW, '', '## Writing a task', '', ...TASK_QUALITY,
+    const body = ['## What changed', '', ...WHATS_CHANGED.map(entry => `- ${entry}`), '', '## Start', '', TASK_START, '',
+        '## Workflow', '', ...TASK_WORKFLOW, '', '## Writing a task', '', ...TASK_QUALITY,
         ...(panels ? ['', '## Site data', '', PANEL_RULE] : [])].join('\n');
     const version = createHash('sha256').update(body).digest('hex').slice(0, 12);
-    return Object.freeze({ version, guide: `# Working with NoticeOS tasks\n\nGuide version ${version}.\n\n${body}\n` });
+    return Object.freeze({ version, guide: `# Working with NoticeOS tasks\n\nGuide version ${version}; `
+            + `list_workspaces returns the current one as guideVersion.\n\n${body}\n` });
 }
 /** Every session's instructions: the guide's start, its panel rule where the
  * panel tools are offered, and its rules for writing a task. */
 export function taskInstructions(panels) {
     return [panels ? `${TASK_START} ${PANEL_RULE}` : TASK_START,
-        `${TASK_GUIDE_TOOL} returns these rules with the full workflow, at any time.`, '', ...TASK_QUALITY].join('\n');
+        `${TASK_GUIDE_TOOL} returns these rules with the full workflow and what changed lately, at any time; list_workspaces returns `
+            + 'its version as guideVersion, so read it again when that changes.', '', ...TASK_QUALITY].join('\n');
 }
 function refuse(message) { throw new McpToolError(message); }
 const REFUSED = 'refused: this workspace, project or task is not available to you, or the change was not accepted';

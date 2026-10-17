@@ -56,8 +56,8 @@ The task records the model beside the agent's name, the Wall's **Live feed** sho
 
 | Tools | What they do |
 | --- | --- |
-| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its site's name, and its `projectId` stays the same when the project moves to another site |
-| `get_task_guide` | Return the rules for task work as Markdown with a version: the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
+| `list_workspaces`, `list_projects` | List the installation's one workspace and its linked task projects. Each project's `name` is its site's name, and its `projectId` stays the same when the project moves to another site. `list_workspaces` also returns `guideVersion`, the version `get_task_guide` returns now |
+| `get_task_guide` | Return the rules for task work as Markdown with a version: what changed lately, the workflow from `list_workspaces` to `close_task`, how to write and close a task, when a person decides, and how to read site data. It takes no arguments |
 | `list_tasks`, `get_task`, `get_task_history` | Read tasks. `list_tasks` returns summaries, most urgent first, 50 at a time (`limit`, and `offset` from the response's `nextOffset`). It searches the current tasks: `query` for words, `parent`, `labels`, `type`, `status`, `ready: true` for tasks with no open blockers, and `created_after`, `created_before`, `updated_after`, `updated_before`. `get_task` reads one in full |
 | `create_task`, `create_tasks`, `update_task` | File and change tasks. A new task can name its links (`depends_on`, `blocks`, `related`, `discovered_from`) and an `approval` it needs. `create_tasks` files up to 25 in one call, and one may name an earlier one in the same call as `#0`, `#1`. Types include `decision`. A task that needs you to pick one option carries `choices`: a question and two to six options keyed `a` to `f`, each with a label and an optional detail, one marked recommended. `update_task` replaces them whole or removes them with `null`, until you have chosen. `get_task` and `list_tasks` return `choices` and, once you have picked, `choice`. `create_task` and `create_tasks` take `model`, and the task records the agent and the model that filed it. Each response lists what a task still lacks, such as acceptance criteria, and advises `choices` for a task labelled `human` whose description lists lettered options; a task is not rejected for either |
 | `claim_task`, `comment_on_task`, `close_task` | Take a task, note progress, close it with its evidence. Claim and close take `model`, the name of the model doing the work, which the agent passes every time: the task page shows it beside the agent's name, and the **Agents** page ranks models by it. When nothing shipped, `close_task` takes a `resolution`: `wont-do`, `duplicate` with `duplicate_of` (the other task's id in the same project, which the close links as related), `cant-reproduce` or `already-handled`; without one the close is `done`. The reason still cites the evidence, and the **Agents** page counts only `done` closes. `get_task` and `list_tasks` return `resolution`, and `duplicateOf` for a duplicate, on a closed task |
@@ -78,7 +78,11 @@ For example, a bug that no longer happens closes with:
 
 A refused call names its cause and the next step: a project or task the workspace does not hold (with the project that holds tasks of that prefix, which also covers a `duplicate_of` in another project), an unknown `resolution` or a `duplicate_of` without `duplicate`, the task's own state (closed, held by someone else, waiting on an approval, with open children, or already carrying your choice when the call changes its choices), an argument over its limit, or the task store not completing the call. A call the connection is not allowed to make gets one general refusal.
 
-The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label, `choices` for a task where you pick one option, and when to use an epic. `get_task_guide` returns the same rules with the full workflow, at any point in a session. A repository's own instructions do not repeat them; they point at the tool:
+The server's instructions also give every connected agent the rules for writing a task that someone else can act on: the title, the description's sections, the acceptance proof, the `human` label, `choices` for a task where you pick one option, when to use an epic, and a search with `list_tasks` before filing, so work already filed gets a comment rather than a second task. `get_task_guide` returns the same rules with the full workflow, at any point in a session.
+
+The guide starts with **What changed**: at most three lines, each a date and the tools or arguments the task tools gained that day. Its version changes whenever its text does, and `list_workspaces` returns the current version as `guideVersion`. An agent that read the guide earlier compares the two at the start of a session and reads the guide again only when they differ.
+
+A repository's own instructions do not repeat the rules; they point at the tool:
 
 ```md
 - Tasks and site data come from the `noticeos` MCP server. Call `get_task_guide` before task work: it returns the workflow and the rules for filing, claiming and closing a task.
@@ -110,7 +114,7 @@ A hosted workspace serves the same tools at its own `/api/mcp` address. The agen
 
 ## Verify
 
-- In the agent, `list_workspaces` returns one workspace, **This installation**.
+- In the agent, `list_workspaces` returns one workspace, **This installation**, and a `guideVersion` equal to the `version` from `get_task_guide`.
 - `list_projects` lists your linked task projects.
 - `list_tasks` with `ready: true` matches **Next up** on **Tasks**.
 - `list_panels` lists each site on the panel refresh roster with a version built in the last day.

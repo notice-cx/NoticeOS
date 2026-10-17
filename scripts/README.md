@@ -506,9 +506,13 @@ file's `receiptsConnectionString`, without which a keyed write answers 503
 `list_workspaces` and `get_task_guide` takes a `workspace` argument, checked
 against the person's membership and role on each call
 ([`mcp-protocol.mts`](mcp-protocol.mts) is the transport). `get_task_guide`
-returns the task workflow and rules as Markdown with a version; the server's
-instructions are built from the same lines (`taskGuide` and `taskInstructions`
-in [`hosted-task-mcp.mts`](hosted-task-mcp.mts)).
+returns the task workflow and rules as Markdown with a version, opening with
+the dated lines of `WHATS_CHANGED`, and `list_workspaces` returns the same
+version as `guideVersion`; the server's instructions are built from the same
+lines (`taskGuide` and `taskInstructions` in
+[`hosted-task-mcp.mts`](hosted-task-mcp.mts)). A task tool reads an
+object-typed argument a stale client sends as JSON text, and its reply then
+carries `staleClient`.
 
 **Agent sign-in** ([`agent-access.mts`](agent-access.mts)). The MCP endpoint
 is an OAuth 2.1 protected resource whose authorization server is

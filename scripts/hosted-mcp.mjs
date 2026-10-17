@@ -172,15 +172,17 @@ export function createHostedMcp(options) {
                 if (name === 'list_workspaces') {
                     if (Object.keys(args).length)
                         throw new McpToolError('invalid arguments: list_workspaces takes none');
+                    // The guide's version, so an agent that read the guide reads it again only when it changed.
+                    const guideVersion = guide.version;
                     if (profile === 'demo')
-                        return { workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
+                        return { guideVersion, workspaces: [{ workspaceId: only, name: 'Demo', role: 'viewer', status: 'active', access: ['tasks:read', 'evidence:read'] }] };
                     if (profile === 'standalone')
-                        return { workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
+                        return { guideVersion, workspaces: [{ workspaceId: only, name: 'This installation', role: 'owner', status: 'active',
                                     access: ['tasks:read', 'tasks:write', ...(readModels || panels ? ['evidence:read'] : [])] }] };
                     const workspaces = await agents.workspaces(original).catch(() => null);
                     if (!workspaces)
                         throw refused();
-                    return { workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
+                    return { guideVersion, workspaces: workspaces.map(workspace => ({ workspaceId: workspace.workspaceId, name: workspace.displayName,
                             role: workspace.role, status: workspace.status, access: access(scopes, workspace) })) };
                 }
                 const { workspace, ...rest } = args;
