@@ -268,6 +268,10 @@ export function createHostedTaskOperations(options) {
         projects(proof, workspaceId) {
             return admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => catalog);
         },
+        actor(proof, workspaceId) {
+            // Every executor runs a command as the admitted principal (--actor).
+            return admitted(proof, workspaceId, 'tasks.read', async (context) => context.principalId);
+        },
         capabilities(proof, workspaceId) {
             return admitted(proof, workspaceId, 'tasks.read', async (context) => Object.freeze({
                 live: true, writable: context.allowedActions.includes('tasks.write'), projectSelection: true,

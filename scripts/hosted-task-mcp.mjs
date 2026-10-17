@@ -15,7 +15,8 @@
  */
 import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, TaskProjectRefused } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, sameActor, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
+import { AdmissionRefused } from './workspace-admission.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoicesOf, taskChoicesProblem } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
@@ -45,7 +46,7 @@ export const TASK_QUALITY = Object.freeze([
     '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
     '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
     '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
-    '- Before filing, search with list_tasks query for the title\'s key words. Work already filed gets a comment, never a second task; of two tasks already filed for one piece of work, close the later as duplicate with duplicate_of.',
+    '- Before filing, search with list_tasks query for the title\'s key words, with no project to search every project. Work already filed gets a comment, never a second task; of two tasks already filed for one piece of work, close the later as duplicate with duplicate_of.',
     '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
 ]);
 /** What the task tools gained lately, first in the guide so an agent that
@@ -54,7 +55,7 @@ export const TASK_QUALITY = Object.freeze([
  * (a new entry drops the first). */
 export const WHATS_CHANGED = Object.freeze([
     '2026-10-17: create_task and update_task take choices; a person\'s pick or answer hands the task back to ready work, with choice on it; close_task takes resolution and duplicate_of.',
-    '2026-10-17: list_workspaces returns guideVersion, the version of this guide; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
+    '2026-10-17: list_tasks takes assignee ("me" for what you hold) and, with no project, lists every project; list_workspaces returns guideVersion; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
 ]);
 /** How a session starts, said in every session's instructions. */
 export const TASK_START = 'NoticeOS tasks and property reports across your workspaces. Start with list_workspaces; every other tool takes a workspace from it. A tool that takes an idempotency_key: reuse the key when retrying it. On every create_task, create_tasks, claim_task and close_task, pass model: the name of the model you run as. The task records it beside your name, and the Agents page ranks agents and models by it; work closed without a model is not ranked.';
@@ -63,7 +64,7 @@ export const PANEL_RULE = 'For a site\'s search, traffic and product data, use g
 /** The order of task work, in the tools' own names. */
 export const TASK_WORKFLOW = Object.freeze([
     '1. list_workspaces, then list_projects: a project is one repository or site, and its prefix starts each of its task ids.',
-    '2. list_tasks with ready: true for work nothing blocks; get_task reads one with its comments before you choose.',
+    '2. list_tasks with ready: true and no project for work nothing blocks anywhere; assignee: "me" for what you hold. get_task reads one with its comments before you choose.',
     '3. claim_task the moment you start, naming your model.',
     '4. comment_on_task with progress and evidence as the work moves.',
     '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
@@ -423,6 +424,8 @@ function passes(task, filter) {
         return false;
     if (filter.types !== undefined && !filter.types.includes(task.issueType))
         return false;
+    if (filter.assignee !== undefined && (task.assignee === null || !sameActor(task.assignee, filter.assignee)))
+        return false;
     if (!within(task.createdAt, filter.createdAfter, filter.createdBefore) || !within(task.updatedAt, filter.updatedAfter, filter.updatedBefore))
         return false;
     if (!filter.words.length)
@@ -572,13 +575,15 @@ export const TASK_MCP_TOOLS = Object.freeze([
                     projectId: entry.projectId, key: entry.logicalKey, name: entry.displayName, prefix: entry.prefix
                 })) };
         } },
-    { name: 'list_tasks', description: 'List a project\'s tasks, most urgent first: every open one and those closed in the last 7 days. '
+    { name: 'list_tasks', description: 'List tasks, most urgent first: every open one and those closed in the last 7 days, in one project or, '
+            + 'with no project, in every project of the workspace, each then naming its project. '
             + 'Each is a summary, leaving out fields with no value; get_task reads one in full. Filters narrow it live, so search here '
             + 'rather than keeping a copy. Answers a page at a time: pass nextOffset as offset for the next.',
-        inputSchema: schema({ project: PROJECT,
+        inputSchema: schema({ project: { ...PROJECT, description: 'The projectId from list_projects; leave it out to list every project.' },
             query: { type: 'string', maxLength: 512, description: 'Only tasks whose id, title, description, acceptance or labels hold every word of this, ignoring case.' },
             status: { type: 'array', items: { type: 'string', enum: STATUSES }, description: 'Only these statuses.' },
             ready: { type: 'boolean', description: 'Only tasks with nothing blocking them.' },
+            assignee: { type: 'string', maxLength: HOSTED_TASK_LIMITS.identifier, description: 'Only tasks assigned to this name; "me" for the tasks you hold.' },
             parent: { type: 'string', description: 'Only the direct children of this task.' },
             labels: { type: 'array', items: { type: 'string' }, description: 'Only tasks carrying every one of these labels.' },
             type: { type: 'array', items: { type: 'string' }, description: 'Only these types, such as decision or gate.' },
@@ -587,12 +592,16 @@ export const TASK_MCP_TOOLS = Object.freeze([
             updated_after: { type: 'string', description: 'Only tasks changed at or after this.' },
             updated_before: { type: 'string', description: 'Only tasks last changed before this.' },
             limit: { type: 'integer', minimum: 1, maximum: HOSTED_TASK_LIMITS.rows, description: `At most this many (default ${PAGE}).` },
-            offset: { type: 'integer', minimum: 0, description: 'Skip this many, from the previous answer\'s nextOffset.' } }, ['project']),
+            offset: { type: 'integer', minimum: 0, description: 'Skip this many, from the previous answer\'s nextOffset.' } }),
         annotations: READ,
         async run({ proof, workspaceId, operations }, args) {
-            only(args, ['project', 'query', 'status', 'ready', 'parent', 'labels', 'type', 'created_after', 'created_before',
+            only(args, ['project', 'query', 'status', 'ready', 'assignee', 'parent', 'labels', 'type', 'created_after', 'created_before',
                 'updated_after', 'updated_before', 'limit', 'offset']);
-            const projectId = project(args);
+            const projectId = args.project === undefined ? undefined : project(args);
+            const assignee = textArg(args, 'assignee', HOSTED_TASK_LIMITS.identifier, false);
+            if (assignee !== undefined && (/[\r\n\t]/u.test(assignee) || assignee.trim() !== assignee)) {
+                refuse('invalid arguments: assignee (a name on one line, or "me")');
+            }
             const statuses = args.status === undefined ? STATUSES : args.status;
             if (!Array.isArray(statuses) || statuses.length < 1 || new Set(statuses).size !== statuses.length
                 || statuses.some(status => !STATUSES.includes(status)))
@@ -609,12 +618,46 @@ export const TASK_MCP_TOOLS = Object.freeze([
             const filter = defined({ words: query?.toLowerCase().split(/\s+/u).filter(Boolean) ?? [],
                 parent: args.parent === undefined ? undefined : task(args, 'parent'), labels: strings(args, 'labels'), types: strings(args, 'type'),
                 createdAfter: instantArg(args, 'created_after'), createdBefore: instantArg(args, 'created_before'),
-                updatedAfter: instantArg(args, 'updated_after'), updatedBefore: instantArg(args, 'updated_before') });
-            const board = await operations.board(proof, workspaceId, projectId, statuses);
-            const tasks = board.tasks.filter(row => (args.ready !== true || row.ready) && passes(row, filter)).sort(byUrgency);
-            const page = tasks.slice(offset, offset + limit);
-            return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
-                tasks: page.map(summaryOf), nextOffset: offset + page.length < tasks.length ? offset + page.length : null };
+                updatedAfter: instantArg(args, 'updated_after'), updatedBefore: instantArg(args, 'updated_before'),
+                assignee: assignee === 'me' ? await operations.actor(proof, workspaceId) : assignee });
+            const kept = (row) => (args.ready !== true || row.ready) && passes(row, filter);
+            const nextOf = (shown, total) => offset + shown < total ? offset + shown : null;
+            if (projectId !== undefined) {
+                const board = await operations.board(proof, workspaceId, projectId, statuses);
+                const tasks = board.tasks.filter(kept).sort(byUrgency);
+                const page = tasks.slice(offset, offset + limit);
+                return { project: board.project, readAt: board.readAt, closedSince: board.closedSince, total: tasks.length,
+                    tasks: page.map(summaryOf), nextOffset: nextOf(page.length, tasks.length) };
+            }
+            // Every project, one after another: one that cannot be read is named in
+            // the reply rather than failing the call. Admission is the caller's own
+            // standing, so its refusal still refuses.
+            const found = [];
+            const unavailable = [];
+            let readAt = null, closedSince = null;
+            for (const entry of await operations.projects(proof, workspaceId)) {
+                const where = { project: entry.logicalKey, projectId: entry.projectId, projectName: entry.displayName };
+                let board;
+                try {
+                    board = await operations.board(proof, workspaceId, entry.projectId, statuses);
+                }
+                catch (error) {
+                    if (error instanceof AdmissionRefused)
+                        throw error;
+                    unavailable.push(where);
+                    continue;
+                }
+                readAt ??= board.readAt;
+                closedSince ??= board.closedSince;
+                for (const row of board.tasks)
+                    if (kept(row))
+                        found.push({ task: row, where });
+            }
+            found.sort((a, b) => byUrgency(a.task, b.task));
+            const page = found.slice(offset, offset + limit);
+            return { readAt, closedSince, total: found.length,
+                tasks: page.map(({ task: row, where }) => ({ id: row.id, ...where, ...summaryOf(row) })),
+                nextOffset: nextOf(page.length, found.length), ...(unavailable.length ? { unavailable } : {}) };
         } },
     { name: 'get_task', description: 'Read one task with its comments.',
         inputSchema: schema({ project: PROJECT, task: TASK }, ['project', 'task']), annotations: READ,

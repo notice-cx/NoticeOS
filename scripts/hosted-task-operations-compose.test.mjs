@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomUUID } from 'node:crypto';
 import { mkdtempSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
@@ -19,6 +20,12 @@ const origin = 'https://tower.example.com';
 const SESSION = '55555555-5555-4555-8555-555555555555';
 const ALICE = 'aaaaaaaa-1111-4111-8111-111111111111', BOB = 'bbbbbbbb-1111-4111-8111-111111111111';
 const OTHER_PROJECT = 'cccccccc-1111-4111-8111-111111111111';
+const WORKSPACE = 'dddddddd-1111-4111-8111-111111111111';
+// Two projects in one workspace, so a read of every project crosses both.
+const PROJECTS = Object.freeze([
+  { workspaceId: WORKSPACE, projectId: 'eeeeeeee-1111-4111-8111-111111111111', databaseId: randomUUID() },
+  { workspaceId: WORKSPACE, projectId: 'ffffffff-1111-4111-8111-111111111111', databaseId: randomUUID(), prefix: 'yy' },
+]);
 const ACTIVE = ['open', 'in_progress', 'blocked', 'deferred'];
 const first = value => Array.isArray(value) ? value[0] : value;
 
@@ -31,15 +38,17 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
   process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE = mkdtempSync(
     path.join(process.env.NOTICEOS_TEST_HOSTED_TASK_EVIDENCE, 'task-operations-'));
   await withOwnedTaskProjects(async facts => {
-    const [{ workspaceId, projectId }] = facts.mappings;
+    const [{ workspaceId, projectId }, second] = facts.mappings;
     // No shared lease between these two "servers": only the task store can
     // arbitrate their claims.
     const directory = {
       project: async (workspace, project) => facts.mappings.find(m => m.workspaceId === workspace && m.projectId === project) ?? null,
       withProjectMutation: async (workspace, project, controls, work) => work(Object.freeze({
         project: () => directory.project(workspace, project), signal: controls.signal ?? new AbortController().signal })),
-      // A second project, never mapped, holds the prefix a refusal names as another project's.
+      // A third project, never mapped, holds the prefix a refusal names as
+      // another project's, and is the one a read of every project cannot read.
       catalog: async () => Object.freeze([{ projectId, logicalKey: 'example', displayName: 'Example', prefix: 'tt' },
+        { projectId: second.projectId, logicalKey: 'second', displayName: 'Second', prefix: 'yy' },
         { projectId: OTHER_PROJECT, logicalKey: 'other', displayName: 'Other', prefix: 'zz' }]),
     };
     const expiresAt = () => new Date(Date.now() + 60_000).toISOString();
@@ -269,5 +278,44 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     assert.deepEqual(await decide({ kind: 'dismiss', taskId: ask.id }), { id: ask.id, status: 'closed' });
     const dismissed = (await ok('get_task', { task: ask.id })).task;
     assert.deepEqual([dismissed.closeReason, dismissed.resolution, dismissed.metadata?.noticeos_closed_by], ['Dismissed', 'wont-do', ALICE]);
-  });
+
+    // list_tasks with no project: rows from both mapped projects, each naming
+    // its project, most urgent first and paged; the unmapped project is named
+    // as unavailable; assignee "me" keeps the caller's own tasks. With a
+    // project the reply keeps its fields, and its rows are the same rows.
+    const anywhere = async (name, args) => {
+      const answer = (await (await mcp(new Request(origin + MCP_PATH, { method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer compose-agent-token-0001' },
+        body: JSON.stringify({ jsonrpc: '2.0', id: next++, method: 'tools/call',
+          params: { name, arguments: { workspace: workspaceId, ...args } } }) }))).json()).result;
+      assert.equal(answer.isError, undefined, `${name}: ${JSON.stringify(answer)}`);
+      return answer.structuredContent;
+    };
+    const there = await anywhere('create_task', { project: second.projectId, title: 'Second project work', priority: 0, acceptance: 'Listed',
+      idempotency_key: 'compose-every-0001' });
+    assert.match(there.id, /^yy-/u);
+    await anywhere('claim_task', { project: second.projectId, task: there.id, model: 'Example Model 1', idempotency_key: 'compose-every-0002' });
+    const all = await anywhere('list_tasks', { limit: 200 });
+    assert.deepEqual(all.unavailable, [{ project: 'other', projectId: OTHER_PROJECT, projectName: 'Other' }]);
+    assert.deepEqual([...new Set(all.tasks.map(task => task.project))].sort(), ['example', 'second']);
+    assert.ok(all.tasks.every(task => task.projectId === (task.project === 'second' ? second.projectId : projectId)
+      && task.projectName === (task.project === 'second' ? 'Second' : 'Example')), JSON.stringify(all.tasks));
+    assert.equal(all.total, all.tasks.length);
+    assert.ok(all.tasks.every((task, i) => i === 0 || all.tasks[i - 1].priority <= task.priority), 'most urgent first across projects');
+    const here = await ok('list_tasks', { limit: 200 });
+    assert.deepEqual(Object.keys(here).sort(), ['closedSince', 'nextOffset', 'project', 'readAt', 'tasks', 'total']);
+    const strip = ({ project: _key, projectId: _id, projectName: _name, ...row }) => row;
+    assert.deepEqual(all.tasks.filter(task => task.project === 'example').map(strip), here.tasks);
+    const pageOne = await anywhere('list_tasks', { limit: 3 });
+    const pageTwo = await anywhere('list_tasks', { limit: 3, offset: pageOne.nextOffset });
+    assert.deepEqual([pageOne.total, pageOne.nextOffset], [all.total, 3]);
+    assert.deepEqual([...pageOne.tasks, ...pageTwo.tasks].map(task => task.id), all.tasks.slice(0, 6).map(task => task.id));
+    const mine = (await anywhere('list_tasks', { assignee: 'me', limit: 200 })).tasks;
+    assert.ok(mine.some(task => task.id === there.id && task.project === 'second'), JSON.stringify(mine));
+    assert.deepEqual(mine.map(task => task.id), all.tasks.filter(task => task.assignee === ALICE).map(task => task.id));
+    assert.deepEqual((await anywhere('list_tasks', { assignee: BOB, limit: 200 })).tasks.map(task => task.id),
+      all.tasks.filter(task => task.assignee === BOB).map(task => task.id));
+    assert.deepEqual((await ok('list_tasks', { assignee: 'me', limit: 200 })).tasks.map(task => task.id),
+      here.tasks.filter(task => task.assignee === ALICE).map(task => task.id), 'one project');
+  }, { projects: PROJECTS });
 });

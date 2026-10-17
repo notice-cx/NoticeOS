@@ -55,6 +55,8 @@ export interface HostedTaskCapabilities {
 }
 export interface HostedTaskOperations {
     projects(proof: Request, workspaceId: string): Promise<readonly TaskProjectCatalogEntry[]>;
+    /** The caller's actor name in this workspace: what a claim records as its assignee. */
+    actor(proof: Request, workspaceId: string): Promise<string>;
     capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
     /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
     board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;

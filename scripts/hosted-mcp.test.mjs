@@ -25,7 +25,9 @@ const TOKENS = new Map([[FULL, ['tasks:read', 'tasks:write', 'evidence:read']], 
 const ROLES = new Map([[A, 'operator'], [B, 'viewer']]);
 const token = request => request.headers.get('authorization')?.slice('Bearer '.length);
 
-function fixture({ profile = 'hosted', readModels } = {}) {
+/** `more`: the workspace's other projects, each { catalog, executor }; a null
+ * executor is a project whose task store does not answer. */
+function fixture({ profile = 'hosted', readModels, more = [] } = {}) {
   let time = Date.parse('2026-10-07T12:00:00.000Z');
   const clock = () => time;
   const forwarded = [];
@@ -39,9 +41,17 @@ function fixture({ profile = 'hosted', readModels } = {}) {
         expiresAt: new Date(Date.now() + 60000).toISOString(), scopes: TOKENS.get(token(request)) } : null });
   const fake = fakeTaskExecutor({ principal: () => PERSON, clock });
   const receipts = memoryReceipts(clock);
-  const directory = { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' }]) };
+  const directory = { catalog: async () => Object.freeze([{ projectId: P, logicalKey: 'example', displayName: 'Example', prefix: 'tt' },
+    ...more.map(entry => entry.catalog)]) };
+  const others = new Map(more.map(entry => [entry.catalog.projectId, entry.executor]));
+  const executor = { async execute(proof, workspace, request, controls) {
+    if (!others.has(request.projectId)) return fake.executor.execute(proof, workspace, request, controls);
+    const other = others.get(request.projectId);
+    if (!other) throw new Error('the task store did not answer');
+    return other.execute(proof, workspace, request, controls);
+  } };
   const selection = profile === 'demo' ? { demoWorkspaceId: DEMO } : {};
-  const operations = createHostedTaskOperations({ admission, directory, executor: fake.executor, receipts, now: clock });
+  const operations = createHostedTaskOperations({ admission, directory, executor, receipts, now: clock });
   const agents = profile === 'demo' ? undefined : {
     verify: async request => TOKENS.has(token(request)) ? { scopes: TOKENS.get(token(request)) } : null,
     workspaces: async () => [{ workspaceId: A, displayName: 'Operated', role: 'operator', status: 'active' },
@@ -55,7 +65,7 @@ function fixture({ profile = 'hosted', readModels } = {}) {
         ? { content: [{ type: 'text', text: 'no property with id missing' }], isError: true }
         : { content: [{ type: 'text', text: '{}' }], structuredContent: { properties: [{ asset: 'example.com' }] } } });
     }) });
-  const http = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor: fake.executor, receipts });
+  const http = createHostedTasksApi({ profile, trustedOrigin: origin, ...selection, admission, directory, executor, receipts });
   return { ...fake, mcp, http, forwarded, advance: ms => { time += ms; } };
 }
 function post(body, { headers = {}, path = MCP_PATH, method = 'POST', bearer = FULL } = {}) {
@@ -97,7 +107,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   for (const rule of TASK_QUALITY) assert.ok(discovered.instructions.includes(rule), rule);
   assert.match(discovered.instructions, /acceptance: the proof that completes it/u);
   // Search before filing, so one piece of work is one task.
-  assert.match(discovered.instructions, /Before filing, search with list_tasks query for the title's key words\. Work already filed gets a comment, never a second task/u);
+  assert.match(discovered.instructions, /Before filing, search with list_tasks query for the title's key words, with no project to search every project\. Work already filed gets a comment, never a second task/u);
   assert.match(discovered.instructions, /list_workspaces returns its version as guideVersion, so read it again when that changes/u);
   // A person's pick is data the Tower draws as buttons, never lettered prose.
   assert.match(discovered.instructions, /When the person picks between options, pass them as choices/u);
@@ -631,6 +641,100 @@ test('every object argument of the task tools refuses text that is not an object
     assert.ok(reply.content[0].text.startsWith(staleLine(inner ? `${name}[0].${inner}` : name)), reply.content[0].text);
   }
   assert.equal(f.effects.length, before, 'nothing written');
+});
+
+/** A project's list, two pages, as list_tasks answered it before it could read every project at once. */
+const ONE_PROJECT_REPLY = [
+  '{"project":"example","readAt":"2026-10-07T12:02:00.000Z","closedSince":"2026-09-30","total":3,"tasks":['
+    + '{"id":"tt-1","title":"Pick the page","status":"open","priority":1,"type":"task","labels":["human"],"ready":true,"awaitingHuman":true,'
+    + '"choices":{"question":"Which page keeps the traffic?","options":[{"key":"a","label":"Keep the old page"},'
+    + '{"key":"b","label":"Redirect to the new page","detail":"The old page answers 301.","recommended":true},{"key":"c","label":"Keep both"}]},'
+    + '"createdAt":"2026-10-07T12:00:00.000Z","updatedAt":"2026-10-07T12:00:00.000Z"},'
+    + '{"id":"tt-2","title":"Ship the page","status":"in_progress","priority":2,"type":"task","assignee":"55555555-1111-4111-8111-111111111111",'
+    + '"parent":"tt-1","ready":false,"awaitingHuman":false,"createdAt":"2026-10-07T12:01:00.000Z","updatedAt":"2026-10-07T12:01:00.000Z"}],'
+    + '"nextOffset":2}',
+  '{"project":"example","readAt":"2026-10-07T12:02:00.000Z","closedSince":"2026-09-30","total":3,"tasks":['
+    + '{"id":"tt-3","title":"Old idea","status":"closed","priority":2,"type":"task","ready":false,"awaitingHuman":false,'
+    + '"createdAt":"2026-10-07T12:02:00.000Z","updatedAt":"2026-10-07T12:02:00.000Z","closedAt":"2026-10-07T12:02:00.000Z","resolution":"wont-do"}],'
+    + '"nextOffset":null}',
+];
+
+test('list_tasks with a project answers byte for byte as it did before it could read every project', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Pick the page', { labels: ['human'], priority: 1, choices: PICK, description: 'Choose.' });
+  f.advance(60_000);
+  await create('Ship the page', { parent: 'tt-1', acceptance: 'Shipped' });
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-2', model: 'Example Model 1', idempotency_key: 'agent-claim-1101' });
+  f.advance(60_000);
+  await create('Old idea');
+  await call(f, 'close_task', { workspace: A, project: P, task: 'tt-3', reason: 'Not needed', resolution: 'wont-do', idempotency_key: 'agent-close-1101' });
+  const pages = [];
+  for (const offset of [0, 2]) pages.push((await call(f, 'list_tasks', { workspace: A, project: P, limit: 2, offset })).content[0].text);
+  assert.deepEqual(pages, ONE_PROJECT_REPLY);
+});
+
+const [Q, R] = ['66666666', '77777777'].map(prefix => `${prefix}-1111-4111-8111-111111111111`);
+/** The example project, a second project with tasks of its own (one held by
+ * the caller, one by another agent), and a third whose task store does not answer. */
+function portfolio() {
+  const second = fakeTaskExecutor({ principal: () => PERSON, clock: () => Date.parse('2026-10-07T12:00:00.000Z') });
+  const at = minutes => new Date(Date.UTC(2026, 9, 1) + minutes * 60_000).toISOString();
+  for (const [id, title, priority, status, assignee] of [['yy-1', 'Second: held by me', 0, 'in_progress', PERSON],
+    ['yy-2', 'Second: held by another', 1, 'in_progress', 'example-agent'], ['yy-3', 'Second: ready', 3, 'open', undefined]]) {
+    second.tasks.set(id, { id, title, priority, status, ...(assignee ? { assignee } : {}), created_at: at(priority), updated_at: at(priority) });
+  }
+  return fixture({ more: [{ catalog: { projectId: Q, logicalKey: 'second', displayName: 'Second', prefix: 'yy' }, executor: second.executor },
+    { catalog: { projectId: R, logicalKey: 'down', displayName: 'Down', prefix: 'dn' }, executor: null }] });
+}
+
+test('list_tasks with no project lists every project, each row naming its project, and names a project it could not read', async () => {
+  const f = portfolio();
+  const create = filer(f);
+  await create('Example: urgent', { priority: 0 });
+  await create('Example: later', { priority: 2 });
+  const list = async extra => (await call(f, 'list_tasks', { workspace: A, ...extra })).structuredContent;
+  const all = await list({});
+  // Most urgent first across projects, then oldest.
+  assert.deepEqual(all.tasks.map(task => [task.id, task.project, task.projectName, task.projectId]), [['yy-1', 'second', 'Second', Q],
+    ['tt-1', 'example', 'Example', P], ['yy-2', 'second', 'Second', Q], ['tt-2', 'example', 'Example', P], ['yy-3', 'second', 'Second', Q]]);
+  assert.deepEqual(Object.keys(all.tasks[0]).slice(0, 4), ['id', 'project', 'projectId', 'projectName']);
+  assert.deepEqual([all.total, all.nextOffset, all.readAt, all.closedSince], [5, null, '2026-10-07T12:00:00.000Z', '2026-09-30']);
+  assert.deepEqual(all.unavailable, [{ project: 'down', projectId: R, projectName: 'Down' }]);
+  // Each project's rows are its own list's rows, with the project named.
+  const strip = ({ project: _key, projectId: _id, projectName: _name, ...row }) => row;
+  for (const [projectId, key] of [[P, 'example'], [Q, 'second']]) {
+    const one = await list({ project: projectId });
+    assert.deepEqual(all.tasks.filter(task => task.project === key).map(strip), one.tasks, key);
+    assert.deepEqual(Object.keys(one).sort(), ['closedSince', 'nextOffset', 'project', 'readAt', 'tasks', 'total'], key);
+  }
+  // The same pages and filters as one project's list.
+  const first = await list({ limit: 2 }), rest = await list({ limit: 2, offset: first.nextOffset });
+  assert.deepEqual([first.total, first.nextOffset, rest.nextOffset], [5, 2, 4]);
+  assert.deepEqual([...first.tasks, ...rest.tasks].map(task => task.id), all.tasks.slice(0, 4).map(task => task.id));
+  assert.deepEqual((await list({ ready: true })).tasks.map(task => task.id), ['tt-1', 'tt-2', 'yy-3']);
+  assert.deepEqual((await list({ query: 'later' })).tasks.map(task => task.id), ['tt-2']);
+  // A project the call names must still be one of the workspace's, and the caller's own admission still refuses.
+  assert.equal((await call(f, 'list_tasks', { workspace: A, project: 'nope' })).content[0].text, 'invalid arguments: project (a projectId from list_projects)');
+  assert.equal((await call(f, 'list_tasks', { workspace: DEMO })).content[0].text, `refused: workspace ${DEMO} is not one of yours; list_workspaces lists yours.`);
+});
+
+test('list_tasks keeps the tasks an assignee holds, with "me" for the caller as a claim records it', async () => {
+  const f = portfolio();
+  const create = filer(f);
+  await create('Example: mine');
+  await create('Example: open');
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-1201' });
+  const ids = async extra => (await call(f, 'list_tasks', { workspace: A, ...extra })).structuredContent.tasks.map(task => task.id);
+  assert.deepEqual(await ids({ assignee: 'me' }), ['yy-1', 'tt-1'], 'every project');
+  assert.deepEqual(await ids({ assignee: 'me', project: P }), ['tt-1'], 'one project');
+  assert.deepEqual(await ids({ assignee: PERSON }), ['yy-1', 'tt-1'], 'the caller by name');
+  assert.deepEqual(await ids({ assignee: 'example-agent' }), ['yy-2']);
+  assert.deepEqual(await ids({ assignee: 'example_agent' }), ['yy-2'], 'matched as the task client matches a name');
+  assert.deepEqual(await ids({ assignee: 'nobody' }), []);
+  for (const bad of [{ assignee: '' }, { assignee: 7 }, { assignee: ' me' }, { assignee: 'a\nb' }]) {
+    assert.match((await call(f, 'list_tasks', { workspace: A, ...bad })).content[0].text, /^invalid arguments: assignee/u, JSON.stringify(bad));
+  }
 });
 
 test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {
