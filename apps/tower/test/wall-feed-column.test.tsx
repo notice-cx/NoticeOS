@@ -201,6 +201,24 @@ describe("an agent's line", () => {
   });
 });
 
+describe("a person's pick", () => {
+  it("reads as a claim line does, with the person's name, the option chosen and the task, under the list glyph", () => {
+    render(<WallFeed feed={payload([
+      item("a", 5, { kind: "task-chosen", label: "Chosen", tone: "info", text: "Pick the recipe card layout", who: "Dana", model: null,
+        evidence: null, choice: "(b) Two columns" }),
+    ])} nowMs={NOW} />);
+    const [row] = screen.getAllByRole("listitem");
+    expect(row).toHaveTextContent("Chosen · Recipes");
+    expect(row!.querySelector("[data-feed-text]")).toHaveTextContent(/^Dana chose \(b\) Two columns on Pick the recipe card layout$/);
+    expect(row!.querySelector("[data-feed-who]")).toHaveTextContent("Dana");
+    expect(row!.querySelector("[data-feed-verb]")).toHaveTextContent("chose");
+    expect(row!.querySelector("[data-feed-choice]")).toHaveTextContent("(b) Two columns");
+    expect(row!.querySelector("[data-feed-agent]")).toBeNull();
+    expect(row!.querySelector("svg.lucide-list-checks")).not.toBeNull();
+    expect(row!.querySelector("[data-feed-evidence]")).toBeNull();
+  });
+});
+
 describe("a line's marks", () => {
   it("draws a known agent's mark with the kind as a badge, and keeps the glyph tile for a person", () => {
     render(<WallFeed feed={payload([

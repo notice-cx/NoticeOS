@@ -1,5 +1,6 @@
 import { demoFetch } from './demo-visit';
 import { CLOUDFLARE_D1_PATH, D1_FAILURE_LABELS, type D1Selection, type D1Status, type D1Receipt } from '@noticeos/contract/cloudflare-d1';
+import type { TaskChoiceKey } from '@noticeos/contract/task-choices';
 import { responseJson } from './response-value';
 import { decodeWallMoney, decodeAssetMoney, decodeFinancials } from './money-response';
 import { DEMO_PRESENTATION_PATH, decodeDemoPresentation, type DemoPresentation } from '@shared/demo-presentation';
@@ -1248,10 +1249,17 @@ function commentOnTaskRequest(fetch: ApiTransport, id: string, text: string, pro
   return actOnTaskRequest(fetch, id, "comments", { text }, project === undefined ? undefined : { project });
 }
 
-/** Answer an ask carrying the `human` label: the response is added as a comment
- * and the task closes. */
+/** Answer an ask carrying the `human` label: a decision closes with the
+ * response; any other task takes it as a comment and goes back to ready work. */
 function respondToTaskRequest(fetch: ApiTransport, id: string, response: string, options?: TaskWriteOptions): Promise<void> {
   return actOnTaskRequest(fetch, id, "respond", { response }, options);
+}
+
+/** Pick one of a task's choices by its key, with an optional note: recorded on
+ * the task, which then closes if it is a decision and otherwise goes back to
+ * ready work. */
+function chooseOnTaskRequest(fetch: ApiTransport, id: string, option: TaskChoiceKey, note?: string, options?: TaskWriteOptions): Promise<void> {
+  return actOnTaskRequest(fetch, id, "choose", { option, ...(note === undefined || note.trim() === "" ? {} : { note }) }, options);
 }
 
 /** Decline one permanently. The reason is optional — declining is itself the
@@ -1636,6 +1644,7 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     closeTask: bind(closeTaskRequest),
     commentOnTask: bind(commentOnTaskRequest),
     respondToTask: bind(respondToTaskRequest),
+    chooseOnTask: bind(chooseOnTaskRequest),
     dismissTask: bind(dismissTaskRequest),
     resolveGate: bind(resolveGateRequest),
     fetchIntegrationProviders: bind(fetchIntegrationProvidersRequest),
@@ -1706,6 +1715,7 @@ export const {
   closeTask,
   commentOnTask,
   respondToTask,
+  chooseOnTask,
   dismissTask,
   resolveGate,
   fetchIntegrationProviders,

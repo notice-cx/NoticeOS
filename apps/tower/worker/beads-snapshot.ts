@@ -6,6 +6,7 @@
 // workers/ingest/src/beads-snapshots.ts).
 
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
+import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } from "@noticeos/contract/task-choices";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
 import { PRIORITY_BANDS, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
@@ -100,8 +101,12 @@ function readItem(value: unknown): WorkItem | null {
   const id = text(value.id);
   if (!id) return null;
   const createdAt = nullableText(value.createdAt);
+  // Read through the contract's own rules: an unreadable set or pick is left out.
+  const choices = taskChoicesOf(value.choices), choice = taskChoiceOf(value.choice);
   return {
     ...(createdAt ? { createdAt } : {}),
+    ...(choices ? { choices } : {}),
+    ...(choice ? { choice } : {}),
     id,
     title: text(value.title, id),
     status: text(value.status, "open"),
@@ -291,9 +296,14 @@ function readWork(value: Record<string, unknown>): Pick<SnapshotProject, "worker
     return [{ id: text(entry.id), model: nullableText(entry.model), closedRecent: count(entry.closedRecent), inProgress: count(entry.inProgress) }];
   });
   const recentWork = (Array.isArray(value.recentWork) ? value.recentWork : []).flatMap((entry): WorkEvent[] => {
-    if (!isRecord(entry) || (entry.kind !== "claimed" && entry.kind !== "closed") || !text(entry.taskId) || !text(entry.by) || !nullableText(entry.at)) return [];
+    if (!isRecord(entry) || (entry.kind !== "claimed" && entry.kind !== "closed" && entry.kind !== "chosen")
+      || !text(entry.taskId) || !text(entry.by) || !nullableText(entry.at)) return [];
+    // A pick without its option and label tells nothing; it is left out.
+    const option = (TASK_CHOICE_KEYS as readonly unknown[]).includes(entry.option) ? entry.option as TaskChoiceKey : null;
+    if (entry.kind === "chosen" && (option === null || !text(entry.label))) return [];
     return [{ kind: entry.kind, taskId: text(entry.taskId), title: text(entry.title, text(entry.taskId)), by: text(entry.by),
-      model: nullableText(entry.model), at: text(entry.at), evidence: nullableText(entry.evidence) }];
+      model: nullableText(entry.model), at: text(entry.at), evidence: nullableText(entry.evidence),
+      ...(entry.kind === "chosen" ? { option: option!, label: text(entry.label) } : {}) }];
   });
   return { ...(workers.length ? { workers } : {}), ...(recentWork.length ? { recentWork } : {}) };
 }

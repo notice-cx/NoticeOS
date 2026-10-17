@@ -2,6 +2,7 @@
 import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
 import { HANDOFF_LABELS, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
+import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
 import { BEADS_ERROR_MAX, beadsFailure, beadsInstant, beadsText } from "./task-snapshot-values.mjs";
 
@@ -244,7 +245,16 @@ function beadsIssue(row) {
     // When a parked task asks to be looked at again. Only deferred tasks carry
     // one.
     deferUntil: beadsInstant(row?.defer_until),
+    ...beadsChoices(row),
   };
+}
+
+/** A task's choices and a person's pick, as the task tools and the choose
+ * operation recorded them; no keys when it carries neither, so a row without
+ * them reads as it always did. */
+function beadsChoices(row) {
+  const choices = readTaskChoices(row?.metadata), choice = readTaskChoice(row?.metadata);
+  return { ...(choices === null ? {} : { choices }), ...(choice === null ? {} : { choice }) };
 }
 
 /**
@@ -283,9 +293,12 @@ export function beadsFiler(row) {
   return by === '' ? {} : { filedBy: by, ...(model === '' ? {} : { filedModel: model }) };
 }
 
-/** Each worker and model's closed and held work, and the newest claims and
- * closes. Rows here are the raw reads, which still carry the metadata the
- * board's rows drop. */
+/** At one instant, a close is listed before a pick, and a pick before a claim. */
+const WORK_ORDER = { closed: 0, chosen: 1, claimed: 2 };
+
+/** Each worker and model's closed and held work, and the newest claims,
+ * closes and picks. Rows here are the raw reads, which still carry the
+ * metadata the board's rows drop. */
 export function beadsWork(activeRows, closedRows) {
   const work = (rows) => (Array.isArray(rows) ? rows : [])
     .filter((row) => beadsText(row?.id) !== '' && beadsText(row?.issue_type, 'task') !== BEADS_CONTAINER_TYPE && row?.issue_type !== 'gate');
@@ -312,7 +325,14 @@ export function beadsWork(activeRows, closedRows) {
     ...[...held, ...closed].filter((row) => beadsInstant(row?.started_at) !== null && beadsText(row?.assignee) !== '')
       .map((row) => ({ kind: 'claimed', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)), by: beadsText(row.assignee),
         model: beadsModel(row, false), at: beadsInstant(row.started_at), evidence: null })),
-  ].sort((a, b) => b.at.localeCompare(a.at) || (a.kind === 'closed' ? -1 : 1)).slice(0, BEADS_WORK_LIMIT);
+    // A person's pick, at the time it was recorded, on whichever list holds its task now.
+    ...[...work(activeRows), ...work(closedRows)].flatMap((row) => {
+      const choice = readTaskChoice(row?.metadata);
+      const at = beadsInstant(choice?.at);
+      return choice === null || at === null ? [] : [{ kind: 'chosen', taskId: beadsText(row.id), title: beadsText(row.title, beadsText(row.id)),
+        by: choice.by, model: null, at, evidence: null, option: choice.option, label: choice.label }];
+    }),
+  ].sort((a, b) => b.at.localeCompare(a.at) || WORK_ORDER[a.kind] - WORK_ORDER[b.kind]).slice(0, BEADS_WORK_LIMIT);
   return { workers, recentWork: events };
 }
 

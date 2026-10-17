@@ -343,9 +343,10 @@ export async function withOwnedTaskProjects(work, { projects } = {}) {
     };
     const prepareHumanDecisions = async () => {
       const client=clients[0],run=args=>bd(client,['--sandbox','--json',`--actor=${PERSON}`,...args]);
-      for (const [id,title,labels] of [['tt-browseranswer','Owned browser answer','human'],
+      // The answered fixture is a decision: an answer closes a decision, and hands any other task back to ready work.
+      for (const [id,title,labels,type] of [['tt-browseranswer','Owned browser answer','human','decision'],
         ['tt-browserdismiss','Owned browser dismiss','human'],['tt-browserblocked','Owned browser dependent','']]) {
-        okay(await run(['create',`--id=${id}`,`--title=${title}`,...(labels?[`--labels=${labels}`]:[]),'--']), 'owned browser decision fixture');
+        okay(await run(['create',`--id=${id}`,`--title=${title}`,...(labels?[`--labels=${labels}`]:[]),...(type?[`--type=${type}`]:[]),'--']), 'owned browser decision fixture');
       }
       const gate=JSON.parse(okay(await run(['gate','create','--type=human','--blocks=tt-browserblocked','--reason=Owned browser gate']), 'owned browser gate'));
       return Object.freeze({answerId:'tt-browseranswer',dismissId:'tt-browserdismiss',blockedId:'tt-browserblocked',gateId:gate.id});

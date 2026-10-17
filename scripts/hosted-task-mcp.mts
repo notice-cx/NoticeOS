@@ -4,7 +4,7 @@
  * same current admission. Results speak in tasks and comments; storage names
  * and command output never reach a client.
  *
- * Human decisions (respond, dismiss, resolve) are not tools: write access
+ * Human decisions (respond, dismiss, resolve, choose) are not tools: write access
  * must not give an agent a route to answer its own question. An agent may
  * open a human gate; only a person resolves it. Writes that would repeat
  * their effect require an idempotency key so an agent can retry an
@@ -60,7 +60,8 @@ export const TASK_WORKFLOW: readonly string[] = Object.freeze([
   '4. comment_on_task with progress and evidence as the work moves.',
   '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
   '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
-  '7. A decision, credential or admin step only a person can do: label the task human. A step that must wait for approval: request_human_approval. Only a person answers either, on Tasks in the Tower.',
+  '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. Only a person answers either, on Tasks in the Tower.',
+  '8. A person\'s answer or pick on a task of yours takes off its human label and returns it to ready work, with the answer as a comment and the pick as choice; claim it again to carry on. A decision closes on the answer or pick instead.',
   'These tools are the task interface: never run bd, bv or br in a project folder.',
 ]);
 /** What get_task_guide names in its description and the instructions point at. */
@@ -114,6 +115,9 @@ function stateRefusal({ taskId: id, attempted, reason }: TaskStateRefused): stri
       + `added with. To record it as ${reason.wanted}, remove_dependency first, then add it again.`;
     case 'chosen': return `refused: ${id} already carries a person's choice${reason.chosen === null ? '' : `, ${reason.chosen}`}, and its choices `
       + 'stay as they were when it was made. get_task shows the choice; file work that remains with create_task.';
+    // A pick is a person's, on Tasks in the Tower; no tool makes one.
+    case 'no-choices': return `refused: ${id} offers no choices.`;
+    case 'no-option': return `refused: ${id} offers no option (${reason.option}).`;
   }
 }
 /** A call naming a project the catalog does not hold, or another project's

@@ -9,7 +9,7 @@
  * checkout with --readonly. The executor proof must exercise the exact plans.
  */
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
-import { choiceName, readTaskChoice, TASK_CHOICE_LIMITS, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
+import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 export const HOSTED_TASK_LIMITS = Object.freeze({
     projects: 4096, identifier: 128, title: 512, body: 8192,
     comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
@@ -157,7 +157,8 @@ function handoffMetadata(value) {
 function command(input) {
     const op = record(input);
     const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
-        'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate']);
+        'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate',
+        'choose', 'record-choice', 'hand-back']);
     const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
     const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
     switch (kind) {
@@ -359,7 +360,8 @@ function command(input) {
             break;
         case 'respond':
             keys(op, ['kind', 'taskId', 'response']);
-            argv.push('human', 'respond', `--response=${text(op.response, HOSTED_TASK_LIMITS.comment)}`, '--', task(op.taskId));
+            // Short enough to fit one comment as "Answered: <response>" when the task goes back to ready work.
+            argv.push('human', 'respond', `--response=${text(op.response, HOSTED_TASK_LIMITS.comment - ANSWERED.length)}`, '--', task(op.taskId));
             break;
         case 'dismiss':
         case 'resolve-gate':
@@ -368,6 +370,32 @@ function command(input) {
             if (Object.hasOwn(op, 'reason'))
                 argv.push(`--reason=${text(op.reason, HOSTED_TASK_LIMITS.reason)}`);
             argv.push('--', task(op.taskId));
+            break;
+        case 'choose':
+            // The executor composes a pick from its steps (choiceSteps), each planned on its own.
+            keys(op, ['kind', 'taskId', 'option'], ['note']);
+            task(op.taskId);
+            choice(op.option, TASK_CHOICE_KEYS);
+            if (Object.hasOwn(op, 'note'))
+                text(op.note, TASK_CHOICE_LIMITS.note);
+            break;
+        case 'record-choice': {
+            keys(op, ['kind', 'taskId', 'choice']);
+            const recorded = taskChoiceOf({ ...record(op.choice) }) ?? invalid();
+            text(recorded.label, TASK_CHOICE_LIMITS.label);
+            text(recorded.by, HOSTED_TASK_LIMITS.identifier);
+            text(recorded.at, 64);
+            if (recorded.note !== undefined)
+                text(recorded.note, TASK_CHOICE_LIMITS.note);
+            argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.choice.name]: recorded })}`, '--', task(op.taskId));
+            break;
+        }
+        case 'hand-back':
+            keys(op, ['kind', 'taskId', 'holder', 'removeHuman']);
+            if (typeof op.removeHuman !== 'boolean' || typeof op.holder !== 'string' || /[\r\n\t]/u.test(op.holder))
+                invalid();
+            // --if-assignee names the holder as read: a hand-over the task client allows, and refuses if the holder changed since.
+            argv.push('update', '--status=open', '--assignee=', `--if-assignee=${text(op.holder, HOSTED_TASK_LIMITS.identifier, true)}`, ...(op.removeHuman ? ['--remove-label=human'] : []), '--', task(op.taskId));
             break;
     }
     return { kind, readOnly, argv: Object.freeze(argv) };
@@ -461,7 +489,7 @@ export function writeGuardReads(operation) {
 /** The fixed read of one of those tasks. A close reads its children too, which
  * the task client's plain show only counts. */
 export function guardReadArgs(operation, taskId) {
-    const children = operation.kind === 'close' && stateGuarded(operation) && operation.taskId === taskId;
+    const children = (operation.kind === 'close' && stateGuarded(operation) || operation.kind === 'choose') && operation.taskId === taskId;
     return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
 }
 /** The write to run, given its task as read just before (writeGuardReads). A
@@ -546,12 +574,116 @@ export function refusalFromState(operation, row, actor) {
         throw error;
     }
 }
+const ANSWERED = 'Answered: ';
+/** The comment a pick leaves: "Chose (b) Keep the old page." and the person's note. */
+export function choiceComment(choice) {
+    return `Chose ${choiceName(choice.option, choice.label)}.${choice.note === undefined ? '' : ` ${choice.note}`}`;
+}
+/** The reason a decision task closes with after a pick. */
+export function choiceCloseReason(choice) {
+    return `Chose ${choiceName(choice.option, choice.label)}`;
+}
+/** The comment a free-text answer leaves on a task that goes back to ready work. */
+export function answerComment(response) {
+    return `${ANSWERED}${response}`;
+}
+const labelsOf = (row) => Array.isArray(row.labels) ? row.labels.filter((label) => typeof label === 'string') : [];
+function handBack(row, taskId) {
+    return Object.freeze({ kind: 'hand-back', taskId, holder: stringOf(row.assignee), removeHuman: labelsOf(row).includes('human') });
+}
+/** A decision's close after a pick: past an open blocker or another holder, as
+ * the task client's own response to a person closes, and refused while an
+ * approval it waits on or a task under it is open. */
+function decisionClose(row, taskId, reason, actor, refuse) {
+    const open = (edge) => stringOf(edge.status) !== 'closed';
+    const blockers = rowsOf(row.dependencies).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && open(edge));
+    const gates = blockers.filter(edge => edge.issue_type === 'gate');
+    if (gates.length)
+        refuse({ kind: 'gate', gates: gates.map(edge => stringOf(edge.id)), human: gates.every(edge => edge.await_type === 'human') });
+    const children = rowsOf(row.dependents).filter(edge => edge.dependency_type === 'parent-child' && open(edge));
+    if (children.length)
+        refuse({ kind: 'children', children: children.map(edge => stringOf(edge.id)) });
+    const holder = stringOf(row.assignee);
+    const kept = row.pinned === true || row.status === 'pinned' || row.is_template === true;
+    const force = !kept && (blockers.length > 0 || holder !== '' && !sameActor(holder, actor));
+    return Object.freeze({ kind: 'close', taskId, reason, ...(force ? { force: true } : {}) });
+}
+/** The steps that record a person's pick, from the task and its comments as
+ * read just before: the pick, its comment, then a decision's close or any
+ * other task's hand-back to ready work. The pick is written first, so a second
+ * one is refused, and the same person sending the same option again finishes
+ * the steps an interrupted pick left undone. Nothing runs when it refuses. */
+export function choiceSteps(operation, row, comments, actor, at) {
+    if (!row || row.id !== operation.taskId)
+        invalid();
+    const taskId = operation.taskId;
+    const refuse = (reason) => { throw new TaskStateRefused(taskId, 'other', reason); };
+    const decision = row.issue_type === 'decision', closed = stringOf(row.status) === 'closed';
+    const steps = [];
+    let pick;
+    const chosen = chosenOn(row);
+    if (chosen !== undefined) {
+        const earlier = readTaskChoice(row.metadata);
+        if (earlier === null || earlier.option !== operation.option || !sameActor(earlier.by, actor))
+            return refuse({ kind: 'chosen', chosen });
+        pick = earlier;
+        const commented = rowsOf(comments).some(entry => sameActor(stringOf(entry.author), actor) && entry.text === choiceComment(earlier));
+        if (closed || !decision && commented && !labelsOf(row).includes('human'))
+            return refuse({ kind: 'chosen', chosen });
+        if (!commented)
+            steps.push(Object.freeze({ kind: 'comment', taskId, text: choiceComment(earlier) }));
+    }
+    else {
+        if (closed)
+            refuse({ kind: 'closed' });
+        const choices = readTaskChoices(row.metadata);
+        if (choices === null)
+            return refuse({ kind: 'no-choices' });
+        const option = choices.options.find(entry => entry.key === operation.option);
+        if (option === undefined)
+            return refuse({ kind: 'no-option', option: operation.option, offered: choices.options.map(entry => entry.key) });
+        pick = Object.freeze({ option: option.key, label: option.label, by: actor, at, ...(operation.note === undefined ? {} : { note: operation.note }) });
+        steps.push(Object.freeze({ kind: 'record-choice', taskId, choice: pick }), Object.freeze({ kind: 'comment', taskId, text: choiceComment(pick) }));
+    }
+    steps.push(decision ? decisionClose(row, taskId, choiceCloseReason(pick), actor, refuse) : handBack(row, taskId));
+    return Object.freeze(steps);
+}
+/** The steps of a free-text answer on a task that is not a decision: the
+ * answer as a comment, then the hand-back to ready work. Null for a decision,
+ * which closes on the task client's own response instead. */
+export function answerSteps(operation, row) {
+    if (!row || row.id !== operation.taskId)
+        invalid();
+    if (row.issue_type === 'decision')
+        return null;
+    return Object.freeze([Object.freeze({ kind: 'comment', taskId: operation.taskId, text: answerComment(operation.response) }),
+        handBack(row, operation.taskId)]);
+}
+/** Task ids as a sentence lists them. */
+function inWords(items) {
+    return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+}
+/** A refused decision as the person who made it reads it on Tasks, or null
+ * for a cause this does not name. */
+export function decisionRefusal({ taskId: id, reason }) {
+    switch (reason.kind) {
+        case 'closed': return `${id} is already closed.`;
+        case 'chosen': return reason.chosen === null ? `${id} already has a choice.` : `${id} already has a choice: ${reason.chosen}.`;
+        case 'no-choices': return `${id} offers no options to choose from.`;
+        case 'no-option': return `${id} offers ${inWords(reason.offered.map(key => `(${key})`))}, not (${reason.option}).`;
+        case 'gate': return `${id} waits on approval ${inWords(reason.gates)}. Approve it first.`;
+        case 'children': return `${id} has open tasks under it: ${inWords(reason.children)}.`;
+        default: return null;
+    }
+}
 /** Semantic action classification after the same strict command validation.
  * It grants nothing; shared current admission decides who may perform it. */
 export function hostedTaskAction(operation) {
     const plan = command(operation);
-    return plan.readOnly ? 'tasks.read' : ['respond', 'dismiss', 'resolve-gate'].includes(plan.kind) ? 'tasks.decide' : 'tasks.write';
+    return plan.readOnly ? 'tasks.read' : DECISIONS.includes(plan.kind) ? 'tasks.decide' : 'tasks.write';
 }
+/** A person's decisions, and the steps one runs as: only a person is admitted to any of them. */
+const DECISIONS = ['respond', 'dismiss', 'resolve-gate', 'choose', 'record-choice', 'hand-back'];
 /** No authorization, role/demo policy, environment, IO or runtime executor.
  * Call only after shared named-action admission. Never forward a JSON body's
  * workspace field here; the workspace argument is selected by the server.

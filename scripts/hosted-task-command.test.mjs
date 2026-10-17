@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision,
-  refusalFromState, TaskStateRefused, writeGuardReads } from './hosted-task-command.mjs';
+import { answerComment, answerSteps, choiceCloseReason, choiceComment, choiceSteps, createHostedTaskPlanner, decisionGuardTargets, decisionRefusal,
+  guardedWrite, guardReadArgs, HOSTED_TASK_LIMITS, hostedTaskAction, isHumanDecision, refusalFromState, TaskStateRefused,
+  writeGuardReads } from './hosted-task-command.mjs';
 
 const A = '11111111-1111-1111-1111-111111111111';
 const B = '22222222-2222-2222-2222-222222222222';
@@ -451,4 +452,85 @@ test('a change to a task\'s choices reads the task first and is refused once a p
   assert.deepEqual(refusalFromState(changing, { ...open, metadata: { noticeos_choice: 'unreadable' } }, 'agent-1')?.reason,
     { kind: 'chosen', chosen: null }, 'a pick that cannot be read still stands');
   assert.equal(guardedWrite({ kind: 'update', taskId: 'tt-a', title: 'New' }, undefined, 'agent-1').title, 'New', 'other changes read nothing');
+});
+
+test('a pick and its steps are a person\'s decision, planned as fixed commands', () => {
+  const plan = createHostedTaskPlanner(entries);
+  const pick = { option: 'b', label: 'Redirect to the new page', by: 'person', at: '2026-10-16T12:00:00Z', note: 'Ship it Friday' };
+  for (const operation of [{ kind: 'choose', taskId: 'tt-a', option: 'b' }, { kind: 'choose', taskId: 'tt-a', option: 'f', note: 'Why' },
+    { kind: 'record-choice', taskId: 'tt-a', choice: pick }, { kind: 'hand-back', taskId: 'tt-a', holder: '', removeHuman: true }]) {
+    assert.equal(hostedTaskAction(operation), 'tasks.decide', operation.kind);
+  }
+  assert.deepEqual(plan(A, request({ kind: 'choose', taskId: 'tt-a', option: 'b' })).argv, ['--sandbox', '--json'], 'the executor composes a pick from its steps');
+  assert.deepEqual(guardReadArgs({ kind: 'choose', taskId: 'tt-a', option: 'b' }, 'tt-a'),
+    ['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', 'tt-a'], 'a decision\'s open children are read before its close');
+  assert.deepEqual(plan(A, request({ kind: 'record-choice', taskId: 'tt-a', choice: pick })).argv.slice(2),
+    ['update', `--metadata=${JSON.stringify({ noticeos_choice: pick })}`, '--', 'tt-a']);
+  assert.deepEqual(plan(A, request({ kind: 'hand-back', taskId: 'tt-a', holder: 'agent-1', removeHuman: true })).argv.slice(2),
+    ['update', '--status=open', '--assignee=', '--if-assignee=agent-1', '--remove-label=human', '--', 'tt-a']);
+  assert.deepEqual(plan(A, request({ kind: 'hand-back', taskId: 'tt-a', holder: '', removeHuman: false })).argv.slice(2),
+    ['update', '--status=open', '--assignee=', '--if-assignee=', '--', 'tt-a']);
+  for (const operation of [{ kind: 'choose', taskId: 'tt-a', option: 'g' }, { kind: 'choose', taskId: 'tt-a', option: 'b', note: '' },
+    { kind: 'choose', taskId: 'tt-a', option: 'b', note: 'x'.repeat(2001) }, { kind: 'choose', taskId: 'tt-a' },
+    { kind: 'choose', taskId: 'tt-a', option: 'b', by: 'someone' }, { kind: 'record-choice', taskId: 'tt-a', choice: { ...pick, option: 'z' } },
+    { kind: 'record-choice', taskId: 'tt-a', choice: { ...pick, by: '' } }, { kind: 'hand-back', taskId: 'tt-a', holder: '' },
+    { kind: 'hand-back', taskId: 'tt-a', holder: 'a\nb', removeHuman: true },
+    { kind: 'respond', taskId: 'tt-a', response: 'x'.repeat(HOSTED_TASK_LIMITS.comment - 'Answered: '.length + 1) }]) {
+    denied(() => hostedTaskAction(operation));
+  }
+  assert.equal(hostedTaskAction({ kind: 'respond', taskId: 'tt-a', response: 'x'.repeat(HOSTED_TASK_LIMITS.comment - 'Answered: '.length) }), 'tasks.decide');
+});
+
+const asking = (extra = {}) => ({ id: 'tt-a', status: 'open', issue_type: 'task', labels: ['human', 'ui'], assignee: '', dependencies: [], dependents: [],
+  metadata: { noticeos_choices: CHOICES }, ...extra });
+const choosing = (option = 'b', note) => ({ kind: 'choose', taskId: 'tt-a', option, ...(note === undefined ? {} : { note }) });
+const AT = '2026-10-16T12:00:00.000Z';
+
+test('a pick is recorded first, then commented, then hands any task but a decision back to ready work', () => {
+  const pick = { option: 'b', label: 'Redirect to the new page', by: 'person', at: AT, note: 'Ship it Friday' };
+  assert.deepEqual(choiceSteps(choosing('b', 'Ship it Friday'), asking({ assignee: 'agent-1', status: 'in_progress' }), [], 'person', AT), [
+    { kind: 'record-choice', taskId: 'tt-a', choice: pick },
+    { kind: 'comment', taskId: 'tt-a', text: 'Chose (b) Redirect to the new page. Ship it Friday' },
+    { kind: 'hand-back', taskId: 'tt-a', holder: 'agent-1', removeHuman: true },
+  ]);
+  assert.deepEqual(choiceSteps(choosing('a'), asking({ issue_type: 'decision', dependencies: [{ id: 'tt-b', status: 'open', dependency_type: 'blocks' }] }), [], 'person', AT).at(-1),
+    { kind: 'close', taskId: 'tt-a', reason: 'Chose (a) Keep the old page', force: true }, 'a decision closes, past an open blocker');
+  assert.deepEqual(choiceSteps(choosing('a'), asking({ issue_type: 'decision' }), [], 'person', AT).at(-1),
+    { kind: 'close', taskId: 'tt-a', reason: 'Chose (a) Keep the old page' });
+  assert.deepEqual(choiceSteps(choosing('c'), asking({ issue_type: 'decision', assignee: 'agent-1' }), [], 'person', AT).at(-1).force, true,
+    'a person closes a decision someone else holds');
+  assert.equal(choiceComment(pick), 'Chose (b) Redirect to the new page. Ship it Friday');
+  assert.equal(choiceCloseReason(pick), 'Chose (b) Redirect to the new page');
+});
+
+test('a pick names why it is refused, and an interrupted one is finished by the same person and option', () => {
+  const refusedWith = (row, operation, reason, actor = 'person', comments = []) => assert.throws(() => choiceSteps(operation, row, comments, actor, AT),
+    error => error instanceof TaskStateRefused && assert.deepEqual(error.reason, reason) === undefined);
+  refusedWith(asking({ metadata: {} }), choosing(), { kind: 'no-choices' });
+  refusedWith(asking(), choosing('e'), { kind: 'no-option', option: 'e', offered: ['a', 'b', 'c'] });
+  refusedWith(asking({ status: 'closed' }), choosing(), { kind: 'closed' });
+  refusedWith(asking({ issue_type: 'decision', dependents: [{ id: 'tt-a.1', status: 'open', dependency_type: 'parent-child' }] }), choosing(),
+    { kind: 'children', children: ['tt-a.1'] });
+  const earlier = { option: 'b', label: 'Redirect to the new page', by: 'person', at: AT };
+  const chosen = asking({ metadata: { noticeos_choices: CHOICES, noticeos_choice: earlier } });
+  refusedWith(chosen, choosing('a'), { kind: 'chosen', chosen: '(b) Redirect to the new page' }, 'person');
+  refusedWith(chosen, choosing('b'), { kind: 'chosen', chosen: '(b) Redirect to the new page' }, 'someone-else');
+  // Recorded but not commented: the same pick again finishes it without a second record.
+  assert.deepEqual(choiceSteps(choosing('b'), chosen, [], 'person', '2026-10-17T00:00:00Z').map(step => step.kind), ['comment', 'hand-back']);
+  const commented = [{ author: 'person', text: 'Chose (b) Redirect to the new page.' }];
+  assert.deepEqual(choiceSteps(choosing('b'), chosen, commented, 'person', AT).map(step => step.kind), ['hand-back'], 'commented, still labelled human');
+  refusedWith({ ...chosen, labels: ['ui'] }, choosing('b'), { kind: 'chosen', chosen: '(b) Redirect to the new page' }, 'person', commented);
+  refusedWith({ ...chosen, status: 'closed' }, choosing('b'), { kind: 'chosen', chosen: '(b) Redirect to the new page' });
+  const sentence = (reason) => decisionRefusal(new TaskStateRefused('tt-a', 'other', reason));
+  assert.deepEqual([sentence({ kind: 'chosen', chosen: '(b) Redirect' }), sentence({ kind: 'chosen', chosen: null }), sentence({ kind: 'no-choices' }),
+    sentence({ kind: 'no-option', option: 'e', offered: ['a', 'b', 'c'] }), sentence({ kind: 'closed' }), sentence({ kind: 'held', holder: 'x' })], [
+    'tt-a already has a choice: (b) Redirect.', 'tt-a already has a choice.', 'tt-a offers no options to choose from.',
+    'tt-a offers (a), (b) and (c), not (e).', 'tt-a is already closed.', null]);
+});
+
+test('an answer on a task that is not a decision is a comment and a hand-back; a decision keeps the task client\'s own response', () => {
+  assert.deepEqual(answerSteps({ kind: 'respond', taskId: 'tt-a', response: 'Use OAuth2' }, asking({ assignee: 'agent-1' })), [
+    { kind: 'comment', taskId: 'tt-a', text: 'Answered: Use OAuth2' }, { kind: 'hand-back', taskId: 'tt-a', holder: 'agent-1', removeHuman: true }]);
+  assert.equal(answerSteps({ kind: 'respond', taskId: 'tt-a', response: 'Use OAuth2' }, asking({ issue_type: 'decision' })), null);
+  assert.equal(answerComment('Yes'), 'Answered: Yes');
 });

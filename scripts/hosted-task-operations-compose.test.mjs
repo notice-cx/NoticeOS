@@ -7,6 +7,7 @@ import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
+import { TaskStateRefused } from './hosted-task-command.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 
@@ -189,5 +190,46 @@ test('two servers racing one claim have one winner; a lost reply after a real cr
     assert.match(prose.lint.advice?.[0] ?? '', /^choices: the description offers lettered options/u);
     assert.equal((await tool('create_task', { title: 'Bad pick', choices: { ...pick, options: pick.options.slice(0, 1) },
       idempotency_key: 'compose-choices-0005' })).content[0].text, 'invalid arguments: choices.options (2 to 6 options)');
+
+    // A person's pick: recorded and commented, the human label off, the
+    // assignee cleared and the task back in ready work; a decision closes on
+    // its pick and the task waiting on it becomes ready.
+    const decide = async operation => (await operations.write(proof(), workspaceId, { projectId, operation })).value;
+    const handed = await ok('create_task', { title: 'Pick the copy', labels: ['human'], acceptance: 'Shipped', choices: pick,
+      idempotency_key: 'compose-choose-0001' });
+    await ok('claim_task', { task: handed.id, idempotency_key: 'compose-choose-0002' });
+    assert.deepEqual(await decide({ kind: 'choose', taskId: handed.id, option: 'b', note: 'Ship it Friday' }), { id: handed.id, status: 'open' });
+    const back = await ok('get_task', { task: handed.id });
+    assert.deepEqual([back.task.status, back.task.assignee, back.task.labels, back.task.choice?.option, back.task.choice?.label,
+      back.task.choice?.by, back.task.choice?.note], ['open', null, [], 'b', 'Redirect to the new page', ALICE, 'Ship it Friday']);
+    assert.ok(back.comments.some(comment => comment.author === ALICE && comment.text === 'Chose (b) Redirect to the new page. Ship it Friday'),
+      JSON.stringify(back.comments));
+    assert.ok((await ready()).includes(handed.id), 'ready for any agent');
+    const refusedFor = kind => error => error instanceof TaskStateRefused && error.reason.kind === kind;
+    await assert.rejects(decide({ kind: 'choose', taskId: handed.id, option: 'a' }), refusedFor('chosen'), 'a second pick');
+    assert.match((await tool('update_task', { task: handed.id, choices: null, idempotency_key: 'compose-choose-0003' })).content[0].text,
+      /^refused: \S+ already carries a person's choice, \(b\) Redirect to the new page/u);
+    await assert.rejects(decide({ kind: 'choose', taskId: follow.id, option: 'a' }), refusedFor('no-choices'));
+    const colour = await ok('create_task', { title: 'Pick a colour', labels: ['human'], choices: two, idempotency_key: 'compose-choose-0004' });
+    await assert.rejects(decide({ kind: 'choose', taskId: colour.id, option: 'c' }), refusedFor('no-option'));
+    const vendor = await ok('create_task', { title: 'Pick the vendor', type: 'decision', labels: ['human'], choices: two,
+      idempotency_key: 'compose-choose-0005' });
+    const signing = await ok('create_task', { title: 'Sign the vendor', depends_on: [vendor.id], acceptance: 'Signed',
+      idempotency_key: 'compose-choose-0006' });
+    assert.equal((await ready()).includes(signing.id), false);
+    assert.deepEqual(await decide({ kind: 'choose', taskId: vendor.id, option: 'a' }), { id: vendor.id, status: 'closed' });
+    const decided = (await ok('get_task', { task: vendor.id })).task;
+    assert.deepEqual([decided.status, decided.closeReason, decided.choice?.option], ['closed', 'Chose (a) Yes', 'a']);
+    assert.ok((await ready()).includes(signing.id), 'the task waiting on the decision is ready');
+
+    // A free-text answer hands a task that is not a decision back; a decision closes on it.
+    const region = await ok('create_task', { title: 'Which region?', labels: ['human'], acceptance: 'Answered', idempotency_key: 'compose-answer-0001' });
+    assert.deepEqual(await decide({ kind: 'respond', taskId: region.id, response: 'Use the closest one' }), { id: region.id, status: 'open' });
+    const answered = await ok('get_task', { task: region.id });
+    assert.deepEqual([answered.task.status, answered.task.labels, answered.comments.map(comment => comment.text)],
+      ['open', [], ['Answered: Use the closest one']]);
+    const zone = await ok('create_task', { title: 'Pick a zone', type: 'decision', labels: ['human'], idempotency_key: 'compose-answer-0002' });
+    assert.deepEqual(await decide({ kind: 'respond', taskId: zone.id, response: 'The closest one' }), { id: zone.id, status: 'closed' });
+    assert.equal((await ok('get_task', { task: zone.id })).task.closeReason, 'Responded');
   });
 });

@@ -7,6 +7,7 @@ export const WALL_FEED_KINDS = [
   "task-done",
   "task-claimed",
   "task-filed",
+  "task-chosen",
   "alert",
   "resolved",
   "source-failed",
@@ -34,6 +35,7 @@ export const WALL_FEED_LABEL: Readonly<Record<WallFeedKind, string>> = {
   "task-done": "Task done",
   "task-claimed": "Claimed",
   "task-filed": "New task",
+  "task-chosen": "Chosen",
   alert: "Alert",
   resolved: "Resolved",
   "source-failed": "Source failed",
@@ -68,11 +70,14 @@ export interface WallFeedItem {
   count: number;
   tone: WallFeedTone;
   /** A task line's worker, when the snapshot named who filed, claimed or
-   * closed it: the line reads "claude closed …", with the model beside the name. */
+   * closed it, or the person who picked one of its choices: the line reads
+   * "claude closed …", with the model beside an agent's name. */
   who?: string;
   model?: string | null;
   /** A close's evidence as the closer gave it: its commit and links become chips. */
   evidence?: string | null;
+  /** A pick's option as a sentence names it: the line reads "Dana chose (b) Keep both on …". */
+  choice?: string;
 }
 
 export interface WallFeedPayload {

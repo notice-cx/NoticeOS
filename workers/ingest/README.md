@@ -565,7 +565,11 @@ board forever and make a dead poller look fresh. Each project is
 closedRecent}, ready: [...], inProgress: [...], recentlyClosed: [...]}`, plus an
 optional `recentlyCreated: [...]` (newest-filed work, for the Wall feed's "New
 task", each item with an optional `filedBy` and `filedModel`: who filed it and
-the model they named) and an optional `createdAt` on every item.
+the model they named) and an optional `createdAt` on every item. Any item may
+carry `choices` (the options a person picks from) and `choice` (the pick), each
+checked against `packages/contract/src/task-choices.mts`, and an entry of the
+optional `recentWork` list is a claim, a close or a pick (`kind: "chosen"`,
+with the pick's `option` and `label`).
 
 There is **no idempotent re-post**. Two snapshots a second apart are two
 observations of a changing hub, not the same event recorded twice, so every POST

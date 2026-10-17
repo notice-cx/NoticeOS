@@ -16,7 +16,9 @@
 // Read-only on the TV: nothing here is a control. Colour is tokens only, and the
 // glyph carries the kind, so colour is never alone. A task line by a known
 // agent draws that agent's mark in the glyph's place, with the glyph as a badge
-// on its corner; a line about a site draws the site's favicon beside its name.
+// on its corner; a person's pick keeps the glyph and leads with the person's
+// name and the option chosen; a line about a site draws the site's favicon
+// beside its name.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from "react";
 import {
@@ -28,6 +30,7 @@ import {
   DollarSign,
   FileText,
   GitCommitHorizontal,
+  ListChecks,
   Plug,
   Plus,
   Receipt,
@@ -58,6 +61,7 @@ const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "task-done": Check,
   "task-claimed": CircleDot,
   "task-filed": Plus,
+  "task-chosen": ListChecks,
   alert: TriangleAlert,
   resolved: CheckCheck,
   "source-failed": Unplug,
@@ -73,11 +77,12 @@ const GLYPH: Record<WallFeedKind, ComponentType<{ className?: string }>> = {
   "setting-saved": SlidersHorizontal,
 };
 
-/** What the worker on a task line did: "claude filed …". */
+/** What the worker on a task line did: "claude filed …", or "Dana chose (b) Keep both on …". */
 const VERB: Partial<Record<WallFeedKind, string>> = {
   "task-filed": "filed",
   "task-claimed": "claimed",
   "task-done": "closed",
+  "task-chosen": "chose",
 };
 
 /** Tokens only: ink for the kind label and glyph, a soft tile behind
@@ -305,6 +310,12 @@ export function WallFeed({ feed, failed = false, nowMs }: WallFeedProps) {
                         <>
                           <span className="font-semibold" data-feed-who>{item.who}</span>
                           {" "}<span className={cn(item.kind === "task-done" ? "text-healthy" : "text-muted-foreground")} data-feed-verb>{VERB[item.kind]}</span>{" "}
+                          {item.choice ? (
+                            <>
+                              <span className="font-semibold" data-feed-choice>{item.choice}</span>
+                              {" "}<span className="text-muted-foreground">on</span>{" "}
+                            </>
+                          ) : null}
                         </>
                       ) : null}
                       {item.text}

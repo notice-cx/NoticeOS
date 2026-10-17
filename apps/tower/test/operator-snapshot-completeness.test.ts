@@ -57,6 +57,25 @@ describe("partial operator snapshots from the task poller", () => {
     expect(operatorLabel(posture, NOW.getTime())).toBe("6+ urgent · 13+ need attention");
   });
 
+  it("carries a waiting task's choices and a person's pick, and leaves out what it cannot read", async () => {
+    const choices = { question: "Which page next?", options: [{ key: "a", label: "Recipes" }, { key: "b", label: "Plans", recommended: true }] };
+    const choice = { option: "b", label: "Plans", by: "Dana", at: "2026-09-05T11:00:00.000Z" };
+    await seedSnapshot(ctx, CAPTURED, [workProject({
+      waiting: [{ ...waiting[1]!, choices }, { ...waiting[2]!, choices: "a or b", choice: "b" }],
+      recentWork: [
+        { kind: "chosen", taskId: "md-h0", title: "Choose the first page", by: "Dana", model: null, at: choice.at, evidence: null, option: "b", label: "Plans" },
+        { kind: "chosen", taskId: "md-h9", title: "No option named", by: "Dana", model: null, at: choice.at, evidence: null },
+      ],
+      ready: [{ id: "md-h0", title: "Choose the first page", status: "open", priority: 1, issueType: "task", choices, choice }],
+    })]);
+    const project = (await loadLatestBeadsSnapshot(ctx.call))!.projects[0]!;
+    expect([project.waiting[0]!.choices, "choice" in project.waiting[0]!]).toEqual([choices, false]);
+    expect("choices" in project.waiting[1]! || "choice" in project.waiting[1]!).toBe(false);
+    expect(project.ready[0]!.choice).toEqual(choice);
+    expect(project.recentWork).toEqual([{ kind: "chosen", taskId: "md-h0", title: "Choose the first page", by: "Dana", model: null,
+      at: choice.at, evidence: null, option: "b", label: "Plans" }]);
+  });
+
   it("returns to a complete zero only after a newer complete empty snapshot", async () => {
     await seedSnapshot(ctx, "2026-09-05T11:59:00.000Z", [workProject({ waiting })]);
     await seedSnapshot(ctx, CAPTURED, [workProject({ counts: { waiting: 0 }, waitingUrgent: 0, waiting: [] })]);

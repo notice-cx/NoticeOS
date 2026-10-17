@@ -27,7 +27,7 @@ The steps for connecting a project are in [Connect a task project](/guides/conne
 
 Every task has an owner, which may be a person or an agent. An agent claims a task before starting it, so the board always shows who is working on what. When an agent names its model as it files, claims or closes a task, the task records the model too, and the **Agents** page counts the claimed and closed work under both the agent and the model.
 
-Some steps only you can do: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Your decisions**, where you record your answer.
+Some steps only you can do: a credential, a decision, a step in an admin console. Those tasks carry a **human** label and appear under **Your decisions**, where you record your answer. An agent that needs you to pick one option files the options with the task; your pick, or your answer, is recorded on the task and returns it to ready work for an agent, and a task of type decision closes on it.
 
 When a step must block until you approve it, the task carries a **gate**. A gated task leaves the ready list and stays out of it until you resolve the gate. An agent may ask for your approval by opening a gate, but only you resolve one: approval is never something an agent assumes.
 

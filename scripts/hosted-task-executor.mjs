@@ -10,9 +10,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
+import { answerSteps, choiceSteps, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
-import { taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
+import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
     name = 'HostedTaskRefused';
@@ -408,16 +408,32 @@ export function createHostedTaskExecutor(options) {
                                         fail();
                                     return row;
                                 };
+                                // A pick, or an answer on a task that is not a decision, runs as steps.
+                                let steps = null;
                                 if (action === 'tasks.decide') {
+                                    // A step is a part of a decision, never a request of its own.
+                                    if (operation.kind === 'record-choice' || operation.kind === 'hand-back')
+                                        fail();
                                     const before = await target();
-                                    if (before.status === 'closed')
-                                        fail();
-                                    if (operation.kind === 'resolve-gate') {
-                                        if (before.issue_type !== 'gate' || before.await_type !== 'human')
+                                    if (operation.kind === 'choose') {
+                                        if (before.issue_type === 'gate')
                                             fail();
+                                        // Its comments tell a pick interrupted after its record from a second pick.
+                                        const comments = await run(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+                                        steps = choiceSteps(operation, before, Array.isArray(comments) ? comments : fail(), last.principalId, new Date().toISOString());
                                     }
-                                    else if (before.issue_type === 'gate' || !Array.isArray(before.labels) || !before.labels.includes('human'))
-                                        fail();
+                                    else {
+                                        if (before.status === 'closed')
+                                            fail();
+                                        if (operation.kind === 'resolve-gate') {
+                                            if (before.issue_type !== 'gate' || before.await_type !== 'human')
+                                                fail();
+                                        }
+                                        else if (before.issue_type === 'gate' || !Array.isArray(before.labels) || !before.labels.includes('human'))
+                                            fail();
+                                        if (operation.kind === 'respond')
+                                            steps = answerSteps(operation, before);
+                                    }
                                 }
                                 else if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) {
                                     fail();
@@ -485,6 +501,27 @@ export function createHostedTaskExecutor(options) {
                                         catch {
                                             throw new TaskStoreFailed(Date.now() >= life.deadline);
                                         }
+                                    }
+                                    if (steps !== null) {
+                                        for (const step of steps) {
+                                            checkpoint(life);
+                                            const stepped = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId, { projectId: snapshot.projectId, operation: step }).argv;
+                                            await run([stepped[0], stepped[1], `--actor=${effect.principalId}`, ...stepped.slice(2)]);
+                                        }
+                                        const after = await target();
+                                        const labels = Array.isArray(after.labels) ? after.labels : [];
+                                        const back = after.status === 'open' && !labels.includes('human') && (typeof after.assignee !== 'string' || after.assignee === '');
+                                        if (operation.kind === 'choose') {
+                                            const chosen = readTaskChoice(after.metadata);
+                                            if (chosen?.option !== operation.option || chosen.by !== effect.principalId)
+                                                fail();
+                                            const closing = steps.at(-1);
+                                            if (closing.kind === 'close' ? after.status !== 'closed' || after.close_reason !== closing.reason : !back)
+                                                fail();
+                                        }
+                                        else if (!back)
+                                            fail();
+                                        return Object.freeze({ id: after.id, status: after.status });
                                     }
                                     await run(argv, true);
                                     const after = await target();

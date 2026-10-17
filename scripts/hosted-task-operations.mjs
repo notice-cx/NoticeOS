@@ -251,7 +251,7 @@ export function createHostedTaskOperations(options) {
             return admitted(proof, workspaceId, 'tasks.read', async (context) => Object.freeze({
                 live: true, writable: context.allowedActions.includes('tasks.write'), projectSelection: true,
                 operations: Object.freeze(['create', 'update', 'comment', 'close',
-                    ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve'] : [])]),
+                    ...(context.allowedActions.includes('tasks.decide') ? ['respond', 'dismiss', 'resolve', 'choose'] : [])]),
                 editableFields: EDITABLE_TASK_FIELDS,
             }));
         },

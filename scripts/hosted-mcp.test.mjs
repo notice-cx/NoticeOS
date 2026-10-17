@@ -116,7 +116,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
     assert.doesNotMatch(JSON.stringify(tool), /\bbeads?\b|\bbd\b|\bissue/iu, `${tool.name} speaks in tasks`);
   }
   // No human decision is a tool: write access never answers its own question.
-  assert.equal(tools.some(tool => /respond|dismiss|resolve|gate|decide/u.test(tool.name)), false);
+  assert.equal(tools.some(tool => /respond|dismiss|resolve|gate|decide|choose|pick/u.test(tool.name)), false);
   for (const [request, status] of [
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { method: 'GET' }), 405],
     [post({ jsonrpc: '2.0', id: 3, method: 'ping' }, { path: '/api/mcp?x=1' }), 400],
@@ -533,6 +533,54 @@ test('a malformed set of choices is refused with the field at fault named, and f
   assert.equal(taskRefusal(new TaskStateRefused('tt-1', 'other', { kind: 'chosen', chosen: '(b) Redirect to the new page' })).message,
     'refused: tt-1 already carries a person\'s choice, (b) Redirect to the new page, and its choices stay as they were when it was made. '
     + 'get_task shows the choice; file work that remains with create_task.');
+});
+
+test('only a person picks: the pick hands the task back to ready work, and an agent\'s request is refused', async () => {
+  const f = fixture();
+  await filer(f)('Pick the page', { labels: ['human'], choices: PICK, acceptance: 'Picked' });
+  await call(f, 'claim_task', { workspace: A, project: P, task: 'tt-1', idempotency_key: 'agent-claim-0901' });
+  const headers = { origin, 'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A };
+  const person = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  const agent = (path, body) => f.http(new Request(origin + path, { method: 'POST', headers: { ...headers, authorization: `Bearer ${FULL}` },
+    body: JSON.stringify({ projectId: P, ...body }) }));
+  const capabilities = await (await f.http(new Request(origin + '/api/tasks/capabilities',
+    { headers: { origin, 'sec-fetch-site': 'same-origin', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S } }))).json();
+  assert.ok(capabilities.operations.includes('choose'));
+  for (const body of [{ option: 'b' }, { option: 'b', note: 'From an agent' }]) assert.equal((await agent('/api/tasks/tt-1/choose', body)).status, 403);
+  assert.equal(f.effects.some(([kind]) => kind === 'choose'), false, 'an agent\'s pick never reaches the task');
+  for (const body of [{}, { option: 'g' }, { option: 'b', extra: 1 }, { option: 'b', note: '' }]) {
+    assert.equal((await person('/api/tasks/tt-1/choose', body)).status, 400, JSON.stringify(body));
+  }
+
+  assert.equal((await person('/api/tasks/tt-1/choose', { option: 'b', note: 'Ship it Friday' })).status, 200);
+  const { task, comments } = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  assert.deepEqual([task.status, task.assignee, task.labels, task.choice.option, task.choice.label, task.choice.by, task.choice.note],
+    ['open', null, [], 'b', 'Redirect to the new page', PERSON, 'Ship it Friday']);
+  assert.deepEqual(comments.map(comment => comment.text), ['Chose (b) Redirect to the new page. Ship it Friday']);
+  assert.ok((await call(f, 'list_tasks', { workspace: A, project: P, ready: true })).structuredContent.tasks.some(row => row.id === 'tt-1'),
+    'ready for any agent');
+  const again = await person('/api/tasks/tt-1/choose', { option: 'a' });
+  assert.deepEqual([again.status, await again.json()], [409, { error: 'task_refused', detail: 'tt-1 already has a choice: (b) Redirect to the new page.' }]);
+  await filer(f)('Plain', { acceptance: 'Done' });
+  const none = await person('/api/tasks/tt-2/choose', { option: 'a' });
+  assert.deepEqual([none.status, (await none.json()).detail], [409, 'tt-2 offers no options to choose from.']);
+});
+
+test('an answer hands a task that is not a decision back to ready work; a decision still closes on it', async () => {
+  const f = fixture();
+  const create = filer(f);
+  await create('Which host?', { labels: ['human'], acceptance: 'Answered' });
+  await create('Pick the host', { type: 'decision', labels: ['human'] });
+  const answer = (id, response) => f.http(new Request(`${origin}/api/tasks/${id}/respond`, { method: 'POST', headers: { origin,
+    'sec-fetch-site': 'same-origin', 'content-type': 'application/json', [WORKSPACE_SELECTION_HEADER]: A, [WORKSPACE_SESSION_HEADER]: S },
+    body: JSON.stringify({ projectId: P, response }) }));
+  assert.equal((await answer('tt-1', 'Use the managed one')).status, 200);
+  const first = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-1' })).structuredContent;
+  assert.deepEqual([first.task.status, first.task.labels, first.comments.map(comment => comment.text)], ['open', [], ['Answered: Use the managed one']]);
+  assert.equal((await answer('tt-2', 'The managed one')).status, 200);
+  const second = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-2' })).structuredContent.task;
+  assert.deepEqual([second.status, second.closeReason], ['closed', 'Responded']);
 });
 
 test('lint advises a person\'s task whose description offers lettered options as prose', async () => {

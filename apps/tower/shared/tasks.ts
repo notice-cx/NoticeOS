@@ -7,7 +7,6 @@
 // coordination state, not signals.
 
 import { TASK_METADATA } from "@noticeos/contract/task-metadata";
-import type { TaskChoice, TaskChoices } from "@noticeos/contract/task-choices";
 import type { WorkItem } from "./work";
 
 /** Closed history is bounded in time, never sampled by row count. */
@@ -67,11 +66,6 @@ export interface LiveTask extends WorkItem {
   /** `human`, `timer`, `gh:run`, … on an approval task; null on everything
    * else. */
   awaitType: string | null;
-  /** The options a person picks from, null when the task offers none. Every
-   * live read sets it; a row built before choices existed leaves it out. */
-  choices?: TaskChoices | null;
-  /** The option a person picked, null until one is. */
-  choice?: TaskChoice | null;
 }
 
 /** One container task with its all-time child progress (`bd epic status`) —
@@ -218,6 +212,8 @@ export const TASK_PROJECTS_PATH = "/settings/task-projects";
 export const READ_ONLY_TASKS_HINT = "Make changes from the local NoticeOS.";
 
 /** The verbs the lane will run, as the operator's own words. The client
- * renders it and the lane enforces it. */
-export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss"] as const;
+ * renders it and the lane enforces it. `respond` closes a decision and hands
+ * any other task back to ready work; `choose` records one of a task's choices,
+ * then does the same. */
+export const TASK_ACTIONS = ["close", "comments", "respond", "dismiss", "choose"] as const;
 export type TaskAction = (typeof TASK_ACTIONS)[number];

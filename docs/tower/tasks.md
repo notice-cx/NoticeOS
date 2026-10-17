@@ -46,7 +46,7 @@ The board works on a new installation because it ships with the **System** proje
 ## What you can do
 
 - **Approve** a gate from its row.
-- **Answer** a question: the box opens on the row, you type **Your answer** and select **Send**. The answer text becomes the note.
+- **Answer** a question: the box opens on the row, you type **Your answer** and select **Send**. On a task of type **Decision** the answer text becomes the note and the task closes. On any other task the answer is added as a comment that starts **Answered:**, the **human** label comes off, the assignee is cleared and the task goes back to ready work, where an agent claims it again.
 - **Dismiss** a question you decline.
 - Decide several at once: **Select** beside **Your decisions** puts a checkbox on every row you can answer and shows every row. Tick rows, or **Select all**, then **Approve** sends every selected gate and **Answer** or **Dismiss** every selected question; each button shows how many rows it sends. One **Undo** takes the whole batch back. After the Undo window the rows are sent one at a time, and any that are refused are named in a message and return to the queue. **Done** leaves without sending.
 - Select a project's name in **Work by project** to narrow the list to it.

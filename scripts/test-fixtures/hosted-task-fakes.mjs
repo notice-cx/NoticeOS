@@ -1,3 +1,5 @@
+import { answerSteps, choiceSteps } from '../hosted-task-command.mjs';
+
 // Shared fakes for the hosted task operation, HTTP and MCP tests.
 // The receipt store keeps packages/postgres/src/task-receipts.mts's
 // compare-and-set rules (scripts/postgres-task-receipts.test.mjs proves the
@@ -97,6 +99,26 @@ export function fakeTaskExecutor({ principal, clock }) {
         tasks.set(task.id, task); effects.push([operation.kind, operation.taskId]);
         // The task client's reply to a change carries neither parent nor links.
         const { parent: _parent, ...changed } = row(task); value = [changed]; break;
+      }
+      case 'choose': case 'respond': {
+        // As the real executor composes them: the shared planners, each step applied as the task client would.
+        const task = tasks.get(operation.taskId);
+        const shown = { ...row(task), dependencies: dependencies(operation.taskId), dependents: [] };
+        const steps = operation.kind === 'choose'
+          ? choiceSteps(operation, shown, comments.filter(entry => entry.issue_id === operation.taskId), principal(), new Date(clock()).toISOString())
+          : answerSteps(operation, shown) ?? [{ kind: 'comment', taskId: operation.taskId, text: `Response: ${operation.response}` },
+            { kind: 'close', taskId: operation.taskId, reason: 'Responded' }];
+        for (const step of steps) {
+          if (step.kind === 'record-choice') task.metadata = { ...task.metadata, noticeos_choice: structuredClone(step.choice) };
+          if (step.kind === 'comment') comments.push({ id: `c-${comments.length + 1}`, issue_id: step.taskId, author: principal(), text: step.text,
+            created_at: new Date(clock()).toISOString().replace(/\.\d{3}Z$/u, 'Z'), schema_version: 1 });
+          if (step.kind === 'close') Object.assign(task, { status: 'closed', close_reason: step.reason, closed_at: new Date(clock()).toISOString() });
+          if (step.kind === 'hand-back') {
+            Object.assign(task, { status: 'open' }); delete task.assignee;
+            if (step.removeHuman) task.labels = (task.labels ?? []).filter(label => label !== 'human');
+          }
+        }
+        effects.push([operation.kind, operation.taskId]); value = { id: task.id, status: task.status }; break;
       }
       case 'attribute': {
         // As the task client merges --metadata into what the task carries.

@@ -296,13 +296,15 @@ SELECT list, asset, id, title, at, who, model FROM first_seen
  LIMIT $4`;
 
 /**
- * Who claimed and closed work, from the newest snapshot's `recentWork`: the
- * newest claims and closes per project, each with its worker, model and a
- * close's evidence. A task the snapshot names here reads as that worker's line.
+ * Who claimed and closed work, and who picked one of a task's choices, from
+ * the newest snapshot's `recentWork`: the newest per project, each with its
+ * worker, model and a close's evidence, or a pick's option and label. A task
+ * the snapshot names here reads as that worker's line.
  */
 export const FEED_WORK_SQL = `SELECT p.value ->> 'asset' AS asset, w.value ->> 'kind' AS kind, w.value ->> 'taskId' AS id,
        w.value ->> 'title' AS title, w.value ->> 'by' AS who, w.value ->> 'model' AS model,
-       w.value ->> 'evidence' AS evidence, w.value ->> 'at' AS at
+       w.value ->> 'evidence' AS evidence, w.value ->> 'at' AS at,
+       w.value ->> 'option' AS option, w.value ->> 'label' AS label
   FROM (SELECT payload FROM noticeos.task_snapshots ORDER BY captured_at DESC, snapshot_id DESC LIMIT 1) s
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(s.payload -> 'projects') WHEN 'array' THEN s.payload -> 'projects' ELSE '[]' END) AS p(value)
  CROSS JOIN LATERAL jsonb_array_elements(CASE jsonb_typeof(p.value -> 'recentWork') WHEN 'array' THEN p.value -> 'recentWork' ELSE '[]' END) AS w(value)
@@ -331,10 +333,11 @@ interface FeedEvent {
   foldKey: string | null;
   /** The folded line's words for `n` events over `sites` sites. */
   many?: (n: number, sites: number) => string;
-  /** A task line's worker, model and evidence (`WallFeedItem`). */
+  /** A task line's worker, model and evidence, and a pick's option (`WallFeedItem`). */
   who?: string;
   model?: string | null;
   evidence?: string | null;
+  choice?: string;
 }
 
 const ms = (iso: string): number => Date.parse(iso);
@@ -573,6 +576,9 @@ type WorkRow = {
   model: string | null;
   evidence: string | null;
   at: string | null;
+  /** A pick's option key and label. */
+  option: string | null;
+  label: string | null;
 };
 type TaskRow = {
   list: "recentlyClosed" | "recentlyCreated";
@@ -713,6 +719,7 @@ function fold(events: readonly FeedEvent[], sites: ReadonlyMap<string, Site>): W
       count,
       tone: top.tone,
       ...(top.who && group.length === 1 ? { who: top.who, model: top.model ?? null, evidence: top.evidence ?? null } : {}),
+      ...(top.choice && group.length === 1 ? { choice: top.choice } : {}),
     };
   });
 }
@@ -1175,13 +1182,27 @@ export async function buildWallFeed(store: WorkspaceStore, deps: WallFeedDeps): 
     });
   }
 
-  // Who closed what, and who claimed what, when the snapshot names them. A
-  // named close is the task's line; the board's own close is then the same
-  // event and is not added twice.
+  // Who closed what, who claimed what and who picked which option, when the
+  // snapshot names them. A named close is the task's line; the board's own
+  // close is then the same event and is not added twice.
   const closers = new Map<string, WorkRow>();
   for (const row of work) {
     if (!row.id || !row.at || !row.who) continue;
     if (row.kind === "closed") closers.set(`${row.asset}\0${row.id}`, row);
+    if (row.kind === "chosen" && row.option?.trim() && row.label?.trim()) {
+      add({
+        id: `task-chosen:${row.id}:${row.at}`,
+        atMs: ms(row.at),
+        kind: "task-chosen",
+        asset: known(row.asset),
+        text: row.title?.trim() || row.id,
+        tone: "info",
+        foldKey: null,
+        who: row.who,
+        model: null,
+        choice: `(${row.option.trim()}) ${row.label.trim()}`,
+      });
+    }
     if (row.kind === "claimed") {
       add({
         id: `task-claimed:${row.id}:${row.at}`,

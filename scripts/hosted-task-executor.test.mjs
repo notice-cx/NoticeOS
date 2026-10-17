@@ -68,14 +68,28 @@ else if(args.includes('sql')){
  else console.log(JSON.stringify({rows:[{database:db,branch:'main',user:process.env.BEADS_DOLT_SERVER_USER,host:'%',permissions:'write'}]}));
 }else if(c.failBlocked&&args.includes('blocked')){process.exit(1)}
 else if(c.overflow){process.stdout.write('x'.repeat(9*1024*1024))}
-else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents}))}
+else if(args.includes('show')){console.log(JSON.stringify({database:c.database,args,value:c.value,id:args.at(-1),issue_type:c.taskType??'task',status:c.taskStatus??'open',labels:c.human||(c.humanIds??[]).includes(args.at(-1))?['human']:[],await_type:c.awaitType,close_reason:c.closeReason,assignee:c.assignee,dependencies:c.dependencies,dependents:c.dependents,metadata:c.metadata}))}
+else if(c.stateful&&!args.includes('--readonly')&&(args.includes('update')||args.includes('close')||args.includes('comments')&&args.includes('add'))){
+ const flag=name=>args.find(a=>a.startsWith('--'+name+'='))?.slice(name.length+3);
+ if(args.includes('comments'))c.comments=[...(c.comments??[]),{issue_id:args.at(-2),author:flag('actor'),text:args.at(-1)}];
+ else if(args.includes('close')){c.taskStatus='closed';c.closeReason=flag('reason');c.forced=args.includes('--force')}
+ else{
+  if(flag('if-assignee')!==undefined&&flag('if-assignee')!==(c.assignee??''))process.exit(13);
+  if(flag('status')!==undefined)c.taskStatus=flag('status');
+  if(flag('assignee')!==undefined)c.assignee=flag('assignee')||undefined;
+  if(args.includes('--remove-label=human'))c.human=false;
+  if(flag('metadata')!==undefined)c.metadata={...(c.metadata??{}),...JSON.parse(flag('metadata'))};
+ }
+ c.writes=[...(c.writes??[]),args.filter(a=>!a.startsWith('--actor=')).slice(2)];
+ fs.writeFileSync(cwd+'/control.json',JSON.stringify(c));console.log(JSON.stringify({id:args.at(-1),status:c.taskStatus??'open'}));
+}
 else if((args.includes('human')||args.includes('gate'))&&args.some(value=>['respond','dismiss','resolve'].includes(value))){
  if(c.decisionFailure)process.exit(1);
  const response=args.find(a=>a.startsWith('--response='))?.slice(11), reason=args.find(a=>a.startsWith('--reason='))?.slice(9);
  c.taskStatus='closed';c.closeReason=args.includes('respond')?'Responded':args.includes('dismiss')?(reason===undefined?'Dismissed':'Dismissed: '+reason):(reason??'Resolved');
  if(response!==undefined)c.response={issue_id:args.at(-1),author:args.find(a=>a.startsWith('--actor='))?.slice(8),text:'Response: '+response};
  fs.writeFileSync(cwd+'/control.json',JSON.stringify(c));console.log('Decision recorded');
-}else if(args.includes('comments')&&args.includes('--readonly')){console.log(JSON.stringify(c.response?[c.response]:[]))}
+}else if(args.includes('comments')&&args.includes('--readonly')){console.log(JSON.stringify([...(c.response?[c.response]:[]),...(c.comments??[])]))}
 else if(c.hangWrite){fs.writeFileSync(cwd+'/hung-write-pid.tmp',String(process.pid));fs.renameSync(cwd+'/hung-write-pid.tmp',cwd+'/hung-write-pid');if(c.readinessSocket){const peer=net.createConnection(c.readinessSocket,()=>peer.end(String(process.pid)));peer.on('error',()=>process.exit(2))}setInterval(()=>{},1000)}
 else {console.log(JSON.stringify({database:c.database,args,value:c.value}))}
 `, { mode: 0o700 });
@@ -153,7 +167,7 @@ test('mutation requires the trusted shared directory lease; fact-only adapters r
 
 test('fixed decision verbs validate the current target and require authoritative post-write readback', () => fixture(async f => {
   for (const [operation, state] of [
-    [{ kind: 'respond', taskId: 'tt-human', response: '--file=literal answer' }, { taskType: 'task', human: true }],
+    [{ kind: 'respond', taskId: 'tt-human', response: '--file=literal answer' }, { taskType: 'decision', human: true }],
     [{ kind: 'dismiss', taskId: 'tt-human', reason: '--database=literal reason' }, { taskType: 'task', human: true }],
     [{ kind: 'resolve-gate', taskId: 'tt-human', reason: 'Operator approved' }, { taskType: 'gate', human: false, awaitType: 'human' }],
   ]) {
@@ -209,10 +223,90 @@ test('wrong target, already decided and failed decision refuse without close/com
     await f.control(state); await refused(() => f.executor.execute(request(), A, task(operation)));
   }
   assert.equal((await f.commands()).filter(row => row.args.includes('human') || row.args.includes('gate')).length, 0);
-  await f.control({ taskType: 'task', human: true, taskStatus: 'open', decisionFailure: true });
+  await f.control({ taskType: 'decision', human: true, taskStatus: 'open', decisionFailure: true });
   await refused(() => f.executor.execute(request(), A, task({ kind: 'respond', taskId: 'tt-human', response: 'Answer' })));
   assert.equal((await f.commands()).filter(row => row.args.includes('human')).length, 1);
   assert.equal((await f.commands()).filter(row => row.args.includes('close') || row.args.includes('add')).length, 0);
+}));
+
+const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
+  { key: 'b', label: 'Redirect to the new page', recommended: true }, { key: 'c', label: 'Keep both' }] };
+const choose = (option = 'b', note) => task({ kind: 'choose', taskId: 'tt-human', option, ...(note === undefined ? {} : { note }) });
+const controlled = async f => JSON.parse(await fs.readFile(path.join(f.base, 'project-a/control.json'), 'utf8'));
+const refusedFor = (kind, extra = {}) => error => error instanceof TaskStateRefused && error.taskId === 'tt-human'
+  && assert.deepEqual(error.reason, { kind, ...extra }) === undefined;
+
+test('a pick records the choice and its comment, takes the human label off and hands the task back to ready work', () => fixture(async f => {
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'in_progress', assignee: 'agent-1', metadata: { noticeos_choices: PICK } });
+  assert.deepEqual(await f.executor.execute(request(), A, choose('b', 'Ship it Friday')), { id: 'tt-human', status: 'open' });
+  const state = await controlled(f);
+  assert.deepEqual([state.taskStatus, state.assignee, state.human], ['open', undefined, false]);
+  const { at, ...pick } = state.metadata.noticeos_choice;
+  assert.deepEqual(pick, { option: 'b', label: 'Redirect to the new page', by: PERSON, note: 'Ship it Friday' });
+  assert.ok(Number.isFinite(Date.parse(at)));
+  assert.deepEqual(state.comments.map(row => [row.author, row.text]), [[PERSON, 'Chose (b) Redirect to the new page. Ship it Friday']]);
+  assert.deepEqual(state.writes.map(args => args.filter(arg => !arg.startsWith('--metadata='))), [['update', '--', 'tt-human'],
+    ['comments', 'add', '--', 'tt-human', 'Chose (b) Redirect to the new page. Ship it Friday'],
+    ['update', '--status=open', '--assignee=', '--if-assignee=agent-1', '--remove-label=human', '--', 'tt-human']]);
+  assert.equal((await f.commands()).some(row => row.args.includes('human')), false, 'no response is recorded for a pick');
+  // A second pick, by anyone, is refused and writes nothing.
+  for (const option of ['b', 'a']) {
+    await assert.rejects(f.executor.execute(request(), A, choose(option)), refusedFor('chosen', { chosen: '(b) Redirect to the new page' }));
+  }
+  assert.equal((await controlled(f)).writes.length, 3);
+}));
+
+test('a pick on a decision closes it with the choice as its reason, past an open blocker', () => fixture(async f => {
+  await f.control({ stateful: true, taskType: 'decision', human: true, taskStatus: 'open', metadata: { noticeos_choices: PICK },
+    dependencies: [{ id: 'tt-before', status: 'open', issue_type: 'task', dependency_type: 'blocks' }] });
+  assert.deepEqual(await f.executor.execute(request(), A, choose('c')), { id: 'tt-human', status: 'closed' });
+  const state = await controlled(f);
+  assert.deepEqual([state.closeReason, state.forced, state.human, state.metadata.noticeos_choice.option], ['Chose (c) Keep both', true, true, 'c']);
+  assert.deepEqual(state.comments.map(row => row.text), ['Chose (c) Keep both.']);
+  await assert.rejects(f.executor.execute(request(), A, choose('c')), refusedFor('chosen', { chosen: '(c) Keep both' }));
+}));
+
+test('a pick is refused, with its cause named and nothing written, for a task without choices, an option it lacks, another pick, an approval or a close', () => fixture(async f => {
+  const base = { stateful: true, taskType: 'task', human: true, taskStatus: 'open', dependencies: [] };
+  for (const [state, operation, kind, extra] of [
+    [{ metadata: {} }, choose(), 'no-choices', {}],
+    [{ metadata: { noticeos_choices: PICK } }, choose('d'), 'no-option', { option: 'd', offered: ['a', 'b', 'c'] }],
+    [{ metadata: { noticeos_choices: PICK, noticeos_choice: { option: 'a', label: 'Keep the old page', by: 'someone-else', at: '2026-10-16T12:00:00Z' } } },
+      choose('a'), 'chosen', { chosen: '(a) Keep the old page' }],
+    [{ taskStatus: 'closed', metadata: { noticeos_choices: PICK } }, choose(), 'closed', {}],
+    [{ taskType: 'decision', metadata: { noticeos_choices: PICK },
+      dependencies: [{ id: 'tt-gate', status: 'open', issue_type: 'gate', await_type: 'human', dependency_type: 'blocks' }] }, choose(), 'gate', { gates: ['tt-gate'], human: true }],
+  ]) {
+    await f.control({ ...base, ...state });
+    await assert.rejects(f.executor.execute(request(), A, operation), refusedFor(kind, extra), kind);
+  }
+  assert.equal((await controlled(f)).writes, undefined);
+  // A step of a decision is never a request of its own.
+  for (const operation of [{ kind: 'record-choice', taskId: 'tt-human', choice: { option: 'a', label: 'Keep', by: PERSON, at: '2026-10-16T12:00:00Z' } },
+    { kind: 'hand-back', taskId: 'tt-human', holder: '', removeHuman: true }]) await refused(() => f.executor.execute(request(), A, task(operation)));
+  assert.equal((await controlled(f)).writes, undefined);
+}));
+
+test('the same person sending the same pick again finishes one an interruption left half done', () => fixture(async f => {
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'open', metadata: { noticeos_choices: PICK,
+    noticeos_choice: { option: 'b', label: 'Redirect to the new page', by: PERSON, at: '2026-10-16T12:00:00Z' } } });
+  assert.deepEqual(await f.executor.execute(request(), A, choose('b')), { id: 'tt-human', status: 'open' });
+  const state = await controlled(f);
+  assert.deepEqual(state.writes.map(args => args[0]), ['comments', 'update'], 'the pick is not recorded twice');
+  assert.deepEqual([state.comments.map(row => row.text), state.metadata.noticeos_choice.at], [['Chose (b) Redirect to the new page.'], '2026-10-16T12:00:00Z']);
+}));
+
+test('an answer on a task that is not a decision hands it back with the answer as a comment; a decision still closes', () => fixture(async f => {
+  await f.control({ stateful: true, taskType: 'task', human: true, taskStatus: 'open' });
+  assert.deepEqual(await f.executor.execute(request(), A, task({ kind: 'respond', taskId: 'tt-human', response: 'Use OAuth2' })),
+    { id: 'tt-human', status: 'open' });
+  const state = await controlled(f);
+  assert.deepEqual([state.taskStatus, state.human, state.comments.map(row => [row.author, row.text])], ['open', false, [[PERSON, 'Answered: Use OAuth2']]]);
+  assert.equal((await f.commands()).some(row => row.args.includes('respond')), false);
+  await f.control({ stateful: false, taskType: 'decision', human: true, taskStatus: 'open', closeReason: undefined });
+  assert.deepEqual(await f.executor.execute(request(), A, task({ kind: 'respond', taskId: 'tt-human', response: 'Use OAuth2' })),
+    { id: 'tt-human', status: 'closed' });
+  assert.equal((await f.commands()).filter(row => row.args.includes('respond')).length, 1);
 }));
 
 test('service and aborted decision requests cannot acquire directory or credentials', () => fixture(async f => {
@@ -220,6 +314,7 @@ test('service and aborted decision requests cannot acquire directory or credenti
     ({ principalId: 'service', workspaceId: A, workspaceStatus: 'active', expiresAt: new Date(Date.now() + 60000).toISOString(), actions: ['tasks.write', 'tasks.decide'] }) });
   const executor = createHostedTaskExecutor({ ...f.options, admission: service });
   await refused(() => executor.execute(request(), A, task({ kind: 'dismiss', taskId: 'tt-human' })));
+  await refused(() => executor.execute(request(), A, choose()));
   const controller = new AbortController(); controller.abort();
   const aborted = new Request(request(), { signal: controller.signal });
   await refused(() => f.executor.execute(aborted, A, task({ kind: 'resolve-gate', taskId: 'tt-human' })));
