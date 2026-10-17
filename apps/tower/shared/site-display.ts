@@ -8,10 +8,14 @@
 // somebody set. `siteShownOn` is the one reading every screen uses;
 // `siteDisplayChange` is the one write of one key, with its exact way back.
 
+// The TV imports this module, so it must not import the config register
+// (`./config-registers`, desk-only): an address's own rule is judged by the
+// register at every write and every seeded document, and again by the Worker
+// before it draws one (apps/tower/worker/site-icons.ts).
+
 import { isRetired } from "./asset-setup";
 import type { FileJsonDeleteOp, FileJsonInsertOp, FileJsonSetOp, JsonValue } from "./changeset";
 import { toPointer } from "./changeset";
-import { configRegister, fieldOf, fieldRefusal } from "./config-registers";
 
 export const SITE_DISPLAY_FILE = "config/tower.json";
 export const SITE_DISPLAY_POINTER = "/sites";
@@ -101,16 +105,14 @@ export function siteIconAddresses(display: SiteDisplay | null | undefined, site:
 /**
  * The stored `/sites` map, read whole: an object of sites, each an object
  * holding only the three switches as true or false and the two icon
- * addresses, each judged by its register field. `undefined` for absent or
- * `null`, which is nothing saved yet; throws, naming what is wrong, for
- * anything else.
+ * addresses as text. `undefined` for absent or `null`, which is nothing saved
+ * yet; throws, naming what is wrong, for anything else.
  */
 export function readSiteDisplay(value: unknown): SiteDisplay | undefined {
   if (value === undefined || value === null) return undefined;
   if (typeof value !== "object" || Array.isArray(value)) {
     throw new Error("config/tower.json sites, when present, must be an object");
   }
-  const register = configRegister("site-display");
   const out: Record<string, SiteDisplayRow> = {};
   for (const [site, row] of Object.entries(value as Record<string, unknown>)) {
     if (row === null || typeof row !== "object" || Array.isArray(row)) {
@@ -122,8 +124,7 @@ export function readSiteDisplay(value: unknown): SiteDisplay | undefined {
         if (typeof held !== "boolean") throw new Error(`config/tower.json sites.${site}.${key} must be true or false`);
         read[key as ShownOnSurface] = held;
       } else if (SITE_ICON_KEYS.includes(key)) {
-        const refusal = fieldRefusal(fieldOf(register, key)!, held);
-        if (refusal !== null || typeof held !== "string") throw new Error(`config/tower.json sites.${site}: ${refusal ?? `${key} must be a string`}`);
+        if (typeof held !== "string") throw new Error(`config/tower.json sites.${site}.${key} must be an address`);
         read[key as SiteIconKey] = held;
       } else {
         throw new Error(`config/tower.json sites.${site}.${key} is not one of ${[...SHOWN_ON, ...SITE_ICON_KEYS].join(", ")}`);

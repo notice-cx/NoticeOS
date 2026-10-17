@@ -7,6 +7,7 @@
 import { describe, expect, it } from "vitest";
 import { ASSET_STATUS } from "@shared/changeset";
 import { readDashboardConfig } from "@shared/dashboard";
+import { cardIcons } from "../worker/site-icons";
 import {
   SHOWN_ON,
   readSiteDisplay,
@@ -69,14 +70,13 @@ describe("readSiteDisplay", () => {
     expect(() => readSiteDisplay({ "a.example": { wall: false } })).toThrow(new RegExp(SHOWN_ON.join(", ")));
   });
 
-  it("reads a site's icon addresses beside its switches, by the register's own rule", () => {
+  it("reads a site's icon addresses beside its switches, and refuses one that is not text", () => {
     const row = { tv: false, lightIcon: "https://cdn.example.com/a.svg", darkIcon: "https://cdn.example.com/a-dark.png" };
     expect(readSiteDisplay({ "a.example": row })).toEqual({ "a.example": row });
     expect(siteIconAddresses({ "a.example": row }, "a.example")).toEqual({ light: row.lightIcon, dark: row.darkIcon });
     expect(siteIconAddresses({ "a.example": { tv: false } }, "a.example")).toEqual({});
     expect(siteIconAddresses(undefined, "a.example")).toEqual({});
-    expect(() => readSiteDisplay({ "a.example": { lightIcon: "icon.png" } })).toThrow(/Light icon must be an http or https URL/u);
-    expect(() => readSiteDisplay({ "a.example": { darkIcon: true } })).toThrow(/Dark icon must be a string/u);
+    expect(() => readSiteDisplay({ "a.example": { darkIcon: true } })).toThrow(/sites\.a\.example\.darkIcon must be an address/u);
   });
 
   it("is one part of config/tower.json: a broken map is refused alone, the layout and countdown still read", () => {
@@ -137,5 +137,28 @@ describe("siteDisplayChange, for an icon address", () => {
       undo: [{ kind: "file-json-set", file: "config/tower.json", pointer: "/sites/a.example/lightIcon", expectAbsent: true, value: URL_A }],
     });
     expect(siteDisplayChange(undefined, "a.example", "lightIcon", null)).toEqual({ ops: [], undo: [] });
+  });
+});
+
+describe("cardIcons, the one place an address set here wins", () => {
+  const READ = { light: "https://a.example/icon.png", dark: null, readAt: "2026-10-17T04:00:00.000Z", outcome: "read" as const, unreachableAt: null };
+
+  it("draws a set address over the read one, scheme by scheme", () => {
+    expect(cardIcons(READ, { dark: "https://cdn.example.com/a-white.svg" })).toEqual({
+      light: READ.light,
+      dark: "https://cdn.example.com/a-white.svg",
+      readAt: READ.readAt,
+      outcome: "read",
+      read: { light: READ.light, dark: null },
+    });
+    expect(cardIcons(undefined, {})).toBeNull();
+  });
+
+  it("draws no address the register's own rule refuses, whatever route it reached the store by", () => {
+    expect(cardIcons(READ, { light: "javascript:alert(1)", dark: `https://cdn.example.com/${"a".repeat(2048)}` })).toMatchObject({
+      light: READ.light,
+      dark: null,
+    });
+    expect(cardIcons(undefined, { light: "icon.png" })).toBeNull();
   });
 });

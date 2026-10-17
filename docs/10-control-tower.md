@@ -1068,7 +1068,7 @@ config write path with an Undo, and a stale write rejected with a visible messag
   reload). Domain and asset id are read-only and each shows the ONE reason it
   cannot change: every stored observation was collected against that host, and the
   id is the key the store keeps this asset's whole history under. For a site
-  with a domain, **Icons** shows the light and dark icon every screen draws,
+  with a domain that is not retired, **Icons** shows the light and dark icon every screen draws,
   each on a white and a black square, the outcome and time of the newest read
   of the home page, and **Read again**, which runs the 04:00 job's icon read
   for this site now through the ingest (`POST /api/assets/<id>/icons`).

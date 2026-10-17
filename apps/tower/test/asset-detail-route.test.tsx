@@ -5516,7 +5516,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(container.querySelector("[data-site-icons]")).toBeNull();
   });
 
-  it("puts Icons on the Identity card of a site with a domain, and none on one without", async () => {
+  it("puts Icons on the Identity card of a site the daily read covers, and none on one without a domain or retired", async () => {
     stubFetchWithWall(payload());
     const withDomain = renderRoute("meadow.example", "", "settings");
     const icons = await waitFor(() => {
@@ -5528,14 +5528,17 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     expect(icons).toHaveTextContent("Not read yet");
     withDomain.unmount();
 
-    const data = payload();
-    data.asset = { ...data.asset, domain: null };
-    stubFetchWithWall(data);
-    const { container, findByText } = renderRoute("meadow.example", "", "settings");
-    await findByText("Alert rules in force");
-    // The wall read the section waits on has landed: Where it shows draws from it.
-    await waitFor(() => expect(container.querySelector('[data-where-it-shows="meadow.example"]')).not.toBeNull());
-    expect(container.querySelector("[data-site-icons]")).toBeNull();
+    for (const asset of [{ domain: null }, { status: "retired" as const }]) {
+      const data = payload();
+      data.asset = { ...data.asset, ...asset };
+      stubFetchWithWall(data);
+      const { container, findByText, unmount } = renderRoute("meadow.example", "", "settings");
+      await findByText("Alert rules in force");
+      // The wall read the section waits on has landed: Where it shows draws from it.
+      await waitFor(() => expect(container.querySelector('[data-where-it-shows="meadow.example"]')).not.toBeNull());
+      expect(container.querySelector("[data-site-icons]"), JSON.stringify(asset)).toBeNull();
+      unmount();
+    }
   });
 });
 

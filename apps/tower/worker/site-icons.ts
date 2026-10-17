@@ -6,7 +6,8 @@
 
 import type { SiteIcons } from "@noticeos/contract/site-icons";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
-import type { SiteIconScheme } from "../shared/site-display";
+import { configRegister, fieldOf, fieldRefusal } from "../shared/config-registers";
+import { SITE_ICON_KEY, type SiteIconScheme } from "../shared/site-display";
 
 /** Per site: the newest read that reached the page, and the newest read when
  * it found the page unreachable after that. */
@@ -70,6 +71,17 @@ export async function loadSiteIcons(store: WorkspaceStore): Promise<Map<string, 
   );
 }
 
+/** An address set on the Settings tab, if the register's own rule for its
+ * field takes it. The TV reads the stored map without that rule, so an address
+ * that reached the store by another route is checked here before any screen
+ * draws it. */
+function setAddress(set: Partial<Record<SiteIconScheme, string>>, scheme: SiteIconScheme): string | undefined {
+  const address = set[scheme];
+  if (address === undefined) return undefined;
+  const field = fieldOf(configRegister("site-display"), SITE_ICON_KEY[scheme])!;
+  return fieldRefusal(field, address) === null ? address : undefined;
+}
+
 /**
  * The icons a site's card carries: each address the operator set in place of
  * the one read. Null when nothing was read and nothing is set, which every
@@ -77,8 +89,9 @@ export async function loadSiteIcons(store: WorkspaceStore): Promise<Map<string, 
  */
 export function cardIcons(
   stored: StoredSiteIcons | undefined,
-  set: Partial<Record<SiteIconScheme, string>>,
+  addresses: Partial<Record<SiteIconScheme, string>>,
 ): SiteIcons | null {
+  const set = { light: setAddress(addresses, "light"), dark: setAddress(addresses, "dark") };
   if (stored === undefined && set.light === undefined && set.dark === undefined) return null;
   const read = { light: stored?.light ?? null, dark: stored?.dark ?? null };
   return {

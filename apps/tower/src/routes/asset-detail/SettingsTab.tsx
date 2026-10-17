@@ -5,6 +5,7 @@ import type { AssetDetailFor } from "@shared/asset-detail-views";
 import { type ReactNode, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { ASSET_STATUS_LABEL as STATUS_LABEL } from "@shared/asset-detail";
+import { isRetired } from "@shared/asset-setup";
 import type {
   AssetInfo,
   AssetPanelConfig,
@@ -222,8 +223,10 @@ function IdentityCard({ asset, nowMs }: { asset: AssetInfo; nowMs: number }) {
           }
         />
       </div>
-      {/* Icons are read from a site's own pages: one with no domain has none. */}
-      {asset.domain && !asset.isOs ? (
+      {/* Icons are the daily read's, which covers the sites with a domain
+          that are not retired, the System aside. An archived site's tab opens
+          at Restore, which this section would push down while it loads. */}
+      {asset.domain && !asset.isOs && !isRetired(asset.status) ? (
         <SiteIconsSection assetId={asset.id} siteName={asset.displayName} nowMs={nowMs} />
       ) : null}
     </Panel>
