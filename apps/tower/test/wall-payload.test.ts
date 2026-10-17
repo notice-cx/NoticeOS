@@ -2316,9 +2316,18 @@ describe("buildWallPayload — the card's work slice", () => {
     });
   });
 
-  it("carries each site's week from the daily history on the installation's clock, and none where it holds no day", async () => {
+  it("carries each site's week on the installation's clock, done from the snapshot's closes and the states from the history, and none where it holds neither", async () => {
+    const closes = { since: "2026-06-20", items: [
+      { at: "2026-06-23T10:00:00.000Z" },
+      // Sunday last week, after this moment of it.
+      { at: "2026-06-28T13:00:00.000Z" },
+      { at: "2026-06-30T10:00:00.000Z" },
+      { at: "2026-07-02T10:00:00.000Z", resolution: "wont-do" },
+      { at: "2026-07-04T10:00:00.000Z" },
+      { at: "2026-07-05T09:00:00.000Z" },
+    ] };
     await seedSnapshot(ctx, "2026-07-05T11:59:30.000Z", [
-      workProject(),
+      workProject({ closes }),
       workProject({ asset: "northwind.example", prefix: "nw", counts: workCounts({ open: 1, highPriority: 0, closedRecent: 0 }) }),
     ]);
     for (const [day, closed, blocked] of [["2026-07-04", ["md-a"], 1], ["2026-07-05", ["md-b", "md-c"], 2]] as const) {
@@ -2334,7 +2343,7 @@ describe("buildWallPayload — the card's work slice", () => {
     expect(wall.assets.find((asset) => asset.id === "meadow.example")?.work?.weeks).toMatchObject({
       weekStart: "2026-06-29",
       daysIn: 7,
-      done: { now: 3, partial: true, move: null },
+      done: { now: 3, notDone: 1, before: 1, lastWeek: 2, move: { by: 2, direction: "up", verdict: "good" } },
       blocked: { now: 2, before: null },
     });
     expect(wall.assets.find((asset) => asset.id === "northwind.example")?.work).not.toHaveProperty("weeks");

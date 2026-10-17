@@ -187,7 +187,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
     data, drawn, scopeKey, isError, error, isFetching, refetch, live, spokes, projects, allTasks, shownAt,
     statusCounts, priorityCounts, assigneeCounts, projectCounts, rows, inbox: read,
     totals: readTotals, pendingProjects, counts: readCounts, countsComplete, missingProjects, byId, broken,
-    closedHistoryState, weeks, weekNotDone,
+    closedHistoryState, weeks, doneRead,
   } = useTaskBoard(scope, {
     project: projectFilter, status: statusFilter, priority: priorityFilter,
     label: labelFilter, assignee: assigneeFilter,
@@ -244,10 +244,12 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
   // that change what you do next beside it.
   const waitingCount = bounded(counts.waiting, totals.waiting);
   const nothingWaits = totals.waiting === 0 && countsComplete;
-  // Each count's week, from the daily history the Wall reads, so the two
-  // screens show one number per figure. A board whose history holds no week
-  // keeps the counts its read drew, without a move. The inbox stays the live
-  // count (an answer leaves it at once); its move is against a week ago.
+  // Each count's week, the reading the Wall draws, so the two screens show one
+  // number per figure. A board whose history holds no week keeps the counts
+  // its read drew, without a move. The inbox stays the live count (an answer
+  // leaves it at once); its move is against a week ago. Done is counted from
+  // the closes alone: without a reading for every project it is the lower
+  // bound the other counts show for a project not read.
   const waitingMove = countsComplete ? weekMove("waiting", totals.waiting, weeks?.waiting.before ?? null) : null;
   const weekDone = weeks?.done.now != null ? weeks.done : null;
   const detail = [
@@ -273,15 +275,11 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
         { label: "Blocked", value: String(weeks?.blocked.now ?? bounded(counts.blocked, totals.blocked)), mark: "tasks-blocked",
           ...chip(weeks?.blocked.move, A_WEEK_AGO, weeks?.blocked.added) },
         weekDone
-          ? { label: "Closed this week", value: `${weekDone.now}${weekDone.partial ? "+" : ""}`, mark: "tasks-closed",
-            // Split only when the rows hold every close since Monday and some shipped nothing.
-            ...(!weekDone.partial && weekNotDone !== null && weekNotDone > 0
-              ? { note: `${formatInt(weekDone.now! - weekNotDone)} done · ${formatInt(weekNotDone)} not done` } : {}),
+          ? { label: "Done this week", value: String(weekDone.now), mark: "tasks-closed",
+            // The closes that shipped nothing, counted apart.
+            ...(weekDone.notDone ? { note: `${formatInt(weekDone.notDone)} not done` } : {}),
             ...chip(weekDone.move, LAST_WEEK_BY_TODAY) }
-          : { label: "Closed this week", value: String(!countsComplete ? bounded(null, totals.closed) : (counts.closed ?? "—")), mark: "tasks-closed",
-            // Split only when every close was read and some shipped nothing.
-            ...(counts.closed !== null && counts.notDone !== null && counts.notDone > 0
-              ? { note: `${formatInt(counts.closed - counts.notDone)} done · ${formatInt(counts.notDone)} not done` } : {}) },
+          : { label: "Done this week", value: String(bounded(null, doneRead)), mark: "tasks-closed" },
       ]}
       marks={{ "data-tasks-answer": nothingWaits ? "clear" : "waiting" }}
     />

@@ -5,6 +5,9 @@ import type { TaskResolution } from './task-resolution.mjs';
  * validated Worker writer. These facts grant no workspace authority. */
 export declare const BEADS_HANDOFF_KINDS: readonly ["query", "finding", "page", "alert"];
 export type BeadsHandoffKind = (typeof BEADS_HANDOFF_KINDS)[number];
+/** The most closes one project's `closes` carries. A poller whose read held
+ * more sends none, so the week counts read as unknown rather than short. */
+export declare const BEADS_CLOSES_MAX = 5000;
 /** One bead, flattened to what a board row needs. */
 export interface BeadsIssueInput {
     id: string;
@@ -120,6 +123,23 @@ export interface BeadsProjectInput {
     workers?: BeadsWorkerInput[] | null;
     /** The newest claims, closes and picks, newest first. Absent under the same rule. */
     recentWork?: BeadsWorkEventInput[] | null;
+    /** Every close the closed read returned, which reaches further back than
+     * `recentlyClosed`'s week so that this calendar week and last are whole:
+     * what Done this week and Done last week count. Absent from an older
+     * poller, and when the read held more closes than the store keeps. */
+    closes?: BeadsClosesInput | null;
+}
+/** The closes one closed read returned, from the first UTC day it reached. */
+export interface BeadsClosesInput {
+    /** The read's first UTC day, YYYY-MM-DD. Whether a close on this day itself
+     * was returned is the task client's choice, so only later days are whole. */
+    since: string;
+    items: BeadsCloseInput[];
+}
+/** One close: when it happened and, when nothing shipped, how it ended. */
+export interface BeadsCloseInput {
+    at: string;
+    resolution?: Exclude<TaskResolution, 'done'> | null;
 }
 /** One worker and model. A close belongs to the closer NoticeOS recorded, else
  * to whoever held the task. */

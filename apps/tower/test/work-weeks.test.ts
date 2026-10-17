@@ -5,6 +5,7 @@ import {
   sumWorkWeeks,
   weekMove,
   workWeeks,
+  type WorkCloses,
   type WorkCountsHistory,
 } from "@shared/work";
 import type { SeriesPoint } from "@shared/wall";
@@ -17,13 +18,12 @@ function days(last: string, values: readonly number[]): SeriesPoint[] {
   return values.map((v, i) => ({ t: new Date(end - (values.length - 1 - i) * DAY).toISOString().slice(0, 10), v }));
 }
 
-/** 21 days ending on Wednesday 2026-10-14: closes 1..21 a day, so each week's
- * sum is checkable by hand. */
+/** 21 days of states ending on Wednesday 2026-10-14. */
 function history21(): WorkCountsHistory {
-  const closed = Array.from({ length: 21 }, (_, i) => i + 1);
   return {
     ...emptyWorkHistory(),
-    closed: days("2026-10-14", closed),
+    // Closes by day: what In and out draws, and nothing the week counts read.
+    closed: days("2026-10-14", Array.from({ length: 21 }, () => 50)),
     // Seven days before today (10-07) is index 13; today is index 20.
     blocked: days("2026-10-14", [9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 2, 3, 3, 5, 4, 6, 6, 5]),
     inProgress: days("2026-10-14", Array.from({ length: 21 }, () => 4).map((v, i) => (i === 20 ? 6 : v))),
@@ -32,64 +32,101 @@ function history21(): WorkCountsHistory {
   };
 }
 
-describe("workWeeks", () => {
-  it("counts this calendar week's closes against last week's, Monday to today, in the installation's zone", () => {
-    // 08:00 on Wednesday in Los Angeles: the week began on Monday 10-12.
-    const weeks = workWeeks(history21(), new Date("2026-10-14T15:00:00.000Z"), "America/Los_Angeles");
+/** 08:00 on Wednesday 2026-10-14 in Los Angeles: the week began on Monday 10-12. */
+const WEDNESDAY = new Date("2026-10-14T15:00:00.000Z");
+
+/** Closes around two Los Angeles weeks, read from 2026-09-29 as the poller's
+ * fifteen days reach. Times are UTC; the comment is the Los Angeles time. */
+function closes(): WorkCloses {
+  return {
+    since: "2026-09-29",
+    items: [
+      { at: "2026-10-04T18:00:00.000Z" }, // Sun 10-04 11:00, the week before last
+      { at: "2026-10-05T16:00:00.000Z" }, // Mon 10-05 09:00
+      { at: "2026-10-06T16:00:00.000Z", resolution: "duplicate" }, // Tue 10-06, shipped nothing
+      { at: "2026-10-07T14:00:00.000Z" }, // Wed 10-07 07:00, before this time last week
+      { at: "2026-10-07T17:00:00.000Z" }, // Wed 10-07 10:00, after it
+      { at: "2026-10-09T20:00:00.000Z" }, // Fri 10-09
+      { at: "2026-10-12T06:30:00.000Z" }, // Sun 10-11 23:30: Monday in UTC, last week here
+      { at: "2026-10-12T16:00:00.000Z" }, // Mon 10-12 09:00
+      { at: "2026-10-13T16:00:00.000Z" }, // Tue 10-13
+      { at: "2026-10-13T18:00:00.000Z" }, // Tue 10-13
+      { at: "2026-10-14T14:00:00.000Z", resolution: "wont-do" }, // Wed 10-14 07:00
+      { at: "2026-10-14T14:30:00.000Z" }, // Wed 10-14 07:30
+    ],
+  };
+}
+
+describe("workWeeks: done from the closes", () => {
+  it("counts this calendar week's done closes against last week's, by each close's day in the installation's zone", () => {
+    const weeks = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     expect([weeks.weekStart, weeks.daysIn]).toEqual(["2026-10-12", 3]);
-    // Mon..Wed are days 19, 20, 21; last Mon..Wed 12, 13, 14; last Mon..Sun 12..18.
     expect(weeks.done).toEqual({
-      now: 19 + 20 + 21,
-      partial: false,
-      before: 12 + 13 + 14,
-      lastWeek: 12 + 13 + 14 + 15 + 16 + 17 + 18,
-      move: { by: 60 - 39, direction: "up", verdict: "good" },
+      // Mon, Tue, Tue and Wed 07:30; the Won't do apart.
+      now: 4,
+      notDone: 1,
+      // Last week up to Wednesday 08:00: Mon 10-05 and Wed 10-07 07:00.
+      before: 2,
+      // Mon, Wed, Wed, Fri and the Sunday 23:30 close; not the duplicate.
+      lastWeek: 5,
+      move: { by: 2, direction: "up", verdict: "good" },
     });
   });
 
-  it("starts the week on the installation's Monday, not UTC's", () => {
-    const history = { ...emptyWorkHistory(), closed: days("2026-10-19", Array.from({ length: 21 }, (_, i) => i + 1)) };
-    // 20:00 Sunday in Los Angeles is 03:00 Monday UTC: still last week there,
-    // with the history's new UTC day counted in the week it began in.
-    const sunday = new Date("2026-10-19T03:00:00.000Z");
-    const pacific = workWeeks(history, sunday, "America/Los_Angeles");
-    expect([pacific.weekStart, pacific.daysIn]).toEqual(["2026-10-12", 7]);
-    // Mon 10-12 .. Sun 10-18 are 14..20, and the UTC Monday 10-19 so far 21.
-    expect(pacific.done.now).toBe(14 + 15 + 16 + 17 + 18 + 19 + 20 + 21);
-    expect(pacific.done.before).toBe(7 + 8 + 9 + 10 + 11 + 12 + 13);
-    const utc = workWeeks(history, sunday, "UTC");
-    expect([utc.weekStart, utc.daysIn, utc.done.now, utc.done.before]).toEqual(["2026-10-19", 1, 21, 14]);
+  it("puts a close in the week its own day falls in on the installation's clock, not UTC's", () => {
+    const utc = workWeeks(history21(), closes(), WEDNESDAY, "UTC");
+    // In UTC the 06:30 close on 10-12 is Monday's, so this week has one more and last week one fewer.
+    expect(utc.done).toMatchObject({ now: 5, notDone: 1, lastWeek: 4 });
   });
 
-  it("has nothing to compare while the installation's week has begun and the history's has not", () => {
-    const history = { ...emptyWorkHistory(), closed: days("2026-10-18", Array.from({ length: 14 }, () => 2)) };
-    // 01:00 Monday in Auckland is still Sunday in UTC.
-    const weeks = workWeeks(history, new Date("2026-10-18T12:00:00.000Z"), "Pacific/Auckland");
-    expect([weeks.weekStart, weeks.daysIn]).toEqual(["2026-10-19", 1]);
-    expect(weeks.done).toEqual({ now: 0, partial: false, before: null, lastWeek: 14, move: null });
-  });
-
-  it("marks a week with a day the history does not hold as a lower bound, and draws no move from it", () => {
-    const history = history21();
-    history.closed = history.closed.filter((point) => point.t !== "2026-10-13");
-    const weeks = workWeeks(history, new Date("2026-10-14T15:00:00.000Z"), "America/Los_Angeles");
-    expect(weeks.done).toMatchObject({ now: 19 + 21, partial: true, before: 39, move: null });
-  });
-
-  it("says a five-day history cannot reach last week or seven days ago", () => {
-    const short: WorkCountsHistory = {
-      ...emptyWorkHistory(),
-      closed: days("2026-10-14", [1, 2, 3, 4, 5]),
-      blocked: days("2026-10-14", [1, 1, 2, 2, 3]),
+  it("starts the week on the installation's Monday in a zone ahead of UTC", () => {
+    // 01:00 Monday 10-19 in Auckland is still Sunday 12:00 in UTC.
+    const now = new Date("2026-10-18T12:00:00.000Z");
+    const ahead: WorkCloses = {
+      since: "2026-10-03",
+      items: [
+        { at: "2026-10-18T10:30:00.000Z" }, // Sun 10-18 23:30 in Auckland
+        { at: "2026-10-18T11:30:00.000Z" }, // Mon 10-19 00:30 in Auckland
+      ],
     };
-    const weeks = workWeeks(short, new Date("2026-10-14T15:00:00.000Z"), "America/Los_Angeles");
-    expect(weeks.done).toEqual({ now: 3 + 4 + 5, partial: false, before: null, lastWeek: null, move: null });
+    const weeks = workWeeks(emptyWorkHistory(), ahead, now, "Pacific/Auckland");
+    expect([weeks.weekStart, weeks.daysIn]).toEqual(["2026-10-19", 1]);
+    // Last week's close came after this moment of its week.
+    expect(weeks.done).toMatchObject({ now: 1, notDone: 0, lastWeek: 1, before: 0 });
+  });
+
+  it("reads a week the closes do not reach back to as unknown, never as short", () => {
+    // A seven-day read: this week is whole, last week is not.
+    const week = workWeeks(history21(), { ...closes(), since: "2026-10-07" }, WEDNESDAY, "America/Los_Angeles");
+    expect(week.done).toEqual({ now: 4, notDone: 1, before: null, lastWeek: null, move: null });
+    // The read's first day may be partial, so last week needs the day before its Monday.
+    const boundary = workWeeks(history21(), { ...closes(), since: "2026-10-05" }, WEDNESDAY, "America/Los_Angeles");
+    expect(boundary.done.lastWeek).toBeNull();
+    const reaches = workWeeks(history21(), { ...closes(), since: "2026-10-04" }, WEDNESDAY, "America/Los_Angeles");
+    expect(reaches.done.lastWeek).toBe(5);
+  });
+
+  it("has no done reading without closes, whatever the daily history holds", () => {
+    const weeks = workWeeks(history21(), undefined, WEDNESDAY, "America/Los_Angeles");
+    expect(weeks.done).toEqual({ now: null, notDone: null, before: null, lastWeek: null, move: null });
+  });
+
+  it("counts a week with no closes in it as zero, not unknown", () => {
+    const weeks = workWeeks(emptyWorkHistory(), { since: "2026-09-29", items: [] }, WEDNESDAY, "America/Los_Angeles");
+    expect(weeks.done).toEqual({ now: 0, notDone: 0, before: 0, lastWeek: 0, move: { by: 0, direction: "flat", verdict: "neutral" } });
+  });
+});
+
+describe("workWeeks: the states from the daily history", () => {
+  it("says a five-day history cannot reach seven days ago", () => {
+    const short: WorkCountsHistory = { ...emptyWorkHistory(), blocked: days("2026-10-14", [1, 1, 2, 2, 3]) };
+    const weeks = workWeeks(short, undefined, WEDNESDAY, "America/Los_Angeles");
     expect(weeks.blocked).toEqual({ now: 3, before: null, added: null, move: null });
     expect(weeks.waiting).toEqual({ now: null, before: null, added: null, move: null });
   });
 
   it("reads each state now against seven days before, with how many entered it in between", () => {
-    const weeks = workWeeks(history21(), new Date("2026-10-14T15:00:00.000Z"), "America/Los_Angeles");
+    const weeks = workWeeks(history21(), undefined, WEDNESDAY, "America/Los_Angeles");
     // 2 → 3 → 3 → 5 → 4 → 6 → 6 → 5: rises of 1, 2 and 2.
     expect(weeks.blocked).toEqual({ now: 5, before: 2, added: 5, move: { by: 3, direction: "up", verdict: "bad" } });
     expect(weeks.inProgress).toEqual({ now: 6, before: 4, added: 2, move: { by: 2, direction: "up", verdict: "neutral" } });
@@ -109,20 +146,20 @@ describe("workWeeks", () => {
 });
 
 describe("sumWorkWeeks", () => {
-  const now = new Date("2026-10-14T15:00:00.000Z");
-
   it("adds the projects' weeks into the portfolio's", () => {
-    const one = workWeeks(history21(), now, "America/Los_Angeles");
+    const one = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     const sum = sumWorkWeeks([one, one]);
-    expect(sum?.done).toEqual({ now: 120, partial: false, before: 78, lastWeek: 210, move: { by: 42, direction: "up", verdict: "good" } });
+    expect(sum?.done).toEqual({ now: 8, notDone: 2, before: 4, lastWeek: 10, move: { by: 4, direction: "up", verdict: "good" } });
     expect(sum?.blocked).toEqual({ now: 10, before: 4, added: 10, move: { by: 6, direction: "up", verdict: "bad" } });
   });
 
   it("never passes a total that leaves a project out for a whole one", () => {
-    const one = workWeeks(history21(), now, "America/Los_Angeles");
+    const one = workWeeks(history21(), closes(), WEDNESDAY, "America/Los_Angeles");
     const sum = sumWorkWeeks([one, undefined]);
-    expect(sum?.done).toMatchObject({ now: 60, partial: true, before: null, move: null });
+    expect(sum?.done).toEqual({ now: null, notDone: null, before: null, lastWeek: null, move: null });
     expect(sum?.blocked).toEqual({ now: null, before: null, added: null, move: null });
+    const unread = sumWorkWeeks([one, workWeeks(history21(), undefined, WEDNESDAY, "America/Los_Angeles")]);
+    expect(unread?.done.now).toBeNull();
     expect(sumWorkWeeks([undefined, null])).toBeNull();
   });
 });

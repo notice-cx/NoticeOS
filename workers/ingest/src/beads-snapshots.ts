@@ -13,6 +13,7 @@
 // count is stored absent, never defaulted to 0.
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
+import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
@@ -222,9 +223,16 @@ interface StoredProject {
   handoffs?: StoredHandoff[];
   workers?: StoredWorker[];
   recentWork?: StoredWorkEvent[];
+  closes?: StoredCloses;
   ready: StoredIssue[];
   inProgress: StoredIssue[];
   recentlyClosed: StoredIssue[];
+}
+
+/** Every close one closed read returned: a done close carries no resolution key. */
+interface StoredCloses {
+  since: string;
+  items: { at: string; resolution?: NotDone }[];
 }
 
 function asObjectArray(
@@ -638,6 +646,30 @@ function parseRecentWork(issues: Issues, value: unknown, path: string): StoredWo
   return out;
 }
 
+/** The closes behind the week counts. Optional: absent from an older poller.
+ * Present, it must be whole, or the week counts would read short. */
+function parseCloses(issues: Issues, value: unknown, path: string): StoredCloses | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  if (!isRecord(value)) {
+    issues.add(path, 'invalid_type', `${path} must be an object`);
+    return null;
+  }
+  const since = isoDate(issues, value.since, `${path}.since`);
+  const rows = asObjectArray(issues, value.items, `${path}.items`, BEADS_CLOSES_MAX);
+  if (since === null || rows === null) return null;
+  const items: StoredCloses['items'] = [];
+  for (const [index, raw] of rows.entries()) {
+    const at = optionalInstant(issues, raw.at, `${path}.items.${index}.at`);
+    const resolution = optionalResolution(issues, raw.resolution, `${path}.items.${index}.resolution`);
+    if (at === null) {
+      issues.add(`${path}.items.${index}.at`, 'custom', `${path}.items.${index}.at is required`);
+      return null;
+    }
+    items.push({ at, ...(resolution === null ? {} : { resolution }) });
+  }
+  return { since, items };
+}
+
 function parseOptionalIssueList(
   issues: Issues,
   value: unknown,
@@ -681,6 +713,7 @@ function parseProject(
   );
   const workers = parseWorkers(issues, raw.workers, `${path}.workers`);
   const recentWork = parseRecentWork(issues, raw.recentWork, `${path}.recentWork`);
+  const closes = parseCloses(issues, raw.closes, `${path}.closes`);
   const ready = parseIssueList(issues, raw.ready, `${path}.ready`);
   const inProgress = parseIssueList(issues, raw.inProgress, `${path}.inProgress`);
   const recentlyClosed = parseIssueList(issues, raw.recentlyClosed, `${path}.recentlyClosed`);
@@ -698,6 +731,7 @@ function parseProject(
     handoffs === null ||
     workers === null ||
     recentWork === null ||
+    closes === null ||
     !ready ||
     !inProgress ||
     !recentlyClosed
@@ -728,6 +762,7 @@ function parseProject(
       (handoffs?.length ?? 0) > 0 ||
       (workers?.length ?? 0) > 0 ||
       (recentWork?.length ?? 0) > 0 ||
+      (closes?.items.length ?? 0) > 0 ||
       (epics?.length ?? 0) > 0)
   ) {
     issues.add(`${path}.ok`, 'custom', `${path} reported an error but still carried issues`);
@@ -759,6 +794,7 @@ function parseProject(
     ...(handoffs === undefined ? {} : { handoffs }),
     ...(workers === undefined ? {} : { workers }),
     ...(recentWork === undefined ? {} : { recentWork }),
+    ...(closes === undefined ? {} : { closes }),
   };
 }
 

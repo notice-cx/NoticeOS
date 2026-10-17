@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import type { LiveTask, LiveTasksPayload } from "@shared/tasks";
-import { emptyWorkHistory, sumWorkWeeks, workWeeks, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
+import { emptyWorkHistory, sumWorkWeeks, workWeeks, type WorkCloses, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 import type { TaskProject } from "@shared/tasks";
 import { askVerb, catalogScope, inboxAsk, readTaskBoard, taskCatalogProjects, type ProjectTaskRead, type TaskBoardFilters } from "@/lib/task-board-read";
 
@@ -184,7 +184,7 @@ describe("task board read", () => {
     expect(view.counts.closed).toBeNull();
     expect(view.totals.urgent).toBeNull();
     expect(view.countsComplete).toBe(false);
-    expect(view.counts).toEqual({ waiting: null, urgent: null, open: null, inProgress: null, blocked: null, closed: null, notDone: null });
+    expect(view.counts).toEqual({ waiting: null, urgent: null, open: null, inProgress: null, blocked: null, closed: null });
     expect(view.shownAt).toBeNull();
   });
 
@@ -285,9 +285,14 @@ describe("the board's week against the week before", () => {
     closed: days(Array.from({ length: 14 }, () => closed)),
     blocked: days(Array.from({ length: 14 }, (_, i) => (i === 13 ? 4 : i >= 6 ? 2 : 0))),
   });
-  const weekly = (asset: string, prefix: string, closed: number) => {
+  /** `perDay` done closes at 10:00 on each of the 14 days, read from 07-17. */
+  const closesOf = (perDay: number, extra: WorkCloses["items"] = []): WorkCloses => ({
+    since: "2026-07-17",
+    items: [...days(Array.from({ length: 14 }, () => perDay)).flatMap((day) => Array.from({ length: day.v }, () => ({ at: `${day.t}T10:00:00.000Z` }))), ...extra],
+  });
+  const weekly = (asset: string, prefix: string, closed: number, closes: WorkCloses | null = closesOf(closed)) => {
     const series = history(closed);
-    return project({ asset, prefix, name: asset, history: series, weeks: workWeeks(series, NOW, "UTC") });
+    return project({ asset, prefix, name: asset, history: series, weeks: workWeeks(series, closes ?? undefined, NOW, "UTC") });
   };
   const snapshot = payload({ projects: [weekly("meadow.example", "md", 1), weekly("northwind.example", "nw", 2)] });
 
@@ -309,19 +314,20 @@ describe("the board's week against the week before", () => {
     expect(scoped.weeks).toEqual(snapshot.projects[1]!.weeks);
   });
 
-  it("splits this week's closes into done and not done only where the rows hold every close since Monday", () => {
-    const closes = [
-      liveTask({ id: "md-c1", status: "closed", closedAt: "2026-07-28T10:00:00.000Z" }),
-      liveTask({ id: "md-c2", status: "closed", closedAt: "2026-07-29T10:00:00.000Z", resolution: "wont-do" }),
-      liveTask({ id: "md-c3", status: "closed", closedAt: "2026-07-26T10:00:00.000Z", resolution: "duplicate" }),
-    ];
-    const one = payload({ projects: [weekly("meadow.example", "md", 1)] });
-    const holds = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot: one, filters,
-      reads: new Map([["meadow.example", success({ ...board(closes), closedSince: "2026-07-25" })]]) });
-    // The duplicate closed on Sunday, last week.
-    expect(holds.weekNotDone).toBe(1);
-    const short = readTaskBoard({ capabilities: { live: true, reason: null }, snapshot: one, filters,
-      reads: new Map([["meadow.example", success({ ...board(closes), closedSince: "2026-07-28" })]]) });
-    expect(short.weekNotDone).toBeNull();
+  it("counts the closes that shipped nothing apart from done, from the closes themselves", () => {
+    const split = payload({ projects: [weekly("meadow.example", "md", 1, closesOf(1, [
+      { at: "2026-07-29T10:00:00.000Z", resolution: "wont-do" },
+      // Sunday, last week: in neither week's done.
+      { at: "2026-07-26T10:00:00.000Z", resolution: "duplicate" },
+    ]))] });
+    const view = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot: split, reads: new Map(), filters });
+    expect(view.weeks?.done).toMatchObject({ now: 6, notDone: 1, lastWeek: 7 });
+  });
+
+  it("keeps done from the projects with a reading as a lower bound when one project has none", () => {
+    const missing = payload({ projects: [weekly("meadow.example", "md", 1), weekly("northwind.example", "nw", 2, null)] });
+    const view = readTaskBoard({ capabilities: { live: false, reason: "read_only_deployment" }, snapshot: missing, reads: new Map(), filters });
+    expect(view.weeks?.done.now).toBeNull();
+    expect(view.doneRead).toBe(6);
   });
 });

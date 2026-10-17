@@ -20,7 +20,7 @@ function weeks(overrides: Partial<WorkWeeks> = {}): WorkWeeks {
   return {
     weekStart: "2026-09-21",
     daysIn: 2,
-    done: { now: 6, partial: false, before: 4, lastWeek: 15, move: { by: 2, direction: "up", verdict: "good" } },
+    done: { now: 6, notDone: 1, before: 4, lastWeek: 15, move: { by: 2, direction: "up", verdict: "good" } },
     waiting: { now: 2, before: 1, added: 2, move: { by: 1, direction: "up", verdict: "bad" } },
     urgent: { now: 1, before: 1, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
     inProgress: { now: 2, before: 3, added: 1, move: { by: -1, direction: "down", verdict: "neutral" } },
@@ -50,7 +50,7 @@ describe("the Wall's work tile, week against week", () => {
   it("draws this week's done against last week's on one bar, with the partial week in words", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
     expect(container.querySelector("[data-work-days-in]")).toHaveTextContent("2 days in");
-    // Done is this calendar week from the history, not the trailing seven days.
+    // Done is this calendar week from the closes, not the trailing seven days.
     expect(figure(container, "Done this week")).toHaveTextContent(/^Done this week12/);
     const bar = container.querySelector<HTMLElement>("[data-work-weeks] [data-pace-bar]")!;
     expect(bar).toHaveAttribute("data-pace", "ahead");
@@ -76,7 +76,7 @@ describe("the Wall's work tile, week against week", () => {
 
   it("draws no chip where the earlier reading is not known, and no week bar without last week", () => {
     const unknown = weeks({
-      done: { now: 6, partial: false, before: null, lastWeek: null, move: null },
+      done: { now: 6, notDone: 0, before: null, lastWeek: null, move: null },
       waiting: { now: 2, before: null, added: null, move: null },
       inProgress: { now: 2, before: null, added: null, move: null },
       blocked: { now: 1, before: null, added: null, move: null },
@@ -87,11 +87,11 @@ describe("the Wall's work tile, week against week", () => {
     expect(container.querySelector("[data-work-days-in]")).toHaveTextContent("2 days in");
   });
 
-  it("marks a week missing a day as a lower bound and compares nothing from it", () => {
-    const gap = weeks({ done: { now: 5, partial: true, before: 4, lastWeek: 15, move: null } });
-    const { container } = render(<WallWork assets={[asset("a.example", work(gap))]} operator={{ ...operator, projectCount: 1, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
-    expect(figure(container, "Done this week")).toHaveTextContent(/^Done this week5\+/);
-    expect(figure(container, "Done this week").querySelector("[data-week-move]")).toBeNull();
+  it("draws Done this week as one number with no plus sign: the days in say the week is still running", () => {
+    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks()))]} operator={operator} nowMs={NOW} />);
+    expect(figure(container, "Done this week")).toHaveTextContent(/^Done this week12(?!\+)/);
+    expect(container.textContent).not.toContain("+");
+    expect(container.querySelector("[data-work-days-in]")).toHaveTextContent("2 days in");
   });
 
   it("compares no lower-bound inbox", () => {
@@ -100,7 +100,7 @@ describe("the Wall's work tile, week against week", () => {
   });
 
   it("keeps each project's done left of the line with last week's as a dashed outline under it, on one scale", () => {
-    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks({ done: { now: 1, partial: false, before: 0, lastWeek: 0, move: null } })))]} operator={operator} nowMs={NOW} />);
+    const { container } = render(<WallWork assets={[asset("a.example", work(weeks())), asset("b.example", work(weeks({ done: { now: 1, notDone: 0, before: 0, lastWeek: 0, move: null } })))]} operator={operator} nowMs={NOW} />);
     const outline = container.querySelector<HTMLElement>('[data-work-row="a.example"] [data-work-last-week]')!;
     expect(outline).toHaveAttribute("data-work-last-week", "15");
     expect(outline.className).toContain("border-dashed");
@@ -111,7 +111,7 @@ describe("the Wall's work tile, week against week", () => {
     expect(container.querySelector('[data-work-row="a.example"]')).toHaveAttribute("aria-label", expect.stringContaining("6 done this week, 15 last week"));
   });
 
-  it("keeps the trailing week's done for a site the history holds no day of", () => {
+  it("keeps the trailing week's done for a site with no week reading", () => {
     const { container } = render(<WallWork assets={[asset("a.example", work(undefined, 9))]} operator={{ ...operator, projectCount: 1, measuredProjects: 1, urgentMeasuredProjects: 1 }} nowMs={NOW} />);
     expect(figure(container, "Done this week")).toHaveTextContent(/^Done this week9/);
     expect(container.querySelector("[data-work-days-in]")).toBeNull();

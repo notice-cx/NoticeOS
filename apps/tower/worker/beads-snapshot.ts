@@ -10,7 +10,7 @@ import { TASK_CHOICE_KEYS, taskChoiceOf, taskChoicesOf, type TaskChoiceKey } fro
 import { isTaskResolution, type TaskResolution } from "@noticeos/contract/task-resolution";
 import type { HandoffBead } from "../shared/asset-detail";
 import type { PanelReview } from "../shared/wall";
-import { PRIORITY_BANDS, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
+import { PRIORITY_BANDS, type WorkCloses, type WorkCounts, type WorkEpic, type WorkEvent, type WorkItem, type WorkWorker } from "../shared/work";
 
 type SnapshotRow = {
   captured_at: string;
@@ -65,6 +65,9 @@ export interface SnapshotProject {
   /** Who did the work; absent when the snapshot carries none. */
   workers?: WorkWorker[];
   recentWork?: WorkEvent[];
+  /** Every close the closed read returned, behind Done this week and last
+   * week; absent from an older poller. */
+  closes?: WorkCloses;
 }
 
 export interface BeadsSnapshot {
@@ -296,7 +299,22 @@ function readProject(value: unknown): SnapshotProject | null {
     panelReview: ok ? readPanelReview(value.panelReview) : undefined,
     handoffs: ok ? readHandoffs(value.handoffs) : undefined,
     ...(ok ? readWork(value) : {}),
+    ...(ok ? readCloses(value.closes) : {}),
   };
+}
+
+/** The closes, all or none: a list missing one would count a week short. */
+function readCloses(value: unknown): Pick<SnapshotProject, "closes"> {
+  if (!isRecord(value) || typeof value.since !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value.since) || !Array.isArray(value.items)) return {};
+  const items: WorkCloses["items"] = [];
+  for (const entry of value.items) {
+    if (!isRecord(entry)) return {};
+    const at = nullableText(entry.at);
+    if (at === null || !Number.isFinite(Date.parse(at))) return {};
+    const ended = notDone(entry.resolution);
+    items.push({ at, ...(ended ? { resolution: ended } : {}) });
+  }
+  return { closes: { since: value.since, items } };
 }
 
 /** Who did the work, each row read alone so one unreadable row costs only itself. */

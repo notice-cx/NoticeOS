@@ -13,6 +13,7 @@ import {
   emptyWorkHistory,
   workWeeks,
   type WorkPayload,
+  type WorkCloses,
   type WorkProject,
   type WorkWeeks,
 } from "../shared/work";
@@ -27,18 +28,25 @@ export interface WorkPayloadOptions {
   timeZone?: string;
 }
 
-/** The days a week reading needs: this week and last (fourteen), the day
- * before the seven-day window, and one for the history's UTC day running
- * ahead of the installation's. */
-const WEEKS_HISTORY_DAYS = 16;
+/** The days of history a state's week needs: today and the seven before it.
+ * Done is counted from the snapshot's closes instead. */
+const WEEKS_HISTORY_DAYS = 8;
 
-/** Each project's week against the week before, keyed by asset id, from the
- * daily rollup's last few days: what the Wall's work tile reads. A project
- * the rollup holds no day for is absent. */
-export async function loadWorkWeeks(store: WorkspaceStore, now: Date, timeZone: string): Promise<Map<string, WorkWeeks>> {
+/** The closes a project's snapshot entry carries, by asset id: a project the
+ * poller could not read has none. */
+function closesByAsset(snapshot: BeadsSnapshot | null): Map<string, WorkCloses> {
+  return new Map((snapshot?.projects ?? []).flatMap((project) => (project.ok && project.closes ? [[project.asset, project.closes] as const] : [])));
+}
+
+/** Each project's week against the week before, keyed by asset id: done from
+ * the snapshot's closes, the states from the daily rollup's last few days.
+ * What the Wall's work tile reads. A project with neither is absent. */
+export async function loadWorkWeeks(store: WorkspaceStore, snapshot: BeadsSnapshot | null, now: Date, timeZone: string): Promise<Map<string, WorkWeeks>> {
   const since = new Date(now.getTime() - WEEKS_HISTORY_DAYS * 86_400_000).toISOString().slice(0, 10);
   const history = await loadBeadsDailyHistory(store, { since });
-  return new Map([...history.byProject].map(([asset, series]) => [asset, workWeeks(series, now, timeZone)]));
+  const closes = closesByAsset(snapshot);
+  const assets = new Set([...history.byProject.keys(), ...closes.keys()]);
+  return new Map([...assets].map((asset) => [asset, workWeeks(history.byProject.get(asset) ?? emptyWorkHistory(), closes.get(asset), now, timeZone)]));
 }
 
 /** The whole board. */
@@ -73,6 +81,8 @@ export async function buildWorkPayload(
       panelReview: _cardOnly,
       handoffs: _findingOnly,
       waitingUrgent: _wallOnly,
+      // The board reads the weeks counted from them, not the closes.
+      closes,
       ...project
     }): WorkProject => {
       // No rollup rows yet: an empty history, never a dropped project.
@@ -82,9 +92,9 @@ export async function buildWorkPayload(
         // An unknown asset id still renders under its own id, so config drift shows.
         name: names.get(project.asset) ?? project.asset,
         history: series,
-        // A store with no rollup at all has no weeks to read, which is not a
-        // week of zeroes.
-        ...(history.days > 0 ? { weeks: workWeeks(series, now, timeZone) } : {}),
+        // A store with no rollup and a snapshot with no closes have no weeks
+        // to read, which is not a week of zeroes.
+        ...(history.days > 0 || closes ? { weeks: workWeeks(series, closes, now, timeZone) } : {}),
       };
     },
   );

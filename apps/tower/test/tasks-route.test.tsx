@@ -80,6 +80,13 @@ import { TasksBoard } from "@/routes/tasks/TasksBoard";
 import { statusFace } from "@/routes/tasks/task-face";
 import { STATE_TONE } from "@/components/StateChip";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
+import { WallWork } from "@/components/wall/WallWork";
+import { sitesInWork } from "@/lib/wall-widgets";
+import { buildWallPayload } from "../worker/wall-payload";
+import { buildWorkPayload } from "../worker/work-payload";
+import { seedSnapshot, workProject } from "./panel-fixtures";
+import { createTestStore } from "./postgres-store";
+import { addSites } from "./sites";
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
@@ -313,7 +320,7 @@ function figures(container: HTMLElement): string[] {
   return [...container.querySelectorAll("[data-page-answer-figures] dt")].map((node) => node.textContent ?? "");
 }
 
-/** One figure beside the answer, by its mark: Urgent, Blocked, Closed this week. */
+/** One figure beside the answer, by its mark: Urgent, Blocked, Done this week. */
 function fig(container: HTMLElement, mark: "urgent" | "blocked" | "closed"): HTMLElement {
   const found = container.querySelector<HTMLElement>(`[data-tasks-${mark}]`);
   if (found === null) throw new Error(`no ${mark} figure beside the answer`);
@@ -361,7 +368,7 @@ describe("/tasks — the first screen answers the page's one question", () => {
   it("answers what waits on you, with the three counts that change what you do next", () => {
     const { container } = renderBoard();
     expect(answerLine(container)).toBe("No decisions for you");
-    expect(figures(container)).toEqual(["Urgent", "Blocked", "Closed this week"]);
+    expect(figures(container)).toEqual(["Urgent", "Blocked", "Done this week"]);
   });
 
   it("counts over the whole board rather than over the current filter", () => {
@@ -380,6 +387,8 @@ describe("/tasks — the first screen answers the page's one question", () => {
               deferred: 0,
               waiting: 0,
             },
+            weeks: workWeeks(emptyWorkHistory(), { since: "2026-07-17", items: Array.from({ length: 5 }, () => ({ at: "2026-07-28T10:00:00.000Z" })) },
+              new Date("2026-08-01T12:00:00.000Z"), "UTC"),
           }),
         ],
       }),
@@ -388,7 +397,7 @@ describe("/tasks — the first screen answers the page's one question", () => {
     // "how much is blocked" is a fact about the portfolio and stays true
     // whatever the table below has been narrowed to.
     expect(fig(container, "blocked")).toHaveTextContent("4");
-    expect(fig(container, "closed")).toHaveTextContent("6");
+    expect(fig(container, "closed")).toHaveTextContent("5");
   });
 
 
@@ -1142,16 +1151,24 @@ describe("/tasks — claim, close and defer in place", () => {
     await waitFor(() => expect(api.closeTask).toHaveBeenCalledWith("md-1w2", "Duplicate of md-9x1", { resolution: "duplicate", duplicateOf: "md-9x1" }));
   });
 
-  it("splits Closed this week into done and not done, and the Status filter counts every close", () => {
-    const { container } = renderBoard({ live: true, boards: { "meadow.example": board([
+  it("counts the closes that shipped nothing apart from Done this week, and the Status filter counts every close", () => {
+    // The same three closes as the snapshot carries them, on Tuesday of the week the board reads.
+    const closes = { since: "2026-07-17", items: [
+      { at: "2026-07-28T10:00:00.000Z" },
+      { at: "2026-07-28T11:00:00.000Z", resolution: "wont-do" as const },
+      { at: "2026-07-28T12:00:00.000Z", resolution: "duplicate" as const },
+    ] };
+    const data = payload({ projects: [project({ weeks: workWeeks(emptyWorkHistory(), closes, new Date("2026-08-01T12:00:00.000Z"), "UTC") })] });
+    const { container } = renderBoard({ data, live: true, boards: { "meadow.example": board([
       liveTask({ id: "md-a1", status: "closed", closedAt: "2026-09-21T10:00:00.000Z" }),
       liveTask({ id: "md-a2", status: "closed", closedAt: "2026-09-21T11:00:00.000Z", resolution: "wont-do" }),
       liveTask({ id: "md-a3", status: "closed", closedAt: "2026-09-21T12:00:00.000Z", resolution: "duplicate", duplicateOf: "md-a1" }),
       liveTask({ id: "md-a4" }),
     ]) } });
     const figure = container.querySelector("[data-tasks-closed]")!;
-    expect(figure).toHaveTextContent("3");
-    expect(figure).toHaveTextContent("1 done · 2 not done");
+    const done = figure.querySelector("dd")!;
+    expect(done.firstChild?.textContent).toBe("1");
+    expect(done.querySelector("span")).toHaveTextContent(/^2 not done$/);
     expect(screen.getByRole("option", { name: /^Closed, last 7 days · 3/ })).toBeInTheDocument();
     // A closed row offers no Close as.
     expect(within(row(container, "md-a2")).queryByRole("button", { name: "Close as" })).toBeNull();
@@ -1313,7 +1330,7 @@ describe("/tasks — the shape of the work, drawn", () => {
 });
 
 describe("/tasks — live where the local read is, the photograph where it is not", () => {
-  it("uses every recent closed task for the KPI, filter and paged history", () => {
+  it("uses every recent closed task for the filter and paged history, and none for Done this week", () => {
     const closed = Array.from({ length: 60 }, (_, index) => liveTask({
       id: `md-closed${index}`,
       title: `Completed task ${index}`,
@@ -1327,7 +1344,8 @@ describe("/tasks — live where the local read is, the photograph where it is no
       boards: { "meadow.example": { ...board([liveTask(), ...closed]), closedSince: "2026-07-25" } },
       data: payload({ projects: [project({ recentlyClosed: closed.slice(0, 5) })] }),
     });
-    expect(fig(container, "closed")).toHaveTextContent("60");
+    // Done this week is counted from the snapshot's closes, which this one does not carry.
+    expect(fig(container, "closed").querySelector("dd")).toHaveTextContent("—");
     expect(screen.getByRole("option", { name: "Closed, last 7 days · 60" })).toBeInTheDocument();
     expect(container.querySelectorAll("tr[data-task-row]")).toHaveLength(25);
     fireEvent.click(container.querySelector<HTMLElement>("[data-tasks-more]")!);
@@ -2313,7 +2331,7 @@ describe("/tasks — each figure's week against the week before", () => {
   const NOW = new Date("2026-08-01T12:00:00.000Z");
   const DAYS = Array.from({ length: 14 }, (_, i) => new Date(Date.parse("2026-07-19T00:00:00.000Z") + i * 86_400_000).toISOString().slice(0, 10));
   /** Two weeks of one project at `scale`: Saturday 08-01 is the sixth day of
-   * the week that began on Monday 07-27, closes doubled this week, blocked
+   * the week that began on Monday 07-27, done doubled this week, blocked
    * tripled today, the inbox emptied today, urgent level. */
   function weekly(asset: string, prefix: string, name: string, scale: number): WorkProject {
     const series = (value: (index: number) => number) => DAYS.map((t, i) => ({ t, v: value(i) }));
@@ -2325,12 +2343,14 @@ describe("/tasks — each figure's week against the week before", () => {
       waiting: series((i) => (i === 13 ? 0 : 2 * scale)),
       inProgress: series(() => 1),
     };
-    return project({ asset, prefix, name, history, weeks: workWeeks(history, NOW, "UTC") });
+    // The same closes as the snapshot carries them, each at 10:00 on its day.
+    const closes = { since: "2026-07-17", items: history.closed.flatMap((day) => Array.from({ length: day.v }, () => ({ at: `${day.t}T10:00:00.000Z` }))) };
+    return project({ asset, prefix, name, history, weeks: workWeeks(history, closes, NOW, "UTC") });
   }
   const data = payload({ historyDays: 14, projects: [weekly("meadow.example", "md", "Meadow Board", 1), weekly("northwind.example", "nw", "Northwind", 2)] });
   const value = (figure: HTMLElement) => figure.querySelector("dd")!.textContent;
 
-  it("gives Urgent, Blocked and Closed this week the daily history's count with its move, and the answer its own", () => {
+  it("gives Urgent, Blocked and Done this week the Wall's count with its move, and the answer its own", () => {
     const { container } = renderBoard({ data });
     // The Wall's numbers: blocked from the history (3 + 6), not the snapshot's 0.
     expect(value(fig(container, "blocked"))).toBe("9");
@@ -2338,8 +2358,9 @@ describe("/tasks — each figure's week against the week before", () => {
     expect(fig(container, "blocked")).toHaveTextContent("· 6 added");
     expect(value(fig(container, "urgent"))).toBe("6");
     expect(within(fig(container, "urgent")).getByLabelText("Level with a week ago")).toHaveAttribute("data-tone", "neutral");
-    // Six days at 2 + 4 a day, against last week's same six days at 1 + 2.
+    // Six days at 2 + 4 a day, against last week to this moment at 1 + 2.
     expect(value(fig(container, "closed"))).toBe("36");
+    expect(fig(container, "closed").querySelector("dt")).toHaveTextContent("Done this week");
     expect(within(fig(container, "closed")).getByLabelText("18 more than last week by today")).toHaveAttribute("data-tone", "positive");
     // The inbox emptied: 0 decisions, 6 fewer than a week ago, which is better.
     expect(answerLine(container)).toBe("No decisions for you");
@@ -2349,15 +2370,15 @@ describe("/tasks — each figure's week against the week before", () => {
     expect(screen.getByRole("option", { name: /^Closed, last 7 days · / })).toBeInTheDocument();
   });
 
-  it("draws this week's closes against last week's under In and out, and says how they compare", () => {
+  it("draws done this week against last week under In and out, and says how they compare", () => {
     const { container } = renderBoard({ data });
     const panel = container.querySelector<HTMLElement>("[data-tasks-in-out]")!;
-    expect(panel.querySelector("[data-tasks-week-line]")).toHaveTextContent("Closed 18 more this week than last week by today");
+    expect(panel.querySelector("[data-tasks-week-line]")).toHaveTextContent("18 more done this week than last week by today");
     const week = panel.querySelector<HTMLElement>("[data-tasks-week]")!;
-    expect(week).toHaveTextContent("Closed this week36 · 6 days in");
+    expect(week).toHaveTextContent("Done this week36 · 6 days in");
     expect(week.querySelector("[data-pace-bar]")).toHaveAttribute("data-pace", "ahead");
-    expect(week).toHaveTextContent("Closed last week by today 18");
-    expect(week).toHaveTextContent("Closed last week total 21");
+    expect(week).toHaveTextContent("Done last week by today 18");
+    expect(week).toHaveTextContent("Done last week total 21");
     // Each project's row: this week's done over last week's outline.
     expect(container.querySelector('[data-work-row="northwind.example"] [data-work-last-week]')).toHaveAttribute("data-work-last-week", "14");
   });
@@ -2376,9 +2397,85 @@ describe("/tasks — each figure's week against the week before", () => {
     expect(within(fig(container, "closed")).getByLabelText("12 more than last week by today")).toBeInTheDocument();
   });
 
-  it("draws no move where the store holds no daily history", () => {
+  it("draws no move where the store holds no week, and no number it did not count", () => {
     const { container } = renderBoard();
     expect(container.querySelector("[data-week-move]")).toBeNull();
     expect(container.querySelector("[data-tasks-week]")).toBeNull();
+    expect(value(fig(container, "closed"))).toBe("—");
+  });
+
+  it("puts no plus sign on a figure of a board every project of which was read", () => {
+    const { container } = renderBoard({ data });
+    const answer = container.querySelector<HTMLElement>("[data-tasks-answer]")!;
+    expect(answer.textContent).not.toContain("+");
+    expect(container.querySelector("[data-tasks-in-out]")!.textContent).not.toContain("+");
+  });
+});
+
+describe("/tasks and the Wall: one Done this week and one Done last week", () => {
+  // 05:00 on Saturday 08-01 in Los Angeles: the week began on Monday 07-27.
+  const NOW = new Date("2026-08-01T12:00:00.000Z");
+  const ZONE = "America/Los_Angeles";
+  /** What the poller read, each close at its UTC time; the comments are Los Angeles times. */
+  const meadow = { since: "2026-07-17", items: [
+    { at: "2026-07-20T16:00:00.000Z" }, // Mon 09:00, last week
+    { at: "2026-07-22T16:00:00.000Z" }, // Wed, last week
+    { at: "2026-07-25T20:00:00.000Z" }, // Sat 13:00, later than this moment of last week
+    { at: "2026-07-27T06:00:00.000Z" }, // Sun 07-26 23:00: Monday in UTC, last week here
+    { at: "2026-07-28T16:00:00.000Z" },
+    { at: "2026-07-29T16:00:00.000Z", resolution: "wont-do" },
+    { at: "2026-07-31T16:00:00.000Z" },
+  ] };
+  const northwind = { since: "2026-07-17", items: [
+    { at: "2026-07-21T16:00:00.000Z" },
+    { at: "2026-07-30T16:00:00.000Z" }, { at: "2026-07-30T17:00:00.000Z" }, { at: "2026-07-30T18:00:00.000Z" },
+    { at: "2026-08-01T08:00:00.000Z" }, // Sat 01:00
+  ] };
+
+  it("draws the same two numbers on the Work tile and the board, from one stored task snapshot", async () => {
+    const store = await createTestStore();
+    try {
+      await addSites(store, ["meadow.example", "northwind.example"].map((id) => ({ id, displayName: id, status: "live", createdAt: "2026-07-01T00:00:00.000Z" })));
+      await seedSnapshot(store, "2026-08-01T11:59:00.000Z", [
+        workProject({ closes: meadow, counts: { open: 4, highPriority: 0, ready: 3, inProgress: 1, blocked: 1, closedRecent: 6, waiting: 0 }, waitingUrgent: 0 }),
+        workProject({ asset: "northwind.example", prefix: "nw", closes: northwind, counts: { open: 2, highPriority: 0, ready: 2, inProgress: 0, blocked: 0, closedRecent: 4, waiting: 0 }, waitingUrgent: 0 }),
+      ]);
+      // Two days of history, so In and out has days to draw.
+      for (const project of ["meadow.example", "northwind.example"]) {
+        for (const day of ["2026-07-31", "2026-08-01"]) {
+          await store.call.write((tx) => tx.execute(
+            `INSERT INTO noticeos.task_daily_counts (workspace_id, project, day, captured_at, waiting, urgent, open, in_progress, blocked, closed_ids)
+             VALUES ($1::uuid, $2, $3::date, $4::timestamptz, 0, 0, 4, 1, 0, '[]'::jsonb)`,
+            [tx.workspaceId, project, day, "2026-08-01T11:59:00.000Z"]));
+        }
+      }
+      const wall = await buildWallPayload(store.call, { now: NOW, constants: { dataUsd: 25 }, integrations: { catalog: [], assets: {} },
+        pullConfig: [], dashboard: {}, serpPanel: { assets: {} }, osTimeZone: ZONE });
+      const work = await buildWorkPayload(store.call, { now: NOW, timeZone: ZONE });
+
+      const tile = render(<WallWork assets={sitesInWork(wall)} operator={wall.operator} nowMs={NOW.getTime()} />);
+      const tileDone = tile.container.querySelector<HTMLElement>('[data-work-figure="Done this week"]')!;
+      const tileWeeks = tile.container.querySelector<HTMLElement>("[data-work-weeks]")!;
+      // Tue and Fri at Meadow, three on Thursday and one on Saturday at
+      // Northwind; the Won't do apart.
+      expect(tileDone).toHaveTextContent(/^Done this week6(?!\+)/);
+      expect(within(tileDone).getByLabelText("3 more than last week by today")).toBeInTheDocument();
+      expect(tileWeeks).toHaveTextContent("Done last week by today 3");
+      expect(tileWeeks).toHaveTextContent("Done last week total 5");
+      tile.unmount();
+
+      const { container } = renderBoard({ data: work });
+      const boardDone = fig(container, "closed");
+      expect(boardDone.querySelector("dt")).toHaveTextContent("Done this week");
+      expect(boardDone.querySelector("dd")!.firstChild?.textContent).toBe("6");
+      expect(boardDone).toHaveTextContent("1 not done");
+      expect(within(boardDone).getByLabelText("3 more than last week by today")).toBeInTheDocument();
+      const boardWeeks = container.querySelector<HTMLElement>("[data-tasks-week]")!;
+      expect(boardWeeks).toHaveTextContent("Done this week6 · 6 days in");
+      expect(boardWeeks).toHaveTextContent("Done last week by today 3");
+      expect(boardWeeks).toHaveTextContent("Done last week total 5");
+    } finally {
+      await store.close();
+    }
   });
 });

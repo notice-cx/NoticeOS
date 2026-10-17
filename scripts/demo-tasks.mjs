@@ -10,7 +10,7 @@ import { runCommand } from './run-command.mjs';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
 import { demoTaskIssuesAt } from './demo-task-facts.mjs';
 import { demoIntegrationAssets, demoSchedules } from './demo-display.mjs';
-import { beadsClosedSince, beadsPollArgs, summarizeBeadsProject } from './runner/task-snapshot.mjs';
+import { beadsClosedSince, beadsClosesSince, beadsPollArgs, summarizeBeadsProject } from './runner/task-snapshot.mjs';
 import { HANDOFF_LABEL, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 
 const json = value => `${JSON.stringify(value, null, 2)}\n`;
@@ -61,9 +61,9 @@ export async function configureDemoTasks({ plan, scenario, receipt, capability, 
 /** Timestamp filtering only; blocker/epic/deferred/waiting rules remain bd's
  * native answers and the canonical summarizer's interpretation. */
 export function demoHistoricalProject(project, reads, instant) {
-  const since = beadsClosedSince(Date.parse(instant));
-  const closed = JSON.parse(reads.closed.stdout).filter(row => row.closed_at?.slice(0, 10) >= since);
-  return summarizeBeadsProject(project, { ...reads, closed: { ...reads.closed, stdout: JSON.stringify(closed) } });
+  const reach = { closedSince: beadsClosedSince(Date.parse(instant)), closesSince: beadsClosesSince(Date.parse(instant)) };
+  const closed = JSON.parse(reads.closed.stdout).filter(row => row.closed_at?.slice(0, 10) >= reach.closesSince);
+  return summarizeBeadsProject(project, { ...reads, closed: { ...reads.closed, stdout: JSON.stringify(closed) } }, reach);
 }
 
 export function demoHandoffIssues(rows, joins) {
@@ -119,10 +119,10 @@ export async function seedDemoTaskHistory({ scenario, projects, tasksDir, capabi
           await bd(project, ['update', row.id, '--defer', row.defer_until]);
         }
         const answers = {};
-        for (const [key, args] of Object.entries(beadsPollArgs(project.repo, beadsClosedSince(Date.parse(instant))))) {
+        for (const [key, args] of Object.entries(beadsPollArgs(project.repo, beadsClosesSince(Date.parse(instant))))) {
           // Retain all native closed rows at this actual imported checkpoint;
-          // only the ordinary reader's seven-day timestamp window changes
-          // between unchanged days. No synthetic ready answer is invented.
+          // only the ordinary reader's timestamp windows change between
+          // unchanged days. No synthetic ready answer is invented.
           const selected = [...args.slice(2)];
           if (key === 'closed') selected.splice(selected.indexOf('--closed-after'), 2);
           answers[key] = await bd(project, selected);

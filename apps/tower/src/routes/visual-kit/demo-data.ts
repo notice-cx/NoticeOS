@@ -89,7 +89,7 @@ export const WORK: WorkFlowRow[] = [
 export const WORK_WEEKS: WorkWeeks = {
   weekStart: "2026-10-12",
   daysIn: 3,
-  done: { now: 89, partial: false, before: 64, lastWeek: 97, move: { by: 25, direction: "up", verdict: "good" } },
+  done: { now: 89, notDone: 6, before: 64, lastWeek: 97, move: { by: 25, direction: "up", verdict: "good" } },
   waiting: { now: 4, before: 2, added: 3, move: { by: 2, direction: "up", verdict: "bad" } },
   urgent: { now: 26, before: 29, added: 2, move: { by: -3, direction: "down", verdict: "good" } },
   inProgress: { now: 10, before: 10, added: 4, move: { by: 0, direction: "flat", verdict: "neutral" } },

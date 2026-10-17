@@ -521,7 +521,7 @@ export async function buildWallPayload(
   // task source's one reading (`./task-source`).
   const beadsSnapshot = await loadLatestBeadsSnapshot(store);
   const tasks = beadsReading(store, beadsSnapshot);
-  const workByAsset = cardWorkOf(beadsSnapshot, await loadWorkWeeks(store, now, osTimeZone));
+  const workByAsset = cardWorkOf(beadsSnapshot, await loadWorkWeeks(store, beadsSnapshot, now, osTimeZone));
 
   // --- system: what the strip's one state and Home's System tile read -------
   // The metered data cap alone.

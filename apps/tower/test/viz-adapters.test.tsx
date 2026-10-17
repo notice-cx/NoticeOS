@@ -76,9 +76,9 @@ describe("work as flow", () => {
     expect(workQueue(rows[0]!)).toBe(12);
   });
 
-  it("takes done from this calendar week, with last week's beside it, where the history holds the week", () => {
+  it("takes done from this calendar week, with last week's beside it, where the closes reach the week", () => {
     const card = work(10, 3);
-    const done = { now: 2, partial: false, before: 1, lastWeek: 6, move: null };
+    const done = { now: 2, notDone: 0, before: 1, lastWeek: 6, move: null };
     const rows = workFlowRows([{ ...card, work: { ...card.work!, weeks: { weekStart: "2026-10-05", daysIn: 7, done } as never } }]);
     expect(rows[0]).toMatchObject({ done: 2, doneLastWeek: 6 });
   });

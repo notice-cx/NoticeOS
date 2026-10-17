@@ -10,6 +10,7 @@ import {
   writeBeadsSnapshot,
 } from '../src/beads-snapshots.js';
 import { readSnapshotProjects } from '../src/beads-daily.js';
+import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
 import { javascriptInstant } from '@noticeos/postgres';
 import { OPERATOR_TOKEN } from './fixtures.js';
 import { call, reset, storedCount } from './helpers.js';
@@ -967,6 +968,23 @@ describe('POST /api/beads-snapshot — handoff beads', () => {
       project({ recentlyClosed: [issue({ id: 'md-r1', status: 'closed', resolution: 'wont-do', duplicateOf: 'md-r0' })] }),
       project({ recentWork: [{ ...recentWork[0], kind: 'claimed' }] }),
       project({ recentWork: [{ ...recentWork[0], resolution: 'Done' }] }),
+    ]) expect((await post({ projects: [bad] })).status).toBe(422);
+  });
+
+  // Done this week and last week are counted from these on the Tower.
+  it('stores every close the closed read returned, keeps none on a superseded row, and refuses a list it cannot read whole', async () => {
+    const closes = { since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00Z' }, { at: '2026-08-01T10:00:00.000Z', resolution: 'wont-do' }] };
+    const stored = await storedProject({ projects: [project({ closes })] });
+    expect(stored.closes).toEqual({ since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00.000Z' }, { at: '2026-08-01T10:00:00.000Z', resolution: 'wont-do' }] });
+    expect('closes' in (await storedProject({ projects: [project()] }))).toBe(false);
+    expect(JSON.parse(supersededPayload(JSON.stringify({ projects: [project({ closes })] }))).projects[0]).not.toHaveProperty('closes');
+    for (const bad of [
+      project({ closes: { since: '2026-7-18', items: [] } }),
+      project({ closes: { since: '2026-07-18', items: [{ at: 'yesterday' }] } }),
+      project({ closes: { since: '2026-07-18', items: [{}] } }),
+      project({ closes: { since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00Z', resolution: 'done' }] } }),
+      project({ closes: { since: '2026-07-18', items: Array.from({ length: BEADS_CLOSES_MAX + 1 }, () => ({ at: '2026-07-20T09:00:00Z' })) } }),
+      project({ ok: false, error: 'no repo', ready: [], inProgress: [], closes: { since: '2026-07-18', items: [{ at: '2026-07-20T09:00:00Z' }] } }),
     ]) expect((await post({ projects: [bad] })).status).toBe(422);
   });
 

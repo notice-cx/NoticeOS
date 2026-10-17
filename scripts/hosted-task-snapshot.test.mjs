@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHostedTaskSnapshot } from './hosted-task-snapshot.mjs';
-import { summarizeBeadsProject } from './task-snapshot-summary.mjs';
+import { beadsClosedSince, beadsClosesSince, summarizeBeadsProject } from './task-snapshot-summary.mjs';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const projectId = '33333333-3333-4333-8333-333333333333';
 const project = { projectId, asset: 'example.test', prefix: 'tt' };
 const issue = (id, status = 'open') => ({ id, title: 'Generated task', status, priority: 1, issue_type: 'task' });
 const answer = value => ({ code: 0, stdout: JSON.stringify(value), stderr: '' });
+const closedAt = new Date().toISOString();
 const required = { active: answer([issue('tt-open'), issue('tt-flight', 'in_progress')]), ready: answer([issue('tt-open')]),
-  blocked: answer([]), closed: answer([issue('tt-done', 'closed')]) };
+  blocked: answer([]), closed: answer([{ ...issue('tt-done', 'closed'), closed_at: closedAt }]) };
 const request = () => new Request('https://noticeos.internal/task-snapshot', { method: 'POST', headers: { 'x-generated-proof': 'original' } });
 
 test('server registry and original request are captured while ordinary summary preserves unknown optional facts', async () => {
@@ -19,6 +20,8 @@ test('server registry and original request are captured while ordinary summary p
   const started = new Promise(resolve => { entered = resolve; });
   const reader = createHostedTaskSnapshot({ workspaceId, projects, executor: { async execute(proof, selected, asked, controls) {
     assert.equal(selected, workspaceId); assert.deepEqual(asked.operation.kind, 'snapshot');
+    // The closed read reaches back over this calendar week and last.
+    assert.equal(asked.operation.closedSince, beadsClosesSince(Date.now()));
     assert.equal(asked.projectId, projectId); assert.equal(controls.expectedPrefix, 'tt');
     assert.equal(proof.headers.get('x-generated-proof'), 'original'); entered(); await barrier;
     return required;
@@ -27,7 +30,10 @@ test('server registry and original request are captured while ordinary summary p
   projects[0].asset = 'foreign.test'; original.headers.set('x-generated-proof', 'changed'); release();
   const snapshot = await pending;
   assert.equal(snapshot.projects.length, 1); assert.equal(snapshot.projects[0].asset, 'example.test');
-  assert.deepEqual(snapshot.projects[0], summarizeBeadsProject(project, required));
+  const at = Date.parse(snapshot.capturedAt), reach = { closedSince: beadsClosedSince(at), closesSince: beadsClosesSince(at) };
+  assert.deepEqual(snapshot.projects[0], summarizeBeadsProject(project, required, reach));
+  assert.equal(snapshot.projects[0].counts.closedRecent, 1);
+  assert.deepEqual(snapshot.projects[0].closes, { since: reach.closesSince, items: [{ at: closedAt }] });
   assert.equal(Object.hasOwn(snapshot.projects[0].counts, 'waiting'), false);
   assert.equal(Object.hasOwn(snapshot.projects[0], 'handoffs'), false);
   assert.equal(Object.hasOwn(snapshot.projects[0], 'deferred'), false);
