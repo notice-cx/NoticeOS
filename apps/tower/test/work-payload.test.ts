@@ -572,27 +572,48 @@ describe("the daily history the strip's six numbers ride", () => {
     for (const [day, closed] of Object.entries(thisWeek)) await seedDay("meadow.example", day, { open: 4, inProgress: 1, blocked: blocked[day]!, closed });
   }
 
-  it("serves each project's week against the week before, on the installation's clock", async () => {
-    await seed("2026-08-01T11:59:00.000Z", [project()]);
+  /** The snapshot's closes over the same two weeks, at 08:00 UTC: last week
+   * one done a day, this week four done and one Won't do. */
+  const twoWeeksOfCloses = {
+    since: "2026-07-17",
+    items: [
+      ...["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-25", "2026-07-26"].map((day) => ({ at: `${day}T08:00:00.000Z` })),
+      { at: "2026-07-27T08:00:00.000Z" }, { at: "2026-07-27T09:00:00.000Z" }, { at: "2026-07-28T08:00:00.000Z" },
+      { at: "2026-07-29T08:00:00.000Z", resolution: "wont-do" }, { at: "2026-07-31T08:00:00.000Z" },
+    ],
+  };
+
+  it("serves each project's week against the week before, on the installation's clock: done from the closes, the states from the history", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project({ closes: twoWeeksOfCloses })]);
     await seedTwoWeeks();
 
     // NOW is Saturday in UTC and already Sunday at UTC+14: the zone decides
     // the day of the week, the same week either way.
-    const utc = (await buildWorkPayload(store.call, { now: NOW })).projects[0]!.weeks!;
+    const payload = await buildWorkPayload(store.call, { now: NOW });
+    const utc = payload.projects[0]!.weeks!;
     expect([utc.weekStart, utc.daysIn]).toEqual(["2026-07-27", 6]);
-    expect(utc.done).toEqual({ now: 4, partial: false, before: 6, lastWeek: 7, move: { by: -2, direction: "down", verdict: "bad" } });
+    // Last week by this time on Saturday: Monday to Saturday, six.
+    expect(utc.done).toEqual({ now: 4, notDone: 1, before: 6, lastWeek: 7, move: { by: -2, direction: "down", verdict: "bad" } });
     // 1 → 1 → 2 → 2 → 1 → 3 → 3 → 3: rises of 1 and 2.
     expect(utc.blocked).toEqual({ now: 3, before: 1, added: 3, move: { by: 2, direction: "up", verdict: "bad" } });
-    // The history's Sunday has not begun in UTC, so last week is still
-    // compared over its first six days.
+    // The board reads the weeks; the closes stay off its payload.
+    expect(payload.projects[0]).not.toHaveProperty("closes");
     const ahead = (await buildWorkPayload(store.call, { now: NOW, timeZone: "Pacific/Kiritimati" })).projects[0]!.weeks!;
-    expect([ahead.weekStart, ahead.daysIn, ahead.done.before]).toEqual(["2026-07-27", 7, 6]);
+    expect([ahead.weekStart, ahead.daysIn, ahead.done.now, ahead.done.before]).toEqual(["2026-07-27", 7, 4, 6]);
   });
 
-  it("serves no week where the store holds no daily history at all", async () => {
-    await seed("2026-08-01T11:59:00.000Z", [project()]);
+  it("serves done from the closes before the daily history holds a day, and no week with neither", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project({ closes: twoWeeksOfCloses }), project({ asset: "northwind.example", prefix: "nw" })]);
     const payload = await buildWorkPayload(store.call, { now: NOW });
-    expect(payload.projects[0]!.weeks).toBeUndefined();
+    expect(payload.projects[0]!.weeks?.done).toMatchObject({ now: 4, lastWeek: 7 });
+    expect(payload.projects[0]!.weeks?.blocked.now).toBeNull();
+    expect(payload.projects[1]!.weeks).toBeUndefined();
+  });
+
+  it("reads closes the poller could not list whole as no done reading", async () => {
+    await seed("2026-08-01T11:59:00.000Z", [project({ closes: { since: "2026-07-17", items: [{ at: "not a time" }] } })]);
+    await seedTwoWeeks();
+    expect((await buildWorkPayload(store.call, { now: NOW })).projects[0]!.weeks?.done.now).toBeNull();
   });
 });
 

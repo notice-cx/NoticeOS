@@ -122,7 +122,7 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
   // old inbox has no move to state.
   const waitingMove = waiting && !waiting.partial && !waiting.stale ? weekMove("waiting", waiting.count, weeks?.waiting.before ?? null) : null;
   const done = weeks?.done ?? null;
-  const doneMove = counted && done && !done.partial ? weekMove("done", total.done, done.before) : null;
+  const doneMove = counted && done?.now != null ? weekMove("done", total.done, done.before) : null;
   const lastWeek = counted && done ? done.lastWeek : null;
   const lastWeekShown = rows.some((row) => (row.doneLastWeek ?? 0) > 0);
   // A fixed-height screen keeps each move to one line: how many entered a
@@ -149,8 +149,7 @@ export function WorkFlow({ rows, waiting = null, weeks = null, title = "Work", a
           </Figure>
           <Figure icon={<CircleCheck aria-hidden className="size-4" />} label="Done this week" ink="text-milestone"
             change={<WorkWeekChip move={doneMove} against={LAST_WEEK_BY_TODAY} />}>
-            {/* A week with a day the history does not hold is a lower bound. */}
-            {counted ? `${formatInt(total.done)}${done?.partial ? "+" : ""}` : unread}
+            {counted ? formatInt(total.done) : unread}
           </Figure>
           <Figure icon={<Hourglass aria-hidden className="size-4" />} label="Blocked" ink={total.blocked > 0 ? "text-warn" : undefined}
             change={counted ? <WorkWeekChip move={weekMove("blocked", total.blocked, weeks?.blocked.before ?? null)} against={A_WEEK_AGO} added={added(weeks?.blocked.added)} /> : null}>

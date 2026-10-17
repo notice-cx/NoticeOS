@@ -74,7 +74,7 @@ function weeks(doing: number, blocked: number, closed: number): WorkWeeks {
   return {
     weekStart: "2026-09-21",
     daysIn: 2,
-    done: { now, partial: false, before, lastWeek, move: weekMove("done", now, before) },
+    done: { now, notDone: 0, before, lastWeek, move: weekMove("done", now, before) },
     waiting: state(1, 0, "waiting"),
     urgent: state(0, 0, "urgent"),
     inProgress: state(doing, doing, "inProgress"),

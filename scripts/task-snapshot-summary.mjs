@@ -1,7 +1,7 @@
 // Pure task snapshot reads and derivation; shared unchanged with the standalone poller.
 import { gateReason, gateTitle } from '../packages/contract/src/task-gate.mjs';
 import { HANDOFF_LABELS, recordsClose, TASK_METADATA, taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
-import { BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
+import { BEADS_CLOSES_MAX, BEADS_HANDOFF_KINDS } from '../packages/contract/src/task-snapshot.mjs';
 import { readTaskChoice, readTaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { readTaskResolution } from '../packages/contract/src/task-resolution.mjs';
 import { panelReviewEntry, panelReviewListArgs } from "./panel-review-summary.mjs";
@@ -140,6 +140,10 @@ export const BEADS_CREATED_LIMIT = 5;
 /** "Recently closed" means closed within this many days — the "what moved?"
  * window, at day grain because `bd --closed-after` takes a date. */
 export const BEADS_CLOSED_WINDOW_DAYS = 7;
+/** How far back the closed read reaches: this calendar week and last, from
+ * Monday in any time zone, plus the boundary day the task client may leave
+ * out. The recent lists above are cut from it to their own week. */
+export const BEADS_CLOSES_DAYS = 15;
 /** `bd`'s documented default priority, used when a bead carries none. */
 const BEADS_DEFAULT_PRIORITY = 2;
 /** The `bd` type that is a container rather than work. Counting epics inflates
@@ -160,6 +164,11 @@ export const BEADS_DEFERRED_STATUS = 'deferred';
 /** The oldest close still worth showing, as the YYYY-MM-DD `bd` expects. */
 export function beadsClosedSince(nowMs) {
   return new Date(nowMs - BEADS_CLOSED_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** The first day the closed read asks for: what `beadsPollArgs` is given. */
+export function beadsClosesSince(nowMs) {
+  return new Date(nowMs - BEADS_CLOSES_DAYS * 86_400_000).toISOString().slice(0, 10);
 }
 
 /**
@@ -426,9 +435,14 @@ function beadsEpicSummary(entry, childrenByParent) {
  * is what an agent running `bd ready` in that repo is told. Epic-type
  * containers are dropped from every list before anything is counted or
  * truncated, the only place that can see the untruncated lists.
+ *
+ * `closesSince` is the first day the closed read asked for; with it the entry
+ * carries every close as `closes`. `closedSince` cuts the recent lists and
+ * counts to their own week from that longer read. Either absent leaves that
+ * part as the read returned it.
  */
 /** @returns {import('../packages/contract/src/task-snapshot.mjs').BeadsProjectInput} */
-export function summarizeBeadsProject(project, results) {
+export function summarizeBeadsProject(project, results, { closedSince, closesSince } = {}) {
   const parsed = {};
   for (const key of ['active', 'ready', 'blocked', 'closed']) {
     const result = results?.[key];
@@ -468,15 +482,19 @@ export function summarizeBeadsProject(project, results) {
   }
 
   const work = (issues) => issues.filter((issue) => issue.issueType !== BEADS_CONTAINER_TYPE);
-  const agentWork = beadsWork(parsed.active, parsed.closed);
+  // The recent lists keep their week; the closed read reaches further back.
+  const recentFrom = closedSince === undefined ? null : `${closedSince}T00:00:00.000Z`;
+  const recentRows = parsed.closed.filter((row) => recentFrom === null || (beadsInstant(row?.closed_at) ?? '') >= recentFrom);
+  const agentWork = beadsWork(parsed.active, recentRows);
   // The raw rows still carry the metadata that names a task's filer.
-  const rawById = new Map([parsed.active, parsed.deferred, parsed.closed]
+  const rawById = new Map([parsed.active, parsed.deferred, recentRows]
     .flatMap((rows) => (Array.isArray(rows) ? rows : []))
     .map((row) => [beadsText(row?.id), row]));
   const active = work(beadsIssues(parsed.active));
   const ready = work(beadsIssues(parsed.ready));
   const blocked = work(beadsIssues(parsed.blocked));
-  const closed = work(beadsIssues(parsed.closed));
+  const everyClose = work(beadsIssues(parsed.closed)).filter((issue) => issue.issueType !== 'gate');
+  const closed = work(beadsIssues(recentRows));
   const inProgress = active.filter((issue) => issue.status === 'in_progress');
   // Whether we looked, which is not the same as finding none: a project whose
   // `bd` could not answer must not report "0 parked".
@@ -625,5 +643,18 @@ export function summarizeBeadsProject(project, results) {
     // without either reads as it always did.
     ...(agentWork.workers.length ? { workers: agentWork.workers } : {}),
     ...(agentWork.recentWork.length ? { recentWork: agentWork.recentWork } : {}),
+    ...beadsCloses(everyClose, closesSince),
   };
+}
+
+/** Every close the read returned, oldest first, for the week counts: none when
+ * the read's reach is not known or it held more than the store keeps, so a
+ * week is never counted short. */
+function beadsCloses(issues, since) {
+  if (since === undefined) return {};
+  const items = issues
+    .filter((issue) => issue.closedAt !== null)
+    .map((issue) => ({ at: issue.closedAt, ...(issue.resolution === undefined ? {} : { resolution: issue.resolution }) }))
+    .sort((a, b) => a.at.localeCompare(b.at) || (a.resolution ?? '').localeCompare(b.resolution ?? ''));
+  return items.length > BEADS_CLOSES_MAX ? {} : { closes: { since, items } };
 }

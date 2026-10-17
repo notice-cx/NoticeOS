@@ -172,6 +172,40 @@ test('a close where nothing shipped carries its resolution on its row and its li
     ['shop-2', 'wont-do'], ['shop-1', null]]);
 });
 
+test('the closed read reaches over this calendar week and last, carries every close, and keeps the recent lists to their week', async () => {
+  const { beadsClosesSince } = await import('./task-snapshot-summary.mjs');
+  const nowMs = Date.parse('2026-10-17T12:00:00Z');
+  const close = (id, at, resolution) => ({ id, title: id, status: 'closed', issue_type: 'task', closed_at: at,
+    metadata: resolution === undefined ? {} : { noticeos_closed_by: 'Dana', noticeos_closed_at: at, noticeos_resolution: resolution } });
+  const closed = [
+    close('shop-1', '2026-10-06T09:00:00Z'), // last week, before the recent week
+    close('shop-2', '2026-10-12T09:00:00Z', 'wont-do'),
+    close('shop-3', '2026-10-16T09:00:00Z'),
+    { id: 'shop-e', title: 'Epic', status: 'closed', issue_type: 'epic', closed_at: '2026-10-16T09:00:00Z' },
+  ];
+  const asked = [];
+  const run = async (argv) => { asked.push(argv); return argv.includes('--closed-after') ? ok(closed) : ok([]); };
+  const { projects: [entry] } = await collectBeadsSnapshot({ projects: [PROJECT], run, nowMs, repoRoot: '/r' });
+  // Fifteen days: last Monday in any zone, and the boundary day the client may leave out.
+  assert.equal(beadsClosesSince(nowMs), '2026-10-02');
+  assert.ok(asked.some((argv) => argv[argv.indexOf('--closed-after') + 1] === '2026-10-02'));
+  assert.equal(entry.counts.closedRecent, 2);
+  assert.deepEqual(entry.recentlyClosed.map((row) => row.id), ['shop-3', 'shop-2']);
+  assert.deepEqual(entry.closes, { since: '2026-10-02', items: [
+    { at: '2026-10-06T09:00:00.000Z' }, { at: '2026-10-12T09:00:00.000Z', resolution: 'wont-do' }, { at: '2026-10-16T09:00:00.000Z' }] });
+});
+
+test('a summary that cannot say how far its read reached, or that read more closes than the store keeps, carries none', async () => {
+  const { BEADS_CLOSES_MAX } = await import('../packages/contract/src/task-snapshot.mjs');
+  const close = (id) => ({ id, title: id, status: 'closed', issue_type: 'task', closed_at: '2026-10-16T09:00:00Z' });
+  const reads = (rows) => ({ active: ok([]), ready: ok([]), blocked: ok([]), closed: ok(rows) });
+  assert.equal(Object.hasOwn(summarizeBeadsProject(PROJECT, reads([close('shop-1')])), 'closes'), false);
+  const many = summarizeBeadsProject(PROJECT, reads(Array.from({ length: BEADS_CLOSES_MAX + 1 }, (_, index) => close(`shop-${index}`))),
+    { closedSince: '2026-10-10', closesSince: '2026-10-02' });
+  assert.equal(Object.hasOwn(many, 'closes'), false, 'a week is never counted short');
+  assert.equal(many.counts.closedRecent, BEADS_CLOSES_MAX + 1);
+});
+
 const PICK = { question: 'Which page keeps the traffic?', options: [{ key: 'a', label: 'Keep the old page' },
   { key: 'b', label: 'Redirect to the new page', recommended: true }] };
 

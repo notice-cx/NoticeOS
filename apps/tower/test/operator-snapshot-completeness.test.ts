@@ -94,7 +94,18 @@ describe("partial operator snapshots from the task poller", () => {
   });
 
   it("carries each figure's week on the work payload, an unmeasured count as unknown rather than zero", async () => {
-    await seedSnapshot(ctx, CAPTURED, [workProject({ waiting: [waiting[1]!] })]);
+    // The closes the poller read from 08-21, so this week and last are whole.
+    const closes = { since: "2026-08-21", items: [
+      { at: "2026-08-25T10:00:00.000Z" },
+      // Saturday 13:00 last week: after this moment of last week.
+      { at: "2026-08-29T13:00:00.000Z" },
+      { at: "2026-09-01T10:00:00.000Z" },
+      { at: "2026-09-02T10:00:00.000Z", resolution: "wont-do" },
+      // A resolution the reader does not know reads as done.
+      { at: "2026-09-03T10:00:00.000Z", resolution: "fixed" },
+      { at: "2026-09-04T10:00:00.000Z" },
+    ] };
+    await seedSnapshot(ctx, CAPTURED, [workProject({ waiting: [waiting[1]!], closes })]);
     // The one day the rollup holds: a poller that measured neither the inbox
     // nor urgency, on Saturday of the week that began on Monday 08-31.
     await ctx.call.write((tx) => tx.execute(
@@ -106,8 +117,8 @@ describe("partial operator snapshots from the task poller", () => {
     expect(weeks).toEqual({
       weekStart: "2026-08-31",
       daysIn: 6,
-      // Five of the week's six days are not held: a lower bound, with nothing to compare.
-      done: { now: 0, partial: true, before: null, lastWeek: null, move: null },
+      // Done is counted from the closes, whatever days the history holds.
+      done: { now: 3, notDone: 1, before: 1, lastWeek: 2, move: { by: 2, direction: "up", verdict: "good" } },
       waiting: { now: null, before: null, added: null, move: null },
       urgent: { now: null, before: null, added: null, move: null },
       inProgress: { now: 1, before: null, added: null, move: null },

@@ -471,9 +471,9 @@ export interface WorkSummary {
   /** When the poller photographed the hub; the widget ages itself against the
    * poller's cadence. */
   capturedAt: string;
-  /** Each figure's week against the week before, from the daily history on
-   * the installation's clock (`workWeeks`). Absent when the store holds no day
-   * of this project's history. */
+  /** Each figure's week against the week before, on the installation's clock
+   * (`workWeeks`): done from the snapshot's closes, the states from the daily
+   * history. Absent when the store holds neither for this project. */
   weeks?: WorkWeeks;
 }
 

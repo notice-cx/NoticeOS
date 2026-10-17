@@ -115,9 +115,13 @@ export function dailyRevenueWindow(history: DailyRevenueHistory, range: number):
 /** A calendar date on an explicit clock. Provider reports pass their declared
  * clock; ledger-period callers pass the saved operator clock. No default. */
 export function revenueCalendarDate(now: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone, year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(now);
+  return calendarDateIn(timeZone)(now);
+}
+
+/** `revenueCalendarDate` for many instants on one clock, with one formatter. */
+export function calendarDateIn(timeZone: string): (at: Date) => string {
+  const format = new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' });
+  return (at) => format.format(at);
 }
 
 /** One site's saved estimates over the page's range, ending yesterday on the

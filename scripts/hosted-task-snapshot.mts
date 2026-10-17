@@ -2,7 +2,7 @@
  * neither project labels nor a snapshot carry task or workspace authority. */
 import type { BeadsProjectInput, BeadsSnapshotInput } from '../packages/contract/src/task-snapshot.mjs';
 import type { HostedTaskExecutor, TaskVerificationControls } from './hosted-task-executor.mjs';
-import { beadsClosedSince, summarizeBeadsProject } from './task-snapshot-summary.mjs';
+import { beadsClosedSince, beadsClosesSince, summarizeBeadsProject } from './task-snapshot-summary.mjs';
 
 export interface HostedTaskSnapshotProject {
   readonly projectId: string;
@@ -61,14 +61,14 @@ export function createHostedTaskSnapshot(options: HostedTaskSnapshotOptions): Ho
       // Snapshot original trusted request evidence synchronously, without
       // retaining an unused body tee or manufacturing browser headers.
       const proof = new Request(original.url, { method: original.method, headers: new Headers(original.headers), signal });
-      const closedSince = beadsClosedSince(now), entries: BeadsProjectInput[] = [];
+      const reach = { closedSince: beadsClosedSince(now), closesSince: beadsClosesSince(now) }, entries: BeadsProjectInput[] = [];
       for (const project of projects) {
         if (signal.aborted || Date.now() >= deadline) refused();
         const results = await execute(proof, workspaceId,
-          { projectId: project.projectId, operation: { kind: 'snapshot', closedSince } },
+          { projectId: project.projectId, operation: { kind: 'snapshot', closedSince: reach.closesSince } },
           { signal, deadline, expectedPrefix: project.prefix });
         if (signal.aborted || Date.now() >= deadline) refused();
-        entries.push(summarizeBeadsProject(project, results));
+        entries.push(summarizeBeadsProject(project, results, reach));
       }
       return { capturedAt: new Date(now).toISOString(), projects: entries };
     },

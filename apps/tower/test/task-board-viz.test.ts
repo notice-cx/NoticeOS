@@ -72,7 +72,7 @@ describe("work by project", () => {
 
   it("takes each project's done from its calendar week, with last week's beside it, as the Wall does", () => {
     const board_ = read(payload([project(), project({ asset: "northwind.example", prefix: "nw", name: "Northwind" })]), {}, false);
-    const done = { now: 3, partial: false, before: 2, lastWeek: 8, move: null };
+    const done = { now: 3, notDone: 0, before: 2, lastWeek: 8, move: null };
     const [meadow, northwind] = boardWorkRows(board_.projects, undefined, new Map([["meadow.example", { done } as unknown as WorkWeeks]]));
     expect(meadow).toMatchObject({ done: 3, doneLastWeek: 8 });
     // Without a week reading: the read's closes, and no outline.
@@ -81,13 +81,13 @@ describe("work by project", () => {
 });
 
 describe("the week's closes in words", () => {
-  const week = (by: number | null) => ({ now: 5, partial: false, before: 5 - (by ?? 0), lastWeek: 9,
+  const week = (by: number | null) => ({ now: 5, notDone: 0, before: 5 - (by ?? 0), lastWeek: 9,
     move: by === null ? null : { by, direction: by > 0 ? "up" as const : by < 0 ? "down" as const : "flat" as const, verdict: "neutral" as const } });
 
   it("says more, fewer or as many against last week by today, and nothing without a comparison", () => {
-    expect(weekLine(week(3))).toBe("Closed 3 more this week than last week by today");
-    expect(weekLine(week(-1))).toBe("Closed 1 fewer this week than last week by today");
-    expect(weekLine(week(0))).toBe("Closed as many this week as last week by today");
+    expect(weekLine(week(3))).toBe("3 more done this week than last week by today");
+    expect(weekLine(week(-1))).toBe("1 fewer done this week than last week by today");
+    expect(weekLine(week(0))).toBe("As many done this week as last week by today");
     expect(weekLine(week(null))).toBeNull();
     expect(weekLine(null)).toBeNull();
   });

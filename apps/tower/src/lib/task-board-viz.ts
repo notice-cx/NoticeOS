@@ -44,8 +44,8 @@ export function queueItem({ project, task }: { project: BoardProject; task: Boar
  * live read `blocked` is the stored status and `open` excludes it, so the
  * Blocked figure, the status filter and the hatched segment count one set. A
  * project neither read reached is left out, never drawn as an empty queue.
- * Done is this calendar week's closes from the project's week reading, as the
- * Wall draws it, with last week's beside it; without one, the read's closes.
+ * Done is this calendar week's done closes from the project's week reading, as
+ * the Wall draws it, with last week's beside it; without one, the read's closes.
  */
 export function boardWorkRows(
   projects: readonly BoardProject[],
@@ -135,13 +135,13 @@ export function stripTotals(points: readonly BarStripPoint[], today: string): { 
   };
 }
 
-/** This week's closes against last week's over the same days, as one line
- * under In and out; null when there is nothing to compare. */
+/** Done this week against last week by the same point, as one line under In
+ * and out; null when there is nothing to compare. */
 export function weekLine(week: WorkDoneWeek | null | undefined): string | null {
   const move = week?.move ?? null;
   if (move === null) return null;
-  if (move.by === 0) return "Closed as many this week as last week by today";
-  return `Closed ${formatInt(Math.abs(move.by))} ${move.by > 0 ? "more" : "fewer"} this week than last week by today`;
+  if (move.by === 0) return "As many done this week as last week by today";
+  return `${formatInt(Math.abs(move.by))} ${move.by > 0 ? "more" : "fewer"} done this week than last week by today`;
 }
 
 /** Closed against filed over the days both measured: positive when the queue

@@ -17,9 +17,9 @@ const PANEL = "flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-bo
 /**
  * Is the work going out as fast as it comes in: the days' closings and
  * filings as two strips on one calendar, with the difference over the days
- * both were counted as the panel's one line, and this week's closes against
- * last week's under them, as the Wall draws them. A strip nobody can count
- * says so in place of its bars.
+ * both were counted as the panel's one line, and done this week against last
+ * week under them, as the Wall draws them. A strip nobody can count says so in
+ * place of its bars.
  */
 export function InOutPanel({ inOut, weeks = null, className }: { inOut: InOut; weeks?: WorkWeeks | null; className?: string }) {
   const closed = stripTotals(inOut.closed, inOut.today);
@@ -49,22 +49,22 @@ export function InOutPanel({ inOut, weeks = null, className }: { inOut: InOut; w
             <span>not in the saved snapshot</span>
           </div>
         )}
-        {/* The two weeks' closes as one bar: this week so far filled, where
+        {/* The two weeks' done as one bar: this week so far filled, where
             last week stood by today marked, last week's whole the ruled end. */}
         {weeks && week && week.now !== null && week.lastWeek !== null ? (
           <div className="flex flex-col gap-1.5" data-tasks-week="">
             <div className="flex items-baseline justify-between gap-3 text-xs text-muted-foreground">
-              <span className="font-medium">Closed this week</span>
+              <span className="font-medium">Done this week</span>
               <span className="whitespace-nowrap tabular-nums">
-                <b className="text-sm font-semibold text-foreground">{formatInt(week.now)}{week.partial ? "+" : ""}</b> · {weekDaysIn(weeks.daysIn)}
+                <b className="text-sm font-semibold text-foreground">{formatInt(week.now)}</b> · {weekDaysIn(weeks.daysIn)}
               </span>
             </div>
             <PaceBar
               value={week.now}
-              label="Closed this week"
+              label="Done this week"
               previousAtSameDay={week.before}
               previousTotal={week.lastWeek}
-              previousLabel="Closed last week"
+              previousLabel="Done last week"
               tone="text-milestone"
               format={formatInt}
               showValue={false}

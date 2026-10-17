@@ -11,7 +11,7 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { answerSteps, choiceSteps, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
-import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
+import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
 export class HostedTaskRefused extends Error {
@@ -377,7 +377,7 @@ export function createHostedTaskExecutor(options) {
                 return await admission.withAdmission(action, { requestedWorkspaceId: workspaceId, correlationId: 'task-executor' }, proof, async (first) => {
                     checkpoint(life);
                     if (snapshot.operation.kind === 'snapshot' && (first.principalKind !== 'workspace-service'
-                        || ![beadsClosedSince(Date.now()), beadsClosedSince(Date.now() - 30_000)].includes(snapshot.operation.closedSince)))
+                        || ![beadsClosesSince(Date.now()), beadsClosesSince(Date.now() - 30_000)].includes(snapshot.operation.closedSince)))
                         fail();
                     // The task client lets only a task's holder close it. A service closes
                     // for the agent it named; a person or an agent closes only its own.

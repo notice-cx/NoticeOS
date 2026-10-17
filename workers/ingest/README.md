@@ -574,6 +574,10 @@ close was not done carries `resolution` (`wont-do`, `duplicate`,
 `duplicateOf`; a closed item without one was done. An entry of the optional
 `recentWork` list is a claim, a close (with the same `resolution` when it was
 not done) or a pick (`kind: "chosen"`, with the pick's `option` and `label`).
+The optional `closes` (`{since, items: [{at, resolution?}]}`) lists every close
+the poller's closed read returned from the UTC day `since` on, which is what the
+Tower counts Done this week and Done last week from; a poller whose read held
+more than `BEADS_CLOSES_MAX` closes sends none.
 
 There is **no idempotent re-post**. Two snapshots a second apart are two
 observations of a changing hub, not the same event recorded twice, so every POST

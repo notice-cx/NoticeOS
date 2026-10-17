@@ -7,7 +7,7 @@ import net from 'node:net';
 import { createHash, randomBytes } from 'node:crypto';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { WORKSPACE_SESSION_HEADER, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
-import { beadsClosedSince, beadsPollArgs } from './task-snapshot-summary.mjs';
+import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { createHostedTaskExecutor, HostedTaskRefused } from './hosted-task-executor.mjs';
 import { HumanDecisionRefused, TaskStateRefused, TaskStoreFailed } from './hosted-task-command.mjs';
 
@@ -654,9 +654,9 @@ function snapshotExecutor(f) {
 }
 
 test('snapshot executes the ordinary fixed read batch in one owned profile with fresh admission for every command', () => fixture(async f => {
-  const result = await snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) }));
-  const reads = Object.values(beadsPollArgs('.', beadsClosedSince(Date.now())));
-  assert.deepEqual(Object.keys(result), Object.keys(beadsPollArgs('.', beadsClosedSince(Date.now()))));
+  const result = await snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) }));
+  const reads = Object.values(beadsPollArgs('.', beadsClosesSince(Date.now())));
+  assert.deepEqual(Object.keys(result), Object.keys(beadsPollArgs('.', beadsClosesSince(Date.now()))));
   const commands = (await f.commands()).filter(row => !row.args.includes('sql') && row.args[0] !== '--version');
   assert.deepEqual(commands.map(row => row.args), reads.map(argv => ['--sandbox', '--readonly', '--json', '--actor=' + PERSON, ...argv.slice(2)]));
   assert.equal(new Set(commands.map(row => row.home)).size, 1);
@@ -666,10 +666,10 @@ test('snapshot executes the ordinary fixed read batch in one owned profile with 
 
 test('snapshot required read failure stays failed and a between-read revoke cannot produce a stale photograph', () => fixture(async f => {
   await f.control({ failBlocked: true });
-  const result = await snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) }));
+  const result = await snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) }));
   assert.equal(result.blocked.code, 1); assert.equal(result.blocked.stdout, '');
   f.state.onDirectory = () => { if (f.state.directoryCalls > 20) f.state.active = false; };
-  await refused(() => snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) })));
+  await refused(() => snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) })));
   assert.equal(f.state.active, false);
 }));
 
@@ -701,11 +701,11 @@ test('a close past an open blocker runs forced, after its own read finds no othe
 }));
 
 test('snapshot refuses nonservice principals and expanded historical windows before directory or credentials', () => fixture(async f => {
-  await refused(() => f.executor.execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) })));
+  await refused(() => f.executor.execute(request(), A, task({ kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) })));
   await refused(() => snapshotExecutor(f).execute(request(), A, task({ kind: 'snapshot', closedSince: '2000-01-01' })));
   const demo = createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: A, workspaceStatus: async () => 'active' });
   await refused(() => createHostedTaskExecutor({ ...f.options, admission: demo }).execute(request(), A,
-    task({ kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) })));
+    task({ kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) })));
   assert.equal(f.state.directoryCalls, 0); assert.equal(f.state.resolves, 0);
   assert.deepEqual(await f.commands(), []);
 }));
@@ -743,7 +743,7 @@ test('reads verifies one owned profile once and admits and resolves the project 
 
 test('reads runs only reads, stops at a revoked or rebound caller, and nothing outlives its profile', () => fixture(async f => {
   for (const operation of [{ kind: 'create', title: 'not dispatched' }, { kind: 'close', taskId: 'tt-a', reason: 'no' },
-    { kind: 'snapshot', closedSince: beadsClosedSince(Date.now()) }]) {
+    { kind: 'snapshot', closedSince: beadsClosesSince(Date.now()) }]) {
     await refused(() => f.executor.reads(request(), A, P, run => run(operation)));
   }
   assert.equal((await f.commands()).some(row => row.args.includes('create') || row.args.includes('close')), false);

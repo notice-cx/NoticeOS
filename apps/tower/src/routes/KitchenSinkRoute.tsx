@@ -2103,7 +2103,7 @@ const systemNoPulse: SystemData = {
 const demoWorkWeeks: WorkWeeks = {
   weekStart: "2026-06-22",
   daysIn: 2,
-  done: { now: 3, partial: false, before: 2, lastWeek: 6, move: { by: 1, direction: "up", verdict: "good" } },
+  done: { now: 3, notDone: 1, before: 2, lastWeek: 6, move: { by: 1, direction: "up", verdict: "good" } },
   waiting: { now: 1, before: 1, added: 1, move: { by: 0, direction: "flat", verdict: "neutral" } },
   urgent: { now: 3, before: 2, added: 1, move: { by: 1, direction: "up", verdict: "bad" } },
   inProgress: { now: 2, before: 3, added: 1, move: { by: -1, direction: "down", verdict: "neutral" } },
@@ -2114,7 +2114,7 @@ const demoWorkWeeks: WorkWeeks = {
 const quietWorkWeeks: WorkWeeks = {
   weekStart: "2026-06-22",
   daysIn: 2,
-  done: { now: 0, partial: false, before: 0, lastWeek: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  done: { now: 0, notDone: 0, before: 0, lastWeek: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
   waiting: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
   urgent: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },
   inProgress: { now: 0, before: 0, added: 0, move: { by: 0, direction: "flat", verdict: "neutral" } },

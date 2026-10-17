@@ -2,3 +2,6 @@
 /** The ordinary task snapshot input shape, shared by native pollers and the
  * validated Worker writer. These facts grant no workspace authority. */
 export const BEADS_HANDOFF_KINDS = ['query', 'finding', 'page', 'alert'];
+/** The most closes one project's `closes` carries. A poller whose read held
+ * more sends none, so the week counts read as unknown rather than short. */
+export const BEADS_CLOSES_MAX = 5000;

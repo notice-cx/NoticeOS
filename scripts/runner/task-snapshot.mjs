@@ -1,4 +1,4 @@
-import { beadsClosedSince, beadsPollArgs, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
+import { beadsClosedSince, beadsClosesSince, beadsPollArgs, beadsProjectError, summarizeBeadsProject } from '../task-snapshot-summary.mjs';
 export * from '../task-snapshot-summary.mjs';
 // runner/task-snapshot.mjs — the task-board snapshot: once a minute the runner
 // reads every saved project through `bd` (read-only) and files one snapshot at
@@ -22,7 +22,7 @@ import { checkBeadsHub, parseBeadsProjects, runBd } from './task-hub.mjs';
  * is where the operator changes it.
  */
 export async function collectBeadsSnapshot({ projects, run, nowMs = Date.now(), repoRoot = HOME_ROOT }) {
-  const closedSince = beadsClosedSince(nowMs);
+  const reach = { closedSince: beadsClosedSince(nowMs), closesSince: beadsClosesSince(nowMs) };
   const entries = [];
   for (const project of projects) {
     if (project.unavailableReason) {
@@ -30,7 +30,7 @@ export async function collectBeadsSnapshot({ projects, run, nowMs = Date.now(), 
       continue;
     }
     const repoDir = path.resolve(repoRoot, project.repo);
-    const args = beadsPollArgs(repoDir, closedSince);
+    const args = beadsPollArgs(repoDir, reach.closesSince);
     const results = {};
     let failed = null;
     for (const [key, argv] of Object.entries(args)) {
@@ -43,7 +43,7 @@ export async function collectBeadsSnapshot({ projects, run, nowMs = Date.now(), 
         break;
       }
     }
-    entries.push(failed ?? summarizeBeadsProject(project, results));
+    entries.push(failed ?? summarizeBeadsProject(project, results, reach));
   }
   return { capturedAt: new Date(nowMs).toISOString(), projects: entries };
 }
