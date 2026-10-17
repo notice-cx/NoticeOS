@@ -12,7 +12,8 @@
 // its own producer is sending is the outage. Tolerant is not lossy: an absent
 // count is stored absent, never defaulted to 0.
 
-import { BEADS_CLOSES_MAX, BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
+import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
+import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
 import type { BeadsIssueInput, BeadsEpicInput, BeadsCountsInput, BeadsProjectInput, BeadsPanelReviewInput, BeadsHandoffInput, BeadsSnapshotInput, BeadsHandoffKind, BeadsWorkerInput, BeadsWorkEventInput } from '@noticeos/contract/task-snapshot';
