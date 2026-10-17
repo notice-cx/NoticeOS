@@ -17,7 +17,7 @@ The Sites page shows which sites need your attention.
 
 | Column | What it holds |
 |---|---|
-| **Site** | its name, and under it its status: **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track**, coloured only when it is a problem |
+| **Site** | its name, and under it its status: **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track**, **Retired**, coloured only when it is a problem |
 | **People a day** | the last four weeks as a line, and the latest finished day's count |
 | **Yesterday** | yesterday's revenue and its change on the same day a week before |
 | **Share of month** | the site's part of the month's revenue so far |
@@ -70,6 +70,8 @@ Each site has three switches:
 The switches are on every row of **Arrange** on the Sites page, on the **Sites** card of **Settings** > **TV dashboard**, and on the site's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
 
 A switch nobody has set follows the site's lifecycle stage: on for every stage except **Retired**, and off for a retired site. A switch you set stays as you set it when the site's stage changes, so a site you take off the TV stays off after you restore it.
+
+A retired site that is shown reads **Retired** wherever it is: its status on Home, the Sites page, the TV and its own page, a **Retired** chip beside its name in **Arrange**, on the **Sites** card and in the TV editor's site lists, and **· Retired** after its project's name in the Tasks project list. It is never counted among the sites that need you: not in the Sites page's summary or status bar, not in Home's count of what is broken or its **Problems**, and not in the TV's loop or problems. Its alerts stay on **Alerts** and its tasks on the Tasks board. Restoring it to another stage turns every switch you did not set back on.
 
 A site whose switches are off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money.
 

@@ -46,7 +46,7 @@ export function SiteArrangeDemo() {
   const one = SITES[0]!;
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <Example label="Four sites: drag, arrows and switches">
+      <Example label="Four sites, one retired: drag, arrows and switches">
         <Live />
       </Example>
       <div className="flex flex-col gap-6">

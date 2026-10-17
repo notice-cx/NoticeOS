@@ -1,5 +1,6 @@
 import { ArrowDown, ArrowRight, ArrowUp } from "lucide-react";
 import { Link } from "react-router-dom";
+import { isRetired } from "@shared/asset-setup";
 import { siteShownOn } from "@shared/site-display";
 import { ShownOnSwitches, useSiteArrange } from "@/components/SiteArrange";
 import { KnobRow } from "@/components/KnobRow";
@@ -66,6 +67,11 @@ export function WhereItShowsCard({ assetId }: { assetId: string }) {
             busy={arrange.busy}
             onSwitch={arrange.onSwitch}
           />
+          {isRetired(site.status) ? (
+            <p className="m-0 text-xs leading-snug text-muted-foreground" data-where-it-shows-retired>
+              A retired site shows nowhere until you turn a switch on.
+            </p>
+          ) : null}
           <Link
             to={SITES_ARRANGE_ITEM.to}
             className="inline-flex min-h-11 items-center gap-1 self-start text-xs font-medium text-foreground underline-offset-4 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring sm:min-h-0"

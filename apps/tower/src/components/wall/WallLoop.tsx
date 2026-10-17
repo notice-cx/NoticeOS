@@ -1,4 +1,5 @@
 import { Brain, Gavel, Hammer, Radar, Scale } from "lucide-react";
+import { isRetired } from "@shared/asset-setup";
 import { sourceReadings, type ConnectionReads } from "@shared/connection-status";
 import type { WallPayload } from "@shared/wall";
 import { FlowGraph, type FlowEdge, type FlowNode } from "@/components/viz/FlowGraph";
@@ -19,13 +20,16 @@ const EDGES: readonly FlowEdge[] = [
 
 /** The five stages from what the payload and the connection reads know. */
 export function loopNodes(data: Pick<WallPayload, "assets" | "attention" | "operator">, connections: ConnectionReads, nowMs: number): FlowNode[] {
-  const readings = data.assets.flatMap((asset) => sourceReadings(asset.id, asset.dataSources, connections, nowMs));
+  // A retired site is in none of the counts, even on a TV that shows it.
+  const watched = data.assets.filter((asset) => !isRetired(asset.status));
+  const retired = new Set(data.assets.filter((asset) => isRetired(asset.status)).map((asset) => asset.id));
+  const readings = watched.flatMap((asset) => sourceReadings(asset.id, asset.dataSources, connections, nowMs));
   const owed = readings.filter((reading) => reading.kind !== "not-using" && reading.kind !== "not-applicable");
   const live = owed.filter((reading) => reading.kind === "working" || reading.kind === "collecting").length;
   const failing = owed.filter((reading) => reading.kind === "failing").length;
-  const counted = data.assets.filter((asset) => asset.work);
+  const counted = watched.filter((asset) => asset.work);
   const inProgress = counted.reduce((sum, asset) => sum + (asset.work?.inProgress ?? 0), 0);
-  const outcomes = data.attention.filter((item) => item.ruleId === "watch-window-closed").length;
+  const outcomes = data.attention.filter((item) => item.ruleId === "watch-window-closed" && !retired.has(item.asset)).length;
   const waiting = operatorWaiting(data.operator, nowMs);
   const more = waiting?.partial ? "+" : "";
   const waitingKnown = waiting !== null && !(waiting.count === 0 && (waiting.partial || waiting.stale));

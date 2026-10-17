@@ -92,6 +92,18 @@ describe("the loop", () => {
     expect(unknown.decide).toMatchObject({ caption: "for you to decide · unknown" });
     expect(unknown.decide?.value).toBeUndefined();
   });
+
+  it("counts a retired site in none of its stages, even on a TV that shows it", () => {
+    const retired = { ...asset("c.example", WORK), status: "retired" };
+    const outcome = (id: number, site: string) => ({ id, asset: site, ruleId: "watch-window-closed" }) as unknown as Parameters<typeof loopNodes>[0]["attention"][number];
+    const nodes = byId(loopNodes({
+      assets: [asset("a.example", WORK), asset("b.example", WORK), retired],
+      attention: [outcome(1, "a.example"), outcome(2, "c.example")],
+      operator: null,
+    }, NO_READS, NOW));
+    expect(nodes.act).toMatchObject({ value: "4" });
+    expect(nodes.learn).toMatchObject({ value: "1", caption: "outcomes ready" });
+  });
 });
 
 describe("the work chart", () => {

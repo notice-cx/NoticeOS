@@ -33,6 +33,11 @@ describe("siteShownOn", () => {
     expect(siteSwitchesSet(site("b.example", "retired"), display)).toEqual({ list: true });
   });
 
+  it("brings a retired site back everywhere when it is restored, when no switch was set", () => {
+    expect(siteShownOn(site("a.example", "retired"), {})).toEqual({ list: false, tv: false, work: false });
+    expect(siteShownOn(site("a.example", "live"), {})).toEqual({ list: true, tv: true, work: true });
+  });
+
   it("keeps a hand-set switch through a stage move both ways", () => {
     const display = { "a.example": { tv: true } };
     expect(siteShownOn(site("a.example", "retired"), display).tv).toBe(true);

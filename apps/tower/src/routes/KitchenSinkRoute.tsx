@@ -4367,7 +4367,7 @@ export function KitchenSinkRoute() {
           {/* The sites in their order with each site's switches, as Arrange,
               Settings and a site's Settings tab draw them, and the line a drag
               draws before the drop. */}
-          <Section title="SiteArrange / ShownOnSwitches / DropLine (four sites, saves paused, one site's switches, a drop line)">
+          <Section title="SiteArrange / ShownOnSwitches / RetiredChip / DropLine (four sites, one retired, saves paused, one site's switches, a drop line)">
             <SiteArrangeDemo />
           </Section>
 

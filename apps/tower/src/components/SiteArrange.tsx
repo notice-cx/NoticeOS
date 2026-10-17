@@ -4,7 +4,9 @@ import {
   monitorForElements,
 } from "@atlaskit/pragmatic-drag-and-drop/adapter/element-adapter";
 import { combine } from "@atlaskit/pragmatic-drag-and-drop/utils/combine";
-import { ArrowDown, ArrowUp, Check, EyeOff, GripVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, Check, CircleSlash2, EyeOff, GripVertical } from "lucide-react";
+import { ASSET_STATUS_LABEL } from "@shared/asset-detail";
+import { isRetired } from "@shared/asset-setup";
 import { useEffect, useRef, useState } from "react";
 import {
   SHOWN_ON,
@@ -17,6 +19,7 @@ import {
 } from "@shared/site-display";
 import { changesetSlug } from "@shared/changeset";
 import { DropLine } from "@/components/DropLine";
+import { StateChip } from "@/components/StateChip";
 import { Button } from "@/components/ui/button";
 import { pillChoiceClass, pillChoiceStateClass } from "@/components/ui/pill";
 import { useStructuralSave } from "@/hooks/useConfigSave";
@@ -228,7 +231,10 @@ function SiteArrangeRow({
         <GripVertical className="size-4" />
       </span>
       <span className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground">{formatInt(place)}</span>
-      <span className="min-w-0 flex-1 break-words text-sm font-medium text-foreground">{site.displayName}</span>
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="min-w-0 break-words text-sm font-medium text-foreground">{site.displayName}</span>
+        {isRetired(site.status) ? <RetiredChip site={site.id} /> : null}
+      </span>
       <ShownOnSwitches
         site={site}
         shown={shown}
@@ -268,6 +274,19 @@ function SiteArrangeRow({
         />
       ) : null}
     </li>
+  );
+}
+
+/** A retired site's stage, with the switched-off mark the sidebar gives it:
+ * its switches are off because of it until one is turned on. */
+export function RetiredChip({ site }: { site: string }) {
+  return (
+    <StateChip
+      tone="na"
+      glyph={<CircleSlash2 className="size-3" aria-hidden />}
+      label={ASSET_STATUS_LABEL.retired}
+      subject={`stage:${site}`}
+    />
   );
 }
 

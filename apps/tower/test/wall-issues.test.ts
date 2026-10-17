@@ -160,6 +160,24 @@ describe("the Wall's issue list", () => {
     expect(issues[0]).toMatchObject({ site: "Northwind", assets: ["northwind.example"] });
   });
 
+  it("counts nothing about a retired site: its own alerts, its share of a group, its late report", () => {
+    const retired = asset("acorn.example", "Acorn Atlas", { status: "retired", pulseReceivedAt: ago(9 * 24 * HOUR) });
+    const issues = wallIssues({
+      assets: [asset("meadow.example", "Meadow Board"), asset("northwind.example", "Northwind"), retired],
+      attention: [
+        homeDown("acorn.example", "Acorn Atlas", 30),
+        homeDown("meadow.example", "Meadow Board", 20),
+        neverReported([["acorn.example", "Acorn Atlas"], ["northwind.example", "Northwind"]]),
+      ],
+      connections: NO_READS,
+      nowMs: NOW,
+    });
+    expect(issues.map((issue) => issue.assets)).toEqual([["meadow.example"], ["northwind.example"]]);
+    // The group narrowed to its one watched member names that site.
+    expect(issues[1]).toMatchObject({ site: "Northwind" });
+    expect(siteMark(issues, "acorn.example")).toBeNull();
+  });
+
   it("marks a failing source by its short name, once for every site it fails on", () => {
     const credential: CredentialSummary = {
       provider: "google", source: "store", fields: [], assetsHeld: [], missingFields: [], auth: null, metadata: null,

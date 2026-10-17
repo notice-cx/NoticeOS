@@ -99,6 +99,13 @@ export function isSettingUp(status: string): boolean {
   return SETUP_STAGES.has(status);
 }
 
+/** Is this site retired? Nobody watches it: it is shown nowhere until a
+ * switch is turned on (`siteShownOn`), and never counted among the sites
+ * that need the operator. */
+export function isRetired(status: string): boolean {
+  return status === "retired";
+}
+
 /** A source is settled once it is connected (whatever its current health),
  * switched off or not applicable. Not connected is still owed, and Unknown —
  * a monitoring read that has not answered — is not proof that it is done. */

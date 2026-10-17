@@ -31,6 +31,7 @@ import {
   orderSites,
   siteLines,
   visitorsAnswerFigure,
+  watchedLines,
   type SiteLine,
   type SitesOrder,
 } from "@/lib/sites-index";
@@ -274,9 +275,13 @@ export function AssetsRoute() {
 }
 
 /** The page's answer: how many sites need the operator, by the one health
- * word, and which ones. */
-function sitesAnswer(lines: readonly SiteLine[]): { key: string; line: string; detail: ReactNode } {
+ * word, and which ones. A retired site is counted in neither part. */
+function sitesAnswer(listed: readonly SiteLine[]): { key: string; line: string; detail: ReactNode } {
+  const lines = watchedLines(listed);
   const noun = siteNoun(lines.length);
+  if (lines.length === 0) {
+    return { key: "retired", line: `${formatInt(listed.length)} ${siteNoun(listed.length)} retired`, detail: undefined };
+  }
   const offTrack = lines.filter((line) => line.health.key === "off-track");
   const atRisk = lines.filter((line) => line.health.key === "at-risk");
   const settingUp = lines.filter((line) => line.health.key === "setting-up");

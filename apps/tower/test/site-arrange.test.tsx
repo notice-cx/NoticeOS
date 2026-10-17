@@ -127,6 +127,9 @@ describe("Arrange on the Sites page", () => {
     expect(checked("Home and Sites list for Northwind")).toBe("false");
     expect(checked("TV for Northwind")).toBe("true");
     for (const label of ["Home and Sites list", "TV", "Work this week"]) expect(checked(`${label} for Fern Index`)).toBe("false");
+    // A retired site reads Retired beside its name; the others carry no stage.
+    expect(container.querySelector('[data-site-arrange-row="ferns.example"]')).toHaveTextContent("Retired");
+    expect(container.querySelector('[data-site-arrange-row="meadow.example"]')).not.toHaveTextContent("Retired");
   });
 
   it("opens from the Sites page's Arrange and from its hidden count, and keeps the order and the stage", () => {
@@ -205,6 +208,21 @@ describe("Where it shows, on a site's Settings tab", () => {
     expect(screen.getByRole("link", { name: /Arrange the sites/u })).toHaveAttribute("href", "/assets?arrange=1");
     fireEvent.click(screen.getByRole("button", { name: "Move Northwind down" }));
     await waitFor(() => expect(calls[0]).toMatchObject({ url: "/api/assets/northwind.example/order", body: { to: "ferns.example" } }));
+    expect(document.querySelector("[data-where-it-shows-retired]")).toBeNull();
+  });
+
+  it("says of a retired site that it shows nowhere until a switch is on", () => {
+    stubFetch();
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <WhereItShowsCard assetId="ferns.example" />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    expect(screen.getByText("3rd of 3")).toBeInTheDocument();
+    expect(document.querySelector("[data-where-it-shows-retired]")).toHaveTextContent("A retired site shows nowhere until you turn a switch on.");
+    for (const switchEl of screen.getAllByRole("switch")) expect(switchEl).toHaveAttribute("aria-checked", "false");
   });
 });
 

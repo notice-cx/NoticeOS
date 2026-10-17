@@ -43,7 +43,7 @@ Home shows three things, in this order: how the business is doing, what is broke
 
 ## States and labels
 
-- A site's status is one of **Setting up**, **On track**, **Monitor only**, **At risk** and **Off track**. Only **At risk** and **Off track** are coloured.
+- A site's status is one of **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track** and **Retired**. Only **At risk** and **Off track** are coloured. A retired site's problems are not counted or listed on Home; they stay on Alerts.
 - **est.** marks revenue as an estimate until it is reconciled.
 - A missing figure is shown as a label, never drawn as zero: **not reported yet**, **no revenue**, **no visitors reported**.
 - **Nothing is broken.** means there is no open problem anywhere. Monitoring is still running.

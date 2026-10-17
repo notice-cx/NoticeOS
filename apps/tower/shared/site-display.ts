@@ -7,6 +7,7 @@
 // `siteShownOn` is the one reading every screen uses; `shownOnChange` is the
 // one write that flips one switch, with its exact way back.
 
+import { isRetired } from "./asset-setup";
 import type { FileJsonDeleteOp, FileJsonInsertOp, FileJsonSetOp, JsonValue } from "./changeset";
 import { toPointer } from "./changeset";
 
@@ -44,7 +45,7 @@ export interface DisplayedSite {
 
 /** What a switch nobody set reads as: on, except for a retired site. */
 export function shownByDefault(status: string): boolean {
-  return status !== "retired";
+  return !isRetired(status);
 }
 
 /** Where a site shows: each switch as the operator set it, else its stage's

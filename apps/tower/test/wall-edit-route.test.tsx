@@ -191,8 +191,8 @@ function payload(wall: WallConfig | unknown | null = null): WallPayload {
   };
 }
 
-function renderEditor(wall: WallConfig | unknown | null = null, sites?: SiteDisplay) {
-  const read = payload(wall);
+function renderEditor(wall: WallConfig | unknown | null = null, sites?: SiteDisplay, assets?: AssetCard[]) {
+  const read = { ...payload(wall), ...(assets ? { assets } : {}) };
   state.wall = sites === undefined ? read : { ...read, dashboard: { ...read.dashboard, sites } };
   // A data router, not `MemoryRouter`: the page's unsaved-changes guard is
   // react-router's own blocker, which only exists on one.
@@ -743,6 +743,20 @@ describe("the selected widget's settings", () => {
     expect(filter).toHaveTextContent("Off on the TV by its own setting");
     expect(within(filter).getByRole("checkbox", { name: /Meadow Board/u })).toBeChecked();
     expect(filter).toHaveTextContent("Every site");
+  });
+
+  it("reads a retired site Retired in a widget's list, off the TV by its stage until its switch is on", () => {
+    const retired = ASSETS.map((asset) => (asset.id === "northwind.example" ? { ...asset, status: "retired" } : asset));
+    const off = renderEditor(null, undefined, retired);
+    fireEvent.click(widget("sites"));
+    const filter = () => document.querySelector("[data-wall-asset-filter]") as HTMLElement;
+    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeDisabled();
+    expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
+    off.unmount();
+    renderEditor(null, { "northwind.example": { tv: true } }, retired);
+    fireEvent.click(widget("sites"));
+    expect(within(filter()).getByRole("checkbox", { name: /Northwind/u })).toBeEnabled();
+    expect(filter()).toHaveTextContent(/Northwind\s*Retired/u);
   });
 
   it("draws a site off Work this week by its own setting unticked on the Work widget alone", () => {

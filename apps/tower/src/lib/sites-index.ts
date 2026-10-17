@@ -4,6 +4,7 @@
 // its data sources, with the orderings the page offers. Every figure comes
 // from the derivation Home and the Wall already use; a figure nobody reported
 // stays null, never a zero.
+import { isRetired } from "@shared/asset-setup";
 import type { ConnectionReads } from "@shared/connection-status";
 import { sitePath } from "@shared/first-run";
 import type { AssetCard, PortfolioBand, SeriesPoint } from "@shared/wall";
@@ -30,6 +31,7 @@ export const HEALTH_RANK: Readonly<Record<SiteHealthKey, number>> = {
   "setting-up": 2,
   "monitor-only": 1,
   "on-track": 0,
+  retired: -1,
 };
 
 export const HEALTH_KEYS: readonly SiteHealthKey[] = (Object.keys(HEALTH_RANK) as SiteHealthKey[]).sort(
@@ -131,7 +133,7 @@ const COMPARE: Record<Exclude<SitesOrder, "seed">, (a: SiteLine, b: SiteLine) =>
 };
 
 /** Retired sites sit at the foot of every ordering, as the sidebar keeps them. */
-const retiredLast = (a: SiteLine, b: SiteLine) => Number(a.card.status === "retired") - Number(b.card.status === "retired");
+const retiredLast = (a: SiteLine, b: SiteLine) => Number(isRetired(a.card.status)) - Number(isRetired(b.card.status));
 
 export function orderSites(lines: readonly SiteLine[], order: SitesOrder): SiteLine[] {
   const compare = order === "seed" ? null : COMPARE[order];
@@ -139,13 +141,19 @@ export function orderSites(lines: readonly SiteLine[], order: SitesOrder): SiteL
 }
 
 /** How many sites wear each health word, worst first, leaving out the words
- * no site wears. */
+ * no site wears. A retired site is in no part: nobody watches it. */
 export function healthSplit(lines: readonly SiteLine[]): { key: SiteHealthKey; word: string; count: number }[] {
-  return HEALTH_KEYS.map((key) => ({
+  return HEALTH_KEYS.filter((key) => key !== "retired").map((key) => ({
     key,
     word: SITE_HEALTH[key].word,
     count: lines.filter((line) => line.health.key === key).length,
   })).filter((part) => part.count > 0);
+}
+
+/** The sites a count of who needs the operator is taken over: every listed
+ * site but a retired one. */
+export function watchedLines(lines: readonly SiteLine[]): SiteLine[] {
+  return lines.filter((line) => !isRetired(line.card.status));
 }
 
 /** Yesterday's visitors across the sites, with the change on the same weekday

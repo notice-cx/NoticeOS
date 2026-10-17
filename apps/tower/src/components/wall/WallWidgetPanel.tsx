@@ -1,7 +1,9 @@
 import { Trash2 } from "lucide-react";
 import type { CountdownConfig, DashboardRefusal } from "@shared/dashboard";
 import type { AssetCard } from "@shared/wall";
+import { isRetired } from "@shared/asset-setup";
 import { siteShownOn, type SiteDisplay } from "@shared/site-display";
+import { RetiredChip } from "@/components/SiteArrange";
 import {
   WALL_WIDGET_LIBRARY,
   wallLayoutWidgets,
@@ -411,8 +413,11 @@ function AssetFilter({
                   disabled={disabled || offBy(asset) !== null}
                   onChange={() => toggle(asset.id)}
                 />
-                <span className="flex min-w-0 flex-col">
-                  <span className="break-words">{asset.displayName}</span>
+                <span className="flex min-w-0 flex-col items-start gap-0.5">
+                  <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+                    <span className="break-words">{asset.displayName}</span>
+                    {isRetired(asset.status) ? <RetiredChip site={asset.id} /> : null}
+                  </span>
                   {offBy(asset) === null ? null : (
                     <span className="text-muted-foreground" data-wall-asset-off-words>{offBy(asset)}</span>
                   )}

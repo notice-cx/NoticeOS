@@ -426,6 +426,16 @@ describe("/assets — sites hidden by their own switch", () => {
     expect(on.container.querySelector("[data-assets-hidden]")).toBeNull();
   });
 
+  it("counts a listed retired site in neither the answer nor the bar, and reads it Retired", () => {
+    const retired = ASSETS.map((card) => (card.id === "meadow.example" ? { ...card, status: "retired" } : card));
+    const { container } = renderAssets("/assets", retired, { "meadow.example": { list: true } });
+    expect(row(container, "meadow.example")).toHaveTextContent("Retired");
+    expect(row(container, "meadow.example")).not.toHaveTextContent("Off track");
+    // Northwind at risk, of the three watched sites.
+    expect(container.querySelector("[data-sites-answer]")).toHaveTextContent("1 of 3 sites at risk");
+    expect(container.querySelector("[data-health-split]")).not.toHaveTextContent("Retired");
+  });
+
   it("says every site is hidden rather than that there are none", () => {
     const { container } = renderAssets("/assets", ASSETS.slice(0, 2), { "meadow.example": { list: false }, "northwind.example": { list: false } });
     expect(screen.getByText("Every site is hidden")).toBeInTheDocument();
