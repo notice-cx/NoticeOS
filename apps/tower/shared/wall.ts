@@ -8,6 +8,7 @@ import {
   type ReportingCoverage,
 } from "@noticeos/contract/reporting";
 import { INTEGRATION_CADENCE_HOURS } from "@noticeos/contract/integration-health";
+import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type { AnnotationItem } from "./annotations";
 import type { FlagReading } from "./alert-language";
 import type { CollectionVerification } from "./integrations";
@@ -675,6 +676,10 @@ export interface AssetCard {
    * for one panel day are one landing, which is why this is a day and not a
    * write timestamp. null when none has landed. */
   latestPanelDate: string | null;
+  /** The light and dark icons this site's home page declares, from the newest
+   * read that reached the page, with when it was read; null when no read has
+   * reached it yet. Absent on an older payload, which means the same. */
+  icons?: SiteIcons | null;
 }
 
 /**

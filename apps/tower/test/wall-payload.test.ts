@@ -2511,6 +2511,72 @@ describe("buildWallPayload — the card's work slice", () => {
   });
 });
 
+describe("buildWallPayload — the card's site icons", () => {
+  let ctx: TestStore;
+  beforeEach(async () => {
+    ctx = await createTestStore();
+    await seed(ctx);
+  });
+
+  async function storeIconRead(asset: string, readAt: string, outcome: string, light: string | null, dark: string | null) {
+    await ctx.call.write((tx) =>
+      tx.execute(
+        `INSERT INTO noticeos.asset_icons (workspace_id, asset_id, read_at, outcome, light_url, dark_url)
+         VALUES ($1::uuid, $2, $3::timestamptz, $4, $5, $6)`,
+        [tx.workspaceId, asset, readAt, outcome, light, dark],
+      ),
+    );
+  }
+
+  it("carries each site's newest read that reached its page, and null for a site never read", async () => {
+    await storeIconRead("meadow.example", "2026-07-03T04:00:00.000Z", "read", "https://meadow.example/old.png", null);
+    await storeIconRead("meadow.example", "2026-07-04T04:00:00.000Z", "read",
+      "https://meadow.example/brand/icon-32.png", "https://meadow.example/brand/icon-32-dark.png");
+    // This morning the site did not answer: yesterday's icons stand.
+    await storeIconRead("meadow.example", "2026-07-05T04:00:00.000Z", "unreachable", null, null);
+    await storeIconRead("northwind.example", "2026-07-05T04:00:00.000Z", "no-icon", null, null);
+
+    const cards = new Map((await buildWallPayload(ctx.call, OPTIONS)).assets.map((card) => [card.id, card]));
+
+    expect(cards.get("meadow.example")!.icons).toEqual({
+      light: "https://meadow.example/brand/icon-32.png",
+      dark: "https://meadow.example/brand/icon-32-dark.png",
+      readAt: "2026-07-04T04:00:00.000Z",
+      outcome: "read",
+    });
+    expect(cards.get("northwind.example")!.icons).toEqual({
+      light: null,
+      dark: null,
+      readAt: "2026-07-05T04:00:00.000Z",
+      outcome: "no-icon",
+    });
+    expect(cards.get("pebble.example")!.icons).toBeNull();
+  });
+
+  it("builds every card with no icons on a store the icon migration has not reached", async () => {
+    await storeIconRead("meadow.example", "2026-07-04T04:00:00.000Z", "read", "https://meadow.example/icon.svg", null);
+    // The store as one without the table: its lookup finds nothing.
+    const statements: string[] = [];
+    const recorded = recordingStore(ctx.call, statements);
+    const unmigrated: WorkspaceStore = {
+      ...recorded,
+      read: (work) => recorded.read((tx) => work({
+        ...tx,
+        query: (text, params) => tx.query(text.replace("to_regclass('noticeos.asset_icons')", "to_regclass('noticeos.no_such_table')"), params),
+      })),
+    };
+
+    const wall = await buildWallPayload(unmigrated, OPTIONS);
+
+    expect(wall.assets.map((card) => [card.id, card.icons])).toEqual([
+      ["meadow.example", null],
+      ["northwind.example", null],
+      ["pebble.example", null],
+    ]);
+    expect(statements.filter((sql) => sql.includes("FROM noticeos.asset_icons"))).toEqual([]);
+  });
+});
+
 describe("panelReviewState — four states over one clock", () => {
   const PANEL_DAY = "2026-07-01";
   const DUE = "2026-07-08T06:00:00.000Z";
