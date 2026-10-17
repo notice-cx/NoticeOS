@@ -13,6 +13,7 @@ import { ga4MinuteBuckets } from "@noticeos/contract";
 import type {
   AssetCard, AttentionItem, CardDataSource, PortfolioBand, SeriesPoint, SystemBand, WallPayload, WorkSummary,
 } from "@shared/wall";
+import { weekMove, type WorkWeeks } from "@shared/work";
 
 /** 12:30 PM PT on a Tuesday; the journey fixes the browser clock here. */
 export const WALL_FIXTURE_NOW = "2026-09-22T19:30:00.000Z";
@@ -61,8 +62,29 @@ function sources(overrides: Partial<Record<string, CardDataSource["state"]>> = {
   });
 }
 
+/** A site's week, two days in (Monday 09-21 to today): about two sevenths
+ * of its trailing week's closes so far, last week a little more, and one
+ * more blocked than a week ago wherever it has any blocked. */
+function weeks(doing: number, blocked: number, closed: number): WorkWeeks {
+  const now = Math.round((closed * 2) / 7);
+  const before = Math.round(closed / 4);
+  const lastWeek = closed + Math.ceil(closed / 8);
+  const state = (count: number, earlier: number, metric: "waiting" | "urgent" | "inProgress" | "blocked") =>
+    ({ now: count, before: earlier, added: Math.max(0, count - earlier), move: weekMove(metric, count, earlier) });
+  return {
+    weekStart: "2026-09-21",
+    daysIn: 2,
+    done: { now, partial: false, before, lastWeek, move: weekMove("done", now, before) },
+    waiting: state(1, 0, "waiting"),
+    urgent: state(0, 0, "urgent"),
+    inProgress: state(doing, doing, "inProgress"),
+    blocked: state(blocked, Math.max(0, blocked - 1), "blocked"),
+  };
+}
+
 const work = (open: number, high: number, doing: number, blocked: number, closed: number, p: number[]): WorkSummary => ({
   open, highPriority: high, inProgress: doing, blocked, closedRecent: closed, priorities: p, capturedAt: iso(9 * MINUTE),
+  weeks: weeks(doing, blocked, closed),
 });
 const ZERO = { currency: 'USD', revenue: 0, cost: 0, net: 0 };
 const NO_TREND = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };

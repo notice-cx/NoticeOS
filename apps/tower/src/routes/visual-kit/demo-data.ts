@@ -1,6 +1,7 @@
 // Invented figures for the visual kit's gallery, shaped like a six-site
 // portfolio on a bad afternoon. Sites live on the reserved `.example` domain.
 import type { SeriesPoint } from "@shared/wall";
+import type { WorkWeeks } from "@shared/work";
 import type { Incident } from "@/components/viz/IncidentList";
 import type { PortfolioRow } from "@/components/viz/PortfolioRows";
 import type { QueueItem } from "@/components/viz/DecisionQueue";
@@ -75,13 +76,25 @@ export const QUEUE: QueueItem[] = [
 ];
 
 export const WORK: WorkFlowRow[] = [
-  { id: "plume", name: "Plume Studio", done: 58, inProgress: 4, ready: 167, blocked: 9, urgent: 14 },
-  { id: "mosaic", name: "Mosaic Finder", done: 19, inProgress: 2, ready: 61, blocked: 3, urgent: 5 },
-  { id: "lantern", name: "Lantern Works", done: 4, inProgress: 1, ready: 12, blocked: 0, urgent: 2 },
-  { id: "acorn", name: "Acorn Atlas", done: 2, inProgress: 1, ready: 9, blocked: 0, urgent: 0 },
-  { id: "ripple", name: "Ripple Index", done: 1, inProgress: 0, ready: 6, blocked: 0, urgent: 1 },
-  { id: "summit", name: "Summit", done: 5, inProgress: 2, ready: 13, blocked: 1, urgent: 4 },
+  { id: "plume", name: "Plume Studio", done: 58, doneLastWeek: 71, inProgress: 4, ready: 167, blocked: 9, urgent: 14 },
+  { id: "mosaic", name: "Mosaic Finder", done: 19, doneLastWeek: 15, inProgress: 2, ready: 61, blocked: 3, urgent: 5 },
+  { id: "lantern", name: "Lantern Works", done: 4, doneLastWeek: 6, inProgress: 1, ready: 12, blocked: 0, urgent: 2 },
+  { id: "acorn", name: "Acorn Atlas", done: 2, doneLastWeek: 2, inProgress: 1, ready: 9, blocked: 0, urgent: 0 },
+  { id: "ripple", name: "Ripple Index", done: 1, doneLastWeek: 0, inProgress: 0, ready: 6, blocked: 0, urgent: 1 },
+  { id: "summit", name: "Summit", done: 5, doneLastWeek: 3, inProgress: 2, ready: 13, blocked: 1, urgent: 4 },
 ];
+
+/** The six projects' week, three days in: done ahead of last week by today,
+ * the inbox and blocked grown, in progress level. */
+export const WORK_WEEKS: WorkWeeks = {
+  weekStart: "2026-10-12",
+  daysIn: 3,
+  done: { now: 89, partial: false, before: 64, lastWeek: 97, move: { by: 25, direction: "up", verdict: "good" } },
+  waiting: { now: 4, before: 2, added: 3, move: { by: 2, direction: "up", verdict: "bad" } },
+  urgent: { now: 26, before: 29, added: 2, move: { by: -3, direction: "down", verdict: "good" } },
+  inProgress: { now: 10, before: 10, added: 4, move: { by: 0, direction: "flat", verdict: "neutral" } },
+  blocked: { now: 13, before: 9, added: 6, move: { by: 4, direction: "up", verdict: "bad" } },
+};
 
 export const MONEY: HomeMoney = {
   period: "2026-10",
