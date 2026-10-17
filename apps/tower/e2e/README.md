@@ -248,13 +248,17 @@ Fixture-only HTTP controls are available on **that isolated port**:
   project, as a fresh install does, so no task screen shows until this runs;
   `POST /__journey/tasks-snapshot` alone files what the runner would with the
   projects saved at that moment (none, on a fresh fixture).
+- `POST /__journey/choice-task`: add `jt-pick`, a question waiting on the
+  operator with three options in its metadata (`JOURNEY_CHOICES` in
+  `fixtures.ts`), the second recommended, and file the task snapshot.
 - `POST /__journey/reset`: discard the in-memory fixture and return to empty.
 
 The fixture's `bd` answers the task lane's reads and its operator writes:
 `gate resolve`, `human respond`, `human dismiss`, `create`, `close`, and the
-`comments add` and `update` an answer on a task that is not a decision runs to
-hand the task back to ready work; `taskCommands` in the status journal records
-each argv.
+`comments add` and `update` an answer or a pick on a task that is not a
+decision runs to hand the task back to ready work (`update --metadata` merges
+the keys it is given, as `bd` does, which records a pick); `taskCommands` in
+the status journal records each argv.
 
 These controls are not imported into or registered by the production server.
 Stopping the fixture process discards its data. `node --test

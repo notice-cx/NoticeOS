@@ -1,7 +1,7 @@
 import { formatSeriesDate } from "../src/lib/format";
 import type { Locator, Page } from "@playwright/test";
 import { test, expect } from "./journey-test";
-import { DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
+import { CHOICE_TASK, DESKTOP_ONLY, JOURNEY_ASSET, JOURNEY_CHOICES, JOURNEY_CORE_PROJECT, JOURNEY_KEY, JOURNEY_NOW, JOURNEY_SITE, JOURNEY_TIME_ZONE, REFUSED_GATE } from "./fixtures";
 import { measureWallFit, wallFitVerdict } from "../../../scripts/wall-fit-measure.mjs";
 import { wallLayoutWidgets, type WallConfig } from "../../../scripts/wall-layout.mjs";
 import { WALL_FEED_POLL_MS, WALL_FEED_TV_ROWS, type WallFeedPayload } from "@shared/wall-feed";
@@ -1917,6 +1917,73 @@ test("several approvals are decided in one action: one Undo, each reaches the ta
   const resolved = (await status()).taskCommands.map((argv) => argv.slice(2)).filter((argv) => argv[0] === "gate" && argv[1] === "resolve");
   expect(resolved.map((argv) => argv[2]).sort()).toEqual([...approvals].sort());
   expect(resolved.every((argv) => argv.includes("--actor"))).toBe(true);
+  await assertNoPageOverflow(page);
+});
+
+// A question an agent filed with three options is one press from its row in
+// Your decisions. Undo takes the first press back; the second reaches the task
+// client once its window closes (the pick recorded, a comment, the hand-back
+// to ready work with the human label off), and the task's page then shows the
+// pick as a fact with the options inert.
+test("a question with choices is picked in one press from its row, undone, picked again, and shown as the pick on its page", async ({ page }, testInfo) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
+  await page.goto(`/tasks?project=${JOURNEY_ASSET}`);
+  const status = async () => (await (await page.request.get("/__journey/status")).json()) as {
+    tasks: { id: string; status: string; labels: string[]; assignee: string | null; metadata: Record<string, unknown> | null }[];
+    taskCommands: string[][];
+  };
+  const row = page.locator(`[data-inbox-row="${CHOICE_TASK}"]`);
+  const group = row.getByRole("group", { name: JOURNEY_CHOICES.question });
+  await expect(group).toBeVisible();
+  await expect(row).toContainText("needs your choice");
+  const options = group.locator("button[data-choice-option]");
+  await expect(options).toHaveCount(3);
+  expect(await options.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-choice-option")))).toEqual(["b", "a", "c"]);
+  await expect(options.first()).toContainText("Recommended");
+  // Each option is a 44 px target; on a phone they stack, each as wide as the others.
+  const boxes = await options.evaluateAll((nodes) => nodes.map((node) => {
+    const box = node.getBoundingClientRect();
+    return { x: Math.round(box.x), y: Math.round(box.y), width: Math.round(box.width), height: box.height };
+  }));
+  for (const box of boxes) expect(box.height).toBeGreaterThanOrEqual(44);
+  if (testInfo.project.name === "mobile") {
+    expect(new Set(boxes.map((box) => box.x)).size, "one column").toBe(1);
+    expect(new Set(boxes.map((box) => box.width)).size, "full width each").toBe(1);
+    expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y);
+  }
+  await assertNoPageOverflow(page);
+
+  await keyboardActivate(page, group.getByRole("button", { name: "(a) Keep the old page", exact: true }));
+  const undo = page.locator("[data-sonner-toast]").filter({ hasText: "Chose (a) Keep the old page" });
+  await expect(undo).toBeVisible();
+  await expect(row).toHaveCount(0);
+  await undo.getByRole("button", { name: "Undo" }).click();
+  await expect(group).toBeVisible();
+
+  await group.getByLabel("Note").fill("Keep the redirect for a year.");
+  await keyboardActivate(page, group.getByRole("button", { name: "(b) Redirect to the new page", exact: true }));
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: "Chose (b) Redirect to the new page" })).toBeVisible();
+  await expect(row).toHaveCount(0);
+  // Nothing is written inside the Undo window.
+  expect((await status()).tasks.find((task) => task.id === CHOICE_TASK)!.metadata).not.toHaveProperty("noticeos_choice");
+  await expect.poll(async () => {
+    const picked = (await status()).tasks.find((task) => task.id === CHOICE_TASK)!;
+    return [picked.status, picked.labels.join(","), (picked.metadata?.noticeos_choice as { option?: string } | undefined)?.option ?? null];
+  }, { timeout: 20_000 }).toEqual(["open", "", "b"]);
+  const commands = (await status()).taskCommands.map((argv) => argv.slice(2).join(" "));
+  expect(commands.some((line) => line.startsWith(`comments add ${CHOICE_TASK} Chose (b) Redirect to the new page. Keep the redirect for a year.`))).toBe(true);
+  expect(commands.some((line) => line.startsWith(`update ${CHOICE_TASK} --status open --assignee  --if-assignee  --remove-label human`))).toBe(true);
+  expect(commands.filter((line) => line.startsWith("comments add") && line.includes("Chose (a)"))).toEqual([]);
+
+  // The page states the pick, who chose and when, with the options inert.
+  await page.goto(`/tasks/${CHOICE_TASK}`);
+  const header = page.locator("[data-page-header]");
+  await expect(header.getByRole("heading", { name: "Chose (b) Redirect to the new page" })).toBeVisible();
+  await expect(header.locator('[data-choice-option="b"][data-choice-chosen]')).toBeVisible();
+  await expect(header.locator("button[data-choice-option]")).toHaveCount(0);
+  await expect(header.getByText("Keep the redirect for a year.")).toBeVisible();
+  await expect(header.getByText("Needs your choice")).toHaveCount(0);
   await assertNoPageOverflow(page);
 });
 

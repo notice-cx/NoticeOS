@@ -463,6 +463,19 @@ FLOWS["inbox"] = {
   },
 };
 
+/** A question an agent filed with options, picked with one press on its row:
+ * the option is the commit, with nothing to open or type first. */
+FLOWS["inbox-choose"] = {
+  title: "Pick an option from the inbox (one press on the row)",
+  async setup(page, fixture) { await seedPopulated(page, fixture); await fixture("/__journey/choice-task"); await page.goto("/"); },
+  async run(w) {
+    await nav(w, "Tasks");
+    const row = w.page.locator('[data-inbox-row="jt-pick"]');
+    await w.click(row.getByRole("button", { name: "(b) Redirect to the new page", exact: true }), "Redirect to the new page", { role: "commit" });
+    await w.end("chosen");
+  },
+};
+
 /** Several decisions taken at once (Gmail, Linear): Select, Select all,
  * then one verb for every selected approval. */
 FLOWS["inbox-bulk"] = {
