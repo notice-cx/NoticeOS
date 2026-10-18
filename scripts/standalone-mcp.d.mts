@@ -4,6 +4,7 @@ import { type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { type StandaloneSite, type StandaloneTaskProject } from './standalone-tasks.mjs';
 import { type TaskClientEnvironment } from './task-client.mjs';
 import { type TaskProject } from './task-project-config.mjs';
+import type { OwnerAnswerVerifier } from './hosted-task-command.mjs';
 /** The origin every request to the endpoint is addressed to, whatever carried it. */
 export declare const STANDALONE_MCP_ORIGIN = "http://localhost";
 /** Names the agent a request acts as; without it, `agent`. */
@@ -31,6 +32,8 @@ export interface StandaloneMcp {
     close(): Promise<void>;
 }
 export interface StandaloneMcpOptions {
+    /** Trusted linked-conversation source adapter, absent when none is connected. */
+    readonly ownerAnswers?: OwnerAnswerVerifier;
     readonly databaseUrl?: string;
     /** Tests supply a store and receipts instead of a database. */
     readonly store?: Pick<PostgresStore, 'onlyWorkspace' | 'inWorkspace' | 'close'>;
@@ -46,4 +49,8 @@ export interface StandaloneMcpOptions {
     /** Where the installation publishes its site panels; tests name a fixture. */
     readonly panelRoot?: string;
 }
+/** Shared by the standalone Tower and MCP writers, across processes. */
+export declare function withStandaloneTaskMutation<T>(store: Pick<PostgresStore, 'inWorkspace'>, workspaceId: string, work: () => Promise<T>): Promise<T>;
+/** The local Tower opens the selected installation only while handling a write. */
+export declare function withLocalTaskMutation<T>(work: () => Promise<T>): Promise<T>;
 export declare function openStandaloneMcp(options: StandaloneMcpOptions): Promise<StandaloneMcp>;

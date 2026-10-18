@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
+import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory } from './standalone-tasks.mjs';
@@ -70,6 +71,25 @@ export function runTaskClient(argv, cwd, env = process.env, timeout = 30_000) {
         });
     });
 }
+/** Shared by the standalone Tower and MCP writers, across processes. */
+export function withStandaloneTaskMutation(store, workspaceId, work) {
+    return store.inWorkspace(workspaceId, async (tx) => {
+        const [lock] = await tx.query('SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS acquired', [`noticeos-task-mutations:${workspaceId}`]);
+        if (lock?.acquired !== true)
+            throw new Error('Tasks are being changed; retry this same request.');
+        return work();
+    });
+}
+/** The local Tower opens the selected installation only while handling a write. */
+export async function withLocalTaskMutation(work) {
+    const store = openStore(process.env[LOCAL_CONNECTION_VARIABLE] ?? '', { maxConnections: 1 });
+    try {
+        return await withStandaloneTaskMutation(store, await store.onlyWorkspace(), work);
+    }
+    finally {
+        await store.close();
+    }
+}
 export async function openStandaloneMcp(options) {
     const opened = options.store ? null : openStore(options.databaseUrl ?? '', { maxConnections: 2 });
     const store = options.store ?? opened;
@@ -88,7 +108,19 @@ export async function openStandaloneMcp(options) {
         } });
     const projects = options.projects ?? linkedProjects();
     const operations = createHostedTaskOperations({ admission, directory: standaloneTaskDirectory(projects, storeSites(store, workspaceId)),
-        executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)) }),
+        executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)),
+            withProjectMutation: (workspace, _project, work) => withStandaloneTaskMutation(store, workspace, work),
+            verifyOwnerAnswer: async (workspace, projectId, operation, task, comments) => {
+                if (!operation.source?.startsWith('comment:'))
+                    return await options.ownerAnswers?.(workspace, projectId, operation, task, comments) === true;
+                const project = (await projects()).find(entry => entry.projectId === projectId);
+                if (!project)
+                    return false;
+                // The Tower records a standalone person's comments with this same local identity.
+                const owner = await new Promise(resolve => execFile('git', ['config', 'user.name'], { cwd: project.cwd, timeout: 2000,
+                    encoding: 'utf8', maxBuffer: 4096 }, (error, stdout) => resolve(error ? '' : stdout.trim())));
+                return owner !== '' && operation.owner === owner;
+            } }),
         receipts: options.receipts ?? taskReceipts(opened) });
     const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
     const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;

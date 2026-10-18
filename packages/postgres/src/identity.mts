@@ -66,6 +66,8 @@ export interface Identity {
    * selected workspace; no email/account fields or foreign UUID lookup. The
    * bounded roster refuses over 1,000 members rather than returning a sample. */
   workspaceActors(workspaceId: string): Promise<readonly WorkspaceActor[]>;
+  /** Authority for an existing human-authored task answer; display names alone are not proof. */
+  isWorkspaceOwner(workspaceId: string, principalId: string): Promise<boolean>;
   /** The request's agent access token, or null: signed by this deployment's
    * key, issued here for its MCP endpoint, unexpired, and still backed by a
    * live consent and an enabled client. */
@@ -155,6 +157,12 @@ export async function openIdentity(input: IdentityOptions): Promise<Identity> {
           ORDER BY u.name, u.id LIMIT 1001`, [workspaceId]);
         if (rows.length > 1000) throw new IdentityRefused('Workspace actors unavailable');
         return Object.freeze(rows.map(row => Object.freeze({ principalId: row.principal_id, displayName: row.display_name })));
+      }),
+      isWorkspaceOwner: (workspaceId, principalId) => run(async () => {
+        if (!UUID.test(workspaceId) || !UUID.test(principalId)) return false;
+        const { rows } = await pool.query(`SELECT 1 FROM noticeos_identity.auth_member
+          WHERE organization_id=$1::uuid AND user_id=$2::uuid AND role='owner'`, [workspaceId, principalId]);
+        return rows.length === 1;
       }),
       agentToken: (request) => run(() => agentToken(request)),
       agentAuthority: (request, workspaceId) => run(async () => {

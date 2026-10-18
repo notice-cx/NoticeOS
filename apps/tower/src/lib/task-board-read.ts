@@ -33,6 +33,7 @@ export interface BoardTask extends WorkItem {
    * neither, so an inbox row built from it has no evidence to open. */
   description?: string;
   acceptance?: string;
+  dependencies?: LiveTask["dependencies"];
 }
 
 /** What one project contributes to the board's six counts. `urgent` is `null`
@@ -235,7 +236,11 @@ function buildProject(
 
   const tasks = liveRows(live);
   const active = tasks.filter((task) => task.status !== PARKED && task.status !== "closed");
-  const waiting = tasks.filter((task) => inboxAsk(task) !== null).sort(inboxOrder);
+  // An approval is the one question for its blocked parent. Its task remains
+  // accessible in All tasks, without a second competing inbox row.
+  const approvals = new Set(tasks.filter(task => isGate(task) && inboxAsk(task) !== null).map(task => task.id));
+  const waiting = tasks.filter((task) => inboxAsk(task) !== null
+    && !task.dependencies?.some(edge => edge.type === "blocks" && approvals.has(edge.id))).sort(inboxOrder);
   return {
     ...base,
     ok: true,

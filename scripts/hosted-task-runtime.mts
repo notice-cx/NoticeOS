@@ -12,6 +12,7 @@ import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { openStore, type PostgresStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { createBrowserRequestPolicy } from './browser-request-policy.mjs';
+import type { OwnerAnswerVerifier } from './hosted-task-command.mjs';
 
 export interface HostedTaskRuntimeOptions {
   readonly profile: 'hosted' | 'demo';
@@ -113,6 +114,9 @@ export function captureHostedTaskRuntimeOptions(input: HostedTaskRuntimeOptions)
  * Tower Worker's read-model MCP tools. Without it, MCP offers only tasks. */
 export interface HostedTaskRuntimeAdapters {
   readonly readModels?: (request: Request) => Promise<Response>;
+  /** Trusted linked-conversation lookup, checking owner identity, exact proposal,
+   * source linkage, quote and scope. Never fetched from an arbitrary caller URL. */
+  readonly ownerAnswers?: OwnerAnswerVerifier;
 }
 export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions, adapters: HostedTaskRuntimeAdapters = {}): Promise<HostedTaskRuntime> {
   if (adapters.readModels !== undefined && typeof adapters.readModels !== 'function') invalid();
@@ -139,6 +143,9 @@ export async function openHostedTaskRuntime(input: HostedTaskRuntimeOptions, ada
       : createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo as string,
         workspaceStatus: async () => (await facts.workspaceSummary(demo as string))?.status ?? null });
     const executor = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
+      verifyOwnerAnswer: async (workspaceId, projectId, operation, task, comments) => operation.source?.startsWith('comment:')
+        ? facts.isWorkspaceOwner(workspaceId, operation.owner ?? '')
+        : await adapters.ownerAnswers?.(workspaceId, projectId, operation, task, comments) === true,
       resolveTarget: async selected => {
         const found = targets.get(`${selected.workspaceId}/${selected.projectId}`);
         if (!found || Object.keys(found.mapping).some(key => found.mapping[key as keyof TaskProjectMapping] !== selected[key as keyof TaskProjectMapping])) return null;

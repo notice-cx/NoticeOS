@@ -6,6 +6,7 @@
 import { type IdentityOptions } from '../packages/postgres/src/identity.mjs';
 import { type TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import { type HostedTaskTarget, type HostedTaskExecutorOptions } from './hosted-task-executor.mjs';
+import type { OwnerAnswerVerifier } from './hosted-task-command.mjs';
 export interface HostedTaskRuntimeOptions {
     readonly profile: 'hosted' | 'demo';
     readonly trustedOrigin: string;
@@ -36,5 +37,8 @@ export declare function captureHostedTaskRuntimeOptions(input: HostedTaskRuntime
  * Tower Worker's read-model MCP tools. Without it, MCP offers only tasks. */
 export interface HostedTaskRuntimeAdapters {
     readonly readModels?: (request: Request) => Promise<Response>;
+    /** Trusted linked-conversation lookup, checking owner identity, exact proposal,
+     * source linkage, quote and scope. Never fetched from an arbitrary caller URL. */
+    readonly ownerAnswers?: OwnerAnswerVerifier;
 }
 export declare function openHostedTaskRuntime(input: HostedTaskRuntimeOptions, adapters?: HostedTaskRuntimeAdapters): Promise<HostedTaskRuntime>;

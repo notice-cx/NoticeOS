@@ -114,6 +114,11 @@ export declare const TASK_METADATA: Readonly<{
         name: "noticeos_duplicate_of";
         legacy: "noticeos_duplicate_of";
     }>;
+    /** Evidence and scope of the last task maintenance operation. Never grants authority by itself. */
+    maintenance: Readonly<{
+        name: "noticeos_maintenance";
+        legacy: "noticeos_maintenance";
+    }>;
 }>;
 /** The names only the server writes. A caller's metadata never carries them,
  * so no filer can forge who filed or closed a task and how, a write's

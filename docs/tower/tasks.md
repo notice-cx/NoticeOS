@@ -59,6 +59,33 @@ The board works on a new installation because it ships with the **System** proje
 - **File task** on a finding, from a site's Overview, opens the same composer prefilled from the finding; the finding then shows a link to the filed task.
 - **Add a task project**, on a site's Tasks tab, opens **Settings** > **Task projects**.
 
+## Answers and task maintenance
+
+An owner answer applies to the proposal and scope the owner reviewed. An agent
+can record an existing answer from the task or an explicitly linked
+conversation with `reconcile_task`. A short reply such as **A** or **yes, your
+recommendation** selects the matching option. A clear direction is recorded
+as written. An uncertain reply leaves the decision open for one focused
+clarification. A batch answer applies only to the tasks the owner named.
+
+An answered question leaves **Your decisions**. A decision closes; unfinished
+implementation returns to agent work without the old human label or
+assignment. The answer does not mark implementation complete. The inbox opens
+with five decisions and keeps the rest accessible. An open approval appears
+once for its blocked task; epic containers and recorded choices are excluded.
+
+Agents can retire completed, obsolete, explicitly superseded or duplicate
+requests with concrete evidence and a plain explanation, or return routine
+implementation work to agents. History retains the evidence and tasks can be
+reopened. Retiring an approval grants no permission to perform the action.
+Production reads and changes, spending, external messages, destructive actions
+and material business or policy commitments require explicit approval of the
+specific action and scope.
+
+An agent can release an abandoned assignment after checking that its holder
+stopped working and preserving its progress. Age alone does not release it.
+Blocked and parked work retain that state when an assignment is released.
+
 ## States and labels
 
 - A figure shown as **—** means the board could not read that project; it is never a zero. The summary line then shows **Couldn't read your decisions**.

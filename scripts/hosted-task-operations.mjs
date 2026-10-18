@@ -10,7 +10,7 @@ import { IDEMPOTENCY_KEY, TASK_RECEIPT_RESULT_BYTES } from '../packages/postgres
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, refusalFromState, TaskStateRefused } from './hosted-task-command.mjs';
+import { hostedTaskAction, HumanDecisionRefused, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 /** A write's key cannot be honored on this server: no receipt store is configured. */
 export class HostedTaskReceiptsUnavailable extends Error {
@@ -39,7 +39,7 @@ export const EDITABLE_TASK_FIELDS = Object.freeze(['status', 'priority', 'title'
     'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']);
 const STATUSES = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const ACTIVE = Object.freeze(['open', 'in_progress', 'blocked', 'deferred']);
-const RECEIPTED = ['create', 'update', 'comment', 'close'];
+const RECEIPTED = ['create', 'update', 'comment', 'close', 'maintain'];
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const DAY_MS = 86_400_000;
 /** The board's closed week, and the longest history a closed read may ask for. */
@@ -50,7 +50,7 @@ function invalid() { throw new Error('Hosted task operation refused'); }
 function tasksNamed(operation) {
     const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]
         : operation.kind === 'update' ? [operation.taskId, operation.parent]
-            : operation.kind === 'close' || operation.kind === 'dismiss' ? [operation.taskId, operation.duplicateOf]
+            : operation.kind === 'close' || operation.kind === 'dismiss' || operation.kind === 'maintain' ? [operation.taskId, operation.duplicateOf]
                 : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
                     : 'taskId' in operation ? [operation.taskId] : [];
     return [...new Set(ids.filter((id) => typeof id === 'string' && id !== ''))];
@@ -148,7 +148,7 @@ export function createHostedTaskOperations(options) {
             return await work();
         }
         catch (error) {
-            if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskStateRefused, TaskProjectRefused,
+            if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskMaintenanceRefused, TaskStateRefused, TaskProjectRefused,
                 HostedTaskReceiptsUnavailable].some(kind => error instanceof kind))
                 throw error;
             let cause = null;
@@ -322,11 +322,12 @@ export function createHostedTaskOperations(options) {
                 const actors = await actorsOf();
                 const ready = new Set(rows(await run({ kind: 'ready' })).map(row => record(row).id).filter((id) => typeof id === 'string'));
                 const shown = await run({ kind: 'show', taskId });
-                const task = toLiveTask(Array.isArray(shown) ? shown[0] : shown, ready);
+                const raw = record(Array.isArray(shown) ? shown[0] : shown);
+                const task = toLiveTask(raw, ready);
                 if (task.id !== taskId)
                     invalid();
                 const comments = rows(await run({ kind: 'comments', taskId })).map(toComment);
-                return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors };
+                return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors, proposal: taskProposal(raw) };
             }, taskId));
         },
         history(proof, workspaceId, projectId, taskId, limit) {
@@ -407,7 +408,7 @@ export function createHostedTaskOperations(options) {
                     return { status: 'done', value: await effect(filed), replayed: false };
                 }
                 const identity = Object.freeze({ principalId: context.principalId,
-                    operation: kind, idempotencyKey });
+                    operation: (kind === 'maintain' ? 'update' : kind), idempotencyKey });
                 const requestHash = createHash('sha256').update(`noticeos-task-write-v1:${canonical(request)}`).digest('hex');
                 const start = await receipts.start(workspaceId, { ...identity, projectId: request.projectId, requestHash }, randomUUID());
                 if (start.kind === 'conflict')

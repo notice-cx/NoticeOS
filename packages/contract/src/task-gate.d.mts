@@ -25,4 +25,5 @@ export declare function waitsOnPerson(task: {
     readonly status: string;
     readonly labels: readonly string[];
     readonly ready: boolean;
+    readonly choice?: unknown;
 }): boolean;

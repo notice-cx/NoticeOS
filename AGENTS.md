@@ -273,43 +273,22 @@ work: one hub, one database per asset, configured through the
 [task-project contract](config/beads.README.md). Public contributors need no
 access to a maintainer's private hub; follow [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Reach it through the NoticeOS MCP server's task tools when your client has
-them: the Tower serves them at `/api/mcp`, on a standalone installation to
-whoever reaches its Tower and in a hosted workspace after a sign-in;
-`pnpm os:mcp` serves them over stdio ([Connect an agent](docs/guides/connect-an-agent.md)).
-They name the same operations as the `bd` verbs below (`create_task`,
-`list_tasks` with `ready`, `claim_task`, `close_task`, `add_dependency`,
-`request_human_approval`) and answer every create or update with what lint
-finds missing. Without them, run `bd` in the checkout, or `pnpm os:bd --
-<command>` where this machine has no `bd`.
+Reach it through the NoticeOS MCP server's task tools: `list_workspaces`,
+`get_task_guide`, then `list_projects`. The task guide is the canonical workflow
+and task-quality policy. Never run `bd`, `bv` or `br` directly. If the tools are
+missing, ask the owner to reconnect the server with `/mcp`.
 
-- Found new work? File a task with `bd create` in the repo that owns it, never
-  a TODO comment, a follow-up list or a memory note.
-- Check open work with `bd ready` / `bd list`, never a doc; read `bd show`
-  before choosing. Claim an unblocked leaf with `bd update <id> --claim --actor
-  <agent>`, verify against its acceptance criteria, commit the completed piece,
-  close it with the commit hash and the evidence, then recheck the hub.
-- A finding you report but do not fix is filed first; the report cites the id.
-- How to write a task — title, description, acceptance, the `human` label,
-  epics and edges — is `TASK_QUALITY` in `scripts/hosted-task-mcp.mts`, the
-  one copy: the task tools send it to every connected agent in their server
-  instructions.
-- Work only the operator can do carries the `human` label (`bd human list` is
-  the inbox); a step that must block until approval is a `bd gate create
-  --type human` gate.
-
-`bd` is the only task CLI: never `br` (a different SQLite implementation that
-would fork a private store) and never `bv` (retired). A spoke's
-`.beads/config.yaml` has no `sync.remote`, plus `no-git-ops: true` and
-`import.auto: false`; if `bd` ever prints "no Dolt remote configured … repair:
-`bd dolt push`", fix the config and never run the printed repair. `bd` reaches
-the task server through Docker, so a sandboxed shell runs it with the sandbox
-off. The Tower's Tasks page is the live cross-project view; the hub is the
-source of truth.
+Use `reconcile_task` for an existing owner answer, evidence-backed retirement,
+a routine human-label correction or a checked abandoned assignment. The guide
+and tool schema define its source checks and evidence. A recorded answer
+resolves its matching decision; it does not prove implementation complete.
+Retiring an approval grants no permission to perform its action. Production
+access, spending, external messages, destructive changes and material business
+or policy commitments retain their explicit action-specific approval.
 
 ## Git policy
 
-`bd` never commits or pushes. The operator authorises separate commits for
+The task hub never commits or pushes. The operator authorises separate commits for
 completed, verified pieces of requested work without another prompt; stage only
 the intended changes; follow the
 [commit and PR title standard](CONTRIBUTING.md#commit-messages-and-pull-request-titles)

@@ -182,7 +182,7 @@ test('the standalone MCP endpoint serves its one workspace in full, with no cred
   // An agent is told why a person's decision refuses its change, and what it can do instead.
   const decided = (await result('close_task', { workspace: WORKSPACE, project: standaloneProjectId('example'), task: 'ex-gate',
     reason: 'Approved it myself', idempotency_key: 'local-close-0001' })).content[0].text;
-  assert.match(decided, /^refused: ex-gate is a person's decision, a gate or a task labelled human\. Only a person closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment\.$/u);
+  assert.match(decided, /^refused: ex-gate is a human request\. Use reconcile_task/u);
   // A project the catalog does not hold is named, with the one that holds the task's prefix.
   const [known] = (await result('list_projects', { workspace: WORKSPACE })).structuredContent.projects;
   assert.equal((await result('get_task', { workspace: WORKSPACE, project: standaloneProjectId('other'), task: 'ex-1' })).content[0].text,

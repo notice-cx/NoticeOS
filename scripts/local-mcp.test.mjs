@@ -6,7 +6,24 @@ import path from 'node:path';
 import test from 'node:test';
 import { main, parseOptions } from './local-mcp.mjs';
 import { chooseProject, main as bdMain } from './local-bd.mjs';
-import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient, storeSites } from './standalone-mcp.mjs';
+import { actorOf, linkedProjects, openStandaloneMcp, runTaskClient, storeSites, withStandaloneTaskMutation } from './standalone-mcp.mjs';
+
+const lockingStore = { inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ acquired: true }] }) };
+
+test('the Tower and MCP share a workspace mutation reservation and busy work never runs', async () => {
+  const queries = [];
+  let available = false, ran = 0;
+  const store = { inWorkspace: async (workspaceId, work) => work({ query: async (sql, params) => {
+    queries.push({ workspaceId, sql, params }); return [{ acquired: available }];
+  } }) };
+  await assert.rejects(withStandaloneTaskMutation(store, 'workspace-a', async () => { ran++; }), /retry/u);
+  assert.equal(ran, 0);
+  available = true;
+  assert.equal(await withStandaloneTaskMutation(store, 'workspace-a', async () => { ran++; return 'complete'; }), 'complete');
+  assert.equal(ran, 1);
+  assert.equal(queries[0].params[0], 'noticeos-task-mutations:workspace-a');
+  assert.equal(queries[0].sql, queries[1].sql);
+});
 import { standaloneProjectId } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
 import { openStore } from '../packages/postgres/src/store.mjs';
@@ -93,8 +110,8 @@ test('a request acts as the agent its header names, or as agent', () => {
 test('the endpoint serves the store\'s one workspace as the named agent, and the Tower\'s read models', async () => {
   const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], forwarded = [];
   let closed = false;
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; },
-    inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ id: 'example', displayName: 'Example', isOs: false }] }) },
+  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => { closed = true; },
+    inWorkspace: async (workspaceId, work) => work({ workspaceId, query: async () => [{ id: 'example', displayName: 'Example', isOs: false, acquired: true }] }) },
     receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
     run: async argv => { commands.push(argv); return { code: 0, stdout: argv.includes('lint') ? '{"results":null}' : '{"id":"ex-1"}' }; },
     tower: 'http://127.0.0.1:5173', fetch: async (url, init) => { forwarded.push([url, init.headers.get('x-noticeos-mcp-part')]); return Response.json({ jsonrpc: '2.0', id: 1, result: { structuredContent: { properties: [] } } }); } });
@@ -112,7 +129,7 @@ test('the endpoint serves the store\'s one workspace as the named agent, and the
   assert.deepEqual(forwarded, [['http://127.0.0.1:5173/api/mcp', 'read-models']]);
   await mcp.close();
   assert.equal(closed, true);
-  await assert.rejects(openStandaloneMcp({ store: { onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
+  await assert.rejects(openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => { throw new Error('no single workspace'); }, close: async () => { closed = 'again'; } } }),
     /no single workspace/u);
   assert.equal(closed, 'again', 'a store that names no workspace is closed');
 });
@@ -147,7 +164,7 @@ test('an agent\'s claim and close name its model, and its close records the agen
   const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [], CLOSED_AT = '2026-10-12T10:00:00Z';
   const row = status => ({ id: 'ex-1', title: 'Probe', status, issue_type: 'task', priority: 2, assignee: 'claude', labels: [],
     ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Done · abc1234' } : {}) });
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
     receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
     run: async argv => {
       commands.push(argv);
@@ -175,7 +192,7 @@ test('a close as a duplicate checks and links the other task first, then records
   let metadata = {};
   const row = (id, status) => ({ id, title: 'Probe', status, issue_type: 'task', priority: 2, assignee: '', labels: [], metadata,
     ...(status === 'closed' ? { closed_at: CLOSED_AT, close_reason: 'Same as ex-2' } : {}) });
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
     receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' },
       { projectId: standaloneProjectId('other'), asset: 'other', prefix: 'ot', cwd: '/spokes/other' }],
     run: async argv => {
@@ -225,7 +242,7 @@ test('a close as a duplicate checks and links the other task first, then records
 test('an agent\'s new tasks record the agent as their filer and the model it names, one at a time or several', async () => {
   const WORKSPACE = '5f42e967-bb21-4e9b-9c69-8b082e8491a6', commands = [];
   let filed = 0;
-  const mcp = await openStandaloneMcp({ store: { onlyWorkspace: async () => WORKSPACE, close: async () => {} },
+  const mcp = await openStandaloneMcp({ store: { ...lockingStore, onlyWorkspace: async () => WORKSPACE, close: async () => {} },
     receipts: memoryReceipts(Date.now), projects: async () => [{ projectId: standaloneProjectId('example'), asset: 'example', prefix: 'ex', cwd: '/spokes/example' }],
     run: async argv => {
       commands.push(argv);

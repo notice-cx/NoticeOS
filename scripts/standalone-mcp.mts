@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore, type PostgresStore } from '../packages/postgres/src/store.mjs';
 import { taskReceipts, type TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import { DEFAULT_TOWER_ORIGIN } from './dev-secrets.mjs';
+import { LOCAL_CONNECTION_VARIABLE } from './database-address.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createStandaloneTaskExecutor, standaloneProjectId, standaloneTaskDirectory,
@@ -19,6 +20,7 @@ import { readTaskProjects, type TaskProject } from './task-project-config.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createPanelOperations } from './panel-mcp.mjs';
 import { PANEL_REPORTS_ROOT } from './signal-panel-paths.mjs';
+import type { OwnerAnswerVerifier } from './hosted-task-command.mjs';
 
 /** The origin every request to the endpoint is addressed to, whatever carried it. */
 export const STANDALONE_MCP_ORIGIN = 'http://localhost';
@@ -85,6 +87,8 @@ export interface StandaloneMcp {
   close(): Promise<void>;
 }
 export interface StandaloneMcpOptions {
+  /** Trusted linked-conversation source adapter, absent when none is connected. */
+  readonly ownerAnswers?: OwnerAnswerVerifier;
   readonly databaseUrl?: string;
   /** Tests supply a store and receipts instead of a database. */
   readonly store?: Pick<PostgresStore, 'onlyWorkspace' | 'inWorkspace' | 'close'>;
@@ -96,6 +100,22 @@ export interface StandaloneMcpOptions {
   readonly fetch?: typeof globalThis.fetch;
   /** Where the installation publishes its site panels; tests name a fixture. */
   readonly panelRoot?: string;
+}
+
+/** Shared by the standalone Tower and MCP writers, across processes. */
+export function withStandaloneTaskMutation<T>(store: Pick<PostgresStore, 'inWorkspace'>, workspaceId: string, work: () => Promise<T>): Promise<T> {
+  return store.inWorkspace(workspaceId, async tx => {
+    const [lock] = await tx.query<{ acquired: boolean }>('SELECT pg_try_advisory_xact_lock(hashtextextended($1, 0)) AS acquired', [`noticeos-task-mutations:${workspaceId}`]);
+    if (lock?.acquired !== true) throw new Error('Tasks are being changed; retry this same request.');
+    return work();
+  });
+}
+
+/** The local Tower opens the selected installation only while handling a write. */
+export async function withLocalTaskMutation<T>(work: () => Promise<T>): Promise<T> {
+  const store = openStore(process.env[LOCAL_CONNECTION_VARIABLE] ?? '', { maxConnections: 1 });
+  try { return await withStandaloneTaskMutation(store, await store.onlyWorkspace(), work); }
+  finally { await store.close(); }
 }
 
 export async function openStandaloneMcp(options: StandaloneMcpOptions): Promise<StandaloneMcp> {
@@ -110,7 +130,17 @@ export async function openStandaloneMcp(options: StandaloneMcpOptions): Promise<
     } });
   const projects = options.projects ?? linkedProjects();
   const operations = createHostedTaskOperations({ admission, directory: standaloneTaskDirectory(projects, storeSites(store, workspaceId)),
-    executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)) }),
+    executor: createStandaloneTaskExecutor({ admission, projects, run: options.run ?? ((argv, cwd) => runTaskClient(argv, cwd)),
+      withProjectMutation: (workspace, _project, work) => withStandaloneTaskMutation(store, workspace, work),
+      verifyOwnerAnswer: async (workspace, projectId, operation, task, comments) => {
+        if (!operation.source?.startsWith('comment:')) return await options.ownerAnswers?.(workspace, projectId, operation, task, comments) === true;
+        const project = (await projects()).find(entry => entry.projectId === projectId);
+        if (!project) return false;
+        // The Tower records a standalone person's comments with this same local identity.
+        const owner = await new Promise<string>(resolve => execFile('git', ['config', 'user.name'], { cwd: project.cwd, timeout: 2000,
+          encoding: 'utf8', maxBuffer: 4096 }, (error, stdout) => resolve(error ? '' : stdout.trim())));
+        return owner !== '' && operation.owner === owner;
+      } }),
     receipts: options.receipts ?? taskReceipts(opened!) });
   const tower = options.tower ?? DEFAULT_TOWER_ORIGIN, fetch = options.fetch ?? globalThis.fetch;
   const panelRoot = options.panelRoot ?? PANEL_REPORTS_ROOT;

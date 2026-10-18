@@ -97,6 +97,13 @@ export async function openIdentity(input) {
                     throw new IdentityRefused('Workspace actors unavailable');
                 return Object.freeze(rows.map(row => Object.freeze({ principalId: row.principal_id, displayName: row.display_name })));
             }),
+            isWorkspaceOwner: (workspaceId, principalId) => run(async () => {
+                if (!UUID.test(workspaceId) || !UUID.test(principalId))
+                    return false;
+                const { rows } = await pool.query(`SELECT 1 FROM noticeos_identity.auth_member
+          WHERE organization_id=$1::uuid AND user_id=$2::uuid AND role='owner'`, [workspaceId, principalId]);
+                return rows.length === 1;
+            }),
             agentToken: (request) => run(() => agentToken(request)),
             agentAuthority: (request, workspaceId) => run(async () => {
                 if (!UUID.test(workspaceId))

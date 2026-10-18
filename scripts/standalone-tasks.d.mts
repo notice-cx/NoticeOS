@@ -2,6 +2,7 @@
 import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
+import { type OwnerAnswerVerifier } from './hosted-task-command.mjs';
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
     readonly projectId: string;
@@ -19,6 +20,9 @@ export interface StandaloneSite {
     readonly isOs: boolean | number;
 }
 export interface StandaloneTaskExecutorOptions {
+    readonly verifyOwnerAnswer?: OwnerAnswerVerifier;
+    /** All writers of a project share this reservation, including ordinary edits. */
+    readonly withProjectMutation?: <T>(workspaceId: string, projectId: string, work: () => Promise<T>) => Promise<T>;
     readonly admission: WorkspaceAdmission;
     /** Read for every call, so a project linked or unlinked since is seen. */
     readonly projects: () => Promise<readonly StandaloneTaskProject[]>;

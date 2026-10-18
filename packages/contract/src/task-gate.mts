@@ -43,8 +43,9 @@ export function waitsOnPerson(task: {
   readonly status: string;
   readonly labels: readonly string[];
   readonly ready: boolean;
+  readonly choice?: unknown;
 }): boolean {
   if (task.status === "deferred" || task.status === "closed") return false;
   const gate = task.issueType === "gate" || (task.awaitType ?? null) !== null;
-  return gate ? (task.awaitType ?? "human") === "human" : task.labels.includes("human") && task.ready;
+  return gate ? (task.awaitType ?? "human") === "human" : task.choice == null && task.issueType !== "epic" && task.labels.includes("human") && task.ready;
 }

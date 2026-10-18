@@ -23,11 +23,12 @@ import type {
 } from "../shared/tasks";
 import { isTaskId, TASKS_CLOSED_HISTORY_DAYS, TASKS_CLOSED_WINDOW_DAYS } from "../shared/tasks";
 import { TASK_METADATA } from "../../../packages/contract/src/task-metadata.mjs";
-import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
+import { readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, type TaskChoiceKey } from "../../../packages/contract/src/task-choices.mjs";
 import { TASK_RESOLUTIONS, isTaskResolution, type TaskResolution } from "../../../packages/contract/src/task-resolution.mjs";
-import { answerSteps, choiceSteps, closerMetadata, decisionRefusal, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
+import { choiceSteps, closerMetadata, decisionRefusal, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, type DecisionStep } from "../../../scripts/hosted-task-command.mjs";
 import { waitsOnPerson } from "../../../packages/contract/src/task-gate.mjs";
 import { toLiveTask, toEpic, toComment, taskRowText as text } from "../../../scripts/task-row.mjs";
+import { withLocalTaskMutation } from "../../../scripts/standalone-mcp.mjs";
 import {
   DEFAULT_REPO_ROOT,
   crossOrigin,
@@ -135,6 +136,7 @@ export interface BdResult {
 }
 
 export interface TaskLaneOptions {
+  withMutation?: <T>(work: () => Promise<T>) => Promise<T>;
   /** Trusted native configuration, never a request-controlled selector. */
   demoViewer?: DemoViewerDescriptor | null;
   /** The checkout a task project saved with the repository `.` runs in. */
@@ -151,6 +153,7 @@ export interface TaskLaneOptions {
 }
 
 interface Resolved {
+  withMutation?: TaskLaneOptions["withMutation"];
   repoRoot: string;
   readProjects: () => Promise<Spoke[]>;
   log: (line: string) => void;
@@ -204,6 +207,7 @@ function resolveOptions(options: TaskLaneOptions = {}): Resolved {
   const viewer = options.demoViewer == null ? null : validateDemoViewer(options.demoViewer);
   const run = options.run ?? defaultRun;
   return {
+    ...(options.withMutation ? { withMutation: options.withMutation } : {}),
     repoRoot: options.repoRoot ?? DEFAULT_REPO_ROOT,
     readProjects: options.readProjects ?? (() => readSpokes(options.repoRoot ?? DEFAULT_REPO_ROOT)),
     log: options.log ?? (() => {}),
@@ -795,6 +799,7 @@ function readDecisionTask(id: string, spoke: Spoke, opts: Resolved, extra: strin
 
 /** A decision refused by the task's own state, in the sentence the person reads. */
 function refusedDecision(error: unknown): never {
+  if (error instanceof TaskMaintenanceRefused) throw refuse(409, "task_refused", error.message);
   if (error instanceof TaskStateRefused) throw refuse(409, "task_refused", decisionRefusal(error) ?? `${error.taskId} cannot take this decision.`);
   throw error;
 }
@@ -822,8 +827,16 @@ function runDecisionSteps(steps: readonly DecisionStep[], spoke: Spoke, opts: Re
  * work for any agent. */
 function answerTask(id: string, response: string, spoke: Spoke, opts: Resolved): void {
   const operatorOpts = { ...opts, actor: opts.actor ?? operatorActor(opts.repoRoot) };
-  const issue = readDecisionTask(id, spoke, opts);
-  const steps = answerSteps({ kind: "respond", taskId: id, response }, issue);
+  let issue = readDecisionTask(id, spoke, opts);
+  let comments: unknown = [];
+  if (readTaskChoices(issue.metadata) !== null) {
+    issue = readDecisionTask(id, spoke, opts, ["--include-dependents"]);
+    comments = runVerb("comments", [id], spoke, opts).json;
+  }
+  let steps: readonly DecisionStep[] | null;
+  try {
+    steps = ownerResponseSteps({ kind: "respond", taskId: id, response }, issue, comments, operatorOpts.actor, opts.now().toISOString());
+  } catch (error) { refusedDecision(error); }
   if (steps === null) {
     respondToHuman(id, response, spoke, operatorOpts);
     return;
@@ -886,7 +899,8 @@ export async function handleTasksRequest(
   }
 
   try {
-    return await route(pathname, url, request, opts);
+    return await (request.method !== "GET" && opts.withMutation
+      ? opts.withMutation(() => route(pathname, url, request, opts)) : route(pathname, url, request, opts));
   } catch (err) {
     if (err instanceof Refused) return err.reply;
     const detail = err instanceof Error ? err.message : String(err);
@@ -973,6 +987,7 @@ export function taskLane(options: TaskLaneOptions = {}): Plugin {
       viteDevServer.middlewares.use(
         taskLaneMiddleware({
           ...options,
+          withMutation: options.withMutation ?? withLocalTaskMutation,
           log: options.log ?? ((line) => logger.info(`  [tasks] ${line}`)),
         }),
       );

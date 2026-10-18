@@ -4,9 +4,9 @@
  * same current admission. Results speak in tasks and comments; storage names
  * and command output never reach a client.
  *
- * Human decisions (respond, dismiss, resolve, choose) are not tools: write access
- * must not give an agent a route to answer its own question. An agent may
- * open a human gate; only a person resolves it. Writes that would repeat
+ * Direct decisions (respond, dismiss, resolve, choose) are not tools. An agent
+ * may record an existing scoped owner answer with its source, or maintain an
+ * obsolete request with evidence; neither permits inventing an owner answer. Writes that would repeat
  * their effect require an idempotency key so an agent can retry an
  * interrupted call safely; dependency and gate requests repeat harmlessly.
  * A created or changed task comes back with what lint finds missing, as
@@ -14,7 +14,7 @@
  */
 import { createHash } from 'node:crypto';
 import { HostedTaskReceiptsUnavailable, TaskProjectRefused, type HostedTaskOperations, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
-import { HOSTED_TASK_LIMITS, HumanDecisionRefused, sameActor, TaskStateRefused, TaskStoreFailed, type HostedTaskDependencyType, type HostedTaskLink,
+import { HOSTED_TASK_LIMITS, HumanDecisionRefused, MAINTENANCE_ACTIONS, sameActor, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, type TaskMaintenance, type HostedTaskDependencyType, type HostedTaskLink,
   type HostedTaskOperation, type HostedTaskStatus, type HostedTaskType, type TaskProjectName } from './hosted-task-command.mjs';
 import { AdmissionRefused } from './workspace-admission.mjs';
 import { GATE_REASON_MAX, gateReason, waitsOnPerson } from '../packages/contract/src/task-gate.mjs';
@@ -44,12 +44,14 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
   '- title: the outcome, in plain language.',
   '- description: plain labelled lines, unwrapped: WHAT, WHY with the numbers, WHERE as pointers that resolve in a repo (file paths, commits, doc sections), FIX. A bug also has a "## Steps to Reproduce" section.',
   '- acceptance: the proof that completes it, provable the day the work lands. Never "watch for N days": close on today\'s proof and name where a recurrence would show.',
-  '- Never cite a session, a transcript, an agent\'s report or a temporary file; cite the repo evidence under it.',
+  '- Implementation evidence cites the repo, commits and tests, never a session summary or temporary file. An existing owner answer cites its task comment or explicitly linked conversation, with the exact proposal and scope.',
   '- Work only a person can do (a decision, a credential, an admin step) carries the human label and is written for that person: the ask as the description\'s first line, technical notes last. When the person picks between options, pass them as choices: a question and two to six options keyed a, b, c… in order, each a one-line label with an optional detail, exactly one marked recommended. The Tower shows one button per option. A step that must wait for approval uses request_human_approval.',
   '- Too big for one working session: an epic with session-sized children. Three or more related tasks share an epic. depends_on only for a real blocking edge; related for the rest. Work waiting on a date is deferred with the reason.',
   '- Found work, including debt (two copies of one rule, a hardcoded value with a canonical source, half-done work), is a task, never a TODO comment, a list in a doc or a memory note. Claim before you build; close with the commit hash.',
   '- Before filing, search with list_tasks query for the title\'s key words, with no project to search every project. Work already filed gets a comment, never a second task; of two tasks already filed for one piece of work, close the later as duplicate with duplicate_of.',
   '- When nothing shipped, close_task takes a resolution: wont-do when the work will not be done, duplicate with duplicate_of when another task holds it, cant-reproduce when a bug does not happen again, already-handled when other work did it; the reason still cites the evidence: what decided it, the other task\'s id, what was tried, or what handled it.',
+  '- Human requests show the decision, one recommendation, the practical consequence and what proceeds after the answer. Reversible wording under established copy rules, internal refactoring, test repairs and backlog organization belong to agents within authorized work.',
+  '- Production access (reads included), spending, external messages, destructive actions and material business or policy commitments require explicit action-specific owner approval. Credentials, prerequisites and old approvals never grant a new action. Retiring a gate grants no permission.',
 ]);
 
 /** What the task tools gained lately, first in the guide so an agent that
@@ -57,6 +59,7 @@ export const TASK_QUALITY: readonly string[] = Object.freeze([
  * refusal: oldest first, each one line opening with its date, at most three
  * (a new entry drops the first). */
 export const WHATS_CHANGED: readonly string[] = Object.freeze([
+  '2026-10-17: reconcile_task records a verified owner answer against its proposal, retires obsolete requests with evidence, removes routine human labels and releases checked inactive assignments. Retirement grants no action permission.',
   '2026-10-17: create_task and update_task take choices; a person\'s pick or answer hands the task back to ready work, with choice on it; close_task takes resolution and duplicate_of.',
   '2026-10-17: list_tasks takes assignee ("me" for what you hold) and, with no project, lists every project; list_workspaces returns guideVersion; an object argument your client sends as text is read as JSON, and the reply\'s staleClient line names the fix: reconnect the noticeos server.',
 ]);
@@ -73,8 +76,11 @@ export const TASK_WORKFLOW: readonly string[] = Object.freeze([
   '4. comment_on_task with progress and evidence as the work moves.',
   '5. close_task with what shipped and its evidence (the commit hash or URL), naming your model.',
   '6. Found work goes to create_task, or create_tasks for several, in the project that owns it.',
-  '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. Only a person answers either, on Tasks in the Tower.',
+  '7. A decision, credential or admin step only a person can do: label the task human, with choices when the person picks one option. A step that must wait for approval: request_human_approval. The owner may answer on Tasks or in an explicitly linked conversation.',
   '8. A person\'s answer or pick on a task of yours takes off its human label and returns it to ready work, with the answer as a comment and the pick as choice; claim it again to carry on. A decision closes on the answer or pick instead.',
+  '9. Use get_task then reconcile_task to record an existing owner answer and its exact scope; do not ask the owner to close the task or release an old assignment. Match short replies to the proposal the owner saw. Apply a clearly scoped batch answer only to its named tasks. If ambiguous, ask one clarification only for the ambiguity.',
+  '10. With concrete evidence and a plain explanation, reconcile_task may close completed outcomes, obsolete requests, explicitly superseded decisions or duplicates that retain complete scope elsewhere; routine work loses its human label. Code existing does not prove a business decision was approved. Keep history; update_task can reopen a closed task.',
+  '11. Assignments are reservations: investigate an old assignment, verify its holder is no longer working and preserve progress before reconcile_task action release. Age alone never proves abandonment.',
   'These tools are the task interface: never run bd, bv or br in a project folder.',
 ]);
 /** What get_task_guide names in its description and the instructions point at. */
@@ -155,9 +161,10 @@ function projectRefusal({ projectId, taskId, project, owner }: TaskProjectRefuse
  * failing. */
 export function taskRefusal(error: unknown): McpToolError {
   if (error instanceof McpToolError) return error;
+  if (error instanceof TaskMaintenanceRefused) return new McpToolError(`refused: ${error.message}`);
   if (error instanceof HumanDecisionRefused) {
-    return new McpToolError(`refused: ${error.taskId} is a person's decision, a gate or a task labelled human. Only a person `
-      + 'closes it, takes off its human label or removes a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
+    return new McpToolError(`refused: ${error.taskId} is a human request. Use reconcile_task with an existing owner answer or concrete maintenance evidence. `
+      + 'An unresolved action-specific approval stays blocked; do not invent an answer or treat retirement as permission.');
   }
   if (error instanceof TaskStateRefused) return new McpToolError(stateRefusal(error));
   if (error instanceof TaskProjectRefused) return new McpToolError(projectRefusal(error));
@@ -519,7 +526,7 @@ async function current(context: ToolContext, projectId: string, taskId: string):
 /** An approval request as every reply shows it, saying plainly what it does to the task. */
 function approvalOf(taskId: string, gate: Record<string, unknown>): Record<string, unknown> {
   return { approval: { id: gate.id, status: gate.status, reason: gateReason(gate.description) }, held: true,
-    note: `${taskId} is out of ready work until a person approves ${String(gate.id)} on Tasks in the Tower.` };
+    note: `${taskId} waits for the owner’s scoped approval of ${String(gate.id)}. Record an existing answer with reconcile_task; never ask for the same approval again.` };
 }
 /** One create_tasks entry's own idempotency key: the call's key and the entry's
  * place, so a retried call replays each entry it already made. */
@@ -544,6 +551,43 @@ function readingText(tool: TaskTool): TaskTool {
 }
 
 export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
+  { name: 'reconcile_task', description: 'Record a verified existing owner answer, retire a completed/obsolete/superseded/duplicate human request, '
+      + 'remove a routine human label, or release a confirmed inactive assignment. Read get_task first and send its proposal snapshot. '
+      + 'Evidence and a plain explanation are required. Verify owner identity and the exact proposal in the linked source; never invent an answer. '
+      + 'For batch replies, call once per explicitly named task within the answered scope. '
+      + 'Retirement grants no permission; production reads/writes, spending, messages, destructive actions and material commitments still require explicit action-specific approval.',
+    inputSchema: schema({ project: PROJECT, task: TASK,
+      action: { type: 'string', enum: MAINTENANCE_ACTIONS },
+      proposal: { type: 'string', description: 'The exact proposal snapshot from get_task for the proposal the owner saw.' },
+      explanation: { type: 'string', maxLength: 800, description: 'Plain-language reason for this disposition.' },
+      evidence: { type: 'string', maxLength: 800, description: 'Concrete commit, task, test or source reference proving the reason; code alone never proves approval.' },
+      response: { type: 'string', maxLength: 1000, description: 'For answer: exact owner words. A, a recommendation reply or a clear free-text direction.' },
+      owner: { type: 'string', description: 'For answer: verified human author of the cited source, never the relaying agent.' },
+      source: { type: 'string', description: 'For answer: comment:<id> on this task, or an explicitly linked https:// or codex://threads/ conversation.' },
+      scope: { type: 'string', maxLength: 1000, description: 'For answer: exactly what the owner authorized. An approval gate requires its exact full Reason text.' },
+      duplicate_of: { type: 'string', description: 'For duplicate: open task retaining complete scope. Duplicate gates must match the full request.' },
+      holder: { type: 'string', description: 'For release: exact current assignee.' },
+      inactive: { type: 'boolean', description: 'For release: true only after checking the holder is no longer working; age alone is insufficient.' },
+      activity_check: { type: 'string', maxLength: 800, description: 'For release: activity evidence and how it was checked.' },
+      progress: { type: 'string', maxLength: 1000, description: 'For release: preserved progress, commits and remaining implementation.' },
+      model: MODEL, idempotency_key: IDEMPOTENCY }, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'idempotency_key']),
+    annotations: WRITE,
+    async run(context, args) {
+      only(args, ['project', 'task', 'action', 'proposal', 'explanation', 'evidence', 'response', 'owner', 'source', 'scope',
+        'duplicate_of', 'holder', 'inactive', 'activity_check', 'progress', 'model', 'idempotency_key']);
+      const operation: TaskMaintenance = defined({ kind: 'maintain' as const, taskId: task(args),
+        action: choice(args, 'action', MAINTENANCE_ACTIONS)!, proposal: textArg(args, 'proposal', 30000)!,
+        explanation: textArg(args, 'explanation', 800)!, evidence: textArg(args, 'evidence', 800)!, model: modelArg(args),
+        response: textArg(args, 'response', 1000, false), owner: textArg(args, 'owner', HOSTED_TASK_LIMITS.identifier, false),
+        source: textArg(args, 'source', 512, false), scope: textArg(args, 'scope', 1000, false),
+        duplicateOf: args.duplicate_of === undefined ? undefined : task(args, 'duplicate_of'),
+        holder: textArg(args, 'holder', HOSTED_TASK_LIMITS.identifier, false),
+        inactive: args.inactive as true | undefined, activityCheck: textArg(args, 'activity_check', 800, false),
+        progress: textArg(args, 'progress', 1000, false) });
+      const projectId = project(args);
+      const { replayed } = await write(context, projectId, operation, key(args), () => ({}));
+      return { task: await current(context, projectId, operation.taskId), replayed };
+    } },
   { name: 'list_projects', description: 'List the task projects in this workspace.',
     inputSchema: schema({}), annotations: READ,
     async run({ proof, workspaceId, operations }, args) {
@@ -630,7 +674,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       only(args, ['project', 'task']);
       const detail = await operations.task(proof, workspaceId, project(args), task(args));
       return { project: detail.project, readAt: detail.readAt, task: presentTask(detail.task as LiveTask, true),
-        comments: detail.comments };
+        comments: detail.comments, proposal: detail.proposal };
     } },
   { name: 'get_task_history', description: 'Read how one task changed, newest first.',
     inputSchema: schema({ project: PROJECT, task: TASK,
@@ -713,7 +757,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       created: made.map(({ index, id, replayed, approval }) => ({ index, id, replayed,
         ...(approval ? { approval: { id: approval.id, status: approval.status, reason: gateReason(approval.description) }, held: true } : {}),
         lint: lintOf(found, id, choiceAdvice(planned[index]!.operation)) })),
-      ...(made.some(entry => entry.approval) ? { note: 'A task with an approval is out of ready work until a person approves it on Tasks in the Tower.' } : {}),
+      ...(made.some(entry => entry.approval) ? { note: 'A task with an approval waits for the owner’s scoped approval. Record an existing answer with reconcile_task.' } : {}),
       ...(failed ? { failed, notAttempted: planned.length - made.length - 1,
         retry: 'Retry with the same idempotency_key and tasks to finish after a passing failure; tasks already filed are not repeated. '
           + 'To change a refused task, send it and the rest with a new key, naming filed tasks by id.' } : {}) };
@@ -790,7 +834,7 @@ export const TASK_MCP_TOOLS: readonly TaskTool[] = Object.freeze(([
       return { task: operation.taskId, dependsOn: operation.dependsOn, removed: true };
     } },
   { name: 'request_human_approval', description: 'Ask a person to approve before a task proceeds. This opens a gate, a separate item '
-      + 'that holds the task out of ready work until someone approves it on Tasks in the Tower. To ask without holding the task, comment '
+      + 'that holds the task out of ready work until the owner approves its scope. Record an existing answer with reconcile_task. To ask without holding the task, comment '
       + 'on it instead. Asking again with the same reason returns the open request.',
     inputSchema: schema({ project: PROJECT, task: TASK,
       reason: { type: 'string', maxLength: GATE_REASON_MAX, description: 'What the person is asked to approve.' } }, ['project', 'task', 'reason']),

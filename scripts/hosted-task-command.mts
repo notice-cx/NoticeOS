@@ -12,6 +12,50 @@ import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHO
   type TaskChoiceKey, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS, type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
 
+export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'] as const;
+export interface TaskMaintenance {
+  readonly kind: 'maintain';
+  readonly taskId: string;
+  readonly action: typeof MAINTENANCE_ACTIONS[number];
+  /** Exact proposal snapshot read by the agent, returned by get_task. */
+  readonly proposal: string;
+  readonly explanation: string;
+  readonly evidence: string;
+  readonly model?: string;
+  readonly duplicateOf?: string;
+  /** Owner's exact words, their identity, the source and the authorized scope. */
+  readonly response?: string;
+  readonly owner?: string;
+  readonly source?: string;
+  readonly scope?: string;
+  /** Checked inactivity and preserved progress; elapsed age alone is insufficient. */
+  readonly holder?: string;
+  readonly inactive?: true;
+  readonly activityCheck?: string;
+  readonly progress?: string;
+}
+/** Server-composed source authority. Request fields and presentation actor lists
+ * never establish that an answer came from the owner. */
+export type OwnerAnswerVerifier = (workspaceId: string, projectId: string, operation: TaskMaintenance,
+  task: Readonly<Record<string, unknown>>, comments: unknown) => Promise<boolean>;
+
+/** Compare a human comment with the proposal at its timestamp. A later task
+ * edit cannot turn an old “A” into approval of replacement options. */
+export function commentProposalMatches(operation: TaskMaintenance, row: Record<string, unknown>, comments: unknown, history: unknown): boolean {
+  if (!operation.source?.startsWith('comment:')) return true;
+  const comment = rowsOf(comments).find(entry => String(entry.id) === operation.source!.slice(8));
+  const at = Date.parse(stringOf(comment?.created_at)), updated = Date.parse(stringOf(row.updated_at));
+  if (!Number.isFinite(at)) return false;
+  if (Number.isFinite(updated) && at > updated) return true;
+  const versions = rowsOf(history).map(entry => ({ at: Date.parse(stringOf(entry.CommitDate)), issue: entry.Issue }))
+    .filter(entry => Number.isFinite(entry.at) && entry.at <= at && entry.issue && typeof entry.issue === 'object')
+    .sort((a, b) => b.at - a.at);
+  const latest = versions[0];
+  if (!latest) return false;
+  // Equal timestamps with different proposals cannot establish which the owner saw.
+  return versions.filter(entry => entry.at === latest.at).every(entry => taskProposal(entry.issue as Record<string, unknown>) === operation.proposal);
+}
+
 export const HOSTED_TASK_LIMITS = Object.freeze({
   projects: 4096, identifier: 128, title: 512, body: 8192,
   comment: 4096, reason: 2048, rows: 200, labels: 32, label: 128, metadataValue: 2048, links: 32,
@@ -30,6 +74,8 @@ export interface HostedTaskLink {
   readonly taskId: string;
 }
 export type HostedTaskOperation =
+  | TaskMaintenance
+  | { readonly kind: 'record-maintenance'; readonly taskId: string; readonly value: Readonly<Record<string, unknown>> }
   | { readonly kind: 'list'; readonly limit: number; readonly status?: HostedTaskStatus }
   | { readonly kind: 'show'; readonly taskId: string }
   /** Which of these task ids the project holds, closed or not: an absent one is not listed. */
@@ -92,7 +138,8 @@ export type HostedTaskOperation =
   | { readonly kind: 'record-choice'; readonly taskId: string; readonly choice: TaskChoice }
   /** Back to ready work for any agent: open, unassigned, without the human label.
    * `holder` is the assignee as read, so a change since refuses the step. */
-  | { readonly kind: 'hand-back'; readonly taskId: string; readonly holder: string; readonly removeHuman: boolean };
+  | { readonly kind: 'hand-back'; readonly taskId: string; readonly holder: string; readonly removeHuman: boolean;
+      readonly preserveStatus?: HostedTaskStatus };
 
 /** Server-owned opaque handle; do not put paths/secrets in its description. */
 export interface HostedTaskProject {
@@ -259,10 +306,34 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
   const op = record(input);
   const kind = choice(op.kind, ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board',
     'snapshot', 'lint', 'create', 'update', 'comment', 'close', 'attribute', 'depend', 'undepend', 'gate', 'respond', 'dismiss', 'resolve-gate',
-    'choose', 'record-choice', 'hand-back']) as HostedTaskOperation['kind'];
+    'choose', 'record-choice', 'hand-back', 'maintain', 'record-maintenance']) as HostedTaskOperation['kind'];
   const readOnly = ['list', 'show', 'find', 'history', 'comments', 'ready', 'epics', 'active-board', 'closed-board', 'snapshot', 'lint'].includes(kind);
   const argv = ['--sandbox', '--json', ...(readOnly ? ['--readonly'] : [])];
   switch (kind) {
+    case 'maintain': {
+      keys(op, ['kind', 'taskId', 'action', 'proposal', 'explanation', 'evidence'],
+        ['model', 'duplicateOf', 'response', 'owner', 'source', 'scope', 'holder', 'inactive', 'activityCheck', 'progress']);
+      task(op.taskId); choice(op.action, MAINTENANCE_ACTIONS);
+      text(op.proposal, 30000);
+      text(op.explanation, 800); text(op.evidence, 800);
+      if (op.model !== undefined) model(op.model);
+      if (op.action === 'answer') {
+        text(op.response, 1000); text(op.owner, HOSTED_TASK_LIMITS.identifier); text(op.source, 512); text(op.scope, 1000);
+        // A source must identify a comment or an explicitly linked conversation.
+        if (!/^(?:comment:|https:\/\/|codex:\/\/threads\/)/u.test(String(op.source))) invalid();
+      } else if (['response', 'owner', 'source', 'scope'].some(key => Object.hasOwn(op, key))) invalid();
+      if (op.action === 'release') {
+        text(op.holder, HOSTED_TASK_LIMITS.identifier); text(op.activityCheck, 800); text(op.progress, 1000);
+        if (op.inactive !== true) invalid();
+      } else if (['holder', 'inactive', 'activityCheck', 'progress'].some(key => Object.hasOwn(op, key))) invalid();
+      if (op.action === 'duplicate') { if (task(op.duplicateOf) === op.taskId) invalid(); }
+      else if (Object.hasOwn(op, 'duplicateOf')) invalid();
+      break;
+    }
+    case 'record-maintenance':
+      keys(op, ['kind', 'taskId', 'value']);
+      argv.push('update', `--metadata=${JSON.stringify({ [TASK_METADATA.maintenance.name]: record(op.value) })}`, '--', task(op.taskId));
+      break;
     case 'list':
       keys(op, ['kind', 'limit'], ['status']);
       argv.push('list', `--limit=${integer(op.limit, 1, HOSTED_TASK_LIMITS.rows)}`);
@@ -444,10 +515,11 @@ function command(input: unknown): Pick<HostedTaskPlan, 'kind' | 'readOnly' | 'ar
       break;
     }
     case 'hand-back':
-      keys(op, ['kind', 'taskId', 'holder', 'removeHuman']);
+      keys(op, ['kind', 'taskId', 'holder', 'removeHuman'], ['preserveStatus']);
       if (typeof op.removeHuman !== 'boolean' || typeof op.holder !== 'string' || /[\r\n\t]/u.test(op.holder)) invalid();
       // --if-assignee names the holder as read: a hand-over the task client allows, and refuses if the holder changed since.
-      argv.push('update', '--status=open', '--assignee=', `--if-assignee=${text(op.holder, HOSTED_TASK_LIMITS.identifier, true)}`,
+      if (op.preserveStatus !== undefined) choice(op.preserveStatus, STATUSES.filter(status => status !== 'closed'));
+      argv.push('update', ...(op.preserveStatus !== undefined ? [`--if-status=${op.preserveStatus}`] : ['--status=open']), '--assignee=', `--if-assignee=${text(op.holder, HOSTED_TASK_LIMITS.identifier, true)}`,
         ...(op.removeHuman ? ['--remove-label=human'] : []), '--', task(op.taskId));
       break;
   }
@@ -551,7 +623,7 @@ export function writeGuardReads(operation: HostedTaskOperation): readonly string
 /** The fixed read of one of those tasks. A close reads its children too, which
  * the task client's plain show only counts. */
 export function guardReadArgs(operation: HostedTaskOperation, taskId: string): readonly string[] {
-  const children = (operation.kind === 'close' && stateGuarded(operation) || operation.kind === 'choose') && operation.taskId === taskId;
+  const children = (operation.kind === 'close' && stateGuarded(operation) || operation.kind === 'choose' || operation.kind === 'respond') && operation.taskId === taskId;
   return Object.freeze(['--sandbox', '--readonly', '--json', 'show', ...(children ? ['--include-dependents'] : []), '--', task(taskId)]);
 }
 /** The write to run, given its task as read just before (writeGuardReads). A
@@ -621,6 +693,168 @@ export function refusalFromState(operation: HostedTaskOperation, row: Record<str
 
 /** One step of a person's decision: an ordinary write, run once the decision is admitted. */
 export type DecisionStep = Extract<HostedTaskOperation, { kind: 'record-choice' | 'comment' | 'close' | 'hand-back' }>;
+export type MaintenanceStep = DecisionStep | Extract<HostedTaskOperation, { kind: 'record-maintenance' | 'update' | 'depend' | 'attribute' }>;
+
+/** The proposal excludes comments and reservations: neither changes what the owner saw. */
+export function taskProposal(row: Record<string, unknown>): string {
+  return JSON.stringify([row.id, row.title ?? '', row.description ?? '', row.acceptance_criteria ?? '',
+    row.issue_type, readTaskChoices(row.metadata)]);
+}
+
+export class TaskMaintenanceRefused extends Error {
+  override name = 'TaskMaintenanceRefused';
+}
+function maintenanceRefused(message: string): never { throw new TaskMaintenanceRefused(message); }
+
+/** Resolve short replies only against the frozen proposal. Free text is a direction,
+ * never a guessed option; an unclear short answer leaves the question open. */
+export function replyOption(response: string, choices: TaskChoices | null, taskId?: string): TaskChoiceKey | null {
+  if (/\?|\b(?:not sure|unsure|maybe|perhaps|need more|need to think|can you explain|what do you mean)\b/iu.test(response)) {
+    return maintenanceRefused('This reply leaves the decision unresolved. Ask one clarification covering only the uncertainty.');
+  }
+  if (choices === null) return null;
+  const reply = response.trim().replace(/[.!]$/u, '').toLowerCase();
+  const batch = /^([a-f]) for (.+)$/u.exec(reply);
+  const named: readonly string[] = batch?.[2]?.match(/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*/giu) ?? [];
+  const letter = /^\(?([a-f])\)?$/u.exec(reply)?.[1]
+    ?? (taskId && named.includes(taskId.toLowerCase()) ? batch?.[1] : undefined);
+  if (letter) {
+    if (choices.options.some(option => option.key === letter)) return letter as TaskChoiceKey;
+    return maintenanceRefused('That letter is not an offered option. Ask which offered option the owner means.');
+  }
+  if (/^(?:yes[, ]+)?(?:your |the )?recommendation(?: please)?$/u.test(reply)
+    || /^(?:yes[, ]+)?(?:go with |use |do )(?:your |the )?recommendation$/u.test(reply)) {
+    return choices.options.find(option => option.recommended)!.key;
+  }
+  const label = choices.options.find(option => option.label.toLowerCase() === reply);
+  if (label) return label.key;
+  if (/^(?:yes|no|ok|okay|sure|approved|go ahead|that one|all|both)$/u.test(reply)) {
+    return maintenanceRefused('This reply does not identify an option. Ask one clarification naming only the unresolved choice.');
+  }
+  if (!/^(?:please )?(?:use|build|keep|switch|remove|add|set|return|make|change|stop|start|leave|ship|do not|don't|skip|choose|go with|move|enable|disable|create|proceed|implement|replace|rename|align|put|show|hide|include|exclude|reduce|increase|retain|drop|combine|split|follow|apply|send|publish|defer|wait|accept|reject|cancel|continue|schedule|run|review|record|close|reopen)\b|^(?:i (?:want|approve|choose|prefer)|let's|let us|we should)\b/u.test(reply)) {
+    return maintenanceRefused('This reply does not give a clear direction. Ask one clarification covering only the unresolved choice.');
+  }
+  return null;
+}
+
+/** Evidence-backed task maintenance. The caller verifies linked conversation
+ * evidence; the server verifies task comments, proposal identity and reservation
+ * comparisons. Retirement records no permission and leaves gated actions blocked. */
+export function maintenanceSteps(operation: TaskMaintenance, row: Record<string, unknown>, comments: unknown,
+  actor: string, at: string, duplicate?: Record<string, unknown>, ownerVerified = false): readonly MaintenanceStep[] {
+  command(operation);
+  if (row.id !== operation.taskId || taskProposal(row) !== operation.proposal) {
+    return maintenanceRefused('The proposal changed. Read it again and match the owner’s answer to the proposal they saw.');
+  }
+  const metadata = row.metadata && typeof row.metadata === 'object' ? row.metadata as Record<string, unknown> : {};
+  const previous = metadata[TASK_METADATA.maintenance.name] as Record<string, unknown> | undefined;
+  const identity = JSON.stringify(operation);
+  const same = previous?.identity === identity && previous?.by === actor;
+  const gate = row.issue_type === 'gate';
+  const retiring = ['completed', 'obsolete', 'superseded', 'duplicate'].includes(operation.action);
+  const closed = row.status === 'closed';
+  if (closed && !same) return maintenanceRefused('This task is already closed. Reopen it before recording a different disposition.');
+  if (gate && ['routine', 'release', 'completed'].includes(operation.action)) {
+    return maintenanceRefused('An approval cannot be completed or made routine from implementation evidence. Record the owner’s scoped answer or retire the abandoned request.');
+  }
+  if (operation.action === 'completed' && row.issue_type === 'decision') {
+    return maintenanceRefused('A completed implementation does not prove a business decision was approved. Record its owner answer or why the decision is obsolete.');
+  }
+  const holder = stringOf(row.assignee);
+  if (operation.action !== 'answer' && operation.action !== 'release' && holder && !sameActor(holder, actor)) {
+    return maintenanceRefused(`Check ${holder}’s activity and release its abandoned assignment before maintaining this task.`);
+  }
+  if (operation.action === 'release' && holder !== operation.holder && !(same && holder === '')) {
+    return maintenanceRefused('The assignment changed. Check its current holder before releasing it.');
+  }
+  const steps: MaintenanceStep[] = [];
+  let answered: readonly DecisionStep[] = [];
+  if (operation.action === 'answer') {
+    if (!ownerVerified) return maintenanceRefused('The owner answer could not be authenticated from its source. Keep the recorded answer; connect its trusted source instead of asking the owner again.');
+    if (sameActor(operation.owner!, actor)) return maintenanceRefused('An agent cannot supply its own answer as the owner’s.');
+    if (operation.source!.startsWith('comment:')) {
+      const source = rowsOf(comments).find(comment => String(comment.id) === operation.source!.slice(8));
+      if (!source || source.author !== operation.owner || source.text !== operation.response) {
+        return maintenanceRefused('The cited owner comment does not match its author and exact answer.');
+      }
+    }
+    if (!isHumanDecision(row) && !same) return maintenanceRefused('This task has no unresolved human request.');
+    const choices = readTaskChoices(row.metadata);
+    const option = replyOption(operation.response!, choices, operation.taskId);
+    if (gate) {
+      const scope = /(?:^|\n)Reason:[ \t]*([\s\S]+)$/u.exec(stringOf(row.description))?.[1]?.trim();
+      if (!scope || operation.scope !== scope) return maintenanceRefused('Approval scope must exactly match this gate’s requested action, environment and verification.');
+      if (!/^(?:yes|approve|approved|yes[, ]+(?:your |the )?recommendation)[.!]?$/iu.test(operation.response!.trim())) {
+        return maintenanceRefused('This is not an explicit approval of the named action. Keep the action blocked and clarify only its approval.');
+      }
+      answered = [decisionClose(row, operation.taskId, 'Owner approved the recorded scope', operation.owner!,
+        reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); })];
+    } else if (option !== null && !closed && !(same && row.status === 'open' && !labelsOf(row).includes('human'))) {
+      answered = choiceSteps({ kind: 'choose', taskId: operation.taskId, option }, row, comments, operation.owner!, at)
+        .filter(step => step.kind !== 'comment');
+    } else if (!closed && !(same && row.status === 'open' && !labelsOf(row).includes('human'))) {
+      answered = row.issue_type === 'decision'
+        ? [decisionClose(row, operation.taskId, 'Owner answered the recorded proposal', actor,
+          reason => { throw new TaskStateRefused(operation.taskId, 'other', reason); })]
+        : [handBack(row, operation.taskId)];
+    }
+  }
+  const value = same ? previous! : { identity, by: actor, at, ...operation, permission: operation.action === 'answer' && gate ? 'approved-scope-only' : 'none' };
+  const note = `Task maintenance: ${operation.action}. ${operation.explanation}\nEvidence: ${operation.evidence}`
+    + (operation.action === 'answer' ? `\nOwner: ${operation.owner}\nSource: ${operation.source}\nAnswer: ${operation.response}\nScope: ${operation.scope}` : '')
+    + (operation.action === 'release' ? `\nActivity checked: ${operation.activityCheck}\nProgress preserved: ${operation.progress}` : '')
+    + (gate && retiring ? '\nRequest retired. No permission to perform the action was granted.' : '');
+  if (!same) steps.push({ kind: 'record-maintenance', taskId: operation.taskId, value });
+  if (!rowsOf(comments).some(comment => comment.author === actor && comment.text === note)) {
+    steps.push({ kind: 'comment', taskId: operation.taskId, text: note });
+  }
+  if (operation.action === 'duplicate') {
+    if (!duplicate || duplicate.id !== operation.duplicateOf || duplicate.status === 'closed') {
+      return maintenanceRefused('The duplicate must name an open task retaining the complete scope.');
+    }
+    if (gate && (duplicate.issue_type !== 'gate' || duplicate.await_type !== 'human' || duplicate.description !== row.description)) {
+      return maintenanceRefused('Duplicate approvals must retain exactly the same requested scope.');
+    }
+    steps.push({ kind: 'depend', taskId: operation.taskId, dependsOn: operation.duplicateOf!, type: 'related' });
+  }
+  if (gate && retiring && !closed) {
+    for (const dependent of rowsOf(row.dependents).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type)) && edge.status !== 'closed')) {
+      if (operation.action === 'duplicate') steps.push({ kind: 'depend', taskId: stringOf(dependent.id), dependsOn: operation.duplicateOf!, type: 'blocks' });
+      else steps.push({ kind: 'update', taskId: stringOf(dependent.id), status: 'blocked' });
+      steps.push({ kind: 'comment', taskId: stringOf(dependent.id), text: `Approval request ${operation.taskId} retired: ${operation.explanation}. No permission granted; obtain a new action-specific approval before proceeding.` });
+    }
+  }
+  if (!closed && retiring) {
+    const resolution = operation.action === 'duplicate' ? 'duplicate' : operation.action === 'obsolete' || operation.action === 'superseded' ? 'wont-do' : 'already-handled';
+    // All open children and gates still require their own disposition.
+    const close = decisionClose(row, operation.taskId, `${operation.explanation}\nEvidence: ${operation.evidence}`, actor,
+      reason => { throw new TaskStateRefused(operation.taskId, 'close', reason); });
+    if (close.kind !== 'close') invalid();
+    steps.push({ ...close, resolution, ...(operation.duplicateOf ? { duplicateOf: operation.duplicateOf } : {}), ...(operation.model ? { model: operation.model } : {}) });
+  } else if (operation.action === 'answer') {
+    if (gate && !closed) {
+      for (const dependent of rowsOf(row.dependents).filter(edge => BLOCKING.includes(stringOf(edge.dependency_type))
+        && edge.status !== 'closed' && labelsOf(edge).includes('human')
+        && edge.issue_type !== 'decision' && edge.issue_type !== 'gate' && readTaskChoices(edge.metadata) === null)) {
+        steps.push({ kind: 'comment', taskId: stringOf(dependent.id), text: `Owner approval recorded on ${operation.taskId}. Continue only within that recorded scope; other approvals are unchanged.` },
+          handBack(dependent, stringOf(dependent.id)));
+      }
+    }
+    steps.push(...answered);
+  }
+  else if (!closed && (operation.action === 'routine' || operation.action === 'release') && !(same && holder === '')) {
+    steps.push({ kind: 'hand-back', taskId: operation.taskId, holder, removeHuman: operation.action === 'routine',
+      ...(operation.action === 'release' && row.status !== 'in_progress' ? { preserveStatus: row.status as HostedTaskStatus } : {}) });
+  }
+  if (closed && same && retiring && typeof row.closed_at === 'string') {
+    const resolution = operation.action === 'duplicate' ? 'duplicate' : operation.action === 'completed' ? 'already-handled' : 'wont-do';
+    steps.push({ kind: 'attribute', taskId: operation.taskId, closedBy: actor, closedAt: row.closed_at,
+      resolution, ...(operation.duplicateOf ? { duplicateOf: operation.duplicateOf } : {}), ...(operation.model ? { model: operation.model } : {}) });
+  }
+  // Validate every step before the executor applies even the first one.
+  for (const step of steps) command(step);
+  return Object.freeze(steps);
+}
 const ANSWERED = 'Answered: ';
 /** The comment a pick leaves: "Chose (b) Keep the old page." and the person's note. */
 export function choiceComment(choice: TaskChoice): string {
@@ -701,6 +935,14 @@ export function answerSteps(operation: Extract<HostedTaskOperation, { kind: 'res
     handBack(row, operation.taskId)]);
 }
 
+/** The same short-reply mapping for a Tower answer and an agent's recorded answer. */
+export function ownerResponseSteps(operation: Extract<HostedTaskOperation, { kind: 'respond' }>, row: Record<string, unknown>,
+  comments: unknown, actor: string, at: string): readonly DecisionStep[] | null {
+  const option = replyOption(operation.response, readTaskChoices(row.metadata), operation.taskId);
+  return option === null ? answerSteps(operation, row)
+    : choiceSteps({ kind: 'choose', taskId: operation.taskId, option }, row, comments, actor, at);
+}
+
 /** Task ids as a sentence lists them. */
 function inWords(items: readonly string[]): string {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
@@ -728,7 +970,7 @@ export function hostedTaskAction(operation: HostedTaskOperation): 'tasks.read' |
   return plan.readOnly ? 'tasks.read' : DECISIONS.includes(plan.kind) ? 'tasks.decide' : 'tasks.write';
 }
 /** A person's decisions, and the steps one runs as: only a person is admitted to any of them. */
-const DECISIONS: readonly string[] = ['respond', 'dismiss', 'resolve-gate', 'choose', 'record-choice', 'hand-back'];
+const DECISIONS: readonly string[] = ['respond', 'dismiss', 'resolve-gate', 'choose', 'record-choice', 'hand-back', 'record-maintenance'];
 
 /** No authorization, role/demo policy, environment, IO or runtime executor.
  * Call only after shared named-action admission. Never forward a JSON body's

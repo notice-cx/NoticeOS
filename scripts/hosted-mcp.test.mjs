@@ -115,7 +115,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
-  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
+  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'reconcile_task', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
   for (const name of ['create_task', 'create_tasks', 'claim_task', 'close_task']) {
@@ -296,7 +296,7 @@ test('dependencies and human approval decide what is ready; lint advises on ever
   const ask = { workspace: A, project: P, task: 'tt-2', reason: 'Approve the schema change' };
   const opened = (await call(f, 'request_human_approval', ask)).structuredContent;
   assert.deepEqual(opened, { task: 'tt-2', approval: { id: 'tt-3', status: 'open', reason: 'Approve the schema change' }, held: true,
-    note: 'tt-2 is out of ready work until a person approves tt-3 on Tasks in the Tower.', created: true }, 'the reply says the task is held');
+    note: 'tt-2 waits for the owner’s scoped approval of tt-3. Record an existing answer with reconcile_task; never ask for the same approval again.', created: true }, 'the reply says the task is held');
   assert.deepEqual((await call(f, 'request_human_approval', ask)).structuredContent, { ...opened, created: false }, 'a retry never asks twice');
   assert.deepEqual(await ready(), ['tt-1']);
   assert.equal((await call(f, 'request_human_approval', { ...ask, reason: 'Approve the rollout' })).structuredContent.approval.id, 'tt-4');
@@ -418,7 +418,7 @@ test('create_task files a decision with its links and an approval in one call, a
     related: [], approval: 'Approve the spend', idempotency_key: 'agent-create-0301' };
   const made = (await call(f, 'create_task', args)).structuredContent;
   assert.deepEqual(made, { id: 'tt-3', project: 'example', replayed: false, approval: { id: 'tt-4', status: 'open', reason: 'Approve the spend' },
-    held: true, note: 'tt-3 is out of ready work until a person approves tt-4 on Tasks in the Tower.', lint: { missing: ['## Decision'] } });
+    held: true, note: 'tt-3 waits for the owner’s scoped approval of tt-4. Record an existing answer with reconcile_task; never ask for the same approval again.', lint: { missing: ['## Decision'] } });
   const read = async id => (await call(f, 'get_task', { workspace: A, project: P, task: id })).structuredContent.task;
   assert.deepEqual((await read('tt-3')).dependencies.map(link => [link.id, link.type]), [['tt-2', 'blocks'], ['tt-4', 'blocks']]);
   assert.deepEqual((await read('tt-1')).dependencies.map(link => [link.id, link.type]), [['tt-3', 'blocks']]);
@@ -449,7 +449,7 @@ test('create_tasks files many in one call, links them by place, and a retry file
   assert.deepEqual(first.created.map(row => [row.index, row.id, row.replayed]), [[0, 'tt-1', false], [1, 'tt-2', false], [2, 'tt-3', false], [3, 'tt-4', false]]);
   assert.deepEqual([first.project, first.created[1].lint, first.created[2].lint], ['example', { missing: ['## Decision'] }, { missing: [] }]);
   assert.deepEqual([first.created[3].approval, first.created[3].held], [{ id: 'tt-5', status: 'open', reason: 'Approve the post' }, true]);
-  assert.match(first.note, /out of ready work until a person approves/u);
+  assert.match(first.note, /waits for the owner’s scoped approval/u);
   assert.equal('failed' in first, false);
   const deploy = (await call(f, 'get_task', { workspace: A, project: P, task: 'tt-3' })).structuredContent.task;
   assert.deepEqual([deploy.parent, deploy.dependencies.map(link => [link.id, link.type])], ['tt-1', [['tt-1', 'parent-child'], ['tt-2', 'blocks']]]);

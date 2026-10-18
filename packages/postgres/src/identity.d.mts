@@ -61,6 +61,8 @@ export interface Identity {
      * selected workspace; no email/account fields or foreign UUID lookup. The
      * bounded roster refuses over 1,000 members rather than returning a sample. */
     workspaceActors(workspaceId: string): Promise<readonly WorkspaceActor[]>;
+    /** Authority for an existing human-authored task answer; display names alone are not proof. */
+    isWorkspaceOwner(workspaceId: string, principalId: string): Promise<boolean>;
     /** The request's agent access token, or null: signed by this deployment's
      * key, issued here for its MCP endpoint, unexpired, and still backed by a
      * live consent and an enabled client. */

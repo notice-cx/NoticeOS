@@ -12,7 +12,7 @@ import type { WorkspaceActor } from '../packages/postgres/src/identity.mjs';
 import { taskMetadataValue } from '../packages/contract/src/task-metadata.mjs';
 import { gateReason } from '../packages/contract/src/task-gate.mjs';
 import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from './workspace-admission.mjs';
-import { hostedTaskAction, HumanDecisionRefused, refusalFromState, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
+import { hostedTaskAction, HumanDecisionRefused, refusalFromState, taskProposal, TaskMaintenanceRefused, TaskStateRefused, type HostedTaskOperation, type HostedTaskRequest,
   type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
 
@@ -91,7 +91,7 @@ export const EDITABLE_TASK_FIELDS = Object.freeze(['status', 'priority', 'title'
   'parent', 'defer', 'acceptance', 'addLabels', 'removeLabels']);
 const STATUSES: readonly HostedTaskStatus[] = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
 const ACTIVE = Object.freeze(['open', 'in_progress', 'blocked', 'deferred'] as const);
-const RECEIPTED: readonly string[] = ['create', 'update', 'comment', 'close'];
+const RECEIPTED: readonly string[] = ['create', 'update', 'comment', 'close', 'maintain'];
 const TASK_ID = /^[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*$/iu;
 const DAY_MS = 86_400_000;
 /** The board's closed week, and the longest history a closed read may ask for. */
@@ -102,7 +102,7 @@ function invalid(): never { throw new Error('Hosted task operation refused'); }
 function tasksNamed(operation: HostedTaskOperation): string[] {
   const ids = operation.kind === 'create' ? [operation.parent, ...(operation.links ?? []).map(link => link.taskId)]
     : operation.kind === 'update' ? [operation.taskId, operation.parent]
-    : operation.kind === 'close' || operation.kind === 'dismiss' ? [operation.taskId, operation.duplicateOf]
+    : operation.kind === 'close' || operation.kind === 'dismiss' || operation.kind === 'maintain' ? [operation.taskId, operation.duplicateOf]
     : operation.kind === 'depend' || operation.kind === 'undepend' ? [operation.taskId, operation.dependsOn]
     : 'taskId' in operation ? [operation.taskId] : [];
   return [...new Set(ids.filter((id): id is string => typeof id === 'string' && id !== ''))];
@@ -193,7 +193,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
   async function explained<T>(proof: Request, workspaceId: string, projectId: string, taskIds: readonly string[],
     work: () => Promise<T>, operation?: HostedTaskOperation): Promise<T> {
     try { return await work(); } catch (error) {
-      if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskStateRefused, TaskProjectRefused,
+      if (!taskIds.length || [AdmissionRefused, HumanDecisionRefused, TaskMaintenanceRefused, TaskStateRefused, TaskProjectRefused,
         HostedTaskReceiptsUnavailable].some(kind => error instanceof kind)) throw error;
       let cause: TaskStateRefused | null = null;
       try {
@@ -342,10 +342,11 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         const actors = await actorsOf();
         const ready = new Set(rows(await run({ kind: 'ready' })).map(row => record(row).id).filter((id): id is string => typeof id === 'string'));
         const shown = await run({ kind: 'show', taskId });
-        const task = toLiveTask(Array.isArray(shown) ? shown[0] : shown, ready);
+        const raw = record(Array.isArray(shown) ? shown[0] : shown);
+        const task = toLiveTask(raw, ready);
         if (task.id !== taskId) invalid();
         const comments = rows(await run({ kind: 'comments', taskId })).map(toComment);
-        return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors };
+        return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, task, comments, actors, proposal: taskProposal(raw) };
       }, taskId));
     },
     history(proof, workspaceId, projectId, taskId, limit) {
@@ -418,7 +419,7 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
           return { status: 'done', value: await effect(filed), replayed: false };
         }
         const identity: TaskReceiptIdentity = Object.freeze({ principalId: context.principalId,
-          operation: kind as TaskReceiptIdentity['operation'], idempotencyKey });
+          operation: (kind === 'maintain' ? 'update' : kind) as TaskReceiptIdentity['operation'], idempotencyKey });
         const requestHash = createHash('sha256').update(`noticeos-task-write-v1:${canonical(request)}`).digest('hex');
         const start = await receipts.start(workspaceId, { ...identity, projectId: request.projectId, requestHash }, randomUUID());
         if (start.kind === 'conflict') return { status: 'conflict' };

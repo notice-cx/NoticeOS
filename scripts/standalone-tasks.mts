@@ -9,8 +9,8 @@ import type { TaskProjectCatalogEntry } from '../packages/postgres/src/task-dire
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { TaskOperationExecutor } from './hosted-task-operations.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, TaskStoreFailed, writeGuardReads, type HostedTaskRequest } from './hosted-task-command.mjs';
+import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
+  isHumanDecision, maintenanceSteps, TaskStoreFailed, writeGuardReads, type OwnerAnswerVerifier, type HostedTaskOperation, type HostedTaskRequest } from './hosted-task-command.mjs';
 
 /** One linked task project: where its task client runs, and its stable id. */
 export interface StandaloneTaskProject {
@@ -29,6 +29,9 @@ export interface StandaloneSite {
   readonly isOs: boolean | number;
 }
 export interface StandaloneTaskExecutorOptions {
+  readonly verifyOwnerAnswer?: OwnerAnswerVerifier;
+  /** All writers of a project share this reservation, including ordinary edits. */
+  readonly withProjectMutation?: <T>(workspaceId: string, projectId: string, work: () => Promise<T>) => Promise<T>;
   readonly admission: WorkspaceAdmission;
   /** Read for every call, so a project linked or unlinked since is seen. */
   readonly projects: () => Promise<readonly StandaloneTaskProject[]>;
@@ -90,13 +93,14 @@ export function standaloneTaskDirectory(projects: () => Promise<readonly Standal
       return (await catalog(workspaceId)).find(entry => formerStandaloneProjectId(entry.logicalKey) === projectId) ?? null;
     },
   });
+
 }
 
 export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOptions): TaskOperationExecutor {
   const { projects, run } = options;
   const admission: WorkspaceAdmission = options.admission;
   if (typeof admission?.withAdmission !== 'function' || typeof projects !== 'function' || typeof run !== 'function') refuse();
-  return Object.freeze({
+  const executor = Object.freeze({
     async execute(proof: Request, workspaceId: string, request: HostedTaskRequest): Promise<unknown> {
       const operation = request?.operation;
       const action = hostedTaskAction(operation);
@@ -113,6 +117,39 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
           if (result.code !== 0) throw new TaskStoreFailed(result.timedOut === true);
           try { return JSON.parse(result.stdout) as unknown; } catch { throw new TaskStoreFailed(false); }
         };
+        if (operation.kind === 'maintain') {
+          const read = async (id: string) => {
+            const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', id]);
+            const row = (Array.isArray(shown) ? shown[0] : shown) as Record<string, unknown>;
+            if (row?.id !== id) refuse();
+            return row;
+          };
+          const before = await read(operation.taskId);
+          const comments = await client(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+          const duplicate = operation.duplicateOf === undefined ? undefined : await read(operation.duplicateOf);
+          const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
+            ? await client(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
+          const verified = operation.action === 'answer' && commentProposalMatches(operation, before, comments, history)
+            && await options.verifyOwnerAnswer?.(workspaceId, request.projectId, operation, before, comments) === true;
+          const steps = maintenanceSteps(operation, before, comments, context.principalId, new Date().toISOString(), duplicate, verified);
+          const execute = async (step: HostedTaskOperation) => {
+            admission.assertContext(context, action);
+            const argv = createHostedTaskPlanner([{ workspaceId, projectId: project.projectId, capability: Symbol() }])(workspaceId,
+              { projectId: project.projectId, operation: step }).argv;
+            return client([argv[0]!, argv[1]!, `--actor=${context.principalId}`, ...argv.slice(2)]);
+          };
+          for (const step of steps) {
+            await execute(step);
+            if (step.kind === 'close') {
+              const after = await read(operation.taskId);
+              if (after.status !== 'closed') refuse();
+              if (typeof after.closed_at === 'string') await execute({ kind: 'attribute', taskId: operation.taskId,
+                closedBy: context.principalId, closedAt: after.closed_at, ...(operation.model ? { model: operation.model } : {}),
+                ...(step.resolution ? { resolution: step.resolution } : {}), ...(step.duplicateOf ? { duplicateOf: step.duplicateOf } : {}) });
+            }
+          }
+          return read(operation.taskId);
+        }
         if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) refuse();
         const rows = new Map<string, Record<string, unknown>>(), decisions = decisionGuardTargets(operation);
         for (const taskId of writeGuardReads(operation)) {
@@ -129,6 +166,14 @@ export function createStandaloneTaskExecutor(options: StandaloneTaskExecutorOpti
         // The actor is the admitted principal, inserted before every command token.
         return client([argv[0]!, argv[1]!, `--actor=${context.principalId}`, ...argv.slice(2)]);
       });
+    },
+  });
+  return Object.freeze({
+    async execute(proof: Request, workspaceId: string, request: HostedTaskRequest) {
+      const write = hostedTaskAction(request.operation) !== 'tasks.read';
+      return write && options.withProjectMutation
+        ? options.withProjectMutation(workspaceId, request.projectId, () => executor.execute(proof, workspaceId, request))
+        : executor.execute(proof, workspaceId, request);
     },
   });
 }

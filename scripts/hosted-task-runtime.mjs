@@ -140,6 +140,9 @@ export async function openHostedTaskRuntime(input, adapters = {}) {
             : createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo,
                 workspaceStatus: async () => (await facts.workspaceSummary(demo))?.status ?? null });
         const executor = createHostedTaskExecutor({ admission, directory, binary, doltBinary, scratchRoot,
+            verifyOwnerAnswer: async (workspaceId, projectId, operation, task, comments) => operation.source?.startsWith('comment:')
+                ? facts.isWorkspaceOwner(workspaceId, operation.owner ?? '')
+                : await adapters.ownerAnswers?.(workspaceId, projectId, operation, task, comments) === true,
             resolveTarget: async (selected) => {
                 const found = targets.get(`${selected.workspaceId}/${selected.projectId}`);
                 if (!found || Object.keys(found.mapping).some(key => found.mapping[key] !== selected[key]))

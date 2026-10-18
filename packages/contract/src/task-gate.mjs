@@ -39,5 +39,5 @@ export function waitsOnPerson(task) {
     if (task.status === "deferred" || task.status === "closed")
         return false;
     const gate = task.issueType === "gate" || (task.awaitType ?? null) !== null;
-    return gate ? (task.awaitType ?? "human") === "human" : task.labels.includes("human") && task.ready;
+    return gate ? (task.awaitType ?? "human") === "human" : task.choice == null && task.issueType !== "epic" && task.labels.includes("human") && task.ready;
 }

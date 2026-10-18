@@ -53,6 +53,8 @@ export const TASK_METADATA = Object.freeze({
     resolution: Object.freeze({ name: "noticeos_resolution", legacy: "noticeos_resolution" }),
     /** The task a close as a duplicate names. Server-set, with `resolution`. */
     duplicateOf: Object.freeze({ name: "noticeos_duplicate_of", legacy: "noticeos_duplicate_of" }),
+    /** Evidence and scope of the last task maintenance operation. Never grants authority by itself. */
+    maintenance: Object.freeze({ name: "noticeos_maintenance", legacy: "noticeos_maintenance" }),
 });
 /** The names only the server writes. A caller's metadata never carries them,
  * so no filer can forge who filed or closed a task and how, a write's
@@ -60,7 +62,7 @@ export const TASK_METADATA = Object.freeze({
 export const SERVER_TASK_METADATA = Object.freeze([TASK_METADATA.operation, TASK_METADATA.claimedModel,
     TASK_METADATA.closedBy, TASK_METADATA.closedModel, TASK_METADATA.closedAt, TASK_METADATA.filedBy,
     TASK_METADATA.filedModel, TASK_METADATA.choices, TASK_METADATA.choice, TASK_METADATA.resolution,
-    TASK_METADATA.duplicateOf].map(field => field.name));
+    TASK_METADATA.duplicateOf, TASK_METADATA.maintenance].map(field => field.name));
 /** How far apart a recorded close time and the task's own may be and still
  * name one close: the server copies the task's close time when it records it. */
 const SAME_CLOSE_MS = 1000;

@@ -5,6 +5,8 @@ import { createHostedTaskOperations } from './hosted-task-operations.mjs';
 import { createHostedMcp, MCP_PATH } from './hosted-mcp.mjs';
 import { createStandaloneTaskExecutor } from './standalone-tasks.mjs';
 import { memoryReceipts } from './test-fixtures/hosted-task-fakes.mjs';
+import { TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
+import { commentProposalMatches, ownerResponseSteps, taskProposal } from './hosted-task-command.mjs';
 
 // The task tools' write guards and refusals end to end: the MCP endpoint, the shared
 // operations and the standalone executor, over a stand-in task client that
@@ -24,9 +26,9 @@ const origin = 'http://localhost';
  * next command with that word apply its effect and then exit 1, as a client
  * killed after its commit would. */
 function store() {
-  const tasks = new Map(), edges = [], commands = [];
+  const tasks = new Map(), edges = [], commands = [], comments = [];
   let failOnce = null, slow = null, rival = null;
-  const put = (id, fields = {}) => tasks.set(id, { id, title: id, status: 'open', priority: 2, issue_type: 'task', labels: [], assignee: '', ...fields });
+  const put = (id, fields = {}) => tasks.set(id, { id, title: id, status: 'open', priority: 2, issue_type: 'task', labels: [], assignee: '', updated_at: '2026-10-17T10:00:00Z', ...fields });
   const link = (from, to, type = 'blocks') => edges.push({ from, to, type });
   const embed = (id, type) => ({ ...tasks.get(id), dependency_type: type });
   const detail = (id, dependents) => ({ ...tasks.get(id),
@@ -46,7 +48,8 @@ function store() {
     if (rival?.verb === verb && !words.includes('show')) { const land = rival.land; rival = null; land(); }
     if (verb === 'show') return tasks.has(id) ? ok([detail(id, words.includes('--include-dependents'))]) : no;
     if (verb === 'ready') return ok([...tasks.values()].filter(task => task.status === 'open' && !live(task.id).length).map(task => ({ id: task.id })));
-    if (verb === 'comments' && words[1] !== 'add' || verb === 'epic') return ok([]);
+    if (verb === 'comments' && words[1] !== 'add') return ok(comments.filter(comment => comment.issue_id === id));
+    if (verb === 'epic') return ok([]);
     if (verb === 'list' && flag('id')) return ok(flag('id').split(',').filter(key => tasks.has(key)).map(key => tasks.get(key)));
     if (verb === 'list') {
       const statuses = flag('status')?.split(',') ?? [];
@@ -55,7 +58,11 @@ function store() {
     if (verb === 'comments' || verb === 'dep') {
       // comments add -- <task> <text>; dep add|remove -- <task> <depends-on>
       const named = argv.slice(argv.indexOf('--') + 1);
-      if (verb === 'comments') return tasks.has(named[0]) ? ok({ id: 'c-1', issue_id: named[0], author: actor, text: named[1] }) : no;
+      if (verb === 'comments') {
+        if (!tasks.has(named[0])) return no;
+        const comment = { id: `c-${comments.length + 1}`, issue_id: named[0], author: actor, text: named[1] };
+        comments.push(comment); return ok(comment);
+      }
       if (!tasks.has(named[0]) || !tasks.has(named[1])) return no;
       // One edge per pair, never retyped: adding it again with its own type changes nothing.
       const standing = edges.find(edge => edge.from === named[0] && edge.to === named[1]);
@@ -82,22 +89,26 @@ function store() {
       result = [task];
     } else if (verb === 'update' && flag('assignee') !== undefined) {
       // The task client lets only its holder hand on a task someone is working.
-      if (task.status === 'in_progress' && task.assignee && task.assignee !== actor && task.assignee !== flag('assignee')) return no;
+      if (flag('if-assignee') !== undefined ? flag('if-assignee') !== task.assignee
+        : task.status === 'in_progress' && task.assignee && task.assignee !== actor && task.assignee !== flag('assignee')) return no;
       task.assignee = flag('assignee');
+      if (flag('status')) task.status = flag('status');
+      if (words.includes('--remove-label=human')) task.labels = task.labels.filter(label => label !== 'human');
       result = [task];
     } else if (verb === 'update') {
       const metadata = flag('metadata');
       if (metadata) task.metadata = { ...task.metadata, ...JSON.parse(metadata) };
+      if (flag('status')) task.status = flag('status');
       result = [task];
     } else return no;
-    if (failOnce === verb) { failOnce = null; return no; }
+    if (failOnce === verb || failOnce === 'hand-back' && flag('if-assignee') !== undefined) { failOnce = null; return no; }
     return ok(result);
   };
-  return { tasks, edges, commands, put, link, run, failNext: verb => { failOnce = verb; }, slowNext: verb => { slow = verb; },
+  return { tasks, edges, commands, comments, put, link, run, failNext: verb => { failOnce = verb; }, slowNext: verb => { slow = verb; },
     rivalFirst: (verb, land) => { rival = { verb, land }; } };
 }
 
-function fixture({ admit = () => true } = {}) {
+function fixture({ admit = () => true, trustedSources = true } = {}) {
   const s = store();
   const admission = createWorkspaceAdmission({ kind: 'standalone', profile: Symbol(),
     authority: async () => admit() ? { principalId: AGENT, workspaceId: WORKSPACE, workspaceStatus: 'active' } : null });
@@ -107,7 +118,9 @@ function fixture({ admit = () => true } = {}) {
     { projectId: OTHER, logicalKey: 'example-shop', displayName: 'Example Shop', prefix: 'sh' }];
   // An id the example project went by before: the directory names the project it now is.
   const directory = { catalog, formerly: async (_workspace, projectId) => projectId === FORMER ? (await catalog())[0] : null };
-  const executor = createStandaloneTaskExecutor({ admission, projects, run: (argv, cwd) => s.run(argv, cwd) });
+  const executor = createStandaloneTaskExecutor({ admission, projects, run: (argv, cwd) => s.run(argv, cwd),
+    verifyOwnerAnswer: trustedSources ? async (_workspace, _project, operation) => operation.owner === 'Owner'
+      && ['codex://threads/owner-layout', 'codex://threads/choice', 'codex://threads/approval', 'comment:owner-1'].includes(operation.source) : undefined });
   const operations = createHostedTaskOperations({ admission, directory, executor, receipts: memoryReceipts(Date.now) });
   const mcp = createHostedMcp({ profile: 'standalone', trustedOrigin: origin, standaloneWorkspaceId: WORKSPACE, operations });
   let id = 1;
@@ -123,6 +136,202 @@ function fixture({ admit = () => true } = {}) {
   return { ...s, call, refusal, closes };
 }
 const inProject = args => ({ project: PROJECT, ...args });
+
+const choices = { question: 'Which local layout should we build?', options: [
+  { key: 'a', label: 'Compact layout', detail: 'Build the compact local layout.', recommended: true },
+  { key: 'b', label: 'Wide layout' },
+] };
+let maintenanceCall = 0;
+async function maintain(f, task, fields) {
+  const detail = (await f.call('get_task', inProject({ task }))).structuredContent;
+  return f.call('reconcile_task', inProject({ task, proposal: detail.proposal, explanation: 'The recorded evidence resolves this request.',
+    evidence: 'commit abc1234 and the referenced owner source', idempotency_key: `maintain-${task}-${++maintenanceCall}`, ...fields }));
+}
+
+test('relayed owner letters and recommendation replies release implementation and preserve their proposal and scope', async () => {
+  for (const response of ['A', 'yes, your recommendation', 'Use a two-column layout with the summary first']) {
+    const f = fixture();
+    f.put('ex-build', { labels: ['human'], status: 'in_progress', assignee: 'abandoned-agent', metadata: { noticeos_choices: choices } });
+    const reply = await maintain(f, 'ex-build', { action: 'answer', response, owner: 'Owner', source: 'codex://threads/owner-layout',
+      scope: 'Local layout implementation only; no deployment' });
+    assert.equal(reply.isError, undefined, JSON.stringify(reply));
+    const task = reply.structuredContent.task;
+    assert.equal(task.status, 'open'); assert.equal(task.assignee, null); assert.deepEqual(task.labels, []);
+    assert.equal(task.metadata.noticeos_maintenance.response, response);
+    assert.equal(task.metadata.noticeos_maintenance.scope, 'Local layout implementation only; no deployment');
+    assert.equal(task.metadata.noticeos_maintenance.permission, 'none');
+    assert.equal(task.choice?.option ?? null, response.startsWith('Use ') ? null : 'a');
+    assert.equal(f.closes().length, 0, 'answering is not implementation completion');
+  }
+});
+
+test('owner task comments close decisions and release dependents; a forged comment or stale proposal does nothing', async () => {
+  const f = fixture();
+  f.put('ex-decision', { issue_type: 'decision', labels: ['human'], metadata: { noticeos_choices: choices } });
+  f.put('ex-follow'); f.link('ex-follow', 'ex-decision');
+  f.comments.push({ id: 'owner-1', issue_id: 'ex-decision', author: 'Owner', text: 'A', created_at: '2026-10-17T11:00:00Z' });
+  const args = { action: 'answer', response: 'B', owner: 'Owner', source: 'comment:owner-1', scope: 'Local layout' };
+  assert.equal((await maintain(f, 'ex-decision', args)).isError, true);
+  assert.equal(f.tasks.get('ex-decision').metadata.noticeos_maintenance, undefined);
+  const old = (await f.call('get_task', inProject({ task: 'ex-decision' }))).structuredContent.proposal;
+  f.tasks.get('ex-decision').title = 'Changed decision';
+  const stale = await maintain(f, 'ex-decision', { ...args, response: 'A', proposal: old });
+  assert.equal(stale.isError, true); assert.equal(f.closes().length, 0);
+  const done = await maintain(f, 'ex-decision', { ...args, response: 'A' });
+  assert.equal(done.isError, undefined, JSON.stringify(done)); assert.equal(done.structuredContent.task.status, 'closed');
+  const ready = (await f.call('list_tasks', inProject({ ready: true }))).structuredContent.tasks;
+  assert.ok(ready.some(task => task.id === 'ex-follow'));
+});
+
+test('an ambiguous answer asks only for its unresolved choice and preserves the whole request', async () => {
+  const f = fixture(); f.put('ex-choice', { labels: ['human'], metadata: { noticeos_choices: choices } });
+  const result = await maintain(f, 'ex-choice', { action: 'answer', response: 'yes', owner: 'Owner',
+    source: 'codex://threads/choice', scope: 'Local layout' });
+  assert.equal(result.isError, true); assert.match(result.content[0].text, /one clarification/u);
+  assert.equal(f.tasks.get('ex-choice').metadata.noticeos_maintenance, undefined);
+  assert.equal(f.comments.length, 0);
+});
+
+test('completed and obsolete human requests close with evidence; routine work returns to agents', async () => {
+  for (const action of ['completed', 'obsolete', 'superseded', 'routine']) {
+    const f = fixture(); f.put('ex-old', { labels: ['human'] });
+    const result = await maintain(f, 'ex-old', { action });
+    assert.equal(result.isError, undefined, JSON.stringify(result));
+    assert.equal(result.structuredContent.task.status, action === 'routine' ? 'open' : 'closed');
+    assert.equal(result.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
+    assert.match(f.comments[0].text, /Evidence: commit abc1234/u);
+    if (action === 'routine') assert.deepEqual(result.structuredContent.task.labels, []);
+  }
+  const f = fixture(); f.put('ex-business', { labels: ['human'], issue_type: 'decision' });
+  assert.equal((await maintain(f, 'ex-business', { action: 'completed' })).isError, true,
+    'implementation evidence cannot approve a business decision');
+});
+
+test('retiring a production gate grants no authority and keeps its parent action blocked', async () => {
+  const f = fixture(); f.put('ex-prod', { labels: ['human'] });
+  f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: 'Reason: Read production logs once' });
+  f.link('ex-prod', 'ex-gate');
+  for (const action of ['routine', 'completed', 'release']) {
+    const fields = action === 'release' ? { holder: 'old-agent', inactive: true, activity_check: 'No active session', progress: 'No change' } : {};
+    assert.equal((await maintain(f, 'ex-gate', { action, ...fields })).isError, true);
+  }
+  const retired = await maintain(f, 'ex-gate', { action: 'obsolete' });
+  assert.equal(retired.isError, undefined, JSON.stringify(retired));
+  assert.equal(retired.structuredContent.task.metadata.noticeos_maintenance.permission, 'none');
+  assert.equal(f.tasks.get('ex-prod').status, 'blocked');
+  assert.ok(f.comments.some(comment => comment.issue_id === 'ex-prod' && /No permission granted/u.test(comment.text)));
+  assert.ok(!f.commands.some(argv => argv.includes('resolve')));
+});
+
+test('duplicate gates retain the full approval scope and attach the parent to the surviving gate', async () => {
+  const f = fixture(); f.put('ex-prod');
+  for (const id of ['ex-old', 'ex-new']) f.put(id, { issue_type: 'gate', await_type: 'human', description: 'Reason: One bounded production read' });
+  f.link('ex-prod', 'ex-old');
+  f.tasks.get('ex-new').description = 'Reason: Deploy the app';
+  assert.equal((await maintain(f, 'ex-old', { action: 'duplicate', duplicate_of: 'ex-new' })).isError, true);
+  f.tasks.get('ex-new').description = f.tasks.get('ex-old').description;
+  const result = await maintain(f, 'ex-old', { action: 'duplicate', duplicate_of: 'ex-new' });
+  assert.equal(result.isError, undefined, JSON.stringify(result));
+  assert.equal(f.tasks.get('ex-new').status, 'open');
+  assert.ok(f.edges.some(edge => edge.from === 'ex-prod' && edge.to === 'ex-new' && edge.type === 'blocks'));
+});
+
+test('production approval requires the exact action scope and explicit owner approval', async () => {
+  const f = fixture();
+  f.put('ex-implementation', { status: 'blocked', assignee: 'old-agent', labels: ['human'] });
+  f.put('ex-gate', { issue_type: 'gate', await_type: 'human', description: 'Reason: Read production logs once; no writes' });
+  f.link('ex-implementation', 'ex-gate');
+  const fields = { action: 'answer', response: 'yes', owner: 'Owner', source: 'codex://threads/approval', scope: 'Deploy production' };
+  assert.equal((await maintain(f, 'ex-gate', fields)).isError, true);
+  assert.equal((await maintain(f, 'ex-gate', { ...fields, response: 'The implementation exists', scope: 'Read production logs once; no writes' })).isError, true);
+  const done = await maintain(f, 'ex-gate', { ...fields, scope: 'Read production logs once; no writes' });
+  assert.equal(done.isError, undefined, JSON.stringify(done));
+  assert.equal(done.structuredContent.task.metadata.noticeos_maintenance.permission, 'approved-scope-only');
+  assert.equal(done.structuredContent.task.metadata.noticeos_maintenance.scope, fields.scope.replace('Deploy production', 'Read production logs once; no writes'));
+  assert.equal(f.tasks.get('ex-implementation').status, 'open');
+  assert.equal(f.tasks.get('ex-implementation').assignee, '');
+  assert.deepEqual(f.tasks.get('ex-implementation').labels, []);
+});
+
+test('assignment release requires checked inactivity and preserves progress; a concurrent new holder wins', async () => {
+  const f = fixture(); f.put('ex-held', { status: 'in_progress', assignee: 'old-agent', labels: ['human'] });
+  const fields = { action: 'release', holder: 'old-agent', activity_check: 'Agent registry has no live session for this holder.', progress: 'Commit abc1234 is ready for review.' };
+  assert.equal((await maintain(f, 'ex-held', fields)).isError, true);
+  assert.equal((await maintain(f, 'ex-held', { ...fields, inactive: true, holder: 'different-agent' })).isError, true);
+  f.rivalFirst('update', () => { f.tasks.get('ex-held').assignee = 'new-agent'; });
+  const raced = await maintain(f, 'ex-held', { ...fields, inactive: true });
+  assert.equal(raced.isError, true); assert.equal(f.tasks.get('ex-held').assignee, 'new-agent');
+  f.tasks.get('ex-held').assignee = 'old-agent';
+  const released = await maintain(f, 'ex-held', { ...fields, inactive: true, idempotency_key: 'release-confirmed-0002' });
+  assert.equal(released.isError, undefined, JSON.stringify(released));
+  assert.equal(released.structuredContent.task.status, 'open');
+  assert.deepEqual(released.structuredContent.task.labels, ['human'], 'release does not answer a decision');
+  assert.ok(f.comments.some(comment => /Progress preserved: Commit abc1234/u.test(comment.text)));
+});
+
+test('untrusted conversation links and forged owner identities cannot approve a production action', async () => {
+  const f = fixture({ trustedSources: false });
+  f.put('ex-prod', { issue_type: 'gate', await_type: 'human', description: 'Reason: Read production logs once; no writes' });
+  const result = await maintain(f, 'ex-prod', { action: 'answer', response: 'yes', owner: 'Made-up Owner',
+    source: 'https://example.com/fabricated-answer', scope: 'Read production logs once; no writes' });
+  assert.equal(result.isError, true); assert.equal(f.tasks.get('ex-prod').status, 'open');
+  assert.equal(f.comments.length, 0); assert.equal(f.closes().length, 0);
+});
+
+test('a task comment is bound to the proposal at its date, not replacement choices', () => {
+  const old = { id: 'ex-choice', title: 'Original choice', issue_type: 'decision', metadata: { noticeos_choices: choices } };
+  const current = { ...old, title: 'Replacement choice', updated_at: '2026-10-17T12:00:00Z' };
+  const comments = [{ id: 'owner-1', author: 'Owner', text: 'A', created_at: '2026-10-17T11:00:00Z' }];
+  const history = [{ CommitDate: '2026-10-17T10:00:00Z', Issue: old }];
+  const op = { source: 'comment:owner-1', proposal: taskProposal(current) };
+  assert.equal(commentProposalMatches(op, current, comments, history), false);
+  assert.equal(commentProposalMatches({ ...op, proposal: taskProposal(old) }, current, comments, history), true);
+  assert.equal(commentProposalMatches(op, current, comments, []), false, 'missing history cannot invent approval');
+});
+
+test('uncertain replies do not release work and a clearly named batch reply maps only to its tasks', () => {
+  const row = { id: 'ex-choice', issue_type: 'decision', status: 'open', labels: ['human'], metadata: { noticeos_choices: choices } };
+  for (const response of ['I am not sure', 'Maybe A', 'Can you explain the recommendation?', 'A for ex-other and ex-next']) {
+    assert.throws(() => ownerResponseSteps({ kind: 'respond', taskId: row.id, response }, row, [], 'Owner', '2026-10-17T12:00:00Z'), /clarification/u);
+  }
+  const steps = ownerResponseSteps({ kind: 'respond', taskId: row.id, response: 'A for ex-choice and ex-other' }, row, [], 'Owner', '2026-10-17T12:00:00Z');
+  assert.equal(steps[0].choice.option, 'a');
+});
+
+test('an interrupted retirement retries attribution without another close or owner action', async () => {
+  const f = fixture(); f.put('ex-done', { labels: ['human'] });
+  const fields = { action: 'completed', idempotency_key: 'retirement-retry-0001' };
+  f.failNext('close');
+  assert.equal((await maintain(f, 'ex-done', fields)).isError, true);
+  assert.equal(f.tasks.get('ex-done').status, 'closed');
+  const retry = await maintain(f, 'ex-done', fields);
+  assert.equal(retry.isError, undefined, JSON.stringify(retry));
+  assert.equal(retry.structuredContent.task.resolution, 'already-handled');
+  assert.equal(f.closes().length, 1);
+});
+
+test('releasing a dormant assignment preserves blocked and deferred work', async () => {
+  for (const status of ['blocked', 'deferred']) {
+    const f = fixture(); f.put('ex-held', { status, assignee: 'old-agent' });
+    const result = await maintain(f, 'ex-held', { action: 'release', holder: 'old-agent', inactive: true,
+      activity_check: 'Registry confirms the holder stopped.', progress: 'Local patch retained at abc1234.' });
+    assert.equal(result.isError, undefined, JSON.stringify(result));
+    assert.equal(result.structuredContent.task.status, status);
+    assert.equal(result.structuredContent.task.assignee, null);
+  }
+});
+
+test('an interrupted deferred assignment release replays without changing its scheduling', async () => {
+  const f = fixture(); f.put('ex-later', { status: 'deferred', assignee: 'old-agent' });
+  const fields = { action: 'release', holder: 'old-agent', inactive: true, activity_check: 'Agent registry confirms inactivity.',
+    progress: 'Commit abc1234 retained.', idempotency_key: 'deferred-release-retry-0001' };
+  f.failNext('hand-back');
+  assert.equal((await maintain(f, 'ex-later', fields)).isError, true);
+  const retried = await maintain(f, 'ex-later', fields);
+  assert.equal(retried.isError, undefined, JSON.stringify(retried));
+  assert.equal(retried.structuredContent.task.status, 'deferred');
+  assert.equal(retried.structuredContent.task.assignee, null);
+});
 
 test('a task whose blocker is open closes with its reason, and the dependency still holds it out of ready work', async () => {
   const f = fixture();
@@ -148,9 +357,8 @@ test('a task with nothing open closes without force, and a task labelled human s
   f.put('ex-ask', { labels: ['human'] });
   await f.call('close_task', inProject({ task: 'ex-done', reason: 'Done in abc123', idempotency_key: 'close-done-0001' }));
   assert.deepEqual(f.closes().map(argv => argv.includes('--force')), [false]);
-  assert.equal(await f.refusal('close_task', inProject({ task: 'ex-ask', reason: 'Decided it myself', idempotency_key: 'close-ask-0001' })),
-    'refused: ex-ask is a person\'s decision, a gate or a task labelled human. Only a person closes it, takes off its human label or removes '
-    + 'a dependency on it, on Tasks in the Tower; ask with request_human_approval or a comment.');
+  assert.match(await f.refusal('close_task', inProject({ task: 'ex-ask', reason: 'Decided it myself', idempotency_key: 'close-ask-0001' })),
+    /Use reconcile_task.*An unresolved action-specific approval stays blocked/u);
   assert.equal(f.tasks.get('ex-ask').status, 'open');
   assert.equal(f.closes().length, 1, 'the refused close never reached the task client');
 });

@@ -11,9 +11,9 @@ import { createHash } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import type { TaskDirectory, TaskProjectMapping } from '../packages/postgres/src/task-directory.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
-import { answerSteps, choiceSteps, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
-  isHumanDecision, TaskStateRefused, TaskStoreFailed, writeGuardReads, type DecisionStep, type HostedTaskOperation,
-  type HostedTaskRequest } from './hosted-task-command.mjs';
+import { answerSteps, choiceSteps, commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused,
+  isHumanDecision, maintenanceSteps, ownerResponseSteps, TaskMaintenanceRefused, TaskStateRefused, TaskStoreFailed, writeGuardReads, type DecisionStep, type HostedTaskOperation,
+  type HostedTaskRequest, type OwnerAnswerVerifier } from './hosted-task-command.mjs';
 import { beadsClosesSince, beadsPollArgs } from './task-snapshot-summary.mjs';
 import { readTaskChoice, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { readDeclaredTaskClient, taskClientEnvironment } from './task-client.mjs';
@@ -33,6 +33,7 @@ export interface HostedTaskTarget {
   readonly tls: boolean;
 }
 export interface HostedTaskExecutorOptions {
+  readonly verifyOwnerAnswer?: OwnerAnswerVerifier;
   readonly admission: WorkspaceAdmission;
   readonly directory: Pick<TaskDirectory, 'project'> & Partial<Pick<TaskDirectory, 'withProjectMutation'>>;
   readonly resolveTarget: (mapping: TaskProjectMapping) => Promise<HostedTaskTarget | null>;
@@ -108,8 +109,8 @@ function record(input: unknown): Record<string, unknown> {
   }
   return result;
 }
-function exact(row: Record<string, unknown>, keys: readonly string[]): void {
-  if (Object.keys(row).length !== keys.length || keys.some(key => !Object.hasOwn(row, key))) fail();
+function exact(row: Record<string, unknown>, keys: readonly string[], optional: readonly string[] = []): void {
+  if (Object.keys(row).some(key => !keys.includes(key) && !optional.includes(key)) || keys.some(key => !Object.hasOwn(row, key))) fail();
 }
 function uuid(input: unknown): string {
   if (typeof input !== 'string' || !UUID.test(input)) fail();
@@ -211,7 +212,9 @@ async function command(binary: string, argv: readonly string[], cwd: string,
 }
 
 export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): HostedTaskExecutor {
-  const input = record(options); exact(input, ['admission', 'directory', 'resolveTarget', 'binary', 'doltBinary', 'scratchRoot']);
+  const input = record(options); exact(input, ['admission', 'directory', 'resolveTarget', 'binary', 'doltBinary', 'scratchRoot'], ['verifyOwnerAnswer']);
+  if (input.verifyOwnerAnswer !== undefined && typeof input.verifyOwnerAnswer !== 'function') fail();
+  const verifyOwnerAnswer = options.verifyOwnerAnswer;
   if (!input.admission || typeof options.admission.withAdmission !== 'function'
     || typeof options.admission.assertContext !== 'function' || !input.directory
     || typeof options.directory.project !== 'function' || typeof input.resolveTarget !== 'function') fail();
@@ -391,9 +394,39 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                 };
                 // A pick, or an answer on a task that is not a decision, runs as steps.
                 let steps: readonly DecisionStep[] | null = null;
+                if (operation.kind === 'maintain') {
+                  const before = await target(operation.taskId, ['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', operation.taskId]);
+                  const comments = await run(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+                  const duplicate = operation.duplicateOf === undefined ? undefined : await target(operation.duplicateOf);
+                  const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
+                    ? await run(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
+                  const verified = operation.action === 'answer' && commentProposalMatches(operation, before, comments, history)
+                    && await verifyOwnerAnswer?.(workspaceId, snapshot.projectId, operation, before, comments) === true;
+                  const maintenance = maintenanceSteps(operation, before, comments, last.principalId, new Date().toISOString(), duplicate, verified);
+                  for (const step of maintenance) {
+                    admission.assertContext(last, action);
+                    await current(selected, life, readMapping);
+                    checkpoint(life);
+                    const stepped = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId,
+                      { projectId: snapshot.projectId, operation: step }).argv;
+                    await run([stepped[0]!, stepped[1]!, `--actor=${last.principalId}`, ...stepped.slice(2)]);
+                    if (step.kind === 'close') {
+                      const after = await target();
+                      if (after.status !== 'closed') fail();
+                      if (typeof after.closed_at === 'string') {
+                        const attributed = createHostedTaskPlanner([{ workspaceId, projectId: snapshot.projectId, capability }])(workspaceId,
+                          { projectId: snapshot.projectId, operation: { kind: 'attribute', taskId: operation.taskId, closedBy: last.principalId,
+                            closedAt: after.closed_at, ...(operation.model ? { model: operation.model } : {}),
+                            ...(step.resolution ? { resolution: step.resolution } : {}), ...(step.duplicateOf ? { duplicateOf: step.duplicateOf } : {}) } }).argv;
+                        await run([attributed[0]!, attributed[1]!, `--actor=${last.principalId}`, ...attributed.slice(2)]);
+                      }
+                    }
+                  }
+                  return target();
+                }
                 if (action === 'tasks.decide') {
                   // A step is a part of a decision, never a request of its own.
-                  if (operation.kind === 'record-choice' || operation.kind === 'hand-back') fail();
+                  if (operation.kind === 'record-choice' || operation.kind === 'hand-back' || operation.kind === 'record-maintenance') fail();
                   const before = await target();
                   if (operation.kind === 'choose') {
                     if (before.issue_type === 'gate') fail();
@@ -405,7 +438,10 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                     if (operation.kind === 'resolve-gate') {
                       if (before.issue_type !== 'gate' || before.await_type !== 'human') fail();
                     } else if (before.issue_type === 'gate' || !Array.isArray(before.labels) || !before.labels.includes('human')) fail();
-                    if (operation.kind === 'respond') steps = answerSteps(operation, before);
+                    if (operation.kind === 'respond') {
+                      const comments = await run(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+                      steps = ownerResponseSteps(operation, before, comments, last.principalId, new Date().toISOString());
+                    }
                   }
                 } else if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human')) {
                   fail();
@@ -474,9 +510,9 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
                     const after = await target();
                     const labels = Array.isArray(after.labels) ? after.labels : [];
                     const back = after.status === 'open' && !labels.includes('human') && (typeof after.assignee !== 'string' || after.assignee === '');
-                    if (operation.kind === 'choose') {
+                    if (operation.kind === 'choose' || operation.kind === 'respond' && steps.some(step => step.kind === 'record-choice')) {
                       const chosen = readTaskChoice(after.metadata);
-                      if (chosen?.option !== operation.option || chosen.by !== effect.principalId) fail();
+                      if (chosen === null || operation.kind === 'choose' && chosen.option !== operation.option || chosen.by !== effect.principalId) fail();
                       const closing = steps.at(-1)!;
                       if (closing.kind === 'close' ? after.status !== 'closed' || after.close_reason !== closing.reason : !back) fail();
                     } else if (!back) fail();
@@ -527,7 +563,7 @@ export function createHostedTaskExecutor(options: HostedTaskExecutorOptions): Ho
         });
       } catch (error) {
         // The refusals whose reason is the caller's to learn; see their classes.
-        if (error instanceof HumanDecisionRefused || error instanceof TaskStateRefused || error instanceof TaskStoreFailed) throw error;
+        if (error instanceof HumanDecisionRefused || error instanceof TaskMaintenanceRefused || error instanceof TaskStateRefused || error instanceof TaskStoreFailed) throw error;
         fail();
       }
     },

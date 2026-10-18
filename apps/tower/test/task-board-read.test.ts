@@ -228,6 +228,23 @@ describe("what the inbox asks of a task", () => {
     expect(askVerb(item())).toBe("answer");
   });
 
+  it("keeps answered questions and epic containers out of the inbox even with stale human labels", () => {
+    const choice = { option: "a" as const, label: "Build it", by: "Owner", at: "2026-10-17T12:00:00Z" };
+    expect(inboxAsk(liveTask({ labels: ["human"], ready: true, choice }))).toBeNull();
+    expect(inboxAsk(liveTask({ issueType: "epic", labels: ["human"], ready: true }))).toBeNull();
+  });
+
+  it("shows one approval for gated work while keeping the parent accessible in All tasks", () => {
+    const tasks = [
+      liveTask({ id: "md-parent", labels: ["human"], ready: true, dependencies: [{ id: "md-gate", type: "blocks", title: "Approve read", status: "open" }] }),
+      liveTask({ id: "md-gate", issueType: "gate", awaitType: "human", title: "Approve one read" }),
+    ];
+    const view = read({ reads: new Map([["meadow.example", success(board(tasks))]]) });
+    expect(view.projects[0]!.waiting.map(task => task.id)).toEqual(["md-gate"]);
+    expect(view.rows.map(task => task.id)).toContain("md-parent");
+    expect(view.totals.waiting).toBe(1);
+  });
+
   it("asks for a choice while a ready human ask carries options nobody has picked, and for nothing once one is", () => {
     const choices = { question: "Which?", options: [{ key: "a", label: "One", recommended: true }, { key: "b", label: "Two" }] } as const;
     const choice = { option: "a", label: "One", by: "Dana", at: "2026-09-04T11:00:00.000Z" } as const;

@@ -8,7 +8,7 @@ import type { TaskDirectory } from '../packages/postgres/src/task-directory.mjs'
 import type { TaskReceipts } from '../packages/postgres/src/task-receipts.mjs';
 import type { WorkspaceAdmission } from './workspace-admission.mjs';
 import type { HostedTaskExecutor } from './hosted-task-executor.mjs';
-import { decisionRefusal, hostedTaskAction, TaskStateRefused, type HostedTaskStatus, type HostedTaskRequest } from './hosted-task-command.mjs';
+import { decisionRefusal, hostedTaskAction, TaskMaintenanceRefused, TaskStateRefused, type HostedTaskStatus, type HostedTaskRequest } from './hosted-task-command.mjs';
 import { readHostedTaskCommand } from './hosted-task-http.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { CLOSED_HISTORY_DAYS, createHostedTaskOperations, HostedTaskReceiptsUnavailable, type HostedTaskWriteOutcome } from './hosted-task-operations.mjs';
@@ -117,6 +117,7 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
         query.closedDays === undefined ? undefined : Number(query.closedDays)));
     } catch (error) {
       if (error instanceof HostedTaskReceiptsUnavailable) return response(503, { error: 'idempotency_unavailable' });
+      if (error instanceof TaskMaintenanceRefused) return response(409, { error: 'task_refused', detail: error.message });
       // A person's own decision or close refused by the task's state, or naming a task the project lacks: the sentence names why.
       const detail = error instanceof TaskStateRefused && mutation
         && (hostedTaskAction(mutation.operation) === 'tasks.decide' || mutation.operation.kind === 'close') ? decisionRefusal(error) : null;

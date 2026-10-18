@@ -319,10 +319,19 @@ from the `choices` an agent passes to `create_task`, `create_tasks` or
 `{ question, options: [{ key, label, detail?, recommended? }] }`, two to six
 options keyed `a` to `f` in the order shown, exactly one with
 `recommended: true`. `noticeos_choice` is the pick, written once by the
-choose operation that only a person can call:
+choose operation, or by `reconcile_task` after verifying an existing owner answer and its proposal:
 `{ option, label, by, at, note? }`, where `label` is the option's label when
 it was chosen and `by` is the person. Once `noticeos_choice` is present,
 `update_task` refuses to change `noticeos_choices`.
+
+`noticeos_maintenance` records the last evidence-backed task disposition,
+its actor, source, exact proposal and scope. Task history retains earlier
+records. A retired gate records no permission; its unfinished action remains
+blocked, or retains an equivalent open approval when it is a duplicate.
+A linked-conversation answer requires a trusted source adapter. Without that
+adapter, the recorded answer stays available and the operation fails closed;
+the owner does not need to answer again. A task-comment answer must match its
+human owner and the proposal at the comment's timestamp.
 
 **Four kinds, and what each one's key is.** `noticeos_kind` names the surface
 that raised the work, and `noticeos_key` is the join back to the exact row:

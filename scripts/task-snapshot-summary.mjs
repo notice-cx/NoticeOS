@@ -525,7 +525,7 @@ export function summarizeBeadsProject(project, results, { closedSince, closesSin
       : [],
   );
   const humanBeads = Array.isArray(parsed.human)
-    ? ready.filter((issue) => issue.status === 'open' && humanIds.has(issue.id))
+    ? ready.filter((issue) => issue.status === 'open' && humanIds.has(issue.id) && issue.choice == null)
     : [];
   const humanGates = Array.isArray(parsed.gates)
     ? parsed.gates

@@ -7,7 +7,7 @@
  */
 import { createHash } from 'node:crypto';
 import { assetDisplayName } from '../packages/contract/src/asset-name.mjs';
-import { createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
+import { commentProposalMatches, createHostedTaskPlanner, decisionGuardTargets, guardedWrite, guardReadArgs, hostedTaskAction, HumanDecisionRefused, isHumanDecision, maintenanceSteps, TaskStoreFailed, writeGuardReads } from './hosted-task-command.mjs';
 export class StandaloneTaskRefused extends Error {
     name = 'StandaloneTaskRefused';
     constructor() { super('Task operation refused.'); }
@@ -67,7 +67,7 @@ export function createStandaloneTaskExecutor(options) {
     const admission = options.admission;
     if (typeof admission?.withAdmission !== 'function' || typeof projects !== 'function' || typeof run !== 'function')
         refuse();
-    return Object.freeze({
+    const executor = Object.freeze({
         async execute(proof, workspaceId, request) {
             const operation = request?.operation;
             const action = hostedTaskAction(operation);
@@ -92,6 +92,41 @@ export function createStandaloneTaskExecutor(options) {
                         throw new TaskStoreFailed(false);
                     }
                 };
+                if (operation.kind === 'maintain') {
+                    const read = async (id) => {
+                        const shown = await client(['--sandbox', '--readonly', '--json', 'show', '--include-dependents', '--', id]);
+                        const row = (Array.isArray(shown) ? shown[0] : shown);
+                        if (row?.id !== id)
+                            refuse();
+                        return row;
+                    };
+                    const before = await read(operation.taskId);
+                    const comments = await client(['--sandbox', '--readonly', '--json', 'comments', '--', operation.taskId]);
+                    const duplicate = operation.duplicateOf === undefined ? undefined : await read(operation.duplicateOf);
+                    const history = operation.source?.startsWith('comment:') && !commentProposalMatches(operation, before, comments, [])
+                        ? await client(['--sandbox', '--readonly', '--json', 'history', '--limit=200', '--', operation.taskId]) : [];
+                    const verified = operation.action === 'answer' && commentProposalMatches(operation, before, comments, history)
+                        && await options.verifyOwnerAnswer?.(workspaceId, request.projectId, operation, before, comments) === true;
+                    const steps = maintenanceSteps(operation, before, comments, context.principalId, new Date().toISOString(), duplicate, verified);
+                    const execute = async (step) => {
+                        admission.assertContext(context, action);
+                        const argv = createHostedTaskPlanner([{ workspaceId, projectId: project.projectId, capability: Symbol() }])(workspaceId, { projectId: project.projectId, operation: step }).argv;
+                        return client([argv[0], argv[1], `--actor=${context.principalId}`, ...argv.slice(2)]);
+                    };
+                    for (const step of steps) {
+                        await execute(step);
+                        if (step.kind === 'close') {
+                            const after = await read(operation.taskId);
+                            if (after.status !== 'closed')
+                                refuse();
+                            if (typeof after.closed_at === 'string')
+                                await execute({ kind: 'attribute', taskId: operation.taskId,
+                                    closedBy: context.principalId, closedAt: after.closed_at, ...(operation.model ? { model: operation.model } : {}),
+                                    ...(step.resolution ? { resolution: step.resolution } : {}), ...(step.duplicateOf ? { duplicateOf: step.duplicateOf } : {}) });
+                        }
+                    }
+                    return read(operation.taskId);
+                }
                 if (operation.kind === 'update' && operation.status === 'closed' && operation.addLabels?.includes('human'))
                     refuse();
                 const rows = new Map(), decisions = decisionGuardTargets(operation);
@@ -110,6 +145,14 @@ export function createStandaloneTaskExecutor(options) {
                 // The actor is the admitted principal, inserted before every command token.
                 return client([argv[0], argv[1], `--actor=${context.principalId}`, ...argv.slice(2)]);
             });
+        },
+    });
+    return Object.freeze({
+        async execute(proof, workspaceId, request) {
+            const write = hostedTaskAction(request.operation) !== 'tasks.read';
+            return write && options.withProjectMutation
+                ? options.withProjectMutation(workspaceId, request.projectId, () => executor.execute(proof, workspaceId, request))
+                : executor.execute(proof, workspaceId, request);
         },
     });
 }
