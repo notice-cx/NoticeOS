@@ -288,8 +288,9 @@ or policy commitments retain their explicit action-specific approval.
 
 ## Git policy
 
-The task hub never commits or pushes. The operator authorises separate commits for
-completed, verified pieces of requested work without another prompt; stage only
+Changes go through a branch and a GitHub pull request. Do not commit to or push
+`main` directly. The task hub never commits or pushes. The operator authorises
+separate commits for completed, verified pieces of requested work without another prompt; stage only
 the intended changes; follow the
 [commit and PR title standard](CONTRIBUTING.md#commit-messages-and-pull-request-titles)
 with the task id in a `Refs:` footer. Never amend and never force-push a
