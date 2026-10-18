@@ -804,15 +804,15 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     ],
   });
 
-  it("puts the gate first, above everything else on the page", () => {
+  it("puts the more urgent decision before a lower-priority approval", () => {
     const { container } = renderBoard({ data: withInbox });
     const inbox = container.querySelector("[data-waiting-list]")!;
     const titles = [...inbox.querySelectorAll("li")].map((node) => node.textContent ?? "");
-    expect(titles[0]).toContain("approve the spend");
-    expect(titles[1]).toContain("Decide the Korea trip");
-    expect(titles[1]).toContain("Meadow Board");
-    expect(titles[1]).not.toContain("md-9k1");
-    expect(titles[0]).toContain("needs your approval");
+    expect(titles[0]).toContain("Decide the Korea trip");
+    expect(titles[1]).toContain("approve the spend");
+    expect(titles[0]).toContain("Meadow Board");
+    expect(titles[0]).not.toContain("md-9k1");
+    expect(titles[1]).toContain("needs your approval");
   });
 
   it("wears warn on a top-priority ask like every other ask, never error", () => {
@@ -931,6 +931,35 @@ describe("/tasks — Your decisions leads, and it can be answered", () => {
     expect(container.querySelector('tr[data-task-row="md-9k1"]')).toBeNull();
     expect(container.querySelector('tr[data-task-row="md-gate"]')).toBeNull();
     expect(container.querySelector('tr[data-task-row="md-1w2"]')).not.toBeNull();
+  });
+
+  it("shows the work released by an answer without expanding its history", () => {
+    const { container } = renderBoard({ data: withInbox, live: true, boards: {
+      "meadow.example": board([
+        liveTask({ id: "md-decision", title: "Choose the sender", issueType: "decision", labels: ["human"], ready: true }),
+        liveTask({ id: "md-build", title: "Build the digest sender", dependencies: [
+          { id: "md-decision", type: "blocks", title: null, status: null },
+        ] }),
+        liveTask({ id: "md-plain", title: "Choose the heading", labels: ["human"], ready: true }),
+      ]),
+    } });
+    expect(container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]'))
+      .toHaveTextContent("After your answer: Build the digest sender");
+    expect(container.querySelector('[data-inbox-row="md-plain"] [data-inbox-proceeds]'))
+      .toHaveTextContent("After your answer: An agent can continue this task.");
+  });
+
+  it("keeps a decision that releases many tasks to two titles and a count", () => {
+    const { container } = renderBoard({ data: withInbox, live: true, boards: {
+      "meadow.example": board([
+        liveTask({ id: "md-decision", title: "Choose the sender", issueType: "decision", labels: ["human"], ready: true }),
+        ...Array.from({ length: 8 }, (_, index) => liveTask({ id: `md-build-${index}`, title: `Sender step ${index}`,
+          dependencies: [{ id: "md-decision", type: "blocks", title: null, status: null }] })),
+      ]),
+    } });
+    const consequence = container.querySelector('[data-inbox-row="md-decision"] [data-inbox-proceeds]');
+    expect(consequence).toHaveTextContent("After your answer: Sender step 0; Sender step 1; 6 more tasks");
+    expect(consequence).not.toHaveTextContent("Sender step 2");
   });
 
   it("says nothing else is queued when every task is for you to decide", () => {

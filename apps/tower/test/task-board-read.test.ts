@@ -245,6 +245,39 @@ describe("what the inbox asks of a task", () => {
     expect(view.totals.waiting).toBe(1);
   });
 
+  it("ranks decisions by the work they release without promising work with another blocker", () => {
+    const tasks = [
+      liveTask({ id: "md-urgent", labels: ["human"], ready: true, priority: 0 }),
+      liveTask({ id: "md-choice", issueType: "decision", labels: ["human"], ready: true, priority: 3 }),
+      liveTask({ id: "md-build", title: "Build the approved sender", priority: 1,
+        dependencies: [
+          { id: "md-choice", type: "waits-for", title: "Choose sender", status: null },
+          { id: "md-finished", type: "blocks", title: null, status: null },
+        ] }),
+      liveTask({ id: "md-finished", status: "closed" }),
+      liveTask({ id: "md-still-blocked", priority: 0, dependencies: [
+        { id: "md-choice", type: "blocks", title: "Choose sender", status: "open" },
+        { id: "md-other", type: "conditional-blocks", title: "Another decision", status: "open" },
+      ] }),
+      liveTask({ id: "md-approval", issueType: "gate", awaitType: "human", priority: 2 }),
+    ];
+    const view = read({ reads: new Map([["meadow.example", success(board(tasks))]]) });
+    expect(view.inbox.map(row => row.task.id)).toEqual(["md-urgent", "md-choice", "md-approval"]);
+    expect(view.inbox[1]!.task.decisionImpact).toEqual({ priority: 1,
+      proceeds: [{ id: "md-build", title: "Build the approved sender" }] });
+  });
+
+  it("ranks an approval by its dependent work and keeps a separate parent choice unresolved", () => {
+    const tasks = [
+      liveTask({ id: "md-approval", issueType: "gate", awaitType: "human", priority: 0 }),
+      liveTask({ id: "md-later", priority: 3, dependencies: [{ id: "md-approval", type: "blocks", title: null, status: null }] }),
+      liveTask({ id: "md-choice", labels: ["human"], ready: true, priority: 1 }),
+    ];
+    const view = read({ reads: new Map([["meadow.example", success(board(tasks))]]) });
+    expect(view.inbox.map(row => row.task.id)).toEqual(["md-choice", "md-approval"]);
+    expect(view.inbox[1]!.task.decisionImpact?.priority).toBe(3);
+  });
+
   it("asks for a choice while a ready human ask carries options nobody has picked, and for nothing once one is", () => {
     const choices = { question: "Which?", options: [{ key: "a", label: "One", recommended: true }, { key: "b", label: "Two" }] } as const;
     const choice = { option: "a", label: "One", by: "Dana", at: "2026-09-04T11:00:00.000Z" } as const;

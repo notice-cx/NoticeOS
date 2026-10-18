@@ -1822,6 +1822,37 @@ describe("AssetDetailRoute — the setup checklist", () => {
 });
 
 describe("AssetDetailRoute — inbound deep links", () => {
+  it.each(["wheel", "touchstart", "pointerdown", "keydown"])("keeps a deep link aligned through loading, then stops after %s", async (event) => {
+    const scrolled = captureScrollTargets();
+    let resize!: () => void;
+    const disconnect = vi.fn();
+    const observe = vi.fn();
+    vi.stubGlobal("ResizeObserver", class implements ResizeObserver {
+      constructor(callback: ResizeObserverCallback) { resize = () => callback([], this); }
+      observe = observe;
+      unobserve = vi.fn();
+      disconnect = disconnect;
+    });
+    const data = nomPayload();
+    data.asset.status = "retired";
+    stubFetch(200, data);
+    const view = renderRoute("northwind.example", RESTORE_HASH);
+    await waitFor(() => expect(scrolled).toEqual(["restore"]));
+    expect(observe).toHaveBeenCalledWith(view.getByRole("tabpanel"));
+
+    resize();
+    await waitFor(() => expect(scrolled).toEqual(["restore", "restore"]));
+    fireEvent(window, event === "keydown"
+      ? new KeyboardEvent(event, { key: "ArrowDown", bubbles: true })
+      : new Event(event, { bubbles: true }));
+    expect(disconnect).toHaveBeenCalled();
+    resize();
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    expect(scrolled).toEqual(["restore", "restore"]);
+    view.unmount();
+    expect(disconnect).toHaveBeenCalledTimes(2);
+  });
+
   it.each(Object.entries(HASH_TAB))("scrolls every declared anchor %s to a section on %s", async (hash, tab) => {
     const scrolled = captureScrollTargets();
     const data = nomPayload();

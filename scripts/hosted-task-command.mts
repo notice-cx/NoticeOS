@@ -11,6 +11,7 @@ import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/ta
 import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice,
   type TaskChoiceKey, type TaskChoices } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS, type TaskResolution } from '../packages/contract/src/task-resolution.mjs';
+import { TASK_BLOCKING_DEPENDENCIES as BLOCKING } from '../packages/contract/src/task-gate.mjs';
 
 export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'] as const;
 export interface TaskMaintenance {
@@ -586,7 +587,6 @@ export class TaskStoreFailed extends Error {
 }
 
 /** The dependency types the task client counts as live blockers while the other task is open. */
-const BLOCKING: readonly string[] = ['blocks', 'waits-for', 'conditional-blocks'];
 function rowsOf(value: unknown): Record<string, unknown>[] {
   return Array.isArray(value) ? value.filter((row): row is Record<string, unknown> => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
 }

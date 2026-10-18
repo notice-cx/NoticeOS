@@ -93,7 +93,8 @@ for (const state of ['empty', 'loading', 'error', 'populated'] as const) {
           if (state === 'populated' && name === 'tasks') {
             // The answer leads; its first row still expands in place.
             const first = main.locator('[data-inbox-row], [data-task-row]').first();
-            const expand = first.locator('button[aria-expanded]');
+            const expand = first.getByRole('button').filter({ has: page.locator('[data-row-affordance="expand"]') });
+            await expect(expand).toHaveCount(1);
             await expand.click();
             await expect(expand).toHaveAttribute('aria-expanded', 'true');
             await expect(first.locator('[data-list-row-body]')).toBeVisible();
