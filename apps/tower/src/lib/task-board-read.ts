@@ -1,6 +1,6 @@
 import type { LiveTask, LiveTasksPayload, TasksCapabilities, TaskProject, TaskActor } from "@shared/tasks";
 import { PRIORITY_BANDS, sumWorkWeeks, type WorkItem, type WorkProject, type WorkPayload } from "@shared/work";
-import { waitsOnPerson } from "@noticeos/contract/task-gate";
+import { TASK_BLOCKING_DEPENDENCIES, waitsOnPerson } from "@noticeos/contract/task-gate";
 
 export const IN_PROGRESS = "in_progress";
 export const PARKED = "deferred";
@@ -34,6 +34,7 @@ export interface BoardTask extends WorkItem {
   description?: string;
   acceptance?: string;
   dependencies?: LiveTask["dependencies"];
+  decisionImpact?: { priority: number; proceeds: readonly { id: string; title: string }[] };
 }
 
 /** What one project contributes to the board's six counts. `urgent` is `null`
@@ -151,13 +152,15 @@ export function snapshotRows(project: WorkProject): BoardTask[] {
   return [...rows.values()];
 }
 
-/** Most-blocking first: a gate leads (it is holding a task out of the claimable
- * queue), then priority, then whatever has gone longest untouched — the ask
- * nobody has answered is the one rotting. */
+/** Rank by the work an answer releases, then age. Approval records inherit
+ * their dependent work's urgency rather than outranking every decision. */
 function inboxOrder(a: BoardTask, b: BoardTask): number {
+  const priority = (a.decisionImpact?.priority ?? a.priority) - (b.decisionImpact?.priority ?? b.priority);
+  if (priority !== 0) return priority;
+  const releases = (b.decisionImpact?.proceeds.length ?? 0) - (a.decisionImpact?.proceeds.length ?? 0);
+  if (releases !== 0) return releases;
   const gate = Number(isGate(b)) - Number(isGate(a));
   if (gate !== 0) return gate;
-  if (a.priority !== b.priority) return a.priority - b.priority;
   return touchedAt(a) - touchedAt(b);
 }
 
@@ -234,13 +237,24 @@ function buildProject(
     };
   }
 
-  const tasks = liveRows(live);
+  const rows = liveRows(live);
+  const byId = new Map(rows.map(task => [task.id, task]));
+  const blocks = (edge: LiveTask["dependencies"][number]) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type);
+  const tasks = rows.map(task => {
+    const proceeds = rows.filter(candidate => candidate.issueType !== "epic" && !isGate(candidate)
+      && candidate.status !== "closed" && candidate.status !== PARKED
+      && candidate.dependencies?.some(edge => blocks(edge) && edge.id === task.id)
+      && candidate.dependencies.every(edge => !blocks(edge) || edge.id === task.id || (byId.get(edge.id)?.status ?? edge.status) === "closed")
+      && !(isGate(task) && candidate.choices && !candidate.choice));
+    return { ...task, decisionImpact: { priority: Math.min(...(isGate(task) && proceeds.length ? [] : [task.priority]), ...proceeds.map(row => row.priority)),
+      proceeds: proceeds.map(({ id, title }) => ({ id, title })) } };
+  });
   const active = tasks.filter((task) => task.status !== PARKED && task.status !== "closed");
   // An approval is the one question for its blocked parent. Its task remains
   // accessible in All tasks, without a second competing inbox row.
   const approvals = new Set(tasks.filter(task => isGate(task) && inboxAsk(task) !== null).map(task => task.id));
   const waiting = tasks.filter((task) => inboxAsk(task) !== null
-    && !task.dependencies?.some(edge => edge.type === "blocks" && approvals.has(edge.id))).sort(inboxOrder);
+    && !task.dependencies?.some(edge => blocks(edge) && approvals.has(edge.id))).sort(inboxOrder);
   return {
     ...base,
     ok: true,

@@ -5,6 +5,7 @@ import { DecisionQueue, ageLabel, ageLength } from "@/components/viz/DecisionQue
 import { useTasksLive } from "@/hooks/useTasks";
 import { askVerb, isGate, type BoardProject, type BoardTask, type InboxAsk } from "@/lib/task-board-read";
 import { queueItem } from "@/lib/task-board-viz";
+import { formatInt } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { useAskActions } from "./ask-actions";
 import { AskSelection } from "./ask-selection";
@@ -106,6 +107,7 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
     disabledReason: supported ? null : unavailable,
     chooseDisabledReason: taskOperationAvailable(capabilities, "choose") ? null : unavailable });
   const evidence = [task.description, task.acceptance].some((value) => (value ?? "").trim() !== "");
+  const proceeds = task.decisionImpact?.proceeds ?? [];
 
   return (
     <ListRow
@@ -125,7 +127,17 @@ function AskRow({ project, task, ageDays, showProject, capabilities, selection }
           {buttons}
         </span>
       ) : undefined}
-      below={project.actionable && !selection ? box : null}
+      below={<>
+        {project.actionable && !selection ? box : null}
+        <span className="block pb-2 pe-2 ps-9 text-xs text-muted-foreground" data-inbox-proceeds>
+          <span className="font-medium text-foreground">After your answer: </span>
+          {proceeds.length
+            ? <>{proceeds.slice(0, 2).map(row => row.title).join("; ")}{proceeds.length > 2 ? `; ${formatInt(proceeds.length - 2)} more ${proceeds.length === 3 ? "task" : "tasks"}` : ""}</>
+            : isGate(task) ? "Only the stated action is approved."
+              : task.issueType === "decision" ? "The decision is recorded."
+                : "An agent can continue this task."}
+        </span>
+      </>}
       className="group/ask border-b border-border/40 px-3 py-0.5 last:border-b-0"
     >
       {evidence ? (

@@ -11,6 +11,8 @@
  * at 512. Bounded here so a long reason costs the gate its tail rather than
  * costing the whole project its snapshot. */
 export const GATE_REASON_MAX = 400;
+/** Relationships that keep dependent work from being ready. */
+export const TASK_BLOCKING_DEPENDENCIES = ["blocks", "waits-for", "conditional-blocks"];
 /**
  * The ask inside a gate's description, or null for a gate created without a
  * reason — which keeps that gate's own title as the fallback rather than

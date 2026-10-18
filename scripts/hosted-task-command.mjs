@@ -11,6 +11,7 @@
 import { SERVER_TASK_METADATA, TASK_METADATA } from '../packages/contract/src/task-metadata.mjs';
 import { choiceName, readTaskChoice, readTaskChoices, TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf } from '../packages/contract/src/task-choices.mjs';
 import { TASK_RESOLUTIONS } from '../packages/contract/src/task-resolution.mjs';
+import { TASK_BLOCKING_DEPENDENCIES as BLOCKING } from '../packages/contract/src/task-gate.mjs';
 export const MAINTENANCE_ACTIONS = ['answer', 'completed', 'obsolete', 'superseded', 'duplicate', 'routine', 'release'];
 /** Compare a human comment with the proposal at its timestamp. A later task
  * edit cannot turn an old “A” into approval of replacement options. */
@@ -543,7 +544,6 @@ export class TaskStoreFailed extends Error {
     }
 }
 /** The dependency types the task client counts as live blockers while the other task is open. */
-const BLOCKING = ['blocks', 'waits-for', 'conditional-blocks'];
 function rowsOf(value) {
     return Array.isArray(value) ? value.filter((row) => !!row && typeof row === 'object' && !Array.isArray(row)) : [];
 }
