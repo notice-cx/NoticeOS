@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, type ReactNode } from "react";
+import { Suspense, useEffect, useRef, useState, type ReactNode } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { viewCovers, type AssetDetailResponse } from "@shared/asset-detail-views";
 import type { WatchSeed } from "@shared/watch-windows";
@@ -49,7 +49,7 @@ export { ASSET_TABS, type AssetTab };
 export function AssetDetailRoute() {
   const { id = "", tab: tabParam } = useParams();
   const now = useNow();
-  const { hash, search } = useLocation();
+  const { hash, search, key: locationKey } = useLocation();
   const navigate = useNavigate();
   const tab = tabFromParam(tabParam);
   // Deep links land here with a hash: a matrix cell click as #integrations, an
@@ -162,7 +162,7 @@ export function AssetDetailRoute() {
                   <RouteLoading surface="panel" />
                 ))
               )}
-              <ScrollToSection data={data} hash={hash} landed={hashTab !== null && hashTab === tab} />
+              <ScrollToSection key={locationKey} data={data} hash={hash} landed={hashTab !== null && hashTab === tab} />
             </Suspense>
           </TabPanel>
         </>
@@ -189,14 +189,37 @@ function ScrollToSection({
   /** The hash names a section on the tab now showing. */
   landed: boolean;
 }) {
+  const interrupted = useRef(false);
   useEffect(() => {
-    if (!landed) return;
+    if (!landed || interrupted.current) return;
     const target = document.getElementById(HASH_ANCHOR[hash] ?? hash.slice(1));
     if (!target) return;
-    const frame = window.requestAnimationFrame(() => {
-      target.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-    return () => window.cancelAnimationFrame(frame);
+    let frame: number;
+    const align = () => {
+      if (interrupted.current) return;
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(() => {
+        if (target.isConnected) target.scrollIntoView({ behavior: "instant", block: "start" });
+      });
+    };
+    // A late read can expand a section above the anchor. Keep the landing
+    // aligned until the person interacts, then leave their position alone.
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(align);
+    const panel = target.closest('[role="tabpanel"]');
+    if (panel) observer?.observe(panel);
+    const events = ["wheel", "touchstart", "pointerdown", "keydown"] as const;
+    const stop = () => {
+      interrupted.current = true;
+      cleanUp();
+    };
+    const cleanUp = () => {
+      observer?.disconnect();
+      window.cancelAnimationFrame(frame);
+      for (const event of events) window.removeEventListener(event, stop, true);
+    };
+    for (const event of events) window.addEventListener(event, stop, { passive: true, capture: true });
+    align();
+    return cleanUp;
   }, [data, hash, landed]);
   return null;
 }

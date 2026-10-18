@@ -2515,8 +2515,14 @@ test("a new site raises no nightly-report warning anywhere, and the System fract
 // domain again is the way back: "Already added" opens the site that holds the
 // domain, never a page for the id just typed, on its Settings tab at Restore,
 // and nothing offers Delete.
-for (const status of ['retired', 'live'] as const) {
-  test(status === 'retired'
+for (const { status, leaveRestore } of [
+  { status: 'retired', leaveRestore: false },
+  { status: 'retired', leaveRestore: true },
+  { status: 'live', leaveRestore: false },
+] as const) {
+  test(leaveRestore
+    ? "scrolling away from Restore keeps the chosen position when site data finishes loading"
+    : status === 'retired'
     ? "adding an archived site's domain again opens that site at Restore, and nothing offers Delete"
     : "adding an active site's domain again opens that site before the wall loads", async ({ page }) => {
     const pageErrors: string[] = [];
@@ -2548,11 +2554,28 @@ for (const status of ['retired', 'live'] as const) {
       await expect(issue.getByRole('link')).toHaveAttribute('href', destination);
       await issue.getByRole("link").click();
       await expect(page).toHaveURL(new RegExp(`${destination}$`));
-      releaseWall();
       if (status === 'retired') {
         const restore = page.locator("#restore");
-        await expect(restore.getByRole("button", { name: "Restore", exact: true })).toBeVisible();
+        const action = restore.getByRole("button", { name: "Restore", exact: true });
+        await expect(action).toBeVisible();
         await expect(restore).toBeInViewport();
+        const heading = page.getByRole("heading", { name: "Archived Example", level: 1 });
+        if (leaveRestore) {
+          await page.mouse.wheel(0, -10_000);
+          await expect(heading).toBeInViewport();
+        }
+        // A later read expands a panel above Restore after the hash lands.
+        releaseWall();
+        await expect(page.locator('[data-where-it-shows-retired]')).toBeVisible();
+        if (leaveRestore) {
+          await expect(heading).toBeInViewport();
+          await expect(restore).not.toBeInViewport();
+        } else {
+          await expect(restore).toBeInViewport();
+          await expect(action).toBeInViewport();
+        }
+      } else {
+        releaseWall();
       }
       await expect(page.getByRole("button", { name: /Delete/ })).toHaveCount(0);
       await assertNoPageOverflow(page);
