@@ -3,7 +3,15 @@
 // estimates of real businesses.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 8;
+import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
+export const SCENARIO_VERSION = 9;
+/** The agents' model usage, booked against the OS as a provider's usage
+ * export is: one estimated `inference` cost a month. A fictional provider. */
+export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
+/** The usage cost of the agents' model calls in one month, in cents. */
+export function demoInferenceCostMinor(seed, osAsset, month) {
+    return Math.round(4200 * (0.85 + draw(seed, `${osAsset}/${month}/inference`) * 0.3));
+}
 const DAY_MS = 86_400_000;
 /** Five sites with their own shapes: a steady subscription product, a
  * licensed tool, a recipe site growing into its season, an outdoor guide
@@ -494,6 +502,12 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
                 continue;
             const cost = asset.prefix === 'fr' ? asset.cost : Math.round(asset.cost * (anchorMonth ? 1 : 0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12));
             add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: 'demo', recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            // A finished month's model usage, after the OS's own bill; the current
+            // month's is booked by the simulator once the month ends.
+            if (asset.isOs && offset < 0) {
+                add({ asset: asset.id, period: month, kind: 'cost', family: 'inference', minor: anchorMonth ? 4200 : demoInferenceCostMinor(seed, asset.id, month), state: 'estimated',
+                    source: DEMO_INFERENCE_SOURCE, recordedAt }, 'Synthetic model usage export; no real charge.');
+            }
             if (asset.adRpm) {
                 // Months paid before the reference day are reconciled; later months
                 // stay the network's daily estimates until their payment arrives.
@@ -507,6 +521,9 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             if (asset.revenue === null || asset.revenueFamily === null)
                 continue;
             const coverageStart = `${month}-01`;
+            // Subscription income is booked under the Stripe source, so Money names
+            // it as subscriptions; no Stripe account is read.
+            const source = asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : 'demo-recorded-income';
             if (offset === 0) {
                 // A fictional first posting precedes any current-period receipt. No
                 // scheduled or future sale is booked; coverage ends at this cutoff.
@@ -515,15 +532,15 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
                     continue;
                 const elapsedDays = (Date.parse(cutoff) - Date.parse(firstPosting)) / DAY_MS;
                 const collected = Math.round(asset.revenue * Math.min(0.95, 0.125 + elapsedDays * 0.025));
-                add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: collected, state: 'reconciled', source: 'demo-recorded-income', recordedAt: cutoff, coverageStart, coverageEnd: referenceDate, coverageComplete: false }, 'Synthetic partial-month income; later receipts are not yet recorded.');
+                add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: collected, state: 'reconciled', source, recordedAt: cutoff, coverageStart, coverageEnd: referenceDate, coverageComplete: false }, 'Synthetic partial-month income; later receipts are not yet recorded.');
                 continue;
             }
             // Recorded income is independent of traffic. These monthly entries do
-            // not describe recurring contracts, payment dates or a billing service.
+            // not describe recurring contracts or payment dates.
             const reconciled = anchorMonth ? asset.revenue : Math.round(asset.revenue * (0.9 + draw(seed, `${asset.id}/${month}/income`) * 0.2));
             const estimate = Math.round(reconciled * (offset === -6 ? 1.04 : 1));
-            const estimated = add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: estimate, state: 'estimated', source: 'demo-recorded-income', coverageStart, coverageEnd: monthEnd, coverageComplete: true, recordedAt: `${monthEnd}T22:00:00.000Z` });
-            add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: reconciled, state: 'reconciled', source: 'demo-recorded-income', coverageStart, coverageEnd: monthEnd, coverageComplete: true, supersedes: estimated, recordedAt });
+            const estimated = add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: estimate, state: 'estimated', source, coverageStart, coverageEnd: monthEnd, coverageComplete: true, recordedAt: `${monthEnd}T22:00:00.000Z` });
+            add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: reconciled, state: 'reconciled', source, coverageStart, coverageEnd: monthEnd, coverageComplete: true, supersedes: estimated, recordedAt });
         }
     }
     const pulses = [];

@@ -13,7 +13,7 @@ import { runCommand } from './run-command.mjs';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mjs';
-import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoUptime, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
+import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoUptime, recordDemoSiteChecks, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
 import { seedDemoTaskHistory, configureDemoTasks, writeDemoTaskReceipt } from './demo-tasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
 import { generateDemoWorkflows, writeDemoWorkflowHistory } from './demo-workflows.mjs';
@@ -228,6 +228,7 @@ export async function setupHostedDemo(input: HostedDemoSetupRequest): Promise<{ 
     const joins = await demoFlagJoins(watch.capability, scenario);
     await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
     await recordDemoUptime(watch.capability, scenario, helpers.runUptimeChecks);
+    await recordDemoSiteChecks(watch.capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
     await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
     phase = 'task_provision';
     const inspectorSecret = password();

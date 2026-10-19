@@ -5,7 +5,8 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, shiftDemoMonth, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_INFERENCE_SOURCE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { demoCodebaseVerdicts } from './demo-store.mjs';
 import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
@@ -56,6 +57,13 @@ test('reference-month traffic and independently recorded income reconcile to exa
   const overhead = scenario.ledger.find(l => l.asset === scenario.assets.find(a => a.isOs).id && l.period === month);
   assert.equal(overhead.minor, 21000);
   assert.equal(net - overhead.minor, 172000);
+  // The agents' model usage: one estimated cost a finished month, on the OS,
+  // booked after its own bill; the current month waits for the month's end.
+  const os = scenario.assets.find(a => a.isOs).id;
+  const usage = scenario.ledger.filter(l => l.family === 'inference');
+  assert.ok(usage.every(l => l.asset === os && l.kind === 'cost' && l.state === 'estimated' && l.source === DEMO_INFERENCE_SOURCE && l.minor > 0));
+  assert.deepEqual(usage.map(l => l.period), Array.from({ length: 12 }, (_, i) => shiftDemoMonth('2026-10', i - 12)));
+  assert.deepEqual(scenario.ledger.filter(l => l.asset === os && l.period === month).map(l => [l.family, l.minor]), [['os-overhead', 21000], ['inference', 4200]]);
   assert.equal(scenario.ledger.filter(l => l.asset === 'freshrows.example' && l.period === month).length, 0);
   for (const row of scenario.ledger) {
     assert.ok(Number.isSafeInteger(row.minor));
@@ -85,10 +93,14 @@ test('missing traffic, provisional signals and absent recorded income remain dis
   // ad-supported site has ad income, as the network's payments.
   const ads = scenario.assets.filter(a => a.adRpm).map(a => a.id);
   assert.deepEqual(ads, ['weeknightpantry.example', 'trailnotes.example']);
+  // Subscription income is booked under the Stripe source, so Money names it;
+  // nothing else models a payment provider.
   assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ads.includes(row.asset)
     ? row.family === 'ads' && row.source === 'mediavine' && row.state === 'reconciled'
-    : ['subs', 'licensing'].includes(row.family) && row.source === 'demo-recorded-income'));
-  assert.doesNotMatch(JSON.stringify(scenario), /MRR|Stripe|churn/iu);
+    : row.family === 'subs' ? row.source === STRIPE_REVENUE_SOURCE : row.family === 'licensing' && row.source === 'demo-recorded-income'));
+  assert.ok(scenario.ledger.some(row => row.family === 'subs'));
+  const unsourced = { ...scenario, ledger: scenario.ledger.map(({ source: _source, ...row }) => row) };
+  assert.doesNotMatch(JSON.stringify(unsourced), /MRR|Stripe|churn/iu);
   assert.ok(scenario.ledger.filter(l => l.asset === 'freshrows.example').every(l => l.kind === 'cost'));
   assert.equal(scenario.ledger.filter(l => l.period === '2026-10' && l.kind === 'revenue').length, 2);
 });
@@ -167,7 +179,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 8);
+  assert.equal(scenario.manifest.scenarioVersion, 9);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],

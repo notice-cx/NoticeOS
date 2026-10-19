@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
-import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, shiftDemoDay } from './demo-scenario.mjs';
+import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_NIGHTLY_HOUR, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
+import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, shiftDemoDay, DEMO_INFERENCE_SOURCE } from './demo-scenario.mjs';
+import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
+import { parseProductSnapshot } from '../apps/tower/shared/product-snapshot.ts';
+import { readFileSync } from 'node:fs';
 import { demoCodebaseVerdicts } from './demo-store.mjs';
 import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
@@ -145,23 +148,36 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
   assert.equal(next.length, 2);
   assert.ok(next.every(row => row.kind === 'revenue' && row.coverageStart === '2026-10-17' && row.coverageEnd === '2026-10-17' && !row.coverageComplete));
   const month = activity.day('2026-11-01').money;
-  assert.equal(month.filter(row => row.kind === 'cost').length, 6);
-  assert.ok(month.filter(row => row.kind === 'cost').every(row => row.coverageEnd === '2026-11-30' && row.coverageComplete));
+  // Each site's and the OS's prepaid bill for the month, and the OS's model
+  // usage for the month that just ended, estimated as a usage export is.
+  const bills = month.filter(row => row.kind === 'cost' && row.family !== 'inference');
+  assert.equal(bills.length, 6);
+  assert.ok(bills.every(row => row.coverageEnd === '2026-11-30' && row.coverageComplete && row.bookingState === 'reconciled'));
+  const usage = month.filter(row => row.family === 'inference');
+  assert.deepEqual(usage.map(row => [row.asset, row.kind, row.period, row.bookingState, row.source, row.coverageStart, row.coverageEnd]),
+    [[scenario.assets.find(asset => asset.isOs).id, 'cost', '2026-10', 'estimated', DEMO_INFERENCE_SOURCE, '2026-10-01', '2026-10-31']]);
+  assert.ok(!scenario.ledger.some(row => row.family === 'inference' && row.period === '2026-10'), 'the seed books only finished months');
   assert.ok(month.filter(row => row.asset === 'freshrows.example').every(row => row.kind === 'cost'));
   for (const row of [...next, ...month]) {
     assert.ok(Number.isSafeInteger(row.amountMinor) && row.amountMinor > 0);
-    assert.equal(row.currency, 'USD'); assert.equal(row.source, 'demo-simulator');
+    assert.equal(row.currency, 'USD');
+    // Subscription income names its Stripe source, so Money reads it as subscriptions.
+    assert.equal(row.source, row.family === 'subs' ? STRIPE_REVENUE_SOURCE : row.family === 'inference' ? DEMO_INFERENCE_SOURCE : 'demo-simulator');
     assert.match(row.note, /^Synthetic /u);
   }
+  assert.deepEqual(next.map(row => row.family).sort(), ['licensing', 'subs']);
   assert.equal(new Set([...next, ...month].map(row => row.externalId)).size, next.length + month.length);
 });
 
 test('leap days and month/year transitions retain exact calendar coverage', () => {
   const leap = createDemoActivity(generateDemoScenario({ ...input, cutoff: '2024-01-31T12:00:00.000Z' }));
   const february = leap.day('2024-02-01').money.filter(row => row.kind === 'cost');
-  assert.ok(february.every(row => row.coverageEnd === '2024-02-29'));
+  assert.ok(february.filter(row => row.family !== 'inference').every(row => row.coverageEnd === '2024-02-29'));
+  assert.ok(february.filter(row => row.family === 'inference').every(row => row.period === '2024-01' && row.coverageEnd === '2024-01-31'));
   assert.equal(leap.batch('2024-02-28', '2024-03-01').length, 3);
-  assert.ok(activity.day('2027-01-01').money.every(row => row.period === '2027-01'));
+  const january = activity.day('2027-01-01').money;
+  assert.ok(january.filter(row => row.family !== 'inference').every(row => row.period === '2027-01'));
+  assert.deepEqual(january.filter(row => row.family === 'inference').map(row => [row.period, row.coverageEnd]), [['2026-12', '2026-12-31']]);
 });
 
 test('each site runs its own weekly cycle, reviews and ships alternating, without claiming real execution or lift', () => {
@@ -242,18 +258,107 @@ test('every Monday each site reports its search queries against the week before,
       assert.equal(mover.positionImprovement, Math.round((mover.previousPosition - mover.currentPosition) * 10) / 10);
     }
     assert.ok(google.movers.some(mover => mover.positionImprovement !== 0));
-    assert.equal(report.items.length, 1);
+    // The week's lead search finding, then at most one opportunity.
+    assert.ok(report.items.length >= 1 && report.items.length <= 2);
     const [finding] = report.items;
     assert.ok(['insight', 'warning'].includes(finding.kind));
     assert.match(finding.title, /^“.+” (climbed|slipped) \d+\.\d places to #\d+(\.\d)?$/u);
-    assert.match(finding.caveat, /Synthetic/u);
     assert.match(google.caveat, /Synthetic/u);
-    assert.ok(finding.evidence.every(row => typeof row.label === 'string' && typeof row.value === 'string'));
+    for (const item of report.items) {
+      assert.match(item.caveat, /Synthetic/u);
+      assert.ok(item.evidence.every(row => typeof row.label === 'string' && typeof row.value === 'string'));
+    }
   }
   // The next week's finding has a new key, so the feed can tell it from the week before's.
   const next = activity.day('2026-10-26').reports[0];
   assert.notEqual(next.items[0].key, monday.reports[0].items[0].key);
   assert.deepEqual(activity.day('2026-10-26').reports.map(report => report.asset), monday.reports.map(report => report.asset));
+});
+
+test('each weekly report says where the last four weeks of visits came from, summing to GA4\'s visits', () => {
+  const ga4 = (asset, date) => {
+    if (date < scenario.manifest.referenceDate) { const row = scenario.daily.find(row => row.asset === asset && row.date === date); return row && !row.reportMissing ? row.sessions : 0; }
+    const signal = activity.day(date).assets.find(entry => entry.asset === asset).signals.find(signal => signal.integration === 'ga4');
+    return signal.observations === null ? 0 : values(signal).sessions;
+  };
+  for (const report of [...activity.seededReports(), ...activity.day('2026-10-26').reports]) {
+    const { channels } = report;
+    const site = scenario.assets.find(asset => asset.id === report.asset);
+    assert.equal(channels.windowEnd, report.searchQueries.google.currentEnd);
+    // Four weeks, or the young site's whole life.
+    assert.equal(channels.windowStart, [shiftDemoDay(report.generatedAt.slice(0, 10), -28), site.createdAt.slice(0, 10)].sort().at(-1));
+    assert.deepEqual(channels.provisionalDates, []);
+    const days = [];
+    for (let date = channels.windowStart; date <= channels.windowEnd; date = shiftDemoDay(date, 1)) days.push(date);
+    const total = days.reduce((sum, date) => sum + ga4(report.asset, date), 0);
+    assert.equal(channels.rows.reduce((sum, row) => sum + row.sessions, 0), total, report.asset);
+    assert.ok(Math.abs(channels.rows.reduce((sum, row) => sum + row.share, 0) - 1) < 1e-9);
+    assert.ok(channels.rows.every((row, i, rows) => row.share > 0 && row.share <= 1 && Number.isSafeInteger(row.sessions) && (i === 0 || rows[i - 1].sessions >= row.sessions)));
+    assert.ok(channels.rows.every(row => ['Organic Search', 'Direct', 'Referral', 'AI Assistant', 'Organic Social'].includes(row.channel)));
+  }
+  // Trail Notes leans on search every week; Light Brief's AI assistant
+  // visits grow week by week.
+  const share = (date, asset, channel) => activity.day(date).reports.find(report => report.asset === asset).channels.rows.find(row => row.channel === channel).share;
+  for (let w = 0; w < 30; w++) assert.ok(share(shiftDemoDay('2026-10-19', w * 7), 'trailnotes.example', 'Organic Search') >= 0.85);
+  assert.ok(share('2027-01-11', 'lightbrief.example', 'AI Assistant') > share('2026-10-19', 'lightbrief.example', 'AI Assistant') * 1.2);
+});
+
+test('the two product-analytics sites carry a product block the Tower reads: Pinwell slow for one in four, the recipe site clear with a funnel', () => {
+  for (const report of [...activity.seededReports(), ...activity.day('2026-10-26').reports, ...activity.day('2027-03-01').reports]) {
+    if (!['pinwell.example', 'weeknightpantry.example'].includes(report.asset)) { assert.equal(report.product, undefined); continue; }
+    const product = parseProductSnapshot(report.product);
+    assert.ok(product, report.asset);
+    // Everything the producer sent survives the Tower's own reader.
+    assert.equal(product.vitals.segments.length, report.product.vitals.segments.length);
+    assert.equal(product.exceptions.top.length, report.product.exceptions.top.length);
+    assert.equal(product.funnels.length, report.product.funnels.length);
+    assert.ok(product.vitals.segments.every(segment => segment.measurements >= product.vitals.minMeasurements));
+    const state = key => product.checks.find(check => check.key === key)?.state;
+    const errors = report.product.exceptions;
+    assert.ok(Number.isSafeInteger(errors.people) && errors.people > 0 && errors.people <= errors.top.reduce((sum, row) => sum + row.people, 0));
+    assert.equal(errors.top.reduce((sum, row) => sum + row.count, 0), errors.total);
+    if (report.asset === 'pinwell.example') {
+      assert.equal(state('posthog-slow-segment'), 'fired');
+      assert.equal(state('posthog-error-concentration'), 'fired');
+      const [slow, ...rest] = product.vitals.segments;
+      assert.equal(slow.lcpRating, 'poor');
+      assert.ok(rest.every(segment => segment.lcpRating === 'good' && segment.inpRating === 'good'));
+      const measured = product.vitals.segments.reduce((sum, segment) => sum + segment.measurements, 0);
+      assert.ok(Math.abs(slow.measurements / measured - 0.25) < 0.01, 'one visitor in four');
+      assert.ok(Math.max(...errors.top.map(row => row.count)) / errors.total >= 0.5);
+      assert.deepEqual(product.funnels, []);
+    } else {
+      assert.equal(state('posthog-slow-segment'), 'clear');
+      assert.equal(state('posthog-error-concentration'), 'clear');
+      assert.ok(product.vitals.segments.every(segment => segment.lcpRating === 'good' && segment.inpRating === 'good'));
+      assert.ok(Math.max(...errors.top.map(row => row.count)) / errors.total < 0.5);
+      const [funnel] = product.funnels;
+      assert.deepEqual(funnel.steps.map(step => step.event), ['Visited', 'Opened a recipe', 'Saved it', 'Signed up']);
+      const conversions = funnel.steps.slice(1).map((step, i) => step.people / funnel.steps[i].people);
+      assert.equal(funnel.largestDrop.stepConversion, Math.min(...conversions));
+      assert.equal(funnel.largestDrop.lostPeople, funnel.steps[funnel.largestDrop.fromStep - 1].people - funnel.steps[funnel.largestDrop.toStep - 1].people);
+    }
+  }
+});
+
+test('each mature site\'s week names one opportunity the Home list ranks', () => {
+  // The keys the Home page's "Worth a look" list reads as opportunities.
+  const gaps = readFileSync(new URL('../apps/tower/src/lib/business-gaps.ts', import.meta.url), 'utf8');
+  const expected = { 'pinwell.example': 'search-striking-distance', 'weeknightpantry.example': 'posthog-funnel-drop-recipe-to-sign-up',
+    'lightbrief.example': 'ai-referral-floor', 'trailnotes.example': 'concentration-risk' };
+  for (const report of [...activity.seededReports(), ...activity.day('2026-10-26').reports]) {
+    const extra = report.items.slice(1);
+    if (!expected[report.asset]) { assert.deepEqual(extra, []); continue; }
+    assert.deepEqual(extra.map(item => item.key), [expected[report.asset]]);
+    assert.ok(gaps.includes(`"${expected[report.asset].replace(/-recipe-to-sign-up$/u, '')}"`), expected[report.asset]);
+    assert.ok(['recommendation', 'discovery', 'insight', 'warning'].includes(extra[0].kind));
+    assert.ok(extra[0].title.length > 0 && extra[0].title.length <= 80, extra[0].title);
+  }
+  const titles = Object.fromEntries(activity.day('2026-10-26').reports.map(report => [report.asset, report.items[1]?.title]));
+  assert.match(titles['pinwell.example'], /^Move “.+” into the top results$/u);
+  assert.match(titles['weeknightpantry.example'], /^Recipe to sign-up: \d+% go from Opened a recipe to Saved it$/u);
+  assert.equal(titles['lightbrief.example'], 'AI assistants are already sending visitors');
+  assert.match(titles['trailnotes.example'], /^Search brings (8[5-9]|9\d)% of all visits$/u);
 });
 
 test('visits surge and settle on their own, so a day can read well above or below the same weekday a week before', () => {
@@ -327,7 +432,8 @@ test('dated generation has finite work/output and rejects malformed or historica
   const lastDay = activity.day(last);
   assert.ok(lastDay.assets.every(asset => !asset.pulse || Object.values(asset.pulse.metrics).every(metric => Number.isSafeInteger(metric.total) && metric.total >= 0)));
   assert.ok(Buffer.byteLength(JSON.stringify(lastDay)) < 32768);
-  assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 32768);
+  // A Monday carries every site's weekly report as well.
+  assert.ok(Buffer.byteLength(JSON.stringify(activity.day('2026-10-26'))) < 40960);
   assert.throws(() => activity.day(shiftDemoDay(last, 1)));
 });
 
@@ -356,6 +462,58 @@ test('each day one fictional home page is down briefly, across the hourly check 
   const at = (hour) => `${shiftDemoDay(scenario.manifest.referenceDate, 1)}T${hour}:00:00.000Z`;
   assert.equal(await (await activity.homeFetch(at('00'))(home)).text(), await (await activity.homeFetch(at('23'))(home)).text());
   assert.equal((await activity.homeFetch(at('00'))('https://example.org/')).status, 404);
+});
+
+test('each fictional site answers the nightly site checks: robots.txt, a sitemap of its pages, and its security headers', async () => {
+  const sites = scenario.assets.filter(asset => !asset.isOs);
+  const fetchAt = activity.homeFetch(`${shiftDemoDay(scenario.manifest.referenceDate, 1)}T${DEMO_NIGHTLY_HOUR}:00:00.000Z`);
+  for (const site of sites) {
+    const robots = await fetchAt(`https://${site.domain}/robots.txt`);
+    assert.equal(robots.status, 200);
+    assert.match(robots.headers.get('content-type'), /^text\/plain/u);
+    assert.equal(await robots.text(), `User-agent: *\nAllow: /\nSitemap: https://${site.domain}/sitemap.xml\n`);
+    const sitemap = await fetchAt(`https://${site.domain}/sitemap.xml`);
+    assert.equal(sitemap.status, 200);
+    const body = await sitemap.text();
+    assert.match(body, /^<\?xml [^>]+\?><urlset /u);
+    const pages = [...body.matchAll(/<loc>([^<]+)<\/loc>/gu)].map(match => match[1]);
+    assert.ok(pages.length >= 3 && pages[0] === `https://${site.domain}/`);
+    for (const page of pages) {
+      const answer = await fetchAt(page);
+      assert.equal(answer.status, 200, page);
+      const html = await answer.text();
+      // What the nightly page-structure check reads on each page.
+      assert.equal(html.match(/<h1>/gu).length, 1);
+      assert.match(html, /<title>[^<]+<\/title>/u);
+      assert.match(html, /<meta name="description" content="[^"]+">/u);
+      assert.ok(html.includes(`<link rel="canonical" href="${page}">`), page);
+      const headers = ['strict-transport-security', 'content-security-policy', 'x-content-type-options', 'x-frame-options', 'referrer-policy', 'permissions-policy']
+        .filter(name => answer.headers.get(name) !== null);
+      // Pinwell sends four of the six; every other site sends all six.
+      assert.equal(headers.length, site.prefix === 'pw' ? 4 : 6, site.id);
+    }
+    assert.equal((await fetchAt(`https://${site.domain}/missing`)).status, 404);
+  }
+});
+
+test("each measured site has a daily page speed: Pinwell's phones are slow, the others fast, the young site unmeasured", () => {
+  for (let i = -6; i < 60; i += 1) {
+    const date = shiftDemoDay(scenario.manifest.referenceDate, i);
+    const readings = activity.pageSpeed(date);
+    assert.deepEqual(readings.map(reading => reading.asset), ['lightbrief.example', 'pinwell.example', 'weeknightpantry.example', 'trailnotes.example']);
+    for (const { asset, lcp, detail } of readings) {
+      // The page-speed job's own stored shape (workers/ingest/src/crux.ts).
+      assert.deepEqual(Object.keys(detail), ['origin', 'lcp', 'inp', 'cls', 'formFactor', 'collectionPeriod', 'formFactors']);
+      assert.equal(detail.origin, `https://${asset}`);
+      assert.equal(detail.formFactor, 'PHONE');
+      assert.equal(lcp, detail.lcp);
+      assert.deepEqual(detail.formFactors.PHONE, { lcp: detail.lcp, inp: detail.inp, cls: detail.cls, collectionPeriod: detail.collectionPeriod });
+      assert.ok(detail.collectionPeriod.firstDate < detail.collectionPeriod.lastDate && detail.collectionPeriod.lastDate < date);
+      if (asset === 'pinwell.example') assert.ok(lcp > 4000, 'poor');
+      else assert.ok(lcp <= 2500 && detail.inp <= 200 && detail.cls <= 0.1, asset);
+    }
+  }
+  assert.deepEqual(activity.pageSpeed(scenario.manifest.referenceDate), createDemoActivity(generateDemoScenario(input)).pageSpeed(scenario.manifest.referenceDate));
 });
 
 test('each reporting site keeps its weekly codebase report after the seed, with the same stories, and the young site stays silent', () => {

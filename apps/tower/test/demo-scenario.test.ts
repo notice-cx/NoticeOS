@@ -43,7 +43,8 @@ it('ordinary financials and Wall read the same integer-cents ledger without coun
   const recipesNet = adNet(recipes);
   expect(last.booked.net).toBeCloseTo(1720 + scenario.manifest.adSites.reduce((sum, site) => sum + adNet(site.asset), 0), 2);
   expect(last.estimated.revenue).toBe(0);
-  expect(financials.overhead.net).toBe(-210);
+  // The OS's own bill and the agents' estimated model usage for the month.
+  expect(financials.overhead.net).toBe(-252);
   expect(financials.properties.find(p => p.asset === 'lightbrief.example')?.figure.net).toBe(1540);
   expect(financials.properties.find(p => p.asset === 'pinwell.example')?.figure.net).toBe(390);
   expect(financials.properties.find(p => p.asset === recipes)?.figure.net).toBeCloseTo(recipesNet, 2);

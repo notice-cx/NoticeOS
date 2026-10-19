@@ -18,7 +18,7 @@ import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mj
 import { createDemoTasks, configureDemoTasks } from './demo-tasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
 import { generateDemoWorkflows, writeDemoWorkflowHistory } from './demo-workflows.mjs';
-import { createDemoActivity } from './demo-activity.mjs';
+import { createDemoActivity, DEMO_NIGHTLY_HOUR } from './demo-activity.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 import { verifyDemoRelease } from './demo-release.mjs';
 export { REQUIRED_DEMO_ENTRIES, verifyDemoRelease } from './demo-release.mjs';
@@ -196,6 +196,30 @@ export async function recordDemoUptime(capability, scenario, runUptimeChecks) {
     if (fired === 0) throw new Error('The uptime check found none of the declared outages.');
     return { runs: runs.length, fired, resolved };
 }
+/** Days before the reference day whose page speed the seed records. */
+const PAGE_SPEED_SEED_DAYS = 6;
+/** The release's nightly site checks as they ran at the cutoff, reading each
+ * fictional site's home page, robots.txt, sitemap and a sample of its pages,
+ * then the last week's daily page-speed readings as the page-speed job stores
+ * them, one a site a night. The young site has no page speed yet. */
+export async function recordDemoSiteChecks(capability, scenario, runHygieneChecks, writeReading) {
+    if (typeof runHygieneChecks !== 'function' || typeof writeReading !== 'function') throw new Error('The released site checks are absent.');
+    const activity = createDemoActivity(scenario);
+    const { cutoff, referenceDate } = scenario.manifest;
+    const result = await runHygieneChecks(capability, { nowMs: Date.parse(cutoff), fetchImpl: activity.homeFetch(cutoff), confirmWaitMs: 0 });
+    if (result.failed.length > 0 || result.checks === 0) throw new Error('The site checks could not read a synthetic site.');
+    let pageSpeed = 0;
+    for (let back = PAGE_SPEED_SEED_DAYS; back >= 0; back -= 1) {
+        const date = shiftDemoDay(referenceDate, -back);
+        const at = `${date}T${DEMO_NIGHTLY_HOUR}:00:00.000Z`;
+        if (at > cutoff) continue;
+        for (const reading of activity.pageSpeed(date)) {
+            await writeReading(capability, reading.asset, 'crux-vitals', at, 'ok', reading.lcp, reading.detail);
+            pageSpeed += 1;
+        }
+    }
+    return { checks: result.checks, fired: result.fired, pageSpeed };
+}
 /** The latest seeded week's search reports through the ordinary snapshot
  * writer, so every site's search movers and findings read from the first
  * visit; the simulator writes each Monday after. */
@@ -266,6 +290,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const joins = await demoFlagJoins(watch.capability, scenario);
         const freshness = await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
         const uptime = await recordDemoUptime(watch.capability, scenario, helpers.runUptimeChecks);
+        const siteChecks = await recordDemoSiteChecks(watch.capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
         const searchReports = await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
         const taskReceipt = await tasks({ plan, scenario, createdPostgres: setup, capability: watch.capability, writeSnapshot: helpers.writeBeadsSnapshot, joins, env, binary });
         const taskConfig = await configureTasks({ plan, scenario, receipt: taskReceipt, capability: watch.capability, helpers });
@@ -275,7 +300,7 @@ export async function createDemoInstallation({ home, port, scenario, root = ROOT
         const workflowHistory = await writeDemoWorkflowHistory({ home, history,
             writeRuns: (input, nowMs) => helpers.writeJobRuns(watch.capability, input, nowMs) });
         const schema = setup.schema;
-        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, freshness, uptime, searchReports, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
+        const receipt = { ...scenario.manifest, scenarioHash: demoScenarioHash(scenario), evaluator: provenance, schema, counts: { ...counts, pulses: counts.pulses + 1, tasks: taskReceipt.tasks, taskSnapshots: taskReceipt.snapshots, watchStatus: 'closed' }, home, postgresProject: own.project, taskGeneration: taskReceipt, taskConfig, display, osReport, freshness, uptime, siteChecks, searchReports, workflowHistory, watch: { result: watch.result, reading: watch.reading, evaluatedAt: watch.evaluatedAt, ledgerSha256: watch.ledgerSha256 }, handoffs: joins };
         writeFileSync(path.join(home, 'demo-manifest.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx', mode: 0o600 });
         // Wall clock completion is distinct from the scenario's historical
         // cutoff. A viewer may use this receipt only after every real seed

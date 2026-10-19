@@ -74,10 +74,12 @@ export async function buildDemoWorkerHelpers(root, { activity = false, configura
     if (typeof jobs.writeJobRuns !== 'function') throw new Error('The released demo workflow writer is absent.');
     if (typeof reports.runAssetZeroPulse !== 'function' || typeof reports.runFreshnessCheck !== 'function') throw new Error('The released demo OS reporter is absent.');
     if (typeof insights.writeInsightSnapshot !== 'function') throw new Error('The released demo report writer is absent.');
-    if (typeof uptime.runUptimeChecks !== 'function') throw new Error('The released demo uptime check is absent.');
+    if (typeof uptime.runUptimeChecks !== 'function' || typeof uptime.runHygieneChecks !== 'function' || typeof uptime.writeReading !== 'function') throw new Error('The released demo site checks are absent.');
     return { runWatchWindows: watch.runWatchWindows, writeBeadsSnapshot: snapshots.writeBeadsSnapshot,
       seedConfigDocuments: configuration.seedConfigDocuments, applyConfigOps: configuration.applyConfigOps, getConfigDocuments: configuration.getConfigDocuments,
       writeJobRuns: jobs.writeJobRuns, runAssetZeroPulse: reports.runAssetZeroPulse, runFreshnessCheck: reports.runFreshnessCheck, writeInsightSnapshot: insights.writeInsightSnapshot, runUptimeChecks: uptime.runUptimeChecks,
+      // The nightly site checks and the page-speed reading's writer share the uptime check's module.
+      runHygieneChecks: uptime.runHygieneChecks, writeReading: uptime.writeReading,
       ...(live ? { writeDemoActivity: live.writeDemoActivity, writeDemoCollection: live.writeDemoCollection, writeDemoAdRevenue: live.writeDemoAdRevenue, writeDemoTaskSnapshot: live.writeDemoTaskSnapshot, writeDemoOutcomeChecks: live.writeDemoOutcomeChecks, evaluatePulse: evaluation.evaluatePulse,
         codebaseRules: { evaluateCodebaseRules: codebase.evaluateCodebaseRules, pickComparisonReport: codebase.pickComparisonReport, DEFAULT_CODEBASE_RULE_THRESHOLDS: codebase.DEFAULT_CODEBASE_RULE_THRESHOLDS },
         runNotifier: notifier.runNotifier, readPendingWatchReadbacks: readbacks.readPendingWatchReadbacks, markWatchReadbacksPosted: readbacks.markWatchReadbacksPosted } : {}),
