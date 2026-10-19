@@ -379,7 +379,10 @@ describe("a layout naming retired widgets", () => {
     vi.doMock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: REALTIME, isError: false }) }));
     vi.doMock("@/hooks/useCalendarUpcoming", () => ({ useCalendarUpcoming: () => ({ data: MEETINGS, isError: false }) }));
     const { WallRoute } = await import("@/routes/WallRoute");
-    const view = render(
+    // The route reads the browser runtime (the demo's view), so the owner
+    // around it must come from the same fresh module graph.
+    const { render: renderFresh } = await import("./render");
+    const view = renderFresh(
       <MemoryRouter>
         <WallRoute />
       </MemoryRouter>,

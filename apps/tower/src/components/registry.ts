@@ -1417,4 +1417,11 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "The TV's Visitors by channel widget: each site's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every site that loses the most people (largestFunnelDrop).",
     variants: ["channels and the largest drop", "no channel split yet"],
   },
+  {
+    name: "DemoViewSwitch",
+    file: "components/DemoViewSwitch.tsx",
+    purpose:
+      "The demo visitor's three views as one row of pressable choices, at the end of the demo bar on every desk page and above the TV. A press stores the visitor's own view in their browser, and every screen, the TV included, redraws in it.",
+    variants: ["the stored view pressed", "a view the page names pressed, in the demo bar"],
+  },
 ];

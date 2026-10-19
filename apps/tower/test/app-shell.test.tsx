@@ -42,6 +42,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { AliasRedirect } from "@/routes/AliasRedirect";
 import { PropertyRedirect } from "@/routes/PropertyRedirect";
 import { THEME_STORAGE_KEY } from "@/hooks/useTheme";
+import { validateDemoViewer } from "@shared/demo-viewer";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 
 /** Only the fields the nav reads. */
@@ -735,5 +736,39 @@ describe("the nav fetches a page's code before it is clicked", () => {
     expect(() =>
       fireEvent.pointerEnter(screen.getByRole("link", { name: "Alerts" })),
     ).not.toThrow();
+  });
+});
+
+// The public demo's visitors switch the founder view from the demo bar on
+// every desk page; no other installation draws the switch.
+describe("the demo bar's view switch", () => {
+  const viewer = () => validateDemoViewer({ version: 1, synthetic: true, release: "1".repeat(40),
+    scenarioHash: "2".repeat(64), workspaceId: "11111111-1111-4111-8111-111111111111",
+    cutoff: "2026-09-15T12:00:00.000Z", generatedAt: null });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("is drawn at the end of the demo bar, and the sidebar follows a press", () => {
+    vi.stubGlobal("__DEMO_VIEWER__", viewer());
+    const { container } = renderShell("/");
+    const bar = container.querySelector<HTMLElement>("[data-demo-viewer]");
+    if (!bar) throw new Error("no demo bar");
+    const group = within(bar).getByRole("group", { name: "Your view" });
+    expect(within(group).getAllByRole("button").map((option) => option.textContent)).toEqual([
+      "I run the business", "I build the product", "Everything",
+    ]);
+    const column = container.querySelector<HTMLElement>("[data-app-sidebar]");
+    if (!column) throw new Error("no sidebar");
+    expect(within(column).queryByRole("link", { name: "Alerts" })).not.toBeNull();
+    fireEvent.click(within(group).getByRole("button", { name: "I run the business" }));
+    expect(within(group).getByRole("button", { name: "I run the business" })).toHaveAttribute("aria-pressed", "true");
+    expect(within(column).queryByRole("link", { name: "Alerts" })).toBeNull();
+  });
+
+  it("is not drawn outside the demo", () => {
+    const { container } = renderShell("/");
+    expect(container.querySelector("[data-demo-viewer]")).toBeNull();
+    expect(container.querySelector("[data-demo-view-switch]")).toBeNull();
   });
 });

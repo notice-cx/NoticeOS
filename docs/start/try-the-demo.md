@@ -24,6 +24,14 @@ The demo package runs the compiled app, Postgres and Dolt on a Linux server or V
 
 Only the app's HTTP port is published, on the host's loopback. Postgres has no host port.
 
+## Switch the view
+
+The banner at the top of every page, the TV dashboard included, holds three choices at its end: **I run the business**, **I build the product** and **Everything**. On a phone they sit on a line below the banner's text. Pressing one redraws the Tower in that view at once: the sidebar's pages, Home's sections and each site's tabs.
+
+The TV dashboard at `/wall` follows the same choice. **I run the business** and **I build the product** show that view's layout; **Everything** shows the demo's own layout. To open the TV dashboard in one view without pressing anything, add `?view=business`, `?view=product` or `?view=everything` to its address.
+
+The choice is kept in the visitor's browser, so it stays after a reload and no other visitor sees it.
+
 ## Configure
 
 1. Copy `deploy/demo/example.json` and `deploy/demo/example.env` to a private folder outside the checkout, for example `/operator/`.
