@@ -103,6 +103,8 @@ test('every report file matches the frozen retired-analyzer reference over one r
 
   // Captured from the retired analyzer at the exact reference commit, before
   // deletion, over the same canonical one-copy-per-report-day archive.
+  // `executive.json` is pinned to the current analyzer instead: the snapshot
+  // carries the visitors-by-channel block the retired analyzer never wrote.
   const reference = await readJsonFile(path.join(REPO_ROOT, 'scripts', 'fixture-history-analysis.json'));
   assert.equal(reference.asset, FIXTURE_ASSET);
   assert.equal(reference.analyzedAt, FIXTURE_ANALYZED_AT);
