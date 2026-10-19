@@ -54,6 +54,7 @@ import { cn } from "@/lib/utils";
 import { monthRevenue } from "@/lib/wall-revenue";
 import { CostComposition } from "@/routes/financials/CostComposition";
 import { MonthHero } from "@/routes/financials/MonthHero";
+import { RevenueComposition } from "@/routes/financials/RevenueComposition";
 import { SiteMoneyRows, TooShortForATrend, TrendDates } from "@/routes/financials/SiteMoneyRows";
 
 /** Cents, everywhere on this page: it exists to be reconciled against a
@@ -492,6 +493,15 @@ function Ledger({ data }: { data: FinancialsPayload }) {
             recurringCosts={data.recurringCosts}
             period={data.period}
             className="self-start @3xl:col-span-2 @6xl:col-span-4"
+          />
+        ) : null}
+        {/* The month's revenue by source: ads, subscriptions and the rest,
+            each under the name its source gives it. */}
+        {data.revenueLines && data.revenueLines.length > 0 ? (
+          <RevenueComposition
+            lines={data.revenueLines}
+            period={data.period}
+            className="@3xl:col-span-2 @6xl:col-span-12"
           />
         ) : null}
         <SiteMoneyRows

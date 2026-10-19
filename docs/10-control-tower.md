@@ -58,11 +58,20 @@ certified. Live auth activation remains an explicit operator action under
 Every Tower page except the Wall renders inside one layout route: a persistent
 left sidebar and one page header.
 
-- **The sidebar** lists the nine pages in the operator's order: Home,
-  Workflows, Sites, Alerts, Tasks, Money, System health, Integrations,
-  Settings — Tasks only once a task source is connected. Its footer
-  holds the items that
-  are not pages — Search…, the TV dashboard with an Edit pencil to
+- **The sidebar** lists the pages in the operator's order, and which pages
+  it lists follows the person's view (`useView`, `sidebarItems` in
+  `nav-items.ts`):
+
+  | View | Sidebar entries |
+  |---|---|
+  | "I run the business" | Home, Sites, Tasks, Money, Settings |
+  | "I build the product" | Home, Sites, Alerts, Tasks, Money, System health, Integrations, Settings |
+  | "Everything" | Home, Workflows, Sites, Alerts, Tasks, Agents, Money, System health, Integrations, Settings |
+
+  "Everything" is what a person sees before choosing a view, unless the
+  workspace default (`config/tower.json` `/view`) names another. A page left
+  out of the sidebar still opens from the palette and from any link. The
+  sidebar's footer holds the items that are not pages — Search…, the TV dashboard with an Edit pencil to
   `/wall/edit`, and the light/dark toggle. A setting saves in the field
   being edited, so the sidebar and header hold no save controls. `/dev/kitchen-sink`
   and `/dev/asset-states` stay dev-only routes reached by URL and are not in the
@@ -119,13 +128,16 @@ left sidebar and one page header.
   button in the sidebar footer, because a shortcut with no visible control is
   found only by people who already know it, and a touch screen has no modifier
   key. The palette lists every
-  page (the nine pages, less Tasks without a task source, plus the TV and its
-  layout editor) and every asset by display name, with its
+  page in every view (the sidebar's pages of "Everything", plus the TV, its
+  layout editor and Arrange the sites) and every asset by display name, with its
   favicon, its domain and a severity dot when it has an open warning or error.
   Typing filters, Enter navigates, Escape closes, and focus returns to the
   element that had it. The items the operator opened last are stored and listed first while
   the query is empty. With a task source connected, a query shaped like a task
-  id adds one extra row that opens `/tasks/<id>`. So far **principle 4 is only
+  id adds one extra row that opens `/tasks/<id>`. A **Views** group lists
+  "Switch to · \<view>" for each view the person is not in; selecting one
+  saves it as the person's view, keeps their "What matters most?" picks and
+  the page they are on. So far **principle 4 is only
   partly built**: the palette
   navigates but does not run actions. Running commands from it — approve, snooze, file —
   is [doc 16](16-replacing-the-chat-workflow.md) § L (the Ask console), which needs a list of verbs and
@@ -145,6 +157,33 @@ rule as every other surface (`monthRevenue`, `portfolioHeadline`), so Home
 can never show a different month total than the Sites page or the Wall; the
 decision rows exist only with a task source connected.
 
+- **Home is a list of modules, and the person's view picks them**
+  (`HOME_MODULES` and `VIEW_LIBRARY` in `packages/contract/src/views.mts`,
+  drawn by `routes/home/modules.tsx`). The paragraph above is the
+  "Everything" view. "I run the business" draws Site health, the month's
+  money, "The agents · this week" and the decisions; "I build the product"
+  draws the month's money, "Where visitors come from · 4 weeks", "Worth a
+  look", the problems, the decisions and the sites. A "What matters most?"
+  pick moves its module to the front when the view draws it.
+  - **Site health** (`HealthModule`) is one row per listed site with five
+    dots, Up, Speed, Errors, Search and Code, from `techHealth`
+    (`src/lib/tech-health.ts`), the calculation the site's Health tab and the
+    TV's Site health widget also use.
+  - **The agents · this week** (`FactoryModule`, `agentsWeek`) shows Building
+    › Finished › Proven to work and the three newest lines.
+  - **Where visitors come from · 4 weeks** (`ChannelsModule`) sums the listed
+    sites' visits by channel, beside the funnel step that loses the most
+    people.
+  - **Worth a look** (`GapsModule`, `businessGaps`) ranks what the sites lack
+    as a business (no income source, no data feeds, no task project, no code
+    report, then the newest readings' opportunities), each row with "Make a
+    task".
+  - In the business view the summary sentence starts with the sites' health
+    (`healthWords`: "2 of 3 sites are fine." and the site most in need of a
+    look with its first problem) and states the count of broken things only
+    when there is one.
+  The card fields these modules read (`product`, `codebase`, `watches`,
+  `channels`, `findings`) are filled by `apps/tower/worker/card-readings.ts`.
 - **With one site**, Home starts with that site's own numbers and chart
   (`OneSiteLead`, the top section of the Overview) and draws no one-row table.
 - **Home has none of the TV-only panels**: no clock, no countdown, no meetings
@@ -155,6 +194,10 @@ decision rows exist only with a task source connected.
   a sentence describing what NoticeOS does, then three steps for the newest site
   (add a site, connect its first source, see the first number) — and no tile,
   list or table around it, because a zero would imply that something was measured.
+  Above the steps, until the person has a view of their own, the card shows
+  "Which describes you?" and then, unless they chose "Everything", "What
+  matters most?" with Continue and Skip (`routes/home/ViewSteps.tsx`). The
+  steps work whether or not the questions are answered.
 - **Every quantity on the page has a small visual beside it that makes it quick
   to read** (doc 14's rule): each visual shows something the number alone does not
   (direction, share, shape, or which is worst); none is decoration.
@@ -171,11 +214,12 @@ standalone installation and **Members** to a hosted workspace's owner. Each
 tab is one column of panels — a small label, then rows divided by thin lines —
 and an address from before the tabs (`/settings#task-hub`, `#entities`,
 `#alert-rules` and the rest) opens the tab that holds its section.
-`#clock` and `#budget` are General's two panels. The rows below describe
-each tab:
+`#view`, `#clock` and `#budget` are General's three panels. The rows below
+describe each tab:
 
 | Tab | Holds | Shown most prominently |
 |---|---|---|
+| **General → Your view** (`/settings#view`) | the person's view ("I run the business", "I build the product", "Everything") as three radio cards, saved in the browser on change with Undo beside them; "At the top of Home", the "What matters most?" picks, toggled with Change; and "Workspace default · new people and the TV start from" (`config/tower.json` `/view`), changed with Change while settings can be saved and shown with a lock while they cannot | the three views with their one-line descriptions, the chosen one filled |
 | **General → Clock** (`/settings#clock`) | the operator's timezone — the IANA zone every intraday chart is drawn in (`config/constants.json` `os_time_zone`) | the current time in that zone, because two neighbouring zone names look equally plausible until you see the time each one gives |
 | **General → Budget** (`/settings#budget`) | monthly data cap, the value of your time; what happens at the cap is a **Stops at the budget** chip beside the meter | a meter of month-to-date data spend against the cap. **Every cap here has a meter**: NoticeOS makes no model calls of its own, so there is no inference cap to show |
 | **Alert rules** (`/settings/alert-rules`) | a replay of the rules against a site's last 30 days, how often the operator responded to each rule by tuning it, then the thresholds: anomaly sensitivity, longest window | sensitivity against the conventional 0.05 ceiling; the longest window as its share of four weeks, with the quietest daily average it still tests |
@@ -238,7 +282,7 @@ show the same name for `alpha` and the same file it is stored in.
 
 ## The Wall (TV mode)
 
-**What the Wall shows is specified in [doc 14](14-design.md)**: a slim strip and the loop
+**What the Wall shows is specified in [doc 14](14-design.md)**: by default a slim strip and the loop
 across the top, then the last 24 hours of problems above one row per site,
 beside the month's revenue above the work. The sections below
 cover the route, refresh, layout document and editor mechanics; doc 14 specifies what
@@ -302,16 +346,21 @@ full height beside several ([doc 14](14-design.md) § Regions).
   work. Revenue sits beside the sites rather than above them because that is
   the only arrangement in which the TV's 1080 pixel rows fit the loop, the revenue band and seven
   sites' rows without clipping (`pnpm audit:wall-fit`). **A fresh install's `/wall` is `null`, or absent** — both
-  mean "nothing saved; draw the default" — so the default is defined once,
-  in the code, and not repeated in the file. `/wall`
+  mean "nothing saved" — and the TV then draws the preset of the workspace
+  default view (`WALL_PRESETS`, chosen by `config/tower.json` `/view`), which
+  is `DEFAULT_WALL_LAYOUT` for "Everything" and when no view is saved. The
+  presets are defined once, in the code, and not repeated in the file; a saved
+  layout always wins over a preset. `/wall`
   is a declared document, so the config write path treats a stored `null` as absent and
   the first Save creates the key
   ([`config/tower.README.md`](../config/tower.README.md)).
   `apps/tower/test/wall-canvas.test.tsx` checks the default's
   rows, weights and regions.
-- **The library is eight widgets** — strip, the loop, the last 24 hours,
-  sites, revenue, work, Needs attention and the feed; the default places the first
-  six, and Needs attention and the feed are available for a layout that adds them.
+- **The library is twelve widgets** — strip, the loop, the last 24 hours,
+  sites, revenue, work, Needs attention, the feed, Agents, Site health, The
+  agents and Visitors by channel; the default places the first six, the
+  business and product presets place Site health, The agents and Visitors by
+  channel, and the rest are available for a layout that adds them.
   Seven older types (alerts, portfolio net, System, clock, meetings,
   countdown, the asset cards) are **retired types**: a saved layout that names
   one is still read — never
@@ -353,7 +402,10 @@ full height beside several ([doc 14](14-design.md) § Regions).
   dividers dragged to resize, a Move menu on every widget for a keyboard or a
   tap, Undo and Redo over every change. It saves through the ordinary settings
   write path with a one-line version note, and keeps the versions it replaced
-  with a Revert per entry. The preview is a **query container**, so the
+  with a Revert per entry. The Add a widget drawer's "Start from" lists each
+  view's preset by the view's label; picking one replaces the whole
+  arrangement as one step Undo reverses, and a version saved as a preset is
+  named "Started from \<view>" when no note is written. The preview is a **query container**, so the
   type scale and every widget's breakpoints use the 1920 box rather than the
   browser window, and the arrangement on screen matches the TV's at any width;
   `pnpm audit:wall-fit` remains the check that measures the real screen, and it is the
@@ -939,9 +991,11 @@ in [the Tower's README](../apps/tower/README.md).
 ### The page is tabbed, and each tab has its own URL
 
 `/assets/:id` is **Overview**, and `/assets/:id/growth`, `/financials`,
-`/search`, `/codebase`, `/alerts`, `/tasks`, `/activity`, `/sources`, `/settings` are the
-other nine (`apps/tower/src/routes/asset-detail/AssetTabs.tsx`; Tasks only once
-a task source is connected). Above the bar, on every tab: the page header
+`/search`, `/codebase`, `/health`, `/alerts`, `/tasks`, `/activity`, `/sources`, `/settings` are the
+other ten (`apps/tower/src/routes/asset-detail/AssetTabs.tsx`; Tasks only once
+a task source is connected). The person's view chooses which of them the bar
+shows (`siteTabs` in `VIEW_LIBRARY`); a link to a tab the view leaves out still
+opens it, drawn last in the bar. Above the bar, on every tab: the page header
 (identity, source marks, the page-wide range). Below it, **only the active tab's
 sections are mounted**, each tab reading its own view.
 
@@ -951,7 +1005,8 @@ sections are mounted**, each tab reading its own view.
 | **Growth** | Audience and search charts over the range, what else is collected, and product use |
 | **Money** | This asset's ledger and P&L |
 | **Search** | The tracked-panel board, query decisions, page decisions and the search context |
-| **Codebase** | One sentence on how the code changed in 30 days beside the site's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), lines of code over time with deploys marked, the languages, and the latest report's findings, each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
+| **Codebase** | One sentence on how the code changed in 30 days beside the site's visitors, five figures (lines of code, repeated code, unused code, hard-to-change functions, test coverage by size), a row of three checks the site's own workflow sends (**Build**, **Tests**, **Vulnerable packages**), lines of code over time with deploys marked, the languages, and the latest report's findings (repeated blocks, hard-to-change functions, unused, vulnerable packages), each with **Make a task**; before the first report, the ways to send one ([doc 27](27-codebase-health.md)) |
+| **Health** | The five facts of Home's Site health (Up, Speed, Errors, Search, Code) as five word buttons, each opening the readings behind it in place; a fact with no reading shows "Not measured yet" with the link that connects it (`HealthTab.tsx`) |
 | **Alerts** | Open alerts, those no longer current, and history |
 | **Tasks** | The Tasks board pinned to this asset's project |
 | **Activity** | The timeline with its event composer and outcome-check composer, the Watches strip, link outreach — what happened on this asset |

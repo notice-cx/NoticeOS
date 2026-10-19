@@ -59,6 +59,9 @@ import { posthogSettings, type LaneRegister } from './lane-mapping.js';
 import { readCollectorConfigs } from './config-store.js';
 import { disconnectMediavine } from './mediavine.js';
 import { PROBE_CAPABILITY } from './probe-capability.js';
+import { CRUX_KEY_CHECK_ORIGIN, CRUX_KEY_FIELD, checkCruxKey, cruxOrigin } from './crux.js';
+import { STRIPE_KEY_FIELD, checkStripeKey } from './stripe.js';
+import { eligibleAssets } from './hygiene.js';
 
 /** How long a probe waits on a provider before calling it unreachable. */
 const PROBE_TIMEOUT_MS = 10_000;
@@ -184,6 +187,8 @@ async function runProbe(
   if (provider === 'calendar') return probeCalendar(fields, fetchImpl);
   if (provider === 'discord') return probeDiscord(fields, fetchImpl);
   if (provider === 'posthog') return probePosthog(env, fields, fetchImpl);
+  if (provider === 'crux') return probeCrux(env, fields, fetchImpl);
+  if (provider === 'stripe') return probeStripe(fields, fetchImpl);
   return probeClarity(fields);
 }
 
@@ -486,6 +491,40 @@ export async function probeDiscord(
   await response.body?.cancel();
   // The same reading a real delivery gets (notifier.ts).
   return discordWebhookAnswer(response.status);
+}
+
+/**
+ * Chrome UX Report: one `records:queryRecord` call on the first site the daily
+ * job reads, or on a reserved origin before any site exists. A record and "no
+ * data for this origin" both prove the key.
+ */
+async function probeCrux(
+  env: IngestEnv,
+  fields: Record<string, string>,
+  fetchImpl: typeof fetch,
+): Promise<ProbeFound> {
+  const [first] = await eligibleAssets(env);
+  const origin = first ? cruxOrigin(first.domain) : CRUX_KEY_CHECK_ORIGIN;
+  const verdict = await checkCruxKey(fields[CRUX_KEY_FIELD] ?? '', origin, fetchImpl, PROBE_TIMEOUT_MS);
+  if (verdict === 'accepted') return { ok: true, result: { outcome: 'answered' } };
+  if (verdict === 'refused') return { ok: false, result: { outcome: 'refused', fix: { kind: 'replace' } } };
+  if (verdict === 'rate-limited') return { ok: false, result: { outcome: 'rate-limited', fix: { kind: 'wait' } } };
+  return { ok: false, result: { outcome: 'unreachable' } };
+}
+
+/**
+ * Stripe: one read of the account balance, which moves no money and writes
+ * nothing. A key without the balance grant is refused like a wrong key.
+ */
+export async function probeStripe(
+  fields: Record<string, string>,
+  fetchImpl: typeof fetch,
+): Promise<ProbeFound> {
+  const verdict = await checkStripeKey(fields[STRIPE_KEY_FIELD] ?? '', fetchImpl, PROBE_TIMEOUT_MS);
+  if (verdict === 'accepted') return { ok: true, result: { outcome: 'answered' } };
+  if (verdict === 'refused') return { ok: false, result: { outcome: 'refused', fix: { kind: 'replace' } } };
+  if (verdict === 'rate-limited') return { ok: false, result: { outcome: 'rate-limited', fix: { kind: 'wait' } } };
+  return { ok: false, result: { outcome: 'unreachable' } };
 }
 
 /**

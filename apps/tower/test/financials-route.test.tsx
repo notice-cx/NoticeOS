@@ -720,6 +720,35 @@ describe("/financials — the first screen answers the whole question", () => {
     ).toBe(true);
   });
 
+  /** The month's revenue opened up by source, each family named in plain words. */
+  it("draws the month's revenue by source, largest first, with each family in words", () => {
+    renderPage(payload({ revenueLines: [
+      { family: "subs", source: "stripe", label: "Stripe subscriptions", currency: "USD", amount: 138, rows: 1 },
+      { family: "ads", source: "mediavine-journey", label: "Mediavine Journey ad revenue", currency: "USD", amount: 290.94, rows: 1 },
+      { family: "affiliate", source: null, label: null, currency: "USD", amount: 12, rows: 2 },
+    ] }));
+    const panel = screen.getByRole("region", { name: "By source" });
+    expect(panel).toHaveTextContent("$440.94 in August");
+    const lines = [...panel.querySelectorAll("[data-revenue-line]")];
+    expect(lines.map((line) => line.getAttribute("data-revenue-line"))).toEqual(["mediavine-journey", "stripe", ""]);
+    expect(lines[0]).toHaveTextContent("Mediavine Journey ad revenue");
+    expect(lines[0]).toHaveTextContent("$290.94");
+    expect(lines[0]).toHaveTextContent("Ads");
+    expect(lines[1]).toHaveTextContent("Stripe subscriptions");
+    expect(lines[1]).toHaveTextContent("Subscriptions");
+    // A row booked with no source is named by its family.
+    expect(lines[2]).toHaveTextContent("Affiliate");
+    expect(lines[2]).toHaveTextContent("×2");
+    // The ledger's own family codes stay off the screen.
+    expect(panel.querySelector('[data-revenue-family="subs"]')).toHaveTextContent(/^Subscriptions$/);
+  });
+
+  it("draws no By source panel for a month with no revenue lines", () => {
+    const { container } = renderPage(payload({ revenueLines: [] }));
+    expect(container.querySelector("[data-revenue-composition]")).toBeNull();
+    expect(screen.queryByRole("region", { name: "By source" })).toBeNull();
+  });
+
   /** No paragraph anywhere: each fact is drawn on the figure it qualifies. */
   it("carries no About, no known-gaps panel and no explanation tooltips", () => {
     const { container } = renderPage(threeMonths());

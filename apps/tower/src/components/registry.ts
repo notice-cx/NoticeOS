@@ -1396,4 +1396,25 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
       "A count narrowing step by step on one ruler (tracked → ranking → top 10 → top 3), the figure at each row's end with its share of the step before; a step nobody measured is a hatched track and a word, never a zero.",
     variants: ["rank funnel with shares and an unmeasured step"],
   },
+  {
+    name: "WallHealth",
+    file: "components/wall/WallHealth.tsx",
+    purpose:
+      "The TV's Site health widget: one row per site with five dots (up, speed, errors, search, code) read from techHealth. Only a problem is coloured, red for bad and amber for worth a look; a measured fact is a filled neutral dot and an unmeasured one a hollow ring, and every dot carries its word for a screen reader. The worst problem's note sits beside its row with how many others it has, and the heading counts the measured sites that are fine.",
+    variants: ["problems and fine sites", "no sites yet"],
+  },
+  {
+    name: "WallFactory",
+    file: "components/wall/WallFactory.tsx",
+    purpose:
+      "The TV's agents widget: building, shipped this week and proven as three figures joined by chevrons, read from agentsWeek, how many changes are still being watched, and up to three plain lines about the newest work. A count nobody can read is a dash, never a zero.",
+    variants: ["counted with lines", "unknown counts, nothing finished"],
+  },
+  {
+    name: "WallChannels",
+    file: "components/wall/WallChannels.tsx",
+    purpose:
+      "The TV's Visitors by channel widget: each site's channel split summed across the portfolio (portfolioChannels), largest first on one shared scale with visits and share, the tail folded into Other, then the one funnel step across every site that loses the most people (largestFunnelDrop).",
+    variants: ["channels and the largest drop", "no channel split yet"],
+  },
 ];

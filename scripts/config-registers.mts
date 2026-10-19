@@ -402,6 +402,11 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         describe: 'holidays compared with this site’s traffic',
       },
       {
+        name: 'stripeAccountId', label: 'Stripe account', type: 'string', required: false,
+        maxLength: 64, pattern: '^acct_[A-Za-z0-9]+$',
+        describe: 'the acct_ id from Stripe’s account settings',
+      },
+      {
         name: 'propertyId',
         label: 'GA4 property id',
         type: 'string',
@@ -1130,6 +1135,9 @@ export const LANE_MAPPING: Record<string, LaneMapping | undefined> = {
     lists: ['funnels'],
     fallback: 'none',
   },
+  // One Stripe key reads one account, so a site earns from Stripe only once
+  // it names that account here.
+  subscriptions: { fields: ['stripeAccountId'], fallback: 'none' },
 };
 
 export const OPERATOR_LANE_STATES: readonly string[] = ['needs-setup', 'skipped'];

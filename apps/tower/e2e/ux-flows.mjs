@@ -570,13 +570,118 @@ FLOWS["file-task"] = {
   },
 };
 
+/** The sidebar's entries for the view on screen: one child of the Main nav
+ * per page. The desk and the phone's drawer draw the same list. */
+async function sidebarShows(page, count) {
+  await page.waitForFunction(
+    (n) => document.querySelector('nav[aria-label="Main"]')?.children.length === n,
+    count,
+    { timeout: 15_000 },
+  );
+}
+
+/** Fresh install → a view chosen on Home's first run: "Which describes
+ * you?", one pick under "What matters most?", Continue, and the sidebar drops
+ * to the business view's five pages. */
+FLOWS["choose-view"] = {
+  title: "Choose a view on the first run",
+  kind: "flow",
+  countStart: true,
+  async setup(page) { await page.goto("/"); },
+  async run(w) {
+    await w.click(w.page.locator('[data-view-choice="business"]'), "I run the business", { role: "choose" });
+    await w.click(w.page.locator("[data-focus-choice]").first(), "What matters most", { role: "choose" });
+    await w.click(w.page.locator("[data-focus-continue]"), "Continue", { role: "commit" });
+    await w.waitFor("Continue → the business view's sidebar", () => sidebarShows(w.page, 5));
+    await w.end("view chosen");
+  },
+};
+
+/** Settings → General → Your view: a view picked is saved on change, the
+ * sidebar follows at once, and Undo beside the choice puts it back. */
+FLOWS["switch-view"] = {
+  title: "Switch the view",
+  kind: "flow",
+  countStart: false,
+  async setup(page) { await seedAsset(page); await page.goto("/"); },
+  async run(w) {
+    await nav(w, "Settings");
+    const panel = w.page.locator("[data-settings-view]");
+    await w.click(panel.locator('[data-view-option="product"]'), "I build the product", { role: "choose" });
+    await w.waitFor("I build the product → its sidebar", () => sidebarShows(w.page, 8));
+    const saved = panel.locator('[data-status-for="field:Your view"][data-save-state="saved"]');
+    await w.click(saved.getByRole("button", { name: "Undo", exact: true }), "Undo", { role: "commit" });
+    await w.waitFor("Undo → every page in the sidebar", () => sidebarShows(w.page, 10));
+    await w.end("undone");
+  },
+};
+
+/** The view stored the way a person changes it later: Settings → General →
+ * Your view, saved on the press, with the sidebar following at once. */
+async function chooseViewInSettings(w, view, label, sidebarEntries) {
+  await nav(w, "Settings");
+  const panel = w.page.locator("[data-settings-view]");
+  await w.click(panel.locator(`[data-view-option="${view}"]`), label, { role: "choose" });
+  await w.waitFor(`${label} → its sidebar`, () => sidebarShows(w.page, sidebarEntries));
+}
+
+/** The business view's Home leads with every site's health as dots; a site's
+ * row opens the site, its Health tab shows the five words, and one word opens
+ * the readings behind it in place. */
+FLOWS["read-site-health"] = {
+  title: "Read a site's health, in the business view",
+  kind: "flow",
+  countStart: false,
+  async setup(page, fixture) { await seedPopulated(page, fixture); await page.goto("/"); },
+  async run(w) {
+    await chooseViewInSettings(w, "business", "I run the business", 5);
+    await nav(w, "Home");
+    const row = w.page.locator(`[data-site-health-row="${ASSET}"]`);
+    await w.click(row.getByRole("link").first(), "Site health · Journey Example", { role: "nav" });
+    await settle(w.page);
+    await assetTab(w, "Health");
+    await w.click(w.page.locator('[data-health-fact="reachable"]'), "Up", { role: "reveal" });
+    await w.waitFor("Up → its readings", () => w.page.locator('[data-health-evidence="reachable"]').waitFor({ timeout: 10_000 }));
+    await w.end("evidence read");
+  },
+};
+
+/** The product view's Home: the month's money split by site, visitors by
+ * channel beside the largest funnel drop, and "Worth a look", whose rows
+ * each file a task through the same composer a finding uses. */
+FLOWS["see-money-sources"] = {
+  title: "See where the money comes from, in the product view",
+  kind: "flow",
+  countStart: false,
+  async setup(page, fixture) {
+    await seedPopulated(page, fixture);
+    await fixture("/__journey/revenue-history");
+    await page.goto("/");
+  },
+  async run(w) {
+    await chooseViewInSettings(w, "product", "I build the product", 8);
+    await nav(w, "Home");
+    await w.page.locator("[data-surface-hero]").waitFor({ timeout: 15_000 });
+    await w.page.locator("[data-home-channels]").waitFor({ timeout: 15_000 });
+    const gaps = w.page.locator("[data-home-gaps]");
+    await w.click(gaps.locator("[data-file-task]").first(), "Make a task", { role: "choose" });
+    const form = w.page.locator("[data-task-composer]");
+    // The project is chosen only when the row has not already chosen it.
+    const project = form.locator("[data-composer-project]");
+    if (!(await project.inputValue())) await w.select(project, { index: 1 }, "Project");
+    await w.click(form.locator("[data-composer-submit]"), "File task", { role: "commit" });
+    await awaitSaved(w, "File → filed");
+    await w.end("filed");
+  },
+};
+
 /** Settings: the time zone, saved on change, then undone beside the field. */
 FLOWS["setting-timezone"] = {
   title: "Change the time zone (saved on change, then Undo)",
   async setup(page) { await seedAsset(page); await page.goto("/"); },
   async run(w) {
     await nav(w, "Settings");
-    // Settings opens on General, whose first row is the time zone.
+    // Settings opens on General; the time zone is the Clock panel's row.
     const section = w.page.locator("#clock");
     await w.select(section.locator("select").first(), "America/Los_Angeles", "Time zone");
     const saved = section.locator('[data-save-state="saved"]');
@@ -712,6 +817,35 @@ FLOWS["arrange-wall"] = {
   },
 };
 
+/** The editor's Add a widget drawer → Start from → a view's preset, which
+ * replaces the whole arrangement in the preview as one step Undo takes back;
+ * nothing reaches the TV until Save. */
+FLOWS["start-from-preset"] = {
+  title: "Start the TV from a view's preset",
+  kind: "flow",
+  countStart: false,
+  async setup(page) { await seedAsset(page); await page.goto("/"); },
+  async run(w) {
+    if (w.mobile) {
+      await w.click(w.page.getByRole("button", { name: "Open navigation" }), "open menu", { role: "reveal" });
+      const drawer = w.page.locator('[aria-label="Navigation"]');
+      await w.click(drawer.getByRole("link", { name: "Edit the TV layout", exact: true }), "menu Edit the TV layout", { role: "nav" });
+    } else {
+      await w.click(w.page.locator("[data-app-sidebar]").getByRole("link", { name: "Edit the TV layout", exact: true }), "sidebar Edit the TV layout", { role: "nav" });
+    }
+    await settle(w.page);
+    const toolbar = w.page.locator("[data-wall-toolbar]");
+    await w.click(toolbar.getByRole("button", { name: "Add a widget", exact: true }), "Add a widget", { role: "reveal" });
+    await w.click(w.page.locator("[data-wall-start-from]"), "Start from", { role: "reveal" });
+    await w.click(w.page.locator('[data-wall-preset="business"]'), "I run the business", { role: "choose" });
+    const health = w.page.locator('[data-wall-preview] [data-wall-edit-widget="health"]');
+    await w.waitFor("I run the business → Site health in the preview", () => health.waitFor({ timeout: 10_000 }));
+    await w.click(toolbar.getByRole("button", { name: "Undo", exact: true }), "Undo", { role: "commit" });
+    await w.waitFor("Undo → the arrangement as it was", () => health.waitFor({ state: "detached", timeout: 10_000 }));
+    await w.end("undone");
+  },
+};
+
 /** Arrange the sites: Arrange beside the Sites page's order and stage; at a
  * desk, drag the last site to the top by its grip; on a phone, its Move up;
  * then one switch takes a site off the TV, saved with Undo; Done. */
@@ -757,7 +891,7 @@ FLOWS["arrange-sites"] = {
 // not apply to it.
 
 const SURVEY_ROUTES = ["/", "/assets", `/assets/${ASSET}`, `/assets/${ASSET}/growth`, `/assets/${ASSET}/financials`,
-  `/assets/${ASSET}/search`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
+  `/assets/${ASSET}/search`, `/assets/${ASSET}/health`, `/assets/${ASSET}/alerts`, `/assets/${ASSET}/tasks`, `/assets/${ASSET}/activity`,
   `/assets/${ASSET}/sources`, `/assets/${ASSET}/settings`, "/alerts", "/tasks", "/agents", "/integrations",
   "/integrations?provider=bing-webmaster", "/integrations?provider=google", "/integrations?provider=mediavine",
   "/health", "/health/operations", "/financials", "/settings", "/wall"];

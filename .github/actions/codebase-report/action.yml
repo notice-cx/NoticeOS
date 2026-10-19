@@ -16,6 +16,18 @@ inputs:
     description: Folders to measure, separated by commas, such as apps/site. Empty measures the whole repository.
     required: false
     default: ''
+  build-passed:
+    description: The result of this job's own build step, such as steps.build.outcome (success or failure). Empty leaves the build not measured; the image never builds the code.
+    required: false
+    default: ''
+  tests-passed:
+    description: The result of this job's own test step, such as steps.test.outcome (success or failure). Empty leaves the tests not measured; the image never runs them.
+    required: false
+    default: ''
+  vulnerable-dependencies:
+    description: How many packages have a known vulnerability, as this job's own audit step counted them, such as from npm audit --json. Empty leaves it not measured.
+    required: false
+    default: ''
   image-tag:
     description: The tag of the published measurement image.
     required: false
@@ -41,6 +53,9 @@ runs:
         INGEST_URL: ${{ inputs.ingest-url }}
         NOTICEOS_ASSET_TOKEN: ${{ inputs.token }}
         MEASURE_PATHS: ${{ inputs.paths }}
+        BUILD_PASSED: ${{ inputs.build-passed }}
+        TESTS_PASSED: ${{ inputs.tests-passed }}
+        VULNERABLE_DEPENDENCIES: ${{ inputs.vulnerable-dependencies }}
       # Inputs reach the script as environment variables, never pasted into
       # it, so no input can change the command. The token is passed to the
       # container by name with `--env`, so it never appears in a command line.
@@ -53,6 +68,10 @@ runs:
         mkdir -p "$out" && chmod 0777 "$out"
         args=(--asset "$ASSET" --repo /repo --out /out/codebase-report.json --ref "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}")
         if [ -n "$MEASURE_PATHS" ]; then args+=(--paths "$MEASURE_PATHS"); fi
+        # The measurement image checks each value and stops on one it cannot read.
+        if [ -n "$BUILD_PASSED" ]; then args+=(--measure "build_passed=$BUILD_PASSED"); fi
+        if [ -n "$TESTS_PASSED" ]; then args+=(--measure "tests_passed=$TESTS_PASSED"); fi
+        if [ -n "$VULNERABLE_DEPENDENCIES" ]; then args+=(--measure "vulnerable_dependencies=$VULNERABLE_DEPENDENCIES"); fi
         if [ -n "$INGEST_URL" ] && [ -n "$NOTICEOS_ASSET_TOKEN" ]; then
           args+=(--post "$INGEST_URL")
           echo "posted=true" >> "$GITHUB_OUTPUT"

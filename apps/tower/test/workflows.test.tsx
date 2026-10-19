@@ -123,8 +123,10 @@ describe('workflow operating surface', () => {
     data.runtimeFresh = false;
     mount();
     expect(await screen.findByText(/Live operation is unconfirmed/)).toBeInTheDocument();
-    expect(screen.getAllByText('Unconfirmed')).toHaveLength(15);
-    expect(screen.getAllByText('Unknown')).toHaveLength(15);
+    // One per job the operations page lists: every system job.
+    const listed = WORKFLOW_DEFINITIONS.filter((workflow) => workflow.surface === 'system').length;
+    expect(screen.getAllByText('Unconfirmed')).toHaveLength(listed);
+    expect(screen.getAllByText('Unknown')).toHaveLength(listed);
   });
   it('lists only the ingest’s jobs for an installation whose runner runs no host lanes', async () => {
     // A runner without host lanes (the hosted scheduler): no task hub, push state or offsite

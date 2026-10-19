@@ -81,6 +81,7 @@ const measureSchema: Record<CodebaseMeasureUnit, z.ZodNumber> = {
   percent: z.number().min(0).max(100),
   ratio: z.number().nonnegative(),
   mean: z.number().nonnegative(),
+  pass: z.number().int().min(0).max(1),
 };
 const unitOf = new Map(CODEBASE_MEASURES.map((m) => [m.key, m.unit]));
 

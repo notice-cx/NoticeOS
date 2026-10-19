@@ -88,10 +88,12 @@ export function integrationLabel(id: string, fallback: string): string {
     clarity: "Microsoft Clarity",
     posthog: "PostHog",
     dataforseo: "DataForSEO",
+    crux: "Chrome UX Report",
     uptime: "Uptime monitoring",
     "ad-network": "Ad revenue",
     "affiliate-cj": "CJ affiliate revenue",
     "affiliate-amazon": "Amazon affiliate revenue",
+    subscriptions: "Subscription revenue",
     "deploy-annotations": "Deployment history",
     "github-app": "GitHub",
     "discord-webhooks": "Discord notifications",
@@ -245,6 +247,9 @@ export function collectionCadenceHours(laneId: string): number | null {
   if (laneId === "dataforseo") return CADENCE_HOURS.dataforseoSignals;
   if (laneId === "posthog") return CADENCE_HOURS.posthogSignals;
   if (laneId === "clarity") return CADENCE_HOURS.claritySignals;
+  if (laneId === "crux") return 24;
+  // Stripe's hourly job writes each UTC day once it is complete.
+  if (laneId === "subscriptions") return 24;
   if (laneId === NIGHTLY_REPORT_LANE_ID) return CADENCE_HOURS.pulse;
   if (laneId === UPTIME_LANE_ID) return CADENCE_HOURS.uptime;
   return null;

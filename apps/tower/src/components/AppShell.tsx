@@ -23,9 +23,9 @@ import {
 import {
   ASSETS_ROUTE,
   INTEGRATIONS_ROUTE,
-  NAV_ITEMS,
   TV_EDIT_ITEM,
   TV_ITEM,
+  sidebarItems,
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
@@ -35,6 +35,7 @@ import { openAlertsLabel } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
 import { useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useTheme, type Theme } from "@/hooks/useTheme";
+import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
 import { storageKey } from "@/lib/browser-storage";
@@ -156,6 +157,7 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const intent = useLinkIntent();
+  const { view } = useView();
   return (
     <div
       className={cn("flex w-60 shrink-0 flex-col border-r border-border bg-card", className)}
@@ -171,7 +173,7 @@ export function Sidebar({
 
       <WorkspaceButton className="mx-2 mb-2" />
       <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-        {NAV_ITEMS.map((item) =>
+        {sidebarItems(view.nav).map((item) =>
           // Assets is the one noun whose objects are also destinations.
           item.to === ASSETS_ROUTE ? (
             assets === undefined ? (

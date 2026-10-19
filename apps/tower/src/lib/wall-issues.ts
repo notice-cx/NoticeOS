@@ -99,6 +99,8 @@ export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "m
       return "Home page down";
     case "hygiene-sitemap":
       return "Sitemap failing";
+    case "hygiene-security-headers":
+      return "Headers changed";
     case "os-egress-down":
       return "Connection down";
     case "watch-window-closed":

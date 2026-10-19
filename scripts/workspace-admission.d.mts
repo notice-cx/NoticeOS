@@ -6,7 +6,7 @@
  */
 export type WorkspaceStatus = 'active' | 'provisioning' | 'suspended';
 export type WorkspaceRole = 'owner' | 'operator' | 'viewer';
-type Category = 'stored-read' | 'provider-read' | 'write' | 'human-decision' | 'membership' | 'protected';
+type Category = 'stored-read' | 'provider-read' | 'write' | 'human-decision' | 'membership' | 'self' | 'protected';
 declare const ACTIONS: Readonly<{
     'evidence.read': Readonly<{
         category: Category;
@@ -25,6 +25,10 @@ declare const ACTIONS: Readonly<{
         demo: boolean;
     }>;
     'integrations.summary.read': Readonly<{
+        category: Category;
+        demo: boolean;
+    }>;
+    'preferences.self': Readonly<{
         category: Category;
         demo: boolean;
     }>;

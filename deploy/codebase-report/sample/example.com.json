@@ -34,7 +34,10 @@
     "large_commits_30d": 29
   },
   "unmeasured": {
-    "unused_dependencies": "Unused packages are not measured yet."
+    "unused_dependencies": "Unused packages are not measured yet.",
+    "build_passed": "The report does not build the code, and the workflow sent no build result.",
+    "tests_passed": "The report does not run the tests, and the workflow sent no test result.",
+    "vulnerable_dependencies": "The report does not audit packages, and the workflow sent no count of vulnerable packages."
   },
   "byLanguage": [
     {

@@ -390,6 +390,18 @@ function codebaseCore(prefix: string, age: number, noise: (key: string) => numbe
     dependencies: 38 + Math.min(12, Math.floor(Math.max(0, t) / 50)), commits: 140 + Math.round(noise('commits') * 34), large: 22 + Math.floor(noise('large') * 12) };
 }
 
+/** The results each site's own workflow sends beside the measurement: Weeknight
+ * Pantry's copied components break its tests for five weeks around the
+ * reference day, Trail Notes' redesign fails one build and brings two
+ * vulnerable packages until they are updated, and one more arrives shortly
+ * before the reference day. */
+function codebaseChecks(prefix: string, age: number): Pick<Record<DemoCodebaseMeasure, number>, 'build_passed' | 'tests_passed' | 'vulnerable_dependencies'> {
+  const testsBroken = prefix === 'wp' && age >= -20 && age <= 14;
+  const buildBroken = prefix === 'tn' && age >= REDESIGN && age < REDESIGN + 7;
+  const vulnerable = prefix !== 'tn' ? 0 : age >= REDESIGN && age < REDESIGN + 21 ? 2 : age >= -10 && age <= 30 ? 1 : 0;
+  return { build_passed: buildBroken ? 0 : 1, tests_passed: testsBroken ? 0 : 1, vulnerable_dependencies: vulnerable };
+}
+
 /** The sites that send a codebase report: every site but the one still
  * setting up, whose Codebase tab shows how to send its first. */
 export function demoCodebaseReporting(asset: Pick<DemoAsset, 'prefix'>): boolean {
@@ -451,6 +463,7 @@ export function demoCodebaseEnvelope(seed: string, asset: Pick<DemoAsset, 'id' |
     ...(core.dependencies === undefined ? {} : { dependencies_direct: core.dependencies }), functions: Math.round(lines / profile.functionLines), complex_functions: core.complex,
     max_function_complexity: core.maxComplexity, mean_function_complexity: core.meanComplexity, test_lines: testLines, test_ratio: round2(testLines / lines),
     commits_30d: core.commits, files_touched_30d: Math.round(core.commits * profile.touchedPerCommit * (0.85 + noise('touched') * 0.3)) + core.large * 24, large_commits_30d: core.large,
+    ...codebaseChecks(asset.prefix, age),
   };
   const { generatedAt } = demoCodebaseTimes(seed, asset, date);
   const unmeasured: Partial<Record<DemoCodebaseMeasure, string>> = {

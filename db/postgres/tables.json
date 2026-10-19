@@ -38,6 +38,7 @@
     "mediavine_sites": { "shape": "state", "arrival": null },
     "mediavine_state": { "shape": "state", "arrival": null },
     "notifications": { "shape": "history", "arrival": "sent_at" },
+    "person_preferences": { "shape": "history", "arrival": "recorded_at" },
     "pulses": { "shape": "history", "arrival": "received_at" },
     "reclamation_targets": { "shape": "history", "arrival": "created_at" },
     "research_log": { "shape": "history", "arrival": "bought_at" },

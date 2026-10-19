@@ -55,6 +55,7 @@
     "reclamation:import": "node scripts/reclamation-import.mjs",
     "reclamation:open-targets": "node scripts/reclamation-open-targets.mjs",
     "mediavine": "node scripts/mediavine.mjs",
+    "cost:import-inference": "node scripts/inference-cost-import.mjs",
     "pulse:relay": "node scripts/pulse-relay.mjs",
     "project:prepare": "node scripts/project-context.mjs",
     "check:neutral": "node scripts/neutral-code-gate.mjs",

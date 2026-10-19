@@ -36,6 +36,7 @@ export interface AlertEvidenceResult {
 const HYGIENE_RULES = new Set([
   "hygiene-html-depth", "hygiene-robots-ai", "hygiene-sitemap",
   "hygiene-home-unreachable", "hygiene-page-directives", "hygiene-page-structure",
+  "hygiene-security-headers",
 ]);
 
 export function deriveAlertEvidence(

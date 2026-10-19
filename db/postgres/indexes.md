@@ -77,6 +77,7 @@ query chooses that index or that its write cost has been measured.
 | `alert_daily_counts_day` | Daily workspace alert counts (`workers/ingest/src/alert-daily.ts`). |
 | `platform_enrollment_active_workspace_idx` | Enforces one non-revoked platform enrollment per workspace (migration `0004_email_code.sql`). |
 | `hosted_job_recent_attempts` | Recent workspace journal attempts (`apps/tower/worker/hosted-workflow-read.ts`). |
+| `person_preferences_newest` | A person's newest saved view (`apps/tower/worker/person-preference-route.ts`). |
 
 ## Plan evidence
 

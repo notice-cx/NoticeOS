@@ -1,5 +1,5 @@
 // Nightly hygiene guards on the served layer: static HTML depth, AI-crawler
-// access, sitemap health and page structure, checked by fetching each
+// access, sitemap health, page structure and security headers, checked by fetching each
 // property's own domain under this OS's honest User-Agent. Every check accuses
 // a property, so each first makes sure the failure is the property's: a 200
 // past the byte ceiling records `unsupported`, and a fetch with no status asks
@@ -17,8 +17,13 @@ export const HYGIENE_CHECKS = [
   'robots-ai-access',
   'sitemap',
   'page-structure',
+  'security-headers',
 ] as const;
 export type HygieneCheckId = (typeof HYGIENE_CHECKS)[number];
+
+/** Every check id a `hygiene_checks` row can carry: the nightly sweep's, and
+ * the daily page-speed reading `crux.ts` writes through {@link writeReading}. */
+export type ReadingCheckId = HygieneCheckId | 'crux-vitals';
 
 /** The four states a reading can record; see the migration for the semantics. */
 export type HygieneStatus = 'ok' | 'warn' | 'error' | 'unreachable';
@@ -48,6 +53,28 @@ export const PAGE_DIRECTIVES_RULE_ID = 'hygiene-page-directives';
  * width and rewrites titles, so a length check fires on taste.
  */
 export const PAGE_STRUCTURE_RULE_ID = 'hygiene-page-structure';
+/**
+ * A security header the home page sent on the previous judged reading and no
+ * longer sends. Absence alone never fires: plenty of sites never set some of
+ * these, and the check observes them without asking anyone to change them.
+ */
+export const SECURITY_HEADERS_RULE_ID = 'hygiene-security-headers';
+
+/** The response headers the security-headers check records, lower-cased. */
+export const SECURITY_HEADERS = [
+  'strict-transport-security',
+  'content-security-policy',
+  'x-content-type-options',
+  'x-frame-options',
+  'referrer-policy',
+  'permissions-policy',
+] as const;
+export type SecurityHeader = (typeof SECURITY_HEADERS)[number];
+/** Map of header → its value as served, or null when absent. */
+export type SecurityHeaderMap = Record<SecurityHeader, string | null>;
+
+/** A stored header value is evidence, not an archive: a long policy is cut here. */
+const SECURITY_HEADER_VALUE_LIMIT = 300;
 
 /**
  * The bots whose access is a business input. A bot absent from this list is
@@ -119,6 +146,8 @@ interface FetchOutcome {
   contentType: string | null;
   /** `X-Robots-Tag`, verbatim: a crawler directive that lives nowhere in the body. */
   xRobotsTag: string | null;
+  /** The security headers of the response, or null when no response came back. */
+  securityHeaders: SecurityHeaderMap | null;
   /** The origin answered with bytes we will not decode as text (gzip, binary). */
   binary?: boolean;
   error?: string;
@@ -126,6 +155,16 @@ interface FetchOutcome {
 
 /** Content types never run through `.text()`: none is a document this lane can read. */
 const BINARY_CONTENT_TYPE = /gzip|zip|octet-stream/i;
+
+/** The security headers one response carried, each value truncated. */
+export function readSecurityHeaders(headers: Headers): SecurityHeaderMap {
+  const map = {} as SecurityHeaderMap;
+  for (const name of SECURITY_HEADERS) {
+    const value = headers.get(name);
+    map[name] = value === null ? null : value.trim().slice(0, SECURITY_HEADER_VALUE_LIMIT);
+  }
+  return map;
+}
 
 /**
  * One hygiene GET. Never throws: "the origin refused" and "we could not reach
@@ -140,6 +179,7 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
     bytes: 0,
     contentType: null,
     xRobotsTag: null,
+    securityHeaders: null,
   };
   try {
     const response = await fetchImpl(url, {
@@ -150,6 +190,7 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
     });
     const contentType = response.headers.get('content-type');
     const xRobotsTag = response.headers.get('x-robots-tag');
+    const securityHeaders = readSecurityHeaders(response.headers);
     const declared = Number(response.headers.get('content-length'));
     if (Number.isFinite(declared) && declared > RESPONSE_BYTE_LIMIT) {
       await response.body?.cancel();
@@ -158,6 +199,7 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
         status: response.status,
         contentType,
         xRobotsTag,
+        securityHeaders,
         error: `response exceeds ${RESPONSE_BYTE_LIMIT} bytes`,
       };
     }
@@ -168,6 +210,7 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
         status: response.status,
         contentType,
         xRobotsTag,
+        securityHeaders,
         error: `non-200 response (${response.status})`,
       };
     }
@@ -178,6 +221,7 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
         status: 200,
         contentType,
         xRobotsTag,
+        securityHeaders,
         binary: true,
         error: `unreadable content type (${contentType})`,
       };
@@ -190,11 +234,12 @@ async function fetchDoc(fetchImpl: typeof fetch, url: string, accept: string): P
         status: 200,
         contentType,
         xRobotsTag,
+        securityHeaders,
         bytes,
         error: `response exceeds ${RESPONSE_BYTE_LIMIT} bytes`,
       };
     }
-    return { url, status: 200, ok: true, body, bytes, contentType, xRobotsTag };
+    return { url, status: 200, ok: true, body, bytes, contentType, xRobotsTag, securityHeaders };
   } catch (error) {
     return { ...base, error: error instanceof Error ? error.message : String(error) };
   }
@@ -709,7 +754,7 @@ type HygieneReading = {
 async function priorReadings(
   env: IngestEnv,
   asset: string,
-  check: HygieneCheckId,
+  check: ReadingCheckId,
   today: string,
   limit: number,
   healthyOnly = false,
@@ -746,10 +791,10 @@ async function openFlagInputs(
 }
 
 /** Upsert today's reading; a same-day re-run replaces it. */
-async function writeReading(
+export async function writeReading(
   env: IngestEnv,
   asset: string,
-  check: HygieneCheckId,
+  check: ReadingCheckId,
   observedAt: string,
   status: HygieneStatus,
   valueNum: number | null,
@@ -1127,6 +1172,114 @@ async function checkHtmlDepth(
     refreshed,
     resolved: reachable,
   };
+}
+
+/** How far back the security-headers check looks for the last reading it judged. */
+const SECURITY_HEADERS_LOOKBACK = 14;
+
+/** The header map a stored reading carries, or null when that night judged nothing. */
+function storedHeaderMap(detailJson: string): Partial<Record<SecurityHeader, string | null>> | null {
+  try {
+    const detail = JSON.parse(detailJson) as { headers?: unknown };
+    const headers = detail.headers;
+    return headers !== null && typeof headers === 'object' && !Array.isArray(headers)
+      ? (headers as Partial<Record<SecurityHeader, string | null>>)
+      : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * security-headers: which of {@link SECURITY_HEADERS} the home page sends, read
+ * from the response the depth check already fetched, so it costs no request.
+ * Only a 200 is judged: an error page's headers are a CDN's or a framework's,
+ * not the site's.
+ *
+ * {@link SECURITY_HEADERS_RULE_ID} fires on a regression only: a header the
+ * last judged reading had and tonight's lacks. As in the robots check, the
+ * transition is measured against the last judged reading and continuation
+ * against the open flag, so a header still missing on night three keeps the
+ * flag open, and the flag resolves once every header it names is back.
+ */
+async function checkSecurityHeaders(
+  env: IngestEnv,
+  entry: HygieneAsset,
+  home: HomeFetch,
+  gate: EgressGate,
+  at: string,
+  today: string,
+): Promise<HygieneCheckOutcome> {
+  const { response } = home;
+  const quiet = (status: HygieneStatus): HygieneCheckOutcome => ({
+    asset: entry.asset, check: 'security-headers', status, value: null, fired: 0, refreshed: 0, resolved: 0,
+  });
+
+  if (response.status !== 200 || response.securityHeaders === null) {
+    // No judged reading: no flag, and no retraction either.
+    const egressDown = response.status === null && (await gate.isDown());
+    if (egressDown) gate.recordUnmeasured(entry.asset);
+    const status: HygieneStatus = response.status === null ? 'unreachable' : 'error';
+    await writeReading(env, entry.asset, 'security-headers', at, status, null, {
+      url: response.url,
+      http_status: response.status,
+      ...(response.error !== undefined ? { error: response.error } : {}),
+      ...(egressDown ? { egress_down: true } : {}),
+    });
+    return quiet(status);
+  }
+
+  const headers = response.securityHeaders;
+  const present = SECURITY_HEADERS.filter((name) => headers[name] !== null);
+  const history = await priorReadings(env, entry.asset, 'security-headers', today, SECURITY_HEADERS_LOOKBACK);
+  const previous = history
+    .map((reading) => ({ observedOn: reading.observed_on, headers: storedHeaderMap(reading.detail_json) }))
+    .find((reading): reading is { observedOn: string; headers: Partial<Record<SecurityHeader, string | null>> } =>
+      reading.headers !== null) ?? null;
+
+  const openInputs = await openFlagInputs(env, entry.asset, SECURITY_HEADERS_RULE_ID);
+  const alreadyMissing = Array.isArray(openInputs?.missing_headers)
+    ? (openInputs.missing_headers as unknown[]).filter(
+        (name): name is SecurityHeader => typeof name === 'string' && (SECURITY_HEADERS as readonly string[]).includes(name),
+      )
+    : [];
+  const newlyMissing = previous === null
+    ? []
+    : SECURITY_HEADERS.filter((name) => typeof previous.headers[name] === 'string' && headers[name] === null);
+  const stillMissing = alreadyMissing.filter((name) => headers[name] === null);
+  const missing = SECURITY_HEADERS.filter((name) => newlyMissing.includes(name) || stillMissing.includes(name));
+  const regression = missing.length > 0;
+
+  const detail = {
+    url: response.url,
+    served_host: home.host,
+    http_status: response.status,
+    headers,
+    present: present.length,
+    of: SECURITY_HEADERS.length,
+    ...(regression ? { missing_headers: missing } : {}),
+  };
+  const status: HygieneStatus = regression ? 'warn' : 'ok';
+  await writeReading(env, entry.asset, 'security-headers', at, status, present.length, detail);
+
+  if (!regression) {
+    const resolved = await resolveHygieneFlag(env, entry.asset, SECURITY_HEADERS_RULE_ID, at);
+    return { asset: entry.asset, check: 'security-headers', status, value: present.length, fired: 0, refreshed: 0, resolved };
+  }
+  const { fired, refreshed } = await fireHygieneFlag(
+    env,
+    entry.asset,
+    SECURITY_HEADERS_RULE_ID,
+    'security-headers',
+    `home page stopped sending ${missing.join(', ')}`,
+    {
+      ...detail,
+      previous_headers: previous?.headers ?? null,
+      previous_observed_on: previous?.observedOn ?? null,
+    },
+    at,
+  );
+  return { asset: entry.asset, check: 'security-headers', status, value: present.length, fired, refreshed, resolved: 0 };
 }
 
 /** One sampled page's directive reading, as the check stores and re-reads it. */
@@ -1746,6 +1899,7 @@ export async function runHygieneChecks(
     const checks: [HygieneCheckId, () => Promise<HygieneCheckOutcome | null>][] = [
       ['sitemap', () => checkSitemap(env, entry, home.host, robots, roster, fetchImpl, gate, at, today)],
       ['html-depth', () => checkHtmlDepth(env, entry, home, gate, at, today, { retryOwed })],
+      ['security-headers', () => checkSecurityHeaders(env, entry, home, gate, at, today)],
       ['robots-ai-access', () => checkRobotsAiAccess(env, entry, robots, roster, sample, fetchImpl, gate, at, today)],
       ['page-structure', () => checkPageStructure(env, entry, sample, gate, at, today)],
     ];

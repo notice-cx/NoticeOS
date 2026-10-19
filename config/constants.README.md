@@ -30,6 +30,7 @@ most of it in place.
 | `codebase_rules.duplication_percent` | The repeated-code alert fires when at least this percent of the code is repeated. Default 8 | the codebase rules | no |
 | `codebase_rules.unused_items` | The unused-code alert fires when unused files plus unused packages reach this many. Default 10 | the codebase rules | no |
 | `codebase_rules.complex_functions_added_30d` | The hard-to-change functions alert fires when at least this many more functions became hard to change since the comparison report. Default 5 | the codebase rules | no |
+| `codebase_rules.vulnerable_dependencies` | The vulnerable-packages alert fires when at least this many packages have a known vulnerability, as the site's own workflow counts them; below 1 reads as 1. Default 1 | the codebase rules | no |
 | `no_nightly_report` | Optional list of asset ids that send no nightly report, so none is owed: no freshness alert, outside the SYSTEM card's "N/M nightly reports fresh", a neutral "No report" on the card. Absent until the first asset declares | the ingest freshness cron and the Tower, store first, through `owesNightlyReport` in `packages/contract/src/reporting.ts` | yes, each asset's **Settings → Nightly report** |
 
 The `codebase_rules` thresholds are read per key: a stored copy that lacks

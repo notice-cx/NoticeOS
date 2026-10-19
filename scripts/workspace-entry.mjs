@@ -9,7 +9,7 @@ import { PRODUCT_ENV, workspaceProfile } from './product-env.mjs';
 import { createBrowserRequestPolicy, WORKSPACE_SELECTION_HEADER } from './browser-request-policy.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { AGENT_RESOURCE_PATH, bearerToken } from './agent-access.mjs';
-import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest, credentialWriteRequest, credentialWriteInput, providerCollectionRequest, providerCollectionInput, storedResearchReadRequest, assetMutationRequest, assetMutationInput, watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
+import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest, credentialWriteRequest, credentialWriteInput, providerCollectionRequest, providerCollectionInput, storedResearchReadRequest, assetMutationRequest, assetMutationInput, personPreferenceRequest, watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
 import { googleOAuthRequest, GOOGLE_INTEGRATION_START } from './workspace-operations.mjs';
@@ -261,7 +261,8 @@ export async function withWorkspaceEntry(env, request, work, adapters = dependen
     if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
         && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
         && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
-        && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof))
+        && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
+        && !personPreferenceRequest(proof))
         || selected.kind !== 'workspace' || selected.action === null)
         refuse();
     const origin = binding(env, 'workspaceOrigin');

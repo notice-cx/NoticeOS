@@ -793,6 +793,7 @@ test('parseArgs: the eleven desk routes at the local Tower by default', () => {
   assert.equal(options.chrome, null);
   assert.equal(parseArgs(['--chrome', '/explicit/testing-browser']).chrome, '/explicit/testing-browser');
   assert.ok(DEFAULT_ROUTES.includes(`/assets/${SITE_TOKEN}/growth`));
+  assert.ok(DEFAULT_ROUTES.includes(`/assets/${SITE_TOKEN}/health`));
 });
 
 // The site pages are measured on a site this Tower lists, or the one `--asset`
@@ -809,7 +810,7 @@ test('the site pages are filled with --asset, or with the first site the Sites p
   assert.ok(siteRoutes(DEFAULT_ROUTES, 'shop.example').every((route) => !route.includes(SITE_TOKEN)));
   // An installation with no site yet: the site pages are left out, the rest kept.
   const bare = siteRoutes(DEFAULT_ROUTES, null);
-  assert.equal(bare.length, DEFAULT_ROUTES.length - 3);
+  assert.equal(bare.length, DEFAULT_ROUTES.length - 4);
   assert.ok(bare.includes('/settings'));
   assert.ok(bare.every((route) => !route.includes(SITE_TOKEN)));
   // The first link that IS a site page: never the index, a tab or another page.

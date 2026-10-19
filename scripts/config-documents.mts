@@ -56,6 +56,7 @@ export { CONFIG_KNOBS, CONFIG_REGISTERS, DOCUMENT_STAMPS } from './config-regist
 import { wallOpRefusal } from './wall-layout.mjs';
 import { schedulesOpRefusal } from './scheduled-jobs.mjs';
 import { productUseStagesRefusal } from '../packages/contract/src/product-use.mjs';
+import { WORKSPACE_VIEW_POINTER, workspaceViewRefusal } from '../packages/contract/src/views.mjs';
 
 // The safety allowlist: file ops may only touch these files, store ops only
 // these columns. Explicit, never a config/ glob.
@@ -105,14 +106,16 @@ export const ADDABLE_CONTAINERS: ReadonlyMap<string, { shape: "object" | "array"
 /**
  * The keys a wholesale-editable file may gain or lose: one document at one
  * exact pointer, nothing under it. A pointer set never creates a key, and the
- * default (the Wall's layout, the countdown, the no-report list) has exactly
+ * default (the Wall's layout, the countdown, the workspace's default view, the
+ * no-report list) has exactly
  * one representation, in the code — so a file nobody has saved one in holds
  * `null` or no key at all (`readsAsUnsaved`). Each is added and removed whole.
  * What a document must contain is decided per document: `wallOpRefusal`,
- * the countdown form plus `parseDashboardConfig`, `noNightlyReportOpRefusal`.
+ * the countdown form plus `parseDashboardConfig`, `workspaceViewOpRefusal`,
+ * `noNightlyReportOpRefusal`.
  */
 export const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]> = new Map([
-  ['config/tower.json', ['/wall', '/countdown']],
+  ['config/tower.json', ['/wall', '/countdown', WORKSPACE_VIEW_POINTER]],
   ['config/constants.json', ['/schedules', NO_NIGHTLY_REPORT_POINTER]],
 ]);
 
@@ -480,11 +483,13 @@ export function validateSchemaAndSafety(input: unknown): void {
       throw new ChangesetError(`${at}: unknown op kind ${JSON.stringify(op.kind)}`);
     }
 
-    // Document-shaped rules (the Wall's layout, the schedules, the no-report
-    // list) are asked after the op's own kind and pointer are known to be
+    // Document-shaped rules (the Wall's layout, the default view, the
+    // schedules, the no-report list) are asked after the op's own kind and pointer are known to be
     // legal, so "unknown op kind" stays the answer to an unknown op kind.
     const undrawable = wallOpRefusal(op, at);
     if (undrawable !== null) throw new ChangesetError(undrawable);
+    const unviewable = workspaceViewOpRefusal(op);
+    if (unviewable !== null) throw new ChangesetError(`${at}: ${unviewable}`);
     const unschedulable = schedulesOpRefusal(raw as ChangesetOp);
     if (unschedulable !== null) throw new ChangesetError(unschedulable);
     const undeclarable = noNightlyReportOpRefusal(op);
@@ -509,6 +514,22 @@ export function validateSchemaAndSafety(input: unknown): void {
       );
     }
   }
+}
+
+/**
+ * A write at the workspace's default view, read by the same parser the Tower
+ * draws from. `null` is the unsaved spelling and a delete returns to the
+ * built-in view, so neither is refused; a piece is, because `default` is the
+ * whole document and a half-written one has no reading.
+ */
+function workspaceViewOpRefusal(op: Record<string, unknown>): string | null {
+  if (op.file !== 'config/tower.json' || typeof op.pointer !== 'string') return null;
+  if (op.pointer !== WORKSPACE_VIEW_POINTER && !op.pointer.startsWith(`${WORKSPACE_VIEW_POINTER}/`)) return null;
+  if (op.kind === 'file-json-delete') return null;
+  if (op.pointer !== WORKSPACE_VIEW_POINTER) {
+    return `the workspace's default view is saved whole, at ${WORKSPACE_VIEW_POINTER}, never in pieces`;
+  }
+  return op.value === null ? null : workspaceViewRefusal(op.value);
 }
 
 /**

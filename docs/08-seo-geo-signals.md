@@ -344,7 +344,20 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   per user-agent group. A path-scoped `Disallow` is still treated as allowed, and
   longest-match evaluation is only worth building once a property actually ships
   path-scoped AI rules.
-- CrUX is not built.
+- **Security headers** are read from the same home-page response the depth
+  check counts: `Strict-Transport-Security`, `Content-Security-Policy`,
+  `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and
+  `Permissions-Policy`, each recorded as present with its value (cut to 300
+  characters) or absent, in one `security-headers` reading a day. Only a 200
+  is read. `hygiene-security-headers` (warn) fires when a header the previous
+  read had is missing, never because a site has not set one, and resolves when
+  it is sent again. The check reads headers and changes none.
+- **CrUX** page speed is its own daily job at 04:15 UTC, keyed by the
+  Chrome UX Report connection: the 75th percentile of LCP, INP and CLS for
+  phones and desktops, one `crux-vitals` reading per site per day
+  ([doc 11](11-integrations.md#chrome-ux-report)). No alert rule reads it yet.
+- TLS certificate expiry is not checked: the Worker's `fetch` does not expose
+  the peer certificate.
 
 - **Static-HTML depth check**: words-of-visible-content in the served HTML.
   AI crawlers don't render JS; a home page can serve under a hundred words for
@@ -358,8 +371,9 @@ quota. Full behavior, reporting rules, and the parser's documented limits:
   (else `/sitemap.xml`), prove it parses, count `<loc>` entries following one
   level of `<sitemapindex>`; alert on unreachable, unparseable, or a -50%
   count collapse off a base of ≥50 URLs.
-- **CrUX API** monthly: INP/LCP/CLS pass-fail per asset (tiebreaker-level
-  priority, but free to monitor).
+- **CrUX API** daily: the INP/LCP/CLS 75th percentiles per asset, rated
+  good, needs improvement or poor on the site's Data sources tab
+  (tiebreaker-level priority, but free to monitor).
 - Scope note: an asset may already prove link-graph/sitemap/canonical
   integrity in its own CI at build time. S5 checks the *served* layer (what a
   crawler actually receives); don't duplicate build-time proofs — require them
@@ -554,7 +568,7 @@ change the reserve, not only a new number.
 
 ## Not built
 
-- S5: CrUX; no screen shows the accumulating hygiene series yet.
+- S5: an alert rule on the CrUX readings; TLS certificate expiry.
 - S1b: the alert rules above (they need history, not new fields); the Tower's
   device-aware panel board and the executive snapshot's panel block.
 - S4: bounded backlink-detail reclamation candidates and a second link

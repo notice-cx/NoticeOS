@@ -6,8 +6,8 @@ import test from 'node:test';
 import {
   LIMITS, batches, boundEnvelope, buildEnvelope, churnSummary, complexitySummary, contentExclusion, directDependencies,
   globMatcher, ingestEndpoint, main, manifestDependencies, normalizeRemote, parseArgs, parseCsv, parseDeadCode, parseGitLog,
-  parseJscpd, parseLizard, parseScc, pathRules, postEnvelope, readRepoConfig, safeRelativePath, selectFiles, sizeSummary,
-  summaryLine, versionOf,
+  parseJscpd, parseLizard, parseScc, parseSentMeasure, pathRules, postEnvelope, readRepoConfig, REASONS, safeRelativePath,
+  selectFiles, sentMeasures, sizeSummary, summaryLine, versionOf,
 } from './measure.mjs';
 
 const REPO = '/repo';
@@ -22,7 +22,10 @@ test('a path that could leave the repository is refused; a messy one is normaliz
 
 test('arguments: the site id is required, folders stay inside the repository, the token is never an argument', () => {
   const parsed = parseArgs(['--asset', 'example.com', '--repo', '/repo', '--paths', 'apps/site, packages/ui/', '--ref', 'main']);
-  assert.deepEqual(parsed, { asset: 'example.com', repo: '/repo', paths: ['apps/site', 'packages/ui'], ref: 'main', out: null, post: null });
+  assert.deepEqual(parsed, {
+    asset: 'example.com', repo: '/repo', paths: ['apps/site', 'packages/ui'], ref: 'main', out: null, post: null,
+    sent: { measures: {}, unmeasured: {} },
+  });
   assert.equal(parseArgs(['--asset', 'example.com']).repo, '/repo');
   assert.throws(() => parseArgs([]), /--asset/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--token', 'x']), /Usage/u);
@@ -31,6 +34,37 @@ test('arguments: the site id is required, folders stay inside the repository, th
   assert.throws(() => parseArgs(['--asset', 'example.com', '--paths', Array.from({ length: 21 }, (_, i) => `p${i}`).join(',')]), /1 to 20/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--ref', 'main; rm']), /--ref/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--out']), /needs a value/u);
+});
+
+test('--measure carries the build, test and vulnerable-package results of the caller\'s own steps, validated', () => {
+  const parsed = parseArgs(['--asset', 'example.com', '--measure', 'build_passed=success', '--measure', 'tests_passed=failure',
+    '--measure', 'vulnerable_dependencies=3']);
+  assert.deepEqual(parsed.sent, { measures: { build_passed: 1, tests_passed: 0, vulnerable_dependencies: 3 }, unmeasured: {} });
+  for (const [text, value] of [['build_passed=true', 1], ['build_passed=1', 1], ['build_passed=PASSED', 1], ['tests_passed=false', 0],
+    ['tests_passed=0', 0], ['vulnerable_dependencies=0', 0]]) {
+    assert.equal(parseSentMeasure(text).value, value, text);
+  }
+  assert.deepEqual(parseSentMeasure('tests_passed=skipped'), { key: 'tests_passed', unmeasured: REASONS.stepDidNotRun });
+  assert.deepEqual(parseSentMeasure('build_passed=cancelled'), { key: 'build_passed', unmeasured: REASONS.stepDidNotRun });
+  for (const bad of ['code_lines=5', 'build_passed', '=1', 'build_passed=maybe', 'tests_passed=', 'vulnerable_dependencies=-1',
+    'vulnerable_dependencies=1.5', 'vulnerable_dependencies=many', 'toString=1']) {
+    assert.throws(() => parseSentMeasure(bad), /--measure/u, bad);
+  }
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--measure', 'build_passed=success', '--measure', 'build_passed=failure']), /twice/u);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--measure']), /needs a value/u);
+});
+
+test('a measure the caller did not send stays absent with its reason; a sent one joins the measures', () => {
+  assert.deepEqual(sentMeasures(null), {
+    measures: {},
+    unmeasured: { build_passed: REASONS.buildNotSent, tests_passed: REASONS.testsNotSent, vulnerable_dependencies: REASONS.auditNotSent },
+  });
+  const sent = sentMeasures({ measures: { build_passed: 0, vulnerable_dependencies: 2 }, unmeasured: { tests_passed: REASONS.stepDidNotRun } });
+  assert.deepEqual(sent, { measures: { build_passed: 0, vulnerable_dependencies: 2 }, unmeasured: { tests_passed: REASONS.stepDidNotRun } });
+  const envelope = buildEnvelope(envelopeInput({ measures: { code_lines: 100, ...sent.measures }, unmeasured: sent.unmeasured }));
+  assert.deepEqual(Object.keys(envelope.measures), ['code_lines', 'build_passed', 'vulnerable_dependencies']);
+  assert.deepEqual(envelope.unmeasured, { tests_passed: REASONS.stepDidNotRun });
+  for (const reason of Object.values(REASONS)) assert.ok(reason.length <= LIMITS.reasonChars, reason);
 });
 
 test('the report goes to the ingest over https, or plain http on this machine only', () => {
@@ -372,4 +406,6 @@ test('the token travels in the Authorization header and nowhere else; a missing 
 test('the summary line names what was and was not measured', () => {
   const envelope = buildEnvelope(envelopeInput({ measures: { code_lines: 48210, duplication_percent: 4, complex_functions: 23 } }));
   assert.equal(summaryLine(envelope), 'example.com at aaaaaaaaaaaa: 48210 lines of code, 4% repeated, 23 hard-to-change functions; not measured: unused_files.');
+  const checks = buildEnvelope(envelopeInput({ measures: { build_passed: 1, tests_passed: 0, vulnerable_dependencies: 2 }, unmeasured: {} }));
+  assert.equal(summaryLine(checks), 'example.com at aaaaaaaaaaaa: build passed, tests failed, 2 vulnerable packages.');
 });

@@ -20,6 +20,7 @@ export const ASSET_DETAIL_VIEWS = [
   "financials",
   "search",
   "codebase",
+  "health",
   "alerts",
   "tasks",
   "activity",
@@ -75,6 +76,9 @@ export const ASSET_VIEW_SECTIONS = {
   // `performance` for the visitors the code is set beside, `annotations` for
   // the deploys marked on its chart.
   codebase: ["codebase", "performance", "annotations"],
+  // The five facts' evidence: the product reading (speed, errors), the code
+  // reports, and the nightly home-page, sitemap and crawler checks.
+  health: ["executive", "codebase", "hygiene"],
   alerts: [],
   tasks: [],
   activity: ["annotations", "watchHistory", "reclamation", "tasks"],

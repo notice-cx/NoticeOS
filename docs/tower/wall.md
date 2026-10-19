@@ -15,6 +15,16 @@ The Wall shows: the live count at each step of the loop, what is broken and sinc
 
 The Wall is drawn from a layout you arrange in the Tower. It has no navigation and no controls; the small grey NoticeOS mark in the corner links back to Home. The default layout has six tiles: the strip and the loop across the top, then **Last 24 hours** over **Sites** on the left, beside **Revenue this month** over **Work this week** on the right.
 
+Until a layout is saved, the Wall shows the preset of the workspace's default view, set in [Settings → General](/tower/settings#general):
+
+| Workspace view | What the Wall shows |
+|---|---|
+| **I run the business** | the strip, then **Site health** over **Revenue this month** on the left, beside **Needs attention** over **The agents · this week** on the right |
+| **I build the product** | the strip, then **Revenue this month** over **Visitors by channel** on the left, beside **Sites** over **Work this week** on the right |
+| **Everything**, or no view saved | the default layout above |
+
+A saved layout always replaces the preset. Changing the workspace view later changes the Wall only while no layout is saved.
+
 **Top strip.** The time, the next meeting from a connected calendar feed, and a countdown if one is set.
 
 **The loop.** Sense, Attribute, Decide, Act and Learn across the screen, the five steps NoticeOS runs over and over ([How NoticeOS works](/concepts/how-noticeos-thinks)), each with its live count: the data sources working out of those you expect (and how many are failing), the decisions waiting for you, the work in progress, and the outcomes ready to read. A stage with no measurement yet shows **not measured yet** or **not read** instead of a number.
@@ -27,19 +37,28 @@ The Wall is drawn from a layout you arrange in the Tower. It has no navigation a
 
 **Work this week.** The heading shows how far into the week today is (**2 days in**). The week is the calendar week, Monday to Sunday, in the installation's time zone (Settings → General); before this, the tile counted the last seven days. Four figures follow: **Your decisions**, **In progress**, **Done this week** and **Blocked**. **Done this week** counts the tasks closed with the resolution **Done** whose close time falls in this week; a close with any other resolution (**Won't do**, **Duplicate**, **Can't reproduce**, **Already handled**) is not in it. **Done last week** counts the same way over the week before. Both are counted from each closed task's own close time and resolution, the same count the Tasks page shows, and a figure carries no **+**: **2 days in** is how far the week has run. Under each figure a change chip shows its move: an arrow, the count and **vs a week ago** for **Your decisions**, **In progress** and **Blocked** (the count now against the count seven days before), and **vs last week by today** for **Done this week** (this week so far against last week up to the same day and time). A figure that did not move shows **level with a week ago**. More done is green; more decisions or more blocked is red; in progress has no colour. A figure whose earlier count is not recorded has no chip. Under the figures one bar draws **Done this week** filled against last week: a tick where **Done last week by today** stood, and a thin line at **Done last week total**. Then one row per project: what got done this week extends left, with last week's done as a dashed outline under it, and what is still open extends right. **In progress**, **Blocked** and **Your decisions** a week ago come from the task history, whose days run midnight to midnight UTC. It shows counts only, never a task's text. On a TV the tile is only as tall as its content: where the tile is wide enough, the heading and the four figures share one line, each figure's change chip beside its number, and the words of the week bar sit beside the bar; each project is one line as tall as its bar. When the layout gives the tile less height than every project needs (**Fill the rest** or a share of its column), it shows the projects that fit and one line that counts the rest, such as **+2 more projects**; it never cuts a row or scrolls.
 
+**Site health.** One row per site with five dots under **Up**, **Speed**, **Errors**, **Search** and **Code**, the same facts as Home's **Site health** and the site's **Health** tab ([The Health tab](/tower/sites#the-health-tab)). A red dot is a site that is down, an amber dot a fact worth a look, a grey dot a fact that is fine and an empty ring a fact not measured yet. Beside each row is its worst problem, such as **The home page did not load**, with **+2** when the row has more. The heading counts the sites that are fine, such as **4 of 5 fine**.
+
+**The agents · this week.** Three figures, **Building**, **Shipped** and **Proven**, joined by arrows: the tasks in progress, the tasks done this week and the sites whose newest measured change worked. **N being watched** counts the changes still being measured. Under them, up to three of the newest pieces of work, each with its site and one line, or **Nothing finished yet**. A figure that cannot be counted is a dash.
+
+**Visitors by channel.** Every site's visits added up by channel, one bar per channel on one scale with its visits and its share, the smallest channels added into **Other**, and the total visits beside the heading. Under the bars, **Largest drop** names the site, the funnel and the two steps where the most people leave, with how many left and what share went on. With no channel data: **No channel split yet**.
+
+These three tiles are placed by the business and product presets and can be added to any layout.
+
 Three more tiles are available in the tile library: **Needs attention** (the top three problems, each as one sentence with its site), **Live feed** (what happened since last night, newest on top, from stored events only; a line names its site with the site's icon for a dark background: the dark-scheme icon its home page declares, else its light icon, else its `/favicon.ico`; a line for a task an agent filed, claimed or closed shows the agent's logo, its name and its model, and a close shows its commit and links; a close is labelled **Task done**, or, when nothing shipped, with its resolution: **Won't do**, **Duplicate**, **Can't reproduce** or **Already handled**, in grey with a slashed circle; a **Chosen** line shows the person who picked one of a task's choices, the option and the task, as "Dana chose (b) Keep both on Pick the page") and **Agents** (each agent and the model it named, ranked by tasks closed as **Done** in the last 7 days, with how many tasks the agents hold now). Add them at `/wall/edit`.
 
 ![Rows of the live feed from the synthetic demo: codex and claude claim and close tasks, each line with the agent's logo and a claimed or closed badge, the site's icon and name, the model, and a close's commit and link.](../images/wall-feed.webp)
 
 A site whose **TV** switch is off is in no tile, whatever a tile's own site list holds: not in the loop's counts, the last 24 hours, the sites, the work, the problems or the live feed. **Revenue this month** still counts its money. A site whose **Work this week** switch is off has no row in **Work this week** and stays in every other tile. A retired site has both switches off until you turn one on; shown, it reads **Retired** with no health level, and it counts in none of the loop's numbers and none of the problems. See [Where each site shows](/tower/sites#where-each-site-shows).
 
-On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order. On a television the background is true black, so unused pixels emit no light.
+On a landscape laptop the television's layout is scaled by one factor, with small type kept readable. On a portrait tablet or a phone the tiles are stacked in one column in a fixed order: the strip, **Revenue this month**, **Sites**, **Last 24 hours**, **Needs attention**, **Work this week**, **Agents**, **Live feed**, the loop, **Site health**, **The agents · this week** and **Visitors by channel**, leaving out the tiles the layout does not have. On a television the background is true black, so unused pixels emit no light.
 
 ## What you can do
 
 - Open the Wall from the **TV dashboard** entry at the bottom of the sidebar, or at `/wall`.
 - Select the NoticeOS mark in the corner to return to Home.
 - Drag the widgets into place, stack and resize them, and set the site order in the Tower at `/wall/edit`. See [Arrange the Wall](/guides/arrange-the-wall).
+- Start the layout from a view's preset with **Add a widget** > **Start from** at `/wall/edit`. See [Start from a view's preset](/guides/arrange-the-wall#start-from-a-view-s-preset).
 - Drag the sites into order and switch a site off the TV or out of **Work this week** with **Arrange** on the Sites page.
 
 ## States and labels

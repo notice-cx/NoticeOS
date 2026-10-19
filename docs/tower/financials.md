@@ -22,6 +22,7 @@ Beside the equation:
 Then:
 
 - **Where the cost goes** — each cost line, largest first: what it is, its amount, its share of the month's cost, its family, and where the figure comes from (**Subscription**, **Usage**, **Prepaid yearly**, **No source**).
+- **By source** — the month's revenue by source, largest first: the source's name (such as **Mediavine Journey ad revenue** or **Stripe subscriptions**), its amount, its share of the month's revenue, and its family: **Ads**, **Subscriptions**, **Affiliate** or **Licensing**. A row booked with no source is named by its family. The panel is not drawn for a month with no revenue.
 - **By site** — every site ranked by revenue: **Revenue** with its change, **Share of month**, **Direct cost**, **Net**, and a small month-by-month net line. A closed month's change is against the month before; an open month's is the site's projected total against last month (**pace vs Aug**), not coloured green or red because it is an estimate. **Overhead**, the shared cost booked to the **System**, is its own row, and **Total net** is the sites' nets less that overhead. On a narrow screen each row shows the site, its revenue and its net; the other columns are hidden before a name is cut short.
 - **Month by month** — revenue, cost and net for every month to the shown one, the open month marked.
 
@@ -31,7 +32,7 @@ Three panels open one at a time underneath:
 - **Every month** — **Revenue**, **Cost**, **Net**, **Reconciled** and **Net to date** for every month.
 - **Declared costs** — **Recurring costs** and **Domain orders**, the two tables you edit. Over them, **Declared, by site** shows each site's declared run rate per month.
 
-Revenue is collected (Mediavine, daily) and stays an estimate until reconciled. Costs are the rows you declare plus metered spend the product records itself, such as DataForSEO reports. A booked month is never rewritten; a correction is a new row.
+Revenue is collected (Mediavine ad revenue and Stripe subscriptions, daily) and stays an estimate until reconciled. Costs are the rows you declare plus metered spend the product records itself, such as DataForSEO reports. A booked month is never rewritten; a correction is a new row.
 
 ## What you can do
 

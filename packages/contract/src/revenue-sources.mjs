@@ -9,3 +9,6 @@
 /** What Mediavine's publisher dashboard reports: a site's daily Journey ad
  * revenue estimate. */
 export const MEDIAVINE_REVENUE_SOURCE = 'mediavine-journey';
+/** What the connected Stripe account's balance transactions add up to: a
+ * site's daily net subscription and product sales, less refunds. */
+export const STRIPE_REVENUE_SOURCE = 'stripe';

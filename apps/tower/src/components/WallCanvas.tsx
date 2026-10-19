@@ -26,11 +26,15 @@ import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { WallFeedWidget } from "@/components/wall/WallFeed";
 import { WallAgents } from "@/components/wall/WallAgents";
+import { WallChannels } from "@/components/wall/WallChannels";
+import { WallFactory } from "@/components/wall/WallFactory";
+import { WallHealth } from "@/components/wall/WallHealth";
 import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
 import { WallTimelineWidget } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
 import { useNow } from "@/hooks/useNow";
+import { agentsWeek } from "@/lib/agents-week";
 import { cn } from "@/lib/utils";
 import { wallIssues } from "@/lib/wall-issues";
 import type { CalendarReadState } from "@/lib/meetings";
@@ -225,6 +229,26 @@ export function WallCanvas({
         return <WallFeedWidget nowMs={nowMs} hidden={hidden} assets={data.assets} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
+      case "health": {
+        const assets = filterWallAssets(data.assets, widget.settings);
+        return (
+          <WallHealth
+            assets={assets}
+            issues={wallIssues({
+              assets,
+              attention: filterWallAttention(data.attention, widget.settings),
+              connections: connections ?? NO_READS,
+              nowMs,
+            })}
+          />
+        );
+      }
+      case "factory":
+        // The Wall's payload carries no task events, so the lines are the
+        // sites' latest measured bets.
+        return <WallFactory week={agentsWeek(data.assets, null, nowMs)} />;
+      case "channels":
+        return <WallChannels assets={filterWallAssets(data.assets, widget.settings)} />;
     }
   }
 

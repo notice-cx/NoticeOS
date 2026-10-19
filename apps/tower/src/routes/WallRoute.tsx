@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
-import { DEFAULT_WALL_LAYOUT, parseWallConfig, type WallLayout } from "@shared/wall-layout";
+import type { DashboardConfig } from "@shared/dashboard";
+import { DEFAULT_WALL_LAYOUT, WALL_PRESETS, parseWallConfig, type WallLayout } from "@shared/wall-layout";
+import { DEFAULT_VIEW } from "@shared/views";
 import { ReadFailed } from "@/components/ReadFailed";
 import { RouteLoading } from "@/components/RouteLoading";
 import { WallCanvas } from "@/components/WallCanvas";
@@ -16,15 +18,19 @@ import { TV_ITEM } from "@/components/nav-items";
 import { calendarReadState } from "@/lib/meetings";
 
 /**
- * The layout the TV draws, read with the contract's own rule. The Worker has
- * parsed it already; reading it again here is what makes "never blank" hold
- * for any payload: no layout, one naming a retired widget, or one nothing can
- * draw is the default, named once in the contract. The editor is where an
- * unreadable save is said out loud.
+ * The layout the TV draws, read with the contract's own rule. A saved layout
+ * always wins; with none saved, the TV draws the workspace view's preset
+ * (`WALL_PRESETS`). The Worker has parsed it already; reading it again here
+ * is what makes "never blank" hold for any payload: one naming a retired
+ * widget, or one nothing can draw, is the default, named once in the
+ * contract. The editor is where an unreadable save is said out loud.
  */
-function drawnLayout(wall: unknown): WallLayout {
+export function drawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view">): WallLayout {
+  if (dashboard.wall === undefined || dashboard.wall === null) {
+    return WALL_PRESETS[dashboard.view?.default ?? DEFAULT_VIEW];
+  }
   try {
-    return parseWallConfig(wall).layout;
+    return parseWallConfig(dashboard.wall).layout;
   } catch {
     return DEFAULT_WALL_LAYOUT;
   }
@@ -32,7 +38,7 @@ function drawnLayout(wall: unknown): WallLayout {
 
 /**
  * /wall: the TV, read-only. Everything on it is `WallCanvas` drawing the
- * layout saved at `config/tower.json` `/wall`, else `DEFAULT_WALL_LAYOUT`.
+ * layout saved at `config/tower.json` `/wall`, else the workspace view's preset.
  * Nothing that edits or acts may reach this bundle; the route-split journey
  * (`e2e/journeys.spec.ts`) fails if desk editing or task code is fetched.
  */
@@ -56,7 +62,7 @@ export function WallRoute() {
     return <><DemoViewerStatus /><RouteLoading surface="wall" /></>;
   }
 
-  const layout = drawnLayout(data.dashboard.wall);
+  const layout = drawnLayout(data.dashboard);
   // A laptop or a landscape tablet draws the TV's layout, scaled to fit it
   // (`wallScreen`): index.css zooms the whole Wall by this one number and
   // keeps the small type above its floor.

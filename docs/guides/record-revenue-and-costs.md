@@ -12,12 +12,15 @@ NoticeOS keeps money in one **ledger**: revenue and cost rows per site, per mont
 ## Before you begin
 
 - For ad revenue, Mediavine connected. See [Connect data sources](/guides/connect-data-sources).
+- For subscription revenue, a Stripe restricted key with **Read** on **Balance** and **Charges**, and the Stripe account id (`acct_…`).
 - For a recurring cost, what the statement calls it, its monthly amount in USD and its first month.
 - For a domain order, the registrar's receipt.
 
 ### Where revenue comes from
 
 Ad revenue from Mediavine is collected automatically once Mediavine is connected. The sync runs daily at 6:10 a.m. Pacific and requests the previous day by its date. Missing days are retried, never recorded as zero. Figures are estimates until a payment is reconciled, and the site's **Data sources** tab shows **Reported through** with an **Estimates** chip.
+
+Subscription and product revenue from Stripe is collected automatically once the **Stripe (subscription revenue)** card on **Integrations** holds a restricted key and the site's **Data sources** tab names the account on its **Subscription revenue** row. Each completed UTC day becomes one figure: that day's charges and payments less refunds, after Stripe's fees, in the account's currency. A day with no sale is recorded as 0. The Money page lists it under **By source** as **Stripe subscriptions**, beside ad revenue. One key reads one Stripe account, so one site names it. See [doc 11, Stripe](../11-integrations.md#stripe).
 
 Revenue from other networks has no connector yet. NoticeOS's data receiver has an import route for revenue rows, but it requires the installation's operator token, so only whoever runs the installation can use it.
 
@@ -51,6 +54,25 @@ A domain order is a registration, renewal or transfer, recorded from the registr
 3. Save the row.
 
 Add renewals as new orders from their receipts; a registration price is not a renewal price.
+
+## Import inference costs
+
+Model usage by agents is billed by the model provider, not metered by NoticeOS. `pnpm cost:import-inference` books a provider's usage export as `inference` costs. Only whoever runs the installation can use it, because it requires the operator token.
+
+The export is a CSV file with a header row and these columns, in any order:
+
+| Column | Required | Contents |
+|---|---|---|
+| `month` | yes | the month of the usage, as `YYYY-MM` |
+| `provider` | yes | the provider's name, such as `anthropic`; letters, digits, `.`, `_` or `-` |
+| `amount` | yes | the cost in USD, at least 0 |
+| `asset` | no | the site the usage belongs to; blank books it to the System |
+| `ref` | no | the task or change the usage was for |
+
+The command adds the lines for each month, provider and site into one cost row, booked as an estimate under the source `inference:<provider>`. Importing the same file again books nothing new. A file with a different amount for a month already booked is rejected as a conflicting replay. A file with any malformed line is rejected whole, and the error names the line number.
+
+1. Run `pnpm cost:import-inference -- --file <export.csv> --dry-run`. It prints each row and its amount, and sends nothing.
+2. Run the same command without `--dry-run`. It prints how many rows were booked, how many were already booked, and how many failed.
 
 ## Change an amount
 

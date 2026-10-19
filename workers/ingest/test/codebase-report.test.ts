@@ -163,6 +163,20 @@ describe('codebase rules', () => {
     expect(flag!.message).toBe('7 more functions became hard to change in 31 days.');
   });
 
+  it('vulnerabilities fires on one vulnerable package and resolves when none is left', async () => {
+    await send(report('2026-10-01', { vulnerable_dependencies: 0, build_passed: 1, tests_passed: 1 }));
+    expect(await flags('codebase-vulnerabilities')).toEqual([]);
+    await send(report('2026-10-02', { vulnerable_dependencies: 3, build_passed: 0, tests_passed: 1 }));
+    const [flag] = await open('codebase-vulnerabilities');
+    expect(flag).toMatchObject({ severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies', message: '3 packages have a known vulnerability.' });
+    expect(JSON.parse(flag!.rule_inputs)).toMatchObject({ vulnerable_dependencies: 3, threshold_packages: 1 });
+    // A report the workflow sent no audit with leaves the alert open.
+    await send(report('2026-10-03', { code_lines: 100 }));
+    expect(await open('codebase-vulnerabilities')).toHaveLength(1);
+    await send(report('2026-10-04', { vulnerable_dependencies: 0 }));
+    expect(await open('codebase-vulnerabilities')).toEqual([]);
+  });
+
   it('resolves the rule\'s open alert before raising the current one, and leaves an acknowledged one alone', async () => {
     await send(report('2026-10-01', { duplication_percent: 9 }));
     const [first] = await open('codebase-duplication');

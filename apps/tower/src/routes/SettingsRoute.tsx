@@ -74,6 +74,7 @@ import { cn } from "@/lib/utils";
 import { useBrowserContext } from "@/lib/browser-context";
 import { MembersSection } from "@/routes/settings/MembersSection";
 import { PanelLock, SettingsPanel } from "@/routes/settings/SettingsPanel";
+import { ViewPanel } from "@/routes/settings/ViewPanel";
 import {
   SETTINGS_TABS,
   SETTINGS_TAB_IDS,
@@ -210,9 +211,9 @@ function fileOp(file: EditableFile, pointer: string, expect: JsonValue) {
 }
 
 // --- 1. General -----------------------------------------------------------
-/** What a new installation sets, on the tab Settings opens on: the clock the
- * OS reads in, and what it may spend. `#clock` and `#budget` land on their
- * panels. */
+/** What a new installation sets, on the tab Settings opens on: the person's
+ * view, the clock the OS reads in, and what it may spend. `#view`, `#clock`
+ * and `#budget` land on their panels. */
 function GeneralSection({
   settings,
   anchor,
@@ -222,12 +223,13 @@ function GeneralSection({
   anchor: string;
 }) {
   useEffect(() => {
-    if (anchor !== "clock" && anchor !== "budget") return;
+    if (anchor !== "view" && anchor !== "clock" && anchor !== "budget") return;
     // Optional-called: jsdom has no layout to scroll.
     document.getElementById(anchor)?.scrollIntoView?.({ block: "start" });
   }, [anchor]);
   return (
     <>
+      <ViewPanel dashboard={settings.dashboard} />
       <SettingsPanel id="clock" title="Clock">
         <ClockField settings={settings} />
       </SettingsPanel>

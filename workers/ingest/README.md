@@ -9,7 +9,7 @@ The pulse-ingest and ledger Worker, its collectors and its scheduled lanes
 | Route | Auth | Purpose |
 |---|---|---|
 | `POST /api/pulse` | Bearer, per-asset (`env.ASSET_TOKENS`) | Ingest one asset pulse: validate the envelope, write the `(asset,date)` row, explode envelope flags, evaluate the central volume-aware rules. |
-| `POST /api/codebase-report` | Bearer, per-asset (`env.ASSET_TOKENS`) | Ingest one codebase report: validate the `CodebaseReport` envelope, append it as the `(asset,date)` row's next revision in `noticeos.codebase_reports`, run the four codebase rules — see [Codebase reports](#codebase-reports). |
+| `POST /api/codebase-report` | Bearer, per-asset (`env.ASSET_TOKENS`) | Ingest one codebase report: validate the `CodebaseReport` envelope, append it as the `(asset,date)` row's next revision in `noticeos.codebase_reports`, run the five codebase rules — see [Codebase reports](#codebase-reports). |
 | `POST /api/revenue` | Bearer, operator (`env.OPERATOR_TOKEN`) | Ledger lane: accept CSV or JSON ledger rows, validate against the CHECK constraints, append-only insert keyed on a stable `external_id`, per-row results. Re-uploading the same export books the money once — see [Revenue idempotency](#revenue-idempotency--the-same-export-books-once). |
 | `POST /api/annotations` | Bearer, operator | Timeline events: `{asset, kind, at?, ref?, note?}`. Backdating allowed, future `at` rejected; an identical `(asset, at, kind, ref)` re-post returns the existing row instead of duplicating it. |
 | `POST /api/watch-windows` | Bearer, operator | Register a pre-registered outcome check — see [Watch windows](#watch-windows-pre-registered-outcome-checks). |
@@ -112,7 +112,8 @@ and the operator-facing error body must not vary per route.
 | `30 2 * * *` (02:30 UTC) | pull adapter + Bing signals | Pull each enabled pull-mode asset's self-report endpoint (`config/pull.json`) through the pulse path, then collect daily Bing Webmaster clicks/impressions for every non-retired portfolio property verified under the central key. This includes Sense-only pre-launch properties; observation does not authorize publication or action. The jobs are failure-isolated. |
 | `0 3 * * *` (03:00 UTC) | asset-#0 self-pulse | The OS writes its own pulse (`asset = <os-asset-id>`) with pulses received, ledger rows ingested, open flags, and `cronRunSuccess` — derived from the job-run record (`job_runs`). Three-valued: `1` while every lane's latest firing ran or stood down, `0` the moment one lane's latest firing failed *or* nothing has fired for a day (a dead runner stops writing, so stale evidence must not read as health), and absent — capability and metric both — while the record is empty, because nothing observed is not success. See [Job runs](#job-runs-proof-that-the-scheduled-lanes-fired). |
 | `30 3 * * *` (03:30 UTC) | watch-window evaluation | Read out every open watch window whose next check has come due: record an interim reading, or close the window on its final offset with an outcome and a flag. Runs after the 02:30 signal pulls so a check due today reads today's data. See [Watch windows](#watch-windows-pre-registered-outcome-checks). |
-| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible property's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, or a sitemap outage. Six plain HTTPS requests per property, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each property's declared light and dark icons from one more GET of its home page and stores one row per property in `asset_icons`. See [Site icons](#site-icons). |
+| `0 4 * * *` (04:00 UTC) | tech/GEO hygiene guards | Fetch each eligible property's own home page, `robots.txt`, sitemap, and three sampled real pages, and flag a static-HTML depth collapse, an unreachable home page, a lost AI crawler, a page-level `noindex`/`nosnippet`, a sitemap outage, or a security header the home page stopped sending (`hygiene-security-headers`, read from the home-page response with no extra request). Six plain HTTPS requests per property, no provider and no quota. See [Hygiene guards](#hygiene-guards-s5--the-served-layer). A second step of the same job reads each property's declared light and dark icons from one more GET of its home page and stores one row per property in `asset_icons`. See [Site icons](#site-icons). |
+| `15 4 * * *` (04:15 UTC) | Chrome UX Report page speed | For each property the hygiene guards read, two `records:queryRecord` calls (phones, desktops) on its origin, and two more on its `www.` host when the bare domain has no data; one `crux-vitals` reading per property per day in `hygiene_checks` with the LCP, INP and CLS 75th percentiles. No key connected: no request and no row. See [docs/11 § Chrome UX Report](../../docs/11-integrations.md#chrome-ux-report). |
 | `30 4 * * *` (04:30 UTC) | Microsoft Clarity export | One Data Export call per property that has a project token, archived verbatim: a trailing 72-hour, URL-split read of the behavior metrics (dead/rage clicks, quickbacks, script errors, scroll, engagement). Once a day on purpose — the provider allows 10 calls per project per day total, so every later read comes from the archive. A property with no token is skipped silently. See [Clarity](#clarity-behaviour-signals-10-calls-per-project-per-day). |
 | `15 12 * * *` (12:15 UTC) | provider signal dumps | Archive eight completed-day GA4 families and ten GSC breakdowns for the previous four dates, plus the BWT report families a property is due — four daily provider series every day, and the two weekly top-query/top-page snapshots once a week each. Raw provider responses go to private/local R2; append-only attempt manifests go to Postgres. Before its own window it re-collects up to 100 earlier GA4 / Search Console dates an outage cost. The same tick runs the DataForSEO outage re-collection beside it: only the families an offline DataForSEO run skipped, as listed on the open `os-egress-down` flag — never one the provider refused or the cap stopped — under the same due check and monthly cap. It reads that one flag and does nothing else when no family is owed, and it honours a paused DataForSEO schedule. |
 | `30 12 * * *` (12:30 UTC) | PostHog product analytics archive | Per launched asset with a PostHog key **and** a saved region + project: one project read (timezone), then six aggregated HogQL queries run one at a time: `web-daily` (28 days), `events`, `exceptions`, `rageclicks`, `web-vitals` (14 days) and `funnels` (7 days, only where funnels are declared). Each is stored in private/local R2 with one `signal_dump_runs` row (`integration = 'posthog'`). A 429 from PostHog's hourly query budget stops the run and lists the families it did not ask for; the next run asks them. No key, no mapping or an unmigrated store skips with a named reason, with no request and no row. One run per asset at a time: an asset another run holds (its `integration_leases` row `posthog:<asset>`, 30-minute expiry) is skipped as `in-flight`. An offline night writes no PostHog row, and the next run asks again, per family before its own window, up to six earlier window ends an outage cost ([the dates an outage cost](#the-dates-an-outage-cost)). See [docs/11 § PostHog](../../docs/11-integrations.md#posthog). |
@@ -340,7 +341,7 @@ out, which is not the same as an empty list.
 
 A same-day resend appends the next revision; `noticeos.current_codebase_reports`
 shows the newest per site and day, and `reportNumber` stays the day's first
-revision's number. In the same transaction the four rules
+revision's number. In the same transaction the five rules
 (`packages/contract/src/codebase-measures.ts`) run with the thresholds in
 `config/constants.json` `codebase_rules`, store first:
 
@@ -350,6 +351,7 @@ revision's number. In the same transaction the four rules
 | `codebase-duplication` | warn, opportunity | `duplication_percent` is at least `duplication_percent` |
 | `codebase-unused` | info, opportunity | `unused_files` plus `unused_dependencies` is at least `unused_items` |
 | `codebase-complexity` | info, opportunity | `complex_functions` rose by at least `complex_functions_added_30d` over the comparison report |
+| `codebase-vulnerabilities` | info, opportunity | `vulnerable_dependencies`, sent by the site's own workflow, is at least `vulnerable_dependencies` (and at least 1) |
 
 The comparison report is the site's current report nearest 30 days back, 28
 to 45 days back; with none, the growth and complexity rules do not run. A
@@ -1317,6 +1319,7 @@ re-fetched. No check can disagree with another about what the property served.
 | `robots-ai-access` | resolved allow/deny per watched bot + a SHA-256 of the file, **plus the directives on three sampled pages** | a bot **allowed in the previous reading** becomes disallowed; `robots.txt` goes present → absent; or a sampled page that was clean in the previous reading now carries a closing directive |
 | `sitemap` | `<loc>` count | unreachable, unparseable, or count ≤ **50%** of the last healthy count **when that count was ≥ 50 URLs** |
 | `page-structure` | title / meta description / `<h1>` count / canonical on the **same three sampled pages**, and how many were read | a sampled page that was **structurally clean in the previous reading** now carries a fault |
+| `security-headers` | which of `Strict-Transport-Security`, `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` and `Permissions-Policy` the home page's 200 response carries, each value cut to 300 characters; read from the `html-depth` fetch | a header **present in the previous judged reading** is now missing (never absence alone); resolves when every header the open flag names is sent again |
 
 **Five rules, three fetches.** Two checks answer two questions from one fetch, so
 each carries two rule ids:
@@ -1334,7 +1337,9 @@ each carries two rule ids:
   operator should never have to read the message to learn which they have.
 
 Rule ids: `hygiene-html-depth`, `hygiene-home-unreachable`, `hygiene-robots-ai`,
-`hygiene-page-directives`, `hygiene-sitemap`. Watched bots: `GPTBot`,
+`hygiene-page-directives`, `hygiene-sitemap`, `hygiene-page-structure`,
+`hygiene-security-headers`. TLS certificate expiry is not checked: workerd's
+`fetch` does not expose the peer certificate. Watched bots: `GPTBot`,
 `OAI-SearchBot`, `ChatGPT-User`, `ClaudeBot`, `anthropic-ai`, `PerplexityBot`,
 `Google-Extended`, `Bingbot`.
 

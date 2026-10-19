@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_WALL_LAYOUT,
   WALL_MAX_ROWS,
+  WALL_PRESETS,
   WALL_MAX_WIDGETS_PER_ROW,
   WALL_TV_HEIGHT,
   WALL_WIDTH_MAX,
@@ -35,6 +36,8 @@ import {
   wallMovePlan,
   wallOverflowNote,
   wallPairWidths,
+  wallPresetOf,
+  wallPresetOptions,
   wallPositionSentence,
   wallShareLabel,
   wallShareWidth,
@@ -271,7 +274,7 @@ describe("the version's description when there is no note", () => {
 });
 
 describe("the Add drawer's rows", () => {
-  it("shows every widget of the default as placed and offers the three it leaves out, while the write lane still refuses a second", () => {
+  it("shows every widget of the default as placed and offers the ones it leaves out, while the write lane still refuses a second", () => {
     expect(wallLibraryOptions(DEFAULT_WALL_LAYOUT).map((o) => [o.spec.type, o.disabledReason])).toEqual([
       ["strip", "On the TV"],
       ["loop", "On the TV"],
@@ -282,6 +285,9 @@ describe("the Add drawer's rows", () => {
       ["needs", null],
       ["feed", null],
       ["agents", null],
+      ["health", null],
+      ["factory", null],
+      ["channels", null],
     ]);
     const twice: WallLayout = {
       version: 1,
@@ -294,7 +300,7 @@ describe("the Add drawer's rows", () => {
   it("offers a widget again once it is taken off", () => {
     const state = run(start(DEFAULT_WALL_LAYOUT), { type: "remove", widgetId: "work" });
     const options = wallLibraryOptions(state.layout);
-    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents"]);
+    expect(options.filter((o) => o.disabledReason === null).map((o) => o.spec.type)).toEqual(["work", "needs", "feed", "agents", "health", "factory", "channels"]);
   });
 });
 
@@ -775,5 +781,62 @@ describe("dirty and save", () => {
     expect(dropped.selectedId).toBe("needs");
     const moved = run(start(DEFAULT_WALL_LAYOUT), { type: "move", widgetId: "work", move: "own-column" });
     expect(moved.selectedId).toBe("work");
+  });
+});
+
+describe("starting from a view's preset", () => {
+  it("offers the three presets by the views' own labels", () => {
+    expect(wallPresetOptions().map((option) => [option.view, option.label])).toEqual([
+      ["business", "I run the business"],
+      ["product", "I build the product"],
+      ["everything", "Everything"],
+    ]);
+    expect(wallPresetOptions().map((option) => option.layout)).toEqual([
+      WALL_PRESETS.business,
+      WALL_PRESETS.product,
+      WALL_PRESETS.everything,
+    ]);
+  });
+
+  it("replaces the arrangement as one unsaved step that Undo takes back", () => {
+    const before = start(DEFAULT_WALL_LAYOUT);
+    const state = run(before, { type: "replace", layout: WALL_PRESETS.business });
+    expect(state.layout).toBe(WALL_PRESETS.business);
+    expect(state.saved).toBe(DEFAULT_WALL_LAYOUT);
+    expect(wallEditorDirty(state)).toBe(true);
+    expect(wallCanUndo(state)).toBe(true);
+    const undone = run(state, { type: "undo" });
+    expect(undone.layout).toBe(DEFAULT_WALL_LAYOUT);
+    expect(wallEditorDirty(undone)).toBe(false);
+    expect(run(undone, { type: "redo" }).layout).toBe(WALL_PRESETS.business);
+  });
+
+  it("keeps the selection only when the widget is still there", () => {
+    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "select", widgetId: "revenue" }, { type: "replace", layout: WALL_PRESETS.business });
+    expect(state.selectedId).toBe("revenue");
+    const gone = run(start(DEFAULT_WALL_LAYOUT), { type: "select", widgetId: "timeline" }, { type: "replace", layout: WALL_PRESETS.business });
+    expect(gone.selectedId).toBeNull();
+  });
+
+  it("replacing with the same layout records nothing", () => {
+    const state = run(start(DEFAULT_WALL_LAYOUT), { type: "replace", layout: DEFAULT_WALL_LAYOUT });
+    expect(wallCanUndo(state)).toBe(false);
+  });
+
+  it("writes the version note as the preset started from", () => {
+    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, WALL_PRESETS.business)).toBe("Started from I run the business");
+    expect(wallChangeSummary(WALL_PRESETS.business, WALL_PRESETS.product)).toBe("Started from I build the product");
+    expect(wallChangeSummary(WALL_PRESETS.product, DEFAULT_WALL_LAYOUT)).toBe("Started from Everything");
+    // A preset that is then changed is described by what changed.
+    const changed = run(start(DEFAULT_WALL_LAYOUT), { type: "replace", layout: WALL_PRESETS.business }, { type: "remove", widgetId: "needs" });
+    expect(wallChangeSummary(DEFAULT_WALL_LAYOUT, changed.layout)).not.toMatch(/^Started from/);
+  });
+
+  it("recognises a preset after a round trip through the validator", () => {
+    for (const option of wallPresetOptions()) {
+      const check = validateWallLayout(JSON.parse(JSON.stringify(option.layout)));
+      expect(check.ok && wallPresetOf(check.layout)?.view).toBe(option.view);
+    }
+    expect(wallPresetOf(FLAT)).toBeNull();
   });
 });

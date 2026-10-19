@@ -55,6 +55,12 @@ export declare function assetMutationInput(request: Request): Promise<{
     readonly route: AssetMutationRoute;
     readonly body: Readonly<Record<string, unknown>>;
 }>;
+/** A signed-in person's own saved view. The person is the admitted session's,
+ * never a path segment or body field; the body is validated by the route. */
+export declare const PERSON_VIEW_PREFERENCE_PATH = "/api/me/preferences/view";
+export declare function personPreferenceRequest(request: Request): {
+    readonly method: 'GET' | 'PUT';
+} | null;
 /** One fixed provider read, with no body or caller-selected discovery scope. */
 export declare function isHostedGoogleDiscovery(request: Request): boolean;
 export type LiveProviderRead = {

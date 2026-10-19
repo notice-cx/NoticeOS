@@ -1,5 +1,6 @@
 {
   "readme": "config/tower.README.md",
   "wall": null,
+  "view": null,
   "sites": {}
 }

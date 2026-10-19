@@ -134,11 +134,13 @@ built.
    cost-per-shipped-retained-improvement is a primary Tower metric
    ([doc 06](06-operations.md)); an optimizer that costs more than it returns
    shows a loss in its own ledger.
-   **State:** it does not record its own inference cost yet. No
+   **State:** it does not meter its own inference cost per run. No
    process in this repo calls a model — the analyzer is rule-based and every
    model call happens in an agent session billed outside the OS — so
-   inference enters the ledger only as a monthly `os-overhead` cost row
-   that a person imports, never metered per run. There is no monthly inference
+   inference enters the ledger as monthly `inference` cost rows a person
+   imports from the provider's usage export with `pnpm cost:import-inference`
+   ([guide](guides/record-revenue-and-costs.md#import-inference-costs)), never
+   metered per run. There is no monthly inference
    cap for the same reason; this rule takes effect again from the day the OS
    makes a model call of its own. The data plane already works this way and
    keeps its fail-closed cap.

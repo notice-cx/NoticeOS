@@ -9,7 +9,8 @@
 //
 // The layout lives in `config/tower.json` at pointer `/wall`, as a
 // `WallConfig`: the current layout plus the versions it replaced, newest first.
-// Absent, the Wall is `DEFAULT_WALL_LAYOUT`.
+// Absent, the Wall is the workspace view's preset (`WALL_PRESETS`), and
+// `DEFAULT_WALL_LAYOUT` for the Everything view.
 //
 // Retired widgets. A layout saved before the current Wall may name widgets it
 // no longer has. Reading one is never refused and never blank: the Wall draws
@@ -33,6 +34,7 @@
 // module, and importing one string through the registers would download all
 // of them to `/wall`.
 import { CONFIG_ASSET_KEY_SOURCE as ASSET_ID_SOURCE } from '../packages/contract/src/configuration.mjs';
+import type { ViewId } from '../packages/contract/src/views.mjs';
 
 /** The asset-id rule the rest of config validation already uses. */
 const ASSET_ID_RE = new RegExp(`^${ASSET_ID_SOURCE}$`);
@@ -60,7 +62,20 @@ export const WALL_TV_HEIGHT: number = 1080;
 
 /** The Wall's widgets: the default's in its reading order, then the ones an
  * operator may add. */
-export const WALL_WIDGET_TYPES = ['strip', 'loop', 'timeline', 'sites', 'revenue', 'work', 'needs', 'feed', 'agents'] as const;
+export const WALL_WIDGET_TYPES = [
+  'strip',
+  'loop',
+  'timeline',
+  'sites',
+  'revenue',
+  'work',
+  'needs',
+  'feed',
+  'agents',
+  'health',
+  'factory',
+  'channels',
+] as const;
 
 export type WallWidgetType = (typeof WALL_WIDGET_TYPES)[number];
 
@@ -350,6 +365,51 @@ export const WALL_WIDGET_LIBRARY: Readonly<Record<WallWidgetType, WallWidgetSpec
     hidesWhenEmpty: false,
     settings: [],
   },
+  // One row per site, five checks as dots; only a check with a problem is
+  // coloured, and that problem's note sits beside the row.
+  health: {
+    type: 'health',
+    label: 'Site health',
+    shows: ['Reachable', 'Speed', 'Errors', 'Search', 'Code'],
+    defaultWidth: 1,
+    minWidthRem: 24,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: true,
+    stackOrder: 10,
+    hidesWhenEmpty: false,
+    settings: ['assets'],
+  },
+  // What the agents are building, what shipped and what an outcome proved,
+  // as three figures, with the newest few in plain words.
+  factory: {
+    type: 'factory',
+    label: 'The agents',
+    shows: ['Building', 'Shipped', 'Proven', 'Latest work'],
+    defaultWidth: 1,
+    minWidthRem: 18,
+    maxWidthRem: 40,
+    unique: true,
+    prefersFill: false,
+    stackOrder: 11,
+    hidesWhenEmpty: false,
+    settings: [],
+  },
+  // The portfolio's visitors by channel, summed across its sites, and the one
+  // funnel step that loses the most people.
+  channels: {
+    type: 'channels',
+    label: 'Visitors by channel',
+    shows: ['Visitors by channel', 'Largest funnel drop'],
+    defaultWidth: 1,
+    minWidthRem: 22,
+    maxWidthRem: null,
+    unique: true,
+    prefersFill: false,
+    stackOrder: 12,
+    hidesWhenEmpty: false,
+    settings: ['assets'],
+  },
 };
 
 export function wallWidgetSpec(type: WallWidgetType): WallWidgetSpec {
@@ -450,6 +510,81 @@ export const DEFAULT_WALL_LAYOUT: WallLayout = {
       ],
     },
   ],
+};
+
+/**
+ * The Wall each founder view starts from when nothing is saved
+ * (`config/tower.json` `/view`), and the editor's Start from choices. A saved
+ * layout always wins over a preset. Written in the validator's own key order,
+ * so `sameWallLayout` recognises one after a round trip through the store.
+ */
+export const WALL_PRESETS: Readonly<Record<ViewId, WallLayout>> = {
+  // Is every site healthy, is the money on pace, what needs a decision and
+  // what the agents did.
+  business: {
+    version: WALL_LAYOUT_VERSION,
+    rows: [
+      { id: 'strip', height: 'auto', widgets: [{ id: 'strip', type: 'strip', width: 1 }] },
+      {
+        id: 'body',
+        height: 'fill',
+        widgets: [
+          {
+            id: 'business',
+            type: 'column',
+            width: 1.4,
+            rows: [
+              { id: 'health', height: 'fill', widgets: [{ id: 'health', type: 'health', width: 1 }] },
+              { id: 'money', height: 'auto', widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }] },
+            ],
+          },
+          {
+            id: 'side',
+            type: 'column',
+            width: 1,
+            rows: [
+              { id: 'needs', height: 'auto', widgets: [{ id: 'needs', type: 'needs', width: 1 }] },
+              { id: 'factory', height: 'fill', widgets: [{ id: 'factory', type: 'factory', width: 1 }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  // Where the money and the visitors come from, each site's numbers and the
+  // work in flight. Sites and work both stretch, so they share the column's
+  // height by weight.
+  product: {
+    version: WALL_LAYOUT_VERSION,
+    rows: [
+      { id: 'strip', height: 'auto', widgets: [{ id: 'strip', type: 'strip', width: 1 }] },
+      {
+        id: 'body',
+        height: 'fill',
+        widgets: [
+          {
+            id: 'growth',
+            type: 'column',
+            width: 1,
+            rows: [
+              { id: 'money', height: 'auto', widgets: [{ id: 'revenue', type: 'revenue', width: 1.55 }] },
+              { id: 'channels', height: 'fill', widgets: [{ id: 'channels', type: 'channels', width: 1 }] },
+            ],
+          },
+          {
+            id: 'side',
+            type: 'column',
+            width: 1.4,
+            rows: [
+              { id: 'sites', height: 'fill', size: 1.4, widgets: [{ id: 'sites', type: 'sites', width: 1 }] },
+              { id: 'work', height: 'auto', size: 1, widgets: [{ id: 'work', type: 'work', width: 1 }] },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+  everything: DEFAULT_WALL_LAYOUT,
 };
 
 export const EMPTY_WALL_CONFIG: WallConfig = {
@@ -728,8 +863,10 @@ export function wallLayoutWarnings(layout: WallLayout): string[] {
       }
     }
   }
-  if (!present.has('sites')) warnings.push('No sites on the TV');
-  if (!present.has('timeline') && !present.has('needs')) warnings.push('No alerts on the TV');
+  // Site health is a row per site and names each site's problem, so it
+  // answers both.
+  if (!present.has('sites') && !present.has('health')) warnings.push('No sites on the TV');
+  if (!present.has('timeline') && !present.has('needs') && !present.has('health')) warnings.push('No alerts on the TV');
   return warnings;
 }
 

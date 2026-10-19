@@ -715,6 +715,20 @@ which rows leave for the analytical store, and when, is its `retention`.
 - **Keys:** primary (workspace_id, notification_id); unique (workspace_id, channel, subject, subject_ref, occurrence)
 - **Links:** (workspace_id) → `workspaces`
 
+## `person_preferences`
+
+| Column | Type | Required | Checks |
+|---|---|---|---|
+| `workspace_id` | uuid | yes |  |
+| `preference_id` | bigint, identity | yes |  |
+| `person_id` | uuid | yes |  |
+| `name` | text | yes | `(name = 'view')` |
+| `value` | jsonb | yes | `((jsonb_typeof(value) = 'object') AND (octet_length((value)) <= 2048))` |
+| `recorded_at` | timestamp with time zone | yes |  |
+
+- **Keys:** primary (workspace_id, preference_id)
+- **Links:** (workspace_id) → `workspaces`
+
 ## `pulses`
 
 | Column | Type | Required | Checks |

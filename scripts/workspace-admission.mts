@@ -9,7 +9,10 @@ import { agentActions, bearerToken } from './agent-access.mjs';
  */
 export type WorkspaceStatus = 'active' | 'provisioning' | 'suspended';
 export type WorkspaceRole = 'owner' | 'operator' | 'viewer';
-type Category = 'stored-read' | 'provider-read' | 'write' | 'human-decision' | 'membership' | 'protected';
+// `self`: a signed-in person's own records about themselves (their saved view).
+// Every person role holds it, a viewer included; no agent scope, service grant,
+// demo reader or standalone operator does, since none of them is that person.
+type Category = 'stored-read' | 'provider-read' | 'write' | 'human-decision' | 'membership' | 'self' | 'protected';
 const rule = (category: Category, demo = false) => Object.freeze({ category, demo });
 const ACTIONS = Object.freeze({
   'evidence.read': rule('stored-read', true),
@@ -17,6 +20,7 @@ const ACTIONS = Object.freeze({
   'settings.read': rule('stored-read', true),
   'workflows.read': rule('stored-read', true),
   'integrations.summary.read': rule('stored-read', true),
+  'preferences.self': rule('self'),
   'provider.read': rule('provider-read'),
   'assets.write': rule('write'),
   'findings.write': rule('write'),
@@ -170,6 +174,7 @@ function permissionActions(kind: WorkspaceEntry['kind'], role?: WorkspaceRole, g
   return Object.freeze((Object.keys(ACTIONS) as WorkspaceAction[]).filter(action => {
     const { category, demo } = ACTIONS[action];
     if (category === 'protected') return false;
+    if (category === 'self') return kind === 'hosted';
     if (kind === 'demo') return demo;
     if (kind === 'service') return category !== 'membership' && category !== 'human-decision' && grant!.includes(action);
     if (kind === 'hosted') return role === 'viewer' ? category === 'stored-read'
@@ -330,7 +335,7 @@ export function createWorkspaceAdmission(input: WorkspaceEntry): WorkspaceAdmiss
           expiry(row.expiresAt, checkedClock());
           if (!Array.isArray(row.actions) || row.actions.length > Object.keys(ACTIONS).length || row.actions.some(value => {
               const category = actionCategory(value);
-              return category === 'protected' || category === 'membership' || category === 'human-decision';
+              return category === 'protected' || category === 'membership' || category === 'human-decision' || category === 'self';
             })) refuse();
           allowedActions = permissionActions('service', undefined, row.actions as WorkspaceAction[]);
         } else {

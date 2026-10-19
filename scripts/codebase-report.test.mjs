@@ -23,7 +23,7 @@ const quiet = { write() {} };
 
 test('arguments: the site and the checkout are required; folders stay inside it; image and build exclude each other', () => {
   assert.deepEqual(parseArgs(['--', '--asset', 'example.com', '--repo', 'site', '--paths', './apps/site/, packages/ui'], { cwd: '/work' }),
-    { asset: 'example.com', repo: '/work/site', paths: ['apps/site', 'packages/ui'], image: null, build: false, config: null });
+    { asset: 'example.com', repo: '/work/site', paths: ['apps/site', 'packages/ui'], image: null, build: false, config: null, measures: [] });
   assert.equal(parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--build']).build, true);
   assert.throws(() => parseArgs(['--repo', '/srv/site']), /--asset/u);
   assert.throws(() => parseArgs(['--asset', 'example.com']), /--repo/u);
@@ -33,6 +33,19 @@ test('arguments: the site and the checkout are required; folders stay inside it;
   assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--image', 'x:y', '--build']), /not both/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--image', 'Bad Image']), /--image/u);
   assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--config', 'stack.json']), /absolute/u);
+});
+
+test('--measure passes a build, test or audit result to the image, checked by the image\'s own parser first', () => {
+  const parsed = parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'build_passed=success', '--measure', 'vulnerable_dependencies=3']);
+  assert.deepEqual(parsed.measures, ['build_passed=success', 'vulnerable_dependencies=3']);
+  const selector = { dockerHost: SOCKET, project: 'noticeos', files: ['/srv/stack.yaml'], envFile: '/srv/installation.env' };
+  const args = measureArgs({ selector, app: APP_ID, image: DEFAULT_IMAGE, repo: '/srv/site', asset: 'example.com', paths: null, local: false, measures: parsed.measures });
+  assert.deepEqual(args.slice(args.indexOf(DEFAULT_IMAGE)), [DEFAULT_IMAGE, '--asset', 'example.com', '--repo', '/repo',
+    '--measure', 'build_passed=success', '--measure', 'vulnerable_dependencies=3', '--post', 'http://127.0.0.1:8791']);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'coverage=90']), /--measure takes/u);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'tests_passed=maybe']), /success or failure/u);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure', 'tests_passed=success', '--measure', 'tests_passed=failure']), /given twice/u);
+  assert.throws(() => parseArgs(['--asset', 'example.com', '--repo', '/srv/site', '--measure']), /key=value/u);
 });
 
 test('the published image is the app image\'s name with -codebase-report, the name the release workflow derives', () => {

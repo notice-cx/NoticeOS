@@ -27,7 +27,17 @@ A site's tasks, search clicks and ledger are on its own tabs. Columns are hidden
 
 The page lists the sites whose **Home and Sites list** switch is on. The summary, the status bar and the stage counts count only those; the month's pace and yesterday's visitors stay the whole portfolio's. When a site is left out, the line above the rows counts it: **6 sites · 2 hidden**.
 
-**A site's page** has a header with the site's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
+**A site's page** has a header with the site's name, its domain as a link, and its status, which on hover shows how many alerts are open. Under the header are the tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. The tab is in the address, so a link opens the right one.
+
+Which tabs are shown follows your view ([Settings → General → **Your view**](/tower/settings#general)):
+
+| View | Tabs |
+|---|---|
+| **I run the business** | **Overview**, **Money**, **Search**, **Health**, **Tasks**, **Settings** |
+| **I build the product** | **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Tasks**, **Data sources**, **Settings** |
+| **Everything** | every tab |
+
+A link to a tab your view leaves out still opens it, with that tab added at the end of the row.
 
 **Overview** shows the most important figures on the first screen. A row of figures for money, people, search and the site's one product figure, each with its window, its change against the days before, its recent days as bars with their dates, and one line of context. Press a figure to draw it on the chart: bars with a dashed line at the level of the days before, the best and lowest day labelled, every shipped change a labelled mark, and shaded spans for an open alert (with the rule's normal range), an outcome check or days not reported. Then **Data sources · last 30 days**, one row per source and one square per day, with the source that failed most recently or missed the most days first, and **Open alerts** for anything the chart does not already show. Under them: **Needs attention**, **What matters**, **Bets** (the site's outcome checks, open ones first with the days left to their verdict), **Search movers**, **Product use** and the site's totals. A provider's name appears only as a chart key beside its own line.
 
@@ -36,12 +46,35 @@ The page lists the sites whose **Home and Sites list** switch is on. The summary
 - **Growth**: what changed against the days before, one row per series, above the **Audience** and search charts; then the tracked search terms and product use.
 - **Money**: the month as one sum, revenue minus cost equals net. Beside it, the month's daily ad revenue against a usual day and the month so far against last month, both marked as estimates. Then daily revenue over the chosen range and the site's ledger, as on the Money page.
 - **Search**: **Queries that moved**, each drawn at its position on the results page now and before; the tracked terms, each with its rank over time; then **Search context**: links, AI mentions, competitors and opportunities.
-- **Codebase**: one sentence on how the code changed in 30 days, beside the site's visitors; five figures, **Lines of code**, **Repeated code**, **Unused code**, **Hard-to-change functions** and **Test coverage by size**, each with its change and its last 90 days; lines of code over time with deploys marked; the languages; and the findings, **Repeated blocks**, **Hard-to-change functions** and **Unused**, each row with **Make a task**. Before the first report it lists the ways to send one. See [Measure your codebase](/guides/measure-your-codebase).
+- **Codebase**: one sentence on how the code changed in 30 days, beside the site's visitors; five figures, **Lines of code**, **Repeated code**, **Unused code**, **Hard-to-change functions** and **Test coverage by size**, each with its change and its last 90 days; under them a row of three checks the site's own workflow sends, **Build** and **Tests** (**Passed** or **Failed**, in red when failed, with how many of the last 30 days' reports passed, such as **4 of 5 reports passed in 30 days**) and **Vulnerable packages** (a count with its change); lines of code over time with deploys marked; the languages; and the findings, **Repeated blocks**, **Hard-to-change functions**, **Unused** and **Vulnerable packages** (one row, such as **3 packages have a known vulnerability**), each row with **Make a task**. Before the first report it lists the ways to send one. See [Measure your codebase](/guides/measure-your-codebase).
+- **Health**: whether the site is up, fast, free of errors, easy to find in search and built on steady code, as five words. See [The Health tab](#the-health-tab).
 - **Alerts**: the last 30 days as a timeline, one row per condition, then **Open** with each reading against its normal range, **Snoozed**, **No longer current** and **History**.
 - **Tasks**: the site's slice of the Tasks board: its decisions, **Urgent**, **Blocked** and **Done this week** for the site's project, each with its change since last week, and **In and out** with done this week against last week.
 - **Activity**: the last 90 days of changes and bets on one timeline, a bet marked where it was registered and again where its verdict was recorded. Under it, the **Timeline** of recorded changes and the bets still being measured.
-- **Data sources**: how the site's data arrives, drawn as one diagram with a failing source outlined in red; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones.
+- **Data sources**: how the site's data arrives, drawn as one diagram with a failing source outlined in red; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones. **Site health** shows the daily checks of the site itself: **Served home page** (words of visible text), **AI crawler access**, **Sitemap** (URLs listed), **Security headers** (how many of six headers the home page sends, such as **4 of 6**, with the missing ones named) and **Page speed** (the 75th percentile of Largest Contentful Paint, Interaction to Next Paint and Cumulative Layout Shift for phones, each with **good**, **needs improvement** or **poor**, or **not measured yet** before the first reading).
 - **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Identity** holds the site's **Display name**, **Owning entity**, **Domain** and **Site id**, then **Icons**: what NoticeOS found the last time it read the site's home page (**Icons declared**, **Nothing declared**, **Page unreachable** or **Not read yet**), when that was, such as **Read 2h ago**, and **Read again**. Under them, **Light icon** and **Dark icon** each show one icon on a white square and on a black square, its address, and a field for an address of your own. A site with no domain, a retired site and the System have no **Icons**: the daily read does not cover them. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
+
+## The Health tab
+
+The **Health** tab shows the same five facts as the dots in Home's **Site health** and on the TV, as one row of five buttons. Each button shows the fact's name, its word in large type, its problem when it has one, and **as of** the date of the reading behind it. The word is red when the site is down, amber when the fact is worth a look and grey when it is fine; a fact that is not measured yet has a dashed border.
+
+| Button | What it reads | Words |
+|---|---|---|
+| **Up** | the hourly uptime check of the home page, and the open alert when the home page did not load | **Up**, **Down** (red), **Not checked lately** when the hourly check has not run lately |
+| **Speed** | the page-speed readings visitors' browsers recorded, from the site's product analytics | **Fast**, **OK**, **Slow** when one visitor in four or more waits, or when the slowest group is rated poor |
+| **Errors** | the errors visitors hit, from the site's product analytics | **None**, **Few**, **Some** when the error rule fires or the reading found JavaScript errors |
+| **Search** | visits from search over the last four weeks against the four before, and the sitemap check | **Steady**, **Growing** at a 10% rise, **Falling** at a 10% drop, **Sitemap failing** while the sitemap alert is open |
+| **Code** | the site's newest code report against the one about a month before | **Steady**, **Growing fast** when the code grew 25% or more |
+
+Press a button to show the readings behind it in a panel under the row, titled with the fact and its word; press it again to close the panel. The panel lists:
+
+- **Up**: **Checked every hour**, or **The hourly check has not run lately**; the latest home page check and its date, such as **Home page: fine on Oct 14**; and how many security headers the home page sends, such as **4 of 6 security headers sent**.
+- **Speed**: the slowest group of visitors (**fast**, **OK** or **slow**), then up to three groups, each with its page, how long the main content took to show, such as **main content in 2.4 s**, and its rating.
+- **Errors**: how many people hit an error, or **People who hit an error: not counted**, then up to three errors, each with how many people hit it.
+- **Search**: visits from search in the last four weeks with the four before and the change, such as **1,240 visits from search in the last 4 weeks, 1,100 the 4 before (+13%)**; the latest sitemap check with how many addresses it lists; and how many AI crawlers are allowed, naming the blocked ones.
+- **Code**: the lines of code on the newest report's date, how much they grew or shrank in about 30 days, or **Too early to compare with a month before**, and a line of lines of code over the last 90 days once there are three reports.
+
+A fact with no reading shows **Not measured yet** with a link: **Connect a data feed →** opens the site's **Data sources**, and for **Code**, **Set up the code report →** opens the setup on the **Codebase** tab. A retired site and a site not launched yet have every fact **not measured yet**.
 
 ## What you can do
 
@@ -54,6 +87,8 @@ The page lists the sites whose **Home and Sites list** switch is on. The summary
 - Press a figure on the Overview to draw it on the chart; arrow keys step through its days.
 - Hover, focus or tap a mark on the Overview chart to read the change or outcome check behind it.
 - On **Activity**, **Log a change** opens one form with two choices: **Something happened** records a change, and **Watch an outcome** registers an outcome check against one.
+- On **Health**, press one of the five buttons to show its readings; press it again to hide them.
+- On **Codebase**, **Make a task** under **Vulnerable packages** opens the task form with a title such as **Fix 3 vulnerable packages in Northwind** filled in.
 - On **Data sources**, **Connect** opens the connect panel and **Not using** records a reason for skipping a source.
 - On **Settings**, the cards hold everything that applies to this one site.
 - On **Identity**, **Read again** reads the site's home page now, the same read the **Search accessibility checks** job makes once a day, and shows what it found and when.

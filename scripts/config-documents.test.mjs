@@ -563,6 +563,7 @@ const FIRST_JOB = SCHEDULED_JOBS[0];
 const DECLARED = [
   [TOWER, '/wall', { readme: 'config/tower.README.md' }, { layout: MOVED_WALL, history: [] }],
   [TOWER, '/countdown', { readme: 'config/tower.README.md' }, { emoji: '🚀', label: 'Launch', targetAt: '2026-10-01T09:00:00.000Z' }],
+  [TOWER, '/view', { readme: 'config/tower.README.md' }, { default: 'business' }],
   [CONSTANTS, '/schedules', CONSTANTS_DOC, { [FIRST_JOB.id]: scheduleFor(FIRST_JOB) }],
   [CONSTANTS, NO_REPORT, CONSTANTS_DOC, ['acorn.example']],
 ];
@@ -615,6 +616,55 @@ test('the TV layout saves twice in a row: created on a store with no /wall, then
   assert.deepEqual(second.mismatches, []);
   applyDocumentOps(second.resolved, second.documents, { at: '2026-09-24T09:01:00.000Z' });
   assert.deepEqual(second.documents.get(TOWER), { wall: updated });
+});
+
+test('the workspace default view is written whole, with an id the Tower draws', async () => {
+  const write = (op) => validateSchemaAndSafety(changeset([op]));
+  const set = (pointer, value, expect = null) => ({ kind: 'file-json-set', file: TOWER, pointer, expect, value });
+
+  write(set('/view', { default: 'business' }));
+  write(set('/view', { default: 'everything' }, { default: 'business' }));
+  write({ kind: 'file-json-insert', file: TOWER, pointer: '/view', value: { default: 'product' } });
+  write({ kind: 'file-json-delete', file: TOWER, pointer: '/view', expect: { default: 'product' } });
+  // `null` is the unsaved spelling the product ships, so writing it back is not refused.
+  write(set('/view', null, { default: 'business' }));
+
+  const refused = [
+    [set('/view', 'business'), /view, when present, must be an object/],
+    [set('/view', ['business']), /view, when present, must be an object/],
+    [set('/view', { default: 'business', focus: ['money'] }), /view\.focus is not a setting/],
+    [set('/view', { default: 'founder' }), /view\.default must be one of business, product, everything/],
+    [set('/view', {}), /view\.default must be one of/],
+    [{ kind: 'file-json-insert', file: TOWER, pointer: '/view', value: { default: 'founder' } }, /view\.default must be one of/],
+    [set('/view/default', 'business', 'everything'), /saved whole, at \/view, never in pieces/],
+  ];
+  for (const [op, reason] of refused) {
+    assert.throws(
+      () => write(op),
+      (err) => err instanceof ChangesetError && /^op #1: /.test(err.message) && reason.test(err.message),
+      JSON.stringify(op),
+    );
+  }
+});
+
+test('a stored null view reads as unsaved: a guard of null or of absence lands, and a saved view is compared exactly', async () => {
+  for (const stored of [{ view: null }, {}]) {
+    for (const [guard, op] of Object.entries(FIRST_SAVES)) {
+      const { mismatches, documents, resolved } = await resolveOps(changeset([op(TOWER, '/view', { default: 'product' })]), null, {
+        readDocument: documentsFrom({ [TOWER]: stored }),
+      });
+      assert.deepEqual(mismatches, [], `${JSON.stringify(stored)} · ${guard}`);
+      applyDocumentOps(resolved, documents, { at: '2026-09-24T09:00:00.000Z' });
+      assert.deepEqual(documents.get(TOWER), { view: { default: 'product' } });
+    }
+  }
+  const { mismatches } = await resolveOps(
+    changeset([{ kind: 'file-json-set', file: TOWER, pointer: '/view', expect: null, value: { default: 'product' } }]),
+    null,
+    { readDocument: documentsFrom({ [TOWER]: { view: { default: 'business' } } }) },
+  );
+  assert.equal(mismatches.length, 1);
+  assert.deepEqual(mismatches[0].current, { default: 'business' });
 });
 
 test('a saved declared document is still guarded: "not saved yet" is stale once somebody saved one', async () => {

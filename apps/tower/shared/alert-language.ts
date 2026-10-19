@@ -815,6 +815,7 @@ const OWED_COLLECTOR_LABELS: Record<string, string> = {
   dataforseo: "search rankings",
   posthog: "product analytics",
   uptime: "uptime checks",
+  crux: "page speed",
 };
 
 /**
@@ -1042,6 +1043,45 @@ function pageStructure(facts: AlertFacts): AlertLanguage {
   };
 }
 
+/** The header names the security-headers check records, as people write them. */
+const SECURITY_HEADER_LABELS: Record<string, string> = {
+  "strict-transport-security": "Strict-Transport-Security",
+  "content-security-policy": "Content-Security-Policy",
+  "x-content-type-options": "X-Content-Type-Options",
+  "x-frame-options": "X-Frame-Options",
+  "referrer-policy": "Referrer-Policy",
+  "permissions-policy": "Permissions-Policy",
+};
+
+/** `hygiene-security-headers` — the home page stopped sending a security
+ * header it sent on the previous reading. One row per missing header, with the
+ * value it was last served with. */
+function securityHeaders(facts: AlertFacts): AlertLanguage {
+  const i = facts.ruleInputs ?? {};
+  const missing = strings(i.missing_headers);
+  const previous = record(i.previous_headers);
+  const at = str(i.lastObservedAt) ?? str(i.evaluatedAt);
+  const previousOn = str(i.previous_observed_on);
+  const present = num(i.present);
+  const of = num(i.of);
+  const url = str(i.url);
+  const evidence: AlertEvidence[] = missing.map((name) => ({
+    polarity: "supporting" as const,
+    source: SECURITY_HEADER_LABELS[name] ?? name,
+    detail: str(previous?.[name]) ? `was ${str(previous?.[name])}` : "missing",
+    at: previousOn,
+  }));
+  if (present !== null && of !== null) {
+    evidence.push({ polarity: "supporting", source: "Sent now", detail: `${count(present)} of ${count(of)} headers`, at });
+  }
+  if (url) evidence.push({ polarity: "supporting", source: "URL checked", detail: url, at });
+  if (missing.length === 0) return { headline: rawFallback(facts), evidence };
+  const subject = missing.length === 1
+    ? (SECURITY_HEADER_LABELS[missing[0]!] ?? missing[0]!)
+    : `${count(missing.length)} security headers`;
+  return { headline: `Home page stopped sending ${subject}`, evidence };
+}
+
 /** `ga4-quota-pressure` — a property's GA4 token bucket is under a fifth full. */
 function ga4Quota(facts: AlertFacts): AlertLanguage {
   const i = facts.ruleInputs ?? {};
@@ -1090,6 +1130,7 @@ const TRANSLATORS: Record<string, (facts: AlertFacts) => AlertLanguage> = {
   "hygiene-robots-ai": robotsAccess,
   "hygiene-page-directives": pageDirectives,
   "hygiene-page-structure": pageStructure,
+  "hygiene-security-headers": securityHeaders,
   "ga4-quota-pressure": ga4Quota,
   "os-egress-down": egressDown,
   "watch-window-closed": watchWindowClosed,

@@ -24,6 +24,8 @@ import { PROBE_CAPABILITY } from './probe-capability.js';
 import { SignalError } from './signal-store.js';
 import { CloudflareD1Error, listD1Databases } from './cloudflare-d1-client.js';
 import { WATCHED_REQUEST_TIMEOUT_MS } from './shared.js';
+import { CRUX_KEY_CHECK_ORIGIN, CRUX_KEY_FIELD, checkCruxKey } from './crux.js';
+import { STRIPE_KEY_FIELD, checkStripeKey } from './stripe.js';
 
 
 export interface ConnectOptions {
@@ -125,6 +127,8 @@ export async function askProvider(
   if (provider.id === 'bing-webmaster') return askBing(fields, fetchImpl);
   if (provider.id === 'dataforseo') return askDataForSeo(fields, fetchImpl);
   if (provider.id === 'posthog') return askPosthog(fields, fetchImpl);
+  if (provider.id === 'crux') return askCrux(fields, fetchImpl);
+  if (provider.id === 'stripe') return askStripe(fields, fetchImpl);
   if (provider.id === 'calendar') return fromProbe(() => probeCalendar(fields, withTimeout(fetchImpl)));
   if (provider.id === 'discord') return fromProbe(() => probeDiscord(fields, withTimeout(fetchImpl)));
   // A provider that declares `connect` without a reader here is a catalog
@@ -204,6 +208,23 @@ async function askPosthog(fields: Record<string, string>, fetchImpl: typeof fetc
   const read = await readPosthogAccount(key, fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
   if (read.verdict !== 'accepted') return { verdict: read.verdict };
   return { verdict: 'accepted', facts: { projects: read.projects.length, region: read.region } };
+}
+
+/**
+ * Chrome UX Report: one query on a reserved origin. The key is judged before
+ * the origin, so "no data" accepts it as a record does; a throttle is no answer.
+ */
+async function askCrux(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
+  const verdict = await checkCruxKey(fields[CRUX_KEY_FIELD] ?? '', CRUX_KEY_CHECK_ORIGIN, fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
+  if (verdict === 'accepted') return { verdict: 'accepted', facts: {} };
+  return verdict === 'refused' ? { verdict: 'refused' } : { verdict: 'unreachable' };
+}
+
+/** Stripe: one read of the account balance; a throttle is no answer. */
+async function askStripe(fields: Record<string, string>, fetchImpl: typeof fetch): Promise<CandidateAnswer> {
+  const verdict = await checkStripeKey(fields[STRIPE_KEY_FIELD] ?? '', fetchImpl, WATCHED_REQUEST_TIMEOUT_MS);
+  if (verdict === 'accepted') return { verdict: 'accepted', facts: {} };
+  return verdict === 'refused' ? { verdict: 'refused' } : { verdict: 'unreachable' };
 }
 
 /** Bound Bing's call by the panel's patience rather than the collector's. */

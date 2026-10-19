@@ -22,8 +22,10 @@ docker run --rm --read-only --tmpfs /tmp \
 `measure.mjs` takes `--asset <id>` (required), `--repo <folder>` (default
 `/repo`), `--paths a,b` (folders of a repository that holds more than one
 product), `--ref <name>` (the branch name, for a checkout with no branch
-checked out), `--out <file>` and `--post <ingest address>`. Without `--out` or
-`--post` it writes the report to standard output. `--post` reads the site's
+checked out), `--out <file>`, `--post <ingest address>` and `--measure
+key=value` (repeatable; see
+[Build, test and package-audit results](#build-test-and-package-audit-results)).
+Without `--out` or `--post` it writes the report to standard output. `--post` reads the site's
 token from the environment variable `NOTICEOS_ASSET_TOKEN` and from nowhere
 else, and accepts only an `https` address, or plain `http` on `localhost`.
 
@@ -48,6 +50,8 @@ repository cannot replace a module lizard imports.
 | `dependencies_direct` | `measure.mjs` | Distinct packages named in `dependencies`, `devDependencies` and `optionalDependencies` of each `package.json`, in `requirements*.txt`, in `go.mod` (not `// indirect`) and in `Cargo.toml`. Packages of the repository's own workspace are not counted. |
 | `functions`, `complex_functions`, `max_function_complexity`, `mean_function_complexity` | lizard | Functions, functions with a cyclomatic complexity above 15, the highest complexity and the mean, one decimal. Tests are not read. A `.mts` or `.cts` file is read as TypeScript. |
 | `commits_30d`, `files_touched_30d`, `large_commits_30d` | git | Commits of the last 30 days before the run, merges excluded, that touched a measured file; the distinct measured files they touched; and the commits that touched 20 or more measured files. |
+| `build_passed`, `tests_passed` | the caller's CI, through `--measure` | 1 when the caller's build or test step passed, 0 when it failed. |
+| `vulnerable_dependencies` | the caller's CI, through `--measure` | Packages with a known vulnerability, as the caller's audit step counted them. |
 
 `unused_dependencies` is not measured: jscpd 5.4.0 has no check for unused
 packages. Every report lists it under `unmeasured`.
@@ -57,6 +61,30 @@ the 20 longest repeated blocks, the 20 functions with the highest complexity
 above 15, 50 unused files and exports (files first, the longest first), and the
 10 files with the most code lines. `byLanguage` lists the 12 languages with
 the most code lines.
+
+## Build, test and package-audit results
+
+The image does not build the code, run its tests or audit its packages, so
+whether the build passed, whether the tests passed and how many packages have a
+known vulnerability come from steps the caller's own CI job already runs. Each
+is optional. The job passes each result as `--measure key=value`:
+`build_passed` and `tests_passed` take `success` or `failure` (the values
+GitHub Actions writes to `steps.<id>.outcome`; also `true`/`false` or `1`/`0`),
+and `vulnerable_dependencies` takes a whole number of 0 or more, for example
+the number of entries under `vulnerabilities` in `npm audit --json`. `skipped` or
+`cancelled` leaves that measure out with the reason "The workflow step that
+checks this was skipped or cancelled." Any other key or value stops the run
+with a message. A result the job does not pass is left out of `measures`,
+listed under `unmeasured`, and shown in the Tower as "Not measured". The
+GitHub Action passes its `build-passed`, `tests-passed` and
+`vulnerable-dependencies` inputs this way.
+
+```sh
+docker run --rm --read-only --tmpfs /tmp \
+  --mount type=bind,source="$PWD",target=/repo,readonly \
+  ghcr.io/notice-cx/noticeos-codebase-report:main --asset example.com \
+  --measure build_passed=success --measure tests_passed=failure --measure vulnerable_dependencies=3 > report.json
+```
 
 ## Which files are measured
 
@@ -113,7 +141,9 @@ A measure a tool did not produce is left out of `measures`, never written as
 0, and its key is listed under `unmeasured` with the reason the Tower shows
 beside "Not measured", for example "Unused code is checked in JavaScript,
 TypeScript and Python only." A tool that fails leaves out only its own
-measures. A shallow checkout whose oldest commit is newer than 30 days leaves
+measures. A build, test or package-audit result the caller did not pass is
+listed with the reason that the image does not build, test or audit the code
+and the workflow sent no result. A shallow checkout whose oldest commit is newer than 30 days leaves
 out the three change counts; `actions/checkout` with `fetch-depth: 0` checks
 out the whole history.
 

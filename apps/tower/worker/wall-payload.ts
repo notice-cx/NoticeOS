@@ -19,6 +19,8 @@ import { loadWorkWeeks } from "./work-payload";
 import { readLatestJobRuns } from "./job-runs";
 import { cardPanelReviewsOf, loadLatestPanelLandings } from "./panel-review";
 import { cardIcons, loadSiteIcons } from "./site-icons";
+import { loadCardCodebases, loadCardInsights } from "./card-readings";
+import { readPortfolioWatches } from "./watch-window-reader";
 import { siteIconAddresses } from "../shared/site-display";
 import {
   WALL_SIGNAL_CHART_DAYS,
@@ -624,6 +626,9 @@ export async function buildWallPayload(
     panelAssetIds,
   );
   const iconsByAsset = await loadSiteIcons(store);
+  const [insightsByAsset, codebaseByAsset, watchesByAsset] = await Promise.all([
+    loadCardInsights(store), loadCardCodebases(store), readPortfolioWatches(store),
+  ]);
 
   const assets: AssetCard[] = cardAssets.map((a) => {
     const f = flagsByAsset.get(a.id);
@@ -688,6 +693,12 @@ export async function buildWallPayload(
       panelReview: latestPanelDate ? (panelReviewByAsset.get(a.id) ?? null) : null,
       latestPanelDate,
       icons: cardIcons(iconsByAsset.get(a.id), siteIconAddresses(dashboard.sites, a.id)),
+      product: insightsByAsset.get(a.id)?.product ?? null,
+      codebase: codebaseByAsset.get(a.id) ?? null,
+      watches: watchesByAsset.get(a.id) ?? null,
+      channels: insightsByAsset.get(a.id)?.channels ?? null,
+      // Absent, not empty, until the site has a reading.
+      ...(insightsByAsset.has(a.id) ? { findings: insightsByAsset.get(a.id)!.findings } : {}),
     };
   });
 

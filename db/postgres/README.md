@@ -536,6 +536,7 @@ by column; retention and maintenance privileges are checked separately.
 | `mediavine_sites` | insert, delete | A fixed mapping, replaced by delete and insert. |
 | `mediavine_state` | insert, update, delete | Retry state. |
 | `notifications` | append-only | Append-only; the unique key is the dedupe. |
+| `person_preferences` | append-only | Append-only; each save of a person's own preference is a new row, the newest per person and name is the current value, and a reset saves the default. |
 | `pulses` | append-only | A retry is a new revision. |
 | `reclamation_targets` | insert; update only status, status_at, outcome_note, last_verified_at, updated_at | What the research found is fixed; the funnel status moves. |
 | `research_log` | append-only | Append-only. |

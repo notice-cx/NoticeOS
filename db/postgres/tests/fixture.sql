@@ -38,6 +38,9 @@ VALUES (:'ws', :'site', '2026-09-01T12:00:00Z', 'deploy', 'abc1234', 'synthetic 
 INSERT INTO noticeos.workspace_mutation_audit (workspace_id,actor_kind,event,asset_id,subject)
 VALUES (:'ws','unknown','annotation.create',:'site','{"annotationNumber":"1","kind":"deploy"}');
 
+INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value, recorded_at)
+VALUES (:'ws', gen_random_uuid(), 'view', '{"view":"business","focus":["money"]}', '2026-09-01T12:30:00Z');
+
 INSERT INTO noticeos.counter_readings (workspace_id, asset_id, metric, value, observed_at)
 VALUES (:'ws', :'site', 'signups', 42, '2026-09-05T00:00:00Z');
 

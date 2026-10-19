@@ -15,6 +15,7 @@
     "growth_min_lines": 500,
     "duplication_percent": 8,
     "unused_items": 10,
-    "complex_functions_added_30d": 5
+    "complex_functions_added_30d": 5,
+    "vulnerable_dependencies": 1
   }
 }

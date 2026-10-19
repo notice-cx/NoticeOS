@@ -3,6 +3,7 @@ import type {
   WatchSlice,
   WatchWindowItem,
 } from "../shared/asset-detail";
+import type { CardWatches } from "../shared/wall";
 import { javascriptInstant, type WorkspaceStore } from "@noticeos/postgres";
 import { storedWatchScope, watchVerdictFigures } from "../shared/watch-windows";
 import { isTaskId } from "../shared/tasks";
@@ -61,19 +62,31 @@ function toWatchWindowItem(row: WatchWindowStoreRow): WatchWindowItem {
   };
 }
 
-/** One asset's full read for its detail-page timeline, on its (site, ref)
- * index; each window's read offsets through the readings' key. */
-export const WATCH_WINDOWS_SQL = `SELECT w.window_id AS id, w.metric_integration AS "metricIntegration", w.metric,
+const WATCH_WINDOW_COLUMNS = `w.window_id AS id, w.metric_integration AS "metricIntegration", w.metric,
        w.scope::text AS "scopeJson", w.ref_kind AS "refKind", w.ref, w.registered_at AS "registeredAt",
        w.check_offsets AS "checkOffsets",
        ARRAY(SELECT r.offset_days FROM noticeos.watch_window_readings r
               WHERE r.workspace_id = w.workspace_id AND r.window_id = w.window_id
               ORDER BY r.offset_days) AS "readOffsets",
        w.status, w.outcome, w.outcome_note AS "outcomeNote", w.closed_at AS "closedAt", w.note,
-       w.readback_bead AS "readbackBead"
+       w.readback_bead AS "readbackBead"`;
+
+/** One asset's full read for its detail-page timeline, on its (site, ref)
+ * index; each window's read offsets through the readings' key. */
+export const WATCH_WINDOWS_SQL = `SELECT ${WATCH_WINDOW_COLUMNS}
   FROM noticeos.watch_windows w
  WHERE w.asset_id = $1
  ORDER BY w.status ASC, w.registered_at DESC, w.window_id COLLATE "C" ASC`;
+
+/** Every site's open windows, through the open-window index, and each site's
+ * newest closed one: what the Wall's cards count and name, in one statement. */
+export const PORTFOLIO_WATCH_WINDOWS_SQL = `SELECT w.asset_id AS asset, ${WATCH_WINDOW_COLUMNS}
+  FROM noticeos.watch_windows w
+ WHERE w.status = 'open'
+    OR w.window_id IN (SELECT DISTINCT ON (c.asset_id) c.window_id
+                         FROM noticeos.watch_windows c
+                        WHERE c.status = 'closed'
+                        ORDER BY c.asset_id, c.closed_at DESC, c.window_id COLLATE "C" ASC)`;
 
 /** One asset's full read for its detail-page timeline. */
 export async function readWatchWindows(store: WorkspaceStore, asset: string): Promise<WatchSlice> {
@@ -95,4 +108,35 @@ export async function readWatchWindows(store: WorkspaceStore, asset: string): Pr
     .sort((a, b) => (b.closedAt ?? "").localeCompare(a.closedAt ?? ""))
     .slice(0, CLOSED_WATCH_LIMIT);
   return { open, closed, history: [] };
+}
+
+/** Each site's watches for its Wall card; a site with none registered is
+ * absent, which the card reads as null. */
+export async function readPortfolioWatches(store: WorkspaceStore): Promise<Map<string, CardWatches>> {
+  const rows = await store.read((tx) =>
+    tx.query<WatchWindowStoreRow & { asset: string }>(PORTFOLIO_WATCH_WINDOWS_SQL),
+  );
+  const out = new Map<string, CardWatches>();
+  for (const row of rows) {
+    const watches = out.get(row.asset) ?? { open: 0, latest: null };
+    out.set(row.asset, watches);
+    if (row.status !== "closed") {
+      watches.open += 1;
+      continue;
+    }
+    const item = toWatchWindowItem({
+      ...row,
+      registeredAt: javascriptInstant(row.registeredAt),
+      closedAt: row.closedAt === null ? null : javascriptInstant(row.closedAt),
+    });
+    if (watches.latest && (watches.latest.closedAt ?? "") >= (item.closedAt ?? "")) continue;
+    watches.latest = {
+      id: item.id,
+      ref: item.ref,
+      outcome: item.outcome,
+      nextCheckDate: item.nextCheckDate,
+      closedAt: item.closedAt,
+    };
+  }
+  return out;
 }

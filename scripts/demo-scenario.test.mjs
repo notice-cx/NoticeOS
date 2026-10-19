@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 import { demoCodebaseVerdicts } from './demo-store.mjs';
 import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
@@ -442,6 +442,40 @@ test('Trail Notes\' redesign is a step in its code, its hard-to-change functions
   assert.ok(unused.every(flag => flag.date > slide.annotationAt.slice(0, 10)));
 });
 
+test('the workflow checks: Weeknight Pantry\'s tests fail into the cutoff, and Trail Notes\' redesign breaks one build and leaves a vulnerable package open at the cutoff', () => {
+  const pantry = reportsOf('wp');
+  const failing = pantry.filter(report => report.envelope.measures.tests_passed === 0);
+  assert.ok(failing.length >= 3);
+  assert.ok(failing.every(report => ageOf(report.date) >= -20 && ageOf(report.date) <= 0));
+  // One unbroken run of failing test reports, through the report on the reference day.
+  assert.ok(pantry.slice(pantry.indexOf(failing[0])).every(report => report.envelope.measures.tests_passed === 0));
+  assert.equal(pantry.at(-1).date, codebase.manifest.referenceDate);
+  assert.ok(pantry.filter(report => ageOf(report.date) < -20).every(report => report.envelope.measures.tests_passed === 1));
+  assert.ok(pantry.every(report => report.envelope.measures.build_passed === 1 && report.envelope.measures.vulnerable_dependencies === 0));
+
+  const trail = reportsOf('tn');
+  const broken = trail.filter(report => report.envelope.measures.build_passed === 0);
+  assert.deepEqual(broken.map(report => ageOf(report.date)), [DEMO_REDESIGN_AGE]);
+  assert.ok(trail.every(report => report.envelope.measures.tests_passed === 1));
+  assert.ok(trail.filter(report => ageOf(report.date) < DEMO_REDESIGN_AGE).every(report => report.envelope.measures.vulnerable_dependencies === 0));
+  assert.equal(broken[0].envelope.measures.vulnerable_dependencies, 2);
+  // The redesign's two are updated away before one more arrives.
+  assert.ok(trail.some(report => ageOf(report.date) > DEMO_REDESIGN_AGE && ageOf(report.date) < -10 && report.envelope.measures.vulnerable_dependencies === 0));
+  assert.equal(trail.at(-1).envelope.measures.vulnerable_dependencies, 1);
+
+  const vulnerable = flagsOf('tn', 'codebase-vulnerabilities');
+  const open = vulnerable.filter(flag => flag.resolvedAt === null);
+  assert.equal(open.length, 1);
+  assert.equal(open[0].date, codebase.manifest.referenceDate);
+  assert.ok(open[0].firedAt <= options.cutoff);
+  assert.equal(open[0].message, '1 package has a known vulnerability.');
+  assert.ok(open[0].severity === 'info' && open[0].kind === 'opportunity');
+  assert.ok(vulnerable.some(flag => flag.resolvedAt !== null && flag.message === '2 packages have a known vulnerability.'));
+  assert.ok(vulnerable.every(flag => flag.date >= broken[0].date));
+  // Trail Notes is the only site with a vulnerable package.
+  assert.deepEqual(codebaseFlags.filter(flag => flag.ruleId === 'codebase-vulnerabilities' && !vulnerable.includes(flag)), []);
+});
+
 test('Fresh Rows sends no codebase report and NoticeOS measures itself steadily, at its own repository\'s scale', () => {
   assert.deepEqual(reportsOf('fr'), []);
   const reports = reportsOf('no');
@@ -458,7 +492,7 @@ test('Fresh Rows sends no codebase report and NoticeOS measures itself steadily,
 test('every codebase rule fires somewhere, open and resolved, with no flag before its comparison report', () => {
   const flags = codebaseFlags;
   const states = new Set(flags.map(flag => `${flag.ruleId}/${flag.resolvedAt === null ? 'open' : 'resolved'}`));
-  for (const state of ['codebase-growth/open', 'codebase-growth/resolved', 'codebase-duplication/open', 'codebase-duplication/resolved', 'codebase-unused/open', 'codebase-unused/resolved', 'codebase-complexity/resolved']) assert.ok(states.has(state), state);
+  for (const state of ['codebase-growth/open', 'codebase-growth/resolved', 'codebase-duplication/open', 'codebase-duplication/resolved', 'codebase-unused/open', 'codebase-unused/resolved', 'codebase-complexity/resolved', 'codebase-vulnerabilities/open', 'codebase-vulnerabilities/resolved']) assert.ok(states.has(state), state);
   for (const flag of flags) {
     assert.ok(flag.resolvedAt === null || flag.resolvedAt > flag.firedAt);
     if (flag.ruleId === 'codebase-growth' || flag.ruleId === 'codebase-complexity') assert.ok(flag.inputs.comparison.days >= 28 && flag.inputs.comparison.days <= 45);

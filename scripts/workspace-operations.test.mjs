@@ -2,7 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import test from 'node:test';
 import { atDeadline, fakeClock } from './test-deadline.mjs';
-import { GOOGLE_INTEGRATION_START, googleOAuthRequest, OperationRefused, ingestOperation, towerOperation, providerCollectionInput, liveProviderReadRequest, siteIconsReadInput, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest } from './workspace-operations.mjs';
+import { GOOGLE_INTEGRATION_START, googleOAuthRequest, OperationRefused, ingestOperation, towerOperation, providerCollectionInput, liveProviderReadRequest, siteIconsReadInput, siteIconsReadRequest, storedResearchReadRequest, watchQueryHistoryRequest,
+  PERSON_VIEW_PREFERENCE_PATH, personPreferenceRequest, isHostedStoredRead } from './workspace-operations.mjs';
 
 const origin = 'https://fixture.example.test';
 const request = (path, method = 'GET', body, headers = {}) => new Request(origin + path, {
@@ -521,6 +522,29 @@ test('stored watch history fixes asset, query and released GSC metric without ca
   await assert.rejects(ingestOperation('watchQueryHistory', request(base + '?query=q&metric=clicks', 'POST', {})), OperationRefused);
 });
 
+
+test("a person's saved view is one fixed path, read or replaced, naming no person, workspace or receiver", async () => {
+  assert.equal(PERSON_VIEW_PREFERENCE_PATH, '/api/me/preferences/view');
+  const read = request(PERSON_VIEW_PREFERENCE_PATH);
+  const save = request(PERSON_VIEW_PREFERENCE_PATH, 'PUT', { view: 'business', focus: ['money'] });
+  assert.deepEqual(personPreferenceRequest(read), { method: 'GET' });
+  assert.deepEqual(personPreferenceRequest(save), { method: 'PUT' });
+  for (const original of [read, save]) {
+    const selected = await towerOperation(original);
+    assert.deepEqual([selected.kind, selected.action, selected.rpcMethods], ['workspace', 'preferences.self', []]);
+    await assert.rejects(ingestOperation('applyConfigOps', original), OperationRefused);
+  }
+  // Not a stored read: the generic hosted read dispatcher never receives it.
+  assert.equal(isHostedStoredRead(read), false);
+  for (const refused of [
+    request(PERSON_VIEW_PREFERENCE_PATH, 'POST', {}), request(PERSON_VIEW_PREFERENCE_PATH, 'DELETE'),
+    request(PERSON_VIEW_PREFERENCE_PATH + '?person=' + randomUUID()), request(PERSON_VIEW_PREFERENCE_PATH + '#x'),
+    request('/api/me/preferences/theme'), request('/api/me/preferences/view/'),
+  ]) {
+    assert.equal(personPreferenceRequest(refused), null, `${refused.method} ${refused.url}`);
+    await assert.rejects(towerOperation(refused), OperationRefused);
+  }
+});
 
 test('Product use presentation is exact and cannot replace neighboring measurement authority', async () => {
   const file = 'config/value-events.json';

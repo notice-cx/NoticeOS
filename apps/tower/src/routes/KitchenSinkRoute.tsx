@@ -30,6 +30,7 @@ import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type {
   AssetCard as AssetData,
   AttentionItem,
+  CardProduct,
   PortfolioBand as PortfolioData,
   ScheduledLane,
   SeriesPoint,
@@ -204,6 +205,9 @@ import { SerpPanelBoard } from "@/components/SerpPanelBoard";
 import { AlertList, AlertRow, AttentionAllClear } from "@/components/AlertRow";
 import { WallCanvas } from "@/components/WallCanvas";
 import { WallAgents } from "@/components/wall/WallAgents";
+import { WallChannels } from "@/components/wall/WallChannels";
+import { WallFactory } from "@/components/wall/WallFactory";
+import { WallHealth } from "@/components/wall/WallHealth";
 import { NeedsYou } from "@/components/wall/NeedsYou";
 import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
@@ -2788,6 +2792,38 @@ const wallFixture: WallPayload = {
   },
   ledgerRecordedAt: iso(2 * DAY),
 };
+
+/** The demo sites with a product reading, a code report and a channel split,
+ * for the founder views' TV widgets. */
+const DEMO_PRODUCT: CardProduct = {
+  observedAt: iso(DAY), speed: "clear", worstSpeed: "good", errors: "clear", errorPeople: 0, jsErrorFinding: false, funnel: null,
+};
+const healthDemoCards: AssetData[] = [
+  {
+    ...cardLive,
+    dataSources: [...cardLive.dataSources.filter((source) => source.id !== "uptime"), { id: "uptime", label: "Uptime", state: "live" }],
+    product: { ...DEMO_PRODUCT, funnel: { name: "Signup", largestDrop: { fromStep: "Recipe page", toStep: "Sign up", lostPeople: 412, stepConversion: 0.18 } } },
+    codebase: { date: iso(DAY).slice(0, 10), commit: "4f2a9c1", codeLines: 48_200, growthPercent30d: 4, comparedDays: 30 },
+    channels: { windowStart: "2026-06-08", windowEnd: "2026-06-14", rows: [
+      { channel: "Organic Search", sessions: 8_400, share: 0.6 },
+      { channel: "Direct", sessions: 3_100, share: 0.22 },
+      { channel: "Referral", sessions: 1_500, share: 0.11 },
+      { channel: "Organic Social", sessions: 1_000, share: 0.07 },
+    ] },
+  },
+  {
+    ...cardWarn,
+    dataSources: [...cardWarn.dataSources.filter((source) => source.id !== "uptime"), { id: "uptime", label: "Uptime", state: "live" }],
+    product: { ...DEMO_PRODUCT, speed: "fired", worstSpeed: "poor", errors: "fired", errorPeople: 37 },
+    codebase: { date: iso(DAY).slice(0, 10), commit: "b81e07d", codeLines: 12_900, growthPercent30d: 31, comparedDays: 29 },
+    channels: { windowStart: "2026-06-08", windowEnd: "2026-06-14", rows: [
+      { channel: "Organic Search", sessions: 2_200, share: 0.55 },
+      { channel: "Paid Search", sessions: 1_000, share: 0.25 },
+      { channel: "Direct", sessions: 800, share: 0.2 },
+    ] },
+  },
+  cardThin,
+];
 
 /** A ready month projection for the revenue widget's demos: evenly earned
  * through `reportedDay`, the rest of the month at the same pace. */
@@ -5716,6 +5752,37 @@ export function KitchenSinkRoute() {
             </div>
             <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
               <WallAgents agents={null} />
+            </div>
+          </Section>
+
+          <Section title="WallHealth (problems and fine sites / no sites yet)">
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallHealth assets={healthDemoCards} issues={[]} />
+            </div>
+            <div className="wall-root w-full max-w-4xl rounded-lg bg-background p-4">
+              <WallHealth assets={[]} issues={[]} />
+            </div>
+          </Section>
+
+          <Section title="WallFactory (counted with lines / unknown counts, nothing finished)">
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallFactory week={{ building: 4, shipped: 11, proven: 2, watching: 3, latest: [
+                { title: "Recipe cards load faster", site: cardLive.displayName, line: "Images resized on upload" },
+                { title: "Latest bet", site: cardWarn.displayName, line: "Worked" },
+                { title: "Latest bet", site: cardThin.displayName, line: "We'll know in 5 days" },
+              ] }} />
+            </div>
+            <div className="wall-root w-full max-w-xl rounded-lg bg-background p-4">
+              <WallFactory week={{ building: null, shipped: null, proven: 0, watching: 0, latest: [] }} />
+            </div>
+          </Section>
+
+          <Section title="WallChannels (channels and the largest drop / no channel split yet)">
+            <div className="wall-root w-full max-w-2xl rounded-lg bg-background p-4">
+              <WallChannels assets={healthDemoCards} />
+            </div>
+            <div className="wall-root w-full max-w-2xl rounded-lg bg-background p-4">
+              <WallChannels assets={[cardSetup]} />
             </div>
           </Section>
 

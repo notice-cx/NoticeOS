@@ -623,7 +623,9 @@ export type HygieneCheckId =
   | "html-depth"
   | "robots-ai-access"
   | "sitemap"
-  | "page-structure";
+  | "page-structure"
+  | "security-headers"
+  | "crux-vitals";
 
 /** The four states one night's fetch can record. `error` ("the server told us
  * no") and `unreachable` ("we never reached the server") are different facts;
@@ -664,6 +666,41 @@ export interface HygieneBotAccess {
   allowed: boolean;
 }
 
+/** One security header on the newest judged home-page reading. */
+export interface HygieneHeaderPresence {
+  /** The header's name as served, lower-cased: `strict-transport-security`, … */
+  name: string;
+  present: boolean;
+}
+
+/** The newest security-headers reading that judged the home page (a 200). */
+export interface HygieneSecurityHeaders {
+  observedAt: string;
+  /** Every header the check records, in the check's order. */
+  headers: HygieneHeaderPresence[];
+}
+
+/** One form factor's 75th percentiles from the Chrome UX Report. */
+export interface HygieneVitals {
+  /** Largest Contentful Paint, milliseconds. */
+  lcp: number | null;
+  /** Interaction to Next Paint, milliseconds. */
+  inp: number | null;
+  /** Cumulative Layout Shift, unitless. */
+  cls: number | null;
+}
+
+/** The newest page-speed reading (`crux-vitals`). */
+export interface HygienePageSpeed {
+  observedAt: string;
+  /** The form factor the figures are for: phones, or desktops where CrUX holds
+   * no phone data. Null when CrUX holds too little traffic for either. */
+  formFactor: "PHONE" | "DESKTOP" | null;
+  vitals: HygieneVitals | null;
+  /** The days CrUX aggregated, `YYYY-MM-DD`. */
+  collectionPeriod: { firstDate: string; lastDate: string } | null;
+}
+
 /**
  * The nightly site-health history. A rule fires on a step change; the history
  * is what shows a slope. `null` on the payload when the asset has no readings
@@ -681,6 +718,15 @@ export interface HygieneHistory {
   /** How many days back the window reaches. Stated so the section can name its
    * own horizon rather than implying the series is all there ever was. */
   windowDays: number;
+  /** The security-headers series (`value` = headers present). Absent from a
+   * payload built before the check existed. */
+  securityHeaders?: HygieneCheckHistory;
+  /** The newest reading that judged the home page's headers, or null. */
+  headers?: HygieneSecurityHeaders | null;
+  /** The page-speed series (`value` = LCP p75 in ms). */
+  pageSpeedHistory?: HygieneCheckHistory;
+  /** The newest page-speed reading, or null when the site has none. */
+  pageSpeed?: HygienePageSpeed | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -1144,6 +1190,25 @@ export interface ClaritySnapshot {
   unattributedSessions: number | null;
 }
 
+/** One GA4 default channel group's settled sessions across the window. The
+ * channel name is GA4's own ("AI Assistant" included). */
+export interface ChannelRow {
+  channel: string;
+  sessions: number;
+  /** This channel's sessions over the window's total, 0–1. */
+  share: number;
+}
+
+/** Where the property's visitors came from: settled GA4 traffic-acquisition
+ * sessions per channel, largest first (`scripts/signal-insights.mjs`). */
+export interface ChannelSnapshot {
+  windowStart: string;
+  windowEnd: string;
+  /** Report dates GA4 was still attributing when collected; left out of rows. */
+  provisionalDates: string[];
+  rows: ChannelRow[];
+}
+
 /** Compact presentation boundary derived from the immutable archives. */
 export interface ExecutiveSnapshot {
   schemaVersion: 1;
@@ -1171,6 +1236,9 @@ export interface ExecutiveSnapshot {
   /** Latest weekly DataForSEO ranking, link, and AI-visibility snapshot.
    * Older presentation snapshots normalize to null. */
   searchIntelligence: SearchIntelligenceSnapshot | null;
+  /** Settled GA4 sessions by channel. null when no settled traffic-acquisition
+   * row exists; the payload parser always sets it, older snapshots to null. */
+  channels?: ChannelSnapshot | null;
   /** The tracked-query SERP panel this asset bought, if it bought one.
    * ABSENT means no panel — including on every snapshot written before the
    * block existed, which is the same nothing. Never an empty scoreboard. */

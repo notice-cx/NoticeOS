@@ -30,7 +30,10 @@ import { writeSignalRun, writeSignalValues } from "./collected-metrics";
 import { type TestStore, createTestStore, recordingStore } from "./postgres-store";
 import { storeChange, storeWatchWindow } from "./change-rows";
 
-import { writeArchiveRun, writeResearch } from "./provider-reports";
+import { writeArchiveRun, writeInsightSnapshots, writeResearch } from "./provider-reports";
+import { codebaseReport, commitOf, storeCodebaseReports, weeklyStoredReports } from "./codebase-fixture";
+import { CARD_CODEBASE_SQL, CARD_INSIGHTS_SQL } from "../worker/card-readings";
+import { PORTFOLIO_WATCH_WINDOWS_SQL } from "../worker/watch-window-reader";
 import { bookLedger } from "./money";
 import { addSites } from "./sites";
 import {
@@ -3592,5 +3595,290 @@ describe('month-start revenue evidence preserves reported zero separately from c
       const side = booking_state === 'reconciled' ? 'booked' : 'forecast';
       expect(payload.portfolio[side]).toEqual({ currency: 'USD', revenue: 0, cost: kind === 'cost' ? 35 : 0, net: kind === 'cost' ? -35 : 0 });
     } finally { await ctx.close(); }
+  });
+});
+
+describe("buildWallPayload — the card's insight reading, code and watches", () => {
+  let ctx: TestStore;
+  beforeEach(async () => {
+    ctx = await createTestStore();
+    await seed(ctx);
+  });
+
+  const cardsOf = async (store: WorkspaceStore = ctx.call) =>
+    new Map((await buildWallPayload(store, OPTIONS)).assets.map((card) => [card.id, card]));
+
+  /** An executive snapshot as the analyzer writes one, with the blocks a test names. */
+  function insight(id: string, asset: string, generatedAt: string, blocks: Record<string, unknown> = {}) {
+    return {
+      id,
+      asset,
+      generated_at: generatedAt,
+      payload: JSON.stringify({
+        schemaVersion: 1,
+        asset,
+        generatedAt,
+        windowStart: "2026-06-28",
+        windowEnd: "2026-07-04",
+        sourceArchiveCount: 3,
+        items: [],
+        methodology: [],
+        ...blocks,
+      }),
+    };
+  }
+
+  const WINDOW = { windowStart: "2026-06-21", windowEnd: "2026-07-04", reportDate: "2026-07-04" };
+
+  function segment(path: string, lcpRating: string, inpRating: string) {
+    return { path, device: "Mobile", os: "iOS", measurements: 900, lcpP75: 2_100, inpP75: 260, clsP75: 0.02,
+      lcpRating, inpRating, clsRating: "good" };
+  }
+
+  function funnel(id: string, name: string, lostPeople: number | null) {
+    return {
+      id, name, windowStart: "2026-06-28", windowEnd: "2026-07-04",
+      steps: [
+        { step: 1, event: "$pageview", path: "/start", people: 900 },
+        { step: 2, event: "signup_started", path: null, people: 900 - (lostPeople ?? 0) },
+      ],
+      conversion: 0.5,
+      largestDrop: lostPeople === null ? null : { fromStep: 1, toStep: 2, lostPeople, stepConversion: (900 - lostPeople) / 900 },
+      prior: null,
+    };
+  }
+
+  const PRODUCT = {
+    source: "posthog",
+    observedAt: "2026-07-04",
+    collectedAt: "2026-07-05T03:00:00.000Z",
+    families: [],
+    // The smaller loss is listed first: the card names the larger.
+    funnels: [funnel("checkout", "Checkout", 40), funnel("signup", "Sign up", 600)],
+    vitals: {
+      ...WINDOW, minMeasurements: 500, unmeasuredSegments: 0,
+      lines: { lcp: { good: 2_500, poor: 4_000 }, inp: { good: 200, poor: 500 }, cls: { good: 0.1, poor: 0.25 } },
+      segments: [segment("/start", "good", "needs-improvement"), segment("/plans", "poor", "good")],
+    },
+    exceptions: {
+      ...WINDOW, total: 120, truncated: false, noise: null,
+      top: [{ type: "TypeError", message: "x is undefined", count: 120, people: 45, sessions: null, maxPerSession: null,
+        hasSourceFile: true, topPath: "/start", topBrowser: "Safari" }],
+    },
+    rageClicks: null,
+    onceEvents: [],
+    checks: [
+      { key: "posthog-slow-segment", label: "Real-visitor speed", state: "fired", detail: "1 segment crosses a line." },
+      { key: "posthog-error-concentration", label: "Errors", state: "clear", detail: "No message holds half." },
+    ],
+    caveat: "",
+  };
+
+  const CHANNELS = {
+    windowStart: "2026-06-28",
+    windowEnd: "2026-07-03",
+    provisionalDates: ["2026-07-04"],
+    rows: [
+      { channel: "Organic Search", sessions: 600, share: 0.6 },
+      { channel: "Direct", sessions: 400, share: 0.4 },
+      // Each malformed row costs itself.
+      { channel: "", sessions: 5, share: 0.1 },
+      { channel: "Email", sessions: -1, share: 0.1 },
+      { channel: "Referral", sessions: 3, share: 1.5 },
+    ],
+  };
+
+  it("carries each site's newest reading as speed, errors, the largest funnel drop, channels and findings", async () => {
+    await writeInsightSnapshots(ctx.call, [
+      insight("meadow-old", "meadow.example", "2026-06-28T04:00:00.000Z", {
+        product: { ...PRODUCT, observedAt: "2026-06-27" },
+        items: [{ key: "old-finding", kind: "insight", title: "Last week's finding" }],
+      }),
+      insight("meadow-new", "meadow.example", "2026-07-05T04:00:00.000Z", {
+        product: PRODUCT,
+        channels: CHANNELS,
+        items: [
+          { key: "javascript-errors", kind: "warning", title: "Errors on the start page", summary: "s" },
+          { key: "unnamed-kind", kind: "rumour", title: "Not a kind the page names" },
+          { key: "", kind: "insight", title: "No key" },
+        ],
+        suppressedItems: [
+          { key: "query-gap", kind: "discovery", title: "A query with no page" },
+          { key: "javascript-errors", kind: "warning", title: "The same finding twice" },
+        ],
+      }),
+    ]);
+
+    const cards = await cardsOf();
+    const meadow = cards.get("meadow.example")!;
+
+    expect(meadow.product).toEqual({
+      observedAt: "2026-07-04",
+      speed: "fired",
+      worstSpeed: "poor",
+      errors: "clear",
+      // People per message overlap, so a block without its own total counts none.
+      errorPeople: null,
+      jsErrorFinding: true,
+      funnel: {
+        name: "Sign up",
+        largestDrop: { fromStep: "Viewed /start", toStep: "signup_started", lostPeople: 600, stepConversion: 300 / 900 },
+      },
+    });
+    expect(meadow.channels).toEqual({
+      windowStart: "2026-06-28",
+      windowEnd: "2026-07-03",
+      rows: [
+        { channel: "Organic Search", sessions: 600, share: 0.6 },
+        { channel: "Direct", sessions: 400, share: 0.4 },
+      ],
+    });
+    expect(meadow.findings).toEqual([
+      { key: "javascript-errors", kind: "warning", title: "Errors on the start page" },
+      { key: "query-gap", kind: "discovery", title: "A query with no page" },
+    ]);
+
+    // A site with no reading carries nothing, and no empty list of findings.
+    const northwind = cards.get("northwind.example")!;
+    expect(northwind.product).toBeNull();
+    expect(northwind.channels).toBeNull();
+    expect("findings" in northwind).toBe(false);
+  });
+
+  it("reads a reading's blocks one at a time: a malformed block is null and the rest stand", async () => {
+    await writeInsightSnapshots(ctx.call, [
+      insight("northwind-1", "northwind.example", "2026-07-05T04:00:00.000Z", {
+        // No observedAt: not a product block.
+        product: { source: "posthog", funnels: [] },
+        // A window that ends before it starts.
+        channels: { ...CHANNELS, windowStart: "2026-07-03", windowEnd: "2026-06-28" },
+        items: [{ key: "query-gap", kind: "discovery", title: "A query with no page" }],
+      }),
+      insight("pebble-1", "pebble.example", "2026-07-05T04:00:00.000Z", {
+        product: {
+          ...PRODUCT,
+          funnels: [funnel("signup", "Sign up", null)],
+          vitals: null,
+          exceptions: { ...WINDOW, total: 0, truncated: false, noise: null, top: [] },
+          checks: [],
+        },
+        channels: { ...CHANNELS, rows: [{ channel: "Direct", sessions: "many", share: 0.4 }] },
+      }),
+    ]);
+
+    const cards = await cardsOf();
+    const northwind = cards.get("northwind.example")!;
+    expect(northwind.product).toBeNull();
+    expect(northwind.channels).toBeNull();
+    expect(northwind.findings).toEqual([{ key: "query-gap", kind: "discovery", title: "A query with no page" }]);
+
+    const pebble = cards.get("pebble.example")!;
+    expect(pebble.product).toEqual({
+      observedAt: "2026-07-04",
+      // A rule the reading did not run is not collected, never clear.
+      speed: "not-collected",
+      worstSpeed: null,
+      errors: "not-collected",
+      // PostHog captured no exceptions at all: a counted zero.
+      errorPeople: 0,
+      jsErrorFinding: false,
+      funnel: { name: "Sign up", largestDrop: null },
+    });
+    // No row survived: no split, not an empty one.
+    expect(pebble.channels).toBeNull();
+    expect(pebble.findings).toEqual([]);
+  });
+
+  it("treats a snapshot that fails the executive gate as no reading", async () => {
+    const wrong = insight("meadow-v2", "meadow.example", "2026-07-05T04:00:00.000Z", { product: PRODUCT, channels: CHANNELS });
+    await writeInsightSnapshots(ctx.call, [{ ...wrong, payload: wrong.payload.replace('"schemaVersion":1', '"schemaVersion":2') }]);
+
+    const meadow = (await cardsOf()).get("meadow.example")!;
+
+    expect(meadow.product).toBeNull();
+    expect(meadow.channels).toBeNull();
+    expect("findings" in meadow).toBe(false);
+  });
+
+  it("compares each site's newest code report with the one about 30 days before it", async () => {
+    await storeCodebaseReports(ctx.call, [
+      ...weeklyStoredReports("meadow.example", "2026-07-04"),
+      // One report, months old, its line count unreadable.
+      {
+        asset: "northwind.example",
+        date: "2026-03-01",
+        report: { ...codebaseReport("northwind.example", "2026-03-01"), measures: { code_lines: "many", files: 12 } },
+      },
+    ]);
+
+    const cards = await cardsOf();
+
+    // Weekly reports: 28 days back is nearer 30 than 35, and grew 2,400 lines on 45,810.
+    expect(cards.get("meadow.example")!.codebase).toEqual({
+      date: "2026-07-04",
+      commit: commitOf(1),
+      codeLines: 48_210,
+      growthPercent30d: 5.2,
+      comparedDays: 28,
+    });
+    expect(cards.get("northwind.example")!.codebase).toEqual({
+      date: "2026-03-01",
+      commit: commitOf(1),
+      codeLines: null,
+      growthPercent30d: null,
+      comparedDays: null,
+    });
+    expect(cards.get("pebble.example")!.codebase).toBeNull();
+  });
+
+  it("counts each site's open watches and names its newest verdict", async () => {
+    const window = (id: string, asset: string, registeredAt: string, closed?: { outcome: string; at: string }) =>
+      storeWatchWindow(ctx.call, {
+        id, asset, ref: `deploy-${id}`, registeredAt, baselineStart: "2026-05-01",
+        baselineEnd: registeredAt.slice(0, 10), offsets: [7, 14, 28], read: closed ? [7, 14] : [7], closed: closed ?? null,
+      });
+    await window("w-open-1", "meadow.example", "2026-06-20T10:00:00.000Z");
+    await window("w-open-2", "meadow.example", "2026-06-25T10:00:00.000Z");
+    await window("w-closed-old", "meadow.example", "2026-05-01T10:00:00.000Z", { outcome: "kill_confirmed", at: "2026-05-29T04:00:00.000Z" });
+    await window("w-closed-new", "meadow.example", "2026-05-20T10:00:00.000Z", { outcome: "ship_confirmed", at: "2026-06-17T04:00:00.000Z" });
+    await window("w-open-3", "northwind.example", "2026-07-01T10:00:00.000Z");
+
+    const cards = await cardsOf();
+
+    expect(cards.get("meadow.example")!.watches).toEqual({
+      open: 2,
+      latest: {
+        id: "w-closed-new",
+        ref: "deploy-w-closed-new",
+        outcome: "ship_confirmed",
+        // Closed before its last check was read.
+        nextCheckDate: "2026-06-17",
+        closedAt: "2026-06-17T04:00:00.000Z",
+      },
+    });
+    expect(cards.get("northwind.example")!.watches).toEqual({ open: 1, latest: null });
+    expect(cards.get("pebble.example")!.watches).toBeNull();
+  });
+
+  it("reads each source once for every site", async () => {
+    await writeInsightSnapshots(ctx.call, [
+      insight("meadow-1", "meadow.example", "2026-07-05T04:00:00.000Z", { product: PRODUCT }),
+      insight("northwind-1", "northwind.example", "2026-07-05T04:00:00.000Z", { product: PRODUCT }),
+    ]);
+    await storeCodebaseReports(ctx.call, [
+      ...weeklyStoredReports("meadow.example", "2026-07-04", 2),
+      ...weeklyStoredReports("pebble.example", "2026-07-04", 2),
+    ]);
+    const statements: string[] = [];
+
+    const cards = await cardsOf(recordingStore(ctx.call, statements));
+
+    expect(cards.get("northwind.example")!.product).not.toBeNull();
+    expect(cards.get("pebble.example")!.codebase).not.toBeNull();
+    expect(statements.filter((sql) => sql === CARD_INSIGHTS_SQL)).toHaveLength(1);
+    expect(statements.filter((sql) => sql === CARD_CODEBASE_SQL)).toHaveLength(1);
+    expect(statements.filter((sql) => sql === PORTFOLIO_WATCH_WINDOWS_SQL)).toHaveLength(1);
+    expect(statements.filter((sql) => sql.includes("noticeos.asset_insight_snapshots"))).toHaveLength(1);
+    expect(statements.filter((sql) => sql.includes("codebase_reports"))).toHaveLength(1);
   });
 });

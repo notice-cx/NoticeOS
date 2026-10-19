@@ -16,13 +16,17 @@ change takes a week instead of an hour.
 
 The site's **Codebase** tab records the code's size and four of its costs over
 time, beside the site's visitors, so a change in the code can be read next to a
-change in use. It records counts. It gives no score and no grade.
+change in use. Under them it shows three checks the site's own workflow runs:
+whether the build passed, whether the tests passed and how many packages have a
+known vulnerability. It records counts and passes. It gives no score and no
+grade.
 
 ## The measures, and why these
 
-One report holds up to twenty measures (`CODEBASE_MEASURES` in
+One report holds up to twenty-three measures (`CODEBASE_MEASURES` in
 `packages/contract/src/codebase-measures.ts`, which also holds the label and
-the one-sentence meaning the Tower shows for each). The tab leads with five.
+the one-sentence meaning the Tower shows for each). The tab leads with five
+counted from the files, then a row of three checks the sender passes in.
 
 | Figure on the tab | Measures | Tool |
 |---|---|---|
@@ -53,6 +57,24 @@ These were chosen because each one:
 Tests are measured apart from the code: `code_lines` excludes test files, so a
 week of new tests does not read as growth, and `test_ratio` can exceed 1.
 
+### The three checks the sender passes in
+
+| Figure on the tab | Measure | Unit | Where it comes from |
+|---|---|---|---|
+| **Build** | `build_passed` | `pass`: 1 passed, 0 failed | the outcome of the workflow's build step |
+| **Tests** | `tests_passed` | `pass`: 1 passed, 0 failed | the outcome of the workflow's test step |
+| **Vulnerable packages** | `vulnerable_dependencies` | `count` | the count from the workflow's package audit, such as `npm audit` |
+
+These are the exception to the first reason above: a build, a test run and an audit
+need the project's own toolchain, so the image never runs them. The sender runs
+them in its own workflow and passes each result to the image, as the action's
+`build-passed`, `tests-passed` and `vulnerable-dependencies` inputs or as
+`--measure key=value` on `measure.mjs` and `pnpm os:codebase-report`. A step
+that was skipped or cancelled sends nothing, and its figure is unmeasured. A
+pass has no size to compare with a month before, so the tab shows the latest
+result as **Passed** or **Failed**, with how many of the last 30 days' reports
+passed, such as "4 of 5 reports passed in 30 days".
+
 ## Beside the visitors
 
 The sentence at the top of the tab sets the code's change over 30 days next to
@@ -71,7 +93,8 @@ together; whether one caused the other is outside what this view measures
 Every measure in the envelope is optional. A measure a tool did not produce is
 left out, never written as 0: jscpd's unused-code check covers JavaScript,
 TypeScript and Python only, unused packages are not measured by any tool in the
-image, and a shallow checkout has no 30-day history. The report lists each
+image, a shallow checkout has no 30-day history, and the three checks are
+absent unless the sender passes them in. The report lists each
 absent measure under `unmeasured` with the sentence the Tower shows beside
 **Not measured**.
 
@@ -113,7 +136,7 @@ report from a month before yet". `pickComparisonReport` makes that choice for
 both the alert rules and the Tower's figures, so an alert and the figure beside
 it compare the same two reports.
 
-Four rules run on every accepted report, in the same transaction that stores it
+Five rules run on every accepted report, in the same transaction that stores it
 (`workers/ingest/src/codebase.ts`), with the thresholds in
 `config/constants.json` under `codebase_rules`, store first:
 
@@ -123,17 +146,20 @@ Four rules run on every accepted report, in the same transaction that stores it
 | `codebase-duplication` | warn, opportunity | at least 8% of the code is repeated | "8.4% of the code is repeated." |
 | `codebase-unused` | info, opportunity | unused files plus unused packages reach 10 | "14 files and 3 packages are not used." |
 | `codebase-complexity` | info, opportunity | at least 5 more hard-to-change functions than the comparison report | "7 more functions became hard to change in 30 days." |
+| `codebase-vulnerabilities` | info, opportunity | at least 1 package has a known vulnerability, as the sender's audit counted | "3 packages have a known vulnerability." |
 
 - Growth needs both conditions: on a small repository a few added lines are a
   large percent, and on a large one a routine month is many lines.
-- Repetition and unused code are levels, read from the latest report alone;
-  growth and complexity are changes and need a comparison report, so a newly
-  measured site raises neither for its first four weeks.
+- Repetition, unused code and vulnerable packages are levels, read from the
+  latest report alone; growth and complexity are changes and need a comparison
+  report, so a newly measured site raises neither for its first four weeks.
 - Unused shared pieces (`unused_exports`) are on the **Unused code** figure and
   in its findings, and are not counted by the rule.
+- A vulnerable-packages threshold below 1 reads as 1, so a report with no
+  vulnerable package never raises the alert.
 - Growth is of kind anomaly: it records a change larger than its thresholds.
-  The other three are of kind opportunity: each names work that would lower
-  the cost of later changes.
+  The other four are of kind opportunity: each names work that would lower
+  the cost of later changes or remove a known flaw.
 
 Each rule first resolves its own open alert for the site, then raises a new one
 if it fires, so a site holds at most one open alert per rule and the next report
@@ -193,7 +219,7 @@ envelope, the route, the store and the tab stay as they are.
 | Measures, labels, comparison, rules | `packages/contract/src/codebase-measures.ts` |
 | Measurement image | `deploy/codebase-report/` |
 | GitHub Action | `.github/actions/codebase-report/` |
-| Local command | `scripts/codebase-report.mjs` |
+| Local command | `scripts/codebase-report.mjs` (`--measure` passes the three checks to the image) |
 | Route, store write, rules | `workers/ingest/src/routes/codebase-report.ts`, `workers/ingest/src/codebase.ts` |
 | Table and current view | `db/postgres/migrations/0016_codebase_reports.sql` (`noticeos.codebase_reports`, `noticeos.current_codebase_reports`) |
 | Tower read and tab | `apps/tower/worker/codebase-history.ts`, `apps/tower/src/routes/asset-detail/CodebaseTab.tsx`, `apps/tower/src/routes/asset-detail/codebase-measures.ts` |

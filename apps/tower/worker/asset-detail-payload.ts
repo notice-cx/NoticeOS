@@ -53,6 +53,8 @@ import type {
   AssetInfo,
   AssetStatus,
   BookingState,
+  ChannelRow,
+  ChannelSnapshot,
   ClaritySnapshot,
   DataForSeoQueryVisibility,
   DataForSeoQueryVisibilityRow,
@@ -66,7 +68,9 @@ import type {
   HygieneCheckHistory,
   HygieneCheckId,
   HygieneHistory,
+  HygienePageSpeed,
   HygieneReading,
+  HygieneSecurityHeaders,
   HygieneStatus,
   LedgerFamilyAmount,
   LedgerPeriod,
@@ -827,6 +831,61 @@ function parseClaritySnapshot(value: unknown): ClaritySnapshot | null {
     windowHours: 72, truncated: block.truncated, page, unattributedSessions: block.unattributedSessions };
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** A calendar date the producer wrote as `YYYY-MM-DD`, rejecting 2026-02-30. */
+function isIsoDate(value: unknown): value is string {
+  return (
+    typeof value === "string" &&
+    ISO_DATE.test(value) &&
+    Number.isFinite(Date.parse(`${value}T00:00:00.000Z`)) &&
+    new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value
+  );
+}
+
+/** The visitors-by-channel block, whole or not at all: one malformed row
+ * nulls the block, because a split missing a channel shows wrong shares. */
+function parseChannelSnapshot(value: unknown): ChannelSnapshot | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const block = value as Partial<Record<keyof ChannelSnapshot, unknown>>;
+  if (
+    !isIsoDate(block.windowStart) ||
+    !isIsoDate(block.windowEnd) ||
+    block.windowStart > block.windowEnd ||
+    !Array.isArray(block.provisionalDates) ||
+    !block.provisionalDates.every(isIsoDate) ||
+    !Array.isArray(block.rows) ||
+    block.rows.length === 0
+  ) {
+    return null;
+  }
+  const rows: ChannelRow[] = [];
+  for (const row of block.rows as unknown[]) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+    const { channel, sessions, share } = row as Partial<Record<keyof ChannelRow, unknown>>;
+    if (
+      typeof channel !== "string" ||
+      channel.trim() === "" ||
+      typeof sessions !== "number" ||
+      !Number.isFinite(sessions) ||
+      sessions < 0 ||
+      typeof share !== "number" ||
+      !Number.isFinite(share) ||
+      share < 0 ||
+      share > 1
+    ) {
+      return null;
+    }
+    rows.push({ channel, sessions, share });
+  }
+  return {
+    windowStart: block.windowStart,
+    windowEnd: block.windowEnd,
+    provisionalDates: [...block.provisionalDates],
+    rows,
+  };
+}
+
 function parseExecutiveSnapshot(json: string | null, asset: string): ExecutiveSnapshot | null {
   if (!json) return null;
   try {
@@ -885,6 +944,7 @@ function parseExecutiveSnapshot(json: string | null, asset: string): ExecutiveSn
       serpPanel: parseSerpPanel((snapshot as { serpPanel?: unknown }).serpPanel),
       product: parseProductSnapshot((snapshot as { product?: unknown }).product),
       clarity: parseClaritySnapshot((snapshot as { clarity?: unknown }).clarity),
+      channels: parseChannelSnapshot((snapshot as { channels?: unknown }).channels),
     };
   } catch {
     return null;
@@ -1323,11 +1383,24 @@ const HYGIENE_WINDOW_DAYS = 90;
  * widens the vocabulary without this list.
  */
 export const HYGIENE_CHECK_IDS: readonly HygieneCheckId[] = [
+  "crux-vitals",
   "html-depth",
   "page-structure",
   "robots-ai-access",
+  "security-headers",
   "sitemap",
 ];
+
+/** The headers the security-headers check records, in its order
+ * (`SECURITY_HEADERS` in workers/ingest/src/hygiene.ts). */
+const SECURITY_HEADER_NAMES = [
+  "strict-transport-security",
+  "content-security-policy",
+  "x-content-type-options",
+  "x-frame-options",
+  "referrer-policy",
+  "permissions-policy",
+] as const;
 
 /** The site-health rows since a date, in the order the section splits them;
  * `COLLATE "C"` keeps byte order. */
@@ -1343,6 +1416,54 @@ export const HYGIENE_HISTORY_SQL = `SELECT check_id AS "checkId", observed_at AS
 /** The watched-bot map the robots check stores, and nothing else it stores. */
 interface HygieneRobotsDetail {
   bots?: Record<string, unknown>;
+}
+
+function parsedDetail(json: string): Record<string, unknown> | null {
+  try {
+    const value = JSON.parse(json) as unknown;
+    return value !== null && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : null;
+  } catch {
+    return null;
+  }
+}
+
+const finiteOrNull = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
+
+/** The newest security-headers row that judged a page: it carries a header map. */
+function newestHeaders(rows: readonly HygieneRow[]): HygieneSecurityHeaders | null {
+  for (const row of rows.filter((r) => r.checkId === "security-headers").reverse()) {
+    const map = parsedDetail(row.detailJson)?.headers;
+    if (!map || typeof map !== "object" || Array.isArray(map)) continue;
+    const served = map as Record<string, unknown>;
+    return {
+      observedAt: row.observedAt,
+      headers: SECURITY_HEADER_NAMES.map((name) => ({ name, present: typeof served[name] === "string" })),
+    };
+  }
+  return null;
+}
+
+/** The newest page-speed row as the panel reads it. */
+function newestPageSpeed(rows: readonly HygieneRow[]): HygienePageSpeed | null {
+  const row = rows.filter((r) => r.checkId === "crux-vitals").at(-1);
+  if (!row) return null;
+  const detail = parsedDetail(row.detailJson) ?? {};
+  const formFactor = detail.formFactor === "PHONE" || detail.formFactor === "DESKTOP" ? detail.formFactor : null;
+  const period = detail.collectionPeriod;
+  const dates = period && typeof period === "object" && !Array.isArray(period)
+    ? (period as Record<string, unknown>)
+    : null;
+  return {
+    observedAt: row.observedAt,
+    formFactor,
+    vitals: formFactor === null
+      ? null
+      : { lcp: finiteOrNull(detail.lcp), inp: finiteOrNull(detail.inp), cls: finiteOrNull(detail.cls) },
+    collectionPeriod: dates && typeof dates.firstDate === "string" && typeof dates.lastDate === "string"
+      ? { firstDate: dates.firstDate, lastDate: dates.lastDate }
+      : null,
+  };
 }
 
 type HygieneRow = {
@@ -1438,6 +1559,10 @@ async function readHygieneHistory(
     sitemap: hygieneHistoryOf("sitemap", byCheck.get("sitemap") ?? []),
     bots,
     windowDays: HYGIENE_WINDOW_DAYS,
+    securityHeaders: hygieneHistoryOf("security-headers", byCheck.get("security-headers") ?? []),
+    headers: newestHeaders(rows),
+    pageSpeedHistory: hygieneHistoryOf("crux-vitals", byCheck.get("crux-vitals") ?? []),
+    pageSpeed: newestPageSpeed(rows),
   };
 }
 
