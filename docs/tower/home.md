@@ -62,7 +62,7 @@ The view chosen on the first run, or later in [Settings → General → **Your v
 
 In **I run the business**, Home opens on **Site health**, with the month's money and **Decide** under it and **The agents · this week** further down:
 
-![The Home page in the synthetic demo, in the I run the business view: the summary starting 1 of 5 sites are fine, Site health with five dots and the problems in words for each of five sites, Revenue, October marked so far over The agents · this week, and Decide with 5 decisions waiting, Approve on each approval and Answer on each question.](../images/tower-home-business.webp)
+![The Home page in the synthetic demo, in the I run the business view: the summary starting 1 of 5 sites are fine, Site health with five dots and the problems in words for each of five sites, Revenue, October marked so far with Projected $6,132 and Sep total $8,594, The agents · this week with Building 10, Finished 4 and Proven to work 1, and Decide with 5 decisions waiting and Approve on the first two.](../images/tower-home-business.webp)
 
 In **I build the product**, Home opens on the month's money beside **Worth a look**, then **Where visitors come from · 4 weeks** beside **Problems**, with **Decide** and **Sites** further down:
 
