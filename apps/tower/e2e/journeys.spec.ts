@@ -3122,6 +3122,9 @@ const MANY_SITE_WORDS =
   /\bportfolio\b|\bassets?\b|\bevery site\b|\ball sites\b|\beach site\b|\bacross (?:all |your )?sites\b|\b1 sites\b|\bsite by site\b/gi;
 
 test("a one-site install reads as one site: no portfolio words, and no filter with one choice", async ({ page }) => {
+  // One connect flow and eleven page loads: close to the default minute on a
+  // shared runner.
+  test.setTimeout(120_000);
   await createAsset(page);
   await page.goto(`/integrations?connect=bing-webmaster&asset=${JOURNEY_ASSET}`);
   const panel = page.locator('[data-connect-panel="bing-webmaster"]');
