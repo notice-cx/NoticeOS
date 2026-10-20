@@ -83,6 +83,16 @@ function metricLow(metric: string | null): string {
  * alert or by the card's own clock. */
 export const REPORT_LATE_MARK = "Report late";
 
+/** Whole hours since the site's last report arrived, on the clock the screen
+ * is read on; null without a readable arrival. A site's health row and its
+ * "No nightly report in …h" line both age from this, so they agree. */
+export function reportAgeHours(receivedAt: string | null, nowMs: number): number | null {
+  const receivedMs = receivedAt === null ? Number.NaN : Date.parse(receivedAt);
+  return Number.isFinite(receivedMs) ? Math.max(0, Math.floor((nowMs - receivedMs) / HOUR_MS)) : null;
+}
+
+const reportLateLine = (hours: number) => `No nightly report in ${hours}h`;
+
 /** An alert's mark, by rule id. Every label is three words or fewer. */
 export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "metric" | "kind" | "message">): string {
   const metric = typeof item.ruleInputs?.metric === "string" ? item.ruleInputs.metric : item.metric;
@@ -206,6 +216,12 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
       for (const id of ids) reportAlerted.add(id);
     }
     const shownMembers = members?.filter((member) => ids.includes(member.asset));
+    // A late-report alert's headline holds the age when it fired; the line is
+    // aged now, from the site's last arrival, as the site's health row is.
+    const lateHours =
+      item.ruleId === "ingest-freshness" && item.ruleInputs?.state === "stale" && ids.length === 1
+        ? reportAgeHours(byId.get(ids[0]!)?.pulseReceivedAt ?? null, nowMs)
+        : null;
     issues.push({
       key: `alert-${item.id}`,
       flagId: item.id,
@@ -214,7 +230,7 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
       site: siteLabel(names),
       // Narrowed to one site, the sentence names that site, not the first
       // member the alert was grouped under.
-      line: translateAlert({
+      line: lateHours !== null ? reportLateLine(lateHours) : translateAlert({
         ...item,
         ...(ids.length === 1 ? { asset: ids[0]!, assetDisplayName: names[0]! } : {}),
         members: shownMembers && shownMembers.length > 1 ? shownMembers : undefined,
@@ -256,7 +272,7 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
         severity: "warn",
         assets: [asset.id],
         site: asset.displayName,
-        line: `No nightly report in ${Math.floor((nowMs - receivedMs) / HOUR_MS)}h`,
+        line: reportLateLine(reportAgeHours(received, nowMs) ?? 0),
         mark: REPORT_LATE_MARK,
         since: new Date(receivedMs + CADENCE_HOURS.pulse * AMBER_MULTIPLIER * HOUR_MS).toISOString(),
         conditions: ["signal-freshness"],

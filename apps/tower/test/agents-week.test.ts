@@ -122,6 +122,14 @@ describe("agentsWeek lines", () => {
     ]);
   });
 
+  it("lists every site's latest bet when the TV asks for every line", () => {
+    const cards = ["a", "b", "c", "d"].map((id, index) =>
+      card(`${id}.example.com`, { displayName: id.toUpperCase(), watches: watches(0, { outcome: "ship_confirmed", closedAt: `2026-10-1${index}T09:00:00.000Z` }) }),
+    );
+    expect(agentsWeek(cards, null, NOW).latest).toHaveLength(3);
+    expect(agentsWeek(cards, null, NOW, Infinity).latest.map((line) => line.site)).toEqual(["D", "C", "B", "A"]);
+  });
+
   it("puts each outcome in plain words", () => {
     const line = (latest: Partial<NonNullable<CardWatches["latest"]>>) =>
       agentsWeek([card("a.example.com", { watches: watches(0, latest) })], null, NOW).latest[0]!.line;

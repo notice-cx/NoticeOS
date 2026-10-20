@@ -2,7 +2,7 @@ import { useCallback, useMemo, type CSSProperties } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { DashboardConfig } from "@shared/dashboard";
 import { DEFAULT_WALL_LAYOUT, WALL_PRESETS, parseWallConfig, wallLayoutWidgets, type WallLayout } from "@shared/wall-layout";
-import { DEFAULT_VIEW, isViewId, type ViewId } from "@shared/views";
+import { DEFAULT_VIEW, isViewId, viewSpec, type ViewId } from "@shared/views";
 import { ReadFailed } from "@/components/ReadFailed";
 import { RouteLoading } from "@/components/RouteLoading";
 import { WallCanvas } from "@/components/WallCanvas";
@@ -59,6 +59,12 @@ export function demoDrawnLayout(dashboard: Pick<DashboardConfig, "wall" | "view"
     if (widget.type === "sites") widget.settings = { ...widget.settings, pulseMetrics: structuredClone(pulseMetrics) };
   }
   return layout;
+}
+
+/** The view whose words the TV uses: the demo visitor's pick, else the
+ * workspace's view, which also picks the preset `drawnLayout` falls back to. */
+export function tvViewOf(dashboard: Pick<DashboardConfig, "view">, picked: ViewId | null): ViewId {
+  return picked ?? dashboard.view?.default ?? DEFAULT_VIEW;
 }
 
 /** The view a demo visitor asked the TV for: a `?view=` link first, then their own pick. */
@@ -142,6 +148,7 @@ export function WallRoute() {
         ga4RealtimeError={realtime.isError}
         lastGood={isError}
         connections={{ credentials, items }}
+        wordLevel={viewSpec(tvViewOf(data.dashboard, tvView)).wordLevel}
       />
     </div>
   );

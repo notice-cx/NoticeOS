@@ -146,7 +146,7 @@ describe("WallFactory", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine SiteWorked");
   });
 
-  it("keeps the figures and the lines at their own height, together in the middle of the widget", () => {
+  it("starts the figures under the heading and the lines under them, each at its own height", () => {
     render(
       <WallFactory
         week={{
@@ -163,14 +163,40 @@ describe("WallFactory", () => {
     );
     const body = document.querySelector("[data-wall-factory-body]")!;
     const classes = body.className.split(" ");
-    // Centred on the TV, one line-height apart at most.
-    expect(classes).toEqual(expect.arrayContaining(["tv:flex-1", "tv:justify-center-safe", "gap-[1lh]"]));
-    // Nothing inside grows: the figures and each card take their content's height.
+    // Top-aligned on the TV, one gap apart: nothing centres the content in a
+    // cell taller than it.
+    expect(classes).toEqual(expect.arrayContaining(["tv:flex-1", "gap-3"]));
+    expect(body.className).not.toMatch(/justify-center|justify-end|gap-\[1lh\]/);
+    // The figures keep their height; the list takes the height left, and
+    // each line in it keeps its own.
     const figures = body.querySelector("[data-wall-factory-figures]")!;
     expect(figures.className).not.toMatch(/flex-1|flex-\[/);
-    expect(body.querySelector("ul")!.className).not.toMatch(/flex-1|flex-\[/);
+    expect(body.querySelector("ul")!.className.split(" ")).toEqual(expect.arrayContaining(["tv:flex-1", "tv:min-h-0", "tv:overflow-hidden"]));
+    expect(body.querySelector("ul")!.className).not.toMatch(/justify-center/);
     for (const line of body.querySelectorAll("[data-wall-factory-line]")) {
+      expect(line.className.split(" ")).toContain("shrink-0");
       expect(line.className).not.toMatch(/flex-1|flex-\[|justify-center/);
+    }
+  });
+
+  it("draws every line the week has and hides the ones that do not fit whole", () => {
+    const latest = ["One Site", "Two Site", "Three Site", "Four Site"].map((site) => ({ title: "Latest bet", site, line: "Worked" }));
+    // The list is 200 px tall and each line 60 px with an 8 px gap: three fit whole.
+    const box = (top: number, height: number) => ({ top, bottom: top + height, left: 0, right: 100, width: 100, height, x: 0, y: top, toJSON: () => ({}) });
+    const spy = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      if (this.tagName === "UL") return box(0, 200) as DOMRect;
+      const index = [...(this.parentElement?.children ?? [])].indexOf(this);
+      return box(index * 68, 60) as DOMRect;
+    });
+    try {
+      render(<WallFactory week={{ building: 1, shipped: 1, proven: 1, watching: 0, latest }} />);
+      const lines = [...document.querySelectorAll("[data-wall-factory-line]")];
+      expect(lines).toHaveLength(4);
+      expect(lines.map((line) => line.hasAttribute("data-wall-factory-cut"))).toEqual([false, false, false, true]);
+      expect(lines[3]).toHaveAttribute("aria-hidden", "true");
+      expect(lines[3]).toHaveClass("invisible");
+    } finally {
+      spy.mockRestore();
     }
   });
 

@@ -8,6 +8,7 @@
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
 import { NO_READS, type ConnectionReads } from "@shared/connection-status";
+import type { WordLevel } from "@shared/views";
 import type { WallPayload } from "@shared/wall";
 import {
   isWallColumn,
@@ -80,6 +81,8 @@ export interface WallCanvasProps {
   /** The editor's slot. Whatever it returns replaces the widget in its own
    * grid track. The TV passes nothing. */
   editing?: (slot: WallWidgetSlot) => ReactNode;
+  /** The words of the view the TV is drawn for; the revenue widget reads it. */
+  wordLevel?: WordLevel;
 }
 
 /** The one-second tick the strip's time, meeting and countdown share. */
@@ -147,6 +150,7 @@ export function WallCanvas({
   lastGood = false,
   connections,
   editing,
+  wordLevel,
 }: WallCanvasProps) {
   // A site whose TV switch is off is in no widget, whatever the widget's own
   // site list says. Revenue alone keeps the whole portfolio: hiding a site
@@ -170,7 +174,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} wordLevel={wordLevel} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.
@@ -246,8 +250,8 @@ export function WallCanvas({
       }
       case "factory":
         // The Wall's payload carries no task events, so the lines are the
-        // sites' latest measured bets.
-        return <WallFactory week={agentsWeek(data.assets, null, nowMs)} />;
+        // sites' latest measured bets: every one, as many as fit drawn.
+        return <WallFactory week={agentsWeek(data.assets, null, nowMs, Infinity)} />;
       case "channels":
         return <WallChannels assets={filterWallAssets(data.assets, widget.settings)} />;
     }

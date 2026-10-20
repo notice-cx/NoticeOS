@@ -1,6 +1,6 @@
-// The agents' week in four counts and up to three lines: what they are
+// The agents' week in four counts and its newest lines: what they are
 // building, what they finished this week, what was proven to work, what is
-// still being watched. Read by Home; nothing here fetches.
+// still being watched. Read by Home and the TV; nothing here fetches.
 
 import type { WatchOutcome } from "@shared/asset-detail";
 import type { AssetCard, CardWatches } from "@shared/wall";
@@ -57,7 +57,9 @@ function evidenceLine(evidence: string): string {
   return text.length > 0 ? text.join(" · ") : "Done";
 }
 
-export function agentsWeek(cards: readonly AssetCard[], work: WorkPayload | null, nowMs: number): AgentsWeek {
+/** `lines` caps `latest`: Home's three by default; the TV asks for every line
+ * and draws as many as fit its widget. */
+export function agentsWeek(cards: readonly AssetCard[], work: WorkPayload | null, nowMs: number, lines = AGENTS_WEEK_LINES): AgentsWeek {
   const withWork = cards.filter((card) => card.work !== null);
   const building = withWork.length === 0 ? null : withWork.reduce((sum, card) => sum + card.work!.inProgress, 0);
   // A site without a task project has no work to count; one with a project
@@ -93,6 +95,6 @@ export function agentsWeek(cards: readonly AssetCard[], work: WorkPayload | null
   }
 
   dated.sort((a, b) => b.at - a.at);
-  const latest = [...dated.map(({ at: _at, ...line }) => line), ...pending].slice(0, AGENTS_WEEK_LINES);
+  const latest = [...dated.map(({ at: _at, ...line }) => line), ...pending].slice(0, lines);
   return { building, shipped, proven, watching, latest };
 }

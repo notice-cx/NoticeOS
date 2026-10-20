@@ -238,9 +238,10 @@ describe("the views draw their modules", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "channels", "gaps", "problems", "decide", "sites"]);
+    // Problems under money and channels, so the left column is not the short one.
+    expect(modulesDrawn(container)).toEqual(["money", "channels", "problems", "gaps", "decide", "sites"]);
     expect(rowsOf(container)).toEqual([
-      { wide: ["money", "channels"], narrow: ["gaps", "problems", "decide"] },
+      { wide: ["money", "channels", "problems"], narrow: ["gaps", "decide"] },
       { full: "sites" },
     ]);
     expectContentHeight(container);

@@ -17,7 +17,9 @@ import type { HomeModuleId } from "@shared/views";
 const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agents"]);
 
 /** How wide a module is drawn outside Everything: a row of its own, the
- * left column of a row (eight of twelve) or the right one (four). */
+ * left column of a row (eight of twelve) or the right one (four). Problems
+ * is drawn outside Everything only in the product view, where it sits under
+ * money and channels so the two columns end near each other. */
 export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
   health: "full",
   sites: "full",
@@ -26,8 +28,8 @@ export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
   factory: "wide",
   channels: "wide",
   sources: "wide",
+  problems: "wide",
   gaps: "narrow",
-  problems: "narrow",
   decide: "narrow",
   agents: "narrow",
   yesterday: "narrow",

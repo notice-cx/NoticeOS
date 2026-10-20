@@ -180,6 +180,22 @@ describe("a late or missing nightly report", () => {
     expect(techHealth({ ...site, pulseReceivedAt: null }, [stale], NOW).report?.note).toBe("No nightly report yet");
   });
 
+  it("ages the open alert's line and the row from the same arrival, on the same clock", () => {
+    // The alert fired a day ago, when the report was 25 hours old, and has
+    // stayed open; the report is now 49 hours old.
+    const site = late(49);
+    const alert = {
+      id: 7, asset: site.id, assetDisplayName: site.displayName, severity: "error" as const, kind: "anomaly" as const,
+      message: "no pulse in 25h (> 24h threshold)", metric: "pulse", ruleId: "ingest-freshness",
+      ruleInputs: { rule: "ingest-freshness", state: "stale", lastReceivedAt: site.pulseReceivedAt, thresholdHours: 24, ageHours: 25 },
+      firedAt: new Date(NOW - 24 * HOUR).toISOString(), firstFiredAt: new Date(NOW - 24 * HOUR).toISOString(),
+      correlatedChanges: [], occurrences: 1,
+    };
+    const issues = wallIssues({ assets: [site], attention: [alert], connections: NO_READS, nowMs: NOW });
+    expect(issues).toEqual([expect.objectContaining({ key: "alert-7", mark: "Report late", line: "No nightly report in 49h" })]);
+    expect(techHealth(site, issues, NOW).report?.note).toBe("No report for 2 days");
+  });
+
   it("stays clear while the report is on time, and is the summary's lead", () => {
     const fresh = late(10);
     expect(issuesFor(fresh)).toEqual([]);

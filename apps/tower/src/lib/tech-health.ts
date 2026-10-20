@@ -6,7 +6,7 @@ import { UPTIME_LANE_ID } from "@shared/integrations";
 import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import type { StateTone } from "@/components/StateChip";
-import { alertMark, REPORT_LATE_MARK, type WallIssue } from "@/lib/wall-issues";
+import { alertMark, REPORT_LATE_MARK, reportAgeHours, type WallIssue } from "@/lib/wall-issues";
 import { fourWeeks } from "@/lib/wall-sites";
 
 export type TechFactKey = "reachable" | "speed" | "errors" | "search" | "code";
@@ -126,18 +126,16 @@ function code(card: AssetCard): TechFact {
   return { key: "code", state: "ok", word: "Steady", note: null };
 }
 
-const HOUR_MS = 3_600_000;
-
 /** "No report for 2 days", or in hours under two days; without a clock or a
  * last report, that no recent report arrived. `wallIssues` decides lateness
- * ("Report late"), so the row and Needs you can never disagree. */
+ * ("Report late") and ages its line by the same `reportAgeHours`, so the row
+ * and Needs you can never disagree. */
 function report(card: AssetCard, mine: readonly WallIssue[], nowMs: number | null): TechReport | null {
   if (!mine.some((issue) => issue.mark === REPORT_LATE_MARK)) return null;
-  const receivedMs = card.pulseReceivedAt === null ? Number.NaN : Date.parse(card.pulseReceivedAt);
-  if (nowMs === null || !Number.isFinite(receivedMs)) {
+  const hours = nowMs === null ? null : reportAgeHours(card.pulseReceivedAt, nowMs);
+  if (hours === null) {
     return { key: "report", state: "warn", word: "Report late", note: card.pulseReceivedAt === null ? "No nightly report yet" : "No recent nightly report" };
   }
-  const hours = Math.max(0, Math.floor((nowMs - receivedMs) / HOUR_MS));
   const days = Math.floor(hours / 24);
   const age = hours >= 48 ? `${days} days` : `${hours} ${hours === 1 ? "hour" : "hours"}`;
   return { key: "report", state: "warn", word: "Report late", note: `No report for ${age}` };

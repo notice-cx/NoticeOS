@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { CircleDollarSign } from "lucide-react";
+import type { WordLevel } from "@shared/views";
 import type { AssetCard, PortfolioBand } from "@shared/wall";
 import { DeltaChip } from "@/components/DeltaChip";
 import { ChartArea, ChartDot, ChartLine } from "@/components/surface/ChartMarks";
@@ -29,6 +30,9 @@ export interface RevenueHeroProps {
   /** The Wall's clock, which "yesterday" is asked on; this render's own when
    * absent. */
   nowMs?: number;
+  /** The words of the view the TV is drawn for: "business" calls an estimate
+   * "so far", as Home's money does; the other levels say "est.". */
+  wordLevel?: WordLevel;
 }
 
 const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
@@ -38,7 +42,8 @@ const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-mu
  * (`test/chart-series-contrast.test.ts` measures both). */
 export const MONTH_CHART_BEHIND_OPACITY = 0.6;
 
-export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
+export function RevenueHero({ portfolio, assets, nowMs, wordLevel = "operational" }: RevenueHeroProps) {
+  const business = wordLevel === "business";
   const model = monthRevenue(portfolio, assets);
   const yesterday = yesterdayTotal(assets, nowMs ?? Date.now());
 
@@ -71,8 +76,9 @@ export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
     >
       <h2 className={eyebrow}>
         {month} revenue
-        {/* The one word that keeps an estimate from reading as booked money. */}
-        {model.revenue !== null && model.state === "forecast" ? " · estimated" : null}
+        {/* The one word that keeps an estimate from reading as booked money;
+            the business words carry it as "so far" beside yesterday's figure. */}
+        {model.revenue !== null && model.state === "forecast" && !business ? " · estimated" : null}
       </h2>
       {model.revenue === null ? (
         <div className="flex flex-wrap gap-x-4 gap-y-1 text-wall-body text-muted-foreground tabular-nums">
@@ -102,14 +108,14 @@ export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
           </span>
         ) : null}
         {pace ? (
-          <PaceLine pace={pace} yesterday={yesterday} />
+          <PaceLine pace={pace} yesterday={yesterday} business={business} />
         ) : model.waiting || yesterday ? (
           // No pace yet (a projection still learning — a new installation's
           // first three weeks — or an older ledger month): the reason, and
           // yesterday under it all the same.
           <div className="flex min-w-0 flex-1 basis-64 flex-col gap-1 pb-2 text-wall-body text-muted-foreground tabular-nums">
             {model.revenue !== null && model.waiting ? <span data-revenue-waiting>{model.waiting}</span> : null}
-            {yesterday ? <Yesterday total={yesterday} /> : null}
+            {yesterday ? <Yesterday total={yesterday} business={business} /> : null}
           </div>
         ) : null}
       </div>
@@ -118,7 +124,7 @@ export function RevenueHero({ portfolio, assets, nowMs }: RevenueHeroProps) {
   );
 }
 
-function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTotal | null }) {
+function PaceLine({ pace, yesterday, business }: { pace: MonthPace; yesterday: YesterdayTotal | null; business: boolean }) {
   const previous = formatPeriodMonth(pace.previousPeriod);
   const comparisonDirection = pace.changePercent === null ? null : pace.changePercent > 0 ? "above" : pace.changePercent < 0 ? "below" : "level with";
   return (
@@ -150,7 +156,7 @@ function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTo
         <span className="text-muted-foreground">
           {yesterday ? (
             <>
-              <Yesterday total={yesterday} />
+              <Yesterday total={yesterday} business={business} />
               {" · "}
             </>
           ) : null}
@@ -164,11 +170,12 @@ function PaceLine({ pace, yesterday }: { pace: MonthPace; yesterday: YesterdayTo
 }
 
 /**
- * Yesterday's revenue. It is the providers' estimate, so "est." follows the
- * figure in neutral ink. A site whose report is not in is left out and
- * counted ("1 of 2 sites"); with none in there is no number at all.
+ * Yesterday's revenue. It is the providers' estimate, so "est." ("so far" in
+ * the business words) follows the figure in neutral ink. A site whose report
+ * is not in is left out and counted ("1 of 2 sites"); with none in there is
+ * no number at all.
  */
-function Yesterday({ total }: { total: YesterdayTotal }) {
+function Yesterday({ total, business }: { total: YesterdayTotal; business: boolean }) {
   if (total.mixedBasis) {
     return (
       <span data-revenue-yesterday="mixed">
@@ -194,7 +201,7 @@ function Yesterday({ total }: { total: YesterdayTotal }) {
         <span className="font-semibold text-foreground" data-revenue-yesterday-figure>
           {formatUsd(total.amount, { cents: true })}
         </span>{" "}
-        est.
+        {business ? "so far" : "est."}
       </span>
       {partial ? (
         <>

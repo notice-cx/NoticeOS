@@ -62,6 +62,33 @@ describe("the revenue widget", () => {
     expect(section.textContent).toContain("August total $1,458");
   });
 
+  it("says \"so far\" in place of \"est.\" and \"estimated\" in the business words, and nothing else changes", () => {
+    const data = wallFixturePayload();
+    const draw = (wordLevel?: "business" | "operational" | "technical") => {
+      const { container, unmount } = render(<RevenueHero portfolio={data.portfolio} assets={data.assets} nowMs={NOW} wordLevel={wordLevel} />);
+      const section = container.querySelector<HTMLElement>("[data-wall-revenue]")!;
+      const words = {
+        heading: within(section).getByRole("heading").textContent,
+        yesterday: section.querySelector("[data-revenue-yesterday]")?.textContent,
+        text: section.textContent,
+      };
+      unmount();
+      return words;
+    };
+    const business = draw("business");
+    expect(business.heading).toBe("September revenue");
+    expect(business.yesterday).toBe("Sep 21 · Pacific $55.25 so far");
+    expect(business.text).not.toMatch(/est\.|estimated/i);
+    // The product and Everything words are the widget's own, unchanged.
+    for (const level of [undefined, "operational", "technical"] as const) {
+      expect(draw(level)).toEqual({
+        heading: "September revenue · estimated",
+        yesterday: "Sep 21 · Pacific $55.25 est.",
+        text: business.text!.replace("September revenue", "September revenue · estimated").replace("$55.25 so far", "$55.25 est."),
+      });
+    }
+  });
+
   it.each([
     [2, "50% below Aug"],
     [0.5, "100% above Aug"],

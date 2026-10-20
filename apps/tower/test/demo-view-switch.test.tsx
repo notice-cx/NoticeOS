@@ -25,9 +25,12 @@ vi.mock("@/hooks/useWall", () => ({
 vi.mock("@/hooks/useConnections", () => ({ useConnections: () => ({ credentials: undefined, items: null }) }));
 vi.mock("@/hooks/useGa4Realtime", () => ({ useGa4Realtime: () => ({ data: undefined, isError: false }) }));
 vi.mock("@/hooks/useCalendarUpcoming", () => ({ useCalendarUpcoming: () => ({ data: undefined, isError: false, isPending: false }) }));
-// The canvas is pinned by its own suite; here only the layout handed to it matters.
+// The canvas is pinned by its own suite; here only the layout and the words
+// handed to it matter.
 vi.mock("@/components/WallCanvas", () => ({
-  WallCanvas: ({ layout }: { layout: WallLayout }) => <pre data-testid="drawn">{JSON.stringify(layout)}</pre>,
+  WallCanvas: ({ layout, wordLevel }: { layout: WallLayout; wordLevel?: string }) => (
+    <pre data-testid="drawn" data-word-level={wordLevel}>{JSON.stringify(layout)}</pre>
+  ),
 }));
 
 import { BrowserRuntimeProvider } from "@/lib/browser-context";
@@ -143,6 +146,15 @@ describe("the demo's TV", () => {
     expect(screen.getByRole("button", { name: "I run the business" })).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("draws in each picked view's words", () => {
+    wallAt("/wall");
+    expect(screen.getByTestId("drawn")).toHaveAttribute("data-word-level", "technical");
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "I run the business" })); });
+    expect(screen.getByTestId("drawn")).toHaveAttribute("data-word-level", "business");
+    act(() => { fireEvent.click(screen.getByRole("button", { name: "I build the product" })); });
+    expect(screen.getByTestId("drawn")).toHaveAttribute("data-word-level", "operational");
+  });
+
   it("keeps the saved layout for Everything", () => {
     demoPreferences().write("view", JSON.stringify({ view: "everything", focus: [] }));
     wallAt("/wall");
@@ -195,6 +207,13 @@ describe("an installation's TV", () => {
     window.localStorage.setItem(storageKey("view"), JSON.stringify({ view: "business", focus: [] }));
     wallAt("/wall", renderStandalone);
     expect(drawn()).toEqual(WALL_PRESETS.product);
+  });
+
+  it("draws in the workspace view's words, whatever the person picked", () => {
+    state.dashboard = { wall: { layout: SAVED, history: [] }, view: { default: "business" } };
+    window.localStorage.setItem(storageKey("view"), JSON.stringify({ view: "product", focus: [] }));
+    wallAt("/wall", renderStandalone);
+    expect(screen.getByTestId("drawn")).toHaveAttribute("data-word-level", "business");
   });
 });
 
