@@ -5,9 +5,10 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoSubscriptionMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, shiftDemoMonth, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_INFERENCE_SOURCE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoSubscriptionMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, shiftDemoMonth, demoRecurringCost, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_INFERENCE_SOURCE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { demoCodebaseVerdicts } from './demo-store.mjs';
+import { demoRecurringCosts } from './demo-display.mjs';
 import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
 
 const options = { seed: 'portfolio-v1', cutoff: '2026-10-16T12:00:00.000Z', release: '1'.repeat(40) };
@@ -100,9 +101,18 @@ test('missing traffic, provisional signals and absent recorded income remain dis
   assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ads.includes(row.asset)
     ? row.family === 'ads' && row.source === 'mediavine' && row.state === 'reconciled'
     : row.family === 'subs' ? row.source === STRIPE_REVENUE_SOURCE : row.family === 'licensing' && row.source === null));
-  // Each operating bill is filed as a declared recurring cost, by a word.
-  assert.ok(scenario.ledger.filter(row => row.kind === 'cost' && row.family !== 'inference').every(row =>
-    row.source === (row.family === 'os-overhead' ? 'recurring:servers' : 'recurring:hosting')));
+  // Each operating bill is its asset's declared recurring cost, booked at its
+  // declared amount and named on Money by its statement label.
+  const bills = scenario.ledger.filter(row => row.kind === 'cost' && row.family !== 'inference');
+  assert.ok(bills.every(row => {
+    const asset = scenario.assets.find(entry => entry.id === row.asset);
+    return row.source === demoRecurringCost(asset).source && row.minor === asset.cost;
+  }));
+  assert.deepEqual([...new Set(scenario.assets.map(asset => demoRecurringCost(asset).label))],
+    ['Light Brief hosting', 'Pinwell hosting', 'Weeknight Pantry hosting', 'Trail Notes hosting', 'Fresh Rows hosting', 'App servers']);
+  assert.deepEqual(demoRecurringCosts(scenario).map(cost => [cost.id, cost.asset, cost.family, cost.amountUsdPerMonth * 100, cost.from]),
+    scenario.assets.map(asset => [demoRecurringCost(asset).id, asset.id, asset.isOs ? 'os-overhead' : 'infra', asset.cost,
+      bills.filter(row => row.asset === asset.id).map(row => row.period).sort()[0]]));
   assert.ok(scenario.ledger.some(row => row.family === 'subs'));
   const unsourced = { ...scenario, ledger: scenario.ledger.map(({ source: _source, ...row }) => row) };
   assert.doesNotMatch(JSON.stringify(unsourced), /MRR|Stripe|churn/iu);
@@ -185,7 +195,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 11);
+  assert.equal(scenario.manifest.scenarioVersion, 12);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],

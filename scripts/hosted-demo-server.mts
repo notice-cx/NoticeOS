@@ -94,6 +94,14 @@ function plainFile(root: string, name: string): string {
 }
 const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
+/** The runtime file's text. The scenario regenerates from its inputs, so the
+ * file names those and the scenario's hash instead of carrying it. */
+export function hostedDemoRuntimeFileContent(options: HostedDemoServerOptions): string {
+  const { scenario } = options.activity;
+  const { seed, cutoff, release, timeZone } = scenario.manifest;
+  return JSON.stringify({ ...options, activity: { ...options.activity, scenario: { seed, cutoff, release, timeZone, hash: demoScenarioHash(scenario) } } }, null, 2) + '\n';
+}
+
 /** Read a bounded private file without following links or exposing its values. */
 export function readHostedDemoRuntimeFile(filename: string): HostedDemoServerOptions {
   const resolved = absolute(filename);
@@ -102,7 +110,13 @@ export function readHostedDemoRuntimeFile(filename: string): HostedDemoServerOpt
   try {
     const stat = fstatSync(fd);
     if (!stat.isFile() || stat.uid !== process.getuid?.() || stat.mode & 0o077 || stat.size > 2 * 1024 * 1024) refused();
-    return JSON.parse(readFileSync(fd, 'utf8')) as HostedDemoServerOptions;
+    const raw = record(JSON.parse(readFileSync(fd, 'utf8')));
+    const activity = record(raw.activity), reference = record(activity.scenario);
+    exact(reference, ['seed', 'cutoff', 'release', 'timeZone', 'hash']);
+    const scenario = generateDemoScenario({ seed: reference.seed as string, cutoff: reference.cutoff as string,
+      release: reference.release as string, timeZone: reference.timeZone as string });
+    if (demoScenarioHash(scenario) !== reference.hash) refused();
+    return { ...raw, activity: { ...activity, scenario } } as unknown as HostedDemoServerOptions;
   } catch { refused(); } finally { closeSync(fd); }
 }
 

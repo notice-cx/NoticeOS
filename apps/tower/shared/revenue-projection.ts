@@ -138,5 +138,27 @@ export function projectRevenue(now: Date, clock: RevenueReportingClock, revenue:
     points.push({ date, cumulativeMinor, projected: true });
   }
   return { ...base, status: 'ready', reason: null, projectedMinor: cumulativeMinor, dailyPaceMinor: futureDays ? Math.round(futureMinor / futureDays) : 0,
-    changePercent: previousMonthMinor !== null && previousMonthMinor > 0 ? (cumulativeMinor / previousMonthMinor - 1) * 100 : null, points };
+    changePercent: changeAgainst(cumulativeMinor, previousMonthMinor), points };
+}
+
+const changeAgainst = (projectedMinor: number, previousMinor: number | null) =>
+  previousMinor !== null && previousMinor > 0 ? (projectedMinor / previousMinor - 1) * 100 : null;
+
+export interface PortfolioRevenueComparison { previousPeriod: string | null; previousMonthMinor: number | null; changePercent: number | null }
+
+/** The portfolio's previous month and its projection against it, over every
+ * site with a daily revenue source (each site's `projectRevenue` for one
+ * month). A total of some of those sites is not the portfolio's: it is null
+ * unless every one of them has a complete previous month, and the percent is
+ * null unless every one of them also has a ready projection. */
+export function portfolioRevenueComparison(projections: readonly RevenueProjection[]): PortfolioRevenueComparison {
+  const sites = projections.filter((projection) => projection.status !== 'no-revenue');
+  const previousPeriod = sites[0]?.previousPeriod ?? null;
+  if (sites.length === 0 || sites.some((projection) => projection.previousPeriod !== previousPeriod || projection.previousMonthMinor === null)) {
+    return { previousPeriod, previousMonthMinor: null, changePercent: null };
+  }
+  const previousMonthMinor = sites.reduce((sum, projection) => sum + projection.previousMonthMinor!, 0);
+  const projected = sites.every((projection) => projection.status === 'ready' && projection.projectedMinor !== null)
+    ? sites.reduce((sum, projection) => sum + projection.projectedMinor!, 0) : null;
+  return { previousPeriod, previousMonthMinor, changePercent: projected === null ? null : changeAgainst(projected, previousMonthMinor) };
 }

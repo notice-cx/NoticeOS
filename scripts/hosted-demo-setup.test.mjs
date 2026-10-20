@@ -13,6 +13,7 @@ import { containerProofCleanup } from './container-proof-cleanup.mjs';
 import { runCommand } from './run-command.mjs';
 import { openHostedTaskRuntime } from './hosted-task-runtime.mjs';
 import { openHostedDemo } from './hosted-demo-runtime.mjs';
+import { readHostedDemoRuntimeFile } from './hosted-demo-server.mjs';
 import { openWorkspaceStore } from '../packages/postgres/src/store.mjs';
 import { writeDemoTaskReceipt } from './demo-tasks.mjs';
 import { writeDemoWorkflowHistory } from './demo-workflows.mjs';
@@ -139,7 +140,7 @@ test('fresh PostgreSQL18 and Dolt create the complete scoped demo, reuse without
     input.binary = { path: process.env.NOTICEOS_TEST_BEADS_NEW_BIN, sha256: process.env.NOTICEOS_TEST_BEADS_SHA256 };
     input.doltBinary = { path: process.env.NOTICEOS_TEST_DOLT_CLIENT_BIN, sha256: process.env.NOTICEOS_TEST_DOLT_CLIENT_SHA256 };
     const result = await setupHostedDemo(input); assert.equal(result.created, true);
-    const bytes = fs.readFileSync(result.runtimeFile), configuration = JSON.parse(bytes);
+    const bytes = fs.readFileSync(result.runtimeFile), configuration = readHostedDemoRuntimeFile(result.runtimeFile);
     assert.equal(fs.statSync(result.runtimeFile).mode & 0o777, 0o600); assert.equal(fs.existsSync(path.join(home, '.setup-pending.json')), false);
     assert.equal(configuration.tasks.targets.length, 6); assert.equal(configuration.activity.projects.length, 5);
     assert.equal(bytes.includes(Buffer.from(secret)), false); assert.equal(bytes.includes(Buffer.from(input.dolt.adminPassword)), false);

@@ -1,6 +1,6 @@
 // Ordinary saved display settings for the positively owned synthetic scenario.
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from './wall-layout.mjs';
-import { generateDemoScenario, demoScenarioHash, demoProperties, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoProperties, demoRecurringCost, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,16 @@ interface DisplayHelpers {
  * calendar holds the same review on that day. */
 export function demoCountdown(scenario: DemoScenario) {
   return { emoji: '📅', label: 'Quarterly portfolio review', targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z` };
+}
+
+/** The operating bills the scenario books, declared as the subscriptions
+ * they are filed under, each from the first month the ledger books it. */
+export function demoRecurringCosts(scenario: DemoScenario) {
+  return scenario.assets.flatMap(asset => {
+    const { id, label, source } = demoRecurringCost(asset);
+    const first = scenario.ledger.find(row => row.source === source);
+    return first ? [{ id, label, asset: asset.id, family: first.family, amountUsdPerMonth: asset.cost / 100, from: first.period }] : [];
+  });
 }
 
 /** Only observed nightly totals are selected; no counter fetch source exists. */
@@ -47,6 +57,7 @@ export function generateDemoDisplay(scenario: DemoScenario) {
         cards: [{ metric: asset.event!, label: labels[asset.event!]! }],
       }])),
     },
+    'config/recurring-costs.json': { costs: demoRecurringCosts(scenario) },
   };
 }
 

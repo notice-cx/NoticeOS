@@ -60,6 +60,9 @@ export interface HostedDemoServerAdapters {
     startActivity(options: HostedDemoRuntimeOptions): Promise<Activity>;
     openWorkers(options: Record<string, unknown>): Workers;
 }
+/** The runtime file's text. The scenario regenerates from its inputs, so the
+ * file names those and the scenario's hash instead of carrying it. */
+export declare function hostedDemoRuntimeFileContent(options: HostedDemoServerOptions): string;
 /** Read a bounded private file without following links or exposing its values. */
 export declare function readHostedDemoRuntimeFile(filename: string): HostedDemoServerOptions;
 export declare function captureHostedDemoServerOptions(input: HostedDemoServerOptions): HostedDemoServerOptions;

@@ -23,7 +23,7 @@ import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import { openTaskCatalogSetup } from '../packages/postgres/src/task-catalog.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { readDemoArtifact, type HostedDemoServerOptions } from './hosted-demo-server.mjs';
+import { hostedDemoRuntimeFileContent, readDemoArtifact, type HostedDemoServerOptions } from './hosted-demo-server.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 
 type Tool = { path: string; sha256: string };
@@ -319,7 +319,7 @@ export async function setupHostedDemo(input: HostedDemoSetupRequest): Promise<{ 
         projects: allocations.filter(row => !scenario.assets.find(asset => projects.find(p => p.repo === row.target.cwd)!.asset === asset.id)!.isOs)
           .map(row => ({ asset: projects.find(p => p.repo === row.target.cwd)!.asset, prefix: projects.find(p => p.repo === row.target.cwd)!.prefix, ...row })),
         binary: request.binary, doltBinary: request.doltBinary, scratchRoot: path.join(home, 'scratch') } };
-    const serialized = json(runtime);
+    const serialized = hostedDemoRuntimeFileContent(runtime);
     if ([request.dolt.adminPassword, target.password, decodeURIComponent(target.password)].filter(Boolean).some(secret => serialized.includes(secret)) || serialized.includes(urls.noticeos_platform!)) refuse();
     // Bootstrap passwords cannot survive in task metadata, imported receipts,
     // generated configuration or any other retained state file.
@@ -341,7 +341,7 @@ export async function setupHostedDemo(input: HostedDemoSetupRequest): Promise<{ 
     phase = 'cleanup';
     await close();
     phase = 'completion';
-    checkpoint(); write(runtimeFile, runtime);
+    checkpoint(); fs.writeFileSync(runtimeFile, serialized, { flag: 'wx', mode: 0o600 });
     const finalReceipt = { format: 'noticeos-hosted-demo-setup/1', binding, schemaHash, workspaceId, scenarioHash: demoScenarioHash(scenario),
       firstSeedRelease: scenario.manifest.release, completedAt: new Date().toISOString(), runtimeHash: hash(serialized), counts, osReport,
       tools: { binary: request.binary.sha256, dolt: request.doltBinary.sha256 }, projectCount: allocations.length };

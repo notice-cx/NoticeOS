@@ -23,6 +23,16 @@ export declare function demoCountdown(scenario: DemoScenario): {
     label: string;
     targetAt: string;
 };
+/** The operating bills the scenario books, declared as the subscriptions
+ * they are filed under, each from the first month the ledger books it. */
+export declare function demoRecurringCosts(scenario: DemoScenario): {
+    id: string;
+    label: string;
+    asset: string;
+    family: string;
+    amountUsdPerMonth: number;
+    from: string;
+}[];
 /** Only observed nightly totals are selected; no counter fetch source exists. */
 export declare function generateDemoDisplay(scenario: DemoScenario): {
     'config/tower.json': {
@@ -47,6 +57,16 @@ export declare function generateDemoDisplay(scenario: DemoScenario): {
                 }[];
             };
         };
+    };
+    'config/recurring-costs.json': {
+        costs: {
+            id: string;
+            label: string;
+            asset: string;
+            family: string;
+            amountUsdPerMonth: number;
+            from: string;
+        }[];
     };
 };
 /** The sources the scenario actually collects, declared live from each
@@ -104,6 +124,16 @@ export declare function seedDemoDisplay({ home, installation, scenario, capabili
                     }[];
                 };
             };
+        };
+        'config/recurring-costs.json': {
+            costs: {
+                id: string;
+                label: string;
+                asset: string;
+                family: string;
+                amountUsdPerMonth: number;
+                from: string;
+            }[];
         };
     };
 }>;

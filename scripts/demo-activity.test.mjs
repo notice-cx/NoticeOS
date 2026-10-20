@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_NIGHTLY_HOUR, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
-import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, demoSubscriptionMinor, shiftDemoDay, DEMO_INFERENCE_SOURCE } from './demo-scenario.mjs';
+import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, demoRecurringCost, demoSubscriptionMinor, shiftDemoDay, DEMO_INFERENCE_SOURCE } from './demo-scenario.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { parseProductSnapshot } from '../apps/tower/shared/product-snapshot.ts';
 import { readFileSync } from 'node:fs';
@@ -164,9 +164,11 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
     assert.equal(row.currency, 'USD');
     // Subscription income names its Stripe source, so Money reads it as subscriptions.
     // Other recorded income has no collector and no source; a bill is a
-    // declared recurring cost named by a word.
+    // declared recurring cost, booked at its declared amount.
+    const asset = scenario.assets.find(entry => entry.id === row.asset);
     assert.equal(row.source, row.family === 'subs' ? STRIPE_REVENUE_SOURCE : row.family === 'inference' ? DEMO_INFERENCE_SOURCE
-      : row.kind === 'revenue' ? null : row.family === 'os-overhead' ? 'recurring:servers' : 'recurring:hosting');
+      : row.kind === 'revenue' ? null : demoRecurringCost(asset).source);
+    if (row.kind === 'cost' && row.family !== 'inference') assert.equal(row.amountMinor, asset.cost);
     assert.match(row.note, /^Synthetic /u);
   }
   assert.deepEqual(next.map(row => row.family).sort(), ['licensing']);

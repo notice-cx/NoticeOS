@@ -58,12 +58,24 @@ describe("the month's revenue on the Wall", () => {
     expect(model?.pace?.projected).toBe((49_500 + 15_900 + 3_000) / 100);
     expect(model?.pace?.daysLeft).toBe(9);
     expect(model?.pace?.sites).toBe(2);
-    // Like for like: the covered sites against their own previous month,
-    // never with the uncovered $30 on one side only.
-    expect(model?.pace?.previousTotal).toBe(520);
-    expect(model?.pace?.changePercent).toBeCloseTo((65_400 / 52_000 - 1) * 100, 6);
+    // The learning site has no complete previous month, so the covered sites'
+    // own $520 is not the month's total and is not stated as one.
+    expect(model?.pace?.previousTotal).toBeNull();
+    expect(model?.pace?.changePercent).toBeNull();
     expect(model?.pace?.points[0]).toEqual({ day: 1, date: "2026-09-01", cumulative: 20, projected: false });
     expect(model?.pace?.points.at(-1)).toEqual({ day: 30, date: "2026-09-30", cumulative: 654, projected: true });
+  });
+
+  it("compares the whole portfolio's previous month, and a percent only when every site is paced", () => {
+    const covered = [{ revenueProjection: ready(1_500, 2_000, 40_000) }, { revenueProjection: ready(500, 600, 12_000) }];
+    const whole = monthRevenue(portfolio(420), covered);
+    expect(whole?.pace?.previousTotal).toBe(520);
+    expect(whole?.pace?.changePercent).toBeCloseTo((65_400 / 52_000 - 1) * 100, 6);
+    // A site still learning has a previous month but no projection: the
+    // total is the portfolio's, the percent would compare some sites with all.
+    const partial = monthRevenue(portfolio(420), [...covered, { revenueProjection: { ...learning, previousMonthMinor: 8_000 } }]);
+    expect(partial?.pace?.previousTotal).toBe(600);
+    expect(partial?.pace?.changePercent).toBeNull();
   });
 
   it("finds the day the month passed last month's total on reported days", () => {

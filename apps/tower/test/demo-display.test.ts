@@ -10,6 +10,7 @@ import { fillDemo } from '../../../scripts/demo-store.mjs';
 import { generateDemoDisplay, seedDemoDisplay } from '../../../scripts/demo-display.mjs';
 import { createTestStore } from './postgres-store';
 import { buildWallPayload } from '../worker/wall-payload';
+import { buildFinancialsPayload } from '../worker/financials-payload';
 import { buildAssetDetailPayload } from '../worker/asset-detail-payload';
 import { readDashboardConfig } from '../shared/dashboard';
 import { PRODUCT_ENV } from '../../../scripts/product-env.mjs';
@@ -74,6 +75,15 @@ it('saved demo display and the released OS observer reach ordinary Wall readers 
   expect(Object.keys(helpers.provenance.artifacts).sort()).toEqual(['configuration', 'insights', 'jobs', 'reports', 'snapshots', 'uptime', 'watch']);
   const display = await seedDemoDisplay({ home, installation, scenario, capability, helpers });
   expect(display.documents).toEqual(generateDemoDisplay(scenario));
+  // Money names each operating bill by the label of the subscription it is
+  // filed under, and books it at that subscription's declared amount.
+  const recurringCosts = display.documents['config/recurring-costs.json'].costs;
+  const money = await buildFinancialsPayload(fixture.call, { now: new Date(scenario.manifest.cutoff), osTimeZone: 'UTC', domainOrders: [],
+    recurringCosts, period: scenario.manifest.cutoff.slice(0, 7) });
+  const bills = money.costLines.filter(line => line.source?.startsWith('recurring:'));
+  expect(bills.map(line => [recurringCosts.find(cost => `recurring:${cost.id}` === line.source)?.label, line.amount, line.rows]).sort())
+    .toEqual(recurringCosts.map(cost => [cost.label, cost.amountUsdPerMonth, 1]).sort());
+  expect(recurringCosts.map(cost => cost.label)).toEqual(['Light Brief hosting', 'Pinwell hosting', 'Weeknight Pantry hosting', 'Trail Notes hosting', 'Fresh Rows hosting', 'App servers']);
   const report = await recordDemoOsObservation(capability, scenario, helpers.runAssetZeroPulse);
   expect(report.capabilities).not.toContain('cronRunSuccess');
   expect(Object.keys(report.metrics)).not.toContain('heartbeat');

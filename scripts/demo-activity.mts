@@ -6,7 +6,7 @@ import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle,
-  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoCostSource, demoInferenceCostMinor, demoSubscriptionMinor, type DemoCodebaseEnvelope, type DemoScenario } from './demo-scenario.mjs';
+  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoRecurringCost, demoInferenceCostMinor, demoSubscriptionMinor, type DemoCodebaseEnvelope, type DemoScenario } from './demo-scenario.mjs';
 
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -107,7 +107,7 @@ export interface DemoActivityMoney {
   /** A provider's usage export is its running figure, so it is estimated. */
   bookingState: 'reconciled' | 'estimated';
   /** Null for recorded income no collector reads; Money names it by family. */
-  source: 'mediavine' | typeof STRIPE_REVENUE_SOURCE | typeof DEMO_INFERENCE_SOURCE | ReturnType<typeof demoCostSource> | null;
+  source: 'mediavine' | typeof STRIPE_REVENUE_SOURCE | typeof DEMO_INFERENCE_SOURCE | ReturnType<typeof demoRecurringCost>['source'] | null;
   externalId: string;
   note: string;
   coverageStart: string;
@@ -720,8 +720,8 @@ export function createDemoActivity(input: DemoScenario): {
       }
       if (ordinal > 0 && date.endsWith('-01')) {
         money.push({ asset: asset.id, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', period: month,
-          amountMinor: Math.round(asset.cost * (0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12)),
-          currency: 'USD', bookingState: 'reconciled', source: demoCostSource(asset), externalId: `${key}/${asset.prefix}/cost`,
+          amountMinor: asset.cost,
+          currency: 'USD', bookingState: 'reconciled', source: demoRecurringCost(asset).source, externalId: `${key}/${asset.prefix}/cost`,
           note: 'Synthetic prepaid operating bill; no real charge.', coverageStart: date,
           coverageEnd: shiftDemoDay(nextMonth.toISOString().slice(0, 10), -1), coverageComplete: true });
       }

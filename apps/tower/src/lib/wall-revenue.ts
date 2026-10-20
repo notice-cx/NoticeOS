@@ -17,7 +17,7 @@
 // recorded $0 is a report like any other.
 
 import type { AssetCard, PortfolioBand } from "@shared/wall";
-import type { RevenueProjection } from "@shared/revenue-projection";
+import { portfolioRevenueComparison, type PortfolioRevenueComparison, type RevenueProjection } from "@shared/revenue-projection";
 import { yesterdayRevenue } from "@shared/daily-revenue";
 import { portfolioHeadline } from "@/lib/portfolio-headline";
 
@@ -152,17 +152,17 @@ export function monthRevenue(
     previousMonth,
     // What no ready projection covers — another source's booked money, or a
     // learning site's reported days — joins the pace whole.
-    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor) : null,
+    pace: ready.length > 0 ? monthPace(ready, Math.round((revenue ?? 0) * 100) - readyEarnedMinor, portfolioRevenueComparison(current)) : null,
     waiting,
   };
 }
 
-function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number): MonthPace {
+/** `comparison` is the whole portfolio's previous month and percent, over
+ * every site with a revenue source: the ready sites' own previous months
+ * would read as the month's total while naming only some of its sites. */
+function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number, comparison: PortfolioRevenueComparison): MonthPace {
   const coveredMinor = sum(ready.map((projection) => projection.projectedMinor));
-  const previous = ready.map((projection) => projection.previousMonthMinor);
-  const previousMinor = previous.every((value): value is number => value !== null)
-    ? sum(previous)
-    : null;
+  const previousMinor = comparison.previousMonthMinor;
 
   // Day by day across the covered sites. Every ready projection carries every
   // day of its month, so the dates line up; a date one site lacks is left to
@@ -196,8 +196,7 @@ function monthPace(ready: readonly ReadyProjection[], uncoveredMinor: number): M
     daysLeft: points.filter((point) => point.projected).length,
     previousPeriod: ready[0]!.previousPeriod,
     previousTotal,
-    changePercent:
-      previousMinor !== null && previousMinor > 0 ? (coveredMinor / previousMinor - 1) * 100 : null,
+    changePercent: comparison.changePercent,
     points,
     crossing: reached ? { day: reached.day, date: reached.date, projected: reached.projected } : null,
     sites: ready.length,

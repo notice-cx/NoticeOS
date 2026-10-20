@@ -4,17 +4,17 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
-export const SCENARIO_VERSION = 11;
+export const SCENARIO_VERSION = 12;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
-/** Each site's and the OS's monthly operating bill, filed as
- * `scripts/cost-import.mjs` files a declared recurring cost
- * (`recurring:<id>`), so Money names the line by its id. */
-export const DEMO_HOSTING_SOURCE = 'recurring:hosting';
-export const DEMO_SERVERS_SOURCE = 'recurring:servers';
-export function demoCostSource(asset) {
-    return asset.isOs ? DEMO_SERVERS_SOURCE : DEMO_HOSTING_SOURCE;
+/** Each site's and the OS's monthly operating bill: a fixed subscription the
+ * demo declares in `config/recurring-costs.json` (`demoRecurringCosts` in
+ * `demo-display.mts`) and files as `scripts/cost-import.mjs` files one
+ * (`recurring:<id>`), so Money names each line by its declared label. */
+export function demoRecurringCost(asset) {
+    const id = asset.isOs ? 'app-servers' : `${asset.prefix}-hosting`;
+    return { id, label: asset.isOs ? 'App servers' : `${asset.name} hosting`, source: `recurring:${id}` };
 }
 /** The usage cost of the agents' model calls in one month, in cents. */
 export function demoInferenceCostMinor(seed, osAsset, month) {
@@ -533,8 +533,7 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         for (const asset of assets) {
             if (asset.createdAt.slice(0, 10) > monthEnd)
                 continue;
-            const cost = asset.prefix === 'fr' ? asset.cost : Math.round(asset.cost * (anchorMonth ? 1 : 0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12));
-            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: demoCostSource(asset), recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: asset.cost, state: 'reconciled', source: demoRecurringCost(asset).source, recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
             // A finished month's model usage, after the OS's own bill; the current
             // month's is booked by the simulator once the month ends.
             if (asset.isOs && offset < 0) {
@@ -650,8 +649,7 @@ export function demoSourceValues(row, integration) {
     return { clicks: Math.round(row.clicks * DEMO_BING_SHARE), impressions: Math.round(row.impressions * DEMO_BING_SHARE) };
 }
 /** The seeded codebase reports with their envelopes. The scenario keeps only
- * when each ran: every envelope derives from the seed, so the scenario stays
- * small enough for the demo's runtime file. */
+ * when each ran: every envelope derives from the seed. */
 export function demoCodebaseReports(scenario) {
     const { seed, referenceDate } = scenario.manifest;
     return scenario.codebaseRuns.map(run => ({ ...run, envelope: demoCodebaseEnvelope(seed, scenario.assets.find(asset => asset.id === run.asset), referenceDate, run.date) }));
