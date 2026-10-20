@@ -17,6 +17,8 @@ Tabs across the top, the same as on a site's page, open on **General**. Each tab
 
 **At the top of Home** lists your picks from **What matters most?**, in the order you picked them, such as **Money · Costs**, or **Nothing picked**. Each pick moves its part of Home to the top when your view shows that part.
 
+![The General tab of Settings in the synthetic demo: Your view with I run the business, I build the product and Everything, Everything chosen; At the top of Home with Nothing picked and Change; and Workspace default · new people and the TV start from, set to Everything, with a lock.](../images/tower-settings-your-view.webp)
+
 **Workspace default · new people and the TV start from** shows the view a person sees before choosing one, and the view whose preset the TV shows while no TV layout is saved ([TV dashboard](/tower/wall#what-you-see)): the saved view, or **Everything** when none is saved. It is stored in `config/tower.json` at `/view`.
 
 **Time zone.** Every daily figure is calculated in one zone, including which date is yesterday's revenue and which month is current. Your device's zone is first in the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.

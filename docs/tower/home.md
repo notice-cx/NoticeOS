@@ -46,6 +46,8 @@ Above the steps, until you have chosen a view of your own, Home shows two questi
 - **Which describes you?** lists the three views, **I run the business**, **I build the product** and **Everything**, each with one line under it. One press chooses the view and saves it.
 - **What matters most?** then replaces it in the same box, with five picks: **Money**, **Visitors**, **Site health**, **The agents' work** and **Costs**. Any number can be picked; **Continue** saves them in the order picked and **Skip** saves none. Choosing **Everything** closes the box without this question.
 
+![The first-run box on Home in a new installation with no site yet: Which describes you? with I run the business, I build the product and Everything, each with its line, above Step 1 Add your first site, Step 2 Connect a source and Step 3 See your first number.](../images/tower-first-run-view.webp)
+
 The steps work before the questions are answered: a site can be added first, and until you answer, the pages use the workspace default view. The first answer on a new installation also becomes the workspace default, the view new people and the TV start from, when none is saved yet and settings can be saved.
 
 ## Your view
@@ -57,6 +59,14 @@ The view chosen on the first run, or later in [Settings → General → **Your v
 | **I run the business** | **Site health**, **Money**, **The agents · this week**, **Decide** |
 | **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decide**, **Sites** |
 | **Everything** | **Money**, **Revenue, yesterday** and **Visitors, yesterday**, **Data sources**, **Problems**, **Decide**, the agents' line (**Agents closed N tasks in 7 days**), **Sites**, **The last 24 hours** |
+
+In **I run the business**, Home opens on **Site health**, with the month's money and **Decide** under it and **The agents · this week** further down:
+
+![The Home page in the synthetic demo, in the I run the business view: the summary starting 1 of 5 sites are fine, Site health with five dots and the problems in words for each of five sites, October's revenue marked so far, and Decide with 5 decisions waiting and an Approve button on each.](../images/tower-home-business.webp)
+
+In **I build the product**, Home opens on the month's money beside **Worth a look**, then **Where visitors come from · 4 weeks** beside **Problems**, with **Decide** and **Sites** further down:
+
+![The Home page in the synthetic demo, in the I build the product view: October's revenue marked est., Worth a look with Make a task on each row, Where visitors come from · 4 weeks with visits by channel and the Weeknight Pantry funnel, and Problems with 1 broken and 3 at risk.](../images/tower-home-product.webp)
 
 Each pick from **What matters most?** moves one part to the top, in the order picked: **Money** and **Costs** move **Money**, **Visitors** moves **Sites**, **Site health** moves **Site health** and **The agents' work** moves **The agents · this week**. A pick whose part the view does not show changes nothing: in the **Everything** view only **Money**, **Costs** and **Visitors** move a part. A part a view leaves out is still in the product: its page is in the sidebar of the **Everything** view and in Search (**⌘K**).
 

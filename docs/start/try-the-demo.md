@@ -32,6 +32,10 @@ The TV dashboard at `/wall` follows the same choice. **I run the business** and 
 
 The choice is kept in the visitor's browser, so it stays after a reload and no other visitor sees it.
 
+![The Home page in the synthetic demo after I run the business is pressed: the banner with Synthetic demo · Read only and the three choices at its right end, I run the business marked, over Home with Site health, October's revenue and Decide.](../images/tower-home-business.webp)
+
+See [Choose your view](/guides/choose-your-view) for what each view changes.
+
 ## Configure
 
 1. Copy `deploy/demo/example.json` and `deploy/demo/example.env` to a private folder outside the checkout, for example `/operator/`.

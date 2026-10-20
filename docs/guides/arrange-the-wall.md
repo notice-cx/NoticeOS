@@ -41,6 +41,8 @@ Each of the three views has a ready-made layout:
 2. Select **Start from**, beside the drawer's title.
 3. Select a view. The one already on the TV is ticked and cannot be selected.
 
+![The TV layout page in a test installation with one site: Add a widget open beside the copy of the TV, with the Start from menu listing I run the business, I build the product and Everything, Everything ticked.](../images/wall-start-from.webp)
+
 The whole arrangement on the TV copy is replaced by the preset. It is not on the TV until you select **Save**, and **Undo** puts back the arrangement you had. A version saved this way with no note is named **Started from I run the business**, or the view you chose.
 
 Until any layout is saved, the TV shows the preset of the workspace's default view (Settings > General > **Your view**), and the editor opens on it.

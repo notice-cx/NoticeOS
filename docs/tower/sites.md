@@ -58,6 +58,8 @@ A link to a tab your view leaves out still opens it, with that tab added at the 
 
 The **Health** tab shows the same five facts as the dots in Home's **Site health** and on the TV, as one row of five buttons. Each button shows the fact's name, its word in large type, its problem when it has one, and **as of** the date of the reading behind it. The word is red when the site is down, amber when the fact is worth a look and grey when it is fine; a fact that is not measured yet has a dashed border.
 
+![The Health tab of Pinwell in the synthetic demo: five buttons, Up, Speed Slow for 1 in 4 visitors, Errors Some with 122 people who hit an error, Search Steady and Code Steady, then one panel per fact with the readings behind it.](../images/tower-site-health.webp)
+
 | Button | What it reads | Words |
 |---|---|---|
 | **Up** | the hourly uptime check of the home page, and the open alert when the home page did not load | **Up**, **Down** (red), **Not checked lately** when the hourly check has not run lately |

@@ -25,6 +25,10 @@ Until a layout is saved, the Wall shows the preset of the workspace's default vi
 
 A saved layout always replaces the preset. Changing the workspace view later changes the Wall only while no layout is saved.
 
+![The Wall's I run the business preset in the synthetic demo: the top strip, then Site health with five dots for each of five sites over October's revenue on the left, beside Needs attention over The agents · this week, with Building 10, Finished 4 and Proven 1 and two Latest bet lines, on the right.](../images/wall-business.webp)
+
+![The Wall's I build the product preset in the synthetic demo: the top strip, then October's revenue over Visitors by channel with the largest funnel drop on the left, beside one row per site over Work this week on the right.](../images/wall-product.webp)
+
 In the [public demo](/start/try-the-demo#switch-the-view), the Wall follows the view the visitor picks in the demo banner above it, or `?view=` in its address: **I run the business** and **I build the product** show their presets, and **Everything** shows the demo's saved layout.
 
 **Top strip.** The time, the next meeting from a connected calendar feed, and a countdown if one is set.
