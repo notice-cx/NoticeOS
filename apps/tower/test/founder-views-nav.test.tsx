@@ -190,6 +190,21 @@ describe("the palette lists every page and switches the view", () => {
     });
     expect(rows(dialog).filter((row) => row.startsWith("Switch to · "))).toHaveLength(2);
   });
+
+  it("keeps every view row while the operator types the row's own words", () => {
+    storeView("business");
+    renderShell("/");
+    const dialog = openPalette();
+    for (const typed of ["Switch to", "switch to ", "Switch"]) {
+      fireEvent.change(within(dialog).getByPlaceholderText("Search pages and sites…"), {
+        target: { value: typed },
+      });
+      expect(rows(dialog).filter((row) => row.startsWith("Switch to · "))).toEqual([
+        `Switch to · ${viewSpec("product").label}`,
+        `Switch to · ${viewSpec("everything").label}`,
+      ]);
+    }
+  });
 });
 
 describe("a site's tabs follow the view", () => {

@@ -4,10 +4,18 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
-export const SCENARIO_VERSION = 9;
+export const SCENARIO_VERSION = 10;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
+/** Each site's and the OS's monthly operating bill, filed as
+ * `scripts/cost-import.mjs` files a declared recurring cost
+ * (`recurring:<id>`), so Money names the line by its id. */
+export const DEMO_HOSTING_SOURCE = 'recurring:hosting';
+export const DEMO_SERVERS_SOURCE = 'recurring:servers';
+export function demoCostSource(asset) {
+    return asset.isOs ? DEMO_SERVERS_SOURCE : DEMO_HOSTING_SOURCE;
+}
 /** The usage cost of the agents' model calls in one month, in cents. */
 export function demoInferenceCostMinor(seed, osAsset, month) {
     return Math.round(4200 * (0.85 + draw(seed, `${osAsset}/${month}/inference`) * 0.3));
@@ -501,7 +509,7 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             if (asset.createdAt.slice(0, 10) > monthEnd)
                 continue;
             const cost = asset.prefix === 'fr' ? asset.cost : Math.round(asset.cost * (anchorMonth ? 1 : 0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12));
-            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: 'demo', recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: demoCostSource(asset), recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
             // A finished month's model usage, after the OS's own bill; the current
             // month's is booked by the simulator once the month ends.
             if (asset.isOs && offset < 0) {
@@ -522,8 +530,10 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
                 continue;
             const coverageStart = `${month}-01`;
             // Subscription income is booked under the Stripe source, so Money names
-            // it as subscriptions; no Stripe account is read.
-            const source = asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : 'demo-recorded-income';
+            // it as subscriptions; no Stripe account is read. Other recorded income
+            // has no collector, so it carries no source and Money names it by its
+            // family.
+            const source = asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : null;
             if (offset === 0) {
                 // A fictional first posting precedes any current-period receipt. No
                 // scheduled or future sale is booked; coverage ends at this cutoff.

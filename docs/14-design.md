@@ -389,8 +389,9 @@ eight-column one leaves.
   its verdict in plain words.
 - **"Where visitors come from · 4 weeks"** (`ChannelsModule`) is every listed
   site's visits summed by channel, one bar and percent per channel with the
-  tail after five as "Other", beside the funnel step that loses the most
-  people as `FunnelBars`.
+  tail after five as "Other", beside every step of the funnel that loses the
+  most people at one step as `FunnelBars`, that step in amber, and one
+  sentence naming the two steps. The module is as tall as its content.
 - **"Worth a look"** (`GapsModule`, `businessGaps`) is a `ListPanel` of what
   the sites lack as a business, ranked: no income source, no data feeds, no
   task project, no code report, then the newest readings' opportunities. Each
@@ -577,8 +578,10 @@ preset with no note is named "Started from \<view>".
 
 Site health on the TV is one row per site with the same five dots as Home's
 module and the worst problem's note beside the row, with "+N" for the row's
-other problems. "The agents" shows Building › Shipped › Proven as large
-figures and up to three lines about the newest work. "Visitors by channel"
+other problems; on the TV the rows share the widget's height and the names
+and dots grow with them up to the TV's stat size. "The agents" shows
+Building › Finished › Proven as large figures and up to three lines about the
+newest work, spread over the widget's height. "Visitors by channel"
 draws the portfolio's visits by channel on one shared scale with each
 channel's visits and share, and under them the largest funnel drop across the
 sites.
@@ -723,7 +726,7 @@ from its starting point to its result:
   on change and the sidebar follows at once, then Undo.
 - **Read a site's health, in the business view** — Settings → General → Your
   view, "I run the business"; Home's Site health row opens the site; its
-  Health tab; one word opens its readings in place.
+  Health tab shows every fact's readings below the five words.
 - **See where the money comes from, in the product view** — Settings →
   General → Your view, "I build the product"; Home shows the money by site,
   visitors by channel and "Worth a look"; "Make a task" on a row, File task.

@@ -3,22 +3,23 @@ import { Fragment } from "react";
 import type { AgentsWeek } from "@/lib/agents-week";
 import { formatInt } from "@/lib/format";
 
-// The agents widget: what they are building, what shipped this week and what
-// a measured outcome proved, as three figures read left to right, then up to
-// three plain lines about the newest work. A count nobody can read is a dash,
-// never a zero.
+// The agents widget: what they are building, what they finished this week and
+// what a measured outcome proved, as three figures read left to right, then up
+// to three plain lines about the newest work. A count nobody can read is a
+// dash, never a zero. On the TV the figures and the lines share the widget's
+// height. The labels match Home's agents module.
 
 const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
 
 const FIGURES: readonly { key: "building" | "shipped" | "proven"; label: string }[] = [
   { key: "building", label: "Building" },
-  { key: "shipped", label: "Shipped" },
+  { key: "shipped", label: "Finished" },
   { key: "proven", label: "Proven" },
 ];
 
 export function WallFactory({ week }: { week: AgentsWeek }) {
   return (
-    <section aria-label="The agents" className="flex min-w-0 flex-col gap-3" data-wall-factory={week.latest.length > 0 ? "lines" : "calm"}>
+    <section aria-label="The agents" className="flex h-full min-h-0 min-w-0 flex-col gap-3" data-wall-factory={week.latest.length > 0 ? "lines" : "calm"}>
       <div className="flex min-w-0 flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h2 className={eyebrow}>The agents · this week</h2>
         {week.watching > 0 ? (
@@ -27,7 +28,7 @@ export function WallFactory({ week }: { week: AgentsWeek }) {
           </span>
         ) : null}
       </div>
-      <div className="flex min-w-0 items-center gap-x-3">
+      <div className="flex min-w-0 items-center gap-x-3 tv:flex-1" data-wall-factory-figures="">
         {FIGURES.map(({ key, label }, index) => {
           const value = week[key];
           return (
@@ -49,9 +50,9 @@ export function WallFactory({ week }: { week: AgentsWeek }) {
           Nothing finished yet
         </div>
       ) : (
-        <ul className="flex min-w-0 flex-col gap-2">
+        <ul className="flex min-w-0 flex-col gap-2 tv:min-h-0 tv:flex-[2]">
           {week.latest.map((line, index) => (
-            <li key={`${line.title}-${index}`} className="flex min-w-0 flex-col rounded-lg bg-muted/60 px-4 py-2" data-wall-factory-line="">
+            <li key={`${line.title}-${index}`} className="flex min-w-0 flex-col rounded-lg bg-muted/60 px-4 py-2 tv:flex-1 tv:justify-center" data-wall-factory-line="">
               <span className="text-wall-list-line font-semibold [overflow-wrap:anywhere]">
                 {line.title}
                 {line.site ? <span className="font-normal text-muted-foreground"> · {line.site}</span> : null}

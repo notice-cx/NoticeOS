@@ -162,7 +162,10 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
     assert.ok(Number.isSafeInteger(row.amountMinor) && row.amountMinor > 0);
     assert.equal(row.currency, 'USD');
     // Subscription income names its Stripe source, so Money reads it as subscriptions.
-    assert.equal(row.source, row.family === 'subs' ? STRIPE_REVENUE_SOURCE : row.family === 'inference' ? DEMO_INFERENCE_SOURCE : 'demo-simulator');
+    // Other recorded income has no collector and no source; a bill is a
+    // declared recurring cost named by a word.
+    assert.equal(row.source, row.family === 'subs' ? STRIPE_REVENUE_SOURCE : row.family === 'inference' ? DEMO_INFERENCE_SOURCE
+      : row.kind === 'revenue' ? null : row.family === 'os-overhead' ? 'recurring:servers' : 'recurring:hosting');
     assert.match(row.note, /^Synthetic /u);
   }
   assert.deepEqual(next.map(row => row.family).sort(), ['licensing', 'subs']);

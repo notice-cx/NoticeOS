@@ -3723,6 +3723,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
       funnel: {
         name: "Sign up",
         largestDrop: { fromStep: "Viewed /start", toStep: "signup_started", lostPeople: 600, stepConversion: 300 / 900 },
+        steps: [{ label: "Viewed /start", people: 900 }, { label: "signup_started", people: 300 }],
       },
     });
     expect(meadow.channels).toEqual({
@@ -3782,7 +3783,7 @@ describe("buildWallPayload — the card's insight reading, code and watches", ()
       // PostHog captured no exceptions at all: a counted zero.
       errorPeople: 0,
       jsErrorFinding: false,
-      funnel: { name: "Sign up", largestDrop: null },
+      funnel: { name: "Sign up", largestDrop: null, steps: [{ label: "Viewed /start", people: 900 }, { label: "signup_started", people: 900 }] },
     });
     // No row survived: no split, not an empty one.
     expect(pebble.channels).toBeNull();

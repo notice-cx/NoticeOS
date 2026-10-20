@@ -135,11 +135,14 @@ function dropOf(funnel: ProductFunnel): CardFunnelDrop | null {
 /** The declared funnel losing the most people at one step; a funnel without a
  * readable drop ranks below every one with. */
 function funnelOf(product: ProductSnapshot): CardProduct["funnel"] {
-  let best: { name: string; largestDrop: CardFunnelDrop | null } | null = null;
+  let best: CardProduct["funnel"] = null;
   for (const funnel of product.funnels) {
     const largestDrop = dropOf(funnel);
     const lost = largestDrop?.lostPeople ?? -1;
-    if (best === null || lost > (best.largestDrop?.lostPeople ?? -1)) best = { name: funnel.name, largestDrop };
+    if (best === null || lost > (best.largestDrop?.lostPeople ?? -1)) {
+      const steps = [...funnel.steps].sort((a, b) => a.step - b.step).map((step) => ({ label: funnelStepLabel(step), people: step.people }));
+      best = { name: funnel.name, largestDrop, steps };
+    }
   }
   return best;
 }

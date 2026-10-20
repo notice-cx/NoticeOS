@@ -79,6 +79,10 @@ function metricLow(metric: string | null): string {
   return `${words.charAt(0).toUpperCase()}${words.slice(1)} low`;
 }
 
+/** The mark of a nightly report past twice its cadence, raised by an open
+ * alert or by the card's own clock. */
+export const REPORT_LATE_MARK = "Report late";
+
 /** An alert's mark, by rule id. Every label is three words or fewer. */
 export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "metric" | "kind" | "message">): string {
   const metric = typeof item.ruleInputs?.metric === "string" ? item.ruleInputs.metric : item.metric;
@@ -92,7 +96,7 @@ export function alertMark(item: Pick<AttentionItem, "ruleId" | "ruleInputs" | "m
         ? metricLow(metric)
         : "Site alert";
     case "ingest-freshness":
-      return item.ruleInputs?.state === "stale" ? "Report late" : "Report alert";
+      return item.ruleInputs?.state === "stale" ? REPORT_LATE_MARK : "Report alert";
     case "asset-pull-failed":
       return "Report pull failing";
     case "hygiene-home-unreachable":
@@ -253,7 +257,7 @@ export function wallIssues({ assets: every, attention, connections, calendarStat
         assets: [asset.id],
         site: asset.displayName,
         line: `No nightly report in ${Math.floor((nowMs - receivedMs) / HOUR_MS)}h`,
-        mark: "Report late",
+        mark: REPORT_LATE_MARK,
         since: new Date(receivedMs + CADENCE_HOURS.pulse * AMBER_MULTIPLIER * HOUR_MS).toISOString(),
         conditions: ["signal-freshness"],
       });

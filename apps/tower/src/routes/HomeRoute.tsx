@@ -45,7 +45,7 @@ import { greeting, peopleYesterday } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
-import { techHealth, techHealthSummary } from "@/lib/tech-health";
+import { rowFacts, techHealth, techHealthSummary } from "@/lib/tech-health";
 import { askVerb } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 import { healthGridRows, incidentsFromIssues, sourceColumns, timelineFromWall } from "@/lib/viz-adapters";
@@ -154,7 +154,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => (
       <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-        {money ? <MoneyHero money={money} className="h-full" /> : <PeopleLead assets={data.assets} />}
+        {money ? <MoneyHero money={money} className="h-full" wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
       </div>
     ),
     yesterday: () => (
@@ -193,7 +193,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
       </div>
     ),
-    health: () => <HealthModule cards={listed} issues={issues} />,
+    health: () => <HealthModule cards={listed} issues={issues} nowMs={nowMs} />,
     factory: () => <LiveFactory cards={listed} nowMs={nowMs} />,
     channels: () => <ChannelsModule cards={listed} />,
     gaps: () => <GapsModule cards={listed} />,
@@ -223,7 +223,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         since={since}
         changed={changed}
         nowMs={nowMs}
-        health={view.id === "business" ? healthWords(listed, issues) : null}
+        health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
       />
       <HomeModules modules={modules} draw={draw} />
     </div>
@@ -239,17 +239,18 @@ function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
 
 /** The sites' technical health in a sentence or two: how many are fine, then
  * the one most in need of a look and why. Null while no site is measured. */
-export function healthWords(cards: readonly AssetCard[], issues: readonly WallIssue[]): { words: string; tone: "error" | "warn" | null } | null {
-  const { fine, measured, lead } = techHealthSummary(cards, issues);
+export function healthWords(cards: readonly AssetCard[], issues: readonly WallIssue[], nowMs: number | null = null): { words: string; tone: "error" | "warn" | null } | null {
+  const { fine, measured, lead } = techHealthSummary(cards, issues, nowMs);
   if (measured === 0) return null;
-  const only = measured === 1 ? cards.find((card) => techHealth(card, issues).key !== "unknown") : undefined;
+  const only = measured === 1 ? cards.find((card) => techHealth(card, issues, nowMs).key !== "unknown") : undefined;
   const count = lead === null
     ? only
       ? `${only.displayName} is fine.`
       : `All ${formatInt(measured)} sites are fine.`
     : `${formatInt(fine)} of ${formatInt(measured)} ${measured === 1 ? "site is" : "sites are"} fine.`;
   if (lead === null) return { words: count, tone: null };
-  const worst = lead.health.facts.find((fact) => fact.state === "bad" && fact.note) ?? lead.health.facts.find((fact) => fact.note);
+  const facts = rowFacts(lead.health);
+  const worst = facts.find((fact) => fact.state === "bad" && fact.note) ?? facts.find((fact) => fact.note);
   const note = worst?.note ? `: ${worst.note.charAt(0).toLowerCase()}${worst.note.slice(1)}` : ` is ${lead.health.word.toLowerCase()}`;
   return { words: `${count} ${lead.card.displayName}${note}.`, tone: lead.health.key === "trouble" ? "error" : "warn" };
 }

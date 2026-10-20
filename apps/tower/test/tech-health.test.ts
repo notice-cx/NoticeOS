@@ -4,8 +4,9 @@
 
 import { describe, expect, it } from "vitest";
 import type { AssetCard, CardDataSource, CardProduct, SeriesPoint, SignalTrend } from "@shared/wall";
-import { techHealth, techHealthSummary, type TechFactKey } from "@/lib/tech-health";
-import type { WallIssue } from "@/lib/wall-issues";
+import { NO_READS } from "@shared/connection-status";
+import { rowFacts, techHealth, techHealthSummary, type TechFactKey } from "@/lib/tech-health";
+import { wallIssues, type WallIssue } from "@/lib/wall-issues";
 
 const ZERO = { currency: "USD", revenue: 0, cost: 0, net: 0 };
 const NO_TREND: SignalTrend = { series: [], provisionalFrom: null, collectedAt: null, timeZoneChanges: [] };
@@ -149,6 +150,50 @@ describe("techHealth's one word", () => {
       expect(health.facts.every((f) => f.state === "unknown" && f.note === null)).toBe(true);
     }
   });
+});
+
+describe("a late or missing nightly report", () => {
+  const NOW = Date.parse("2026-10-19T12:00:00.000Z");
+  const HOUR = 3_600_000;
+  const late = (hours: number) => healthy("brief.example.com", { pulseReceivedAt: new Date(NOW - hours * HOUR).toISOString() });
+  const issuesFor = (site: AssetCard) => wallIssues({ assets: [site], attention: [], connections: NO_READS, nowMs: NOW });
+
+  it("is a note on the row, in days from two days, and folds the site to watch, never fine", () => {
+    const site = late(49);
+    const issues = issuesFor(site);
+    expect(issues.map((i) => i.mark)).toEqual(["Report late"]);
+    const health = techHealth(site, issues, NOW);
+    expect(health).toMatchObject({ key: "watch", word: "Worth a look" });
+    expect(health.report).toEqual({ key: "report", state: "warn", word: "Report late", note: "No report for 2 days" });
+    // No dot of its own: the five facts are unchanged.
+    expect(health.facts.map((f) => f.state)).toEqual(["ok", "ok", "ok", "ok", "ok"]);
+    // The late report reads first among the row's notes.
+    expect(rowFacts(health)[0]).toBe(health.report);
+    expect(techHealth(late(80), issuesFor(late(80)), NOW).report?.note).toBe("No report for 3 days");
+  });
+
+  it("says the age in hours under two days, and gives no age without a clock or a last report", () => {
+    const stale = staleAlert("brief.example.com");
+    const site = healthy("brief.example.com", { pulseReceivedAt: new Date(NOW - 30 * HOUR).toISOString() });
+    expect(techHealth(site, [stale], NOW).report?.note).toBe("No report for 30 hours");
+    expect(techHealth(site, [stale]).report?.note).toBe("No recent nightly report");
+    expect(techHealth({ ...site, pulseReceivedAt: null }, [stale], NOW).report?.note).toBe("No nightly report yet");
+  });
+
+  it("stays clear while the report is on time, and is the summary's lead", () => {
+    const fresh = late(10);
+    expect(issuesFor(fresh)).toEqual([]);
+    expect(techHealth(fresh, [], NOW)).toMatchObject({ key: "fine", report: null });
+    const site = late(49);
+    const summary = techHealthSummary([healthy("a.example.com"), site], issuesFor(site), NOW);
+    expect(summary).toMatchObject({ fine: 1, measured: 2 });
+    expect(summary.lead?.card.id).toBe("brief.example.com");
+  });
+
+  // An open "report is stale" alert carries the same mark as the card's clock.
+  function staleAlert(asset: string): WallIssue {
+    return issue(asset, "alert-9", "Report late", "error");
+  }
 });
 
 describe("techHealthSummary", () => {

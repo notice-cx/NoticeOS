@@ -626,8 +626,8 @@ async function chooseViewInSettings(w, view, label, sidebarEntries) {
 }
 
 /** The business view's Home leads with every site's health as dots; a site's
- * row opens the site, its Health tab shows the five words, and one word opens
- * the readings behind it in place. */
+ * row opens the site, and its Health tab shows the five words with every
+ * fact's readings below them, without a press. */
 FLOWS["read-site-health"] = {
   title: "Read a site's health, in the business view",
   kind: "flow",
@@ -640,8 +640,7 @@ FLOWS["read-site-health"] = {
     await w.click(row.getByRole("link").first(), "Site health · Journey Example", { role: "nav" });
     await settle(w.page);
     await assetTab(w, "Health");
-    await w.click(w.page.locator('[data-health-fact="reachable"]'), "Up", { role: "reveal" });
-    await w.waitFor("Up → its readings", () => w.page.locator('[data-health-evidence="reachable"]').waitFor({ timeout: 10_000 }));
+    await w.waitFor("Health → every fact's readings", () => w.page.locator('[data-health-evidence="code"]').waitFor({ timeout: 10_000 }));
     await w.end("evidence read");
   },
 };

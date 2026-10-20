@@ -88,6 +88,38 @@ describe("WallHealth", () => {
     expect(wallHealthNote(techHealth(FINE, []).facts)).toBeNull();
   });
 
+  it("puts each header over its own dots: every header cell is a grid cell in the rows' columns", () => {
+    render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
+    const table = screen.getByRole("table", { name: "Site health" });
+    const [header, ...rows] = within(table).getAllByRole("row");
+    const headers = within(header!).getAllByRole("columnheader");
+    // An `sr-only` cell is positioned out of the grid's flow and would shift
+    // every visible header one column left.
+    for (const cell of headers) expect(cell.className).not.toMatch(/\bsr-only\b/);
+    expect(headers.map((cell) => cell.textContent)).toEqual(["Site", "Up", "Speed", "Errors", "Search", "Code", "Problem"]);
+    for (const row of rows) {
+      const cells = [...row.children];
+      expect(cells).toHaveLength(headers.length);
+      for (const cell of cells) expect(cell.className).not.toMatch(/\bsr-only\b/);
+      // The dots sit in the same columns as the headers above them.
+      const dotColumns = cells.flatMap((cell, index) => (cell.hasAttribute("data-wall-health-fact") ? [index] : []));
+      expect(dotColumns).toEqual([1, 2, 3, 4, 5]);
+    }
+    expect(header!.className).toContain("grid-cols-subgrid");
+    for (const row of rows) expect(row.className).toContain("grid-cols-subgrid");
+  });
+
+  it("lets the rows share the widget's height on the TV, and keeps the +N note", () => {
+    render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
+    const section = screen.getByRole("region", { name: "Site health" });
+    expect(section.style.getPropertyValue("--health-rows")).toBe("2");
+    const table = section.querySelector("[data-wall-health-table]")!;
+    expect(table.className).toContain("tv:auto-rows-[minmax(min-content,1fr)]");
+    expect(table.className).toContain("flex-1");
+    expect(section.querySelector('[data-wall-health-fact] [aria-hidden]')!.className).toContain("size-(--wall-health-dot)");
+    expect(section.querySelector('[data-wall-health-row="slow.example.com"] [data-wall-health-note]')).toHaveTextContent("· +1");
+  });
+
   it("says how many measured sites are fine", () => {
     render(<WallHealth assets={[SLOW, FINE]} issues={[]} />);
     expect(screen.getByText("1 of 2 fine")).toBeInTheDocument();
@@ -95,7 +127,7 @@ describe("WallHealth", () => {
 });
 
 describe("WallFactory", () => {
-  it("reads building, shipped and proven in order, with the newest lines", () => {
+  it("reads building, finished and proven in order, with the newest lines", () => {
     render(
       <WallFactory
         week={{
@@ -108,7 +140,8 @@ describe("WallFactory", () => {
       />,
     );
     const figures = [...document.querySelectorAll("[data-wall-factory-figure]")].map((node) => node.textContent);
-    expect(figures).toEqual(["Building4", "Shipped9", "Proven1"]);
+    // "Finished", as Home's agents module calls it.
+    expect(figures).toEqual(["Building4", "Finished9", "Proven1"]);
     expect(screen.getByText("2 being watched")).toBeInTheDocument();
     expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine SiteWorked");
   });

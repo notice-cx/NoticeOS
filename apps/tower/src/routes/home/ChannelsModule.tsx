@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
-import type { AssetCard, CardFunnelDrop } from "@shared/wall";
+import type { AssetCard, CardFunnelDrop, CardFunnelStep } from "@shared/wall";
 import { SectionLabel } from "@/components/surface/SectionLabel";
-import { FunnelBars } from "@/components/viz/FunnelBars";
+import { FunnelBars, type FunnelStep } from "@/components/viz/FunnelBars";
 import { formatInt, formatPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -44,6 +44,8 @@ export interface WorstFunnel {
   site: string;
   name: string;
   drop: CardFunnelDrop;
+  /** Every step in order; empty when the payload carried none. */
+  steps: readonly CardFunnelStep[];
 }
 
 /** The declared funnel losing the most people at one step, across the listed
@@ -55,7 +57,7 @@ export function worstFunnel(cards: readonly AssetCard[]): WorstFunnel | null {
     if (!funnel?.largestDrop) continue;
     const lost = funnel.largestDrop.lostPeople ?? -1;
     if (worst === null || lost > (worst.drop.lostPeople ?? -1)) {
-      worst = { site: card.displayName, name: funnel.name, drop: funnel.largestDrop };
+      worst = { site: card.displayName, name: funnel.name, drop: funnel.largestDrop, steps: funnel.steps ?? [] };
     }
   }
   return worst;
@@ -70,6 +72,37 @@ function stepCounts(drop: CardFunnelDrop): { from: number; to: number } | null {
   return { from, to: from - lostPeople };
 }
 
+/** The index of the step the most people leave before: the first step pair
+ * whose labels are the drop's; null when the steps do not name it. */
+export function dropStepIndex(worst: WorstFunnel): number | null {
+  for (let index = 1; index < worst.steps.length; index++) {
+    if (worst.steps[index - 1]!.label === worst.drop.fromStep && worst.steps[index]!.label === worst.drop.toStep) return index;
+  }
+  return null;
+}
+
+/** Every step of the funnel as bars, the step after the biggest drop in the
+ * warning colour; the two steps around the drop when the payload carried no
+ * steps. The drop's pair keeps the keys `from` and `to`. */
+function funnelSteps(worst: WorstFunnel): FunnelStep[] | null {
+  const at = dropStepIndex(worst);
+  if (at !== null && worst.steps.length > 2) {
+    return worst.steps.map((step, index) => ({
+      key: index === at ? "to" : index === at - 1 ? "from" : `step-${index + 1}`,
+      label: step.label,
+      value: step.people,
+      fill: index === at ? "bg-warn" : undefined,
+    }));
+  }
+  const counts = stepCounts(worst.drop);
+  return counts
+    ? [
+        { key: "from", label: worst.drop.fromStep, value: counts.from },
+        { key: "to", label: worst.drop.toStep, value: counts.to, fill: "bg-warn" },
+      ]
+    : null;
+}
+
 function FunnelSide({ cards }: { cards: readonly AssetCard[] }) {
   const worst = worstFunnel(cards);
   if (!worst) {
@@ -80,24 +113,23 @@ function FunnelSide({ cards }: { cards: readonly AssetCard[] }) {
       </p>
     );
   }
-  const counts = stepCounts(worst.drop);
+  const steps = funnelSteps(worst);
+  const whole = steps !== null && steps.length > 2;
+  const between = whole ? `“${worst.drop.fromStep}” and “${worst.drop.toStep}”` : "these two steps";
   const sentence =
     worst.drop.lostPeople !== null
-      ? `${formatInt(worst.drop.lostPeople)} ${worst.drop.lostPeople === 1 ? "person left" : "people left"} between these two steps.`
-      : "The most people leave between these two steps.";
+      ? `${formatInt(worst.drop.lostPeople)} ${worst.drop.lostPeople === 1 ? "person left" : "people left"} between ${between}.`
+      : `The most people leave between ${between}.`;
   return (
     <div className="flex flex-col gap-2" data-channels-funnel={worst.name}>
       <span className="text-xs text-muted-foreground">
         {worst.site} · {worst.name}
       </span>
-      {counts ? (
+      {steps ? (
         <FunnelBars
-          steps={[
-            { key: "from", label: worst.drop.fromStep, value: counts.from },
-            { key: "to", label: worst.drop.toStep, value: counts.to, fill: "bg-warn" },
-          ]}
+          steps={steps}
           shares
-          ariaLabel={`${worst.name}: the step where the most people leave`}
+          ariaLabel={whole ? `${worst.name}: every step, the one where the most people leave coloured` : `${worst.name}: the step where the most people leave`}
         />
       ) : (
         <p className="m-0 text-sm text-foreground">
@@ -116,7 +148,7 @@ function FunnelSide({ cards }: { cards: readonly AssetCard[] }) {
 export function ChannelsModule({ cards }: { cards: readonly AssetCard[] }) {
   const shares = channelShares(cards);
   return (
-    <section aria-label="Where visitors come from" className="grid h-full gap-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @container" data-home-channels="">
+    <section aria-label="Where visitors come from" className="grid content-start gap-5 rounded-xl bg-card p-5 ring-1 ring-border/70 @container" data-home-channels="">
       <SectionLabel title="Where visitors come from · 4 weeks" />
       <div className="grid gap-5 @2xl:grid-cols-2">
         {shares === null || shares.length === 0 ? (

@@ -6,7 +6,7 @@ import { UPTIME_LANE_ID } from "@shared/integrations";
 import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import type { StateTone } from "@/components/StateChip";
-import { alertMark, type WallIssue } from "@/lib/wall-issues";
+import { alertMark, REPORT_LATE_MARK, type WallIssue } from "@/lib/wall-issues";
 import { fourWeeks } from "@/lib/wall-sites";
 
 export type TechFactKey = "reachable" | "speed" | "errors" | "search" | "code";
@@ -23,11 +23,22 @@ export interface TechFact {
 
 export type TechHealthKey = "fine" | "watch" | "trouble" | "unknown";
 
+/** A late or missing nightly report: a note on the row with no dot of its
+ * own. The site's other facts may be as old as its last report. */
+export interface TechReport {
+  key: "report";
+  state: "warn";
+  word: string;
+  note: string;
+}
+
 export interface TechHealth {
   key: TechHealthKey;
   word: string;
   tone: StateTone;
   facts: TechFact[];
+  /** Null while the nightly report is on time, or the site sends none. */
+  report: TechReport | null;
 }
 
 export const TECH_HEALTH: Readonly<Record<TechHealthKey, { word: string; tone: StateTone }>> = {
@@ -115,24 +126,52 @@ function code(card: AssetCard): TechFact {
   return { key: "code", state: "ok", word: "Steady", note: null };
 }
 
+const HOUR_MS = 3_600_000;
+
+/** "No report for 2 days", or in hours under two days; without a clock or a
+ * last report, that no recent report arrived. `wallIssues` decides lateness
+ * ("Report late"), so the row and Needs you can never disagree. */
+function report(card: AssetCard, mine: readonly WallIssue[], nowMs: number | null): TechReport | null {
+  if (!mine.some((issue) => issue.mark === REPORT_LATE_MARK)) return null;
+  const receivedMs = card.pulseReceivedAt === null ? Number.NaN : Date.parse(card.pulseReceivedAt);
+  if (nowMs === null || !Number.isFinite(receivedMs)) {
+    return { key: "report", state: "warn", word: "Report late", note: card.pulseReceivedAt === null ? "No nightly report yet" : "No recent nightly report" };
+  }
+  const hours = Math.max(0, Math.floor((nowMs - receivedMs) / HOUR_MS));
+  const days = Math.floor(hours / 24);
+  const age = hours >= 48 ? `${days} days` : `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return { key: "report", state: "warn", word: "Report late", note: `No report for ${age}` };
+}
+
+/** A row's problems in reading order: a late report first, then the five
+ * facts. The report has no dot; its note sits with the facts' notes. */
+export function rowFacts(health: TechHealth): readonly (TechFact | TechReport)[] {
+  return health.report ? [health.report, ...health.facts] : health.facts;
+}
+
 /** Sites nobody measures yet or any more: every fact is unknown. */
 function unmeasured(status: string): boolean {
   return isRetired(status) || status === "pre-launch";
 }
 
-export function techHealth(card: AssetCard, issues: readonly WallIssue[]): TechHealth {
+/** `nowMs` dates a late report's note; without it the note gives no age. */
+export function techHealth(card: AssetCard, issues: readonly WallIssue[], nowMs: number | null = null): TechHealth {
   const mine = issues.filter((issue) => issue.assets.includes(card.id));
-  const facts: TechFact[] = unmeasured(card.status)
-    ? (["reachable", "speed", "errors", "search", "code"] as const).map((key) => unknown(key))
-    : [reachable(card, mine), speed(card), errors(card), search(card, mine), code(card)];
+  const measuredNow = !unmeasured(card.status);
+  const facts: TechFact[] = measuredNow
+    ? [reachable(card, mine), speed(card), errors(card), search(card, mine), code(card)]
+    : (["reachable", "speed", "errors", "search", "code"] as const).map((key) => unknown(key));
+  const late = measuredNow ? report(card, mine, nowMs) : null;
+  // A late report folds the site to "watch": its facts may be as old as the
+  // last report, so it is never "fine" (nor "not measured yet").
   const key: TechHealthKey = facts.some((fact) => fact.state === "bad")
     ? "trouble"
-    : facts.some((fact) => fact.state === "warn")
+    : late !== null || facts.some((fact) => fact.state === "warn")
       ? "watch"
       : facts.every((fact) => fact.state === "unknown")
         ? "unknown"
         : "fine";
-  return { key, ...TECH_HEALTH[key], facts };
+  return { key, ...TECH_HEALTH[key], facts, report: late };
 }
 
 export interface TechHealthSummary {
@@ -145,13 +184,13 @@ export interface TechHealthSummary {
   lead: { card: AssetCard; health: TechHealth } | null;
 }
 
-export function techHealthSummary(cards: readonly AssetCard[], issues: readonly WallIssue[]): TechHealthSummary {
+export function techHealthSummary(cards: readonly AssetCard[], issues: readonly WallIssue[], nowMs: number | null = null): TechHealthSummary {
   let fine = 0;
   let measured = 0;
   let trouble: TechHealthSummary["lead"] = null;
   let watch: TechHealthSummary["lead"] = null;
   for (const card of cards) {
-    const health = techHealth(card, issues);
+    const health = techHealth(card, issues, nowMs);
     if (health.key === "unknown") continue;
     measured += 1;
     if (health.key === "fine") fine += 1;

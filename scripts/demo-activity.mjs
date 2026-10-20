@@ -6,7 +6,7 @@ import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
-import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoInferenceCostMinor } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoCostSource, demoInferenceCostMinor } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
 const DAY = 86_400_000;
@@ -472,13 +472,13 @@ export function createDemoActivity(input) {
             if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null) {
                 money.push({ asset: asset.id, kind: 'revenue', family: asset.revenueFamily, period: month,
                     amountMinor: Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2)),
-                    currency: 'USD', bookingState: 'reconciled', source: asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : 'demo-simulator', externalId: `${key}/${asset.prefix}/income`,
+                    currency: 'USD', bookingState: 'reconciled', source: asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : null, externalId: `${key}/${asset.prefix}/income`,
                     note: 'Synthetic daily receipts; no real payment or causal lift.', coverageStart: date, coverageEnd: date, coverageComplete: false });
             }
             if (ordinal > 0 && date.endsWith('-01')) {
                 money.push({ asset: asset.id, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', period: month,
                     amountMinor: Math.round(asset.cost * (0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12)),
-                    currency: 'USD', bookingState: 'reconciled', source: 'demo-simulator', externalId: `${key}/${asset.prefix}/cost`,
+                    currency: 'USD', bookingState: 'reconciled', source: demoCostSource(asset), externalId: `${key}/${asset.prefix}/cost`,
                     note: 'Synthetic prepaid operating bill; no real charge.', coverageStart: date,
                     coverageEnd: shiftDemoDay(nextMonth.toISOString().slice(0, 10), -1), coverageComplete: true });
             }

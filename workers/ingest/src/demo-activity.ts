@@ -46,7 +46,7 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
       asset: row.asset, kind: row.kind, family: row.family, period: row.period,
       // The ordinary boundary accepts decimal major units and converts once.
       amount: (row.amountMinor / 100).toFixed(2), currency: row.currency,
-      booking_state: row.bookingState, source: row.source, external_id: row.externalId,
+      booking_state: row.bookingState, source: row.source ?? undefined, external_id: row.externalId,
       note: row.note, coverage_start: row.coverageStart, coverage_end: row.coverageEnd,
       coverage_complete: row.coverageComplete,
     })), store);

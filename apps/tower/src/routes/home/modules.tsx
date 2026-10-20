@@ -19,11 +19,13 @@ const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agent
  * The column each module after Everything's eight takes, drawn here around
  * the module's own element so the modules themselves carry no span. The
  * first eight carry their spans in their own elements, as they always have.
+ * An eight-column module takes its own content's height (`self-start`), not
+ * the height of the stacked column beside it.
  */
 export const MODULE_SPAN: Partial<Record<HomeModuleId, string>> = {
   health: "@3xl:col-span-2 @6xl:col-span-12",
-  factory: "@3xl:col-span-2 @6xl:col-span-8",
-  channels: "@3xl:col-span-2 @6xl:col-span-8",
+  factory: "self-start @3xl:col-span-2 @6xl:col-span-8",
+  channels: "self-start @3xl:col-span-2 @6xl:col-span-8",
   gaps: "@3xl:col-span-2 @6xl:col-span-4",
 };
 

@@ -1207,6 +1207,28 @@
   --text-wall-site-label: 1rem;
 }
 
+/* The Site health widget's type and dots: the list's sizes, and on the TV,
+   where its row has a height of its own (a fill or sized row, not an auto row
+   inside a column), sizes that grow with each site's share of that height up
+   to the TV's stat size. */
+[data-wall-health] {
+  --wall-health-name: var(--text-wall-list-line);
+  --wall-health-note: var(--text-wall-list-meta);
+  --wall-health-head: var(--text-wall-micro);
+  --wall-health-dot: 1rem;
+}
+
+@container wall (width >= calc(1800px - 1.5rem)) {
+  :is([data-wall-row-height="fill"], [data-wall-row-size]) > :not([data-wall-column]) [data-wall-health="rows"] {
+    container-type: size;
+    --wall-health-row: calc((100cqh - 4rem) / var(--health-rows, 6));
+    --wall-health-name: clamp(var(--text-wall-list-line), calc(var(--wall-health-row) * 0.3), var(--text-wall-stat));
+    --wall-health-note: clamp(var(--text-wall-list-meta), calc(var(--wall-health-row) * 0.18), var(--text-wall-strip));
+    --wall-health-head: clamp(var(--text-wall-micro), calc(var(--wall-health-row) * 0.15), var(--text-wall-label));
+    --wall-health-dot: clamp(1rem, calc(var(--wall-health-row) * 0.26), 2rem);
+  }
+}
+
 /* Same cascade layer as the named container above: the TV needs its height
    as well as width. Descendant type reads that height, not the viewport. */
 @container wall (width >= calc(1800px - 1.5rem)) {

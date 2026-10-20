@@ -66,13 +66,15 @@ The **Health** tab shows the same five facts as the dots in Home's **Site health
 | **Search** | visits from search over the last four weeks against the four before, and the sitemap check | **Steady**, **Growing** at a 10% rise, **Falling** at a 10% drop, **Sitemap failing** while the sitemap alert is open |
 | **Code** | the site's newest code report against the one about a month before | **Steady**, **Growing fast** when the code grew 25% or more |
 
-Press a button to show the readings behind it in a panel under the row, titled with the fact and its word; press it again to close the panel. The panel lists:
+Under the row, every fact has a panel with the readings behind it, titled with the fact and its word, in the same order. Pressing a button scrolls to its panel and outlines it; pressing it again removes the outline. When the site's nightly report is late, a line over the buttons names it, such as **No report for 2 days · the readings below may be older**. The panels list:
 
 - **Up**: **Checked every hour**, or **The hourly check has not run lately**; the latest home page check and its date, such as **Home page: fine on Oct 14**; and how many security headers the home page sends, such as **4 of 6 security headers sent**.
 - **Speed**: the slowest group of visitors (**fast**, **OK** or **slow**), then up to three groups, each with its page, how long the main content took to show, such as **main content in 2.4 s**, and its rating.
 - **Errors**: how many people hit an error, or **People who hit an error: not counted**, then up to three errors, each with how many people hit it.
-- **Search**: visits from search in the last four weeks with the four before and the change, such as **1,240 visits from search in the last 4 weeks, 1,100 the 4 before (+13%)**; the latest sitemap check with how many addresses it lists; and how many AI crawlers are allowed, naming the blocked ones.
-- **Code**: the lines of code on the newest report's date, how much they grew or shrank in about 30 days, or **Too early to compare with a month before**, and a line of lines of code over the last 90 days once there are three reports.
+- **Search**: visits from search a day over the last four weeks as bars, with a dashed line at the daily average of the four weeks before; then visits from search in the last four weeks with the four before and the change, such as **1,240 visits from search in the last 4 weeks, 1,100 the 4 before (+13%)**; the latest sitemap check with how many addresses it lists; and how many AI crawlers are allowed, naming the blocked ones.
+- **Code**: a line of lines of code over the last 90 days once there are three reports, then the lines of code on the newest report's date and how much they grew or shrank in about 30 days, or **Too early to compare with a month before**.
+
+A fact that is not measured yet shows **Not measured yet** in its panel with the link that connects it.
 
 A fact with no reading shows **Not measured yet** with a link: **Connect a data feed →** opens the site's **Data sources**, and for **Code**, **Set up the code report →** opens the setup on the **Codebase** tab. A retired site and a site not launched yet have every fact **not measured yet**.
 

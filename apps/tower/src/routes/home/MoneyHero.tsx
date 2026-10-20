@@ -1,3 +1,4 @@
+import type { WordLevel } from "@shared/views";
 import { SegmentBar } from "@/components/SegmentBar";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { PaceBar } from "@/components/viz/PaceBar";
@@ -18,7 +19,7 @@ export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "b
  * usual day dashed, and which sites earned it. Raised, because it is the one
  * region the screen leads with.
  */
-export function MoneyHero({ money, className }: { money: HomeMoney; className?: string }) {
+export function MoneyHero({ money, className, wordLevel = "operational" }: { money: HomeMoney; className?: string; wordLevel?: WordLevel }) {
   const month = formatPeriodMonthLong(money.period);
   const previous = money.previousPeriod ? formatPeriodMonthLong(money.previousPeriod) : null;
   const total = money.bySite.reduce((sum, site) => sum + site.amount, 0);
@@ -37,7 +38,9 @@ export function MoneyHero({ money, className }: { money: HomeMoney; className?: 
           ) : (
             <span className="flex flex-wrap items-baseline gap-x-2" data-money-figure="">
               <span className="text-display tabular-nums text-foreground">{usd(money.soFar)}</span>
-              {money.estimated ? <span className="text-sm font-medium text-muted-foreground">est.</span> : null}
+              {money.estimated ? (
+                <span className="text-sm font-medium text-muted-foreground">{wordLevel === "business" ? "so far" : "est."}</span>
+              ) : null}
             </span>
           )}
           <span className="text-sm text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">

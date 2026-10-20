@@ -94,10 +94,14 @@ test('missing traffic, provisional signals and absent recorded income remain dis
   const ads = scenario.assets.filter(a => a.adRpm).map(a => a.id);
   assert.deepEqual(ads, ['weeknightpantry.example', 'trailnotes.example']);
   // Subscription income is booked under the Stripe source, so Money names it;
-  // nothing else models a payment provider.
+  // nothing else models a payment provider. Licensing income has no
+  // collector, so it carries no source and Money names it by its family.
   assert.ok(scenario.ledger.filter(row => row.kind === 'revenue').every(row => ads.includes(row.asset)
     ? row.family === 'ads' && row.source === 'mediavine' && row.state === 'reconciled'
-    : row.family === 'subs' ? row.source === STRIPE_REVENUE_SOURCE : row.family === 'licensing' && row.source === 'demo-recorded-income'));
+    : row.family === 'subs' ? row.source === STRIPE_REVENUE_SOURCE : row.family === 'licensing' && row.source === null));
+  // Each operating bill is filed as a declared recurring cost, by a word.
+  assert.ok(scenario.ledger.filter(row => row.kind === 'cost' && row.family !== 'inference').every(row =>
+    row.source === (row.family === 'os-overhead' ? 'recurring:servers' : 'recurring:hosting')));
   assert.ok(scenario.ledger.some(row => row.family === 'subs'));
   const unsourced = { ...scenario, ledger: scenario.ledger.map(({ source: _source, ...row }) => row) };
   assert.doesNotMatch(JSON.stringify(unsourced), /MRR|Stripe|churn/iu);
@@ -179,7 +183,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 9);
+  assert.equal(scenario.manifest.scenarioVersion, 10);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],

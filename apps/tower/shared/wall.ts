@@ -711,6 +711,12 @@ export interface CardFunnelDrop {
   stepConversion: number | null;
 }
 
+/** One step of a declared funnel, in the funnel's order. */
+export interface CardFunnelStep {
+  label: string;
+  people: number;
+}
+
 export interface CardProduct {
   /** When the reading was published. */
   observedAt: string;
@@ -724,8 +730,9 @@ export interface CardProduct {
   errorPeople: number | null;
   /** Whether the reading carries a JavaScript-errors finding. */
   jsErrorFinding: boolean;
-  /** The funnel with the largest drop, or null with no funnel declared. */
-  funnel: { name: string; largestDrop: CardFunnelDrop | null } | null;
+  /** The funnel with the largest drop, or null with no funnel declared.
+   * `steps` is every step in order; absent on an older payload. */
+  funnel: { name: string; largestDrop: CardFunnelDrop | null; steps?: CardFunnelStep[] } | null;
 }
 
 export interface CardCodebase {

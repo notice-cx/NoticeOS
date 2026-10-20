@@ -6,6 +6,7 @@ import { UPTIME_LANE_ID } from "@shared/integrations";
 import { segmentName } from "@shared/product";
 import type { AssetCard } from "@shared/wall";
 import { Sparkline } from "@/components/surface/Sparkline";
+import { BarStrip } from "@/components/viz/BarStrip";
 import { useSiteIssues } from "@/hooks/useSiteIssues";
 import { useWall } from "@/hooks/useWall";
 import { formatSeriesDate, formatInt, formatPercent } from "@/lib/format";
@@ -18,16 +19,17 @@ import { Hero, Panel } from "./shared";
 
 /**
  * A site's Health tab: the five facts Home's site-health grid draws as dots,
- * here as one row of large words, each opening the readings behind it. The
- * facts come from the site's card in the Wall's read (`techHealth`), the
- * same calculation Home and the TV use, so the three can never disagree; the
- * evidence comes from this tab's own read.
+ * here as one row of large words, then every fact's evidence as a panel in the
+ * same order, drawn without a press. A word's press scrolls to its panel and
+ * marks it. The facts come from the site's card in the Wall's read
+ * (`techHealth`), the same calculation Home and the TV use, so the three can
+ * never disagree; the evidence comes from this tab's own read.
  */
-export function HealthTab({ data, nowMs: _nowMs }: { data: AssetDetailFor<"health">; nowMs: number }) {
+export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; nowMs: number }) {
   const wall = useWall();
   const issues = useSiteIssues();
-  const [open, setOpen] = useState<TechFactKey | null>(null);
-  const panelId = useId();
+  const [selected, setSelected] = useState<TechFactKey | null>(null);
+  const baseId = useId();
   const card = wall.data?.assets.find((candidate) => candidate.id === data.asset.id) ?? null;
 
   if (!card) {
@@ -40,35 +42,55 @@ export function HealthTab({ data, nowMs: _nowMs }: { data: AssetDetailFor<"healt
     );
   }
 
-  const health = techHealth(card, issues);
-  const shown = open === null ? null : health.facts.find((fact) => fact.key === open) ?? null;
+  const health = techHealth(card, issues, nowMs);
+  const panelId = (key: TechFactKey) => `${baseId}-${key}`;
+  const select = (key: TechFactKey) => {
+    const next = selected === key ? null : key;
+    setSelected(next);
+    if (next === null) return;
+    const reduce = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+    document.getElementById(panelId(next))?.scrollIntoView?.({ behavior: reduce ? "auto" : "smooth", block: "start" });
+  };
 
   return (
     <div className="flex flex-col gap-5" data-health-tab={health.key}>
       <Hero>
         <section aria-label="Site health" className="flex flex-col gap-3">
+          {health.report ? (
+            <p className="m-0 text-sm text-warn" data-health-report="">
+              {health.report.note} · the readings below may be older
+            </p>
+          ) : null}
           <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-5">
             {health.facts.map((fact) => (
               <li key={fact.key} className="min-w-0">
                 <FactButton
                   fact={fact}
                   asOf={asOf(fact.key, card)}
-                  expanded={open === fact.key}
-                  controls={panelId}
-                  onToggle={() => setOpen((current) => (current === fact.key ? null : fact.key))}
+                  pressed={selected === fact.key}
+                  controls={panelId(fact.key)}
+                  onPress={() => select(fact.key)}
                 />
               </li>
             ))}
           </ul>
         </section>
       </Hero>
-      {shown ? (
-        <div id={panelId} data-health-evidence={shown.key}>
-          <Panel title={FACT_LABEL[shown.key]} count={shown.word}>
-            <Evidence fact={shown} card={card} data={data} />
-          </Panel>
-        </div>
-      ) : null}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {health.facts.map((fact) => (
+          <div
+            key={fact.key}
+            id={panelId(fact.key)}
+            className={cn("min-w-0 scroll-mt-4 rounded-[10px]", selected === fact.key && "ring-2 ring-ring")}
+            data-health-evidence={fact.key}
+            data-selected={selected === fact.key ? "" : undefined}
+          >
+            <Panel title={FACT_LABEL[fact.key]} count={fact.word} className="h-full">
+              <Evidence fact={fact} card={card} data={data} />
+            </Panel>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -76,27 +98,27 @@ export function HealthTab({ data, nowMs: _nowMs }: { data: AssetDetailFor<"healt
 function FactButton({
   fact,
   asOf,
-  expanded,
+  pressed,
   controls,
-  onToggle,
+  onPress,
 }: {
   fact: TechFact;
   asOf: string | null;
-  expanded: boolean;
+  pressed: boolean;
   controls: string;
-  onToggle: () => void;
+  onPress: () => void;
 }) {
   return (
     <button
       type="button"
-      aria-expanded={expanded}
-      aria-controls={expanded ? controls : undefined}
-      onClick={onToggle}
+      aria-pressed={pressed}
+      aria-controls={controls}
+      onClick={onPress}
       data-health-fact={fact.key}
       data-fact-state={fact.state}
       className={cn(
         "flex h-full w-full flex-col items-start gap-1 rounded-[10px] border bg-card p-4 text-start outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring motion-safe:transition-colors",
-        expanded ? "border-foreground/40" : "border-border",
+        pressed ? "border-foreground/40" : "border-border",
         fact.state === "unknown" && "border-dashed",
       )}
     >
@@ -223,20 +245,31 @@ function Evidence({ fact, card, data }: { fact: TechFact; card: AssetCard; data:
       if (!weeks && !sitemap) return connect;
       const now = weeks?.days.reduce((sum, day) => sum + (day.value ?? 0), 0) ?? null;
       const before = weeks?.hasPrior ? weeks.days.reduce((sum, day) => sum + (day.prior ?? 0), 0) : null;
+      const usual = weeks && before !== null ? before / weeks.days.length : null;
       return (
-        <Lines
-          lines={[
-            now !== null
-              ? `${formatInt(now)} visits from search in the last 4 weeks${before !== null ? `, ${formatInt(before)} the 4 before` : ""}${weeks?.change ? ` (${weeks.change.percent >= 0 ? "+" : "−"}${formatPercent(Math.abs(weeks.change.percent))}%)` : ""}`
-              : null,
-            sitemap
-              ? `${checkLine(sitemap, "Sitemap")}${sitemap.value !== null ? ` · ${formatInt(sitemap.value)} addresses listed` : ""}`
-              : null,
-            hygiene && hygiene.bots.length > 0
-              ? `${formatInt(allowed)} of ${formatInt(hygiene.bots.length)} AI crawlers allowed${blocked.length > 0 ? ` · blocked: ${blocked.join(", ")}` : ""}`
-              : null,
-          ]}
-        />
+        <div className="flex flex-col gap-3">
+          {weeks && weeks.days.some((day) => day.value !== null) ? (
+            <BarStrip
+              data={weeks.days.map((day) => ({ t: day.date, v: day.value }))}
+              tone="text-traffic"
+              baseline={usual !== null ? { value: usual, label: `${formatInt(usual)} a day the 4 weeks before` } : null}
+              ariaLabel="Visits from search a day, last 4 weeks"
+            />
+          ) : null}
+          <Lines
+            lines={[
+              now !== null
+                ? `${formatInt(now)} visits from search in the last 4 weeks${before !== null ? `, ${formatInt(before)} the 4 before` : ""}${weeks?.change ? ` (${weeks.change.percent >= 0 ? "+" : "−"}${formatPercent(Math.abs(weeks.change.percent))}%)` : ""}`
+                : null,
+              sitemap
+                ? `${checkLine(sitemap, "Sitemap")}${sitemap.value !== null ? ` · ${formatInt(sitemap.value)} addresses listed` : ""}`
+                : null,
+              hygiene && hygiene.bots.length > 0
+                ? `${formatInt(allowed)} of ${formatInt(hygiene.bots.length)} AI crawlers allowed${blocked.length > 0 ? ` · blocked: ${blocked.join(", ")}` : ""}`
+                : null,
+            ]}
+          />
+        </div>
       );
     }
     case "code": {
@@ -245,6 +278,9 @@ function Evidence({ fact, card, data }: { fact: TechFact; card: AssetCard; data:
       const points = data.codebase.history.map((point) => ({ t: point.date, v: point.measures.code_lines ?? null }));
       return (
         <div className="flex flex-col gap-3">
+          {points.filter((point) => point.v !== null).length >= 3 ? (
+            <Sparkline data={points} size="wide" area readout format={(value) => `${formatInt(value)} lines`} ariaLabel="Lines of code over the last 90 days" />
+          ) : null}
           <Lines
             lines={[
               codebase.codeLines !== null ? `${formatInt(codebase.codeLines)} lines of code on ${formatSeriesDate(codebase.date)}` : null,
@@ -253,9 +289,6 @@ function Evidence({ fact, card, data }: { fact: TechFact; card: AssetCard; data:
                 : "Too early to compare with a month before",
             ]}
           />
-          {points.filter((point) => point.v !== null).length >= 3 ? (
-            <Sparkline data={points} size="wide" area readout format={(value) => `${formatInt(value)} lines`} ariaLabel="Lines of code over the last 90 days" />
-          ) : null}
         </div>
       );
     }

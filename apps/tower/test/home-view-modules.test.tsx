@@ -177,7 +177,7 @@ describe("the views draw their modules", () => {
 
     expect(modulesDrawn(container)).toEqual(["health", "money", "factory", "decide"]);
     expect(container.querySelector('[data-home-module="health"]')).toHaveClass("@6xl:col-span-12");
-    expect(container.querySelector('[data-home-module="factory"]')).toHaveClass("@6xl:col-span-8");
+    expect(container.querySelector('[data-home-module="factory"]')).toHaveClass("@6xl:col-span-8", "self-start");
     expect(grid(container)).toHaveClass("@6xl:grid-flow-row-dense");
   });
 
@@ -196,6 +196,8 @@ describe("the views draw their modules", () => {
 
     expect(modulesDrawn(container)).toEqual(["money", "channels", "gaps", "problems", "decide", "sites"]);
     expect(container.querySelector('[data-home-module="channels"]')).toHaveClass("@6xl:col-span-8");
+    // Its own content's height, not the stacked column's beside it.
+    expect(container.querySelector('[data-home-module="channels"]')).toHaveClass("self-start");
     expect(container.querySelector('[data-home-module="gaps"]')).toHaveClass("@6xl:col-span-4");
   });
 
@@ -211,6 +213,33 @@ describe("the views draw their modules", () => {
     const answer = container.querySelector("[data-home-answer-health]")!;
     expect(answer.textContent).toBe("1 of 2 sites are fine. Second Site: slow for 1 in 4 visitors. October so far $45 est.");
     expect(answer.firstElementChild).toHaveClass("text-warn");
+  });
+
+  it("names a site whose nightly report is late, and never calls it fine", () => {
+    storeView("business");
+    // 49 hours before the clock (12:05): past twice the nightly cadence.
+    state.payload = wall([
+      healthy("brief.example.com", { displayName: "Brief Site", pulseReceivedAt: "2026-10-17T11:05:00.000Z" }),
+      healthy("second.example.com", { displayName: "Second Site" }),
+    ]);
+    const { container } = renderHome();
+
+    expect(container.querySelector("[data-home-answer-health]")!.textContent).toMatch(/^1 of 2 sites are fine\. Brief Site: no report for 2 days\./);
+    const row = container.querySelector<HTMLElement>('[data-site-health-row="brief.example.com"]')!;
+    expect(row).toHaveAttribute("data-tech-health", "watch");
+    expect(row.querySelector("[data-site-health-note]")!.textContent).toBe("No report for 2 days");
+  });
+
+  it("calls an estimated month \"so far\" in the business view and \"est.\" elsewhere", () => {
+    state.payload = wall([healthy("first.example.com")]);
+    storeView("business");
+    const business = renderHome();
+    expect(business.container.querySelector("[data-money-figure]")!.textContent).toBe("$45so far");
+    business.unmount();
+
+    storeView("product");
+    const product = renderHome();
+    expect(product.container.querySelector("[data-money-figure]")!.textContent).toBe("$45est.");
   });
 
   it("says every measured site is fine when none needs a look", () => {
@@ -236,6 +265,17 @@ describe("the site-health module", () => {
 
     expect([...container.querySelectorAll("[data-fact-header]")].map((el) => el.textContent)).toEqual(["Up", "Speed", "Errors", "Search", "Code"]);
     expect(container.querySelectorAll("[data-site-health-row]")).toHaveLength(3);
+    // One column template for the header and every row, so each word sits
+    // over its own dots: on a phone (below `@md`) the name takes its own line
+    // and the five dots share the width, each column at least a header wide.
+    const header = container.querySelector<HTMLElement>("[data-site-health-header]")!;
+    const template = (el: HTMLElement) => el.className.split(" ").filter((c) => /grid-cols/.test(c));
+    expect(template(header)).toEqual(["grid-cols-5", "@md:grid-cols-[minmax(0,1fr)_repeat(5,3rem)]", "@2xl:grid-cols-[minmax(8rem,14rem)_repeat(5,3rem)_minmax(0,1fr)]"]);
+    for (const site of container.querySelectorAll<HTMLElement>("[data-site-health-row]")) {
+      expect(template(site)).toEqual(template(header));
+      expect(site.querySelector("a")).toHaveClass("col-span-full", "@md:col-span-1");
+    }
+    expect(header.firstElementChild).toHaveClass("hidden", "@md:block");
     expect(within(row(container, "fine.example.com")).getByRole("link", { name: /Fine Site/ })).toHaveAttribute("href", "/assets/fine.example.com");
   });
 
@@ -349,6 +389,35 @@ describe("where visitors come from", () => {
     expect(funnel.querySelector('[data-funnel-step="to"] .bg-warn')).not.toBeNull();
     expect(funnel.querySelector('[data-funnel-step="from"] .bg-warn')).toBeNull();
     expect(container.querySelector("[data-channels-empty]")).toHaveTextContent("Not joined yet");
+  });
+
+  it("draws every step of the worst funnel, the biggest drop coloured, in a box its content's height", () => {
+    // The demo's shape: four steps, the biggest loss between the second and third.
+    const steps = [
+      { label: "Visited", people: 1_000 },
+      { label: "Opened a recipe", people: 580 },
+      { label: "Saved it", people: 55 },
+      { label: "Signed up", people: 12 },
+    ];
+    const cards = [
+      card("a.example.com", {
+        displayName: "Recipe Site",
+        product: product({ funnel: { name: "Recipe to sign-up", largestDrop: { fromStep: "Opened a recipe", toStep: "Saved it", lostPeople: 525, stepConversion: 55 / 580 }, steps } }),
+      }),
+    ];
+    const { container } = render(tree(<ChannelsModule cards={cards} />));
+
+    const funnel = container.querySelector('[data-channels-funnel="Recipe to sign-up"]')!;
+    const drawn = [...funnel.querySelectorAll("[data-funnel-step]")];
+    expect(drawn.map((step) => step.querySelector("span")!.textContent)).toEqual(["Visited", "Opened a recipe", "Saved it", "Signed up"]);
+    expect(drawn.map((step) => step.getAttribute("data-funnel-step"))).toEqual(["step-1", "from", "to", "step-4"]);
+    expect(funnel.querySelectorAll(".bg-warn")).toHaveLength(1);
+    expect(funnel.querySelector('[data-funnel-step="to"] .bg-warn')).not.toBeNull();
+    expect(funnel).toHaveTextContent("525 people left between “Opened a recipe” and “Saved it”.");
+    // The section is not stretched: its rows start at the top.
+    const section = container.querySelector("[data-home-channels]")!;
+    expect(section).toHaveClass("content-start");
+    expect(section).not.toHaveClass("h-full");
   });
 
   it("says no funnel is declared, or that nothing is joined yet", () => {

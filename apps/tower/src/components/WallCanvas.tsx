@@ -240,6 +240,7 @@ export function WallCanvas({
               connections: connections ?? NO_READS,
               nowMs,
             })}
+            nowMs={nowMs}
           />
         );
       }
