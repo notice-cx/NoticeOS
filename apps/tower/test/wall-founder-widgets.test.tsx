@@ -146,6 +146,34 @@ describe("WallFactory", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("Latest bet · Fine SiteWorked");
   });
 
+  it("keeps the figures and the lines at their own height, together in the middle of the widget", () => {
+    render(
+      <WallFactory
+        week={{
+          building: 10,
+          shipped: 4,
+          proven: 1,
+          watching: 1,
+          latest: [
+            { title: "Latest bet", site: "Fine Site", line: "Worked" },
+            { title: "Latest bet", site: "Slow Site", line: "Did not help" },
+          ],
+        }}
+      />,
+    );
+    const body = document.querySelector("[data-wall-factory-body]")!;
+    const classes = body.className.split(" ");
+    // Centred on the TV, one line-height apart at most.
+    expect(classes).toEqual(expect.arrayContaining(["tv:flex-1", "tv:justify-center-safe", "gap-[1lh]"]));
+    // Nothing inside grows: the figures and each card take their content's height.
+    const figures = body.querySelector("[data-wall-factory-figures]")!;
+    expect(figures.className).not.toMatch(/flex-1|flex-\[/);
+    expect(body.querySelector("ul")!.className).not.toMatch(/flex-1|flex-\[/);
+    for (const line of body.querySelectorAll("[data-wall-factory-line]")) {
+      expect(line.className).not.toMatch(/flex-1|flex-\[|justify-center/);
+    }
+  });
+
   it("draws an unknown count as a dash and says when nothing is finished", () => {
     render(<WallFactory week={{ building: null, shipped: null, proven: 0, watching: 0, latest: [] }} />);
     expect(screen.getAllByLabelText("Unknown")).toHaveLength(2);
@@ -185,7 +213,7 @@ describe("WallChannels", () => {
   });
 
   it("picks the funnel step that loses the most people", () => {
-    expect(largestFunnelDrop([a, b])).toEqual({ site: "B", funnel: "Checkout", drop: b.product!.funnel!.largestDrop });
+    expect(largestFunnelDrop([a, b])).toEqual({ site: "B", funnel: "Checkout", drop: b.product!.funnel!.largestDrop, steps: [] });
     expect(largestFunnelDrop([FINE])).toBeNull();
   });
 
@@ -199,6 +227,43 @@ describe("WallChannels", () => {
     expect(drop).toHaveTextContent("Largest drop · B · Checkout");
     expect(drop).toHaveTextContent("Cart to Pay");
     expect(drop).toHaveTextContent("90 people left · 40% went on");
+  });
+
+  it("draws every step of the worst funnel, the step after the drop coloured, and fills its column", () => {
+    const steps = [
+      { label: "Visited", people: 1_000 },
+      { label: "Opened a recipe", people: 580 },
+      { label: "Saved it", people: 55 },
+      { label: "Signed up", people: 12 },
+    ];
+    const recipes = card("r.example.com", "Recipe Site", {
+      channels: { ...window, rows: [{ channel: "Organic Search", sessions: 900, share: 0.9 }, { channel: "Direct", sessions: 100, share: 0.1 }] },
+      product: { ...PRODUCT, funnel: { name: "Recipe to sign-up", largestDrop: { fromStep: "Opened a recipe", toStep: "Saved it", lostPeople: 525, stepConversion: 55 / 580 }, steps } },
+    });
+    render(<WallChannels assets={[recipes]} />);
+
+    const section = screen.getByRole("region", { name: "Visitors by channel" });
+    expect(section).toHaveClass("h-full", "min-h-0");
+    const funnel = section.querySelector('[data-wall-funnel="Recipe to sign-up"]')!;
+    expect(funnel).toHaveTextContent("Largest drop · Recipe Site · Recipe to sign-up");
+    const drawn = [...funnel.querySelectorAll("[data-wall-funnel-step]")];
+    expect(drawn.map((step) => step.getAttribute("data-wall-funnel-step"))).toEqual(["step-1", "from", "to", "step-4"]);
+    expect(drawn.map((step) => step.firstElementChild!.textContent)).toEqual(["Visited", "Opened a recipe", "Saved it", "Signed up"]);
+    expect(funnel.querySelectorAll(".bg-warn")).toHaveLength(1);
+    expect(funnel.querySelector('[data-wall-funnel-step="to"] .bg-warn')).not.toBeNull();
+    expect(drawn[1]).toHaveTextContent("58058%");
+    expect(funnel).toHaveTextContent("525 people left · 9% went on");
+
+    // The channel rows and the steps share the height left under the header,
+    // each list growing by its own count of rows, every row an equal track.
+    const channels = section.querySelector<HTMLElement>("[data-wall-channel-rows]")!;
+    expect(channels.style.getPropertyValue("--wall-bar-rows")).toBe("2");
+    expect(funnel.getAttribute("style")).toContain("--wall-bar-rows: 4");
+    for (const list of [channels, funnel, funnel.querySelector("ol")!]) {
+      expect(list.className).toContain("tv:grow-(--wall-bar-rows)");
+      expect(list.className).toContain("tv:basis-0");
+    }
+    for (const list of [channels, funnel.querySelector("ol")!]) expect(list.className).toContain("tv:auto-rows-[minmax(min-content,1fr)]");
   });
 
   it("says so when no site carries a channel split", () => {

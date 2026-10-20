@@ -172,7 +172,9 @@ export interface StripeOptions {
   laneRegister?: LaneRegister;
 }
 
-interface Target { asset: string; account: string }
+/** One site and the Stripe account its income is read from. */
+export interface StripeTarget { asset: string; account: string }
+type Target = StripeTarget;
 
 /** Every site whose Subscriptions entry names a Stripe account and is not
  * declined there. */
@@ -233,8 +235,8 @@ export function dailyNet(rows: readonly BalanceTransaction[], window: { start: s
 }
 
 /** Write each day whose current figure differs, one statement a day, in one
- * transaction. Returns how many days were written. */
-async function persistDays(env: Pick<IngestEnv, 'STORE'>, target: Target, days: Map<string, number>, currency: string, runId: string, at: string): Promise<number> {
+ * transaction, under the `stripe` source. Returns how many days were written. */
+export async function persistStripeDays(env: Pick<IngestEnv, 'STORE'>, target: Target, days: Map<string, number>, currency: string, runId: string, at: string): Promise<number> {
   return env.STORE.write(async (tx) => {
     let written = 0;
     for (const [day, amountMinor] of days) {
@@ -324,7 +326,7 @@ export async function runStripeRevenue(env: IngestEnv, options: StripeOptions = 
       const lt = Date.parse(`${shiftDay(window.end, 1)}T00:00:00Z`) / 1000 + 86_400;
       const rows = await readTransactions(apiKey, gte, lt, fetchImpl);
       const runId = crypto.randomUUID();
-      const written = await persistDays(env, target, dailyNet(rows, window, currency, clock.timeZone), currency, runId, at);
+      const written = await persistStripeDays(env, target, dailyNet(rows, window, currency, clock.timeZone), currency, runId, at);
       outcomes.push({ asset: target.asset, account: target.account, status: 'collected', days, written, errorCode: null });
       await observe(target, true, runId);
     } catch (error) {

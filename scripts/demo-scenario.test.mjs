@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, shiftDemoMonth, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_INFERENCE_SOURCE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoAdRevenueMinor, demoSubscriptionMinor, demoCodebaseEnvelope, demoCodebaseReports, demoProperties, shiftDemoDay, shiftDemoMonth, DEMO_DEPENDENCY_CLEANUP_AGE, DEMO_LIBRARY_SWAP_AGE, DEMO_INFERENCE_SOURCE, DEMO_REDESIGN_AGE, DEMO_REPORT_GAP_DAYS } from './demo-scenario.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { demoCodebaseVerdicts } from './demo-store.mjs';
 import * as codebaseRules from '../packages/contract/src/codebase-measures.ts';
@@ -89,8 +89,9 @@ test('missing traffic, provisional signals and absent recorded income remain dis
   assert.ok(quiet.every(d => d.asset === scenario.manifest.reportGap.asset && !d.reportMissing && d.date >= scenario.manifest.reportGap.from));
   assert.ok(!scenario.pulses.some(p => quiet.some(d => d.asset === p.asset && d.date === p.date)));
   assert.ok(scenario.daily.every(day => !('adMinor' in day) && !('adMissing' in day)));
-  // Subscription and licensing income is recorded monthly; only the
-  // ad-supported site has ad income, as the network's payments.
+  // Subscription and licensing income is recorded monthly, and subscription
+  // income also daily; only the ad-supported sites have ad income, as the
+  // network's payments.
   const ads = scenario.assets.filter(a => a.adRpm).map(a => a.id);
   assert.deepEqual(ads, ['weeknightpantry.example', 'trailnotes.example']);
   // Subscription income is booked under the Stripe source, so Money names it;
@@ -106,7 +107,8 @@ test('missing traffic, provisional signals and absent recorded income remain dis
   const unsourced = { ...scenario, ledger: scenario.ledger.map(({ source: _source, ...row }) => row) };
   assert.doesNotMatch(JSON.stringify(unsourced), /MRR|Stripe|churn/iu);
   assert.ok(scenario.ledger.filter(l => l.asset === 'freshrows.example').every(l => l.kind === 'cost'));
-  assert.equal(scenario.ledger.filter(l => l.period === '2026-10' && l.kind === 'revenue').length, 2);
+  // The current month's subscription income is its daily figures, not a ledger row.
+  assert.deepEqual(scenario.ledger.filter(l => l.period === '2026-10' && l.kind === 'revenue').map(l => [l.asset, l.family]), [['pinwell.example', 'licensing']]);
 });
 
 test('first-of-month has no fabricated complete current-month observations or income', () => {
@@ -183,7 +185,7 @@ test('accounting anchors precede the unchanged repair windows across calendar bo
 // Income describes recorded monthly amounts, never a payment-provider model.
 test('the software portfolio retains meaningful metrics and honest monthly correction evidence', () => {
   const scenario = generateDemoScenario(options);
-  assert.equal(scenario.manifest.scenarioVersion, 10);
+  assert.equal(scenario.manifest.scenarioVersion, 11);
   assert.deepEqual(scenario.assets.filter(asset => !asset.isOs).map(asset => [asset.name, asset.id, asset.prefix, asset.event, asset.revenueFamily]), [
     ['Light Brief', 'lightbrief.example', 'lb', 'brief_exports', 'subs'],
     ['Pinwell', 'pinwell.example', 'pw', 'source_saves', 'licensing'],
@@ -197,7 +199,7 @@ test('the software portfolio retains meaningful metrics and honest monthly corre
   assert.ok(correction && correction.family === 'subs');
   assert.equal(scenario.ledger.find(row => row.key === correction.supersedes).source, correction.source);
   const currentIncome = scenario.ledger.filter(row => row.period === scenario.manifest.referenceDate.slice(0, 7) && row.kind === 'revenue');
-  assert.equal(currentIncome.length, 2);
+  assert.equal(currentIncome.length, 1);
   assert.ok(currentIncome.every(row => row.minor > 0 && row.minor < scenario.assets.find(asset => asset.id === row.asset).revenue && row.state === 'reconciled'));
   assert.ok(currentIncome.every(row => row.coverageStart === '2026-10-01' && row.coverageEnd === '2026-10-16' && row.coverageComplete === false && row.recordedAt === options.cutoff));
   assert.ok(scenario.ledger.filter(row => row.kind === 'revenue' && row.period !== '2026-10').every(row => row.coverageComplete === true && row.coverageStart === row.period + '-01'));
@@ -207,7 +209,8 @@ test('partial income has bounded explicit coverage even on the first posting day
   for (const cutoff of ['2026-10-01T07:00:00.000Z', '2026-10-16T12:00:00.000Z', '2026-01-01T12:00:00.000Z', '2024-02-29T12:00:00.000Z']) {
     const scenario = generateDemoScenario({ ...options, cutoff });
     const rows = scenario.ledger.filter(row => row.kind === 'revenue' && row.period === cutoff.slice(0, 7));
-    assert.equal(rows.length, 2);
+    // Licensing only: the month's subscription income is its daily figures.
+    assert.deepEqual(rows.map(row => row.family), ['licensing']);
     for (const row of rows) {
       assert.equal(row.coverageStart, row.period + '-01');
       assert.equal(row.coverageEnd, cutoff.slice(0, 10));
@@ -216,6 +219,28 @@ test('partial income has bounded explicit coverage even on the first posting day
       assert.ok(row.minor > 0 && row.minor < scenario.assets.find(asset => asset.id === row.asset).revenue);
     }
     assert.ok(scenario.ledger.filter(row => row.kind === 'cost').every(row => row.coverageStart === undefined && row.coverageEnd === undefined && row.coverageComplete === undefined));
+  }
+});
+
+test('the subscription site has daily income through its last complete day, and only finished months on the ledger', () => {
+  for (const [cutoff, through] of [['2026-10-16T12:00:00.000Z', '2026-10-15'], ['2026-10-16T00:30:00.000Z', '2026-10-14'], ['2026-10-01T00:01:00.000Z', '2026-09-29'], ['2026-10-01T07:00:00.000Z', '2026-09-30']]) {
+    const scenario = generateDemoScenario({ ...options, cutoff });
+    assert.deepEqual(scenario.manifest.subscriptionSites, [{ asset: 'lightbrief.example', account: 'acct_demo_lb' }]);
+    const asset = scenario.assets.find(a => a.revenueFamily === 'subs');
+    const days = scenario.subscriptionDays;
+    assert.ok(days.every(day => day.asset === asset.id && day.account === 'acct_demo_lb'));
+    assert.equal(days[0].date, asset.createdAt.slice(0, 10));
+    assert.equal(days.at(-1).date, through, cutoff);
+    assert.equal(new Set(days.map(day => day.date)).size, days.length);
+    for (const day of days) {
+      assert.equal(day.minor, demoSubscriptionMinor(options.seed, asset, day.date));
+      assert.ok(day.minor > 0 && day.recordedAt <= cutoff && day.recordedAt === `${shiftDemoDay(day.date, 1)}T01:00:00.000Z`);
+    }
+    // No ledger row stands beside the current month's daily figures; every
+    // finished month keeps its reconciled total.
+    const period = scenario.manifest.referenceDate.slice(0, 7);
+    assert.equal(scenario.ledger.filter(row => row.family === 'subs' && row.period === period).length, 0);
+    assert.equal(new Set(scenario.ledger.filter(row => row.family === 'subs' && row.state === 'reconciled').map(row => row.period)).size, 12);
   }
 });
 

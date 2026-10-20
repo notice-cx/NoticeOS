@@ -4,7 +4,7 @@
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
-export const SCENARIO_VERSION = 10;
+export const SCENARIO_VERSION = 11;
 /** The agents' model usage, booked against the OS as a provider's usage
  * export is: one estimated `inference` cost a month. A fictional provider. */
 export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
@@ -117,6 +117,24 @@ export function demoAdRevenueMinor(seed, asset, date, sessions) {
 export function demoAdPayment(seed, asset, month, dailyMinor) {
     const sum = dailyMinor.reduce((a, b) => a + b, 0);
     return { minor: Math.round(sum * (0.985 + draw(seed, `${asset.id}/${month}/payment`) * 0.03)), paidOn: `${shiftDemoMonth(month, 2)}-06` };
+}
+/** The account a subscription site's daily income is read from. Fictional. */
+export function demoSubscriptionAccount(asset) {
+    return `acct_demo_${asset.prefix}`;
+}
+/** One day's synthetic subscription income in cents: the month's income spread
+ * over its days with a little daily noise, independent of traffic. */
+export function demoSubscriptionMinor(seed, asset, date) {
+    if (asset.revenue === null)
+        throw new Error('Subscription income needs a site that earns it.');
+    const monthDays = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).getUTCDate();
+    return Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2));
+}
+/** The last complete day of subscription income by `instant`: a UTC day is
+ * complete from 01:00 UTC the next day, as the source's vocabulary row says. */
+export function demoSubscriptionReportedThrough(instant) {
+    const day = instant.slice(0, 10);
+    return shiftDemoDay(day, instant >= `${day}T01:00:00.000Z` ? -1 : -2);
 }
 /** The last day an ad network has reported by `instant`: yesterday once the
  * morning report is in (14:10 UTC is after it in every season), otherwise the
@@ -498,6 +516,13 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         .filter(d => d.asset === asset.id && d.date <= reportedThrough)
         .map(d => ({ asset: asset.id, siteId: demoAdSiteId(asset), date: d.date, minor: adDays.get(`${asset.id}/${d.date}`),
         recordedAt: `${shiftDemoDay(d.date, 1)}T14:10:00.000Z` })));
+    // Subscription income for every recorded day complete by the cutoff, as the
+    // collector records it; the current month has no ledger row beside it.
+    const subscriptionsThrough = demoSubscriptionReportedThrough(cutoff);
+    const subscriptionDays = assets.filter(a => a.revenueFamily === 'subs').flatMap(asset => daily
+        .filter(d => d.asset === asset.id && d.date <= subscriptionsThrough)
+        .map(d => ({ asset: asset.id, account: demoSubscriptionAccount(asset), date: d.date, minor: demoSubscriptionMinor(seed, asset, d.date),
+        recordedAt: `${shiftDemoDay(d.date, 1)}T01:00:00.000Z` })));
     const ledger = [];
     const add = (row, note = 'Synthetic demo accounting.') => { const value = { key: `ledger-${ledger.length + 1}`, currency: 'USD', note, ...row }; ledger.push(value); return value.key; };
     for (let offset = -12; offset <= 0; offset++) {
@@ -529,12 +554,16 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             if (asset.revenue === null || asset.revenueFamily === null)
                 continue;
             const coverageStart = `${month}-01`;
-            // Subscription income is booked under the Stripe source, so Money names
-            // it as subscriptions; no Stripe account is read. Other recorded income
+            // A finished month's subscription income is booked under the Stripe
+            // source, so Money names it as subscriptions; no Stripe account is read.
+            // It replaces that month's daily figures in Money. Other recorded income
             // has no collector, so it carries no source and Money names it by its
             // family.
             const source = asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : null;
             if (offset === 0) {
+                // The current month's subscription income is its daily figures above.
+                if (asset.revenueFamily === 'subs')
+                    continue;
                 // A fictional first posting precedes any current-period receipt. No
                 // scheduled or future sale is booked; coverage ends at this cutoff.
                 const firstPosting = `${month}-01T01:00:00.000Z`;
@@ -606,10 +635,11 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     const fix = { asset: site('pw').id, ref: taskFacts.storyIds.problem, annotationAt: new Date(Date.parse(cutoff) - 4 * 3_600_000).toISOString() };
     const reportGap = { asset: site('lb').id, from: shiftDemoDay(referenceDate, -DEMO_REPORT_GAP_DAYS) };
     const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
+    const subscriptionSites = assets.filter(a => a.revenueFamily === 'subs').map(asset => ({ asset: asset.id, account: demoSubscriptionAccount(asset) }));
     // Pinwell's cleanup deploy removed the packages its library swap left behind;
     // the next weekly report reads them gone.
     const dependencyCleanup = { asset: site('pw').id, annotationAt: day(DEMO_DEPENDENCY_CLEANUP_AGE, '16:00:00') };
-    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship, slide, dip, fix, reportGap, dependencyCleanup }, assets, daily, ledger, adRevenue, pulses, codebaseRuns, tasks: taskFacts.tasks };
+    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, subscriptionSites, stories, ship, slide, dip, fix, reportGap, dependencyCleanup }, assets, daily, ledger, adRevenue, subscriptionDays, pulses, codebaseRuns, tasks: taskFacts.tasks };
 }
 /** A day's counts as each source reports them. */
 export function demoSourceValues(row, integration) {

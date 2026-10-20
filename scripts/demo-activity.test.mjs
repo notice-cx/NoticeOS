@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createDemoActivity, DEMO_ACTIVITY_LIMITS, DEMO_HOUR_SHARE, DEMO_NIGHTLY_HOUR, DEMO_OUTAGE_MINUTES, demoDayShare } from './demo-activity.mjs';
-import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, shiftDemoDay, DEMO_INFERENCE_SOURCE } from './demo-scenario.mjs';
+import { generateDemoScenario, demoCodebaseEnvelope, demoCodebaseReports, demoScenarioHash, demoSubscriptionMinor, shiftDemoDay, DEMO_INFERENCE_SOURCE } from './demo-scenario.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { parseProductSnapshot } from '../apps/tower/shared/product-snapshot.ts';
 import { readFileSync } from 'node:fs';
@@ -145,7 +145,8 @@ test('seven-day pulse averages cross the original seed boundary without resettin
 test('new receipts and operating bills never duplicate the seeded cutoff or invent young-product income', () => {
   assert.deepEqual(activity.day(scenario.manifest.referenceDate).money, []);
   const next = activity.day('2026-10-17').money;
-  assert.equal(next.length, 2);
+  // Licensing receipts only: subscription income arrives as daily figures.
+  assert.equal(next.length, 1);
   assert.ok(next.every(row => row.kind === 'revenue' && row.coverageStart === '2026-10-17' && row.coverageEnd === '2026-10-17' && !row.coverageComplete));
   const month = activity.day('2026-11-01').money;
   // Each site's and the OS's prepaid bill for the month, and the OS's model
@@ -168,8 +169,27 @@ test('new receipts and operating bills never duplicate the seeded cutoff or inve
       : row.kind === 'revenue' ? null : row.family === 'os-overhead' ? 'recurring:servers' : 'recurring:hosting');
     assert.match(row.note, /^Synthetic /u);
   }
-  assert.deepEqual(next.map(row => row.family).sort(), ['licensing', 'subs']);
+  assert.deepEqual(next.map(row => row.family).sort(), ['licensing']);
   assert.equal(new Set([...next, ...month].map(row => row.externalId)).size, next.length + month.length);
+});
+
+test('subscription income continues day by day after the seed, and each finished month closes on their sum', () => {
+  const site = scenario.assets.find(asset => asset.revenueFamily === 'subs');
+  const seeded = scenario.subscriptionDays.at(-1).date;
+  assert.equal(seeded, '2026-10-15');
+  // The anchor day writes every day after the seed's last, through itself.
+  assert.deepEqual(activity.day(scenario.manifest.referenceDate).subscriptions,
+    [{ asset: site.id, account: 'acct_demo_lb', date: '2026-10-16', amountMinor: demoSubscriptionMinor(input.seed, site, '2026-10-16'), currency: 'USD' }]);
+  assert.deepEqual(activity.day('2026-10-17').subscriptions.map(day => [day.asset, day.date]), [[site.id, '2026-10-17']]);
+  // No ledger receipt stands beside them, so nothing is counted twice.
+  const rest = Array.from({ length: 16 }, (_, i) => activity.day(shiftDemoDay('2026-10-16', i)));
+  assert.ok(rest.every(day => !day.money.some(row => row.family === 'subs')));
+  const close = activity.day('2026-11-01').money.filter(row => row.family === 'subs');
+  const october = [...scenario.subscriptionDays.filter(day => day.date.startsWith('2026-10')).map(day => day.minor),
+    ...rest.flatMap(day => day.subscriptions.map(row => row.amountMinor))];
+  assert.equal(october.length, 31);
+  assert.deepEqual(close.map(row => [row.asset, row.period, row.amountMinor, row.bookingState, row.source, row.coverageStart, row.coverageEnd, row.coverageComplete]),
+    [[site.id, '2026-10', october.reduce((sum, minor) => sum + minor, 0), 'reconciled', STRIPE_REVENUE_SOURCE, '2026-10-01', '2026-10-31', true]]);
 });
 
 test('leap days and month/year transitions retain exact calendar coverage', () => {
@@ -179,7 +199,8 @@ test('leap days and month/year transitions retain exact calendar coverage', () =
   assert.ok(february.filter(row => row.family === 'inference').every(row => row.period === '2024-01' && row.coverageEnd === '2024-01-31'));
   assert.equal(leap.batch('2024-02-28', '2024-03-01').length, 3);
   const january = activity.day('2027-01-01').money;
-  assert.ok(january.filter(row => row.family !== 'inference').every(row => row.period === '2027-01'));
+  assert.ok(january.filter(row => row.family !== 'inference' && row.family !== 'subs').every(row => row.period === '2027-01'));
+  assert.deepEqual(january.filter(row => row.family === 'subs').map(row => [row.period, row.coverageStart, row.coverageEnd]), [['2026-12', '2026-12-01', '2026-12-31']]);
   assert.deepEqual(january.filter(row => row.family === 'inference').map(row => [row.period, row.coverageEnd]), [['2026-12', '2026-12-31']]);
 });
 

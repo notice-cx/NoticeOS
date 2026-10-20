@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { DEFAULT_CODEBASE_RULE_THRESHOLDS, PulseEnvelope, evaluateCodebaseRules, evaluatePulse, pickComparisonReport } from '@noticeos/contract';
+import { MEDIAVINE_REVENUE_SOURCE, STRIPE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { generateDemoScenario, demoScenarioHash, shiftDemoDay } from '../../../scripts/demo-scenario.mjs';
 import { fillDemo, demoPulseVerdicts } from '../../../scripts/demo-store.mjs';
 import { buildFinancialsPayload } from '../worker/financials-payload';
@@ -8,6 +9,7 @@ import { buildWallPayload } from '../worker/wall-payload';
 import { buildAssetDetailPayload, type AssetDetailDeps } from '../worker/asset-detail-payload';
 import { loadSignalTrends } from '../worker/signal-trends';
 import { monthRevenue } from '../src/lib/wall-revenue';
+import { homeMoney } from '../src/lib/home-money';
 import { portfolioHeadline } from '../src/lib/portfolio-headline';
 import { createTestStore, type TestStore } from './postgres-store';
 
@@ -51,13 +53,17 @@ it('ordinary financials and Wall read the same integer-cents ledger without coun
   const wall = await buildWallPayload(fixture.call, { now: NOW, osTimeZone: 'UTC', constants: { dataUsd: 25 }, integrations, pullConfig: [], dashboard: {}, serpPanel: { assets: {} } });
   const productCards = wall.assets.filter(asset => scenario.assets.some(product => !product.isOs && product.id === asset.id));
   expect(productCards).toHaveLength(5);
-  // Only the ad network reports daily revenue; recorded software income never feeds a forecast.
+  // The ad network and the subscriptions collector report daily revenue;
+  // licensing income recorded monthly never feeds a forecast.
   const adSites = new Set(scenario.manifest.adSites.map(site => site.asset));
-  expect(productCards.filter(asset => !adSites.has(asset.id)).every(asset => asset.revenueProjection?.status === 'no-revenue')).toBe(true);
-  for (const site of adSites) {
-    const ads = productCards.find(asset => asset.id === site)!;
-    expect(ads.revenueProjection?.status).not.toBe('no-revenue');
-    expect(ads.revenueProjection?.reportedThrough).toBe(scenario.adRevenue.filter(day => day.asset === site).at(-1)!.date);
+  const subscriptionSites = new Set(scenario.manifest.subscriptionSites.map(site => site.asset));
+  expect([...subscriptionSites]).toEqual(['lightbrief.example']);
+  expect(productCards.filter(asset => !adSites.has(asset.id) && !subscriptionSites.has(asset.id)).every(asset => asset.revenueProjection?.status === 'no-revenue')).toBe(true);
+  const reportedThrough = (site: string) => [...scenario.adRevenue, ...scenario.subscriptionDays].filter(day => day.asset === site).at(-1)!.date;
+  for (const site of [...adSites, ...subscriptionSites]) {
+    const daily = productCards.find(asset => asset.id === site)!;
+    expect(daily.revenueProjection?.status).not.toBe('no-revenue');
+    expect(daily.revenueProjection?.reportedThrough).toBe(reportedThrough(site));
   }
   const current = await buildFinancialsPayload(fixture.call, { now: NOW, osTimeZone: 'UTC', domainOrders: [], period: '2026-10' });
   expect(current.months.find(m => m.period === '2026-10')?.estimated.net).toBe(wall.portfolio.forecast.net);
@@ -84,8 +90,12 @@ it('ordinary chart readers preserve provisional values and missing traffic while
   // The ad network's history is one synthetic run of daily estimates per ad-supported site.
   expect(await fixture.call.read(tx => tx.query('SELECT site_id, asset_id AS asset FROM noticeos.mediavine_sites ORDER BY site_id'))).toEqual(scenario.manifest.adSites.map(site => ({ site_id: site.siteId, asset: site.asset })).sort((a, b) => a.site_id.localeCompare(b.site_id)));
   expect(await fixture.call.read(tx => tx.query('SELECT run_seq FROM noticeos.mediavine_runs'))).toHaveLength(scenario.manifest.adSites.length);
-  const adDays = await fixture.call.read(tx => tx.query<{ days: number; minor: string }>('SELECT count(*)::int AS days, sum(amount_minor)::text AS minor FROM noticeos.current_revenue'));
-  expect(adDays[0]).toEqual({ days: scenario.adRevenue.length, minor: String(scenario.adRevenue.reduce((sum, day) => sum + day.minor, 0)) });
+  const daily = await fixture.call.read(tx => tx.query<{ source: string; days: number; minor: string }>('SELECT source, count(*)::int AS days, sum(amount_minor)::text AS minor FROM noticeos.current_revenue GROUP BY source ORDER BY source'));
+  // The subscription site's daily income is the subscriptions collector's, under its own source.
+  expect(daily).toEqual([
+    { source: MEDIAVINE_REVENUE_SOURCE, days: scenario.adRevenue.length, minor: String(scenario.adRevenue.reduce((sum, day) => sum + day.minor, 0)) },
+    { source: STRIPE_REVENUE_SOURCE, days: scenario.subscriptionDays.length, minor: String(scenario.subscriptionDays.reduce((sum, day) => sum + day.minor, 0)) },
+  ]);
   const youngMoney = financials.properties.find(p => p.asset === 'freshrows.example')!;
   expect(youngMoney.figure.cost).toBe(60);
   expect(youngMoney.figure.revenue).toBe(0);
@@ -124,8 +134,9 @@ it.each(['2026-10-01T07:00:00.000Z', '2026-10-16T12:00:00.000Z'])('current recor
   const period = cutoff.slice(0, 7);
   const income = facts.ledger.filter(row => row.period === period && row.kind === 'revenue');
   const recorded = income.reduce((sum, row) => sum + row.minor, 0) / 100;
-  // The ad network's daily estimates for this month, once any is reported.
-  const estimated = facts.adRevenue.filter(day => day.date.startsWith(period)).reduce((sum, day) => sum + day.minor, 0) / 100;
+  // The ad network's and the subscriptions collector's daily figures for this
+  // month, once any is reported.
+  const estimated = [...facts.adRevenue, ...facts.subscriptionDays].filter(day => day.date.startsWith(period)).reduce((sum, day) => sum + day.minor, 0) / 100;
   const wall = await buildWallPayload(own.call, { now, osTimeZone: 'UTC', constants: { dataUsd: 25 }, integrations, pullConfig: [], dashboard: {}, serpPanel: { assets: {} } });
   const financials = await buildFinancialsPayload(own.call, { now, osTimeZone: 'UTC', domainOrders: [], period });
   expect(recorded).toBeGreaterThan(0);
@@ -137,10 +148,24 @@ it.each(['2026-10-01T07:00:00.000Z', '2026-10-16T12:00:00.000Z'])('current recor
   expect(financials.months.find(month => month.period === period)?.booked.revenue).toBe(recorded);
   expect(financials.months.find(month => month.period === period)?.estimated.revenue).toBeCloseTo(estimated, 2);
   expect(financials.properties.find(asset => asset.asset === 'freshrows.example')?.revenueReported).toBe(false);
-  expect(financials.properties.filter(asset => ['lightbrief.example', 'pinwell.example'].includes(asset.asset)).every(asset => asset.revenueReported)).toBe(true);
+  // Home's "Where the month came from" and Money's "By source" carry the same
+  // subscription and ad totals, each from the same daily figures.
+  const subscriptions = facts.subscriptionDays.filter(day => day.date.startsWith(period)).reduce((sum, day) => sum + day.minor, 0) / 100;
+  const ads = facts.adRevenue.filter(day => day.date.startsWith(period)).reduce((sum, day) => sum + day.minor, 0) / 100;
+  const line = (source: string) => financials.revenueLines?.find(row => row.source === source)?.amount ?? 0;
+  expect(line(STRIPE_REVENUE_SOURCE)).toBeCloseTo(subscriptions, 2);
+  expect(line(MEDIAVINE_REVENUE_SOURCE)).toBeCloseTo(ads, 2);
+  const home = homeMoney(wall.portfolio, wall.assets);
+  const brief = home?.bySite.find(site => site.id === 'lightbrief.example')?.amount ?? 0;
+  if (subscriptions > 0) expect(brief).toBeCloseTo(subscriptions, 2);
+  expect(financials.properties.find(asset => asset.asset === 'pinwell.example')?.revenueReported).toBe(true);
+  // Subscriptions are reported once a day of this month is complete.
+  expect(financials.properties.find(asset => asset.asset === 'lightbrief.example')?.revenueReported)
+    .toBe(facts.subscriptionDays.some(day => day.date.startsWith(period)));
   const saved = await own.call.read(tx => tx.query<{ asset: string; start: string; end: string; complete: boolean }>(`SELECT asset_id AS asset, coverage_start::text AS start, coverage_end::text AS end, coverage_complete AS complete
     FROM noticeos.ledger_entries WHERE kind = 'revenue' AND period_month = $1::date ORDER BY asset_id`, [period + '-01']));
-  expect(saved).toEqual(['lightbrief.example', 'pinwell.example'].map(asset => ({ asset, start: period + '-01', end: cutoff.slice(0, 10), complete: false })));
-  expect(wall.assets.filter(asset => !facts.manifest.adSites.some(site => site.asset === asset.id))
+  // Only the licensing site's partial month is a ledger row; subscriptions are daily figures.
+  expect(saved).toEqual([{ asset: 'pinwell.example', start: period + '-01', end: cutoff.slice(0, 10), complete: false }]);
+  expect(wall.assets.filter(asset => ![...facts.manifest.adSites, ...facts.manifest.subscriptionSites].some(site => site.asset === asset.id))
     .every(asset => asset.revenueProjection?.status === 'no-revenue')).toBe(true);
 });

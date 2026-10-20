@@ -46,6 +46,7 @@ export declare function fillDemo(tx: Transaction, scenario: DemoScenario, { eval
     codebaseFlags: number;
     ledger: number;
     adDays: number;
+    subscriptionDays: number;
     watchStatus: string;
 }>;
 export {};

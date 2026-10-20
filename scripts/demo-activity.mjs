@@ -6,7 +6,7 @@ import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
 import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
 import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
-import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoCostSource, demoInferenceCostMinor } from './demo-scenario.mjs';
+import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle, demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoCostSource, demoInferenceCostMinor, demoSubscriptionMinor } from './demo-scenario.mjs';
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
 const DAY = 86_400_000;
@@ -421,6 +421,9 @@ export function createDemoActivity(input) {
     // report the seed stored; the site still setting up sends none.
     const codebaseSites = scenario.assets.filter(asset => demoCodebaseReporting(asset)).map(asset => ({ asset, weekday: demoCodebaseWeekday(asset),
         after: scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)?.date ?? referenceDate }));
+    // Each subscription site continues after the last day the seed stored.
+    const subscriptionSites = scenario.manifest.subscriptionSites.map(site => ({ asset: scenario.assets.find(asset => asset.id === site.asset), account: site.account,
+        after: scenario.subscriptionDays.filter(day => day.asset === site.asset).at(-1)?.date ?? shiftDemoDay(referenceDate, -1) }));
     const day = (date) => {
         const ordinal = dateNumber(date) - anchor;
         if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor)
@@ -454,8 +457,8 @@ export function createDemoActivity(input) {
         const nextMonth = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 1));
         const monthDays = Number(new Date(nextMonth.getTime() - DAY).toISOString().slice(8, 10));
         const money = [];
-        // The seed already includes the cutoff day's partial receipts and prepaid
-        // monthly costs. Continue receipts on the NEXT day; never book them twice.
+        // The seed already includes the cutoff day's partial licensing receipts and
+        // prepaid monthly costs. Continue receipts on the NEXT day; never book them twice.
         for (const asset of scenario.assets) {
             // An ad network pays each month on the sixth of the second month after
             // it; the seed booked every payment made before the anchor day.
@@ -469,10 +472,22 @@ export function createDemoActivity(input) {
                         note: 'Synthetic ad network payment; no real payout.', coverageStart: dates[0], coverageEnd: dates.at(-1), coverageComplete: true });
                 }
             }
-            if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null) {
+            // Subscription income arrives as daily figures (`subscriptions`); a
+            // month that ended is closed with its reconciled total, the sum of them.
+            if (ordinal > 0 && asset.revenueFamily === 'subs' && date.endsWith('-01')) {
+                const ended = shiftDemoMonth(month, -1);
+                const dates = monthDates(ended).filter(day => day >= asset.createdAt.slice(0, 10));
+                if (dates.length) {
+                    money.push({ asset: asset.id, kind: 'revenue', family: 'subs', period: ended,
+                        amountMinor: dates.reduce((sum, day) => sum + demoSubscriptionMinor(seed, asset, day), 0),
+                        currency: 'USD', bookingState: 'reconciled', source: STRIPE_REVENUE_SOURCE, externalId: `${key}/${asset.prefix}/close`,
+                        note: 'Synthetic month of subscription income, reconciled; no real payment.', coverageStart: dates[0], coverageEnd: dates.at(-1), coverageComplete: true });
+                }
+            }
+            if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null && asset.revenueFamily !== 'subs') {
                 money.push({ asset: asset.id, kind: 'revenue', family: asset.revenueFamily, period: month,
                     amountMinor: Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2)),
-                    currency: 'USD', bookingState: 'reconciled', source: asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : null, externalId: `${key}/${asset.prefix}/income`,
+                    currency: 'USD', bookingState: 'reconciled', source: null, externalId: `${key}/${asset.prefix}/income`,
                     note: 'Synthetic daily receipts; no real payment or causal lift.', coverageStart: date, coverageEnd: date, coverageComplete: false });
             }
             if (ordinal > 0 && date.endsWith('-01')) {
@@ -491,6 +506,12 @@ export function createDemoActivity(input) {
                     note: 'Synthetic model usage export; no real charge.', coverageStart: `${ended}-01`, coverageEnd: shiftDemoDay(date, -1), coverageComplete: true });
             }
         }
+        const subscriptions = subscriptionSites.flatMap(({ asset, account, after }) => {
+            const days = [];
+            for (let day = ordinal === 0 ? shiftDemoDay(after, 1) : date; day <= date; day = shiftDemoDay(day, 1))
+                days.push(day);
+            return days.map(day => ({ asset: asset.id, account, date: day, amountMinor: demoSubscriptionMinor(seed, asset, day), currency: 'USD' }));
+        });
         // Days since the first Monday after the anchor. Each site runs its own
         // weekly cycle one day after the site before it (filed, started two days
         // later, closed two days after that), reviews and ships alternating, so
@@ -533,7 +554,7 @@ export function createDemoActivity(input) {
         const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
         const codebase = codebaseSites.filter(site => site.weekday === weekday && date > site.after)
             .map(site => demoCodebaseEnvelope(seed, site.asset, referenceDate, date));
-        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports, codebase };
+        return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, subscriptions, tasks, changes, reports, codebase };
     };
     /** Today so far: each provisional count is the finished day's count scaled
      * by the share of the day already counted, so the quarter-hour refreshes

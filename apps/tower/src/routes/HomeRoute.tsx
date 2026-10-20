@@ -8,7 +8,7 @@ import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
-import type { HomeModuleId } from "@shared/views";
+import type { HomeModuleId, WordLevel } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -129,6 +129,9 @@ const DAY_MS = 86_400_000;
 
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
   const { modules, view } = useView();
+  // Everything keeps its twelve-column grid; every other view stacks its
+  // modules in columns, each at its own content's height.
+  const stacks = view.id !== "everything";
   const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
   const money = homeMoney(data.portfolio, data.assets);
   // The site rows (the data sources, the sites compared, the day's lanes)
@@ -154,7 +157,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => (
       <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-        {money ? <MoneyHero money={money} className="h-full" wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
+        {money ? <MoneyHero money={money} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
       </div>
     ),
     yesterday: () => (
@@ -224,8 +227,9 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         changed={changed}
         nowMs={nowMs}
         health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
+        wordLevel={view.wordLevel}
       />
-      <HomeModules modules={modules} draw={draw} />
+      <HomeModules modules={modules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
 }
@@ -262,7 +266,7 @@ export function healthWords(cards: readonly AssetCard[], issues: readonly WallIs
  * business view), the line leads with it, and the count of open problems is
  * drawn only when there is one.
  */
-function Answer({ money, issues, since, changed, nowMs, health = null }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; health?: { words: string; tone: "error" | "warn" | null } | null }) {
+function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; health?: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
   const errors = issues.filter((issue) => issue.severity === "error").length;
   const warnings = issues.length - errors;
   const month = money ? formatPeriodMonthLong(money.period) : null;
@@ -272,7 +276,7 @@ function Answer({ money, issues, since, changed, nowMs, health = null }: { money
     : money.projected !== null
       ? `${month} is projected at ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
       : money.soFar !== null
-        ? `${month} so far ${usd(money.soFar)}${money.estimated ? " est." : "."}`
+        ? `${month} so far ${usd(money.soFar)}${money.estimated && wordLevel !== "business" ? " est." : "."}`
         : null;
   const problemWords = errors === 0 && warnings === 0
     ? "Nothing is broken."

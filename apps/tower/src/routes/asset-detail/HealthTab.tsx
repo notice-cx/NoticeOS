@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { fourWeeks } from "@/lib/wall-sites";
 import { FACT_LABEL } from "@/routes/home/HealthModule";
 import { tabPath } from "./AssetTabs";
+import { alignedSeries, seriesOf } from "./codebase-measures";
 import { Hero, Panel } from "./shared";
 
 /**
@@ -86,7 +87,7 @@ export function HealthTab({ data, nowMs }: { data: AssetDetailFor<"health">; now
             data-selected={selected === fact.key ? "" : undefined}
           >
             <Panel title={FACT_LABEL[fact.key]} count={fact.word} className="h-full">
-              <Evidence fact={fact} card={card} data={data} />
+              <Evidence fact={fact} card={card} data={data} nowMs={nowMs} />
             </Panel>
           </div>
         ))}
@@ -184,7 +185,7 @@ function NotMeasured({ to, action }: { to: string; action: string }) {
 
 const SPEED_WORD = { good: "fast", "needs-improvement": "OK", poor: "slow" } as const;
 
-function Evidence({ fact, card, data }: { fact: TechFact; card: AssetCard; data: AssetDetailFor<"health"> }) {
+function Evidence({ fact, card, data, nowMs }: { fact: TechFact; card: AssetCard; data: AssetDetailFor<"health">; nowMs: number }) {
   const sources = tabPath(card.id, "sources");
   const connect = <NotMeasured to={sources} action="Connect a data feed →" />;
   const hygiene = data.hygiene;
@@ -275,11 +276,15 @@ function Evidence({ fact, card, data }: { fact: TechFact; card: AssetCard; data:
     case "code": {
       const codebase = card.codebase ?? null;
       if (!codebase) return <NotMeasured to={`${tabPath(card.id, "codebase")}#codebase-setup`} action="Set up the code report →" />;
-      const points = data.codebase.history.map((point) => ({ t: point.date, v: point.measures.code_lines ?? null }));
+      const reports = data.codebase.history.filter((point) => point.measures.code_lines != null).length;
+      // A code report need not land every day: each day holds the latest
+      // report's count, as the Codebase tab's chart does, so the line joins
+      // the reports rather than breaking at every day between two of them.
+      const days = seriesOf(alignedSeries(data.codebase.history, (measures) => measures.code_lines ?? null, new Date(nowMs).toISOString().slice(0, 10), 90));
       return (
         <div className="flex flex-col gap-3">
-          {points.filter((point) => point.v !== null).length >= 3 ? (
-            <Sparkline data={points} size="wide" area readout format={(value) => `${formatInt(value)} lines`} ariaLabel="Lines of code over the last 90 days" />
+          {reports >= 3 ? (
+            <Sparkline data={days} size="wide" area readout average={false} format={(value) => `${formatInt(value)} lines`} ariaLabel="Lines of code over the last 90 days" />
           ) : null}
           <Lines
             lines={[

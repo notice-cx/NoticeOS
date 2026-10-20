@@ -94,6 +94,20 @@ export const REVENUE_FAMILY_LABEL: Readonly<Record<string, string>> = Object.fre
   licensing: "Licensing",
 });
 
+/** A cost family as the Money page names it; the id stays in the data. */
+export const COST_FAMILY_LABEL: Readonly<Record<string, string>> = Object.freeze({
+  infra: "Hosting and infrastructure",
+  "os-overhead": "Running NoticeOS",
+  api: "Search data",
+  operator: "People's time",
+  inference: "Model usage",
+});
+
+/** A cost family's words, or its id when the family is one this list lacks. */
+export function costFamilyLabel(family: string): string {
+  return COST_FAMILY_LABEL[family] ?? family;
+}
+
 /**
  * One row of `config/recurring-costs.json`, exactly as the file holds it: the
  * shape the Tower's own editor writes back, so it may not be reshaped,

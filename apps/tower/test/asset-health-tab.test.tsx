@@ -144,6 +144,24 @@ describe("the Health tab", () => {
     expect(chart.compareDocumentPosition(within(search as HTMLElement).getByText(/visits from search in the last 4 weeks/)) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("draws the code's size as one line through weekly reports", () => {
+    // The fixture's history is thirteen weekly reports ending on the clock's day.
+    state.assets = [siteCard({ codebase: { date: "2026-07-05", commit: "abc1234", codeLines: 48_210, growthPercent30d: 2, comparedDays: 30 } })];
+    const { container } = renderTab();
+
+    const code = container.querySelector('[data-health-evidence="code"]') as HTMLElement;
+    const chart = within(code).getByRole("img", { name: /Lines of code over the last 90 days/ });
+    const paths = [...chart.querySelectorAll("path[d]")].map((path) => path.getAttribute("d")!);
+    expect(paths.length).toBeGreaterThan(0);
+    // One run: a single move, then segments through every day, never a
+    // move per reading with nothing joining them.
+    const line = paths.find((d) => /[LC]/.test(d) && !/Z$/.test(d));
+    expect(line).toBeDefined();
+    expect(line!.match(/M/g)).toHaveLength(1);
+    expect(line!.match(/[LC]/g)!.length).toBeGreaterThanOrEqual(12 * 7);
+    for (const d of paths) expect(d.match(/M/g)?.length ?? 0).toBeLessThanOrEqual(1);
+  });
+
   it("says a fact is not measured yet, with the way to connect it", () => {
     state.assets = [siteCard({ codebase: null })];
     const { container } = renderTab();

@@ -1027,10 +1027,35 @@ describe("/financials — where a cost figure came from", () => {
     expect(types).toEqual(["Subscription", "Prepaid yearly", "Usage", "No source"]);
     const sources = [...panel.querySelectorAll("[data-cost-source]")].map((cell) => cell.textContent);
     // A line with no source is named by what it is for; its chip says the rest.
-    expect(sources).toEqual(["Claude Code (Max)", "Domain orders×5", "DataForSEO×2", "operator"]);
+    expect(sources).toEqual(["Claude Code (Max)", "Domain orders×5", "DataForSEO×2", "People's time"]);
     expect(within(panel).queryAllByRole("button")).toHaveLength(0);
     expect(panel).toHaveTextContent("$222.53 in August");
     expect(container).not.toHaveTextContent("recurring:claude-code");
+  });
+
+  it("names each cost family in words and keeps its id only in the data", () => {
+    stubLane();
+    const { container } = renderPage(
+      withCosts({
+        costLines: [
+          { currency: 'USD', family: "infra", provenance: "stated", source: "recurring:hosting", amount: 591.64, rows: 5 },
+          { currency: 'USD', family: "os-overhead", provenance: "stated", source: "recurring:servers", amount: 199.88, rows: 1 },
+          { currency: 'USD', family: "api", provenance: "metered", source: "metered:dataforseo", amount: 7.83, rows: 2 },
+          { currency: 'USD', family: "operator", provenance: "stated", source: "recurring:help", amount: 5, rows: 1 },
+          { currency: 'USD', family: "inference", provenance: "stated", source: "recurring:claude-code", amount: 2, rows: 1 },
+        ],
+      }),
+    );
+    const panel = container.querySelector<HTMLElement>("[data-cost-composition]")!;
+
+    const families = [...panel.querySelectorAll("[data-cost-family]")];
+    expect(families.map((cell) => cell.textContent)).toEqual([
+      "Hosting and infrastructure", "Running NoticeOS", "Search data", "People's time", "Model usage",
+    ]);
+    expect(families.map((cell) => cell.getAttribute("data-cost-family"))).toEqual(["infra", "os-overhead", "api", "operator", "inference"]);
+    expect([...panel.querySelectorAll("[data-cost-line-family]")].map((line) => line.getAttribute("data-cost-line-family")))
+      .toEqual(["infra", "os-overhead", "api", "operator", "inference"]);
+    for (const id of ["infra", "os-overhead"]) expect(panel.textContent).not.toMatch(new RegExp(`\\b${id}\\b`));
   });
 });
 

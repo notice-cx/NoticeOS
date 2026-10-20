@@ -21,7 +21,7 @@ export function FactoryModule({ cards, work, nowMs }: { cards: readonly AssetCar
     { key: "proven", label: "Proven to work", value: week.proven },
   ];
   return (
-    <section aria-label="The agents this week" className="flex h-full flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-factory="">
+    <section aria-label="The agents this week" className="flex flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-factory="">
       <SectionLabel
         title="The agents · this week"
         caption={week.watching > 0 ? `${formatInt(week.watching)} being watched` : undefined}

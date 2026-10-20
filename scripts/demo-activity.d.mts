@@ -60,6 +60,15 @@ export interface DemoActivityMoney {
     coverageEnd: string;
     coverageComplete: boolean;
 }
+/** One completed day of a subscription site's income, written as the
+ * subscriptions collector writes a day it read. */
+export interface DemoActivitySubscriptionDay {
+    asset: string;
+    account: string;
+    date: string;
+    amountMinor: number;
+    currency: 'USD';
+}
 export interface DemoTaskIntention {
     asset: string;
     key: string;
@@ -292,6 +301,9 @@ export interface DemoActivityDay {
         pulse: DemoActivityPulse | null;
     }[];
     money: DemoActivityMoney[];
+    /** Each subscription site's completed days: this day, and on the anchor day
+     * every day after the seed's last. */
+    subscriptions: DemoActivitySubscriptionDay[];
     /** Each site's weekly cycle, in site order; a day may hold several. */
     tasks: DemoTaskIntention[];
     changes: DemoChange[];

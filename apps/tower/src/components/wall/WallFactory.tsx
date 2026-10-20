@@ -6,8 +6,9 @@ import { formatInt } from "@/lib/format";
 // The agents widget: what they are building, what they finished this week and
 // what a measured outcome proved, as three figures read left to right, then up
 // to three plain lines about the newest work. A count nobody can read is a
-// dash, never a zero. On the TV the figures and the lines share the widget's
-// height. The labels match Home's agents module.
+// dash, never a zero. On the TV the figures and the lines keep their own
+// height and sit together in the middle of the widget, at most one line apart.
+// The labels match Home's agents module.
 
 const eyebrow = "text-wall-label font-semibold uppercase tracking-widest text-muted-foreground";
 
@@ -28,40 +29,42 @@ export function WallFactory({ week }: { week: AgentsWeek }) {
           </span>
         ) : null}
       </div>
-      <div className="flex min-w-0 items-center gap-x-3 tv:flex-1" data-wall-factory-figures="">
-        {FIGURES.map(({ key, label }, index) => {
-          const value = week[key];
-          return (
-            <Fragment key={key}>
-              {index > 0 ? <ChevronRight aria-hidden className="size-6 shrink-0 text-muted-foreground" /> : null}
-              <dl className="flex min-w-0 flex-1 flex-col" data-wall-factory-figure={key}>
-                <dt className="text-wall-micro text-muted-foreground">{label}</dt>
-                <dd className="text-wall-stat font-semibold tabular-nums text-foreground">
-                  {value === null ? <span aria-label="Unknown">—</span> : formatInt(value)}
-                </dd>
-              </dl>
-            </Fragment>
-          );
-        })}
-      </div>
-      {week.latest.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-4 py-3 text-wall-body text-muted-foreground" data-wall-factory-calm="">
-          <Bot className="size-6 shrink-0" aria-hidden />
-          Nothing finished yet
+      <div className="flex min-h-0 min-w-0 flex-col gap-[1lh] text-wall-list-line tv:flex-1 tv:justify-center-safe tv:overflow-y-auto" data-wall-factory-body="">
+        <div className="flex min-w-0 items-center gap-x-3" data-wall-factory-figures="">
+          {FIGURES.map(({ key, label }, index) => {
+            const value = week[key];
+            return (
+              <Fragment key={key}>
+                {index > 0 ? <ChevronRight aria-hidden className="size-6 shrink-0 text-muted-foreground" /> : null}
+                <dl className="flex min-w-0 flex-1 flex-col" data-wall-factory-figure={key}>
+                  <dt className="text-wall-micro text-muted-foreground">{label}</dt>
+                  <dd className="text-wall-stat font-semibold tabular-nums text-foreground">
+                    {value === null ? <span aria-label="Unknown">—</span> : formatInt(value)}
+                  </dd>
+                </dl>
+              </Fragment>
+            );
+          })}
         </div>
-      ) : (
-        <ul className="flex min-w-0 flex-col gap-2 tv:min-h-0 tv:flex-[2]">
-          {week.latest.map((line, index) => (
-            <li key={`${line.title}-${index}`} className="flex min-w-0 flex-col rounded-lg bg-muted/60 px-4 py-2 tv:flex-1 tv:justify-center" data-wall-factory-line="">
-              <span className="text-wall-list-line font-semibold [overflow-wrap:anywhere]">
-                {line.title}
-                {line.site ? <span className="font-normal text-muted-foreground"> · {line.site}</span> : null}
-              </span>
-              <span className="text-wall-list-meta text-muted-foreground [overflow-wrap:anywhere]">{line.line}</span>
-            </li>
-          ))}
-        </ul>
-      )}
+        {week.latest.length === 0 ? (
+          <div className="flex items-center gap-3 rounded-lg bg-muted/60 px-4 py-3 text-wall-body text-muted-foreground" data-wall-factory-calm="">
+            <Bot className="size-6 shrink-0" aria-hidden />
+            Nothing finished yet
+          </div>
+        ) : (
+          <ul className="flex min-w-0 flex-col gap-2">
+            {week.latest.map((line, index) => (
+              <li key={`${line.title}-${index}`} className="flex min-w-0 flex-col rounded-lg bg-muted/60 px-4 py-2" data-wall-factory-line="">
+                <span className="text-wall-list-line font-semibold [overflow-wrap:anywhere]">
+                  {line.title}
+                  {line.site ? <span className="font-normal text-muted-foreground"> · {line.site}</span> : null}
+                </span>
+                <span className="text-wall-list-meta text-muted-foreground [overflow-wrap:anywhere]">{line.line}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </section>
   );
 }

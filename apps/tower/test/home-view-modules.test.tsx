@@ -129,6 +129,9 @@ const grid = (container: HTMLElement) => container.querySelector("[data-home-bri
 /** The modules in the order drawn, read off each region's own marker; a
  * stacked column contributes its members in order. */
 function modulesDrawn(container: HTMLElement): string[] {
+  if (grid(container).getAttribute("data-home-layout") === "stacks") {
+    return [...grid(container).querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
+  }
   const drawn: string[] = [];
   for (const child of [...grid(container).children]) {
     const module = child.getAttribute("data-home-module");
@@ -148,6 +151,46 @@ function modulesDrawn(container: HTMLElement): string[] {
     }
   }
   return drawn;
+}
+
+/** The rows of a stacked board: a full-width module, or the two columns'
+ * modules in order. */
+function rowsOf(container: HTMLElement): Array<{ full: string } | { wide: string[]; narrow: string[] }> {
+  const board = grid(container);
+  expect(board).toHaveAttribute("data-home-layout", "stacks");
+  return [...board.children].map((row) => {
+    const own = row.getAttribute("data-home-module");
+    if (own) return { full: own };
+    const members = (stack: string) =>
+      [...(row.querySelector(`:scope > [data-home-stack="${stack}"]`)?.children ?? [])].map((el) => el.getAttribute("data-home-module")!);
+    return { wide: members("wide"), narrow: members("narrow") };
+  });
+}
+
+/** Every stack is a flex column with the grid's gap that falls back to one
+ * column below the twelve-column width, and no module is stretched to its
+ * neighbour's height. */
+function expectContentHeight(container: HTMLElement) {
+  for (const row of grid(container).querySelectorAll("[data-home-row]")) {
+    expect(row.className.split(" ")).toEqual(["grid", "items-start", "gap-5", "@6xl:grid-cols-12", "[&>*]:min-w-0"]);
+  }
+  for (const stack of grid(container).querySelectorAll("[data-home-stack]")) {
+    expect(stack).toHaveClass("flex", "flex-col", "gap-5");
+    expect(stack.className).not.toMatch(/(^| )(h-full|items-stretch|grid-cols-2)( |$)/);
+  }
+  const modules = [...grid(container).querySelectorAll("[data-home-module]")];
+  expect(modules.length).toBeGreaterThan(0);
+  for (const module of modules) {
+    const name = module.getAttribute("data-home-module");
+    // A block wrapper, so nothing inside it grows to fill a flex track.
+    expect(module.className, `${name} wrapper`).toBe("min-w-0");
+    // A module beside others: neither its region nor the frame inside it
+    // takes a percentage height.
+    if (!module.closest("[data-home-stack]")) continue;
+    for (const el of [module.firstElementChild, module.firstElementChild?.firstElementChild]) {
+      if (el) expect(el.getAttribute("class") ?? "", `${name} stretches`).not.toMatch(/(^| )(h-full|self-stretch)( |$)/);
+    }
+  }
 }
 
 describe("the views draw their modules", () => {
@@ -176,9 +219,10 @@ describe("the views draw their modules", () => {
     const { container } = renderHome();
 
     expect(modulesDrawn(container)).toEqual(["health", "money", "factory", "decide"]);
-    expect(container.querySelector('[data-home-module="health"]')).toHaveClass("@6xl:col-span-12");
-    expect(container.querySelector('[data-home-module="factory"]')).toHaveClass("@6xl:col-span-8", "self-start");
-    expect(grid(container)).toHaveClass("@6xl:grid-flow-row-dense");
+    // Health is a row of its own; money and the agents' week stack on the
+    // left, Decide on the right.
+    expect(rowsOf(container)).toEqual([{ full: "health" }, { wide: ["money", "factory"], narrow: ["decide"] }]);
+    expectContentHeight(container);
   });
 
   it("puts the agents' week first for the business view's agents pick", () => {
@@ -195,10 +239,23 @@ describe("the views draw their modules", () => {
     const { container } = renderHome();
 
     expect(modulesDrawn(container)).toEqual(["money", "channels", "gaps", "problems", "decide", "sites"]);
-    expect(container.querySelector('[data-home-module="channels"]')).toHaveClass("@6xl:col-span-8");
-    // Its own content's height, not the stacked column's beside it.
-    expect(container.querySelector('[data-home-module="channels"]')).toHaveClass("self-start");
-    expect(container.querySelector('[data-home-module="gaps"]')).toHaveClass("@6xl:col-span-4");
+    expect(rowsOf(container)).toEqual([
+      { wide: ["money", "channels"], narrow: ["gaps", "problems", "decide"] },
+      { full: "sites" },
+    ]);
+    expectContentHeight(container);
+  });
+
+  it("stacks the business view's agents pick in its own row above health", () => {
+    storeView("business", ["agents"]);
+    state.payload = wall([healthy("first.example.com")]);
+    const { container } = renderHome();
+
+    expect(rowsOf(container)).toEqual([
+      { wide: ["factory"], narrow: [] },
+      { full: "health" },
+      { wide: ["money"], narrow: ["decide"] },
+    ]);
   });
 
   it("leads the business view's answer with the sites' health", () => {
@@ -211,7 +268,7 @@ describe("the views draw their modules", () => {
     const { container } = renderHome();
 
     const answer = container.querySelector("[data-home-answer-health]")!;
-    expect(answer.textContent).toBe("1 of 2 sites are fine. Second Site: slow for 1 in 4 visitors. October so far $45 est.");
+    expect(answer.textContent).toBe("1 of 2 sites are fine. Second Site: slow for 1 in 4 visitors. October so far $45.");
     expect(answer.firstElementChild).toHaveClass("text-warn");
   });
 
@@ -235,11 +292,22 @@ describe("the views draw their modules", () => {
     storeView("business");
     const business = renderHome();
     expect(business.container.querySelector("[data-money-figure]")!.textContent).toBe("$45so far");
+    // "So far" once: beside the figure, not in the label above it, and no "est." in the answer.
+    expect(business.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October");
+    expect(business.container.querySelector("[data-home-answer-health]")!.textContent).toContain("October so far $45.");
+    expect(business.container.querySelector("[data-home-answer-health]")!.textContent).not.toContain("est.");
     business.unmount();
 
     storeView("product");
     const product = renderHome();
     expect(product.container.querySelector("[data-money-figure]")!.textContent).toBe("$45est.");
+    expect(product.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
+    expect(product.container.querySelector("[data-home-answer] h2")!.textContent).toMatch(/^October so far \$45 est\. /);
+    product.unmount();
+
+    storeView("everything");
+    const everything = renderHome();
+    expect(everything.container.querySelector("[data-money-figure]")!.previousElementSibling!.textContent).toBe("Revenue, October so far");
   });
 
   it("says every measured site is fine when none needs a look", () => {

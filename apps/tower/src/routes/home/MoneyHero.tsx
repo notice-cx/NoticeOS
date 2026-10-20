@@ -32,7 +32,8 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
       <span aria-hidden className="pointer-events-none absolute -end-24 -top-32 size-80 rounded-full bg-financial-revenue/10 blur-3xl" />
       <div className="flex flex-wrap items-end justify-between gap-6">
         <div className="flex min-w-0 flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Revenue, {month} so far</span>
+          {/* The business word level says "so far" once, beside the figure. */}
+          <span className="text-xs font-medium text-muted-foreground">{wordLevel === "business" ? `Revenue, ${month}` : `Revenue, ${month} so far`}</span>
           {money.soFar === null ? (
             <span className="text-figure-sm text-muted-foreground" data-money-figure="">not reported yet</span>
           ) : (

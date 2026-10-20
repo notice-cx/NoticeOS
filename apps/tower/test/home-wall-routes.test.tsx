@@ -728,6 +728,10 @@ describe("Home drawn from the person's view", () => {
    * markers; a stacked column contributes its members in order. */
   function modulesDrawn(container: HTMLElement): string[] {
     const grid = container.querySelector("[data-home-brief]")!.children[1]!;
+    // Every view but Everything marks each module it stacks.
+    if (grid.getAttribute("data-home-layout") === "stacks") {
+      return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
+    }
     const drawn: string[] = [];
     for (const child of [...grid.children]) {
       const module = child.getAttribute("data-home-module");

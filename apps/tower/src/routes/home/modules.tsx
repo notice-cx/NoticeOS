@@ -6,42 +6,38 @@ import type { HomeModuleId } from "@shared/views";
  * (`useView`) decides which of them are drawn and in what order: Everything
  * draws the first eight of `HOME_MODULES` in order, which is the page as it
  * always was, a narrower view draws a few, and a focus pick moves one to the
- * front. Each module keeps its own column span in the twelve-column grid, so
- * an absent module leaves the grid to flow. Problems, Decide and the agents'
- * line stack in one column whenever they come in a run, as they do in
- * Everything; one of them alone still takes that column.
+ * front. Everything keeps its twelve-column grid, each module carrying its own
+ * span, with Problems, Decide and the agents' line stacked in one column
+ * whenever they come in a run. Every other view is drawn as rows of column
+ * stacks (`homeRows`), so no module is stretched to the height of the one
+ * beside it.
  */
 
-/** The modules that share one stacked column. */
+/** The modules that share one stacked column in Everything's grid. */
 const STACKED: ReadonlySet<HomeModuleId> = new Set(["problems", "decide", "agents"]);
 
-/**
- * The column each module after Everything's eight takes, drawn here around
- * the module's own element so the modules themselves carry no span. The
- * first eight carry their spans in their own elements, as they always have.
- * An eight-column module takes its own content's height (`self-start`), not
- * the height of the stacked column beside it.
- */
-export const MODULE_SPAN: Partial<Record<HomeModuleId, string>> = {
-  health: "@3xl:col-span-2 @6xl:col-span-12",
-  factory: "self-start @3xl:col-span-2 @6xl:col-span-8",
-  channels: "self-start @3xl:col-span-2 @6xl:col-span-8",
-  gaps: "@3xl:col-span-2 @6xl:col-span-4",
+/** How wide a module is drawn outside Everything: a row of its own, the
+ * left column of a row (eight of twelve) or the right one (four). */
+export const MODULE_WIDTH: Record<HomeModuleId, "full" | "wide" | "narrow"> = {
+  health: "full",
+  sites: "full",
+  timeline: "full",
+  money: "wide",
+  factory: "wide",
+  channels: "wide",
+  sources: "wide",
+  gaps: "narrow",
+  problems: "narrow",
+  decide: "narrow",
+  agents: "narrow",
+  yesterday: "narrow",
 };
-
-/** Whether a list draws any module with a span from `MODULE_SPAN`. Such a
- * list packs the grid densely, so a 4-column module later in the list fills
- * the hole an 8-column one leaves beside the money; Everything's eight never
- * do, and its grid is the one it always was. */
-function packsDensely(modules: readonly HomeModuleId[]): boolean {
-  return modules.some((module) => MODULE_SPAN[module] !== undefined);
-}
 
 export type HomeSlot =
   | { stacked: false; module: HomeModuleId }
   | { stacked: true; modules: HomeModuleId[] };
 
-/** The grid's children, in order: a module alone, or a run of stacked ones. */
+/** Everything's grid children, in order: a module alone, or a run of stacked ones. */
 export function homeSlots(modules: readonly HomeModuleId[]): HomeSlot[] {
   const slots: HomeSlot[] = [];
   for (const module of modules) {
@@ -53,14 +49,85 @@ export function homeSlots(modules: readonly HomeModuleId[]): HomeSlot[] {
   return slots;
 }
 
+export type HomeRow =
+  | { full: true; module: HomeModuleId }
+  | { full: false; wide: HomeModuleId[]; narrow: HomeModuleId[] };
+
 /**
- * The board's grid, drawing `modules` in order. `draw` returns each module's
- * own element, span classes included; a stacked module returns its content
- * and the column around it is drawn here. Only the listed modules are drawn.
+ * The rows of every view but Everything: a full-width module is a row of its
+ * own; the modules between two full-width ones form one row whose wide
+ * modules stack in the left column and narrow ones in the right, each in the
+ * list's order.
  */
-export function HomeModules({ modules, draw }: { modules: readonly HomeModuleId[]; draw: Record<HomeModuleId, () => ReactNode> }) {
+export function homeRows(modules: readonly HomeModuleId[]): HomeRow[] {
+  const rows: HomeRow[] = [];
+  for (const module of modules) {
+    const width = MODULE_WIDTH[module];
+    if (width === "full") {
+      rows.push({ full: true, module });
+      continue;
+    }
+    let last = rows.at(-1);
+    if (!last || last.full) {
+      last = { full: false, wide: [], narrow: [] };
+      rows.push(last);
+    }
+    last[width].push(module);
+  }
+  return rows;
+}
+
+/** One module in a stack, at its own content's height. */
+function Stacked({ module, draw }: { module: HomeModuleId; draw: Record<HomeModuleId, () => ReactNode> }) {
   return (
-    <div className={packsDensely(modules) ? "grid gap-5 @3xl:grid-cols-2 @6xl:grid-flow-row-dense @6xl:grid-cols-12 [&>*]:min-w-0" : "grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0"}>
+    <div className="min-w-0" data-home-module={module}>
+      {draw[module]()}
+    </div>
+  );
+}
+
+/**
+ * The board, drawing `modules` in order. `draw` returns each module's own
+ * element. In the `grid` layout (Everything) that element carries its span
+ * and a stacked module's column is drawn here; in the `stacks` layout each
+ * row is two flex columns that fall back to one, in the list's order, below
+ * the twelve-column width. Only the listed modules are drawn.
+ */
+export function HomeModules({
+  modules,
+  draw,
+  layout = "grid",
+}: {
+  modules: readonly HomeModuleId[];
+  draw: Record<HomeModuleId, () => ReactNode>;
+  layout?: "grid" | "stacks";
+}) {
+  if (layout === "stacks") {
+    return (
+      <div className="flex flex-col gap-5" data-home-layout="stacks">
+        {homeRows(modules).map((row) =>
+          row.full ? (
+            <Stacked key={row.module} module={row.module} draw={draw} />
+          ) : (
+            <div key={[...row.wide, ...row.narrow].join(" ")} className="grid items-start gap-5 @6xl:grid-cols-12 [&>*]:min-w-0" data-home-row="">
+              {row.wide.length > 0 ? (
+                <div className="flex flex-col gap-5 @6xl:col-span-8" data-home-stack="wide">
+                  {row.wide.map((module) => <Stacked key={module} module={module} draw={draw} />)}
+                </div>
+              ) : null}
+              {row.narrow.length > 0 ? (
+                <div className={row.wide.length > 0 ? "flex flex-col gap-5 @6xl:col-span-4" : "flex flex-col gap-5 @6xl:col-span-4 @6xl:col-start-9"} data-home-stack="narrow">
+                  {row.narrow.map((module) => <Stacked key={module} module={module} draw={draw} />)}
+                </div>
+              ) : null}
+            </div>
+          ),
+        )}
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
       {homeSlots(modules).map((slot) =>
         slot.stacked ? (
           <div
@@ -68,10 +135,6 @@ export function HomeModules({ modules, draw }: { modules: readonly HomeModuleId[
             className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0"
           >
             {slot.modules.map((module) => <Fragment key={module}>{draw[module]()}</Fragment>)}
-          </div>
-        ) : MODULE_SPAN[slot.module] ? (
-          <div key={slot.module} className={MODULE_SPAN[slot.module]} data-home-module={slot.module}>
-            {draw[slot.module]()}
           </div>
         ) : (
           <Fragment key={slot.module}>{draw[slot.module]()}</Fragment>

@@ -1,6 +1,6 @@
 import { sumMoneyFigures } from "@noticeos/contract/money";
 import { useId, type CSSProperties } from "react";
-import { PROVENANCE_LABEL, type CostProvenance, type FinancialCostLine, type RecurringCost } from "@shared/financials";
+import { PROVENANCE_LABEL, costFamilyLabel, type CostProvenance, type FinancialCostLine, type RecurringCost } from "@shared/financials";
 import { integrationLabel } from "@shared/integrations";
 import { StateChip, type StateChipProps, type StatusSubject } from "@/components/StateChip";
 import { SectionLabel } from "@/components/surface/SectionLabel";
@@ -77,9 +77,10 @@ export function CostComposition({
           const share = total.currency !== null && total.currency === line.currency && total.cost ? line.amount / total.cost : null;
           // A line with no source is named by what it is for; its chip says the rest.
           const named = costSourceLabel(line.source, recurringCosts);
-          const label = named ?? line.family;
+          const family = costFamilyLabel(line.family);
+          const label = named ?? family;
           return (
-            <li key={`${line.family}:${line.source ?? "none"}:${line.currency}`} className="flex min-w-0 flex-col gap-1.5" data-cost-line={line.source ?? ""}>
+            <li key={`${line.family}:${line.source ?? "none"}:${line.currency}`} className="flex min-w-0 flex-col gap-1.5" data-cost-line={line.source ?? ""} data-cost-line-family={line.family}>
               <div className="flex min-w-0 items-baseline justify-between gap-3">
                 <span className="min-w-0 break-words text-sm font-medium text-foreground" title={label} data-cost-source={line.source ?? ""}>
                   {label}
@@ -93,7 +94,7 @@ export function CostComposition({
                     <span className="viz-grow-x block h-full rounded-full bg-foreground/45" style={{ width: `${Math.max(2, share * 100)}%`, "--viz-i": index } as CSSProperties} />
                   ) : null}
                 </span>
-                {named !== null ? <span className="shrink-0 text-micro whitespace-nowrap text-muted-foreground" data-cost-family="">{line.family}</span> : null}
+                {named !== null ? <span className="shrink-0 text-micro whitespace-nowrap text-muted-foreground" data-cost-family={line.family}>{family}</span> : null}
                 <span className="shrink-0" data-cost-type="">
                   <ProvenanceChip provenance={line.provenance} subject={`cost:${line.family}:${line.source ?? "none"}`} />
                 </span>

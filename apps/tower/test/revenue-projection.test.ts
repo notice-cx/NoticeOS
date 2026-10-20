@@ -128,7 +128,8 @@ describe('monthly revenue projection', () => {
     const period = cutoff.slice(0, 7);
     const currentLedger = scenario.ledger.filter(row => row.period === period);
     const income = currentLedger.filter(row => row.kind === 'revenue');
-    expect(income).toHaveLength(2);
+    // The licensing site's partial month; subscription income is daily figures.
+    expect(income.map(row => row.family)).toEqual(['licensing']);
     expect(income.every(row => row.coverageComplete === false && row.coverageEnd === cutoff.slice(0, 10))).toBe(true);
     const projections = scenario.assets.filter(asset => !asset.isOs).map(asset => {
       const days = scenario.daily.filter(day => day.asset === asset.id);

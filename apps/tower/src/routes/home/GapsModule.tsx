@@ -13,8 +13,8 @@ import { formatInt } from "@/lib/format";
 export function GapsModule({ cards }: { cards: readonly AssetCard[] }) {
   const gaps = businessGaps(cards);
   return (
-    <div data-home-gaps={gaps.length} className="h-full">
-      <ListPanel title="Worth a look" count={formatInt(gaps.length)} empty="Nothing is missing." className="h-full">
+    <div data-home-gaps={gaps.length}>
+      <ListPanel title="Worth a look" count={formatInt(gaps.length)} empty="Nothing is missing.">
         {gaps.map((gap) => (
           <ListRow
             key={gap.key}
