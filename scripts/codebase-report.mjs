@@ -2,6 +2,7 @@
 // Measure one site's codebase with the codebase report image and send the report to this installation's ingest.
 //
 //   pnpm os:codebase-report -- --asset <id> --repo <path> [--paths a,b] [--image <ref> | --build] [--config /absolute/stack.json]
+//                              [--measure build_passed=success] [--measure tests_passed=failure] [--measure vulnerable_dependencies=3]
 //
 // The image runs through the installation's own Docker (the stack
 // `.local/stack.json` selects) with the repository mounted read-only. It
@@ -11,10 +12,14 @@
 // the entry pulse-relay.mjs reads. The token reaches the image as an
 // environment variable named on the command line without its value, so it is
 // never in a process list. `--build` builds the image from this checkout's
-// deploy/codebase-report instead of pulling the published one.
+// deploy/codebase-report instead of pulling the published one. The image
+// never builds or tests the code, so `--measure` passes the results of a
+// build, a test run or a package audit run on this computer to it, each
+// checked here by the image's own parser before Docker is asked anything.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseSentMeasure } from '../deploy/codebase-report/measure.mjs';
 import { readDevSecretBindings } from './dev-secrets.mjs';
 import { MANAGED_DOOR } from './ingest-door.mjs';
 import { ENV_FILE, readInstallationEnv } from './installation-layout.mjs';
@@ -29,7 +34,8 @@ export const DEFAULT_IMAGE = `${CODEBASE_REPORT_REPOSITORY}:main`;
 /** The tag `--build` gives the image built from this checkout. */
 export const LOCAL_IMAGE = 'noticeos-codebase-report:local';
 const MEASURE_TIMEOUT_MS = 1_800_000;
-const HELP = 'Usage: pnpm os:codebase-report -- --asset <id> --repo <path> [--paths a,b] [--image <ref> | --build] [--config /absolute/stack.json]';
+const HELP = 'Usage: pnpm os:codebase-report -- --asset <id> --repo <path> [--paths a,b] [--image <ref> | --build] [--config /absolute/stack.json]'
+  + ' [--measure build_passed|tests_passed|vulnerable_dependencies=<value>]...';
 
 const ASSET = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,252}$/u;
 const IMAGE = /^[a-z0-9][a-z0-9._/-]{0,200}(?::[A-Za-z0-9_.-]{1,128})?(?:@sha256:[a-f0-9]{64})?$/u;
@@ -40,13 +46,24 @@ function refuse(message) { throw new Error(message); }
 
 /** The command's arguments, checked before Docker is asked anything. */
 export function parseArgs(argv, { cwd = process.cwd() } = {}) {
-  const parsed = { asset: null, repo: null, paths: null, image: null, build: false, config: null };
+  const parsed = { asset: null, repo: null, paths: null, image: null, build: false, config: null, measures: [] };
   const args = argv.filter((word) => word !== '--');
+  const sent = new Set();
   for (let i = 0; i < args.length; i += 1) {
     const flag = args[i];
     if (flag === '--build') {
       if (parsed.build) refuse(HELP);
       parsed.build = true;
+      continue;
+    }
+    if (flag === '--measure') {
+      const value = args[i + 1];
+      if (value === undefined || value.startsWith('--')) refuse(`--measure needs key=value.\n${HELP}`);
+      const { key } = parseSentMeasure(value);
+      if (sent.has(key)) refuse(`--measure ${key} is given twice.`);
+      sent.add(key);
+      parsed.measures.push(value);
+      i += 1;
       continue;
     }
     const key = { '--asset': 'asset', '--repo': 'repo', '--paths': 'paths', '--image': 'image', '--config': 'config' }[flag];
@@ -100,13 +117,14 @@ export function buildArgs(selector, root = ROOT) {
 }
 
 /** `docker run` of the measurement image beside the app container, with the checkout read-only. */
-export function measureArgs({ selector, app, image, repo, asset, paths, local }) {
+export function measureArgs({ selector, app, image, repo, asset, paths, local, measures = [] }) {
   return ['--host', selector.dockerHost, 'run', '--rm', '--pull', local ? 'never' : 'missing',
     '--read-only', '--tmpfs', '/tmp', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges',
     '--network', `container:${app}`,
     '--mount', `type=bind,source=${repo},target=/repo,readonly`,
     '--env', 'NOTICEOS_ASSET_TOKEN',
-    image, '--asset', asset, '--repo', '/repo', ...(paths ? ['--paths', paths.join(',')] : []), '--post', MANAGED_DOOR];
+    image, '--asset', asset, '--repo', '/repo', ...(paths ? ['--paths', paths.join(',')] : []),
+    ...measures.flatMap((measure) => ['--measure', measure]), '--post', MANAGED_DOOR];
 }
 
 export async function codebaseReport(options, { run = runCommand, env = process.env, io = fs, root = ROOT, readSecrets = readDevSecretBindings,
@@ -130,7 +148,7 @@ export async function codebaseReport(options, { run = runCommand, env = process.
     image = LOCAL_IMAGE;
   }
   out.write(`Measuring ${options.repo} for ${options.asset} with ${image}\n`);
-  const measured = await run('docker', measureArgs({ selector, app: app.id, image, repo: options.repo, asset: options.asset, paths: options.paths, local: options.build }),
+  const measured = await run('docker', measureArgs({ selector, app: app.id, image, repo: options.repo, asset: options.asset, paths: options.paths, local: options.build, measures: options.measures ?? [] }),
     { env: { ...ownEnv, NOTICEOS_ASSET_TOKEN: token }, timeoutMs: MEASURE_TIMEOUT_MS, inherit: true });
   if (measured.code !== 0) refuse(`The codebase report was not stored (exit ${measured.code}); the lines above say why.`);
 }

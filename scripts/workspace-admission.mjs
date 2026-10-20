@@ -9,6 +9,7 @@ const ACTIONS = Object.freeze({
     'settings.read': rule('stored-read', true),
     'workflows.read': rule('stored-read', true),
     'integrations.summary.read': rule('stored-read', true),
+    'preferences.self': rule('self'),
     'provider.read': rule('provider-read'),
     'assets.write': rule('write'),
     'findings.write': rule('write'),
@@ -83,6 +84,8 @@ function permissionActions(kind, role, grant) {
         const { category, demo } = ACTIONS[action];
         if (category === 'protected')
             return false;
+        if (category === 'self')
+            return kind === 'hosted';
         if (kind === 'demo')
             return demo;
         if (kind === 'service')
@@ -319,7 +322,7 @@ export function createWorkspaceAdmission(input) {
                     expiry(row.expiresAt, checkedClock());
                     if (!Array.isArray(row.actions) || row.actions.length > Object.keys(ACTIONS).length || row.actions.some(value => {
                         const category = actionCategory(value);
-                        return category === 'protected' || category === 'membership' || category === 'human-decision';
+                        return category === 'protected' || category === 'membership' || category === 'human-decision' || category === 'self';
                     }))
                         refuse();
                     allowedActions = permissionActions('service', undefined, row.actions);

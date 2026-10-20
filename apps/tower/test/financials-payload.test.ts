@@ -11,7 +11,7 @@ import {
 } from "../worker/financials-payload";
 import { buildWallPayload } from "../worker/wall-payload";
 import { createTestStore, type TestStore } from "./postgres-store";
-import { bookLedger } from "./money";
+import { bookLedger, writeRevenue } from "./money";
 import { addSites } from "./sites";
 
 // Each test writes its ledger entries into its own copy of its sites (test/money.ts).
@@ -174,6 +174,39 @@ describe("buildFinancialsPayload", () => {
     expect(byProvenance.amortized).toBeCloseTo(2.15);
     // A legacy row with no source is shown as itself.
     expect(byProvenance.unclassified).toBeCloseTo(3.1);
+  });
+
+  it("sums the month's revenue by source and family, naming each source as its row does", async () => {
+    // Stripe's collected days stand in for the month under their own source,
+    // beside an ad estimate and an affiliate figure booked by hand.
+    await writeRevenue(ctx.call, [
+      { asset: "northwind.example", source: "stripe", account: "acct_test", date: "2026-08-01", amountMinor: 4900 },
+      { asset: "northwind.example", source: "stripe", account: "acct_test", date: "2026-08-02", amountMinor: -900 },
+      { asset: "northwind.example", source: "stripe", account: "acct_test", date: "2026-08-03", amountMinor: 9800 },
+    ]);
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "ads", minor: 44094, source: "mediavine" });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-08", family: "affiliate", minor: 1200, source: "cj-export" });
+    await ledger({ kind: "revenue", asset: "meadow.example", period: "2026-07", family: "ads", minor: 999, source: "mediavine" });
+    await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000, source: "recurring:claude-code" });
+
+    const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [], period: "2026-08" });
+    expect(payload.revenueLines).toEqual([
+      { family: "ads", source: "mediavine", label: "Mediavine ad revenue", currency: "USD", amount: 440.94, rows: 1 },
+      { family: "subs", source: "stripe", label: "Stripe subscriptions", currency: "USD", amount: 138, rows: 1 },
+      { family: "affiliate", source: "cj-export", label: null, currency: "USD", amount: 12, rows: 1 },
+    ]);
+    // The lines add up to the month's revenue, to the cent.
+    const august = payload.months.find((month) => month.period === "2026-08")!;
+    const sum = payload.revenueLines!.reduce((total, line) => total + line.amount, 0);
+    expect(sum).toBeCloseTo(august.total.revenue!, 2);
+    // Cost never appears as a source of revenue.
+    expect(payload.revenueLines!.some((line) => line.source?.startsWith("recurring:"))).toBe(false);
+  });
+
+  it("has no revenue lines for a month with only cost", async () => {
+    await ledger({ kind: "cost", asset: "root-os", period: "2026-08", family: "inference", minor: 20000, source: "recurring:claude-code" });
+    const payload = await buildFinancialsPayload(ctx.call, { osTimeZone: OS_TIME_ZONE, now: NOW, domainOrders: [] });
+    expect(payload.revenueLines).toEqual([]);
   });
 
   it("spreads a domain order across the twelve months it covers", async () => {

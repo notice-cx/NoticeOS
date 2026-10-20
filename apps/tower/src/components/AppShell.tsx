@@ -1,4 +1,4 @@
-import { useBrowserContext, useOwnerPreferences } from '@/lib/browser-context';
+import { useBrowserContext, useDemoReadonly, useOwnerPreferences } from '@/lib/browser-context';
 import { BrandLockup } from "@/components/BrandLockup";
 import { ChevronRight, CircleSlash2, Menu, Moon, Pencil, Plus, Search, Sun, X } from "lucide-react";
 import { Suspense, createContext, useContext, useEffect, useId, useState } from "react";
@@ -23,18 +23,20 @@ import {
 import {
   ASSETS_ROUTE,
   INTEGRATIONS_ROUTE,
-  NAV_ITEMS,
   TV_EDIT_ITEM,
   TV_ITEM,
+  sidebarItems,
   type NavItem,
 } from "@/components/nav-items";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { DemoViewerStatus } from '@/components/DemoViewerStatus';
+import { DemoViewSwitch } from '@/components/DemoViewSwitch';
 import { SeverityDot } from "@/components/SeverityDot";
 import { openAlertsLabel } from "@/lib/severity";
 import { Button } from "@/components/ui/button";
 import { useIntegrationProviders } from "@/hooks/useIntegrationProviders";
 import { useTheme, type Theme } from "@/hooks/useTheme";
+import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { cn } from "@/lib/utils";
 import { storageKey } from "@/lib/browser-storage";
@@ -156,6 +158,7 @@ export function Sidebar({
   className,
 }: SidebarProps) {
   const intent = useLinkIntent();
+  const { view } = useView();
   return (
     <div
       className={cn("flex w-60 shrink-0 flex-col border-r border-border bg-card", className)}
@@ -171,7 +174,7 @@ export function Sidebar({
 
       <WorkspaceButton className="mx-2 mb-2" />
       <nav aria-label="Main" className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-2">
-        {NAV_ITEMS.map((item) =>
+        {sidebarItems(view.nav).map((item) =>
           // Assets is the one noun whose objects are also destinations.
           item.to === ASSETS_ROUTE ? (
             assets === undefined ? (
@@ -540,6 +543,7 @@ export function AppShell({
   onPrefetch?: (to: string) => void;
 } = {}) {
   const { theme, toggle } = useTheme();
+  const demoReadonly = useDemoReadonly();
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   // The shell mounts with the first desk page under it, so this is the desk's
@@ -596,7 +600,7 @@ export function AppShell({
             <WorkspaceButton className="ml-auto max-w-44" />
           </div>
 
-          <DemoViewerStatus />
+          <DemoViewerStatus viewSwitch={demoReadonly ? <DemoViewSwitch /> : undefined} />
           {/* `page-arrive`: each page fades in as it replaces the last. */}
           <main className="page-arrive min-w-0 flex-1">
             <Outlet />

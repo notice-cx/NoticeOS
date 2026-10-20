@@ -40,6 +40,11 @@ export function weeklyMeasures(week: number): CodebaseMeasures {
     test_lines: 49_660,
     test_ratio: 1.03,
     commits_30d: 84,
+    // Sent by the site's own workflow: the tests failed once, a week ago, and
+    // two vulnerable packages arrived in the last three weeks.
+    build_passed: 1,
+    tests_passed: week === 1 ? 0 : 1,
+    vulnerable_dependencies: week < 3 ? 2 : 0,
   };
 }
 

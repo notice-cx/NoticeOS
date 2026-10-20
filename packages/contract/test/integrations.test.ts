@@ -69,6 +69,8 @@ describe('INTEGRATION_PROVIDERS', () => {
       'discord',
       'clarity',
       'posthog',
+      'crux',
+      'stripe',
     ]);
     // `google-oauth-app` is a prerequisite the Google card asks for in place,
     // not a provider you connect.
@@ -82,6 +84,8 @@ describe('INTEGRATION_PROVIDERS', () => {
       'discord',
       'clarity',
       'posthog',
+      'crux',
+      'stripe',
     ]);
     expect(integrationProvider('google-oauth-app')?.companionOf).toBe('google');
   });
@@ -228,10 +232,10 @@ describe('INTEGRATION_PROVIDERS', () => {
     // The Tower opens the one-panel save-and-test for these and the ingest
     // refuses it for every other provider, from this one declaration.
     const panel = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'key');
-    expect(panel.map((provider) => provider.id)).toEqual(['cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog']);
+    expect(panel.map((provider) => provider.id)).toEqual(['cloudflare', 'mediavine', 'bing-webmaster', 'dataforseo', 'calendar', 'discord', 'posthog', 'crux', 'stripe']);
     // Discord and the calendar feeds connect the whole installation: no site
     // list follows the answer.
-    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['cloudflare', 'calendar', 'discord']);
+    expect(panel.filter((provider) => provider.connect!.sites === false).map((provider) => provider.id)).toEqual(['cloudflare', 'calendar', 'discord', 'crux', 'stripe']);
     // Clarity connects in the panel too, a token pasted per site: no one key,
     // and no free read to prove it.
     const perSite = INTEGRATION_PROVIDERS.filter((provider) => provider.connect?.kind === 'site-tokens');
@@ -258,7 +262,7 @@ describe('INTEGRATION_PROVIDERS', () => {
       .map((provider) => [provider.id, acceptedAs(provider)]));
     expect(named).toEqual({
       mediavine: 'sign-in', google: 'sign-in', 'bing-webmaster': 'key', dataforseo: 'key',
-      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key',
+      calendar: 'url', discord: 'url', clarity: 'key', posthog: 'key', cloudflare: 'key', crux: 'key', stripe: 'key',
     });
     // The stored credential's own way in decides where a provider has two:
     // Google on a service-account key is a key, and a sign-in is a sign-in.
@@ -324,6 +328,45 @@ describe('INTEGRATION_PROVIDERS', () => {
     expect(posthog.expiry.known).toBe('never');
     expect(posthog.meter).toBeUndefined();
     expect(posthog.docRef).toBe('docs/11-integrations.md#posthog');
+  });
+
+  it('connects the Chrome UX Report with one API key for every site', () => {
+    // Page speed is public data by origin: the key names the Google Cloud
+    // project the free quota counts against, so no site list follows it.
+    const crux = integrationProvider('crux')!;
+    expect(crux.label).toBe('Chrome UX Report (page speed)');
+    expect(crux.scope).toBe('shared');
+    expect(crux.lanes).toEqual(['crux']);
+    expect(crux.connect).toEqual({ kind: 'key', credential: 'api-key', sites: false });
+    expect(crux.expiry.known).toBe('operator');
+    expect(crux.test.cost).toBe('free');
+    expect(crux.docRef).toBe('docs/11-integrations.md#chrome-ux-report');
+    expect(crux.fields).toHaveLength(1);
+    const [key] = crux.fields;
+    expect(key).toMatchObject({ name: 'CRUX_API_KEY', label: 'API key', secret: true, kind: 'password', required: true });
+    expect(key!.link?.url).toBe('https://console.cloud.google.com/apis/credentials');
+    expect(credentialAuthState(crux, ['CRUX_API_KEY'])).toEqual({ complete: true, auth: null, missing: [] });
+    expect(credentialAuthState(crux, []).complete).toBe(false);
+  });
+
+  it('connects Stripe with one restricted key that only reads', () => {
+    // The key reads one account; which site earns it is that site's
+    // Subscriptions entry, so no site list follows the answer.
+    const stripe = integrationProvider('stripe')!;
+    expect(stripe.label).toBe('Stripe (subscription revenue)');
+    expect(stripe.scope).toBe('shared');
+    expect(stripe.lanes).toEqual(['subscriptions']);
+    expect(stripe.connect).toEqual({ kind: 'key', credential: 'api-key', sites: false });
+    expect(stripe.expiry.known).toBe('operator');
+    expect(stripe.test.cost).toBe('free');
+    expect(stripe.docRef).toBe('docs/11-integrations.md#stripe');
+    expect(stripe.fields).toHaveLength(1);
+    const [key] = stripe.fields;
+    expect(key).toMatchObject({ name: 'STRIPE_API_KEY', label: 'Restricted API key', secret: true, kind: 'password', required: true });
+    expect(key!.link?.url).toBe('https://dashboard.stripe.com/apikeys');
+    expect(key!.grants).toEqual(['Balance: read', 'Charges: read']);
+    expect(credentialAuthState(stripe, ['STRIPE_API_KEY'])).toEqual({ complete: true, auth: null, missing: [] });
+    expect(credentialAuthState(stripe, []).complete).toBe(false);
   });
 
   it('answers which assets a per-asset credential serves from one merged list', () => {

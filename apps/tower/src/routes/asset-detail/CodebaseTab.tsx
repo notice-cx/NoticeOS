@@ -35,12 +35,14 @@ import {
   formatFigure,
   languageShares,
   localCommand,
+  passText,
   seriesOf,
   toolChanges,
   unmeasuredReason,
   unusedParts,
   unusedTaskTitle,
   visitorsChange,
+  vulnerableTaskTitle,
   type CodebaseRange,
   type CodebaseWidget,
 } from "@/routes/asset-detail/codebase-measures";
@@ -50,7 +52,8 @@ import { timelineAnnotations } from "@/routes/asset-detail/shared";
  * The Codebase tab: whether the site's code is growing, repeating itself,
  * carrying unused parts or gathering hard-to-change functions, beside its
  * visitors. One sentence, five figures with their 30-day change and 90-day
- * line, the code's size over time with deploys marked, its languages, and
+ * line, the build, test and vulnerable-package checks the site's own workflow
+ * sends, the code's size over time with deploys marked, its languages, and
  * the findings each as a task. A site that has never sent a report gets the
  * ways to send one.
  */
@@ -75,6 +78,8 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
   const report = slice.latest.report;
   const today = new Date(nowMs).toISOString().slice(0, 10);
   const deploys = timelineAnnotations(data.annotations.items.filter((item) => item.kind === "deploy"));
+  const widgets = codebaseWidgets(slice);
+  const strip = (name: CodebaseWidget["strip"]) => widgets.filter((widget) => widget.strip === name);
 
   return (
     <div className="@container flex flex-col gap-5" data-codebase="report">
@@ -82,10 +87,17 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
         <PageAnswer id={answerId} answer={answer.answer} detail={answer.detail} marks={{ "data-codebase-answer": "" }} />
         <Card className="overflow-hidden">
           <KpiStrip columns={5}>
-            {codebaseWidgets(slice).map((widget) => (
+            {strip("code").map((widget) => (
               <WidgetKpi key={widget.key} widget={widget} report={report} />
             ))}
           </KpiStrip>
+          <div className="border-t border-border" data-codebase-checks="">
+            <KpiStrip columns={3}>
+              {strip("checks").map((widget) => (
+                <WidgetKpi key={widget.key} widget={widget} report={report} />
+              ))}
+            </KpiStrip>
+          </div>
           <CodeChart slice={slice} today={today} deploys={deploys}
             activeUsers={data.performance.activeUsers} site={data.asset.displayName} />
         </Card>
@@ -93,12 +105,12 @@ export function CodebaseTab({ data, nowMs }: { data: AssetDetailFor<"codebase">;
 
       <Languages report={report} />
 
-      <Findings slice={slice} report={report} assetId={data.asset.id} />
+      <Findings slice={slice} report={report} assetId={data.asset.id} site={data.asset.displayName} />
     </div>
   );
 }
 
-// --- the five figures --------------------------------------------------------
+// --- the figures ----------------------------------------------------------------
 
 /** Under this, a change is noise and gets no colour (the strip's own floor). */
 const VERDICT_FLOOR_PERCENT = 2;
@@ -106,21 +118,25 @@ const VERDICT_FLOOR_PERCENT = 2;
 function WidgetKpi({ widget, report }: { widget: CodebaseWidget; report: CodebaseReport }) {
   const { change } = widget;
   const parts = widget.key === "unused" ? unusedParts(report.measures) : null;
+  // A pass or fail has no size to set against a month before: it shows how many reports passed.
+  const pass = widget.unit === "pass";
   return (
     <Kpi
       label={widget.label}
       value={widget.value === null
         ? <span className="text-base font-medium tracking-normal text-muted-foreground" data-codebase-unmeasured="">Not measured</span>
         : formatFigure(widget.unit, widget.value)}
+      valueTone={pass && widget.value === 0 ? "error" : "default"}
       note={widget.value === null ? undefined : widget.note ?? undefined}
       caption={widget.value === null
         ? widget.unmeasured
+        : pass ? (widget.passes ? passText(widget.passes) : undefined)
         : !change ? "No report from a month before yet"
         : change.change === 0 ? `No change in ${change.days} days`
         : <ChangeChip widget={widget} />}
       explanation={<>
         <span>{widget.meaning}</span>
-        {change ? <span className="tabular-nums">{changeAgainst(change)}: {formatFigure(widget.unit, change.from.value)} → {formatFigure(widget.unit, change.to.value)}</span> : null}
+        {change && !pass ? <span className="tabular-nums">{changeAgainst(change)}: {formatFigure(widget.unit, change.from.value)} → {formatFigure(widget.unit, change.to.value)}</span> : null}
       </>}
       spark={widget.spark}
       sparkLabel={`${widget.label} · 90 days`}
@@ -257,7 +273,7 @@ function shownOf(shown: number, total: number | undefined): string {
   return total !== undefined && total > shown ? `${shown} of ${formatInt(total)}` : formatInt(shown);
 }
 
-function Findings({ slice, report, assetId }: { slice: CodebaseSlice; report: CodebaseReport; assetId: string }) {
+function Findings({ slice, report, assetId, site }: { slice: CodebaseSlice; report: CodebaseReport; assetId: string; site: string }) {
   const { measures, findings } = report;
   const source = findingSource(slice);
   const task = (title: string, subject: string): ReactNode => (
@@ -273,7 +289,7 @@ function Findings({ slice, report, assetId }: { slice: CodebaseSlice; report: Co
   return (
     <section className="flex flex-col gap-2" data-codebase-findings="">
       <SectionLabel title="Findings" caption="From the latest report" />
-      <div className="grid gap-3.5 @5xl:grid-cols-3 [&>*]:min-w-0">
+      <div className="grid gap-3.5 @3xl:grid-cols-2 [&>*]:min-w-0">
         <ListPanel
           title="Repeated blocks"
           count={findings.duplicates.length > 0 ? shownOf(findings.duplicates.length, measures.duplicate_blocks) : undefined}
@@ -337,6 +353,21 @@ function Findings({ slice, report, assetId }: { slice: CodebaseSlice; report: Co
               marks={{ "data-codebase-unused": item.kind }}
             />
           ))}
+        </ListPanel>
+
+        <ListPanel
+          title="Vulnerable packages"
+          empty={measures.vulnerable_dependencies === undefined ? notMeasured(["vulnerable_dependencies"]) : "No vulnerable packages found."}
+        >
+          {measures.vulnerable_dependencies ? (
+            <ListRow
+              glyph="△"
+              title={`${formatInt(measures.vulnerable_dependencies)} ${measures.vulnerable_dependencies === 1 ? "package has" : "packages have"} a known vulnerability`}
+              caption="Counted by the package audit in this site's workflow"
+              rowActions={task(vulnerableTaskTitle(measures.vulnerable_dependencies, site), "vulnerable packages")}
+              marks={{ "data-codebase-vulnerable": "" }}
+            />
+          ) : null}
         </ListPanel>
       </div>
     </section>

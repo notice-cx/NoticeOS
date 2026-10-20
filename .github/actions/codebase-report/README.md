@@ -79,6 +79,9 @@ measured".
 | `ingest-url` | no | The installation's ingest address. |
 | `token` | no | The site's token. Pass it from a secret, never as plain text in the file. |
 | `paths` | no | Folders to measure, separated by commas, for a repository that holds more than one product, such as `apps/site`. Empty measures the whole repository. |
+| `build-passed` | no | The outcome of the job's own build step, such as `${{ steps.build.outcome }}`: `success` or `failure`. Empty: the build is not measured. |
+| `tests-passed` | no | The outcome of the job's own test step, such as `${{ steps.test.outcome }}`. Empty: the tests are not measured. |
+| `vulnerable-dependencies` | no | The number of packages with a known vulnerability from the job's own audit step, such as `npm audit --json`. Empty: not measured. |
 | `image-tag` | no | The tag of the published measurement image, `ghcr.io/notice-cx/noticeos-codebase-report`. Default `main`. |
 | `image` | no | A whole image reference used instead of the published image, such as one built earlier in the same job. |
 

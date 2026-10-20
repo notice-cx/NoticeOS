@@ -20,7 +20,8 @@ export interface HostedScheduleBinding {
   readonly startup?: readonly string[];
 }
 const TENANT_JOBS = new Set(['mediavine', 'freshness', 'notifications', 'pull', 'hygiene', 'watch-windows',
-  'clarity', 'signal-dumps', 'posthog', 'dataforseo', 'counters', 'beads-snapshot', 'panel-review', 'watch-readbacks']);
+  'clarity', 'signal-dumps', 'posthog', 'dataforseo', 'counters', 'beads-snapshot', 'panel-review', 'watch-readbacks',
+  'crux', 'stripe']);
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 export class HostedScheduleRefused extends Error {
   override name = 'HostedScheduleRefused';

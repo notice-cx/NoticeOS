@@ -19,13 +19,15 @@ Times are the product defaults, in UTC. Your installation shows the saved schedu
 | --- | --- | --- |
 | Live traffic and counters | every 15 minutes | Refreshes the live Google Analytics and Search Console readings |
 | Ad revenue | 10, 30 and 50 minutes past each hour | Checks for a new Mediavine revenue report when one is due |
+| Subscription revenue | 20 past each hour | Records each completed UTC day's Stripe sales less refunds for the site that names the account; asks Stripe only when a day is missing |
 | Data freshness checks | every hour | Flags a site whose report is late or whose connection stopped |
 | Operator notifications | 5 past each hour | Sends what changed since its last run |
 | Nightly reports | 02:30 | Collects the daily provider reports, including Bing Webmaster |
 | NoticeOS report | 03:00 | The installation's own report about itself |
 | Outcome checks | 03:30 | Reads the follow-up window of each shipped change |
-| Search accessibility checks | 04:00 | Robots, sitemap and indexing checks, and a read of the light and dark icons each site's home page declares |
+| Search accessibility checks | 04:00 | Robots, sitemap, indexing and security-header checks, and a read of the light and dark icons each site's home page declares |
 | Backups | 04:00 | The nightly backup; see [Backups and restore](/operate/backups-and-restore) |
+| Page speed | 04:15 | Reads each site's Chrome UX Report page speed; runs once a Chrome UX Report key is connected |
 | Clarity recordings summary | 04:30 | Summarises Microsoft Clarity data |
 | Traffic and search archives | 12:15 | Archives the day's Google Analytics, Search Console and Bing reports |
 | Product analytics archives | 12:30 | Archives PostHog reports |

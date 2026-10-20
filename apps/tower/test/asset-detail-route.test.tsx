@@ -1185,6 +1185,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       "Money",
       "Search",
       "Codebase",
+      "Health",
       "Alerts",
       "Tasks",
       "Activity",
@@ -1197,6 +1198,7 @@ describe("AssetDetailRoute — executive page identity", () => {
       "/assets/meadow.example/financials",
       "/assets/meadow.example/search",
       "/assets/meadow.example/codebase",
+      "/assets/meadow.example/health",
       "/assets/meadow.example/alerts",
       "/assets/meadow.example/tasks",
       "/assets/meadow.example/activity",
@@ -1214,9 +1216,11 @@ describe("AssetDetailRoute — executive page identity", () => {
       "false",
       "false",
       "false",
+      "false",
     ]);
     expect(tabs.map((t) => t.getAttribute("tabindex"))).toEqual([
       "0",
+      "-1",
       "-1",
       "-1",
       "-1",
@@ -1362,8 +1366,9 @@ describe("AssetDetailRoute — executive page identity", () => {
     expect(tabs[2]!.textContent).toBe("Money");
     expect(tabs[3]!.textContent).toBe("Search");
     expect(tabs[4]!.textContent).toBe("Codebase");
-    expect(tabs[6]!.textContent).toBe("Tasks");
-    expect(tabs[7]!.textContent).toBe("Activity");
+    expect(tabs[5]!.textContent).toBe("Health");
+    expect(tabs[7]!.textContent).toBe("Tasks");
+    expect(tabs[8]!.textContent).toBe("Activity");
   });
 
   it.each([undefined, null, "not-a-date"])("never shows a provider's source Working in the header before its reads answer (observation: %s)", async (observedAt) => {
@@ -4062,6 +4067,83 @@ describe("AssetDetailRoute — data the OS already paid for", () => {
     await findByText("Daily metrics");
     expect(queryByRole("region", { name: "Site health" })).toBeNull();
     expect(container.querySelector("[data-hygiene-check]")).toBeNull();
+  });
+
+  describe("Site health: security headers and page speed", () => {
+    const at = "2026-07-05T04:00:00.000Z";
+    const reading = { date: "2026-07-05", observedAt: at, status: "ok" as const, value: 4 };
+    const history = (check: "security-headers" | "crux-vitals", value: number | null) => {
+      const one = { ...reading, value };
+      return { check, readings: [one], latest: one };
+    };
+    const base = {
+      windowDays: 90,
+      htmlDepth: { check: "html-depth" as const, readings: [], latest: null },
+      robots: { check: "robots-ai-access" as const, readings: [reading], latest: { ...reading, value: null } },
+      sitemap: { check: "sitemap" as const, readings: [], latest: null },
+      bots: [],
+    };
+
+    it("counts the security headers sent and names the missing ones", async () => {
+      const present = ["strict-transport-security", "content-security-policy", "x-content-type-options", "referrer-policy"];
+      stubFetch(200, payload({ hygiene: {
+        ...base,
+        securityHeaders: history("security-headers", 4),
+        headers: {
+          observedAt: at,
+          headers: ["strict-transport-security", "content-security-policy", "x-content-type-options", "x-frame-options", "referrer-policy", "permissions-policy"]
+            .map((name) => ({ name, present: present.includes(name) })),
+        },
+        pageSpeedHistory: { check: "crux-vitals", readings: [], latest: null },
+        pageSpeed: null,
+      } }));
+      const { container, findByText } = renderRoute("meadow.example", "", "sources");
+      await findByText("Site health");
+      const tile = container.querySelector<HTMLElement>('[data-hygiene-check="security-headers"]')!;
+      expect(tile).toHaveTextContent("Security headers");
+      expect(tile).toHaveTextContent("4 of 6");
+      expect(tile.querySelector("[data-hygiene-missing-headers]")).toHaveTextContent("Missing: X-Frame-Options, Permissions-Policy");
+      // No reading yet: the page-speed tile says so instead of drawing zeros.
+      expect(container.querySelector('[data-hygiene-check="crux-vitals"]')).toHaveTextContent("not measured yet");
+    });
+
+    it("rates each page-speed p75 with Google's words", async () => {
+      stubFetch(200, payload({ hygiene: {
+        ...base,
+        securityHeaders: { check: "security-headers", readings: [], latest: null },
+        headers: null,
+        pageSpeedHistory: history("crux-vitals", 3100),
+        pageSpeed: {
+          observedAt: at,
+          formFactor: "PHONE",
+          vitals: { lcp: 3100, inp: 150, cls: 0.31 },
+          collectionPeriod: { firstDate: "2026-06-06", lastDate: "2026-07-03" },
+        },
+      } }));
+      const { container, findByText } = renderRoute("meadow.example", "", "sources");
+      await findByText("Site health");
+      const tile = container.querySelector<HTMLElement>('[data-hygiene-check="crux-vitals"]')!;
+      const row = (metric: string) => tile.querySelector<HTMLElement>(`[data-hygiene-vital="${metric}"]`)!;
+      expect(row("lcp")).toHaveTextContent("3.1 s");
+      expect(row("lcp")).toHaveTextContent("needs improvement");
+      expect(row("inp")).toHaveTextContent("150 ms");
+      expect(row("inp")).toHaveTextContent("good");
+      expect(row("cls")).toHaveTextContent("0.31");
+      expect(row("cls")).toHaveTextContent("poor");
+      expect(tile).toHaveTextContent("75th percentile · phones");
+      // The headers tile has no judged reading yet.
+      expect(container.querySelector('[data-hygiene-check="security-headers"]')).toHaveTextContent("never checked");
+    });
+
+    it("says when Chrome has too few visits to measure", async () => {
+      stubFetch(200, payload({ hygiene: {
+        ...base,
+        pageSpeed: { observedAt: at, formFactor: null, vitals: null, collectionPeriod: null },
+      } }));
+      const { container, findByText } = renderRoute("meadow.example", "", "sources");
+      await findByText("Site health");
+      expect(container.querySelector('[data-hygiene-check="crux-vitals"]')).toHaveTextContent("Too few Chrome visits to measure");
+    });
   });
 
   it("shows the pre-registered checks and what the closed ones concluded", async () => {

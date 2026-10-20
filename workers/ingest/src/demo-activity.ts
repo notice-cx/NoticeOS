@@ -9,6 +9,7 @@ import { ingestCodebaseReport } from './codebase.js';
 import { recordSignalFailure, recordSignalSuccess, SignalError } from './signal-store.js';
 import { importLedgerRows } from './routes/revenue.js';
 import { persistReport } from './mediavine.js';
+import { persistStripeDays } from './stripe.js';
 import { dates, pacificDay, shiftDate } from '@noticeos/mediavine';
 import { MEDIAVINE_REVENUE_SOURCE } from '@noticeos/contract/revenue-sources';
 import { writeBeadsSnapshot } from './beads-snapshots.js';
@@ -46,12 +47,24 @@ export async function writeDemoActivity(store: WorkspaceStore, day: DemoActivity
       asset: row.asset, kind: row.kind, family: row.family, period: row.period,
       // The ordinary boundary accepts decimal major units and converts once.
       amount: (row.amountMinor / 100).toFixed(2), currency: row.currency,
-      booking_state: row.bookingState, source: row.source, external_id: row.externalId,
+      booking_state: row.bookingState, source: row.source ?? undefined, external_id: row.externalId,
       note: row.note, coverage_start: row.coverageStart, coverage_end: row.coverageEnd,
       coverage_complete: row.coverageComplete,
     })), store);
     if (result.failed || result.reviewRequired) throw new Error('Synthetic ledger input rejected by the ordinary writer.');
     written += result.inserted;
+  }
+  // Each subscription site's completed days through the subscriptions
+  // collector's own writer, one run per site and day of the simulator.
+  const bySite = new Map<string, { account: string; days: Map<string, number> }>();
+  for (const row of day.subscriptions) {
+    const entry = bySite.get(row.asset) ?? { account: row.account, days: new Map<string, number>() };
+    entry.days.set(row.date, row.amountMinor);
+    bySite.set(row.asset, entry);
+  }
+  for (const [asset, { account, days }] of bySite) {
+    written += await persistStripeDays(env, { asset, account }, days, 'USD', `${day.key}/subscriptions`,
+      new Date(Math.max(Date.now(), Date.parse(`${day.date}T00:00:00.000Z`) + DAY_MS)).toISOString());
   }
   // A ship's change and its comparison, and a Monday's search reports, go
   // through the same writers an operator's annotation, bet and published

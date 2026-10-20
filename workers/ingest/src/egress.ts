@@ -114,6 +114,8 @@ export const EGRESS_LANES = [
   'uptime',
   // The daily read of each site's declared icons (site-icons.ts).
   'icons',
+  // The daily page-speed reading (crux.ts).
+  'crux',
 ] as const;
 export type EgressLaneId = (typeof EGRESS_LANES)[number];
 

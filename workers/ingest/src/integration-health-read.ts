@@ -19,6 +19,9 @@ import { POSTHOG_KEY_SLOT, posthogCandidates, resolvePosthogKeys } from './posth
 import { POSTHOG_ACCOUNT_KEY_SLOT } from './posthog-account.js';
 import { DATAFORSEO_OVERDUE_GRACE_HOURS, POSTHOG_FAMILIES, mediavineSyncOn, siteHost } from '@noticeos/contract';
 import { cellDeclined, posthogSettings, registerMappedAssets, type LaneRegister } from './lane-mapping.js';
+import { eligibleAssets } from './hygiene.js';
+import { CRUX_DAILY_CAPABILITY } from './crux.js';
+import { STRIPE_LANE, STRIPE_REVENUE_CAPABILITY } from './stripe.js';
 
 type Spec = { connection: HealthConnection; capability: string; asset?: string; target?: string; family?: string; detail?: string; report?: string; reportDate?: string; paused?: boolean; requiredSince?: string | null; observations?: IntegrationObservation[]; lastSuccessAt?: string | null; nextAttemptAt?: string | null };
 interface SignalRow { id: string; asset: string; integration: string; property_ref: string; started_at: string; finished_at: string; status: string; error_code: string | null; credential_ref: string;
@@ -386,6 +389,21 @@ export async function readIntegrationHealth(env: IngestEnv, nowMs = Date.now()):
           const plan = POSTHOG_FAMILIES.filter((family) => family !== 'funnels' || read.settings.funnels.length > 0)
             .map((report) => ({ report, cadenceDays: 1 }));
           await archive(connection, 'posthog-archive', target.asset, `${read.settings.host}:${read.settings.projectId}`, 'posthog', plan, cellDeclined(register.assets[target.asset]?.posthog));
+        }
+      } else if (provider === 'crux') {
+        // One daily reading per site the page-speed job reads.
+        for (const site of await eligibleAssets(env)) {
+          await add({ connection, capability: CRUX_DAILY_CAPABILITY, asset: site.asset, target: site.domain,
+            paused: cellDeclined(register.assets[site.asset]?.crux), requiredSince: since(nowMs, INTEGRATION_CADENCE_HOURS.cruxSignals) });
+        }
+      } else if (provider === 'stripe') {
+        // One daily collection per site that names a Stripe account; a
+        // declined one is listed paused.
+        for (const [asset, lanes] of Object.entries(register.assets)) {
+          const cell = lanes?.[STRIPE_LANE];
+          if (typeof cell?.stripeAccountId !== 'string' || cell.stripeAccountId === '') continue;
+          await add({ connection, capability: STRIPE_REVENUE_CAPABILITY, asset, target: cell.stripeAccountId,
+            paused: cellDeclined(cell), requiredSince: since(nowMs, 24) });
         }
       } else if (provider === 'calendar') {
         const raw: unknown = JSON.parse(credential.fields.CALENDAR_FEEDS ?? '{}');

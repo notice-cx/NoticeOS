@@ -33,15 +33,17 @@
     // hourly: ingest-freshness check. 02:30 UTC: pull-mode adapter + daily Bing
     // Webmaster snapshot, before asset #0. 03:00 UTC: asset-#0 self-pulse.
     // 03:30 UTC: watch-window evaluation, after the day's signals have landed.
-    // 04:00 UTC: tech/GEO hygiene guards, no provider quota. 04:30 UTC: one
+    // 04:00 UTC: tech/GEO hygiene guards, no provider quota. 04:15 UTC: page
+    // speed from the Chrome UX Report API. 04:30 UTC: one
     // Microsoft Clarity export per configured project, once daily because the
     // provider allows only 10 calls per project per day. 12:15 UTC: GA4/GSC/BWT
     // raw archives. Monday 12:45 UTC: weekly DataForSEO snapshots. Every 15
     // min: counters + GA4/GSC; the Tower ages the cards against this schedule.
+    // :20 past every hour: Stripe subscription revenue, asked once a day is due.
     //
     // Each expression is matched by an exported constant in src/crons.ts
     // (test/crons.test.ts pins the two lists equal; an unmatched expression
     // falls through to the self-heal `default:` and would run every lane).
-    "crons": ["0 * * * *", "5 * * * *", "30 2 * * *", "0 3 * * *", "30 3 * * *", "0 4 * * *", "30 4 * * *", "15 12 * * *", "30 12 * * *", "45 12 * * 1", "*/15 * * * *", "10,30,50 * * * *"]
+    "crons": ["0 * * * *", "5 * * * *", "30 2 * * *", "0 3 * * *", "30 3 * * *", "0 4 * * *", "15 4 * * *", "30 4 * * *", "15 12 * * *", "30 12 * * *", "45 12 * * 1", "*/15 * * * *", "10,30,50 * * * *", "20 * * * *"]
   }
 }

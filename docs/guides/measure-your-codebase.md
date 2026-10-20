@@ -25,11 +25,19 @@ Then five figures. Each shows its value in the latest report, its change against
 | **Hard-to-change functions** | Functions with so many branches that one change can break another. |
 | **Test coverage by size** | Lines of tests for each line of code, shown as a multiple, such as **0.2×** the code. Tests catch mistakes before visitors do. |
 
+Under them are three checks, shown when the site's own workflow ([Send build, test and package-audit results](#send-build-test-and-package-audit-results)) or the [local command](#from-the-computer-that-runs-noticeos) sends them:
+
+| Figure | What it means |
+|---|---|
+| **Build** | **Passed** or **Failed**: whether the code built without errors in the latest report, and how many of the last 30 days' reports passed. |
+| **Tests** | **Passed** or **Failed**: whether every test passed in the latest report, and how many of the last 30 days' reports passed. |
+| **Vulnerable packages** | Outside packages with a publicly known security flaw, and the change against the report nearest 30 days earlier. |
+
 Under the figures:
 
 - A chart of lines of code over the last **30** or **90** days. Each deploy on the site's timeline (its **Activity** tab) is a mark on it, and a ◆ mark, **Measuring tools updated**, shows a day the measuring tools changed version. **Visitors** draws the site's visitors a day under it. Between two reports the line holds the earlier report's count.
 - **Languages**: one bar split by each language's share of the code.
-- **Findings** from the latest report, in three lists: **Repeated blocks** (the files that share a block, and its length in lines), **Hard-to-change functions** (the function, its file and its complexity, where above 15 is hard to change) and **Unused** (files, shared pieces and packages). Each row has **Make a task**, which opens the task form with a title such as "Merge the repeated code in …" filled in.
+- **Findings** from the latest report, in four lists: **Repeated blocks** (the files that share a block, and its length in lines), **Hard-to-change functions** (the function, its file and its complexity, where above 15 is hard to change), **Unused** (files, shared pieces and packages) and **Vulnerable packages** (how many, when there are any). Each row has **Make a task**, which opens the task form with a title such as "Merge the repeated code in …" or "Fix 3 vulnerable packages in …" filled in.
 
 The figures are counts of the code, not a grade. A site with 2% repeated code is not twice as healthy as one with 4%; what to watch is the direction over weeks, and a sudden step.
 
@@ -80,6 +88,32 @@ The tab lists three ways under **GitHub Action**, **Local command** and **Centra
 
 The workflow runs on every push to `main`, every Monday at 04:17 UTC, and when you select **Run workflow** on the repository's **Actions** tab. `fetch-depth: 0` checks out the whole history; without it the three counts of changes in the last 30 days are not measured. When either secret is missing, as on a pull request from a fork, the report is not sent: it is kept on the workflow run as the artifact `noticeos-codebase-report` for 30 days. The action's own page lists its other inputs: [the codebase report action](https://github.com/notice-cx/NoticeOS/tree/main/.github/actions/codebase-report).
 
+### Send build, test and package-audit results
+
+The measurement reads files and never builds the code, runs its tests or audits its packages, so **Build**, **Tests** and **Vulnerable packages** come from steps your workflow already runs. Each is optional; a result the workflow does not send shows as **Not measured**. Give each step an `id`, give the report step <span v-pre>`if: ${{ !cancelled() }}`</span> so it still runs after a failed build or test, and pass the action three inputs: `build-passed` and `tests-passed` take the step's outcome (`success` or `failure`), and `vulnerable-dependencies` takes a count, for example the number of entries under `vulnerabilities` in `npm audit --json`. A step that was skipped, such as the tests after a failed build, leaves its figure **Not measured**.
+
+```yaml
+      - run: npm ci
+      - id: build
+        run: npm run build
+      - id: test
+        run: npm test
+      - id: audit
+        if: ${{ !cancelled() }}
+        run: |
+          npm audit --json > audit.json || true
+          echo "count=$(jq '.vulnerabilities | length' audit.json)" >> "$GITHUB_OUTPUT"
+      - if: ${{ !cancelled() }}
+        uses: notice-cx/NoticeOS/.github/actions/codebase-report@main
+        with:
+          asset: "example.com"
+          ingest-url: ${{ secrets.NOTICEOS_INGEST_URL }}
+          token: ${{ secrets.NOTICEOS_ASSET_TOKEN }}
+          build-passed: ${{ steps.build.outcome }}
+          tests-passed: ${{ steps.test.outcome }}
+          vulnerable-dependencies: ${{ steps.audit.outputs.count }}
+```
+
 ### From the computer that runs NoticeOS
 
 1. Check that the installation is running: `pnpm os:status`.
@@ -90,6 +124,13 @@ The workflow runs on every push to `main`, every Monday at 04:17 UTC, and when y
    ```
 
 The command reads the site's token from the installation's own secrets, so you do not type it. For a repository that holds more than one product, add `--paths apps/site` with the folders to measure, separated by commas. Run it again whenever you want a new report; a second report on the same day is kept as that day's newer version.
+
+The command does not build the code, run its tests or audit its packages. To send those results, run the steps yourself first and add one `--measure` for each: `build_passed` and `tests_passed` take `success` or `failure`, and `vulnerable_dependencies` takes a count.
+
+```sh
+pnpm os:codebase-report -- --asset example.com --repo /path/to/your/code \
+  --measure build_passed=success --measure tests_passed=failure --measure vulnerable_dependencies=3
+```
 
 ### Central pull · coming later
 
@@ -115,11 +156,12 @@ A figure that the report did not measure shows **Not measured** with the reason,
 
 - **Unused code** is checked only in JavaScript, TypeScript and Python. Unused packages are not measured yet, so **Unused code** counts files and shared pieces of code.
 - The three counts of changes in the last 30 days need the whole history; a GitHub checkout without `fetch-depth: 0` has only the latest commit.
+- **Build**, **Tests** and **Vulnerable packages** are measured only when the workflow's `build-passed`, `tests-passed` and `vulnerable-dependencies` inputs, or the local command's `--measure`, send them.
 - A figure's change shows "No report from a month before yet" until there is a report 28 to 45 days older than the latest.
 
 ## Alerts
 
-Each report is checked against four rules. An alert appears on **Alerts** and on the site's **Alerts** tab, and the next report closes it when the rule no longer holds.
+Each report is checked against five rules. An alert appears on **Alerts** and on the site's **Alerts** tab, and the next report closes it when the rule no longer holds.
 
 | Alert | When | What to do |
 |---|---|---|
@@ -127,6 +169,7 @@ Each report is checked against four rules. An alert appears on **Alerts** and on
 | "8.4% of the code is repeated." | 8% or more of the code is repeated. | Use **Make a task** on the longest blocks in **Repeated blocks**, asking for one shared version used in every place. |
 | "14 files are not used." | 10 or more unused files and packages. | Use **Make a task** on the rows in **Unused**; a file that only an old page used can usually go. Check first that nothing outside the repository loads it. |
 | "7 more functions became hard to change in 30 days." | 5 or more functions became hard to change since the report nearest 30 days earlier. | Use **Make a task** on the functions with the highest complexity, asking for them to be split into smaller ones, with tests first. |
+| "3 packages have a known vulnerability." | The workflow's audit counted 1 or more vulnerable packages. | Use **Make a task** under **Vulnerable packages**, asking for each to be updated to a release without the flaw (`npm audit fix` lists most of them). |
 
 The growth and hard-to-change alerts need a report from 28 to 45 days earlier, so a newly measured site has neither for its first four weeks. The thresholds are under `codebase_rules` in the installation's constants ([`config/constants.README.md`](https://github.com/notice-cx/NoticeOS/blob/main/config/constants.README.md)); the Tower does not edit them.
 

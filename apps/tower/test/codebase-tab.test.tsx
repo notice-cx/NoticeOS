@@ -55,7 +55,10 @@ describe("Codebase tab with reports", () => {
     });
     expect(answer.querySelector("h2")?.textContent).toMatch(/^The code grew 5\.2% in 28 days/);
     const labels = [...container.querySelectorAll("[data-kpi]")].map((node) => node.getAttribute("data-kpi"));
-    expect(labels).toEqual(["Lines of code", "Repeated code", "Unused code", "Hard-to-change functions", "Test coverage by size"]);
+    expect(labels).toEqual([
+      "Lines of code", "Repeated code", "Unused code", "Hard-to-change functions", "Test coverage by size",
+      "Build", "Tests", "Vulnerable packages",
+    ]);
     const lines = container.querySelector<HTMLElement>('[data-kpi="Lines of code"]')!;
     expect(lines.textContent).toContain("48,210");
     expect(within(lines).getByLabelText("5.2% up vs Jun 7, 28 days before")).toBeInTheDocument();
@@ -100,6 +103,47 @@ describe("Codebase tab with reports", () => {
     expect(within(findings).getByRole("button", { name: "Make a task for src/a.ts and src/b.ts" })).toBeInTheDocument();
     expect(within(findings).getByRole("button", { name: "Make a task for left-pad" })).toBeInTheDocument();
     expect(container.querySelector("[data-codebase-languages]")?.textContent).toContain("TypeScript");
+  });
+});
+
+describe("Codebase tab checks from the site's workflow", () => {
+  it("shows the build and tests as passed or failed and the vulnerable packages as a count, with Make a task", async () => {
+    const payload = everyTabPayload();
+    const report = codebaseReport("meadow.example", "2026-07-05", { code_lines: 900, build_passed: 1, tests_passed: 0, vulnerable_dependencies: 3 });
+    payload.codebase = { history: [], latest: { date: "2026-07-05", revision: 1, receivedAt: "2026-07-05T03:13:00.000Z", report } };
+    const { container } = renderCodebase(payload);
+    const checks = await waitFor(() => {
+      const node = container.querySelector<HTMLElement>("[data-codebase-checks]");
+      expect(node).not.toBeNull();
+      return node!;
+    });
+    expect(checks.querySelector('[data-kpi="Build"]')!.textContent).toContain("Passed");
+    const tests = checks.querySelector<HTMLElement>('[data-kpi="Tests"]')!;
+    expect(tests.textContent).toContain("Failed");
+    expect(checks.querySelector('[data-kpi="Vulnerable packages"]')!.textContent).toContain("3");
+    fireEvent.click(within(tests).getByRole("button", { name: "About Tests" }));
+    expect(await screen.findByText(/^Whether every test passed last time\./u)).toBeInTheDocument();
+    const findings = container.querySelector<HTMLElement>("[data-codebase-findings]")!;
+    expect(within(findings).getByText("3 packages have a known vulnerability")).toBeInTheDocument();
+    expect(within(findings).getByRole("button", { name: "Make a task for vulnerable packages" })).toBeInTheDocument();
+  });
+
+  it("reads each check the workflow did not send as Not measured, with no task", async () => {
+    const payload = everyTabPayload();
+    const report = codebaseReport("meadow.example", "2026-07-05", { code_lines: 900 });
+    report.unmeasured = { vulnerable_dependencies: "The workflow sent no package audit." };
+    payload.codebase = { history: [], latest: { date: "2026-07-05", revision: 1, receivedAt: "2026-07-05T03:13:00.000Z", report } };
+    const { container } = renderCodebase(payload);
+    const checks = await waitFor(() => {
+      const node = container.querySelector<HTMLElement>("[data-codebase-checks]");
+      expect(node).not.toBeNull();
+      return node!;
+    });
+    expect(checks.querySelectorAll("[data-codebase-unmeasured]")).toHaveLength(3);
+    expect(checks.querySelector('[data-kpi="Vulnerable packages"]')!.textContent).toContain("The workflow sent no package audit.");
+    const findings = container.querySelector<HTMLElement>("[data-codebase-findings]")!;
+    expect(findings.querySelector("[data-codebase-vulnerable]")).toBeNull();
+    expect(within(findings).getByText("Not measured · The workflow sent no package audit.")).toBeInTheDocument();
   });
 });
 

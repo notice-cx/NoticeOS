@@ -92,6 +92,18 @@ export const INTEGRATION_MONITORS = {
     // Explicit test message only; never clears a failed alert delivery.
     monitor('discord-test', 'Discord connection test', [], 'credential-probes', 'delivery', 'event', 'live-only', 'Review the test destination in Integrations.'),
   ],
+  crux: [
+    // The daily page-speed job; each site's reading is a hygiene_checks row.
+    monitor('crux-daily', 'Daily page speed', ['crux'], 'crux', 'property', 'scheduled', 'live-only', 'Review the Chrome UX Report key and the API enabled on its project.'),
+    // Explicit connection test only.
+    monitor('crux-test', 'Page speed connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the Chrome UX Report key in Integrations.'),
+  ],
+  stripe: [
+    // The hourly subscriptions job; each site's completed UTC days are revenue_observations rows.
+    monitor('stripe-revenue', 'Daily subscription revenue', ['subscriptions'], 'stripe', 'property', 'scheduled', 'live-only', 'Review the Stripe key and the account this site’s Subscriptions entry names.'),
+    // Explicit connection test only.
+    monitor('stripe-test', 'Stripe connection test', [], 'credential-probes', 'account', 'event', 'live-only', 'Review the Stripe key in Integrations.'),
+  ],
 } satisfies Record<IntegrationProviderId, readonly IntegrationMonitorDefinition[]>;
 
 /** Why a catalog lane has no automatic attempt monitor: nothing collects it
@@ -174,7 +186,7 @@ export function integrationCapabilityHealth(input: {
 }
 
 /** Existing display cadences, shared with the Wall; this adds no new threshold. */
-export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, bingSignals: 24, dataforseoSignals: 24 * 7, posthogSignals: 24 } as const;
+export const INTEGRATION_CADENCE_HOURS = { signals: 0.25, bingSignals: 24, dataforseoSignals: 24 * 7, posthogSignals: 24, cruxSignals: 24 } as const;
 export interface IntegrationHealthItem {
   id: string;
   provider: string;

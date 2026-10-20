@@ -35,6 +35,7 @@ import {
 import type { CalendarUpcoming } from "@noticeos/contract/calendar-upcoming";
 import { GA4_PULSE_MINUTES, type Ga4RealtimePayload } from "@noticeos/contract/ga4-realtime";
 import type { SiteIconsReadResult } from "@noticeos/contract/site-icons";
+import { VIEW_PREFERENCE_PATH, parseViewChoice, type ViewChoice } from "@shared/views";
 import type {
   AnnotationKind,
   DecisionKind,
@@ -1474,6 +1475,29 @@ async function readSiteIconsRequest(fetch: ApiTransport, asset: string): Promise
   return (await res.json()) as SiteIconsReadResult;
 }
 
+/** A hosted person's own view, as their workspace keeps it: null before they
+ * save one. Only a hosted Tower answers this path. */
+async function fetchViewPreferenceRequest(fetch: ApiTransport, signal?: AbortSignal): Promise<ViewChoice | null> {
+  const res = await fetch(VIEW_PREFERENCE_PATH, { signal, headers: { accept: "application/json" } });
+  if (!res.ok) throw new ApiError(`GET ${VIEW_PREFERENCE_PATH} failed: ${res.status}`, res.status);
+  const body: unknown = await res.json();
+  return isRecord(body) ? parseViewChoice(body.choice) : null;
+}
+
+/** Save a hosted person's own view; answers the choice as stored. */
+async function saveViewPreferenceRequest(fetch: ApiTransport, choice: ViewChoice): Promise<ViewChoice> {
+  const res = await fetch(VIEW_PREFERENCE_PATH, {
+    method: "PUT",
+    headers: JSON_WRITE_HEADERS,
+    body: JSON.stringify({ view: choice.view, focus: [...choice.focus] }),
+  });
+  if (!res.ok) throw await refusal(res, `PUT ${VIEW_PREFERENCE_PATH} failed: ${res.status}`);
+  const body: unknown = await res.json();
+  const stored = isRecord(body) ? parseViewChoice(body.choice) : null;
+  if (!stored) throw new ApiError(`PUT ${VIEW_PREFERENCE_PATH} answered no choice`, res.status);
+  return stored;
+}
+
 /**
  * What the connected Google account can actually see: two free, read-only list
  * calls; nothing is stored. A failure inside Google is a 200 with `ok: false`
@@ -1690,6 +1714,8 @@ export function createApi(fetch: ApiTransport, assertActive: () => void = () => 
     fetchProviderSites: bind(fetchProviderSitesRequest),
     collectProviderSites: bind(collectProviderSitesRequest),
     readSiteIcons: bind(readSiteIconsRequest),
+    fetchViewPreference: bind(fetchViewPreferenceRequest),
+    saveViewPreference: bind(saveViewPreferenceRequest),
     fetchGoogleProperties: bind(fetchGooglePropertiesRequest),
     fetchEnvImportAvailability: bind(fetchEnvImportAvailabilityRequest),
     importEnvCredentials: bind(importEnvCredentialsRequest),
@@ -1762,6 +1788,8 @@ export const {
   fetchProviderSites,
   collectProviderSites,
   readSiteIcons,
+  fetchViewPreference,
+  saveViewPreference,
   fetchGoogleProperties,
   fetchEnvImportAvailability,
   importEnvCredentials,

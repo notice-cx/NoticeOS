@@ -95,6 +95,9 @@ curl --fail --header 'Host: demo.example.com' http://127.0.0.1:16448/__noticeos_
 A successful health response is `{ "ok": true }`. Connect through the HTTPS
 proxy to explore Sites, Money, Tasks, Workflows and Settings. The demo banner
 marks the data as synthetic and shows its latest successfully completed generation.
+Its three view choices (**I run the business**, **I build the product**,
+**Everything**) redraw every page and the Wall in that view and are kept only
+in the visitor's browser.
 The Wall's live user counts, with their per-minute bars, and its today-by-hour
 chart show synthetic values the demo
 derives from each site's own synthetic daily users; no analytics provider is

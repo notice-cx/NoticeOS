@@ -12,7 +12,7 @@ import { runCommand } from './run-command.mjs';
 import { generateDemoScenario, demoScenarioHash } from './demo-scenario.mjs';
 import { fillDemo } from './demo-store.mjs';
 import { buildDemoWorkerHelpers, demoStoreCapability } from './demo-evaluator.mjs';
-import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoUptime, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
+import { evaluateDemoWatch, demoFlagJoins, recordDemoFreshness, recordDemoUptime, recordDemoSiteChecks, recordDemoSearchReports, recordDemoOsObservation } from './demo-seed.mjs';
 import { seedDemoTaskHistory, configureDemoTasks, writeDemoTaskReceipt } from './demo-tasks.mjs';
 import { seedDemoDisplay } from './demo-display.mjs';
 import { generateDemoWorkflows, writeDemoWorkflowHistory } from './demo-workflows.mjs';
@@ -22,7 +22,7 @@ import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import { openTaskCatalogSetup } from '../packages/postgres/src/task-catalog.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
-import { readDemoArtifact } from './hosted-demo-server.mjs';
+import { hostedDemoRuntimeFileContent, readDemoArtifact } from './hosted-demo-server.mjs';
 import { invokedDirectly } from './invoked-directly.mjs';
 const require = createRequire(new URL('../packages/postgres/package.json', import.meta.url));
 const { Pool } = require('pg');
@@ -257,6 +257,7 @@ export async function setupHostedDemo(input) {
         const joins = await demoFlagJoins(watch.capability, scenario);
         await recordDemoFreshness(watch.capability, scenario, helpers.runFreshnessCheck);
         await recordDemoUptime(watch.capability, scenario, helpers.runUptimeChecks);
+        await recordDemoSiteChecks(watch.capability, scenario, helpers.runHygieneChecks, helpers.writeReading);
         await recordDemoSearchReports(watch.capability, scenario, helpers.writeInsightSnapshot);
         phase = 'task_provision';
         const inspectorSecret = password();
@@ -352,7 +353,7 @@ export async function setupHostedDemo(input) {
                 projects: allocations.filter(row => !scenario.assets.find(asset => projects.find(p => p.repo === row.target.cwd).asset === asset.id).isOs)
                     .map(row => ({ asset: projects.find(p => p.repo === row.target.cwd).asset, prefix: projects.find(p => p.repo === row.target.cwd).prefix, ...row })),
                 binary: request.binary, doltBinary: request.doltBinary, scratchRoot: path.join(home, 'scratch') } };
-        const serialized = json(runtime);
+        const serialized = hostedDemoRuntimeFileContent(runtime);
         if ([request.dolt.adminPassword, target.password, decodeURIComponent(target.password)].filter(Boolean).some(secret => serialized.includes(secret)) || serialized.includes(urls.noticeos_platform))
             refuse();
         // Bootstrap passwords cannot survive in task metadata, imported receipts,
@@ -379,7 +380,7 @@ export async function setupHostedDemo(input) {
         await close();
         phase = 'completion';
         checkpoint();
-        write(runtimeFile, runtime);
+        fs.writeFileSync(runtimeFile, serialized, { flag: 'wx', mode: 0o600 });
         const finalReceipt = { format: 'noticeos-hosted-demo-setup/1', binding, schemaHash, workspaceId, scenarioHash: demoScenarioHash(scenario),
             firstSeedRelease: scenario.manifest.release, completedAt: new Date().toISOString(), runtimeHash: hash(serialized), counts, osReport,
             tools: { binary: request.binary.sha256, dolt: request.doltBinary.sha256 }, projectCount: allocations.length };

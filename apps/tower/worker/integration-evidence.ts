@@ -29,6 +29,8 @@ const LANE_FACTS: Record<string, { usage: LaneUsage; onFailure: LaneFailureMode 
   clarity: { usage: { cost: "free", limit: "10 calls/day" }, onFailure: "keeps-last-data" },
   posthog: { usage: { cost: "free", limit: "3 queries at once" }, onFailure: "keeps-last-data" },
   dataforseo: { usage: { cost: "metered", limit: "Monthly data cap" }, onFailure: "keeps-last-data" },
+  crux: { usage: { cost: "free", limit: "150 queries/min" }, onFailure: "keeps-last-data" },
+  subscriptions: { usage: { cost: "free" }, onFailure: "keeps-last-data" },
   uptime: { usage: { cost: "free" }, onFailure: "raises-alert" },
   "ad-network": { usage: { cost: "free" }, onFailure: "keeps-last-data" },
   "affiliate-cj": { usage: { cost: "free" }, onFailure: "books-on-payment" },
@@ -590,8 +592,8 @@ function signalCadenceHours(laneId: string): number {
   return collectionCadenceHours(laneId) ?? CADENCE_HOURS.signals;
 }
 
-/** Which register lane a revenue row supports, or null (subs/licensing have
- * no per-asset lane). Affiliate rows disambiguate CJ vs Amazon by source/note;
+/** Which register lane a revenue row supports, or null (licensing has no
+ * per-asset lane). Affiliate rows disambiguate CJ vs Amazon by source/note;
  * an unknown affiliate defaults to CJ. */
 export function laneForRevenueRow(
   family: string,
@@ -599,6 +601,7 @@ export function laneForRevenueRow(
   note: string | null,
 ): string | null {
   if (family === "ads") return "ad-network";
+  if (family === "subs") return "subscriptions";
   if (family === "affiliate") {
     const hay = `${source ?? ""} ${note ?? ""}`.toLowerCase();
     return hay.includes("amazon") ? "affiliate-amazon" : "affiliate-cj";
@@ -618,7 +621,7 @@ function supportingRevenueEvidence(laneId: string, rows: RevenueRow[]): Integrat
   // collector); how much and how recently are the facts.
   return {
     polarity: "supporting",
-    source: `${capitalize(family)} revenue added by hand`,
+    source: `${family === "subs" ? "Subscription" : capitalize(family)} revenue added by hand`,
     detail: facts([totalLabel, `latest ${latest.period}`]),
     at: null,
   };

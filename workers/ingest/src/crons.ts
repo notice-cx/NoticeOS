@@ -16,6 +16,9 @@ function dispatchKey(id: string): string {
 export const FRESHNESS_CRON = dispatchKey('freshness');
 // Local 06:10 is checked by the collector. Later ticks only service bounded retries/catch-up.
 export const MEDIAVINE_CRON = dispatchKey('mediavine');
+// :20 past every hour: Stripe subscription revenue. The collector asks only
+// once a completed day is missing, so the other ticks ask Stripe nothing.
+export const STRIPE_CRON = dispatchKey('stripe');
 // 02:30 UTC: pull pull-mode assets BEFORE the 03:00 asset-#0 self-pulse, so the
 // OS's own pulse counts the rows the pull just wrote.
 export const PULL_CRON = dispatchKey('pull');
@@ -28,6 +31,9 @@ export const WATCH_WINDOWS_CRON = dispatchKey('watch-windows');
 // depends on nothing the earlier slots write, and its plain HTTPS requests
 // wait behind the lanes that carry provider quota.
 export const HYGIENE_CRON = dispatchKey('hygiene');
+// 04:15 UTC: each site's page speed from the Chrome UX Report API. CrUX
+// updates its daily origin data once a day, so one read a day is the cadence.
+export const CRUX_CRON = dispatchKey('crux');
 // 04:30 UTC: one Microsoft Clarity export per configured project, once a day:
 // the provider allows 10 calls per project per day, so the archive, not a
 // repeat call, is what every later read consumes.

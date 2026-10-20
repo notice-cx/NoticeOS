@@ -41,6 +41,8 @@ import { resolveCredential } from './credentials.js';
 import { runAssetZeroPulse, runFreshnessCheck } from './db.js';
 import { runGoogleSignals } from './google-signals.js';
 import { eligibleAssets, runHygieneChecks, runUptimeChecks } from './hygiene.js';
+import { runCruxVitals } from './crux.js';
+import { runStripeRevenue } from './stripe.js';
 import { type LaneRegister, laneDeclined } from './lane-mapping.js';
 import { runNotifier } from './notifier.js';
 import { type PullAssetConfig, runPullAdapter } from './pull.js';
@@ -142,6 +144,7 @@ export interface JobLanes {
  */
 export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   mediavine: { steps: { revenue: (env) => runMediavine(env) }, answeredBy: 'revenue' },
+  stripe: { steps: { subscriptions: (env, cfg) => runStripeRevenue(env, { laneRegister: cfg.laneRegister }) }, answeredBy: 'subscriptions' },
   // The hourly tick also asks whether each site is up. A site that hangs its
   // request must not stop the report-freshness alerts.
   freshness: { steps: { freshness: (env) => runFreshnessCheck(env), uptime: (env) => runUptimeChecks(env) } },
@@ -158,6 +161,7 @@ export const JOB_LANES: Readonly<Record<string, JobLanes>> = {
   // GET of its own, isolated from the checks.
   hygiene: { steps: { hygiene: (env) => runHygieneChecks(env), icons: (env) => runSiteIcons(env) } },
   clarity: { steps: { clarity: (env, cfg) => runClarityDumps(env, { laneRegister: cfg.laneRegister }) } },
+  crux: { steps: { crux: (env, cfg) => runCruxVitals(env, { laneRegister: cfg.laneRegister }) } },
   // The daily tick also re-collects the DataForSEO families an offline weekly
   // sweep skipped, 30 minutes clear of the sweep it shares a lane lock with.
   // A skipped step (null) when the operator paused DataForSEO.
@@ -379,6 +383,14 @@ export async function runCollectNow(
     sites = run.outcomes.map((outcome) => ({
       asset: outcome.asset,
       outcome: outcome.egressDown ? 'unmeasured' : outcome.status === 'error' ? 'failed' : 'collected',
+      code: outcome.errorCode,
+    }));
+  } else if (plan.step.step === 'crux') {
+    // Page speed: the daily job's own read, narrowed to the named sites.
+    const run = await runCruxVitals(env, { laneRegister: cfg.laneRegister, assets, ...narrow });
+    sites = run.outcomes.map((outcome) => ({
+      asset: outcome.asset,
+      outcome: outcome.status === 'unmeasured' ? 'unmeasured' : outcome.status === 'failed' ? 'failed' : 'collected',
       code: outcome.errorCode,
     }));
   } else if (plan.step.step === 'product') {

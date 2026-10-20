@@ -1,4 +1,4 @@
-// The codebase report's measures, its four rules and their thresholds, with
+// The codebase report's measures, its five rules and their thresholds, with
 // the words the Tower shows for each. Zod-free, so browser code can import it
 // by subpath (`@noticeos/contract/codebase-measures`); the envelope's schema is
 // `codebase.ts`, which re-exports this module.
@@ -6,8 +6,12 @@
 // A measure absent from a report was not measured. It is never read as 0:
 // a rule whose inputs are absent neither fires nor resolves anything.
 
-/** How a measure's number reads: a whole count, a percent 0..100, a ratio (0 or more; tests can outnumber code), or an average. */
-export type CodebaseMeasureUnit = 'count' | 'percent' | 'ratio' | 'mean';
+/**
+ * How a measure's number reads: a whole count, a percent 0..100, a ratio (0
+ * or more; tests can outnumber code), an average, or a check that passed (1)
+ * or failed (0).
+ */
+export type CodebaseMeasureUnit = 'count' | 'percent' | 'ratio' | 'mean' | 'pass';
 
 export interface CodebaseMeasure {
   key: CodebaseMeasureKey;
@@ -39,6 +43,9 @@ export const CODEBASE_MEASURE_KEYS = [
   'commits_30d',
   'files_touched_30d',
   'large_commits_30d',
+  'build_passed',
+  'tests_passed',
+  'vulnerable_dependencies',
 ] as const;
 export type CodebaseMeasureKey = (typeof CODEBASE_MEASURE_KEYS)[number];
 
@@ -64,6 +71,11 @@ export const CODEBASE_MEASURES: readonly CodebaseMeasure[] = [
   { key: 'commits_30d', unit: 'count', label: 'Changes in 30 days', meaning: 'Changes saved to the code in the last 30 days.' },
   { key: 'files_touched_30d', unit: 'count', label: 'Files changed in 30 days', meaning: 'Different files those changes touched.' },
   { key: 'large_commits_30d', unit: 'count', label: 'Large changes in 30 days', meaning: 'Changes in 30 days that each touched 20 files or more.' },
+  // The report reads files and never builds or runs the code, so these three
+  // come only from the sending workflow's own build, test and audit steps.
+  { key: 'build_passed', unit: 'pass', label: 'Build', meaning: 'Whether the code built without errors in the last build.' },
+  { key: 'tests_passed', unit: 'pass', label: 'Tests', meaning: 'Whether every test passed in the last test run.' },
+  { key: 'vulnerable_dependencies', unit: 'count', label: 'Vulnerable packages', meaning: 'Outside packages with a publicly known security flaw.' },
 ];
 
 /** Each report's measures: every key optional, and an absent key is unmeasured. */
@@ -73,11 +85,13 @@ export const CODEBASE_GROWTH_RULE_ID = 'codebase-growth';
 export const CODEBASE_DUPLICATION_RULE_ID = 'codebase-duplication';
 export const CODEBASE_UNUSED_RULE_ID = 'codebase-unused';
 export const CODEBASE_COMPLEXITY_RULE_ID = 'codebase-complexity';
+export const CODEBASE_VULNERABILITIES_RULE_ID = 'codebase-vulnerabilities';
 export const CODEBASE_RULE_IDS = [
   CODEBASE_GROWTH_RULE_ID,
   CODEBASE_DUPLICATION_RULE_ID,
   CODEBASE_UNUSED_RULE_ID,
   CODEBASE_COMPLEXITY_RULE_ID,
+  CODEBASE_VULNERABILITIES_RULE_ID,
 ] as const;
 export type CodebaseRuleId = (typeof CODEBASE_RULE_IDS)[number];
 
@@ -93,6 +107,8 @@ export interface CodebaseRuleThresholds {
   unused_items: number;
   /** Fire complexity when this many more functions became hard to change over the comparison report. */
   complex_functions_added_30d: number;
+  /** Fire vulnerabilities when at least this many packages have a known vulnerability. */
+  vulnerable_dependencies: number;
 }
 
 export const DEFAULT_CODEBASE_RULE_THRESHOLDS: Readonly<CodebaseRuleThresholds> = Object.freeze({
@@ -101,6 +117,7 @@ export const DEFAULT_CODEBASE_RULE_THRESHOLDS: Readonly<CodebaseRuleThresholds> 
   duplication_percent: 8,
   unused_items: 10,
   complex_functions_added_30d: 5,
+  vulnerable_dependencies: 1,
 });
 
 /**
@@ -200,7 +217,7 @@ function reportRef(report: CodebaseRuleReport) {
 }
 
 /**
- * Run the four rules over a report and, for the 30-day rules, its comparison
+ * Run the five rules over a report and, for the 30-day rules, its comparison
  * report (`pickComparisonReport`), or null when there is none.
  */
 export function evaluateCodebaseRules(
@@ -324,6 +341,29 @@ export function evaluateCodebaseRules(
         comparison_complex_functions: before ?? null,
         added_complex_functions: added,
         complex_functions_added_30d: thresholds.complex_functions_added_30d,
+      },
+    });
+  }
+
+  {
+    const vulnerable = now.vulnerable_dependencies;
+    const evaluable = vulnerable !== undefined;
+    // A threshold of 0 would fire on a clean report; one package is the least that fires.
+    const fired = evaluable && vulnerable >= Math.max(1, thresholds.vulnerable_dependencies);
+    verdicts.push({
+      ruleId: CODEBASE_VULNERABILITIES_RULE_ID,
+      evaluable,
+      fired,
+      severity: 'info',
+      kind: 'opportunity',
+      metric: 'vulnerable_dependencies',
+      message: fired
+        ? `${plural(vulnerable, 'package has', 'packages have')} a known vulnerability.`
+        : null,
+      inputs: {
+        report,
+        vulnerable_dependencies: vulnerable ?? null,
+        threshold_packages: thresholds.vulnerable_dependencies,
       },
     });
   }

@@ -3,7 +3,7 @@ import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
 
@@ -227,6 +227,7 @@ import { WallRoute } from "@/routes/WallRoute";
 import { resetTaskSourceMock, taskSourceMock } from "./task-source-mock";
 import { everyTabPayload, viewOf } from "./asset-detail-fixture";
 import { backupLane, backupNight } from "./backup-lanes";
+import { storageKey } from "@/lib/browser-storage";
 
 vi.mock("@/hooks/useTaskSource", () => import("./task-source-mock"));
 
@@ -260,7 +261,13 @@ afterEach(() => {
   clockState.browser = "UTC";
   clockState.ops.length = 0;
   clockState.undone = 0;
+  window.localStorage.removeItem(storageKey("view"));
 });
+
+/** The person's own view choice, stored the way the Tower stores it. */
+function storeView(view: string, focus: string[] = []) {
+  window.localStorage.setItem(storageKey("view"), JSON.stringify({ view, focus }));
+}
 
 /** Home with the query client Decide's verbs need: an answer goes through the
  * Tasks board's own path, which refreshes the task reads (useTaskRefresh). */
@@ -712,6 +719,170 @@ describe("Home — a site still being set up", () => {
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
     expect([...container.querySelectorAll("[data-portfolio-row]")].map((row) => row.getAttribute("data-portfolio-row")))
       .toEqual(["first.example", "second.example"]);
+  });
+});
+
+/** Home is drawn from the person's view: its modules, in the view's order. */
+describe("Home drawn from the person's view", () => {
+  /** The board's modules in the order drawn, read off each region's own
+   * markers; a stacked column contributes its members in order. */
+  function modulesDrawn(container: HTMLElement): string[] {
+    const grid = container.querySelector("[data-home-brief]")!.children[1]!;
+    // Every view but Everything marks each module it stacks.
+    if (grid.getAttribute("data-home-layout") === "stacks") {
+      return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
+    }
+    const drawn: string[] = [];
+    for (const child of [...grid.children]) {
+      const module = child.getAttribute("data-home-module");
+      if (module) drawn.push(module);
+      else if (child.hasAttribute("data-surface-hero")) drawn.push("money");
+      else if (child.hasAttribute("data-home-health")) drawn.push("sources");
+      else if (child.hasAttribute("data-home-timeline")) drawn.push("timeline");
+      else if (child.querySelector("[data-one-site-lead], [data-portfolio-rows]")) drawn.push("sites");
+      else if (child.textContent?.includes("Revenue, yesterday")) drawn.push("yesterday");
+      else {
+        for (const member of [...child.children]) {
+          if (member.hasAttribute("data-incident-list")) drawn.push("problems");
+          else if (member.hasAttribute("data-decision-queue")) drawn.push("decide");
+          else if (member.hasAttribute("data-home-agents")) drawn.push("agents");
+          else drawn.push("unknown");
+        }
+      }
+    }
+    return drawn;
+  }
+
+  beforeEach(() => {
+    workState.data = workPayload([
+      { ...project("Meadow", [waiting({ id: "m-1", title: "Approve the new page" })]), workers: [{ id: "Mara", model: "a-model", closedRecent: 4, inProgress: 0 }] } as WorkProject,
+    ]);
+  });
+
+  it("draws every module in today's order with no choice stored", () => {
+    const { container } = renderHome();
+
+    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sources", "problems", "decide", "agents", "sites", "timeline"]);
+    // Problems, Decide and the agents' line share one column.
+    const column = container.querySelector("[data-incident-list]")!.parentElement!;
+    expect(column.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
+    expect(column.querySelector(":scope > [data-home-agents]")).not.toBeNull();
+  });
+
+  it("draws exactly health, money, the agents' week and decide for a stored business choice", () => {
+    storeView("business");
+
+    const { container } = renderHome();
+
+    expect(modulesDrawn(container)).toEqual(["health", "money", "factory", "decide"]);
+    expect(container.querySelector("[data-home-health]")).toBeNull();
+    expect(container.querySelector("[data-home-timeline]")).toBeNull();
+    expect(container.querySelector("[data-one-site-lead], [data-portfolio-rows]")).toBeNull();
+    expect(screen.queryByText("Revenue, yesterday")).toBeNull();
+    // The answer line and the material conditions stay on every view.
+    expect(container.querySelector("[data-home-answer]")).not.toBeNull();
+    expect(container.querySelector("[data-material-condition]")?.getAttribute("data-material-condition")).toContain("open-flags");
+  });
+
+  it("puts the agents' week first when the business view's focus is the agents' work", () => {
+    storeView("business", ["agents"]);
+
+    const { container } = renderHome();
+
+    expect(modulesDrawn(container)).toEqual(["factory", "health", "money", "decide"]);
+  });
+});
+
+/** The two view questions sit above the first run's steps, answered on the
+ * card itself, and never hold the site steps back. */
+describe("Home — the first run asks which view describes the person", () => {
+  beforeEach(() => {
+    payload.assets = [];
+    payload.attention = [];
+  });
+
+  const question = (container: HTMLElement) => container.querySelector<HTMLElement>("[data-first-run] [data-first-run-question]");
+  const stored = () => JSON.parse(window.localStorage.getItem(storageKey("view")) ?? "null");
+
+  it("asks which view describes the person above the three steps, with Add still the one action", () => {
+    const { container } = renderHome();
+
+    const block = question(container)!;
+    expect(block).toHaveAttribute("data-first-run-question", "view");
+    expect(within(block).getByRole("heading", { name: "Which describes you?" })).toBeInTheDocument();
+    expect([...block.querySelectorAll("[data-view-choice]")].map((card) => card.getAttribute("data-view-choice")))
+      .toEqual(["business", "product", "everything"]);
+    expect(within(block.querySelector<HTMLElement>('[data-view-choice="business"]')!).getByText("I run the business")).toBeInTheDocument();
+    // Above the steps, not one of them.
+    expect(block.compareDocumentPosition(container.querySelector("[data-first-run-step='1']")!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
+    expect(container.querySelector('[data-first-run-state="current"]')).toHaveTextContent("Add your first site");
+    expect(screen.getByRole("button", { name: "Add your first site" })).toHaveAttribute("data-add-site-open");
+  });
+
+  it("stores the picked view, saves it as the workspace default and asks what matters most", () => {
+    const { container } = renderHome();
+
+    fireEvent.click(container.querySelector('[data-view-choice="business"]')!);
+
+    expect(stored()).toEqual({ view: "business", focus: [] });
+    expect(clockState.ops).toEqual([[
+      { kind: "file-json-set", file: "config/tower.json", pointer: "/view", expect: null, value: { default: "business" } },
+    ]]);
+    const block = question(container)!;
+    expect(block).toHaveAttribute("data-first-run-question", "focus");
+    expect(within(block).getByRole("heading", { name: "What matters most?" })).toBeInTheDocument();
+    expect(block.querySelectorAll("[data-focus-choice]")).toHaveLength(5);
+    expect(within(block.querySelector<HTMLElement>('[data-focus-choice="agents"]')!).getByText("what they built, and whether it worked")).toBeInTheDocument();
+
+    fireEvent.click(block.querySelector('[data-focus-choice="agents"]')!);
+    fireEvent.click(block.querySelector('[data-focus-choice="money"]')!);
+    expect(block.querySelector('[data-focus-choice="agents"]')).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(block.querySelector("[data-focus-continue]")!);
+
+    expect(stored()).toEqual({ view: "business", focus: ["agents", "money"] });
+    expect(question(container)).toBeNull();
+    expect(container.querySelectorAll("[data-first-run-step]")).toHaveLength(3);
+  });
+
+  it("keeps no focus on Skip", () => {
+    const { container } = renderHome();
+
+    fireEvent.click(container.querySelector('[data-view-choice="product"]')!);
+    fireEvent.click(container.querySelector('[data-focus-choice="costs"]')!);
+    fireEvent.click(container.querySelector("[data-focus-skip]")!);
+
+    expect(stored()).toEqual({ view: "product", focus: [] });
+    expect(question(container)).toBeNull();
+  });
+
+  it("ends at once on Everything", () => {
+    const { container } = renderHome();
+
+    fireEvent.click(container.querySelector('[data-view-choice="everything"]')!);
+
+    expect(stored()).toEqual({ view: "everything", focus: [] });
+    expect(question(container)).toBeNull();
+  });
+
+  it("is not drawn once the person has a choice", () => {
+    storeView("product");
+
+    const { container } = renderHome();
+
+    expect(container.querySelector("[data-first-run]")).not.toBeNull();
+    expect(question(container)).toBeNull();
+  });
+
+  it("leaves a saved workspace default alone, and still asks the person", () => {
+    payload.dashboard = { ...SEEDED_DASHBOARD, view: { default: "product" } };
+    const { container } = renderHome();
+    expect(question(container)).toHaveAttribute("data-first-run-question", "view");
+
+    fireEvent.click(container.querySelector('[data-view-choice="business"]')!);
+
+    expect(stored()).toEqual({ view: "business", focus: [] });
+    expect(clockState.ops).toEqual([]);
   });
 });
 

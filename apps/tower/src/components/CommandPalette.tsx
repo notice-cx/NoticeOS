@@ -1,8 +1,9 @@
 import { useOwnerPreferences } from '@/lib/browser-context';
-import { ListTodo } from "lucide-react";
+import { Eye, ListTodo } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sitePath } from "@shared/first-run";
+import { VIEW_LIBRARY } from "@shared/views";
 import type { AssetCard } from "@shared/wall";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { SeverityDot } from "@/components/SeverityDot";
@@ -17,6 +18,7 @@ import {
   CommandList,
   CommandShortcut,
 } from "@/components/ui/command";
+import { useView } from "@/hooks/useView";
 import { useWall } from "@/hooks/useWall";
 import { storageKey } from "@/lib/browser-storage";
 
@@ -73,10 +75,7 @@ export interface CommandPaletteProps {
    * file is downloaded.
    */
   inline?: boolean;
-  /**
-   * `/dev/kitchen-sink` only: the assets to list, which also keeps the gallery
-   * off `useWall`.
-   */
+  /** `/dev/kitchen-sink` only: the assets to list. */
   assets?: AssetCard[];
   /** `/dev/kitchen-sink` only: the query the demo opens with. */
   defaultQuery?: string;
@@ -156,6 +155,9 @@ function PaletteBody({
   const preferences = useOwnerPreferences();
   const [recent, setRecent] = useState<string[]>(() => readRecent(preferences));
   const pages = useMemo(() => shownPages(PAGE_ITEMS), []);
+  const { choice, setChoice } = useView();
+  // Switching keeps the person on the page they are on and keeps their picks.
+  const otherViews = VIEW_LIBRARY.filter((spec) => spec.id !== choice.view);
 
   const destinations = useMemo(() => {
     const map = new Map<string, { to: string; label: string }>();
@@ -264,6 +266,25 @@ function PaletteBody({
               ))}
           </CommandGroup>
         ) : null}
+
+        <CommandGroup heading="Views">
+          {otherViews.map((spec) => (
+            <CommandItem
+              key={spec.id}
+              value={`view:${spec.id}`}
+              // The row's shown words, so typing its label ("Switch to")
+              // keeps every view row, not only those whose label has an "o".
+              keywords={["view", "switch", "to", "switch to", spec.label]}
+              onSelect={() => {
+                setChoice({ view: spec.id, focus: choice.focus });
+                onClose();
+              }}
+            >
+              <Eye className="size-4" />
+              <span className="text-foreground">Switch to · {spec.label}</span>
+            </CommandItem>
+          ))}
+        </CommandGroup>
 
         {beadId ? (
           // A typed id opens its task page. `forceMount` on both, because cmdk

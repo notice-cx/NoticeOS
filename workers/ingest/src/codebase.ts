@@ -1,5 +1,5 @@
 // Codebase report ingest: validate one envelope, append it as that site and
-// day's next revision, then run the four codebase rules against the site's
+// day's next revision, then run the five codebase rules against the site's
 // stored reports and write their alerts, all in one transaction.
 
 import {

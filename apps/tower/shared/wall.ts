@@ -681,6 +681,99 @@ export interface AssetCard {
    * read that reached the page, with when it was read; null when no read has
    * run and nothing is set. Absent on an older payload, which means the same. */
   icons?: SiteIcons | null;
+  /** The site's newest insight reading, shrunk to what Home's site health and
+   * the TV need: speed, errors and the funnel's largest drop as plain states.
+   * Absent on an older payload; null when no reading has been published. */
+  product?: CardProduct | null;
+  /** The newest code report against the one about a month before. Absent on
+   * an older payload; null when the site has sent no report. */
+  codebase?: CardCodebase | null;
+  /** The site's watched changes: how many are still being watched and the
+   * newest verdict. Absent on an older payload; null with none registered. */
+  watches?: CardWatches | null;
+  /** Where the site's visitors came from over the newest settled window.
+   * Absent on an older payload; null until a reading carries the split. */
+  channels?: CardChannels | null;
+  /** The newest reading's findings, the kind and the title only, for a
+   * portfolio-level list. Absent on an older payload. */
+  findings?: CardFinding[];
+}
+
+/** A product rule's state, as `ProductCheckState` names it. */
+export type CardCheckState = "fired" | "clear" | "not-enough-data" | "not-collected";
+
+export interface CardFunnelDrop {
+  fromStep: string;
+  toStep: string;
+  /** People who left between the two steps; null when the reading had none. */
+  lostPeople: number | null;
+  /** The share that went on, 0–1; null when the reading had none. */
+  stepConversion: number | null;
+}
+
+/** One step of a declared funnel, in the funnel's order. */
+export interface CardFunnelStep {
+  label: string;
+  people: number;
+}
+
+export interface CardProduct {
+  /** When the reading was published. */
+  observedAt: string;
+  /** The slow-segment rule: fired means one in four visitors or more wait. */
+  speed: CardCheckState;
+  /** The worst segment's rating; null when vitals were not read. */
+  worstSpeed: "good" | "needs-improvement" | "poor" | null;
+  /** The error-concentration rule. */
+  errors: CardCheckState;
+  /** People who hit an error in the reading's window; null when not counted. */
+  errorPeople: number | null;
+  /** Whether the reading carries a JavaScript-errors finding. */
+  jsErrorFinding: boolean;
+  /** The funnel with the largest drop, or null with no funnel declared.
+   * `steps` is every step in order; absent on an older payload. */
+  funnel: { name: string; largestDrop: CardFunnelDrop | null; steps?: CardFunnelStep[] } | null;
+}
+
+export interface CardCodebase {
+  date: string;
+  commit: string;
+  codeLines: number | null;
+  /** Growth against the report about 30 days before; null without one. */
+  growthPercent30d: number | null;
+  /** How many days apart the two reports are; null without a comparison. */
+  comparedDays: number | null;
+}
+
+export interface CardWatches {
+  open: number;
+  latest: {
+    id: string;
+    ref: string;
+    outcome: "ship_confirmed" | "kill_confirmed" | "inconclusive" | "unmeasurable" | null;
+    nextCheckDate: string | null;
+    closedAt: string | null;
+  } | null;
+}
+
+export interface CardChannelRow {
+  /** The channel as the analytics source names it ("Organic Search"). */
+  channel: string;
+  sessions: number;
+  /** This channel's share of the window's sessions, 0–1. */
+  share: number;
+}
+
+export interface CardChannels {
+  windowStart: string;
+  windowEnd: string;
+  rows: CardChannelRow[];
+}
+
+export interface CardFinding {
+  key: string;
+  kind: string;
+  title: string;
 }
 
 /**

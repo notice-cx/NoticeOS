@@ -252,7 +252,7 @@ remote deployment.
 | Integration connection | Workspace plus opaque connection identity and revision; provider/account labels do not grant ownership. Encrypted secrets remain server-only. |
 | Task project and task history | Workspace owns the logical project; a trusted directory resolves approved Beads/Dolt capabilities. |
 | Workflow definition, schedule, run, step, approval | Workspace; a run pins its definition and initiating principal across retries. Execution success is not business outcome. |
-| Personal preference | Person; workspace-specific preferences additionally name workspace. Browser caches use the same ownership. |
+| Personal preference | Person; workspace-specific preferences additionally name workspace. A hosted person's view is stored in `noticeos.person_preferences` (workspace, person, name; one row per save, the newest is current), read and saved through `/api/me/preferences/view`. Browser caches use the same ownership. |
 | Device state and unsaved UI | Device/browser or memory: viewport, reduced motion, fullscreen, menus, drafts. Saved reporting timezone remains workspace data. |
 | Objects, attachments, exports and tenant audit | Workspace plus object identity and authorized access; no raw host path accepted. |
 | Host configuration and maintenance | Deployment adapter: ports, checkout paths, database provisioning, physical backup inventory and maintenance credentials. Never tenant-selectable capabilities. |

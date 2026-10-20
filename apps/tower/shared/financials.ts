@@ -71,6 +71,43 @@ export interface FinancialCostLine {
   rows: number;
 }
 
+/** One revenue source's part of the period: every current revenue row under
+ * one source, family and currency. */
+export interface FinancialRevenueLine {
+  /** `ads`, `subs`, `affiliate` or `licensing`. */
+  family: string;
+  /** The ledger's source id; null for a row booked with none. */
+  source: string | null;
+  /** The name the source's vocabulary row gives it; null when no row names it. */
+  label: string | null;
+  currency: string;
+  amount: number;
+  /** Rows behind the figure. */
+  rows: number;
+}
+
+/** A revenue family as the Money page names it. */
+export const REVENUE_FAMILY_LABEL: Readonly<Record<string, string>> = Object.freeze({
+  ads: "Ads",
+  subs: "Subscriptions",
+  affiliate: "Affiliate",
+  licensing: "Licensing",
+});
+
+/** A cost family as the Money page names it; the id stays in the data. */
+export const COST_FAMILY_LABEL: Readonly<Record<string, string>> = Object.freeze({
+  infra: "Hosting and infrastructure",
+  "os-overhead": "Running NoticeOS",
+  api: "Search data",
+  operator: "People's time",
+  inference: "Model usage",
+});
+
+/** A cost family's words, or its id when the family is one this list lacks. */
+export function costFamilyLabel(family: string): string {
+  return COST_FAMILY_LABEL[family] ?? family;
+}
+
 /**
  * One row of `config/recurring-costs.json`, exactly as the file holds it: the
  * shape the Tower's own editor writes back, so it may not be reshaped,
@@ -138,6 +175,9 @@ export interface FinancialsPayload {
   /** Asset #0's line, pulled out of `properties` for the two-tier read. */
   overhead: MoneyFigure;
   costLines: FinancialCostLine[];
+  /** The selected period's revenue by source, largest first within a
+   * currency. Absent from a Worker older than this field. */
+  revenueLines?: FinancialRevenueLine[];
   domains: DomainSchedule[];
   /** The two cost registers as their files hold them, in file order: they are
    * what `/financials` edits, and a collection editor addresses a row by its

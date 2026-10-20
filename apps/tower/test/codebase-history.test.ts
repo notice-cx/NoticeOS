@@ -38,6 +38,9 @@ describe("a stored envelope, read", () => {
   it("keeps only known measures with a non-negative number, so anything else is unmeasured", () => {
     expect(parseMeasures({ code_lines: 10, duplication_percent: 4.5, unknown: 3, files: -1, functions: "12", test_ratio: null, languages: 2.5, duplicate_blocks: Infinity }))
       .toEqual({ code_lines: 10, duplication_percent: 4.5 });
+    // A pass or fail crosses only as 1 or 0.
+    expect(parseMeasures({ build_passed: 1, tests_passed: 2, vulnerable_dependencies: 3 })).toEqual({ build_passed: 1, vulnerable_dependencies: 3 });
+    expect(parseMeasures({ build_passed: 0, tests_passed: 0.5 })).toEqual({ build_passed: 0 });
     expect(parseMeasures(null)).toEqual({});
     expect(parseMeasures([1, 2])).toEqual({});
   });

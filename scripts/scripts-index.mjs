@@ -107,7 +107,7 @@ export const GROUPS = [
   { title: 'Run the installation', prefixes: ['os:'] },
   { title: 'Change the database', prefixes: ['db:'] },
   { title: 'Settings and credentials', prefixes: ['config:', 'creds:'] },
-  { title: 'Signals and imports', prefixes: ['signals:', 'bing-ai:', 'reclamation:', 'mediavine', 'pulse:'] },
+  { title: 'Signals and imports', prefixes: ['signals:', 'bing-ai:', 'reclamation:', 'mediavine', 'pulse:', 'cost:'] },
   { title: 'Check the code and the screens', prefixes: ['check:', 'audit:'] },
   { title: 'Tests', prefixes: ['test'] },
   { title: 'The repository', prefixes: [''] },

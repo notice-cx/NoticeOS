@@ -20,6 +20,7 @@
 import {
   WALL_MAX_ROWS,
   WALL_MAX_WIDGETS_PER_ROW,
+  WALL_PRESETS,
   WALL_TV_HEIGHT,
   WALL_WIDGET_LIBRARY,
   WALL_WIDGET_TYPES,
@@ -44,6 +45,7 @@ import {
   type WallWidgetSpec,
   type WallWidgetType,
 } from "@shared/wall-layout";
+import { VIEW_LIBRARY, type ViewId } from "@shared/views";
 
 export interface WallEditorState {
   /** What the operator is composing — what the preview draws. */
@@ -128,6 +130,9 @@ export type WallEditorAction =
   | { type: "redo" }
   /** Back to the saved layout, as one more step Undo can take back. */
   | { type: "discard" }
+  /** Start from another layout (a view's preset): one step Undo takes back,
+   * unsaved until Save. */
+  | { type: "replace"; layout: WallLayout }
   /** A newly saved layout arriving from the poll, or a Revert. */
   | { type: "reset"; layout: WallLayout }
   /** The write landed: what is on screen is now what the file holds. */
@@ -274,6 +279,9 @@ export function wallLibraryOptions(layout: WallLayout): WallLibraryOption[] {
  * width, its column's width and its row's height.
  */
 export function wallChangeSummary(before: WallLayout, after: WallLayout): string {
+  // A layout that is exactly a view's preset was started from it.
+  const preset = sameWallLayout(before, after) ? undefined : wallPresetOf(after);
+  if (preset) return `Started from ${preset.label}`;
   /** Where a widget is: its top-level row, its column there (if any), its
    * order among that container's widgets, and the size it is given. */
   type Place = { widget: WallWidget; rowId: string; columnId: string | null; order: string[]; box: string };
@@ -353,6 +361,18 @@ export function wallChangeSummary(before: WallLayout, after: WallLayout): string
   if (parts.length === 0) return "Layout changed";
   const text = parts.join(" · ");
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** The editor's Start from choices: each founder view's preset, by the
+ * view's own label, in the views' order. */
+export function wallPresetOptions(): { view: ViewId; label: string; layout: WallLayout }[] {
+  return VIEW_LIBRARY.map((spec) => ({ view: spec.id, label: spec.label, layout: WALL_PRESETS[spec.id] }));
+}
+
+/** The view whose preset this layout is, or null. */
+export function wallPresetOf(layout: WallLayout): { view: ViewId; label: string } | null {
+  const found = wallPresetOptions().find((option) => sameWallLayout(option.layout, layout));
+  return found ? { view: found.view, label: found.label } : null;
 }
 
 /** The sentence under Save when the Wall could not draw this, or null. */
@@ -437,6 +457,10 @@ export const WALL_WIDGET_MIN_PX: Readonly<Record<WallWidgetType, { width: number
   needs: { width: 260, height: 160 },
   feed: { width: 336, height: 300 },
   agents: { width: 288, height: 200 },
+  // Five dots and a short note per site.
+  health: { width: 480, height: 200 },
+  factory: { width: 288, height: 160 },
+  channels: { width: 352, height: 180 },
 };
 
 /** The preset a fraction lands on when it is within `tolerance` of one. */
@@ -1180,6 +1204,8 @@ export function wallEditorReducer(
     }
     case "discard":
       return commit(state, state.saved, { selectedId: keepSelection(state.saved, state.selectedId) });
+    case "replace":
+      return commit(state, action.layout, { selectedId: keepSelection(action.layout, state.selectedId) });
     case "reset": {
       // The same saved layout again (the poll, or Undo back to clean) keeps
       // the history; a different one starts it afresh.

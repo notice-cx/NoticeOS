@@ -8,6 +8,7 @@ import { ageMs, formatAge, isAmber } from "@shared/freshness";
 import { siteCount } from "@shared/site-noun";
 import { siteDisplayOf, sitesShownOn } from "@shared/site-display";
 import { DEFAULT_RANGE_DAYS } from "@shared/surface";
+import type { HomeModuleId, WordLevel } from "@shared/views";
 import type { AssetCard, WallPayload } from "@shared/wall";
 import type { WallFeedPayload } from "@shared/wall-feed";
 import { WORK_POLL_CADENCE_HOURS, type WorkItem, type WorkPayload } from "@shared/work";
@@ -35,6 +36,7 @@ import { useNow } from "@/hooks/useNow";
 import { useWall } from "@/hooks/useWall";
 import { useWallFeed } from "@/hooks/useWallFeed";
 import { useTasksLive } from "@/hooks/useTasks";
+import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { useDemoReadonly } from "@/lib/browser-context";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
@@ -43,6 +45,7 @@ import { greeting, peopleYesterday } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
+import { rowFacts, techHealth, techHealthSummary } from "@/lib/tech-health";
 import { askVerb } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
 import { healthGridRows, incidentsFromIssues, sourceColumns, timelineFromWall } from "@/lib/viz-adapters";
@@ -53,6 +56,12 @@ import { hasRevenueSource } from "@/lib/wall-revenue";
 import { withSystemIssues } from "@/lib/wall-system-state";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
+import { ChannelsModule } from "@/routes/home/ChannelsModule";
+import { FactoryModule } from "@/routes/home/FactoryModule";
+import { GapsModule } from "@/routes/home/GapsModule";
+import { HealthModule } from "@/routes/home/HealthModule";
+import { HomeModules } from "@/routes/home/modules";
+import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
 import { useAskActions } from "@/routes/tasks/ask-actions";
 
@@ -61,8 +70,9 @@ import { useAskActions } from "@/routes/tasks/ask-actions";
  * operator, drawn from the data: the month's money as the lead with
  * yesterday's revenue and visitors beside it; every site's data sources as
  * one grid beside the ranked problems the grid does not draw; the decisions
- * waiting beside the sites compared; the last day on a time axis. A fresh
- * install sees the three steps to a first number instead.
+ * waiting beside the sites compared; the last day on a time axis. The
+ * person's view picks which of these regions are drawn and in what order. A
+ * fresh install sees the three steps to a first number instead.
  */
 export function HomeRoute() {
   const wall = useWall();
@@ -118,6 +128,10 @@ const cents = (value: number) => formatUsd(value, { cents: true });
 const DAY_MS = 86_400_000;
 
 function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: WallFeedPayload | null; connections: ConnectionReads; nowMs: number }) {
+  const { modules, view } = useView();
+  // Everything keeps its twelve-column grid; every other view stacks its
+  // modules in columns, each at its own content's height.
+  const stacks = view.id !== "everything";
   const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
   const money = homeMoney(data.portfolio, data.assets);
   // The site rows (the data sources, the sites compared, the day's lanes)
@@ -140,61 +154,82 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
   for (const issue of issues) for (const condition of issue.conditions) conditions.add(condition);
 
-  return (
-    // Laid out by its own width, not the window's: the desk's sidebar, a
-    // portrait monitor or a narrow window all leave Home less than the
-    // viewport, and the twelve columns need room to be twelve.
-    <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
-      <Answer money={money} issues={issues} since={since} changed={changed} nowMs={nowMs} />
-
-      <div className="grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0">
-        <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-          {money ? <MoneyHero money={money} className="h-full" /> : <PeopleLead assets={data.assets} />}
-        </div>
-        <div className="grid gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1">
-          {money ? <YesterdayRevenue assets={data.assets} money={money} nowMs={nowMs} /> : null}
-          {money ? <VisitorsYesterday assets={data.assets} /> : null}
-        </div>
-
-        <section aria-label="Data sources" className="self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8" data-home-health="">
-          <HealthGrid
-            rows={healthGridRows(listed, data.system, connections, nowMs, sitePath).map((row) => {
-              const asset = listed.find((candidate) => candidate.id === row.id);
-              return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} /> } : row;
-            })}
-            columns={sourceColumns(listed)}
-            nowMs={nowMs}
-            calm
-            action={<Link to="/integrations" className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Integrations →</Link>}
-          />
-        </section>
-        <div className="grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0">
-          <IncidentList
-            items={incidentsFromIssues(issues, { besideGrid: true, gridLeavesOut: hiddenIds, to: (issue) => issueLink(issue, data.assets) })}
-            nowMs={nowMs}
-            marker={since}
-            action={{ label: "All alerts →", to: "/alerts" }}
-            empty="Nothing else is broken."
-          />
-          <LiveDecidePanel nowMs={nowMs} />
-        </div>
-
-        <div className="@3xl:col-span-2 @6xl:col-span-12">
-          {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
-        </div>
-
-        <section aria-label="The last 24 hours" className="rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
-          <EventTimeline
-            lanes={timeline.lanes}
-            spans={timeline.spans}
-            events={timeline.events}
-            window={{ from: new Date(nowMs - DAY_MS).toISOString(), to: new Date(nowMs).toISOString() }}
-            nowMs={nowMs}
-            marker={since ? { at: since, label: `Since ${sinceClock(since, nowMs)}` } : undefined}
-            ariaLabel="What happened in the last 24 hours"
-          />
-        </section>
+  const draw: Record<HomeModuleId, () => ReactNode> = {
+    money: () => (
+      <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
+        {money ? <MoneyHero money={money} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
       </div>
+    ),
+    yesterday: () => (
+      <div className="grid gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1">
+        {money ? <YesterdayRevenue assets={data.assets} money={money} nowMs={nowMs} /> : null}
+        {money ? <VisitorsYesterday assets={data.assets} /> : null}
+      </div>
+    ),
+    sources: () => (
+      <section aria-label="Data sources" className="self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8" data-home-health="">
+        <HealthGrid
+          rows={healthGridRows(listed, data.system, connections, nowMs, sitePath).map((row) => {
+            const asset = listed.find((candidate) => candidate.id === row.id);
+            return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} /> } : row;
+          })}
+          columns={sourceColumns(listed)}
+          nowMs={nowMs}
+          calm
+          action={<Link to="/integrations" className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Integrations →</Link>}
+        />
+      </section>
+    ),
+    problems: () => (
+      <IncidentList
+        items={incidentsFromIssues(issues, { besideGrid: true, gridLeavesOut: hiddenIds, to: (issue) => issueLink(issue, data.assets) })}
+        nowMs={nowMs}
+        marker={since}
+        action={{ label: "All alerts →", to: "/alerts" }}
+        empty="Nothing else is broken."
+      />
+    ),
+    decide: () => <LiveDecidePanel nowMs={nowMs} />,
+    agents: () => <LiveAgentsLine />,
+    sites: () => (
+      <div className="@3xl:col-span-2 @6xl:col-span-12">
+        {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
+      </div>
+    ),
+    health: () => <HealthModule cards={listed} issues={issues} nowMs={nowMs} />,
+    factory: () => <LiveFactory cards={listed} nowMs={nowMs} />,
+    channels: () => <ChannelsModule cards={listed} />,
+    gaps: () => <GapsModule cards={listed} />,
+    timeline: () => (
+      <section aria-label="The last 24 hours" className="rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+        <EventTimeline
+          lanes={timeline.lanes}
+          spans={timeline.spans}
+          events={timeline.events}
+          window={{ from: new Date(nowMs - DAY_MS).toISOString(), to: new Date(nowMs).toISOString() }}
+          nowMs={nowMs}
+          marker={since ? { at: since, label: `Since ${sinceClock(since, nowMs)}` } : undefined}
+          ariaLabel="What happened in the last 24 hours"
+        />
+      </section>
+    ),
+  };
+
+  return (
+    // Laid out by its own width, not the window's: the sidebar, a portrait
+    // monitor or a narrow window all leave Home less than the viewport, and
+    // the twelve columns need room to be twelve.
+    <div className="@container flex flex-col gap-5" data-home-brief={issues.length} data-material-condition={[...conditions].join(" ")}>
+      <Answer
+        money={money}
+        issues={issues}
+        since={since}
+        changed={changed}
+        nowMs={nowMs}
+        health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
+        wordLevel={view.wordLevel}
+      />
+      <HomeModules modules={modules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
 }
@@ -206,12 +241,32 @@ function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
   return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";
 }
 
+/** The sites' technical health in a sentence or two: how many are fine, then
+ * the one most in need of a look and why. Null while no site is measured. */
+export function healthWords(cards: readonly AssetCard[], issues: readonly WallIssue[], nowMs: number | null = null): { words: string; tone: "error" | "warn" | null } | null {
+  const { fine, measured, lead } = techHealthSummary(cards, issues, nowMs);
+  if (measured === 0) return null;
+  const only = measured === 1 ? cards.find((card) => techHealth(card, issues, nowMs).key !== "unknown") : undefined;
+  const count = lead === null
+    ? only
+      ? `${only.displayName} is fine.`
+      : `All ${formatInt(measured)} sites are fine.`
+    : `${formatInt(fine)} of ${formatInt(measured)} ${measured === 1 ? "site is" : "sites are"} fine.`;
+  if (lead === null) return { words: count, tone: null };
+  const facts = rowFacts(lead.health);
+  const worst = facts.find((fact) => fact.state === "bad" && fact.note) ?? facts.find((fact) => fact.note);
+  const note = worst?.note ? `: ${worst.note.charAt(0).toLowerCase()}${worst.note.slice(1)}` : ` is ${lead.health.word.toLowerCase()}`;
+  return { words: `${count} ${lead.card.displayName}${note}.`, tone: lead.health.key === "trouble" ? "error" : "warn" };
+}
+
 /**
  * The screen's answer in one line under a quiet greeting: where the month is
  * heading, what is broken. The greeting and the window are an eyebrow; the
- * numbers below are the large type.
+ * numbers below are the large type. Given the sites' health in words (the
+ * business view), the line leads with it, and the count of open problems is
+ * drawn only when there is one.
  */
-function Answer({ money, issues, since, changed, nowMs }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number }) {
+function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel = "technical" }: { money: HomeMoney | null; issues: readonly WallIssue[]; since: string | null; changed: number; nowMs: number; health?: { words: string; tone: "error" | "warn" | null } | null; wordLevel?: WordLevel }) {
   const errors = issues.filter((issue) => issue.severity === "error").length;
   const warnings = issues.length - errors;
   const month = money ? formatPeriodMonthLong(money.period) : null;
@@ -221,7 +276,7 @@ function Answer({ money, issues, since, changed, nowMs }: { money: HomeMoney | n
     : money.projected !== null
       ? `${month} is projected at ${usd(money.projected)}${money.changePercent !== null && previous ? `, ${formatPercent(Math.abs(money.changePercent))}% ${money.changePercent < 0 ? "under" : "over"} ${previous}` : ""}.`
       : money.soFar !== null
-        ? `${month} so far ${usd(money.soFar)}${money.estimated ? " est." : "."}`
+        ? `${month} so far ${usd(money.soFar)}${money.estimated && wordLevel !== "business" ? " est." : "."}`
         : null;
   const problemWords = errors === 0 && warnings === 0
     ? "Nothing is broken."
@@ -239,10 +294,18 @@ function Answer({ money, issues, since, changed, nowMs }: { money: HomeMoney | n
         {" · "}
         {changed === 0 ? "nothing changed" : `${formatInt(changed)} ${changed === 1 ? "thing" : "things"} changed`}
       </span>
-      <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]">
-        {moneyWords ? <span>{moneyWords} </span> : null}
-        <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problemWords}</span>
-      </h2>
+      {health ? (
+        <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]" data-home-answer-health="">
+          <span className={health.tone === "error" ? "text-error" : health.tone === "warn" ? "text-warn" : undefined}>{health.words}</span>
+          {moneyWords ? <span> {moneyWords}</span> : null}
+          {errors > 0 || warnings > 0 ? <span className={errors > 0 ? "text-error" : "text-warn"}> {problemWords}</span> : null}
+        </h2>
+      ) : (
+        <h2 className="m-0 text-figure-sm text-foreground [text-wrap:balance]">
+          {moneyWords ? <span>{moneyWords} </span> : null}
+          <span className={errors > 0 ? "text-error" : warnings > 0 ? "text-warn" : undefined}>{problemWords}</span>
+        </h2>
+      )}
     </header>
   );
 }
@@ -377,12 +440,17 @@ export function byWaitingUrgency(a: WaitingRow, b: WaitingRow): number {
 
 function LiveDecidePanel({ nowMs }: { nowMs: number }) {
   const work = useWork();
-  return (
-    <>
-      <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />
-      <AgentsLine work={work.data} />
-    </>
-  );
+  return <DecidePanel work={work.data} failed={work.isError} nowMs={nowMs} />;
+}
+
+function LiveFactory({ cards, nowMs }: { cards: readonly AssetCard[]; nowMs: number }) {
+  const work = useWork();
+  return <FactoryModule cards={cards} work={work.data ?? null} nowMs={nowMs} />;
+}
+
+function LiveAgentsLine() {
+  const work = useWork();
+  return <AgentsLine work={work.data} />;
 }
 
 /**
@@ -560,7 +628,8 @@ const FIRST_RUN_ICON: Record<FirstRunStepKey, typeof Plus> = {
 };
 
 /** What a stranger sees on a fresh install: one sentence saying what this
- * thing does, and the three steps to a first site. */
+ * thing does, the two view questions until the person answers them, and the
+ * three steps to a first site. */
 export function FirstRun({
   steps = firstRunSteps(null, []),
   footer,
@@ -576,6 +645,7 @@ export function FirstRun({
         <h2 className="m-0 text-base font-semibold text-foreground">
           Your sites’ traffic, money and open work, in one place
         </h2>
+        <ViewQuestions />
         <ol className="grid gap-3 md:grid-cols-3">
           {steps.map((step, index) => {
             const Icon = step.state === "done" ? Check : FIRST_RUN_ICON[step.key];

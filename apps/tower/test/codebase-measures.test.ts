@@ -16,12 +16,15 @@ import {
   languageShares,
   localCommand,
   measureChange,
+  passRecord,
+  passText,
   toolChanges,
   unmeasuredReason,
   unusedParts,
   unusedTaskTitle,
   UNMEASURED_FALLBACK,
   visitorsChange,
+  vulnerableTaskTitle,
 } from "@/routes/asset-detail/codebase-measures";
 import { CODEBASE_TOOLS, codebaseReport, codebaseSlice, commitOf, dayBefore, weeklyHistory } from "./codebase-fixture";
 
@@ -155,12 +158,14 @@ describe("the unmeasured rule", () => {
   });
 });
 
-describe("the five widgets", () => {
+describe("the widgets", () => {
   it("each has its label, figure, change and a 90-day line, in reading order", () => {
     const widgets = codebaseWidgets(codebaseSlice(ASSET, TODAY));
     expect(widgets.map((widget) => widget.label)).toEqual([
       "Lines of code", "Repeated code", "Unused code", "Hard-to-change functions", "Test coverage by size",
+      "Build", "Tests", "Vulnerable packages",
     ]);
+    expect(widgets.map((widget) => widget.strip)).toEqual(["code", "code", "code", "code", "code", "checks", "checks", "checks"]);
     expect(widgets[0]).toMatchObject({ value: 48_210, improvement: "none" });
     expect(widgets[4]).toMatchObject({ value: 1.03, note: "the code", meaning: "Test lines compared with code lines. Tests catch mistakes early." });
     expect(widgets[0]!.change?.change).toBe(2_400);
@@ -168,6 +173,37 @@ describe("the five widgets", () => {
     expect(widgets[0]!.spark.at(-1)).toEqual({ t: TODAY, v: 48_210 });
     expect(widgets[1]!.meaning).toBe("Code copied in more than one place. Each copy needs fixing.");
     expect(widgets[3]!.change?.change).toBe(4);
+  });
+
+  it("reads the build and test results as passed or failed, with how many reports passed in 30 days", () => {
+    const widgets = codebaseWidgets(codebaseSlice(ASSET, TODAY));
+    const build = widgets.find((widget) => widget.key === "build")!;
+    const tests = widgets.find((widget) => widget.key === "testRun")!;
+    expect(build).toMatchObject({ value: 1, unit: "pass", improvement: "up", passes: { passed: 5, measured: 5, days: 30 } });
+    expect(tests).toMatchObject({ value: 1, passes: { passed: 4, measured: 5, days: 30 } });
+    expect(passText(tests.passes!)).toBe("4 of 5 reports passed in 30 days");
+    expect(passText({ passed: 0, measured: 1, days: 30 })).toBe("0 of 1 report passed in 30 days");
+    expect(formatFigure("pass", 1)).toBe("Passed");
+    expect(formatFigure("pass", 0)).toBe("Failed");
+    expect(tests.meaning).toMatch(/^Whether every test passed/u);
+    // Only reports that sent a result count; none sent is no record.
+    const history = [point(dayBefore(TODAY, 14), { code_lines: 1 }), point(dayBefore(TODAY, 7), { build_passed: 0 }), point(TODAY, { build_passed: 1 })];
+    expect(passRecord(history, (m) => m.build_passed ?? null)).toEqual({ passed: 1, measured: 2, days: 30 });
+    expect(passRecord(history.slice(0, 1), (m) => m.build_passed ?? null)).toBeNull();
+    expect(passRecord([], (m) => m.build_passed ?? null)).toBeNull();
+  });
+
+  it("counts vulnerable packages as a count that improves downward, and reads an absent one as Not measured", () => {
+    const widgets = codebaseWidgets(codebaseSlice(ASSET, TODAY));
+    const vulnerable = widgets.find((widget) => widget.key === "vulnerable")!;
+    expect(vulnerable).toMatchObject({ value: 2, unit: "count", improvement: "down", passes: null });
+    expect(vulnerable.change).toMatchObject({ change: 2, percent: null });
+    expect(changeText("count", vulnerable.change!)).toBe("2");
+    const report = codebaseReport(ASSET, TODAY, { code_lines: 900 });
+    report.unmeasured = { vulnerable_dependencies: "The workflow sent no package audit." };
+    const bare = codebaseWidgets({ history: [point(TODAY, report.measures)], latest: { date: TODAY, revision: 1, receivedAt: `${TODAY}T03:13:00.000Z`, report } });
+    expect(bare.find((widget) => widget.key === "vulnerable")).toMatchObject({ value: null, unmeasured: "The workflow sent no package audit." });
+    expect(bare.find((widget) => widget.key === "build")).toMatchObject({ value: null, unmeasured: UNMEASURED_FALLBACK, passes: null });
   });
 
   it("is all Not measured before the first report", () => {
@@ -257,6 +293,8 @@ describe("the chart, languages and findings", () => {
       "Remove the unused helper from src/u.ts",
       "Remove the unused package left-pad",
     ]);
+    expect(vulnerableTaskTitle(2, "Meadow")).toBe("Fix 2 vulnerable packages in Meadow");
+    expect(vulnerableTaskTitle(1, "Meadow")).toBe("Fix 1 vulnerable package in Meadow");
   });
 });
 

@@ -44,17 +44,23 @@ function specOf(key: CodebaseMeasureKey) {
   return MEANING.get(key)!;
 }
 
-// --- the five widgets --------------------------------------------------------
+// --- the widgets ----------------------------------------------------------------
 
-export type WidgetKey = "size" | "repeated" | "unused" | "complex" | "tests";
+export type WidgetKey = "size" | "repeated" | "unused" | "complex" | "tests" | "build" | "testRun" | "vulnerable";
+
+/** `code`: the five figures counted from the files. `checks`: the three the
+ * site's own workflow sends from its build, test and package-audit steps. */
+export type WidgetStrip = "code" | "checks";
 
 /** Which way is good for the figure; `none` colours nothing. */
 export type Improvement = "up" | "down" | "none";
 
-export type WidgetUnit = "count" | "percent" | "ratio";
+/** `pass`: 1 is passed, 0 is failed. */
+export type WidgetUnit = "count" | "percent" | "ratio" | "pass";
 
 interface WidgetSpec {
   key: WidgetKey;
+  strip: WidgetStrip;
   label: string;
   /** The tooltip: one plain sentence on what it is and why it matters. */
   meaning: string;
@@ -81,35 +87,51 @@ function unusedTotal(measures: CodebaseMeasures): number | null {
 
 export const WIDGETS: readonly WidgetSpec[] = [
   {
-    key: "size", label: specOf("code_lines").label,
+    key: "size", strip: "code", label: specOf("code_lines").label,
     meaning: "Code without comments or tests. More code is more to fix.",
     unit: "count", improvement: "none", keys: ["code_lines"], pick: measure("code_lines"),
   },
   {
-    key: "repeated", label: specOf("duplication_percent").label,
+    key: "repeated", strip: "code", label: specOf("duplication_percent").label,
     meaning: "Code copied in more than one place. Each copy needs fixing.",
     unit: "percent", improvement: "down", keys: ["duplication_percent"], pick: measure("duplication_percent"),
   },
   {
-    key: "unused", label: "Unused code",
+    key: "unused", strip: "code", label: "Unused code",
     meaning: "Files, shared pieces and packages nothing uses. Each still needs upkeep.",
     unit: "count", improvement: "down", keys: UNUSED_KEYS, pick: unusedTotal,
   },
   {
-    key: "complex", label: specOf("complex_functions").label,
+    key: "complex", strip: "code", label: specOf("complex_functions").label,
     meaning: "So many branches that one change can break another.",
     unit: "count", improvement: "down", keys: ["complex_functions"], pick: measure("complex_functions"),
   },
   {
-    key: "tests", label: specOf("test_ratio").label,
+    key: "tests", strip: "code", label: specOf("test_ratio").label,
     meaning: "Test lines compared with code lines. Tests catch mistakes early.",
     unit: "ratio", improvement: "up", keys: ["test_ratio"], pick: measure("test_ratio"), note: "the code",
+  },
+  {
+    key: "build", strip: "checks", label: specOf("build_passed").label,
+    meaning: "Whether the code built without errors last time. A failed build cannot be released.",
+    unit: "pass", improvement: "up", keys: ["build_passed"], pick: measure("build_passed"),
+  },
+  {
+    key: "testRun", strip: "checks", label: specOf("tests_passed").label,
+    meaning: "Whether every test passed last time. A failed test is a mistake caught before visitors see it.",
+    unit: "pass", improvement: "up", keys: ["tests_passed"], pick: measure("tests_passed"),
+  },
+  {
+    key: "vulnerable", strip: "checks", label: specOf("vulnerable_dependencies").label,
+    meaning: "Outside packages with a publicly known security flaw. Updating a package usually removes it.",
+    unit: "count", improvement: "down", keys: ["vulnerable_dependencies"], pick: measure("vulnerable_dependencies"),
   },
 ];
 
 /** A ratio has no ceiling (more test lines than code lines is 1.2×), so it
  * reads as a multiple rather than a percent that passes 100. */
 export function formatFigure(unit: WidgetUnit, value: number): string {
+  if (unit === "pass") return value >= 1 ? "Passed" : "Failed";
   if (unit === "percent") return `${value.toFixed(1)}%`;
   if (unit === "ratio") return `${value.toFixed(1)}×`;
   return formatInt(value);
@@ -183,6 +205,7 @@ export function measureChange(
 
 /** The change as a chip prints it: a count in percent, a share in points. */
 export function changeText(unit: WidgetUnit, change: MeasureChange): string {
+  if (unit === "pass") return `${formatFigure(unit, change.from.value)} → ${formatFigure(unit, change.to.value)}`;
   if (unit === "percent") return `${formatPercent(Math.abs(change.change))} pts`;
   if (unit === "ratio") return `${Math.abs(change.change).toFixed(1)}×`;
   return change.percent === null ? formatInt(Math.abs(change.change)) : `${formatPercent(Math.abs(change.percent))}%`;
@@ -253,6 +276,7 @@ export function dayNotes(days: readonly AlignedDay[]): Record<string, string> {
 
 export interface CodebaseWidget {
   key: WidgetKey;
+  strip: WidgetStrip;
   label: string;
   meaning: string;
   unit: WidgetUnit;
@@ -265,6 +289,34 @@ export interface CodebaseWidget {
   change: MeasureChange | null;
   /** The last 90 days, one point a day, for the widget's line. */
   spark: SeriesPoint[];
+  /** A pass or fail figure's record over the newest report's 30 days; null for any other unit. */
+  passes: PassRecord | null;
+}
+
+export interface PassRecord {
+  passed: number;
+  /** Reports in the window that sent a result. */
+  measured: number;
+  days: number;
+}
+
+/** How many of the reports in the `CHANGE_DAYS` up to the newest one passed:
+ * a pass or fail has no size to compare a month back, so the tab counts. */
+export function passRecord(
+  history: readonly CodebaseHistoryPoint[],
+  pick: (measures: CodebaseMeasures) => number | null,
+): PassRecord | null {
+  const latest = history.at(-1);
+  if (!latest) return null;
+  const from = shiftLabel(latest.date, -(CHANGE_DAYS - 1));
+  const results = history.filter((point) => point.date >= from).map((point) => pick(point.measures)).filter((value): value is number => value !== null);
+  if (results.length === 0) return null;
+  return { passed: results.filter((value) => value >= 1).length, measured: results.length, days: CHANGE_DAYS };
+}
+
+/** "4 of 5 reports passed in 30 days". */
+export function passText(record: PassRecord): string {
+  return `${formatInt(record.passed)} of ${formatInt(record.measured)} ${record.measured === 1 ? "report" : "reports"} passed in ${record.days} days`;
 }
 
 export function codebaseWidgets(slice: CodebaseSlice): CodebaseWidget[] {
@@ -274,6 +326,7 @@ export function codebaseWidgets(slice: CodebaseSlice): CodebaseWidget[] {
     const value = latest ? spec.pick(latest.report.measures) : null;
     return {
       key: spec.key,
+      strip: spec.strip,
       label: spec.label,
       meaning: spec.meaning,
       unit: spec.unit,
@@ -283,6 +336,7 @@ export function codebaseWidgets(slice: CodebaseSlice): CodebaseWidget[] {
       note: spec.note ?? null,
       change: measureChange(slice.history, spec.pick),
       spark: end === null ? [] : seriesOf(alignedSeries(slice.history, spec.pick, end, 90)),
+      passes: spec.unit === "pass" ? passRecord(slice.history, spec.pick) : null,
     };
   });
 }
@@ -407,6 +461,10 @@ export function duplicateTaskTitle(duplicate: CodebaseDuplicate): string {
 
 export function complexTaskTitle(fn: CodebaseComplexFunction): string {
   return `Simplify ${fn.name} in ${fn.path}`;
+}
+
+export function vulnerableTaskTitle(count: number, site: string): string {
+  return `Fix ${formatInt(count)} vulnerable ${count === 1 ? "package" : "packages"} in ${site}`;
 }
 
 export function unusedTaskTitle(item: CodebaseUnusedItem): string {

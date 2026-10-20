@@ -20,7 +20,13 @@ Both show the same data from the same installation.
 
 ## The pages
 
-The sidebar lists the pages in the order you are likely to need them.
+The sidebar lists the pages in the order you are likely to need them. Which pages it lists follows your view, chosen on Home's first run or in [Settings → General → **Your view**](/tower/settings#general):
+
+- **I run the business**: Home, Sites, Tasks, Money and Settings.
+- **I build the product**: Home, Sites, Alerts, Tasks, Money, System health, Integrations and Settings.
+- **Everything**: every page in the table below.
+
+A page the sidebar leaves out still opens from Search (**⌘K**), which lists every page in every view, and from any link to it.
 
 | Page | What it shows |
 |---|---|
@@ -29,16 +35,17 @@ The sidebar lists the pages in the order you are likely to need them.
 | [Sites](/tower/sites) | Which sites need your attention. Each site also has its own page. |
 | [Alerts](/tower/alerts) | What needs attention right now, and how serious it is. |
 | [Tasks](/tower/tasks) | How big the work queue is, and which tasks in it are waiting for you. |
+| [Agents](/tower/agents) | What your agents did and how fast they closed tasks. |
 | [Money](/tower/financials) | The month's net, and where the money comes from and goes. |
 | [System health](/tower/health) | Whether NoticeOS itself is working: each source's collection, the scheduled jobs, expiring credentials and data spend. |
 | [Integrations](/tower/integrations) | Which provider accounts are connected, and how to connect another. |
 | [Settings](/tower/settings) | The settings that apply to the whole installation. |
 
-At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, site or task by name.
+At the bottom of the sidebar, **TV dashboard** opens the Wall, and the pencil beside it opens the Wall's layout editor. On a phone the sidebar is hidden behind the menu button. Press **⌘K** (**Ctrl+K**), or the sidebar's **Search**, to jump to any page, site or task by name. Its **Views** group lists **Switch to · \<view>** for the two views you are not in.
 
 ## A site's own page
 
-A **site** is one website or product you added. Its name on Home or Sites opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**. Most of what concerns one site happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Sites](/tower/sites).
+A **site** is one website or product you added. Its name on Home or Sites opens its own page, with tabs: **Overview**, **Growth**, **Money**, **Search**, **Codebase**, **Health**, **Alerts**, **Tasks**, **Activity**, **Data sources** and **Settings**; your view decides which of them are shown. Most of what concerns one site happens there: you connect its data on **Data sources**, log a change on **Activity** and rename it on **Settings**. See [Sites](/tower/sites).
 
 ## How to read a page
 

@@ -103,6 +103,46 @@ describe('CodebaseReport', () => {
     expect(refused({ ...body, unmeasured: { unused_files: 'x'.repeat(201) } })).toBe(true);
   });
 
+  it('accepts the build, test and vulnerable-package measures from the sending workflow, or none of them', () => {
+    const body = validReport();
+    Object.assign(body.measures, { build_passed: 1, tests_passed: 0, vulnerable_dependencies: 4 });
+    const parsed = CodebaseReport.safeParse(body);
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.measures).toMatchObject({ build_passed: 1, tests_passed: 0, vulnerable_dependencies: 4 });
+    const without = CodebaseReport.safeParse(validReport());
+    expect(without.success).toBe(true);
+    if (without.success) {
+      expect(without.data.measures.build_passed).toBeUndefined();
+      expect(without.data.measures.tests_passed).toBeUndefined();
+      expect(without.data.measures.vulnerable_dependencies).toBeUndefined();
+    }
+    const reasons = {
+      build_passed: 'The workflow sent no build result.',
+      tests_passed: 'The workflow sent no test result.',
+      vulnerable_dependencies: 'The workflow sent no package audit.',
+    };
+    const unmeasured = CodebaseReport.safeParse({ ...validReport(), unmeasured: reasons });
+    expect(unmeasured.success).toBe(true);
+    if (unmeasured.success) expect(unmeasured.data.unmeasured).toEqual(reasons);
+  });
+
+  it('reads a pass or fail as 1 or 0 only, and a vulnerable package count as a whole count', () => {
+    for (const [key, value] of [
+      ['build_passed', 2],
+      ['build_passed', 0.5],
+      ['tests_passed', -1],
+      ['vulnerable_dependencies', -1],
+      ['vulnerable_dependencies', 1.5],
+    ] as const) {
+      const body = validReport();
+      body.measures[key] = value;
+      expect(refused(body), `${key} ${value}`).toBe(true);
+    }
+    const passed = validReport();
+    Object.assign(passed.measures, { build_passed: 0, tests_passed: 1, vulnerable_dependencies: 0 });
+    expect(refused(passed)).toBe(false);
+  });
+
   it('accepts more test lines than code lines', () => {
     const body = validReport();
     body.measures.test_ratio = 1.03;
@@ -191,6 +231,11 @@ describe('CODEBASE_MEASURES', () => {
     expect(label('complex_functions')).toBe('Hard-to-change functions');
     expect(label('test_ratio')).toBe('Test coverage by size');
     expect(label('commits_30d')).toBe('Changes in 30 days');
+    expect(label('build_passed')).toBe('Build');
+    expect(label('tests_passed')).toBe('Tests');
+    expect(label('vulnerable_dependencies')).toBe('Vulnerable packages');
+    const unit = (key: string) => CODEBASE_MEASURES.find((m) => m.key === key)?.unit;
+    expect([unit('build_passed'), unit('tests_passed'), unit('vulnerable_dependencies')]).toEqual(['pass', 'pass', 'count']);
     for (const m of CODEBASE_MEASURES) expect(m.meaning.length).toBeGreaterThan(0);
   });
 });
@@ -257,6 +302,22 @@ describe('evaluateCodebaseRules', () => {
     expect(files).toMatchObject({ evaluable: true, fired: true, message: '12 files are not used.' });
     expect(files.inputs).toMatchObject({ unused_files: 12, unused_dependencies: null, unused_items: 12 });
     expect(verdict(evaluateCodebaseRules(report({ unused_files: 9 }), null, T), 'codebase-unused').fired).toBe(false);
+  });
+
+  it('fires vulnerabilities from one vulnerable package, with the count it used', () => {
+    const one = verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 1 }), null, T), 'codebase-vulnerabilities');
+    expect(one).toMatchObject({ evaluable: true, fired: true, severity: 'info', kind: 'opportunity', metric: 'vulnerable_dependencies', message: '1 package has a known vulnerability.' });
+    expect(one.inputs).toMatchObject({ vulnerable_dependencies: 1, threshold_packages: 1 });
+    expect(verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 3 }), null, T), 'codebase-vulnerabilities').message)
+      .toBe('3 packages have a known vulnerability.');
+  });
+
+  it('vulnerabilities stays quiet at zero, under its threshold, with a threshold of 0, and when unmeasured', () => {
+    expect(verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 0 }), null, T), 'codebase-vulnerabilities'))
+      .toMatchObject({ evaluable: true, fired: false, message: null });
+    expect(verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 2 }), null, { ...T, vulnerable_dependencies: 3 }), 'codebase-vulnerabilities').fired).toBe(false);
+    expect(verdict(evaluateCodebaseRules(report({ vulnerable_dependencies: 0 }), null, { ...T, vulnerable_dependencies: 0 }), 'codebase-vulnerabilities').fired).toBe(false);
+    expect(verdict(evaluateCodebaseRules(report({ code_lines: 10 }), null, T), 'codebase-vulnerabilities')).toMatchObject({ evaluable: false, fired: false });
   });
 
   it('never fires or evaluates a rule whose measures are absent', () => {

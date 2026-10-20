@@ -1,6 +1,6 @@
 // Ordinary saved display settings for the positively owned synthetic scenario.
 import { DEFAULT_WALL_LAYOUT, wallLayoutWidgets } from './wall-layout.mjs';
-import { generateDemoScenario, demoScenarioHash, demoProperties, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
+import { generateDemoScenario, demoScenarioHash, demoProperties, demoRecurringCost, shiftDemoDay, type DemoScenario } from './demo-scenario.mjs';
 import { deepEqual } from './config-documents.mjs';
 import { lstatSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -15,6 +15,16 @@ interface DisplayHelpers {
  * calendar holds the same review on that day. */
 export function demoCountdown(scenario: DemoScenario) {
   return { emoji: '📅', label: 'Quarterly portfolio review', targetAt: `${shiftDemoDay(scenario.manifest.referenceDate, 75)}T17:00:00.000Z` };
+}
+
+/** The operating bills the scenario books, declared as the subscriptions
+ * they are filed under, each from the first month the ledger books it. */
+export function demoRecurringCosts(scenario: DemoScenario) {
+  return scenario.assets.flatMap(asset => {
+    const { id, label, source } = demoRecurringCost(asset);
+    const first = scenario.ledger.find(row => row.source === source);
+    return first ? [{ id, label, asset: asset.id, family: first.family, amountUsdPerMonth: asset.cost / 100, from: first.period }] : [];
+  });
 }
 
 /** Only observed nightly totals are selected; no counter fetch source exists. */
@@ -47,16 +57,22 @@ export function generateDemoDisplay(scenario: DemoScenario) {
         cards: [{ metric: asset.event!, label: labels[asset.event!]! }],
       }])),
     },
+    'config/recurring-costs.json': { costs: demoRecurringCosts(scenario) },
   };
 }
+
+/** The PostHog project each product-analytics site maps; its weekly report
+ * carries the product block. */
+const POSTHOG_PROJECTS: Readonly<Record<string, string>> = { pw: '70102', wp: '70103' };
 
 /** The sources the scenario actually collects, declared live from each
  * site's first day and mapped to the properties its runs name: GA4 and
  * Search Console everywhere, Bing on the two content sites, the ad network
- * where ads are sold, and the hourly home-page check on every site. Product
- * analytics the apps want and the recipe site's session recordings are
- * declared but not connected; every other source is skipped with its reason
- * or does not apply. The OS collects nothing. */
+ * where ads are sold, product analytics on Pinwell and the recipe site, and
+ * the hourly home-page check on every site. Product analytics the other apps
+ * want and the recipe site's session recordings are declared but not
+ * connected; every other source is skipped with its reason or does not
+ * apply. The OS collects nothing. */
 export function demoIntegrationAssets(scenario: DemoScenario) {
   return Object.fromEntries(scenario.assets.map(asset => {
     // The OS's own sources: the demo sends no notifications and runs no agents.
@@ -76,8 +92,9 @@ export function demoIntegrationAssets(scenario: DemoScenario) {
       gsc: { status: 'live', siteUrl: properties.gsc, since },
       'bing-webmaster': properties.bing ? { status: 'live', siteUrl: properties.bing, since } : { status: 'skipped', since, note: 'Reason: little search traffic comes from Bing.' },
       'ad-network': ads ? { status: 'live', mediavineSiteId: ads.siteId, mediavineEnabled: true, since } : { status: 'not-applicable', since, note: 'No ads are sold on this site.' },
-      posthog: ['lb', 'fr'].includes(asset.prefix) ? { status: 'needs-setup', since, note: 'Waiting for its PostHog project.' }
-        : { status: 'skipped', since, note: 'Reason: no product analytics on this site.' },
+      posthog: POSTHOG_PROJECTS[asset.prefix] ? { status: 'live', since, host: 'us', projectId: POSTHOG_PROJECTS[asset.prefix] }
+        : ['lb', 'fr'].includes(asset.prefix) ? { status: 'needs-setup', since, note: 'Waiting for its PostHog project.' }
+          : { status: 'skipped', since, note: 'Reason: no product analytics on this site.' },
       clarity: asset.prefix === 'wp' ? { status: 'needs-setup', since, note: 'Waiting for a Clarity project.' }
         : { status: 'skipped', since, note: 'Reason: session recordings are not used here.' },
       dataforseo: { status: 'skipped', since, note: 'Reason: rank tracking is not bought for this site.' },

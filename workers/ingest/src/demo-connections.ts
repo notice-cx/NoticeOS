@@ -9,9 +9,10 @@
 import type { IntegrationProviderId } from '@noticeos/contract';
 import { readProductEnv, workspaceProfile } from '../../../scripts/product-env.mjs';
 
-/** The providers whose counts the demo's simulator records: Google's
- * Analytics and Search Console, Bing, and the ad network. */
-export const DEMO_CONNECTED_PROVIDERS: readonly IntegrationProviderId[] = Object.freeze(['google', 'bing-webmaster', 'mediavine']);
+/** The providers whose readings the demo's simulator records: Google's
+ * Analytics and Search Console, Bing, the ad network, and PostHog's weekly
+ * product block. */
+export const DEMO_CONNECTED_PROVIDERS: readonly IntegrationProviderId[] = Object.freeze(['google', 'bing-webmaster', 'mediavine', 'posthog']);
 
 const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/u;
 

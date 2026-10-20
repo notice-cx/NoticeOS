@@ -782,6 +782,42 @@ BEGIN
   END;
 END $$;
 
+-- ─── A person's own preferences ──────────────────────────────────────────────
+DO $$
+DECLARE newest jsonb;
+BEGIN
+  -- ACCEPTED: two saves of one person's view; the newest is the current value.
+  INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value)
+  VALUES (noticeos.current_workspace_id(), '00000000-0000-4000-8000-0000000000aa', 'view', '{"view":"business","focus":["money"]}');
+  INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value)
+  VALUES (noticeos.current_workspace_id(), '00000000-0000-4000-8000-0000000000aa', 'view', '{"view":"everything","focus":[]}');
+  SELECT value INTO newest FROM noticeos.person_preferences
+   WHERE person_id = '00000000-0000-4000-8000-0000000000aa' AND name = 'view'
+   ORDER BY preference_id DESC LIMIT 1;
+  ASSERT newest = '{"view":"everything","focus":[]}'::jsonb, 'the newest save is the current value';
+  -- REFUSED: a name outside the list, a value that is not an object, and a
+  -- value over 2 KiB.
+  BEGIN
+    INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value)
+    VALUES (noticeos.current_workspace_id(), '00000000-0000-4000-8000-0000000000aa', 'theme', '{}');
+    RAISE EXCEPTION 'an unknown preference name was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value)
+    VALUES (noticeos.current_workspace_id(), '00000000-0000-4000-8000-0000000000aa', 'view', '["business"]');
+    RAISE EXCEPTION 'a preference that is not an object was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  BEGIN
+    INSERT INTO noticeos.person_preferences (workspace_id, person_id, name, value)
+    VALUES (noticeos.current_workspace_id(), '00000000-0000-4000-8000-0000000000aa', 'view',
+      jsonb_build_object('view', 'business', 'focus', jsonb_build_array(repeat('x', 2100))));
+    RAISE EXCEPTION 'a preference over 2 KiB was accepted' USING ERRCODE = 'ZT001';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+END $$;
+
 -- ─── A retry replaces its earlier revision's untouched alerts ───────────────
 DO $$
 DECLARE first_rev bigint; second_rev bigint; touched bigint; untouched bigint; shown integer; day integer;

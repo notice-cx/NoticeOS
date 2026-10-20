@@ -3,7 +3,23 @@
 // estimates of real businesses.
 import { createHash } from 'node:crypto';
 import { generateDemoTaskFacts } from './demo-task-facts.mjs';
-export const SCENARIO_VERSION = 8;
+import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
+export const SCENARIO_VERSION = 12;
+/** The agents' model usage, booked against the OS as a provider's usage
+ * export is: one estimated `inference` cost a month. A fictional provider. */
+export const DEMO_INFERENCE_SOURCE = 'inference:synthetic-models';
+/** Each site's and the OS's monthly operating bill: a fixed subscription the
+ * demo declares in `config/recurring-costs.json` (`demoRecurringCosts` in
+ * `demo-display.mts`) and files as `scripts/cost-import.mjs` files one
+ * (`recurring:<id>`), so Money names each line by its declared label. */
+export function demoRecurringCost(asset) {
+    const id = asset.isOs ? 'app-servers' : `${asset.prefix}-hosting`;
+    return { id, label: asset.isOs ? 'App servers' : `${asset.name} hosting`, source: `recurring:${id}` };
+}
+/** The usage cost of the agents' model calls in one month, in cents. */
+export function demoInferenceCostMinor(seed, osAsset, month) {
+    return Math.round(4200 * (0.85 + draw(seed, `${osAsset}/${month}/inference`) * 0.3));
+}
 const DAY_MS = 86_400_000;
 /** Five sites with their own shapes: a steady subscription product, a
  * licensed tool, a recipe site growing into its season, an outdoor guide
@@ -101,6 +117,24 @@ export function demoAdRevenueMinor(seed, asset, date, sessions) {
 export function demoAdPayment(seed, asset, month, dailyMinor) {
     const sum = dailyMinor.reduce((a, b) => a + b, 0);
     return { minor: Math.round(sum * (0.985 + draw(seed, `${asset.id}/${month}/payment`) * 0.03)), paidOn: `${shiftDemoMonth(month, 2)}-06` };
+}
+/** The account a subscription site's daily income is read from. Fictional. */
+export function demoSubscriptionAccount(asset) {
+    return `acct_demo_${asset.prefix}`;
+}
+/** One day's synthetic subscription income in cents: the month's income spread
+ * over its days with a little daily noise, independent of traffic. */
+export function demoSubscriptionMinor(seed, asset, date) {
+    if (asset.revenue === null)
+        throw new Error('Subscription income needs a site that earns it.');
+    const monthDays = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 0)).getUTCDate();
+    return Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2));
+}
+/** The last complete day of subscription income by `instant`: a UTC day is
+ * complete from 01:00 UTC the next day, as the source's vocabulary row says. */
+export function demoSubscriptionReportedThrough(instant) {
+    const day = instant.slice(0, 10);
+    return shiftDemoDay(day, instant >= `${day}T01:00:00.000Z` ? -1 : -2);
 }
 /** The last day an ad network has reported by `instant`: yesterday once the
  * morning report is in (14:10 UTC is after it in every season), otherwise the
@@ -311,6 +345,17 @@ function codebaseCore(prefix, age, noise) {
         testRatio: round2(1.03 + jitter('tests', 0.03)), unusedFiles: 7 + Math.floor(noise('files') * 3), unusedExports: 24 + Math.floor(noise('exports') * 5),
         dependencies: 38 + Math.min(12, Math.floor(Math.max(0, t) / 50)), commits: 140 + Math.round(noise('commits') * 34), large: 22 + Math.floor(noise('large') * 12) };
 }
+/** The results each site's own workflow sends beside the measurement: Weeknight
+ * Pantry's copied components break its tests for five weeks around the
+ * reference day, Trail Notes' redesign fails one build and brings two
+ * vulnerable packages until they are updated, and one more arrives shortly
+ * before the reference day. */
+function codebaseChecks(prefix, age) {
+    const testsBroken = prefix === 'wp' && age >= -20 && age <= 14;
+    const buildBroken = prefix === 'tn' && age >= REDESIGN && age < REDESIGN + 7;
+    const vulnerable = prefix !== 'tn' ? 0 : age >= REDESIGN && age < REDESIGN + 21 ? 2 : age >= -10 && age <= 30 ? 1 : 0;
+    return { build_passed: buildBroken ? 0 : 1, tests_passed: testsBroken ? 0 : 1, vulnerable_dependencies: vulnerable };
+}
 /** The sites that send a codebase report: every site but the one still
  * setting up, whose Codebase tab shows how to send its first. */
 export function demoCodebaseReporting(asset) {
@@ -372,6 +417,7 @@ export function demoCodebaseEnvelope(seed, asset, referenceDate, date) {
         ...(core.dependencies === undefined ? {} : { dependencies_direct: core.dependencies }), functions: Math.round(lines / profile.functionLines), complex_functions: core.complex,
         max_function_complexity: core.maxComplexity, mean_function_complexity: core.meanComplexity, test_lines: testLines, test_ratio: round2(testLines / lines),
         commits_30d: core.commits, files_touched_30d: Math.round(core.commits * profile.touchedPerCommit * (0.85 + noise('touched') * 0.3)) + core.large * 24, large_commits_30d: core.large,
+        ...codebaseChecks(asset.prefix, age),
     };
     const { generatedAt } = demoCodebaseTimes(seed, asset, date);
     const unmeasured = {
@@ -470,6 +516,13 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         .filter(d => d.asset === asset.id && d.date <= reportedThrough)
         .map(d => ({ asset: asset.id, siteId: demoAdSiteId(asset), date: d.date, minor: adDays.get(`${asset.id}/${d.date}`),
         recordedAt: `${shiftDemoDay(d.date, 1)}T14:10:00.000Z` })));
+    // Subscription income for every recorded day complete by the cutoff, as the
+    // collector records it; the current month has no ledger row beside it.
+    const subscriptionsThrough = demoSubscriptionReportedThrough(cutoff);
+    const subscriptionDays = assets.filter(a => a.revenueFamily === 'subs').flatMap(asset => daily
+        .filter(d => d.asset === asset.id && d.date <= subscriptionsThrough)
+        .map(d => ({ asset: asset.id, account: demoSubscriptionAccount(asset), date: d.date, minor: demoSubscriptionMinor(seed, asset, d.date),
+        recordedAt: `${shiftDemoDay(d.date, 1)}T01:00:00.000Z` })));
     const ledger = [];
     const add = (row, note = 'Synthetic demo accounting.') => { const value = { key: `ledger-${ledger.length + 1}`, currency: 'USD', note, ...row }; ledger.push(value); return value.key; };
     for (let offset = -12; offset <= 0; offset++) {
@@ -480,8 +533,13 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
         for (const asset of assets) {
             if (asset.createdAt.slice(0, 10) > monthEnd)
                 continue;
-            const cost = asset.prefix === 'fr' ? asset.cost : Math.round(asset.cost * (anchorMonth ? 1 : 0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12));
-            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: cost, state: 'reconciled', source: 'demo', recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            add({ asset: asset.id, period: month, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', minor: asset.cost, state: 'reconciled', source: demoRecurringCost(asset).source, recordedAt }, offset === 0 ? 'Synthetic prepaid operating bill recorded this month.' : 'Synthetic demo accounting.');
+            // A finished month's model usage, after the OS's own bill; the current
+            // month's is booked by the simulator once the month ends.
+            if (asset.isOs && offset < 0) {
+                add({ asset: asset.id, period: month, kind: 'cost', family: 'inference', minor: anchorMonth ? 4200 : demoInferenceCostMinor(seed, asset.id, month), state: 'estimated',
+                    source: DEMO_INFERENCE_SOURCE, recordedAt }, 'Synthetic model usage export; no real charge.');
+            }
             if (asset.adRpm) {
                 // Months paid before the reference day are reconciled; later months
                 // stay the network's daily estimates until their payment arrives.
@@ -495,7 +553,16 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
             if (asset.revenue === null || asset.revenueFamily === null)
                 continue;
             const coverageStart = `${month}-01`;
+            // A finished month's subscription income is booked under the Stripe
+            // source, so Money names it as subscriptions; no Stripe account is read.
+            // It replaces that month's daily figures in Money. Other recorded income
+            // has no collector, so it carries no source and Money names it by its
+            // family.
+            const source = asset.revenueFamily === 'subs' ? STRIPE_REVENUE_SOURCE : null;
             if (offset === 0) {
+                // The current month's subscription income is its daily figures above.
+                if (asset.revenueFamily === 'subs')
+                    continue;
                 // A fictional first posting precedes any current-period receipt. No
                 // scheduled or future sale is booked; coverage ends at this cutoff.
                 const firstPosting = `${month}-01T01:00:00.000Z`;
@@ -503,15 +570,15 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
                     continue;
                 const elapsedDays = (Date.parse(cutoff) - Date.parse(firstPosting)) / DAY_MS;
                 const collected = Math.round(asset.revenue * Math.min(0.95, 0.125 + elapsedDays * 0.025));
-                add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: collected, state: 'reconciled', source: 'demo-recorded-income', recordedAt: cutoff, coverageStart, coverageEnd: referenceDate, coverageComplete: false }, 'Synthetic partial-month income; later receipts are not yet recorded.');
+                add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: collected, state: 'reconciled', source, recordedAt: cutoff, coverageStart, coverageEnd: referenceDate, coverageComplete: false }, 'Synthetic partial-month income; later receipts are not yet recorded.');
                 continue;
             }
             // Recorded income is independent of traffic. These monthly entries do
-            // not describe recurring contracts, payment dates or a billing service.
+            // not describe recurring contracts or payment dates.
             const reconciled = anchorMonth ? asset.revenue : Math.round(asset.revenue * (0.9 + draw(seed, `${asset.id}/${month}/income`) * 0.2));
             const estimate = Math.round(reconciled * (offset === -6 ? 1.04 : 1));
-            const estimated = add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: estimate, state: 'estimated', source: 'demo-recorded-income', coverageStart, coverageEnd: monthEnd, coverageComplete: true, recordedAt: `${monthEnd}T22:00:00.000Z` });
-            add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: reconciled, state: 'reconciled', source: 'demo-recorded-income', coverageStart, coverageEnd: monthEnd, coverageComplete: true, supersedes: estimated, recordedAt });
+            const estimated = add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: estimate, state: 'estimated', source, coverageStart, coverageEnd: monthEnd, coverageComplete: true, recordedAt: `${monthEnd}T22:00:00.000Z` });
+            add({ asset: asset.id, period: month, kind: 'revenue', family: asset.revenueFamily, minor: reconciled, state: 'reconciled', source, coverageStart, coverageEnd: monthEnd, coverageComplete: true, supersedes: estimated, recordedAt });
         }
     }
     const pulses = [];
@@ -567,10 +634,11 @@ export function generateDemoScenario({ seed, cutoff, release, timeZone = 'UTC' }
     const fix = { asset: site('pw').id, ref: taskFacts.storyIds.problem, annotationAt: new Date(Date.parse(cutoff) - 4 * 3_600_000).toISOString() };
     const reportGap = { asset: site('lb').id, from: shiftDemoDay(referenceDate, -DEMO_REPORT_GAP_DAYS) };
     const adSites = assets.filter(a => a.adRpm).map(asset => ({ asset: asset.id, siteId: demoAdSiteId(asset) }));
+    const subscriptionSites = assets.filter(a => a.revenueFamily === 'subs').map(asset => ({ asset: asset.id, account: demoSubscriptionAccount(asset) }));
     // Pinwell's cleanup deploy removed the packages its library swap left behind;
     // the next weekly report reads them gone.
     const dependencyCleanup = { asset: site('pw').id, annotationAt: day(DEMO_DEPENDENCY_CLEANUP_AGE, '16:00:00') };
-    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, stories, ship, slide, dip, fix, reportGap, dependencyCleanup }, assets, daily, ledger, adRevenue, pulses, codebaseRuns, tasks: taskFacts.tasks };
+    return { manifest: { synthetic: true, scenarioVersion: SCENARIO_VERSION, seed, cutoff, release, timeZone, providerTimeZone: timeZone, referenceDate, referencePeriod, workspaceId, identities: assets.map(({ id, prefix, name, createdAt }) => ({ id, prefix, name, createdAt })), taskProjects: taskFacts.projects, adSites, subscriptionSites, stories, ship, slide, dip, fix, reportGap, dependencyCleanup }, assets, daily, ledger, adRevenue, subscriptionDays, pulses, codebaseRuns, tasks: taskFacts.tasks };
 }
 /** A day's counts as each source reports them. */
 export function demoSourceValues(row, integration) {
@@ -581,8 +649,7 @@ export function demoSourceValues(row, integration) {
     return { clicks: Math.round(row.clicks * DEMO_BING_SHARE), impressions: Math.round(row.impressions * DEMO_BING_SHARE) };
 }
 /** The seeded codebase reports with their envelopes. The scenario keeps only
- * when each ran: every envelope derives from the seed, so the scenario stays
- * small enough for the demo's runtime file. */
+ * when each ran: every envelope derives from the seed. */
 export function demoCodebaseReports(scenario) {
     const { seed, referenceDate } = scenario.manifest;
     return scenario.codebaseRuns.map(run => ({ ...run, envelope: demoCodebaseEnvelope(seed, scenario.assets.find(asset => asset.id === run.asset), referenceDate, run.date) }));

@@ -1,5 +1,6 @@
 import { DEFAULT_WALL_LAYOUT, type WallConfig, parseWallConfig } from "./wall-layout";
 import { readSiteDisplay, type SiteDisplay } from "./site-display";
+import { parseWorkspaceView, type WorkspaceViewConfig } from "./views";
 
 /** The countdown card's three settings, read as one landmark. */
 export interface CountdownConfig {
@@ -28,6 +29,12 @@ export interface DashboardConfig {
    */
   sites?: SiteDisplay;
   /**
+   * Optional: the view new people and the TV start from (`config/tower.json`
+   * at `/view`, read by `parseWorkspaceView`). Absent, the workspace starts
+   * on Everything, and a person's own choice still wins.
+   */
+  view?: WorkspaceViewConfig;
+  /**
    * Read side only: the parts of the stored `config/tower.json` the Tower
    * could not read. A refused part is drawn as though nothing were saved and
    * named here, so the editor can say so and guard its Save on what the store
@@ -49,6 +56,7 @@ export interface DashboardRefusals {
   wall?: DashboardRefusal;
   countdown?: DashboardRefusal;
   sites?: DashboardRefusal;
+  view?: DashboardRefusal;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -75,7 +83,7 @@ export function isCountdownEmoji(value: string): boolean {
 export function parseDashboardConfig(value: unknown): DashboardConfig {
   const config = readDashboardConfig(value);
   // Layout before countdown, so a file broken in both names the layout.
-  const refusal = config.refused?.wall ?? config.refused?.countdown ?? config.refused?.sites;
+  const refusal = config.refused?.wall ?? config.refused?.countdown ?? config.refused?.sites ?? config.refused?.view;
   if (refusal) throw new Error(refusal.reason);
   return config;
 }
@@ -115,7 +123,14 @@ export function readDashboardConfig(value: unknown): DashboardConfig {
   } catch (err) {
     refused.sites = { saved: value.sites, reason: messageOf(err) };
   }
-  if (refused.wall || refused.countdown || refused.sites) config.refused = refused;
+  if (value.view !== undefined && value.view !== null) {
+    try {
+      config.view = parseWorkspaceView(value.view);
+    } catch (err) {
+      refused.view = { saved: value.view, reason: messageOf(err) };
+    }
+  }
+  if (refused.wall || refused.countdown || refused.sites || refused.view) config.refused = refused;
   return config;
 }
 

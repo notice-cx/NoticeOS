@@ -8,6 +8,7 @@
 import { createContext, useContext, type CSSProperties, type ReactNode } from "react";
 import type { CalendarUpcoming, Ga4RealtimePayload } from "@noticeos/contract";
 import { NO_READS, type ConnectionReads } from "@shared/connection-status";
+import type { WordLevel } from "@shared/views";
 import type { WallPayload } from "@shared/wall";
 import {
   isWallColumn,
@@ -26,11 +27,15 @@ import { RevenueHero } from "@/components/wall/RevenueHero";
 import { SiteRows } from "@/components/wall/SiteRows";
 import { WallFeedWidget } from "@/components/wall/WallFeed";
 import { WallAgents } from "@/components/wall/WallAgents";
+import { WallChannels } from "@/components/wall/WallChannels";
+import { WallFactory } from "@/components/wall/WallFactory";
+import { WallHealth } from "@/components/wall/WallHealth";
 import { WallLoop } from "@/components/wall/WallLoop";
 import { WallStrip, type WallStripProps } from "@/components/wall/WallStrip";
 import { WallTimelineWidget } from "@/components/wall/WallTimeline";
 import { WallWork } from "@/components/wall/WallWork";
 import { useNow } from "@/hooks/useNow";
+import { agentsWeek } from "@/lib/agents-week";
 import { cn } from "@/lib/utils";
 import { wallIssues } from "@/lib/wall-issues";
 import type { CalendarReadState } from "@/lib/meetings";
@@ -76,6 +81,8 @@ export interface WallCanvasProps {
   /** The editor's slot. Whatever it returns replaces the widget in its own
    * grid track. The TV passes nothing. */
   editing?: (slot: WallWidgetSlot) => ReactNode;
+  /** The words of the view the TV is drawn for; the revenue widget reads it. */
+  wordLevel?: WordLevel;
 }
 
 /** The one-second tick the strip's time, meeting and countdown share. */
@@ -143,6 +150,7 @@ export function WallCanvas({
   lastGood = false,
   connections,
   editing,
+  wordLevel,
 }: WallCanvasProps) {
   // A site whose TV switch is off is in no widget, whatever the widget's own
   // site list says. Revenue alone keeps the whole portfolio: hiding a site
@@ -166,7 +174,7 @@ export function WallCanvas({
       case "loop":
         return <WallLoop data={data} connections={connections ?? NO_READS} nowMs={nowMs} />;
       case "revenue":
-        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} />;
+        return <RevenueHero portfolio={payload.portfolio} assets={payload.assets} nowMs={nowMs} wordLevel={wordLevel} />;
       case "timeline": {
         const assets = filterWallAssets(data.assets, widget.settings);
         // Its marks are the feed's, read on its own like the feed column's.
@@ -225,6 +233,27 @@ export function WallCanvas({
         return <WallFeedWidget nowMs={nowMs} hidden={hidden} assets={data.assets} />;
       case "agents":
         return <WallAgents agents={data.agents} />;
+      case "health": {
+        const assets = filterWallAssets(data.assets, widget.settings);
+        return (
+          <WallHealth
+            assets={assets}
+            issues={wallIssues({
+              assets,
+              attention: filterWallAttention(data.attention, widget.settings),
+              connections: connections ?? NO_READS,
+              nowMs,
+            })}
+            nowMs={nowMs}
+          />
+        );
+      }
+      case "factory":
+        // The Wall's payload carries no task events, so the lines are the
+        // sites' latest measured bets: every one, as many as fit drawn.
+        return <WallFactory week={agentsWeek(data.assets, null, nowMs, Infinity)} />;
+      case "channels":
+        return <WallChannels assets={filterWallAssets(data.assets, widget.settings)} />;
     }
   }
 

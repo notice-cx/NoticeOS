@@ -60,6 +60,14 @@
       "credential": "shared"
     },
     {
+      "id": "crux",
+      "label": "Chrome UX Report",
+      "docRef": "docs/11-integrations.md#chrome-ux-report",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
       "id": "uptime",
       "label": "Uptime monitoring",
       "docRef": "docs/11-integrations.md#the-catalog",
@@ -87,6 +95,14 @@
       "id": "affiliate-amazon",
       "label": "Affiliate — Amazon Associates (secondary; off portfolio-wide)",
       "docRef": "docs/11-integrations.md#the-catalog",
+      "scope": "property",
+      "layer": "provider",
+      "credential": "shared"
+    },
+    {
+      "id": "subscriptions",
+      "label": "Subscription revenue (Stripe)",
+      "docRef": "docs/11-integrations.md#stripe",
       "scope": "property",
       "layer": "provider",
       "credential": "shared"

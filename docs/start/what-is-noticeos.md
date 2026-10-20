@@ -51,6 +51,7 @@ It is **not** a public hosted service. A standalone installation has no user log
 - A **public demo package** with synthetic sites and ongoing simulated activity, for a read-only preview on a Linux server. See [Try the demo](/start/try-the-demo).
 - Provider credentials connected **in the product** on the Integrations page, encrypted in the store. See [Secrets and credentials](/operate/secrets-and-credentials).
 - A **Tasks** page shared by people and agents, usable before you add your first site.
+- Three **views** of the Tower, **I run the business**, **I build the product** and **Everything**, each with its own sidebar pages, parts of Home, site tabs and TV layout, chosen on the first run or in Settings. See [Choose your view](/guides/choose-your-view).
 - An **MCP server** at the Tower's `/api/mcp`, through which a coding agent on the same machine reads and updates your tasks and reads site reports. See [Connect an agent](/guides/connect-an-agent).
 
 ## What is not available yet

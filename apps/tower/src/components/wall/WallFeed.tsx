@@ -20,7 +20,7 @@
 // name and the option chosen; a line about a site draws the site's icon for a
 // dark surface beside its name.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentType, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import type { SiteIcons } from "@noticeos/contract/site-icons";
 import type { AssetCard } from "@shared/wall";
 import {
@@ -56,6 +56,7 @@ import {
 import { AgentMark } from "@/components/AgentMark";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { useWallFeed } from "@/hooks/useWallFeed";
+import { useWholeRows } from "@/hooks/useWholeRows";
 import { agentMaker, evidenceParts } from "@/lib/agent-work";
 import { cn } from "@/lib/utils";
 
@@ -171,29 +172,6 @@ function useArrivals(items: readonly WallFeedItem[] | undefined) {
     [items, drawn],
   );
   return { visible, arrived };
-}
-
-/** How many leading rows fit the list whole; the rest are hidden. */
-function useWholeRows(list: RefObject<HTMLOListElement | null>, rows: readonly WallFeedItem[]) {
-  const [fit, setFit] = useState<number>(Infinity);
-  useLayoutEffect(() => {
-    const element = list.current;
-    if (!element) return;
-    const measure = () => {
-      const bottom = element.getBoundingClientRect().bottom;
-      const children = [...element.children] as HTMLElement[];
-      const cut = children.findIndex((child) => child.getBoundingClientRect().bottom > bottom + 0.5);
-      setFit(cut === -1 ? Infinity : cut);
-    };
-    measure();
-    // The list and every row: an arriving row opens its height over 240 ms,
-    // pushing the rows below it down after this effect has already measured.
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    for (const child of element.children) observer.observe(child);
-    return () => observer.disconnect();
-  }, [list, rows]);
-  return fit;
 }
 
 export interface WallFeedProps {

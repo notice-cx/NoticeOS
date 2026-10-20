@@ -8,6 +8,7 @@ import { openTaskDirectory } from '../packages/postgres/src/task-directory.mjs';
 import { createWorkspaceAdmission } from './workspace-admission.mjs';
 import { createHostedTaskExecutor } from './hosted-task-executor.mjs';
 import { createHostedDemo } from './hosted-demo.mjs';
+import { createDemoActivity, DEMO_NIGHTLY_HOUR } from './demo-activity.mjs';
 import { buildDemoWorkerHelpers } from './demo-evaluator.mjs';
 import { startHostedScheduler } from './hosted-scheduler.mjs';
 export async function openHostedDemo(options) {
@@ -46,7 +47,8 @@ export async function openHostedDemo(options) {
         if (typeof helpers.writeDemoActivity !== 'function' || typeof helpers.writeDemoCollection !== 'function'
             || typeof helpers.writeDemoAdRevenue !== 'function' || typeof helpers.writeDemoTaskSnapshot !== 'function'
             || typeof helpers.writeDemoOutcomeChecks !== 'function' || typeof helpers.runFreshnessCheck !== 'function'
-            || typeof helpers.runUptimeChecks !== 'function' || typeof helpers.runNotifier !== 'function'
+            || typeof helpers.runUptimeChecks !== 'function' || typeof helpers.runHygieneChecks !== 'function' || typeof helpers.writeReading !== 'function'
+            || typeof helpers.runNotifier !== 'function'
             || typeof helpers.readPendingWatchReadbacks !== 'function' || typeof helpers.markWatchReadbacksPosted !== 'function')
             throw new Error('Released demo input writer absent.');
         const write = helpers.writeDemoActivity;
@@ -57,7 +59,20 @@ export async function openHostedDemo(options) {
         const freshness = (scoped, at) => helpers.runFreshnessCheck(Object.freeze({ STORE: scoped }), Date.parse(at));
         // The release's own home-page check, its fetch answered by the fictional
         // sites' pages. They answer by the run's minute, so the retry asks at once.
-        const uptime = (scoped, at, homePages) => helpers.runUptimeChecks(Object.freeze({ STORE: scoped }), { nowMs: Date.parse(at), fetchImpl: homePages, confirmWaitMs: 0 });
+        // In the nightly hour the same check first runs the release's nightly
+        // site checks and records each site's page speed for the day.
+        const pageSpeed = createDemoActivity(scenario).pageSpeed;
+        const uptime = async (scoped, at, homePages) => {
+            const env = Object.freeze({ STORE: scoped }), nowMs = Date.parse(at);
+            if (at.slice(11, 13) !== DEMO_NIGHTLY_HOUR)
+                return helpers.runUptimeChecks(env, { nowMs, fetchImpl: homePages, confirmWaitMs: 0 });
+            const site = await helpers.runHygieneChecks(env, { nowMs, fetchImpl: homePages, confirmWaitMs: 0 });
+            const readings = pageSpeed(at.slice(0, 10));
+            for (const reading of readings)
+                await helpers.writeReading(env, reading.asset, 'crux-vitals', at, 'ok', reading.lcp, reading.detail);
+            const hourly = await helpers.runUptimeChecks(env, { nowMs, fetchImpl: homePages, confirmWaitMs: 0 });
+            return { ...hourly, siteChecks: { checks: site.checks, fired: site.fired, resolved: site.resolved, failed: site.failed.length }, pageSpeed: readings.length };
+        };
         // The release's notifier with no channel connected: it finds what it would
         // say and stops before any send, and its delivery could reach nothing.
         const notify = (scoped, at) => helpers.runNotifier(Object.freeze({ STORE: scoped, NOTICEOS_WORKSPACE_PROFILE: 'demo' }), { nowMs: Date.parse(at), fetchImpl: async () => { throw new Error('The demo sends no notifications.'); } });

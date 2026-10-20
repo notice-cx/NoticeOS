@@ -5314,6 +5314,41 @@ export function claritySnapshot(asset, families, archives) {
   };
 }
 
+/**
+ * Where the property's visitors arrived from: settled GA4 sessions summed per
+ * default channel group over every settled reported date, largest first. null
+ * when no settled row names a channel or the settled total is zero, so the
+ * Tower shows "not collected" instead of a split of zeros. Channel names stay
+ * exactly as GA4 reports them ("AI Assistant" included).
+ */
+function channelSnapshot(families) {
+  const { rows: input, provisionalDates } = settledAttributionRows(
+    families,
+    'ga4-traffic-acquisition',
+  );
+  const byChannel = new Map();
+  const counted = [];
+  let sessions = 0;
+  for (const row of input) {
+    const channel = text(row.sessionDefaultChannelGroup).trim();
+    if (!channel) continue;
+    const rowSessions = number(row.sessions);
+    byChannel.set(channel, (byChannel.get(channel) ?? 0) + rowSessions);
+    sessions += rowSessions;
+    counted.push(row);
+  }
+  const window = dateWindow(counted);
+  if (!window || sessions <= 0) return null;
+  return {
+    windowStart: window.start,
+    windowEnd: window.end,
+    provisionalDates,
+    rows: [...byChannel.entries()]
+      .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+      .map(([channel, value]) => ({ channel, sessions: value, share: value / sessions })),
+  };
+}
+
 export function buildExecutiveSnapshot({
   asset,
   families,
@@ -5399,6 +5434,7 @@ export function buildExecutiveSnapshot({
     // dates, the same bar the movers lanes are held to.
     searchPages: buildSearchPageTrends(families),
     productUse: productUseSnapshot(families, asset, valueEvents),
+    channels: channelSnapshot(families),
     searchIntelligence: searchIntelligenceSnapshot(families),
     // Absent, not null, for a property with no panel: the key's presence is the
     // claim that a panel exists.

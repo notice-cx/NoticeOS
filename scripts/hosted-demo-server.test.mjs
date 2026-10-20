@@ -8,13 +8,13 @@ import { spawn } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
-import { generateDemoScenario } from './demo-scenario.mjs';
-import { captureHostedDemoServerOptions, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, statcounterTag, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
+import { demoScenarioHash, generateDemoScenario } from './demo-scenario.mjs';
+import { captureHostedDemoServerOptions, hostedDemoRuntimeFileContent, PUBLIC_ORIGIN_PLACEHOLDER, publicPage, statcounterTag, readDemoArtifact, readHostedDemoRuntimeFile, startHostedDemoServer } from './hosted-demo-server.mjs';
 import { REPO_ROOT } from './test-config-isolation.mjs';
 
 const sha = value => createHash('sha256').update(value).digest('hex');
 const origin = 'https://demo.example.com', release = 'a'.repeat(64);
-function fixture() {
+function fixture(input = { seed: 'gateway-fixture', cutoff: '2026-10-04T00:00:00.000Z' }) {
   const root = mkdtempSync(path.join(tmpdir(), 'demo-gateway-'));
   for (const folder of ['client', 'tower', 'ingest', 'worker']) mkdirSync(path.join(root, folder));
   const bodies = { 'client/index.html': '<link rel="canonical" href="__NOTICEOS_PUBLIC_ORIGIN__/"><main>Compiled preview</main>', 'client/brand.zip': 'synthetic-design-system',
@@ -25,7 +25,7 @@ function fixture() {
   const manifest = { version: 1, release, client: 'client', tower: worker('tower'), ingest: worker('ingest'),
     files: Object.fromEntries(Object.entries(bodies).map(([name, value]) => [name, sha(value)])), publicFiles: ['client/index.html', 'client/brand.zip'] };
   const save = () => writeFileSync(path.join(root, 'manifest.json'), JSON.stringify(manifest)); save();
-  const scenario = generateDemoScenario({ seed: 'gateway-fixture', cutoff: '2026-10-04T00:00:00.000Z', release: 'b'.repeat(40) });
+  const scenario = generateDemoScenario({ ...input, release: 'b'.repeat(40) });
   const workspaceId = scenario.manifest.workspaceId;
   const identity = { connectionString: 'postgres://identity:synthetic@127.0.0.1:6400/db', trustedOrigin: origin, sessionSecret: 'synthetic-fixture-session-secret' };
   const tool = { path: '/synthetic/tool', sha256: 'c'.repeat(64) };
@@ -61,12 +61,33 @@ test('private config and artifact validation refuse overrides, private files and
     assert.equal(captureHostedDemoServerOptions(f.options).publicOrigin, origin);
     for (const changed of [{ ...f.options, profile: 'standalone' }, { ...f.options, publicOrigin: 'http://demo.example.com' },
       { ...f.options, tasks: { ...f.options.tasks, trustedOrigin: 'https://other.example.com' } }]) assert.throws(() => captureHostedDemoServerOptions(changed));
-    const runtime = path.join(f.root, 'runtime.json'); writeFileSync(runtime, JSON.stringify(f.options), { mode: 0o600 });
+    const runtime = path.join(f.root, 'runtime.json'); writeFileSync(runtime, hostedDemoRuntimeFileContent(f.options), { mode: 0o600 });
     assert.equal(readHostedDemoRuntimeFile(runtime).version, 1); chmodSync(runtime, 0o644); assert.throws(() => readHostedDemoRuntimeFile(runtime));
     assert.ok(readDemoArtifact(f.root).publicFiles.includes('client/brand.zip'));
     writeFileSync(path.join(f.root, 'client/.env'), 'synthetic'); f.manifest.files['client/.env'] = sha('synthetic'); f.manifest.publicFiles.push('client/.env'); f.save();
     assert.throws(() => readDemoArtifact(f.root)); f.manifest.publicFiles.pop(); f.save();
     writeFileSync(path.join(f.root, 'client/index.html'), 'changed'); assert.throws(() => readDemoArtifact(f.root));
+  } finally { f.close(); }
+});
+
+test('the runtime file setup writes for the public preview names its scenario and reads back whole', () => {
+  const f = fixture({ seed: 'public-preview', cutoff: '2026-10-19T12:00:00.000Z' });
+  try {
+    const runtime = path.join(f.root, 'runtime.json'), content = hostedDemoRuntimeFileContent(f.options);
+    // The scenario alone outgrows the reader's bound; its inputs and hash do not.
+    assert.ok(Buffer.byteLength(JSON.stringify(f.options.activity.scenario)) > 1024 * 1024);
+    assert.ok(Buffer.byteLength(content) < 64 * 1024);
+    writeFileSync(runtime, content, { mode: 0o600 });
+    const read = readHostedDemoRuntimeFile(runtime);
+    assert.equal(demoScenarioHash(read.activity.scenario), demoScenarioHash(f.options.activity.scenario));
+    assert.equal(captureHostedDemoServerOptions(read).activity.workspaceId, f.options.activity.workspaceId);
+    const saved = JSON.parse(content);
+    for (const [index, scenario] of [{ ...saved.activity.scenario, hash: 'f'.repeat(64) }, { ...saved.activity.scenario, seed: 'other-seed' },
+      { ...saved.activity.scenario, extra: true }, f.options.activity.scenario].entries()) {
+      const changed = path.join(f.root, `changed-${index}.json`);
+      writeFileSync(changed, JSON.stringify({ ...saved, activity: { ...saved.activity, scenario } }), { mode: 0o600 });
+      assert.throws(() => readHostedDemoRuntimeFile(changed));
+    }
   } finally { f.close(); }
 });
 

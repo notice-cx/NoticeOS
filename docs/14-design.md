@@ -334,6 +334,19 @@ money chart.
 only line, so an empty list and a finished list look the same, and neither is
 a blank panel.
 
+**A person's view sets what the Tower draws first; every page exists in
+every view.** A person chooses one of three views on Home's first run ("Which
+describes you?") or in Settings → General → "Your view": "I run the
+business", "I build the product" or "Everything". The view sets the sidebar's
+entries, Home's modules and their order, and a site's tabs; each "What
+matters most?" pick moves one Home module to the front. The registry is
+`packages/contract/src/views.mts` (`VIEW_LIBRARY`, `FOCUS_LIBRARY`) and
+`useView` reads it: the person's own choice, stored in the browser, else the
+workspace default (`config/tower.json` `/view`), else "Everything", which
+draws every page, module and tab. A page the view leaves out of the sidebar still opens: Search (⌘K)
+lists every page in every view and adds a "Switch to · \<view>" row for each
+other view, and a deep link opens a page whatever the view.
+
 **Home shows how the business is doing, what is broken and what needs the
 operator's attention**, in that order, each as a chart or graphic. A small muted label
 holds the greeting, the time since the operator last looked and how many
@@ -353,6 +366,41 @@ hours as an `EventTimeline`. Home's layout depends on its own width: one
 column, two from about 768 px of content, twelve from about 1150 px, so a
 narrow window or a portrait monitor gets a layout made for it instead of a
 squeezed desktop one.
+
+**Home is drawn from modules, in the order the person's view lists them**
+(`HOME_MODULES`, `routes/home/modules.tsx`); the paragraph above is the
+"Everything" view. "I run the business" draws Site health, the money, the
+agents' week and the decisions; "I build the product" draws the money,
+visitors by channel, "Worth a look", the problems, the decisions and the
+sites. Each module keeps its own column span, and a list that holds a new
+module packs the grid densely, so a four-column module fills the space an
+eight-column one leaves.
+
+- **Site health** (`HealthModule`) is one row per site with five dots under
+  "Up", "Speed", "Errors", "Search" and "Code", from `techHealth`
+  (`lib/tech-health.ts`), the one calculation the site's Health tab and the
+  TV's Site health widget also use. Only a problem is coloured (red for a site
+  that is down, amber for a fact worth a look); a fine fact is a grey dot and
+  an unmeasured one a dashed ring, so state is a shape as well as a colour.
+  The row's problems are words beside its dots.
+- **"The agents · this week"** (`FactoryModule`, `agentsWeek`) reads left to
+  right as "Building › Finished › Proven to work", then the newest three
+  lines, each a finished task with what it did or a site's latest bet with
+  its verdict in plain words.
+- **"Where visitors come from · 4 weeks"** (`ChannelsModule`) is every listed
+  site's visits summed by channel, one bar and percent per channel with the
+  tail after five as "Other", beside every step of the funnel that loses the
+  most people at one step as `FunnelBars`, that step in amber, and one
+  sentence naming the two steps. The module is as tall as its content.
+- **"Worth a look"** (`GapsModule`, `businessGaps`) is a `ListPanel` of what
+  the sites lack as a business, ranked: no income source, no data feeds, no
+  task project, no code report, then the newest readings' opportunities. Each
+  row's "Make a task" opens the task composer with the row as its title.
+- **In the business view the summary sentence starts with the sites'
+  health**: "All 3 sites are fine.", or "2 of 3 sites are fine." and the site
+  most in need of a look with its first problem, red when that site is down
+  and amber otherwise. The money follows, and the count of broken things is
+  drawn only when there is one.
 
 **A site's Overview starts with the site's health**: the header shows one
 health word (`siteHealth` in `lib/site-health.ts`, the same calculation Home,
@@ -383,7 +431,16 @@ condition, and each open reading on its `NormalBand`. Activity: the last
 ninety days of changes and bets on one `EventTimeline`, a bet marked where it
 was recorded and where its verdict arrived. Data sources: the connected
 sources that supply the site's data as a `FlowGraph`, the failing one
-highlighted in place, the rest named on one line. Settings is a form: one
+highlighted in place, the rest named on one line. Codebase: one sentence
+setting the code's 30-day change beside the visitors, the five figures counted
+from the files as a `KpiStrip`, the three checks the site's own workflow sends
+("Build", "Tests", "Vulnerable packages") as a second strip under it, where a
+failed check is red and a pass shows how many of 30 days' reports passed,
+then lines of code over time and the findings as `ListPanel`s, each row with
+"Make a task". Health: the five facts of Home's Site health as five large
+words in a row of buttons, each opening the readings behind it in a panel
+under the row, and "Not measured yet" with the link that connects the missing
+reading, so a missing reading shows the step that adds it. Settings is a form: one
 column of panels at the width `/settings` uses.
 
 **The Sites page shows which sites need attention.** Its summary names
@@ -501,17 +558,47 @@ a 30-day trend, the month's money); and whether work is moving (waiting on the
 operator, in progress, done this week and blocked, each with its change chip
 against a week ago, this week's done against last week's on a `PaceBar`, one
 row per project, done work as a bar extending left of a centre line over last
-week's done as a dashed outline, and the open queue extending right). Anything else belongs on the Tower page for its subject; the Needs
-attention, live feed and agents widgets stay in the widget library for an
-operator who wants them on the Wall.
+week's done as a dashed outline, and the open queue extending right). That
+is the "Everything" view's layout, `DEFAULT_WALL_LAYOUT`. Anything else belongs on the Tower page for its subject; the Needs
+attention, live feed, agents, Site health, "The agents" and "Visitors by
+channel" widgets stay in the widget library for an operator who wants them on
+the Wall.
+
+**Each view has a TV preset** (`WALL_PRESETS` in `scripts/wall-layout.mts`).
+"I run the business": the strip, then Site health over the revenue beside
+Needs attention over "The agents". "I build the product": the strip, then the
+revenue over "Visitors by channel" beside the site rows over the work.
+"Everything": the default above. With no layout saved, the TV and the editor
+draw the preset of the workspace default view (`config/tower.json` `/view`);
+a saved layout always wins. The editor's Add a widget drawer holds "Start
+from", which lists the three presets by the view's label and checks the one
+already on the TV. Picking one replaces the whole arrangement as one step
+Undo reverses, nothing reaches the TV until Save, and a version saved as a
+preset with no note is named "Started from \<view>".
+
+Site health on the TV is one row per site with the same five dots as Home's
+module and the worst problem's note beside the row, with "+N" for the row's
+other problems; on the TV the rows share the widget's height and the names
+and dots grow with them up to the TV's stat size. "The agents" shows
+Building › Finished › Proven as large figures and up to three lines about the
+newest work, spread over the widget's height. "Visitors by channel"
+draws the portfolio's visits by channel on one shared scale with each
+channel's visits and share, and under them the largest funnel drop across the
+sites.
 
 The Wall is drawn from a layout document, not a fixed tree. `WallCanvas`
-renders rows of nine widget types: the strip, the loop, revenue, the last 24
-hours, Needs attention, the site rows, work, the feed and the agents' ranking. `scripts/wall-layout.mts`
+renders rows of twelve widget types: the strip, the loop, revenue, the last 24
+hours, Needs attention, the site rows, work, the feed, the agents' ranking,
+Site health, "The agents" (the agents' week) and "Visitors by channel". `scripts/wall-layout.mts`
 defines the composition rules: how many rows and widgets a layout may hold,
 that widths are weights sharing a row rather than columns, each widget's
 minimum and maximum, which widgets are unique, which row takes the remaining
-height, and the one-column order a portrait tablet or a phone stacks into. The
+height, and the one-column order a portrait tablet or a phone stacks into
+(`stackOrder`): the strip, revenue, the site rows, the last 24 hours, Needs
+attention, work, the agents' ranking, the feed, the loop, Site health, "The
+agents" and "Visitors by channel". A layout with neither the site rows nor
+Site health is warned "No sites on the TV", and one with none of the last 24
+hours, Needs attention or Site health "No alerts on the TV". The
 same validator runs on every path a layout can be written through, so the
 editor, the config pipeline and the renderer always accept the same layouts.
 The kit's components for the Tower's pages render on the TV inside
@@ -632,6 +719,17 @@ from its starting point to its result:
 - **File a task from a finding** — the site page: File task on the finding,
   prefilled.
 - **File a task** — Tasks → New task.
+- **Choose a view on the first run** — fresh install, Home: a view under
+  "Which describes you?", one pick under "What matters most?", Continue; the
+  sidebar shows the view's five pages.
+- **Switch the view** — Settings → General → Your view: a view picked is saved
+  on change and the sidebar follows at once, then Undo.
+- **Read a site's health, in the business view** — Settings → General → Your
+  view, "I run the business"; Home's Site health row opens the site; its
+  Health tab shows every fact's readings below the five words.
+- **See where the money comes from, in the product view** — Settings →
+  General → Your view, "I build the product"; Home shows the money by site,
+  visitors by channel and "Worth a look"; "Make a task" on a row, File task.
 - **Change the time zone** — Settings → General: saved on change, then Undo.
 - **Change a portfolio setting** — Settings: the monthly data budget.
 - **Change how often data is collected** — Integrations → a source's Manage
@@ -646,6 +744,9 @@ from its starting point to its result:
 - **Arrange the TV Wall** — Edit beside the TV entry: on a desktop, drag a
   widget onto another's top edge to stack them; move the strip down through
   its Move menu (the phone's whole path); save.
+- **Start the TV from a view's preset** — Edit beside the TV entry: Add a
+  widget, Start from, "I run the business"; the preview shows Site health;
+  Undo.
 - **Screen survey** — every main screen, populated: a pass that measures each
   page's statuses and lists, not a flow.
 
@@ -679,7 +780,10 @@ technical one, never a more technical one: a business surface shows "being
 watched · verdict in 3 days", not "watch window"; "still counting", not
 "provisional"; "people a day", not "GA4 users". A provider's name appears on a
 business surface only as a key beside its own mark: a chart key beside its
-line, or the header of its own column in a data-source grid.
+line, or the header of its own column in a data-source grid. The "I run the
+business" view uses the business word level on every surface it shows, and
+the view choice itself, on Home's first run and in Settings, is written at the
+business level.
 
 The enforced word lists are `scripts/ui-lexicon.test.mjs` (the banned
 coinages, each with the word to use instead, and the operational and technical

@@ -9,6 +9,8 @@ import type {
   FetchFailure,
   HygieneCheckHistory,
   HygieneHistory,
+  HygienePageSpeed,
+  HygieneSecurityHeaders,
   HygieneStatus,
   PulseMetric,
 } from "@shared/asset-detail";
@@ -669,6 +671,120 @@ function HygieneSeries({
   );
 }
 
+/** Header names as sites write them. */
+const SECURITY_HEADER_LABELS: Record<string, string> = {
+  "strict-transport-security": "Strict-Transport-Security",
+  "content-security-policy": "Content-Security-Policy",
+  "x-content-type-options": "X-Content-Type-Options",
+  "x-frame-options": "X-Frame-Options",
+  "referrer-policy": "Referrer-Policy",
+  "permissions-policy": "Permissions-Policy",
+};
+
+/** Which of the six security headers the home page sent on its newest judged
+ * reading, the missing ones named. */
+function SecurityHeadersTile({
+  history,
+  headers,
+  nowMs,
+}: {
+  history: HygieneCheckHistory | undefined;
+  headers: HygieneSecurityHeaders | null;
+  nowMs: number;
+}) {
+  const latest = history?.latest ?? null;
+  const state = latest ? HYGIENE_STATE[latest.status] : null;
+  const sent = headers?.headers.filter((header) => header.present).length ?? 0;
+  const missing = headers?.headers.filter((header) => !header.present) ?? [];
+  return (
+    <div className="min-w-0 rounded-md border border-border p-3" data-hygiene-check="security-headers">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <Eyebrow>Security headers</Eyebrow>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          {state ? <StateChip label={state.label} tone={state.tone} subject="hygiene:security-headers" /> : null}
+          <AgeBadge iso={latest?.observedAt ?? null} cadenceHours={CADENCE_HOURS.hygiene} nowMs={nowMs} />
+        </div>
+      </div>
+      <div className="mt-2 flex flex-col gap-0.5">
+        <span className="text-xl font-semibold tabular-nums">
+          {headers ? `${sent} of ${headers.headers.length}` : "—"}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {headers ? "sent by the home page" : latest ? "not read yet" : "never checked"}
+        </span>
+      </div>
+      {missing.length > 0 ? (
+        <p className="mt-2 mb-0 break-words text-xs text-muted-foreground" data-hygiene-missing-headers>
+          Missing: {missing.map((header) => SECURITY_HEADER_LABELS[header.name] ?? header.name).join(", ")}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+type VitalRating = "good" | "needs improvement" | "poor";
+
+/** Google's published thresholds for each p75: good at or under the first,
+ * poor over the second. */
+const VITAL_THRESHOLDS = { lcp: [2500, 4000], inp: [200, 500], cls: [0.1, 0.25] } as const;
+
+function vitalRating(metric: keyof typeof VITAL_THRESHOLDS, value: number): VitalRating {
+  const [good, poor] = VITAL_THRESHOLDS[metric];
+  return value <= good ? "good" : value > poor ? "poor" : "needs improvement";
+}
+
+const VITAL_INK: Record<VitalRating, string> = {
+  good: "text-foreground",
+  "needs improvement": "text-warn",
+  poor: "text-error",
+};
+
+const VITAL_ROWS = [
+  { metric: "lcp", label: "Largest paint (LCP)", format: (v: number) => `${(v / 1000).toFixed(1)} s` },
+  { metric: "inp", label: "Response to input (INP)", format: (v: number) => `${formatInt(v)} ms` },
+  { metric: "cls", label: "Layout shift (CLS)", format: (v: number) => v.toFixed(2) },
+] as const;
+
+/** The site's page speed as real Chrome users saw it: the 75th percentile of
+ * each vital, with its rating word. */
+function PageSpeedTile({ speed, nowMs }: { speed: HygienePageSpeed | null; nowMs: number }) {
+  const vitals = speed?.vitals ?? null;
+  return (
+    <div className="min-w-0 rounded-md border border-border p-3" data-hygiene-check="crux-vitals">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <Eyebrow>Page speed</Eyebrow>
+        <AgeBadge iso={speed?.observedAt ?? null} cadenceHours={CADENCE_HOURS.hygiene} nowMs={nowMs} />
+      </div>
+      {speed === null ? (
+        <span className="mt-2 block text-xs text-muted-foreground">not measured yet</span>
+      ) : vitals === null ? (
+        <span className="mt-2 block text-xs text-muted-foreground">Too few Chrome visits to measure</span>
+      ) : (
+        <>
+          <ul className="mt-2 flex flex-col gap-1" data-hygiene-vitals>
+            {VITAL_ROWS.map(({ metric, label, format }) => {
+              const value = vitals[metric];
+              const rating = value === null ? null : vitalRating(metric, value);
+              return (
+                <li key={metric} className="flex items-center justify-between gap-2 text-xs" data-hygiene-vital={metric}>
+                  <span className="min-w-0 break-words text-muted-foreground">{label}</span>
+                  <span className="flex shrink-0 items-baseline gap-1.5">
+                    <span className="font-medium tabular-nums">{value === null ? "—" : format(value)}</span>
+                    {rating ? <span className={cn("font-medium", VITAL_INK[rating])}>{rating}</span> : null}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+          <span className="mt-2 block text-xs text-muted-foreground">
+            75th percentile · {speed.formFactor === "DESKTOP" ? "desktops" : "phones"}
+          </span>
+        </>
+      )}
+    </div>
+  );
+}
+
 /**
  * The nightly served-layer history. A rule fires on a step change; only the
  * history shows a slope. Read-only and absent when empty: the Tower cannot run
@@ -685,7 +801,7 @@ function SiteHealthSection({
   // The hourly uptime check writes the home-page reading on its own; this
   // section is the nightly sweep's history, so it waits for that sweep rather
   // than drawing two "never" tiles on a new site.
-  if (!hygiene || (hygiene.robots.latest === null && hygiene.sitemap.latest === null)) return null;
+  if (!hygiene || (hygiene.robots.latest === null && hygiene.sitemap.latest === null && !hygiene.pageSpeed)) return null;
   const robotsState = hygiene.robots.latest
     ? HYGIENE_STATE[hygiene.robots.latest.status]
     : null;
@@ -756,6 +872,10 @@ function SiteHealthSection({
           ariaLabel="Sitemap"
           nowMs={nowMs}
         />
+
+        <SecurityHeadersTile history={hygiene.securityHeaders} headers={hygiene.headers ?? null} nowMs={nowMs} />
+
+        <PageSpeedTile speed={hygiene.pageSpeed ?? null} nowMs={nowMs} />
       </div>
     </Panel>
   );

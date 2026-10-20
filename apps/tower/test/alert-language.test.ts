@@ -747,6 +747,43 @@ describe("site checks and quota — a headline and its values, never the rule's 
   });
 });
 
+describe("hygiene-security-headers — a header the home page stopped sending", () => {
+  it("names the header, what it was, and how many are sent now", () => {
+    const a = translateAlert({
+      ruleId: "hygiene-security-headers",
+      metric: "security-headers",
+      message: "home page stopped sending content-security-policy",
+      ruleInputs: {
+        rule: "hygiene-security-headers",
+        lastObservedAt: "2026-07-21T04:00:00.000Z",
+        url: "https://example.com/",
+        present: 2,
+        of: 6,
+        missing_headers: ["content-security-policy"],
+        previous_headers: { "content-security-policy": "default-src 'self'" },
+        previous_observed_on: "2026-07-20",
+      },
+    });
+    expect(a.headline).toBe("Home page stopped sending Content-Security-Policy");
+    expect(a.evidence.map((row) => [row.source, row.detail])).toEqual([
+      ["Content-Security-Policy", "was default-src 'self'"],
+      ["Sent now", "2 of 6 headers"],
+      ["URL checked", "https://example.com/"],
+    ]);
+  });
+
+  it("counts several missing headers and falls back to the stored words without inputs", () => {
+    const several = translateAlert({
+      ruleId: "hygiene-security-headers",
+      metric: null,
+      message: "stored",
+      ruleInputs: { missing_headers: ["x-frame-options", "referrer-policy"] },
+    });
+    expect(several.headline).toBe("Home page stopped sending 2 security headers");
+    expect(translateAlert({ ruleId: "hygiene-security-headers", metric: null, message: "stored words", ruleInputs: {} }).headline).toBe("stored words");
+  });
+});
+
 describe("os-egress-down — the outage that is the OS's own", () => {
   const outage: AlertFacts = {
     ruleId: "os-egress-down",

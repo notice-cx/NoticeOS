@@ -12,6 +12,7 @@ import type {
   FinancialCostLine,
   FinancialMonth,
   FinancialProperty,
+  FinancialRevenueLine,
   FinancialsPayload,
   MoneyFigure,
   RecurringCost,
@@ -199,6 +200,30 @@ export async function buildFinancialsPayload(
     rows: row.rows,
   }));
 
+  // --- this period, by revenue source ----------------------------------------
+  // The name is the source's vocabulary row; a source no row names keeps its id.
+  const revenueRows = await store.read((tx) =>
+    tx.query<{ family: string; source: string | null; label: string | null; currency: string; amountMinor: bigint; rows: number }>(
+      `SELECT l.family, l.source, s.display_name AS label, l.currency,
+              COALESCE(SUM(l.amount_minor), 0)::bigint AS "amountMinor",
+              count(*)::int AS rows
+         FROM noticeos.financial_ledger l
+         LEFT JOIN noticeos_ref.revenue_sources s ON s.source = l.source
+        WHERE l.period_month = $1::date AND l.kind = 'revenue'
+        GROUP BY l.family, l.source, s.display_name, l.currency
+        ORDER BY l.currency COLLATE "C", "amountMinor" DESC, l.family COLLATE "C", l.source COLLATE "C" NULLS FIRST`,
+      [monthDate(period)],
+    ),
+  );
+  const revenueLines: FinancialRevenueLine[] = revenueRows.map((row) => ({
+    family: row.family,
+    source: row.source,
+    label: row.label,
+    currency: row.currency,
+    amount: minorToMajorUnits(cents(row.amountMinor), row.currency),
+    rows: row.rows,
+  }));
+
   // --- the domain schedule, from config rather than the ledger --------------
   // The ledger holds one summed `infra` row per asset per month; this is the
   // orders behind it, which is what an operator checking a figure against a
@@ -232,6 +257,7 @@ export async function buildFinancialsPayload(
     properties,
     overhead,
     costLines,
+    revenueLines,
     domains,
     // File order, not the sorted `domains` above: the editor addresses these
     // rows by index, so a sort would point `/domains/3` at the wrong row.

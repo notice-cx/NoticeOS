@@ -8,6 +8,7 @@ import {
   EMPTY_WALL_CONFIG,
   RETIRED_WALL_WIDGET_TYPES,
   WALL_LAYOUT_HISTORY_MAX,
+  WALL_PRESETS,
   WALL_RETIRED_WARNING,
   WALL_WIDGET_LIBRARY,
   WALL_WIDGET_TYPES,
@@ -135,14 +136,66 @@ describe("the default layout", () => {
 
   it("stacks on a phone as the operator reads: the money, the sites, what is broken, the work and who did it, the loop last", () => {
     const order = [...WALL_WIDGET_TYPES].sort((a, b) => WALL_WIDGET_LIBRARY[a].stackOrder - WALL_WIDGET_LIBRARY[b].stackOrder);
-    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop"]);
+    expect(order).toEqual(["strip", "revenue", "sites", "timeline", "needs", "work", "agents", "feed", "loop", "health", "factory", "channels"]);
   });
 
   it("offers none of the retired widgets", () => {
-    expect(WALL_WIDGET_TYPES).toEqual(["strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents"]);
+    expect(WALL_WIDGET_TYPES).toEqual([
+      "strip", "loop", "timeline", "sites", "revenue", "work", "needs", "feed", "agents", "health", "factory", "channels",
+    ]);
     for (const type of RETIRED_WALL_WIDGET_TYPES) {
       expect(Object.keys(WALL_WIDGET_LIBRARY)).not.toContain(type);
     }
+  });
+});
+
+describe("the founder views' presets", () => {
+  it("draws the default for Everything", () => {
+    expect(WALL_PRESETS.everything).toBe(DEFAULT_WALL_LAYOUT);
+  });
+
+  it.each(["business", "product", "everything"] as const)("%s validates and normalises to itself", (view) => {
+    expect(validateWallLayout(WALL_PRESETS[view])).toEqual({ ok: true, layout: WALL_PRESETS[view] });
+  });
+
+  it("business: the strip, then site health over revenue beside Needs attention over the agents", () => {
+    const layout = WALL_PRESETS.business;
+    expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
+    const [a, b] = row(layout, 1).widgets as WallColumn[];
+    expect(a?.width).toBe(1.4);
+    expect(a?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["health", "revenue"]);
+    expect(b?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["needs", "factory"]);
+    expect(wallLayoutWarnings(layout)).toEqual([]);
+  });
+
+  it("product: the strip, then revenue over channels beside the sites over the work", () => {
+    const layout = WALL_PRESETS.product;
+    expect(layout.rows.map((r) => [r.id, r.height])).toEqual([["strip", "auto"], ["body", "fill"]]);
+    const [a, b] = row(layout, 1).widgets as WallColumn[];
+    expect(a?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["revenue", "channels"]);
+    expect(b?.rows.flatMap((inner) => inner.widgets.map((w) => w.type))).toEqual(["sites", "work"]);
+    // Sites and work both stretch, sharing the column by weight: neither is squeezed.
+    expect(wallLayoutWarnings(layout).filter((warning) => warning.includes("squeezed"))).toEqual([]);
+  });
+});
+
+describe("the three widgets the views brought", () => {
+  it.each(["health", "factory", "channels"] as const)("%s is one of a kind, never hides, and has a floor", (type) => {
+    const spec = WALL_WIDGET_LIBRARY[type];
+    expect(spec.unique).toBe(true);
+    expect(spec.hidesWhenEmpty).toBe(false);
+    expect(spec.minWidthRem).toBeGreaterThan(0);
+  });
+
+  it("filters health and channels by site, and the agents not at all", () => {
+    expect(WALL_WIDGET_LIBRARY.health.settings).toEqual(["assets"]);
+    expect(WALL_WIDGET_LIBRARY.channels.settings).toEqual(["assets"]);
+    expect(WALL_WIDGET_LIBRARY.factory.settings).toEqual([]);
+  });
+
+  it("counts site health as sites and as alerts on the TV", () => {
+    const layout: WallLayout = { version: 1, rows: [{ id: "one", height: "fill", widgets: [{ id: "health", type: "health", width: 1 }] }] };
+    expect(wallLayoutWarnings(layout)).toEqual([]);
   });
 });
 

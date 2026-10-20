@@ -9,6 +9,7 @@ import { parsePointer, validateSchemaAndSafety } from './config-documents.mjs';
 import { fieldOf, isRowToken, matchKnob, matchRegister } from './config-registers.mjs';
 import { MCP_METHODS, parseMcpMessage } from './mcp-protocol.mjs';
 import { WATCH_QUERY_MAX_CHARS, WATCH_SERIES } from '../packages/contract/src/watch-series.mjs';
+import { VIEW_PREFERENCE_PATH } from '../packages/contract/src/views.mjs';
 import { CLOUDFLARE_D1_PATH, cloudflareAccountId, d1DatabaseId, d1Selection } from '../packages/contract/src/cloudflare-d1.mjs';
 export { watchQueryHistoryRange } from '../packages/contract/src/watch-series.mjs';
 export class OperationRefused extends Error {
@@ -123,6 +124,19 @@ export async function assetMutationInput(request) {
     else
         onlyKeys(body, body.action === 'snooze' ? ['action', 'until'] : body.action === 'tune' ? ['action', 'tuned'] : ['action']);
     return Object.freeze({ route, body: Object.freeze(body) });
+}
+/** A signed-in person's own saved view. The person is the admitted session's,
+ * never a path segment or body field; the body is validated by the route. */
+export const PERSON_VIEW_PREFERENCE_PATH = VIEW_PREFERENCE_PATH;
+export function personPreferenceRequest(request) {
+    if (!(request instanceof Request) || request.url.length > 2048)
+        return null;
+    const url = new URL(request.url);
+    if (url.pathname !== PERSON_VIEW_PREFERENCE_PATH || url.search || url.hash || url.username || url.password)
+        return null;
+    if (request.method === 'GET' && request.body === null)
+        return Object.freeze({ method: 'GET' });
+    return request.method === 'PUT' ? Object.freeze({ method: 'PUT' }) : null;
 }
 /** One fixed provider read, with no body or caller-selected discovery scope. */
 export function isHostedGoogleDiscovery(request) {
@@ -533,7 +547,7 @@ function configAction(ops) {
             continue;
         }
         if (op.file === 'config/tower.json') {
-            if (tokens.length !== 1 || !['wall', 'countdown'].includes(tokens[0]))
+            if (tokens.length !== 1 || !['wall', 'countdown', 'view'].includes(tokens[0]))
                 refuse();
             continue;
         }
@@ -688,6 +702,11 @@ export async function towerOperation(request) {
         if (!panel)
             refuse();
         return operation('provider.read', panel.method === 'siteName' ? [] : [panel.method]);
+    }
+    if (pathname === PERSON_VIEW_PREFERENCE_PATH) {
+        if (!personPreferenceRequest(request))
+            refuse();
+        return operation('preferences.self');
     }
     const mutation = assetMutationRequest(request);
     if (mutation) {

@@ -1781,7 +1781,7 @@ test('one spliced array entry per changeset is per CONTAINER, not per file', () 
 test('one declared DOCUMENT may appear in a wholesale-editable file, and nothing else may', () => {
   assert.deepEqual(
     [...ADDABLE_DOCUMENTS.entries()],
-    [['config/tower.json', ['/wall', '/countdown']], ['config/constants.json', ['/schedules', '/no_nightly_report']]],
+    [['config/tower.json', ['/wall', '/countdown', '/view']], ['config/constants.json', ['/schedules', '/no_nightly_report']]],
   );
 
   // The Wall's saved composition is a key config/tower.json does not have until

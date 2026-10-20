@@ -2879,9 +2879,14 @@ test("the Codebase tab answers how the code changed, and before a first report s
   await page.reload();
   await expect(answer).toHaveText("The code grew 5.2% in 28 days.");
   await expect(page.locator("[data-codebase-setup]")).toHaveCount(0);
-  await expect(page.locator("[data-kpi]")).toHaveCount(5);
+  // Five figures about the code, then the three checks the site's own
+  // workflow sends.
+  await expect(page.locator("[data-kpi]")).toHaveCount(8);
   await expect(page.locator('[data-kpi="Lines of code"]')).toContainText("48,210");
   await expect(page.locator('[data-kpi="Unused code"]')).toContainText("9 files, 44 shared pieces");
+  await expect(page.locator('[data-kpi="Build"]')).toContainText("Passed");
+  await expect(page.locator('[data-kpi="Tests"]')).toContainText("Passed");
+  await expect(page.locator('[data-kpi="Vulnerable packages"]')).toContainText("0");
   await expect(page.locator("[data-codebase-chart] [data-hero-chart]")).toHaveCount(1);
   await expect(page.locator("[data-codebase-findings]").getByRole("button", { name: "Make a task for src/a.ts and src/b.ts" })).toBeVisible();
   await assertNoPageOverflow(page);
@@ -3117,6 +3122,9 @@ const MANY_SITE_WORDS =
   /\bportfolio\b|\bassets?\b|\bevery site\b|\ball sites\b|\beach site\b|\bacross (?:all |your )?sites\b|\b1 sites\b|\bsite by site\b/gi;
 
 test("a one-site install reads as one site: no portfolio words, and no filter with one choice", async ({ page }) => {
+  // One connect flow and eleven page loads: close to the default minute on a
+  // shared runner.
+  test.setTimeout(120_000);
   await createAsset(page);
   await page.goto(`/integrations?connect=bing-webmaster&asset=${JOURNEY_ASSET}`);
   const panel = page.locator('[data-connect-panel="bing-webmaster"]');

@@ -131,6 +131,7 @@ export const RULE_LABELS: Record<string, string> = {
   "ingest-freshness": "Nightly report overdue",
   "hygiene-home-unreachable": "Home page check",
   "hygiene-sitemap": "Sitemap check",
+  "hygiene-security-headers": "Security headers check",
   "os-egress-down": "OS egress down",
   "watch-window-closed": "Watch window closed",
 };

@@ -1,6 +1,6 @@
 ---
 title: "Settings"
-description: "The portfolio-wide settings: the time zone, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
+description: "The portfolio-wide settings: your view, the time zone, the budgets, the alert rules, collection schedules, the TV, ownership, task projects and the installation."
 ---
 
 # Settings
@@ -12,6 +12,14 @@ The Settings page shows the settings that apply to the whole installation, and w
 Tabs across the top, the same as on a site's page, open on **General**. Each tab has its own address (`/settings/alert-rules`, `/settings/task-projects`), so a link opens it; an older link such as `/settings#task-hub` still opens its tab. Sites have their own Settings tab; this page holds the settings that apply to all of them.
 
 ### General
+
+**Your view** is the first panel. It shows three choices, each with one line under it: **I run the business**, **I build the product** and **Everything**. The chosen view sets which pages the sidebar lists, which parts of Home are shown and in what order (see [Home](/tower/home#your-view)), and which tabs a site's page shows. The choice changes nothing another person sees. A hosted workspace keeps it per person, so it is the same on every device you sign in on; a standalone installation keeps it in this browser. Search (**⌘K**) lists every page in every view.
+
+**At the top of Home** lists your picks from **What matters most?**, in the order you picked them, such as **Money · Costs**, or **Nothing picked**. Each pick moves its part of Home to the top when your view shows that part.
+
+![The General tab of Settings in the synthetic demo: Your view with I run the business, I build the product and Everything, Everything chosen; At the top of Home with Nothing picked and Change; and Workspace default · new people and the TV start from, set to Everything, with a lock.](../images/tower-settings-your-view.webp)
+
+**Workspace default · new people and the TV start from** shows the view a person sees before choosing one, and the view whose preset the TV shows while no TV layout is saved ([TV dashboard](/tower/wall#what-you-see)): the saved view, or **Everything** when none is saved. It is stored in `config/tower.json` at `/view`.
 
 **Time zone.** Every daily figure is calculated in one zone, including which date is yesterday's revenue and which month is current. Your device's zone is first in the list, marked **· this device**. The preview shows **Now**, **Yesterday's revenue** and **Current month** in the chosen zone.
 
@@ -59,6 +67,9 @@ Shown only when this installation manages members: where people are invited to t
 
 ## What you can do
 
+- **Your view**: choosing a view saves it at once, with **Saved · Undo** beside the choices. **Undo** puts back your previous view; when you had not chosen one before, it removes your choice and the workspace default applies again.
+- **At the top of Home**: **Change** shows the five picks, **Money**, **Visitors**, **Site health**, **The agents' work** and **Costs**. Each press adds or removes one pick and saves it, with **Saved · Undo**. **Done** hides the picks.
+- **Workspace default**: **Change** shows the three views. Pressing one saves it for the whole workspace, with **Saved · Undo** beside the row. **Cancel** hides the views.
 - **Time zone**: picking a zone saves it, with **Saved · Undo** beside the field.
 - **Monthly data cap** and **Value of your time** have an explicit **Save**; they are never saved automatically.
 - **Alert rules**: change the three thresholds after reading the replay.
@@ -82,6 +93,7 @@ Shown only when this installation manages members: where people are invited to t
 - **Last good backup** shows **never** before the first completed backup. **Failed** is amber after one scheduled backup fails and red after two, and clears when a backup completes.
 - **Folder** shows the apply command, with **Apply the current settings to show the folder and ports here.**, while the app runs without the current stack settings.
 - When saves are paused the page shows a notice once at the top and every field shows a lock.
+- When saves are paused, **Workspace default** shows a lock and no **Change**. **Your view** and **At the top of Home** still save, because they are stored in this browser.
 
 ## Related guides
 

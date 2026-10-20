@@ -30,6 +30,7 @@ export const DEFAULT_ROUTES = [
   `/assets/${SITE_TOKEN}`,
   `/assets/${SITE_TOKEN}/growth`,
   `/assets/${SITE_TOKEN}/search`,
+  `/assets/${SITE_TOKEN}/health`,
   "/alerts",
   "/tasks",
   "/agents",

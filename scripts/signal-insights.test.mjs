@@ -4081,3 +4081,48 @@ test('PostHog product block stays bounded at the contract’s row limits', () =>
   assert.equal(productCards.length, 6);
   assert.equal(checkState(snapshot, 'posthog-error-concentration').state, 'clear');
 });
+
+// ---------------------------------------------------------------------------
+// Visitors by channel
+// ---------------------------------------------------------------------------
+
+function channelsFor(families) {
+  return buildExecutiveSnapshot({ asset: 'meadow.example', families, archives: [{}] }).channels;
+}
+
+test('visitors by channel sums settled sessions per GA4 channel, largest first, with shares of the settled total', () => {
+  const settled = SETTLED_DATES.flatMap((date) =>
+    markedRows(acquisitionRows({ 'Organic Search': 300, Direct: 20, 'AI Assistant': 5, Referral: 10 }, date), 0),
+  );
+  const unsettled = markedRows(acquisitionRows({ Unassigned: 3_000 }, '2026-09-20'), 1);
+  const channels = channelsFor(new Map([['ga4-traffic-acquisition', [...settled, ...unsettled]]]));
+  assert.deepEqual(channels, {
+    windowStart: '2026-09-17',
+    windowEnd: '2026-09-19',
+    provisionalDates: ['2026-09-20'],
+    rows: [
+      { channel: 'Organic Search', sessions: 900, share: 900 / 1_005 },
+      { channel: 'Direct', sessions: 60, share: 60 / 1_005 },
+      { channel: 'Referral', sessions: 30, share: 30 / 1_005 },
+      { channel: 'AI Assistant', sessions: 15, share: 15 / 1_005 },
+    ],
+  });
+  const total = channels.rows.reduce((sum, row) => sum + row.share, 0);
+  assert.ok(Math.abs(total - 1) < 1e-9, `shares sum to ${total}`);
+  assert.ok(channels.rows.every((row) => row.share >= 0 && row.share <= 1));
+});
+
+test('visitors by channel is null when the family is absent, empty, provisional-only or carries no sessions', () => {
+  assert.equal(channelsFor(new Map()), null, 'no traffic-acquisition family is not a split of zeros');
+  assert.equal(channelsFor(new Map([['ga4-traffic-acquisition', []]])), null);
+  assert.equal(
+    channelsFor(new Map([['ga4-traffic-acquisition', markedRows(acquisitionRows({ Direct: 40 }), 1)]])),
+    null,
+    'a window holding only provisional days has no settled rows to show',
+  );
+  assert.equal(
+    channelsFor(new Map([['ga4-traffic-acquisition', acquisitionRows({ '': 40, Direct: 0 })]])),
+    null,
+    'rows without a channel or with zero sessions invent no split',
+  );
+});

@@ -198,4 +198,25 @@ describe("a saved config/tower.json, read one part at a time", () => {
       .toThrow("config/tower.json wall.layout: A layout needs at least one row.");
     expect(() => parseDashboardConfig({ wall: VALID_WALL, countdown: {} })).toThrow(/emoji/u);
   });
+
+  it("reads the workspace's default view, and leaves it off when the file holds null or no key", () => {
+    expect(readDashboardConfig({ view: { default: "business" } })).toEqual({ view: { default: "business" } });
+    expect(readDashboardConfig({ view: null })).toEqual({});
+    expect(readDashboardConfig({})).not.toHaveProperty("view");
+  });
+
+  it("names a default view it cannot read and keeps every other part", () => {
+    const unknown = { default: "founder" };
+    const config = readDashboardConfig({ wall: VALID_WALL, countdown: COUNTDOWN, view: unknown });
+    expect(config.wall).toEqual(VALID_WALL);
+    expect(config.countdown).toEqual(COUNTDOWN);
+    expect(config.view).toBeUndefined();
+    expect(config.refused).toEqual({
+      view: { saved: unknown, reason: "config/tower.json view.default must be one of business, product, everything" },
+    });
+    expect(readDashboardConfig({ view: "business" }).refused?.view?.reason)
+      .toBe("config/tower.json view, when present, must be an object");
+    expect(() => parseDashboardConfig({ view: { default: "business", focus: [] } }))
+      .toThrow("config/tower.json view.focus is not a setting");
+  });
 });

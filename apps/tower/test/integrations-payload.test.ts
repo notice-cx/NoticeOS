@@ -663,7 +663,8 @@ describe("mergeLane — observed health with file-backed setup/applicability", (
     expect(laneForRevenueRow("affiliate", "cj-export", null)).toBe("affiliate-cj");
     expect(laneForRevenueRow("affiliate", null, "amazon associates tag")).toBe("affiliate-amazon");
     expect(laneForRevenueRow("ads", null, null)).toBe("ad-network");
-    expect(laneForRevenueRow("subs", null, null)).toBeNull();
+    expect(laneForRevenueRow("subs", "stripe", null)).toBe("subscriptions");
+    expect(laneForRevenueRow("licensing", null, null)).toBeNull();
   });
 
   it("never adjusts skipped / not-applicable / evidence-free needs-setup", () => {

@@ -108,6 +108,7 @@ export default defineConfig({
           { text: 'Measure your codebase', link: '/guides/measure-your-codebase' },
           { text: 'Record revenue and costs', link: '/guides/record-revenue-and-costs' },
           { text: 'Arrange the Wall', link: '/guides/arrange-the-wall' },
+          { text: 'Choose your view', link: '/guides/choose-your-view' },
         ],
       },
       {

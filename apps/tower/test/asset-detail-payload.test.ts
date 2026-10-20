@@ -2102,6 +2102,50 @@ describe("buildAssetDetailPayload", () => {
     expect(hygiene.windowDays).toBe(90);
   });
 
+  it("reads the newest judged security headers and the newest page speed", async () => {
+    const headers = {
+      "strict-transport-security": "max-age=31536000",
+      "content-security-policy": null,
+      "x-content-type-options": "nosniff",
+      "x-frame-options": null,
+      "referrer-policy": "strict-origin",
+      "permissions-policy": null,
+    };
+    await insertHygiene("meadow.example", "robots-ai-access", "2026-07-05", "ok", null, { present: true, bots: { GPTBot: true } });
+    await insertHygiene("meadow.example", "security-headers", "2026-07-04", "ok", 3, { headers, present: 3, of: 6 });
+    // A night the home page answered 503 judged nothing; the map before it stands.
+    await insertHygiene("meadow.example", "security-headers", "2026-07-05", "error", null, { http_status: 503 });
+    await insertHygiene("meadow.example", "crux-vitals", "2026-07-04", "ok", 4100, { formFactor: "PHONE", lcp: 4100, inp: 300, cls: 0.2 });
+    await insertHygiene("meadow.example", "crux-vitals", "2026-07-05", "ok", 2400, {
+      origin: "https://meadow.example", formFactor: "DESKTOP", lcp: 2400, inp: 120, cls: 0.04,
+      collectionPeriod: { firstDate: "2026-06-06", lastDate: "2026-07-03" },
+    });
+
+    const hygiene = (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.hygiene!;
+    expect(hygiene.securityHeaders?.readings.map((r) => [r.date, r.status, r.value])).toEqual([
+      ["2026-07-04", "ok", 3],
+      ["2026-07-05", "error", null],
+    ]);
+    expect(hygiene.headers).toEqual({
+      observedAt: "2026-07-04T04:00:00.000Z",
+      headers: [
+        { name: "strict-transport-security", present: true },
+        { name: "content-security-policy", present: false },
+        { name: "x-content-type-options", present: true },
+        { name: "x-frame-options", present: false },
+        { name: "referrer-policy", present: true },
+        { name: "permissions-policy", present: false },
+      ],
+    });
+    expect(hygiene.pageSpeedHistory?.readings.map((r) => r.value)).toEqual([4100, 2400]);
+    expect(hygiene.pageSpeed).toEqual({
+      observedAt: "2026-07-05T04:00:00.000Z",
+      formFactor: "DESKTOP",
+      vitals: { lcp: 2400, inp: 120, cls: 0.04 },
+      collectionPeriod: { firstDate: "2026-06-06", lastDate: "2026-07-03" },
+    });
+  });
+
   it("keeps the crawler map it still knows after a night it could not look", async () => {
     // An unreachable origin stores no bot map, so the newest reading that has
     // a map is the answer.
@@ -3144,6 +3188,57 @@ describe("buildAssetDetailPayload — latest Clarity observation", () => {
   it("reads old snapshots as no Clarity block", async () => {
     await insertSnapshot(ctx, "old", executiveSnapshot());
     expect((await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive?.clarity).toBeNull();
+  });
+});
+
+// The visitors-by-channel block `scripts/signal-insights.mjs` writes from
+// settled GA4 traffic-acquisition rows (`channelSnapshot` there).
+describe("buildAssetDetailPayload — visitors by channel", () => {
+  let ctx: TestStore;
+  beforeEach(async () => { ctx = await createTestStore(); await seed(ctx); });
+  const channels = {
+    windowStart: "2026-07-01",
+    windowEnd: "2026-07-03",
+    provisionalDates: ["2026-07-04"],
+    rows: [
+      { channel: "Organic Search", sessions: 900, share: 0.9 },
+      { channel: "Direct", sessions: 80, share: 0.08 },
+      { channel: "AI Assistant", sessions: 20, share: 0.02 },
+    ],
+  };
+  const read = async (block: unknown) => {
+    await insertSnapshot(ctx, "channels", { ...executiveSnapshot(), channels: block });
+    return (await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive;
+  };
+  it("copies the channel split in order, without unreviewed keys", async () => {
+    const result = await read({
+      ...channels,
+      injected: "not forwarded",
+      rows: channels.rows.map((row) => ({ ...row, users: 1 })),
+    });
+    expect(result?.channels).toEqual(channels);
+    expect(result?.channels?.rows[0]).not.toHaveProperty("users");
+    expect(result?.items).toHaveLength(1);
+  });
+  it.each([
+    ["a string", "not a block"],
+    ["an array", []],
+    ["no rows", { ...channels, rows: [] }],
+    ["an impossible date", { ...channels, windowStart: "2026-02-30" }],
+    ["a reversed window", { ...channels, windowStart: "2026-07-05" }],
+    ["a malformed provisional date", { ...channels, provisionalDates: ["yesterday"] }],
+    ["negative sessions", { ...channels, rows: [{ channel: "Direct", sessions: -1, share: 0.5 }] }],
+    ["a share above 1", { ...channels, rows: [{ channel: "Direct", sessions: 1, share: 1.5 }] }],
+    ["an unnamed channel", { ...channels, rows: [{ channel: "", sessions: 1, share: 1 }] }],
+    ["a null row", { ...channels, rows: [...channels.rows, null] }],
+  ])("nulls a block with %s without losing other insights", async (_label, bad) => {
+    const result = await read(bad);
+    expect(result?.channels).toBeNull();
+    expect(result?.items).toHaveLength(1);
+  });
+  it("reads old snapshots as no channel block", async () => {
+    await insertSnapshot(ctx, "old", executiveSnapshot());
+    expect((await buildAssetDetailPayload(ctx.call, "meadow.example", DEPS))!.executive?.channels).toBeNull();
   });
 });
 

@@ -76,6 +76,31 @@ refused by every door that could write one — `pnpm config:apply`, the Worker's
 the validator's own sentence, and fails the build if it lands by any other
 route.
 
+## Default view — `null` until somebody picks one
+
+`view` holds the view a new person and the TV start from:
+`{ "default": "business" | "product" | "everything" }`. The list of views and
+the reader are [`packages/contract/src/views.mts`](../packages/contract/src/views.mts),
+with [`apps/tower/shared/views.ts`](../apps/tower/shared/views.ts) as the
+typed re-export.
+
+**`null` or no key at all both mean no default has been saved**, and the
+Tower shows the Everything view, which is every page and every figure. The
+shipped file holds `"view": null`, and a stored `null` reads as absent the
+same way it does for `wall` (`readsAsUnsaved`).
+
+It is written from **Settings** → **General** → **Your view** and by the
+first-run step that asks which view to start from. Both save the whole value
+at the `/view` pointer, which is declared in `ADDABLE_DOCUMENTS`
+(`scripts/config-documents.mts`) exactly as narrowly as `/wall` is: this
+file, this pointer, nothing under it. Every write door checks the value with
+`parseWorkspaceView` and refuses a value that is not an object, a key other
+than `default`, or an id not in the list, with the parser's sentence.
+
+A view changes which pages and figures are drawn first. It does not change
+what is collected, how outcomes are measured or what another person's own
+choice shows.
+
 ## Where each site shows — `sites`
 
 `sites` holds, by site id, the switches the operator set for where that site

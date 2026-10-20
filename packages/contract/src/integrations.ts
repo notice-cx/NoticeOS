@@ -504,7 +504,9 @@ export type IntegrationProviderId =
   | 'mediavine'
   | 'clarity'
   | 'posthog'
-  | 'cloudflare';
+  | 'cloudflare'
+  | 'crux'
+  | 'stripe';
 
 export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
   {
@@ -843,6 +845,59 @@ export const INTEGRATION_PROVIDERS: readonly IntegrationProvider[] = [
         kind: 'asset-map',
         required: false,
         managed: true,
+      },
+    ],
+  },
+  {
+    // Page speed from real Chrome users, by origin. Public data: the key only
+    // identifies the Google Cloud project the free quota is counted against,
+    // so one key serves every site and the panel lists none.
+    id: 'crux',
+    label: 'Chrome UX Report (page speed)',
+    docRef: 'docs/11-integrations.md#chrome-ux-report',
+    scope: 'shared',
+    lanes: ['crux'],
+    // Google prints no expiry on an API key; the operator may rotate it.
+    expiry: { known: 'operator' },
+    // One `records:queryRecord` call, free within the API's daily quota.
+    test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'api-key', sites: false },
+    fields: [
+      {
+        name: 'CRUX_API_KEY',
+        label: 'API key',
+        secret: true,
+        kind: 'password',
+        required: true,
+        link: { url: 'https://console.cloud.google.com/apis/credentials', label: 'Create a key' },
+        grants: ['Chrome UX Report API'],
+      },
+    ],
+  },
+  {
+    // Subscription and product sales from one Stripe account. A restricted
+    // key that can only read is enough; the account it reads is the one a
+    // site's Subscriptions entry names, so no site list follows the answer.
+    id: 'stripe',
+    label: 'Stripe (subscription revenue)',
+    docRef: 'docs/11-integrations.md#stripe',
+    scope: 'shared',
+    lanes: ['subscriptions'],
+    // Stripe can put an expiry on a restricted key; the operator knows it.
+    expiry: { known: 'operator' },
+    // One read of the account balance: no money moves and nothing is written.
+    test: { cost: 'free' },
+    connect: { kind: 'key', credential: 'api-key', sites: false },
+    fields: [
+      {
+        name: 'STRIPE_API_KEY',
+        label: 'Restricted API key',
+        secret: true,
+        kind: 'password',
+        required: true,
+        link: { url: 'https://dashboard.stripe.com/apikeys', label: 'Create a key' },
+        placeholder: 'rk_live_…',
+        grants: ['Balance: read', 'Charges: read'],
       },
     ],
   },

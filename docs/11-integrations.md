@@ -20,12 +20,14 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **Bing Webmaster Tools API** | live: site-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per property (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings stay valid; can also block NoticeOS's own probes) | optional data source — degrade without an error, flag staleness |
 | **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; six bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run; missing rows are not zeros |
+| **Chrome UX Report API** ([below](#chrome-ux-report)) | page speed by origin: the 75th percentile of LCP, INP and CLS that real Chrome users saw over the trailing 28 days, for phones and desktops | Sense (S5 site checks) | one Google Cloud API key with the Chrome UX Report API enabled, connected on `/integrations` | Free | 150 queries/minute per Google Cloud project; two queries per site per day, four when the bare domain has no data and its `www.` host is asked | keep the last reading; a site with too little Chrome traffic is recorded as no data, never as zero; a refused key stops the run |
 | **DataForSEO** | top ranked keywords with demand/difficulty/CPC/SERP features, backlink stock + 90-day new/lost movement, Google/ChatGPT mention metrics, and live result pages for an operator-chosen head-term panel | Sense (S1/S1b/S3/S4), Decide (opportunity sizing, the AI-Overview gate) | one shared API login/password; launched domains are discovered from Postgres; tracked terms from `config/serp-panel.json` | Metered: roughly $0.26–$0.29 per property per weekly run, plus ~$0.004 per tracked panel term per device; each report records exact provider cost | five bounded calls/week/launched property plus one per tracked query **per device**; the site's saved market (United States · English by default), phone and desktop; 200-row ranked-keyword cap, a 31-term panel ceiling and a 20-result panel depth. A $0.25/report reserve makes the $25/month portfolio data cap fail closed before a call, and the provider card shows how much of that cap is left this month, counted from the costs the reports themselves recorded, plus the prepaid account credit with the date it was read — refreshed by ONE free `appendix/user_data` read at the end of every successful sweep, which is metered spend of zero and is never retried | retain the latest stored snapshot, mark the data source degraded, and never interpolate missing rankings, links, AI mentions, or AI-Overview state |
 | **Ahrefs** | DR (free tier), site metrics (plan-gated) | Decide (sizing), Attribute (links) | MCP (existing) | Plan-dependent; many endpoints return 403 on the current plan | treat as best-effort enrichment only | fall back to DataForSEO backlinks |
 | **Cloudflare** | R2 (raw archives), Analytics Engine (the default report counter for assets without a database), D1 asset-database backups ([below](#cloudflare-d1-backups)); GraphQL analytics (edge traffic, crawler hits); **AI Gateway** (budget enforcement, fallbacks); health checks | everything; Act (deploys); doc 06 (caps) | API tokens, scoped per account | Infra ≈ free tier today; AI Gateway free (and its budget enforcement prevents overspend) | AE free tier covers the report counters' volume; GraphQL analytics rate-limited but generous | infra failure = incident, not degradation |
 | **GitHub App** | PR create/read, checks, deploy webhooks, file contents | Act, Sense (deploy annotations) | App private key (the most sensitive credential — doc 06 rotation) | Free | 5k req/hr/installation — ample | Act pauses; Sense keeps running |
 | **Model providers (via AI Gateway)** | builder/verifier/judge inference | Act, Decide sweeps | keys behind the gateway only | Metered per token; **the dominant OS cost** | per-run/day/month caps, velocity breaker (doc 06) | fallback chain → pause Act |
 | **Ad networks** | revenue reporting → shared financial reads | Sense (revenue collection) | Mediavine daily collector; CSV for other providers | Free reporting | provider estimates stay estimated until payment reconciliation | keep saved history; missing reports are not zero |
+| **Stripe** ([below](#stripe)) | subscription and product revenue: each completed UTC day's net charges and payments less refunds, per site → shared financial reads | Sense (revenue collection) | one restricted key with Balance and Charges read, connected on `/integrations`; the site that earns it names the Stripe account on its Data sources tab | Free | one balance read and one page of up to 100 balance transactions per request; a day is asked once, after 01:00 UTC; a first run reads the last 35 days, and a run that would need more than 100 pages saves nothing | keep saved days; a refused key stops the run; a day with no sale is recorded as 0, a day not yet asked is absent |
 | **Affiliate networks** (CJ, Amazon) | commissions, EPC → ledger; **CJ product feed** (GraphQL `ads.api.cj.com`: live prices/sale prices/images/tracked deep links) + link-search promos → placement data | Sense (revenue collection), Act (placement refresh) | CJ: PAT + CID (developer portal); transaction reports filter by SID = per-placement conversion attribution | Free | a CJ feed is best read through a deterministic tool (doc 05): feed → committed catalog with accuracy checks (14-day price staleness ⇒ the card is marked degraded automatically; no promo without a real end date); Amazon reporting is degraded with a 60-day lag | wide intervals; book on payment |
 | **Uptime** | up/down per site, with when it was last checked | Sense, incident detection | none — no account and no connect step: the ingest GETs each site's home page itself (`runUptimeChecks`, `workers/ingest/src/hygiene.ts`) on the hourly tick, reusing the nightly served-layer check and its `hygiene_checks` reading | Free | one request per site per hour; a site read in the last 30 minutes is skipped | a home page that does not respond twice in a row, 45 seconds apart, raises `hygiene-home-unreachable` at error (one failed try raises nothing and the row shows Up · 1 failed try); when NoticeOS itself cannot reach the network, no site is marked down (the egress gate) and the row shows Not checked |
 | **Discord webhooks** | operator notifications — a **new open error alert** and a **data source that stops working**, and nothing else; the list is declared once in `packages/contract` (`NOTIFIED_CONDITIONS`) so the card and the sender always use the same list | ingest → operator | one webhook url, connected on `/integrations` ([below](#how-to-connect-one)) | Free | keep channels few — alert fatigue is a documented failure mode, which is why the list is two lines rather than a digest | fall back to email |
@@ -163,9 +165,10 @@ store works (encryption, store before environment, what a run records, the
 legacy environment fallback and **Import from this machine**) is written once,
 in the [ingest README](../workers/ingest/README.md#credential-store-one-key-every-provider).
 
-What **Test connection** costs is shown on the card. Five probes are a free
-read-only call. Two are not, and the card shows this before the button is
-pressed: Discord's posts a real message, and the OAuth app's makes no call.
+What **Test connection** costs is shown on the card. Most probes are a free
+read-only call. Three are not, and the card shows this before the button is
+pressed: Discord's posts a real message, and the OAuth app's and Clarity's make
+no call.
 
 | Provider (id) | Fields | Probe the *Test connection* button makes |
 |---|---|---|
@@ -175,6 +178,8 @@ pressed: Discord's posts a real message, and the OAuth app's makes no call.
 | Bing Webmaster (`bing-webmaster`) | `BING_WEBMASTER_API_KEY` | `GetUserSites` — the same call the collector makes first |
 | DataForSEO (`dataforseo`) | `DATAFORSEO_LOGIN`, `DATAFORSEO_PASSWORD` | `appendix/user_data`; free, and it returns the credit left before the metered collection stops — recorded with the time it was read so the card shows it with its date without any button press; the budget line beside it shows the monthly cap |
 | Calendar feeds (`calendar`) | `CALENDAR_FEEDS` — name → secret ICS url | one bounded GET per feed, reported **by label**; the url is the credential and never appears in a test result |
+| Chrome UX Report (`crux`) | `CRUX_API_KEY` | one `records:queryRecord` call on the first site the daily job reads (a reserved origin before any site exists, and in the connect panel). Both a record and "no data for this origin" accept the key |
+| Stripe (`stripe`) | `STRIPE_API_KEY`, a restricted key | one `GET /v1/balance`: no money moves and nothing is written. A key without the Balance read grant is refused like a wrong key |
 | Discord (`discord`) | `DISCORD_WEBHOOK_URL` — the whole `https://discord.com/api/webhooks/…` address | **posts one labelled message to the channel, and the card shows this before the button is pressed.** Discord does offer a read of the webhook object, but it would test the wrong thing: the catalog row above defines this data source as live when NoticeOS *can deliver a notification* — "not merely that a webhook URL exists" — and a webhook whose channel the operator lost still responds to a read. The url is the credential and never appears in a test result, and Discord's own error body is never shown back |
 
 ### What the notification channel carries
@@ -532,6 +537,71 @@ data source declared `skipped` or `not-applicable` keeps that setting. An asset 
 moved to another behavior source should be declared `skipped` and lose its
 token, so the 04:30 export stops spending a call on it; the Tower does not infer
 that from dates.
+
+## Chrome UX Report
+
+*Daily page-speed reading. Collector: `workers/ingest/src/crux.ts`.*
+
+The Chrome UX Report (CrUX) API returns, for one origin, how fast pages
+loaded and responded for real Chrome users over the trailing 28 days. The key
+names the Google Cloud project whose free quota the calls count against; the
+data is public, so one key serves every site and connecting it lists no sites.
+Create the key on the Google Cloud console's **Credentials** page, enable the
+Chrome UX Report API on the same project, and paste the key into the **Chrome
+UX Report (page speed)** card on `/integrations`.
+
+**What runs, and when.** The **Page speed** job runs daily at **04:15 UTC**
+(`15 4 * * *`). For each site the hygiene checks read (a domain, not retired,
+not the System) and whose Data sources row does not say **Not using**, it asks
+CrUX for the site's origin twice, phones then desktops, and keeps the 75th
+percentile of Largest Contentful Paint (ms), Interaction to Next Paint (ms) and
+Cumulative Layout Shift. When CrUX has no data for the bare domain, the `www.`
+host is asked once. The run stores one reading per site per day in
+`hygiene_checks` (check `crux-vitals`): `value_num` is the phone LCP, or the
+desktop LCP where CrUX has no phone data, and `detail` holds both form factors
+and the dates CrUX aggregated. **Page speed** on the site's **Data sources**
+tab shows the newest reading.
+
+**What it does not do.** No alert rule reads the readings yet. With no key
+connected the job records `crux_not_connected` and asks nothing. A key CrUX
+refuses (HTTP 400, 401 or 403) stops the run, stores nothing and marks the
+credential failed; a throttle or a server error fails only that site. When this
+machine cannot reach the network, the sites are named on the one
+`os-egress-down` alert, as for every other collector.
+
+## Stripe
+
+*Daily subscription revenue. Collector: `workers/ingest/src/stripe.ts`.*
+
+Stripe holds a site's subscription and product sales. NoticeOS reads them
+with one restricted key that can only read: create it on Stripe's **API keys**
+page with **Read** on **Balance** and on **Charges**, and paste it into the
+**Stripe (subscription revenue)** card on `/integrations`. Connecting checks the
+key with one balance read and lists no sites. Then, on the site's **Data
+sources** tab, the **Subscription revenue** row's mapping takes the account id
+(`acct_…`, on Stripe's account settings page). One key reads one account, so
+one site names it; while two sites name a Stripe account, neither is collected
+and both rows show the mapping failure.
+
+**What runs, and when.** The **Subscription revenue** job runs at 20 minutes
+past every hour (`20 * * * *`). It asks Stripe only when a completed day is
+missing: a UTC day is complete from 01:00 UTC, the clock its revenue source
+row (`stripe`, "Stripe subscriptions", family `subs`) records. The first run
+reads the last 35 days; later runs read from the day after the newest saved
+day, at most 35 days back. Each run reads the account's balance (its one
+currency) and its balance transactions for those days, and for each day sums
+the `net` of charges and payments less refunds, in minor units. Fees, payouts
+and transfers are not revenue. Each day is one row in the revenue ledger
+(`revenue_observations`, source `stripe`, the account id as `account_ref`), a
+day with no sale included as 0; a day whose figure equals the saved one writes
+nothing. The month's days stand in for the month on the Money page and in each
+site's daily revenue, as Mediavine's do.
+
+**What it does not do.** With no key connected the job records
+`stripe_not_connected` and asks nothing. A key Stripe refuses (HTTP 401 or 403)
+stops the run, saves nothing and marks the credential failed. An account whose
+balance holds more than one currency is not collected. The run's log line
+counts sites and names failures by code; it carries no amount and no key.
 
 ## PostHog
 

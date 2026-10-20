@@ -1,17 +1,18 @@
 import { UserRoundCheck } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useParams } from "react-router-dom";
 import { type AssetDetailCore, RESTORE_HASH } from "@shared/asset-detail-views";
 import { sourceReadings, sourcesSummary } from "@shared/connection-status";
 import { SeverityDot } from "@/components/SeverityDot";
 import { Tabs, type TabSpec } from "@/components/Tabs";
 import { useConnections } from "@/hooks/useConnections";
+import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
 import { DEFAULT_RANGE, rangeFromParam } from "./useRange";
 
 // --- the tabs --------------------------------------------------------------
 /** The asset tabs, in the operator's reading order: what state is this asset
  * in, which way the numbers went, which term and page, how the code behind it
- * is changing, what is wrong, what is
+ * is changing, whether it is up, fast and error-free, what is wrong, what is
  * being done, what has happened, where the numbers come from, how it is set
  * up. `overview` is the index tab: it has no segment of its own, so
  * `/assets/:id` is the Overview. */
@@ -21,6 +22,7 @@ export const ASSET_TABS = [
   "financials",
   "search",
   "codebase",
+  "health",
   "alerts",
   "tasks",
   "activity",
@@ -36,6 +38,7 @@ const TAB_LABEL: Record<AssetTab, string> = {
   financials: "Money",
   search: "Search",
   codebase: "Codebase",
+  health: "Health",
   alerts: "Alerts",
   tasks: "Tasks",
   activity: "Activity",
@@ -145,6 +148,12 @@ export function AssetTabs({
   const pathFor = useAssetTabPath();
   const { data: work } = useWork();
   const { credentials, items } = useConnections();
+  const { view } = useView();
+  const current = tabFromParam(useParams().tab);
+  // The view's tabs in this bar's order; a deep link to a tab the view leaves
+  // out still opens, and its tab is drawn last so the open panel has a label.
+  const shown: AssetTab[] = ASSET_TABS.filter((key) => view.siteTabs.includes(key));
+  if (!shown.includes(current)) shown.push(current);
   const openAlerts = data.flags.open.length;
   const openWatches = data.watches.open.length;
   const worst = data.asset.worstOpenSeverity;
@@ -155,7 +164,7 @@ export function AssetTabs({
   const openTasks = spoke?.ok ? spoke.counts.open : null;
   const waitingOnYou = spoke?.ok ? (spoke.counts.waiting ?? 0) : 0;
 
-  const tabs: TabSpec[] = ASSET_TABS.map((key) => {
+  const tabs: TabSpec[] = shown.map((key) => {
     const base: TabSpec = {
       key,
       to: pathFor(assetId, key),

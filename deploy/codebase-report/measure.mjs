@@ -2,9 +2,12 @@
 // Measure one checkout with git, scc, jscpd and lizard, and print the codebase report envelope.
 //
 //   node measure.mjs --asset <id> [--repo /repo] [--paths a,b] [--ref <name>] [--out <file>] [--post <ingest url>]
+//                    [--measure build_passed=success] [--measure tests_passed=failure] [--measure vulnerable_dependencies=3]
 //
 // The run is static: it reads files and git history and never installs,
-// builds or runs the measured project's code. Git runs with the repository's
+// builds or runs the measured project's code. Whether the build and the tests
+// passed and how many packages are vulnerable therefore come only from the
+// caller's own CI steps, through --measure. Git runs with the repository's
 // own hooks, filesystem monitor, external diff and textconv drivers turned
 // off, since each of those would run a program the repository names.
 // The token for --post is read from NOTICEOS_ASSET_TOKEN only, so it never
@@ -99,7 +102,22 @@ export const REASONS = Object.freeze({
   noTests: 'No code lines to compare the tests with.',
   shallow: 'The checkout has less than 30 days of history; check it out with its full history.',
   gitFailed: 'The change history could not be read.',
+  buildNotSent: 'The report does not build the code, and the workflow sent no build result.',
+  testsNotSent: 'The report does not run the tests, and the workflow sent no test result.',
+  auditNotSent: 'The report does not audit packages, and the workflow sent no count of vulnerable packages.',
+  stepDidNotRun: 'The workflow step that checks this was skipped or cancelled.',
 });
+
+/** The measures only the caller's CI can produce, each with its reason when it sends none. */
+export const SENT_MEASURES = Object.freeze({
+  build_passed: { kind: 'pass', notSent: REASONS.buildNotSent },
+  tests_passed: { kind: 'pass', notSent: REASONS.testsNotSent },
+  vulnerable_dependencies: { kind: 'count', notSent: REASONS.auditNotSent },
+});
+/** A step's result as GitHub Actions writes `steps.<id>.outcome`, or as a person types it. */
+const PASSED = new Set(['success', 'passed', 'pass', 'true', '1']);
+const FAILED = new Set(['failure', 'failed', 'fail', 'false', '0']);
+const DID_NOT_RUN = new Set(['skipped', 'cancelled']);
 
 // ---------------------------------------------------------------------------
 // Arguments and input safety
@@ -108,7 +126,8 @@ export const REASONS = Object.freeze({
 const ASSET = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,252}$/u;
 const REF = /^[A-Za-z0-9._/@+-]{1,255}$/u;
 const IMAGE_DIGEST = /^[a-z0-9][a-z0-9._/:-]{0,255}@sha256:[a-f0-9]{64}$/u;
-const HELP = 'Usage: measure.mjs --asset <id> [--repo /repo] [--paths a,b] [--ref <name>] [--out <file>] [--post <ingest url>]';
+const HELP = 'Usage: measure.mjs --asset <id> [--repo /repo] [--paths a,b] [--ref <name>] [--out <file>] [--post <ingest url>]'
+  + ' [--measure build_passed|tests_passed|vulnerable_dependencies=<value>]...';
 
 /** A repository-relative path, normalized to forward slashes, or null when it could leave the repository. */
 export function safeRelativePath(value) {
@@ -119,17 +138,46 @@ export function safeRelativePath(value) {
   return parts.join('/');
 }
 
+/**
+ * One `--measure key=value`: a pass or fail from a step's outcome
+ * (`success` / `failure`, or true/false, 1/0), or a whole count. A step that
+ * was skipped or cancelled sent no result, so its measure stays unmeasured.
+ */
+export function parseSentMeasure(text) {
+  const at = text.indexOf('=');
+  const key = at > 0 ? text.slice(0, at).trim() : '';
+  const raw = at > 0 ? text.slice(at + 1).trim().toLowerCase() : '';
+  const spec = Object.hasOwn(SENT_MEASURES, key) ? SENT_MEASURES[key] : null;
+  if (!spec) throw new Error(`--measure takes ${Object.keys(SENT_MEASURES).join(', ')} as key=value; ${JSON.stringify(text)} is not one.`);
+  if (DID_NOT_RUN.has(raw)) return { key, unmeasured: REASONS.stepDidNotRun };
+  if (spec.kind === 'pass') {
+    if (PASSED.has(raw)) return { key, value: 1 };
+    if (FAILED.has(raw)) return { key, value: 0 };
+    throw new Error(`--measure ${key} takes success or failure (or true/false, 1/0); ${JSON.stringify(raw)} is not one.`);
+  }
+  if (!/^\d{1,9}$/u.test(raw)) throw new Error(`--measure ${key} takes a whole number of 0 or more; ${JSON.stringify(raw)} is not one.`);
+  return { key, value: Number(raw) };
+}
+
 export function parseArgs(argv) {
-  const known = new Set(['--asset', '--repo', '--paths', '--ref', '--out', '--post']);
+  const known = new Set(['--asset', '--repo', '--paths', '--ref', '--out', '--post', '--measure']);
   const values = {};
+  const sent = { measures: {}, unmeasured: {} };
   for (let i = 0; i < argv.length; i += 1) {
     const flag = argv[i];
     if (flag === '--') continue;
     if (!known.has(flag) || flag in values) throw new Error(HELP);
     const value = argv[i + 1];
     if (value === undefined || value.startsWith('--')) throw new Error(`${flag} needs a value.\n${HELP}`);
-    values[flag] = value;
     i += 1;
+    if (flag === '--measure') {
+      const one = parseSentMeasure(value);
+      if (one.key in sent.measures || one.key in sent.unmeasured) throw new Error(`--measure ${one.key} is given twice.`);
+      if (one.unmeasured) sent.unmeasured[one.key] = one.unmeasured;
+      else sent.measures[one.key] = one.value;
+      continue;
+    }
+    values[flag] = value;
   }
   if (!values['--asset'] || !ASSET.test(values['--asset'])) throw new Error(`--asset needs the site's id, such as example.com.\n${HELP}`);
   let paths = null;
@@ -150,6 +198,7 @@ export function parseArgs(argv) {
     ref: values['--ref'] ?? null,
     out: values['--out'] ? path.resolve(values['--out']) : null,
     post: values['--post'] ? ingestEndpoint(values['--post']) : null,
+    sent,
   };
 }
 
@@ -644,7 +693,7 @@ export function sizeSummary(rows, testPaths) {
 const MEASURE_ORDER = ['code_lines', 'comment_lines', 'files', 'languages', 'duplicated_lines', 'duplication_percent',
   'duplicate_blocks', 'unused_files', 'unused_exports', 'unused_dependencies', 'dependencies_direct', 'functions',
   'complex_functions', 'max_function_complexity', 'mean_function_complexity', 'test_lines', 'test_ratio', 'commits_30d',
-  'files_touched_30d', 'large_commits_30d'];
+  'files_touched_30d', 'large_commits_30d', 'build_passed', 'tests_passed', 'vulnerable_dependencies'];
 
 /**
  * The envelope within the contract's bounds: every list cut to its limit,
@@ -883,7 +932,7 @@ function readRepoConfigFile(repo) {
 }
 
 /** Measure `repo` and return the envelope. */
-export async function measure({ asset, repo, paths = null, ref = null, now = new Date(), log = (line) => process.stderr.write(`${line}\n`) }) {
+export async function measure({ asset, repo, paths = null, ref = null, sent = null, now = new Date(), log = (line) => process.stderr.write(`${line}\n`) }) {
   const stat = fs.statSync(repo, { throwIfNoEntry: false });
   if (!stat?.isDirectory()) throw new Error(`${repo} is not a folder.`);
   for (const prefix of paths ?? []) {
@@ -922,6 +971,9 @@ export async function measure({ asset, repo, paths = null, ref = null, now = new
     const dependencies = directDependencies(manifests);
     if (dependencies === null) unmeasured.dependencies_direct = REASONS.noManifest;
     else measures.dependencies_direct = dependencies;
+    const fromCi = sentMeasures(sent);
+    Object.assign(measures, fromCi.measures);
+    Object.assign(unmeasured, fromCi.unmeasured);
     return buildEnvelope({
       asset,
       generatedAt: isoSeconds(now),
@@ -944,6 +996,17 @@ export async function measure({ asset, repo, paths = null, ref = null, now = new
   }
 }
 
+/** The caller's sent measures, and a reason for each one it did not send. */
+export function sentMeasures(sent) {
+  const measures = {};
+  const unmeasured = {};
+  for (const [key, spec] of Object.entries(SENT_MEASURES)) {
+    if (Number.isFinite(sent?.measures?.[key])) measures[key] = sent.measures[key];
+    else unmeasured[key] = sent?.unmeasured?.[key] ?? spec.notSent;
+  }
+  return { measures, unmeasured };
+}
+
 /** Send the envelope to the ingest; resolves the ingest's answer. */
 export async function postEnvelope(endpoint, envelope, token, fetchImpl = fetch) {
   const response = await fetchImpl(endpoint, {
@@ -964,6 +1027,9 @@ export function summaryLine(envelope) {
   if (m.duplication_percent !== undefined) parts.push(`${m.duplication_percent}% repeated`);
   if (m.unused_files !== undefined) parts.push(`${m.unused_files} unused files`);
   if (m.complex_functions !== undefined) parts.push(`${m.complex_functions} hard-to-change functions`);
+  if (m.build_passed !== undefined) parts.push(`build ${m.build_passed ? 'passed' : 'failed'}`);
+  if (m.tests_passed !== undefined) parts.push(`tests ${m.tests_passed ? 'passed' : 'failed'}`);
+  if (m.vulnerable_dependencies !== undefined) parts.push(`${m.vulnerable_dependencies} vulnerable packages`);
   const unmeasured = Object.keys(envelope.unmeasured ?? {});
   return `${envelope.asset} at ${envelope.repository.commit.slice(0, 12)}: ${parts.join(', ') || 'nothing measured'}`
     + `${unmeasured.length ? `; not measured: ${unmeasured.join(', ')}` : ''}.`;

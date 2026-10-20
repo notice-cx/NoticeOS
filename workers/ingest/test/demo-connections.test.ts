@@ -30,6 +30,7 @@ beforeEach(async () => {
   lanes.ga4 = { ...lanes.ga4, status: 'live', propertyId: PROPERTY };
   lanes.gsc = { ...lanes.gsc, status: 'live', siteUrl: SITE };
   lanes['ad-network'] = { ...lanes['ad-network'], status: 'live', mediavineSiteId: AD_SITE, mediavineEnabled: true };
+  lanes.posthog = { ...lanes.posthog, status: 'live', host: 'us', projectId: '70102' };
   await seedConfigDocuments(env, { documents, actor: 'test' });
   // The simulator's own records: a quarter-hour Google refresh and the ad
   // network's morning report, through the ordinary writers' tables.
@@ -73,6 +74,9 @@ it('the demo workspace shows its data sources connected and syncing, with no log
     expect(item(capability)?.lastSuccessAt, capability).not.toBeNull();
   }
   expect(health.items.some(entry => DEMO_CONNECTED_PROVIDERS.includes(entry.provider as never) && entry.capability.endsWith('-archive'))).toBe(false);
+  // PostHog's product block arrives with the weekly report, so a mapped site
+  // owes no PostHog collection that could read as late or failing.
+  expect(health.items.filter(entry => entry.provider === 'posthog' && entry.asset !== null)).toEqual([]);
   expect(fetchSpy).not.toHaveBeenCalled();
 });
 

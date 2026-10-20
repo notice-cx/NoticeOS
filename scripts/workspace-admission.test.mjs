@@ -74,10 +74,46 @@ test('permission metadata and admission use one fresh policy; metadata never adm
   await assert.rejects(run(fixture.admission), AdmissionRefused);
   const demoAdmission = createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo, workspaceStatus: async () => 'active' });
   const anonymous = await run(demoAdmission, 'settings.read', selection(demo));
-  assert.deepEqual(anonymous.allowedActions, viewer.allowedActions);
+  // A demo reader reads what a viewer reads; only the viewer has a self to keep.
+  assert.deepEqual(anonymous.allowedActions, viewer.allowedActions.filter(action => action !== 'preferences.self'));
   const service = createWorkspaceAdmission({ kind: 'service', profile: Symbol(), now: () => now,
     authority: async () => ({ principalId: 'fixture-service', workspaceId: a, workspaceStatus: 'active', expiresAt, actions: ['settings.read', 'settings.write'] }) });
   assert.deepEqual((await run(service, 'settings.read')).allowedActions, ['settings.read', 'settings.write']);
+});
+
+test("a person's own preferences: every member role, never a demo reader, service grant or standalone operator", async () => {
+  const f = hosted();
+  for (const role of ['owner', 'operator', 'viewer']) {
+    f.memberships.set(a, role);
+    const read = await run(f.admission, 'preferences.self', selection(), request({ 'sec-fetch-site': 'same-origin' }));
+    assert.equal(read.principalKind, 'person'); assert.equal(read.principalId, person); assert.equal(read.sessionId, session);
+    assert.ok(read.allowedActions.includes('preferences.self'), role);
+    await run(f.admission, 'preferences.self', selection(), request({ origin }, 'PUT'));
+  }
+  // A save is an effect: it needs the browser's same-origin evidence.
+  await assert.rejects(run(f.admission, 'preferences.self', selection(), request({ origin: 'https://elsewhere.example.test' }, 'PUT')), AdmissionRefused);
+  f.memberships.delete(a);
+  await assert.rejects(run(f.admission, 'preferences.self', selection(), request({ origin }, 'PUT')), AdmissionRefused);
+  const anonymous = createWorkspaceAdmission({ kind: 'demo', profile: Symbol(), workspaceId: demo, workspaceStatus: async () => 'active' });
+  assert.equal((await run(anonymous, 'evidence.read', selection(demo))).allowedActions.includes('preferences.self'), false);
+  await assert.rejects(run(anonymous, 'preferences.self', selection(demo), request({ origin })), AdmissionRefused);
+  const service = createWorkspaceAdmission({ kind: 'service', profile: Symbol(), now: () => now,
+    authority: async () => ({ principalId: 'fixture-service', workspaceId: a, workspaceStatus: 'active', expiresAt, actions: ['preferences.self'] }) });
+  await assert.rejects(run(service, 'preferences.self'), AdmissionRefused);
+  const standalone = createWorkspaceAdmission({ kind: 'standalone', profile: Symbol(), authority: async () =>
+    ({ principalId: 'operator', workspaceId: a, workspaceStatus: 'active' }) });
+  assert.equal((await run(standalone, 'evidence.read')).allowedActions.includes('preferences.self'), false);
+  await assert.rejects(run(standalone, 'preferences.self'), AdmissionRefused);
+  // An agent acting for the owner, with every scope there is, still is not the person.
+  const agent = createWorkspaceAdmission({ kind: 'hosted', profile: Symbol(), trustedOrigin: origin, now: () => now,
+    membership: async () => null,
+    agent: async () => ({ principalId: person, clientId: 'fixture-client', workspaceId: a, role: 'owner',
+      workspaceStatus: 'active', expiresAt, scopes: ['tasks:read', 'tasks:write', 'evidence:read'] }) });
+  const bearer = new Request(origin, { headers: { authorization: 'Bearer fixture-agent-token-0123456789' } });
+  const agentRead = await run(agent, 'evidence.read', selection(), bearer);
+  assert.equal(agentRead.principalKind, 'agent');
+  assert.equal(agentRead.allowedActions.includes('preferences.self'), false);
+  await assert.rejects(run(agent, 'preferences.self', selection(), bearer), AdmissionRefused);
 });
 
 test('fresh membership selects one of two workspaces and no active-selection cookie grants role', async () => {

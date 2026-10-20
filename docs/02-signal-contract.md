@@ -110,7 +110,7 @@ A second report an asset sends about itself: one measurement of its
 repository at one commit, sent to `POST /api/codebase-report` with the same
 `ASSET_TOKENS` bearer as the nightly report and stored in
 `noticeos.codebase_reports`. The schema is `CodebaseReport` in
-`packages/contract/src/codebase.ts`; the measures, their labels and the four
+`packages/contract/src/codebase.ts`; the measures, their labels and the five
 rules are in `packages/contract/src/codebase-measures.ts`. Why these measures
 and these rules: [doc 27](27-codebase-health.md).
 
@@ -147,16 +147,21 @@ and these rules: [doc 27](27-codebase-health.md).
   measured paths), a path is at most 512 characters with no `..`, and the body
   is at most 256 KiB.
 - **Units are checked.** Counts are whole numbers of 0 or more, a percent is 0
-  to 100, a ratio or an average is 0 or more.
+  to 100, a ratio or an average is 0 or more, and a pass (`build_passed`,
+  `tests_passed`) is 1 for passed or 0 for failed. The measuring image never
+  builds or tests the code, so the two passes and `vulnerable_dependencies`
+  are present only when the sender's own build, test and audit steps pass
+  them in.
 - **A resend appends.** A second report on the same UTC day is the next
   revision of that day; `noticeos.current_codebase_reports` is the newest
   revision of each site and day.
 - **Tool versions travel with the numbers.** `tools` names the versions that
   produced them, so a step on a version change reads as the tools, not the code.
-- **Four rules run on each report**, with the thresholds in
+- **Five rules run on each report**, with the thresholds in
   `config/constants.json` `codebase_rules`: `codebase-growth` (warn, anomaly),
   `codebase-duplication` (warn, opportunity), `codebase-unused` (info,
-  opportunity) and `codebase-complexity` (info, opportunity). Each first
+  opportunity), `codebase-complexity` (info, opportunity) and
+  `codebase-vulnerabilities` (info, opportunity). Each first
   resolves its open alert for the site, as the volume-aware rules do.
 
 ## Central signals

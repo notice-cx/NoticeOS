@@ -3,8 +3,10 @@
 import { createHash } from 'node:crypto';
 import { demoActivityPrefix } from './demo-activity-definition.mjs';
 import { DEMO_BUILDER, DEMO_VERIFIER } from './demo-task-facts.mjs';
+import { STRIPE_REVENUE_SOURCE } from '../packages/contract/src/revenue-sources.mjs';
+import { SCHEDULED_JOBS } from './scheduled-jobs.mjs';
 import { demoAdPayment, demoAdRevenueMinor, demoCodebaseEnvelope, demoCodebaseReporting, demoCodebaseWeekday, demoProperties, demoScenarioHash, demoSeason, demoSeasonAngle,
-  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_REPORT_GAP_DAYS, type DemoCodebaseEnvelope, type DemoScenario } from './demo-scenario.mjs';
+  demoTrafficShape, demoWeekShape, generateDemoScenario, shiftDemoDay, shiftDemoMonth, DEMO_BING_SHARE, DEMO_INFERENCE_SOURCE, DEMO_REPORT_GAP_DAYS, demoRecurringCost, demoInferenceCostMinor, demoSubscriptionMinor, type DemoCodebaseEnvelope, type DemoScenario } from './demo-scenario.mjs';
 
 export const DEMO_ACTIVITY_VERSION = 2;
 export const DEMO_ACTIVITY_LIMITS = Object.freeze({ daysPerBatch: 7, daysFromAnchor: 36_525 });
@@ -39,6 +41,47 @@ const QUERIES: Readonly<Record<string, readonly string[]>> = {
   fr: ['csv row checker', 'validate csv before import', 'find duplicate rows csv', 'csv empty cells check', 'spreadsheet cleanup tool', 'csv number format errors', 'check csv columns online', 'csv validation rules'],
 };
 const QUERY_SHARE: readonly number[] = [0.22, 0.17, 0.14, 0.11, 0.1, 0.09, 0.09, 0.08];
+/** Each site's visits by GA4 default channel group, as weights before a
+ * week's small drift: Trail Notes leans on search alone (85% or more every
+ * week), and Light Brief's AI assistant visits grow week by week. Scenario
+ * choices, not market data. */
+const CHANNEL_MIX: Readonly<Record<string, readonly (readonly [channel: string, weight: number])[]>> = {
+  lb: [['Organic Search', 0.44], ['Direct', 0.27], ['Referral', 0.14], ['AI Assistant', 0.09], ['Organic Social', 0.06]],
+  pw: [['Organic Search', 0.41], ['Direct', 0.31], ['Referral', 0.17], ['AI Assistant', 0.06], ['Organic Social', 0.05]],
+  wp: [['Organic Search', 0.62], ['Organic Social', 0.16], ['Direct', 0.13], ['Referral', 0.06], ['AI Assistant', 0.03]],
+  tn: [['Organic Search', 0.88], ['Direct', 0.06], ['Referral', 0.03], ['Organic Social', 0.02], ['AI Assistant', 0.01]],
+  fr: [['Direct', 0.44], ['Organic Search', 0.3], ['Referral', 0.18], ['Organic Social', 0.05], ['AI Assistant', 0.03]],
+};
+/** Days of GA4 visits a report's channel split sums. */
+const CHANNEL_WINDOW_DAYS = 28;
+/** Google's good and poor lines for each web vital at the 75th percentile. */
+const VITAL_LINES = { lcp: { good: 2500, poor: 4000 }, inp: { good: 200, poor: 500 }, cls: { good: 0.1, poor: 0.25 } } as const;
+/** The sites with product analytics: Pinwell is slow for one visitor in four
+ * and most of its errors are one message; the recipe site is fast, its errors
+ * spread over several messages, and it declares one funnel. */
+const PRODUCT_SITES: readonly string[] = ['pw', 'wp'];
+/** Each site's page speed as Chrome users measure it (LCP and INP in ms at
+ * the 75th percentile): Pinwell's phones are slow, the rest are fast. The
+ * young site has too few visits to be measured. */
+const PAGE_SPEED: Readonly<Record<string, { lcp: number; inp: number; cls: number }>> = {
+  lb: { lcp: 1900, inp: 140, cls: 0.04 }, pw: { lcp: 4300, inp: 260, cls: 0.08 },
+  wp: { lcp: 2200, inp: 170, cls: 0.06 }, tn: { lcp: 2050, inp: 150, cls: 0.05 },
+};
+/** The security headers a fictional home page sends; Pinwell sends four of six. */
+const SECURITY_HEADERS: Readonly<Record<string, string>> = {
+  'strict-transport-security': 'max-age=31536000; includeSubDomains',
+  'content-security-policy': "default-src 'self'",
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'DENY',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'permissions-policy': 'camera=(), microphone=()',
+};
+const MISSING_HEADERS: Readonly<Record<string, readonly string[]>> = { pw: ['content-security-policy', 'permissions-policy'] };
+/** The pages each fictional site's sitemap lists besides its home page. */
+const SITE_PAGES: Readonly<Record<string, readonly string[]>> = {
+  lb: ['/templates', '/pricing', '/help'], pw: ['/library', '/pricing', '/help'],
+  wp: ['/recipes', '/seasonal', '/about'], tn: ['/trails', '/gear', '/about'], fr: ['/check', '/rules', '/help'],
+};
 
 export interface DemoActivitySignal {
   integration: 'ga4' | 'gsc' | 'bing-webmaster';
@@ -61,13 +104,24 @@ export interface DemoActivityMoney {
   period: string;
   amountMinor: number;
   currency: 'USD';
-  bookingState: 'reconciled';
-  source: 'demo-simulator' | 'mediavine';
+  /** A provider's usage export is its running figure, so it is estimated. */
+  bookingState: 'reconciled' | 'estimated';
+  /** Null for recorded income no collector reads; Money names it by family. */
+  source: 'mediavine' | typeof STRIPE_REVENUE_SOURCE | typeof DEMO_INFERENCE_SOURCE | ReturnType<typeof demoRecurringCost>['source'] | null;
   externalId: string;
   note: string;
   coverageStart: string;
   coverageEnd: string;
   coverageComplete: boolean;
+}
+/** One completed day of a subscription site's income, written as the
+ * subscriptions collector writes a day it read. */
+export interface DemoActivitySubscriptionDay {
+  asset: string;
+  account: string;
+  date: string;
+  amountMinor: number;
+  currency: 'USD';
 }
 export interface DemoTaskIntention {
   asset: string;
@@ -114,7 +168,7 @@ export interface DemoSearchMover {
 }
 export interface DemoSearchFinding {
   key: string;
-  kind: 'insight' | 'warning';
+  kind: 'insight' | 'warning' | 'recommendation' | 'discovery';
   title: string;
   summary: string;
   whyItMatters: string;
@@ -126,9 +180,53 @@ export interface DemoSearchFinding {
   sources: string[];
   caveat: string;
 }
+/** Where a site's visits came from over the report's four weeks, by GA4
+ * channel, largest first; the sessions sum to the window's GA4 visits. */
+export interface DemoChannels {
+  windowStart: string;
+  windowEnd: string;
+  provisionalDates: string[];
+  rows: { channel: string; sessions: number; share: number }[];
+}
+type VitalRating = 'good' | 'needs-improvement' | 'poor';
+export interface DemoVitalSegment {
+  path: string; device: string; os: string; measurements: number;
+  lcpP75: number; inpP75: number; clsP75: number; lcpRating: VitalRating; inpRating: VitalRating; clsRating: VitalRating;
+}
+export interface DemoException {
+  type: string; message: string; count: number; people: number; sessions: number; maxPerSession: number;
+  hasSourceFile: boolean; topPath: string; topBrowser: string;
+}
+export interface DemoFunnel {
+  id: string; name: string; windowStart: string; windowEnd: string;
+  steps: { step: number; event: string; path: null; people: number }[];
+  conversion: number;
+  largestDrop: { fromStep: number; toStep: number; lostPeople: number; stepConversion: number };
+  prior: null;
+}
+export interface DemoProductCheck { key: 'posthog-slow-segment' | 'posthog-error-concentration'; label: string; state: 'fired' | 'clear'; detail: string }
+/** A product-analytics site's week, in the shape the executive snapshot's
+ * `product` block takes (`apps/tower/shared/product-snapshot.ts`). */
+export interface DemoProduct {
+  source: 'posthog';
+  observedAt: string;
+  collectedAt: string;
+  families: never[];
+  webDaily: null;
+  funnels: DemoFunnel[];
+  vitals: { windowStart: string; windowEnd: string; reportDate: string; minMeasurements: number; lines: typeof VITAL_LINES; segments: DemoVitalSegment[]; unmeasuredSegments: 0 };
+  /** `people`: everyone who hit any error in the window, once each. */
+  exceptions: { windowStart: string; windowEnd: string; reportDate: string; total: number; truncated: false; noise: null; top: DemoException[]; people: number };
+  rageClicks: null;
+  onceEvents: never[];
+  checks: DemoProductCheck[];
+  caveat: string;
+}
 /** A site's weekly synthetic search report, in the shape the executive
  * snapshot writer stores and the Overview's Search movers read: this week's
- * queries against last week's, and the one finding the week leads with. */
+ * queries against last week's, the finding the week leads with and the
+ * opportunities it found, where visitors came from, and, on a site with
+ * product analytics, its speed, errors and funnel. */
 export interface DemoSearchReport {
   schemaVersion: 1;
   asset: string;
@@ -155,6 +253,8 @@ export interface DemoSearchReport {
     bing: null;
     dataforseo: null;
   };
+  channels: DemoChannels;
+  product?: DemoProduct;
 }
 /** One quarter-hour refresh of today's provisional traffic and search
  * (the `counters` lane's Google step). A missing day stays missing. */
@@ -174,6 +274,9 @@ export interface DemoActivityDay {
   key: string;
   assets: { asset: string; signals: DemoActivitySignal[]; pulse: DemoActivityPulse | null }[];
   money: DemoActivityMoney[];
+  /** Each subscription site's completed days: this day, and on the anchor day
+   * every day after the seed's last. */
+  subscriptions: DemoActivitySubscriptionDay[];
   /** Each site's weekly cycle, in site order; a day may hold several. */
   tasks: DemoTaskIntention[];
   changes: DemoChange[];
@@ -213,9 +316,26 @@ export function demoDayShare(minuteOfDay: number): number {
  * find it down, and the next hour's finds it back. The site and the hour move
  * from day to day. */
 export const DEMO_OUTAGE_MINUTES = 25;
+/** The UTC hour, `HH`, whose hourly check also runs the nightly site checks
+ * and records the day's page speed: the hour the release schedules its
+ * nightly site checks. */
+export const DEMO_NIGHTLY_HOUR: string = (() => {
+  const hour = SCHEDULED_JOBS.find(job => job.id === 'hygiene')?.cron.split(' ')[1] ?? '';
+  if (!/^\d{1,2}$/u.test(hour)) throw new Error('The nightly site checks have no single hour.');
+  return hour.padStart(2, '0');
+})();
 export interface DemoHomeOutage { asset: string; domain: string; from: string; to: string; checkAt: string; }
-/** A home page as the hourly check reads it: a status and the HTML. */
+/** A fictional site as the hourly and nightly checks read it: a status, its
+ * headers and the body. */
 export type DemoHomeFetch = (input: string | URL | Request) => Promise<Response>;
+interface DemoVitals { lcp: number; inp: number; cls: number; collectionPeriod: { firstDate: string; lastDate: string } }
+/** One site's daily page-speed reading: the phone LCP the reading's value
+ * holds, and its detail. */
+export interface DemoPageSpeed {
+  asset: string;
+  lcp: number;
+  detail: { origin: string; lcp: number; inp: number; cls: number; formFactor: 'PHONE'; collectionPeriod: DemoVitals['collectionPeriod']; formFactors: { PHONE: DemoVitals; DESKTOP: DemoVitals } };
+}
 const HOME_WORDS = ['plan', 'week', 'guide', 'notes', 'list', 'ideas', 'today', 'saved', 'simple', 'steps', 'season',
   'start', 'collection', 'favourites', 'quick', 'fresh', 'tips', 'browse', 'popular', 'new'];
 /** Each site's two alternating weekly cycles: a review, then a ship whose
@@ -233,9 +353,151 @@ const WORK: Readonly<Record<string, readonly [review: readonly [string, string],
     ['Ship the CSV input checklist', 'Publish the synthetic CSV input checklist and record the shipped help route.']],
 };
 const round1 = (value: number): number => Math.round(value * 10) / 10;
+/** Pinwell's GA4 skips a day every 29 after the anchor; the report and the
+ * day's pulse are both missing. */
+const ga4Missing = (prefix: string, n: number): boolean => prefix === 'pw' && n % 29 === 10;
 /** A shipped change's comparison is named for the change: "Ship the grouped
  * brief library" is the bet "Grouped brief library". */
 const betName = (title: string): string => { const name = title.replace(/^Ship the /u, ''); return name.charAt(0).toUpperCase() + name.slice(1); };
+
+const percent = (share: number): number => Math.round(share * 100);
+const sum = (values: readonly number[]): number => values.reduce((a, b) => a + b, 0);
+/** Whole counts in proportion to `weights` that add up to `total` exactly. */
+function apportion(total: number, weights: readonly number[]): number[] {
+  const whole = sum(weights);
+  const exact = weights.map(weight => weight * total / whole);
+  const counts = exact.map(Math.floor);
+  const order = exact.map((value, i) => [value - counts[i]!, i] as const).sort((a, b) => b[0] - a[0] || a[1] - b[1]);
+  const short = total - sum(counts);
+  for (let k = 0; k < short; k++) counts[order[k]![1]]! += 1;
+  return counts;
+}
+const rating = (metric: keyof typeof VITAL_LINES, value: number): VitalRating =>
+  value <= VITAL_LINES[metric].good ? 'good' : value > VITAL_LINES[metric].poor ? 'poor' : 'needs-improvement';
+const SYNTHETIC = { sources: ['Synthetic report'], caveat: 'Synthetic data; no provider was read.' } as const;
+function opportunity(key: string, kind: DemoSearchFinding['kind'], title: string, summary: string, whyItMatters: string,
+  primary: DemoSearchFinding['primary'], windowStart: string, windowEnd: string): DemoSearchFinding {
+  return { key, kind, title, summary, whyItMatters, primary, confidence: 'medium', windowStart, windowEnd, evidence: [{ label: primary.label, value: primary.value }],
+    sources: [...SYNTHETIC.sources], caveat: SYNTHETIC.caveat };
+}
+
+/** A site's visits over the window by channel: its own mix, drifting a
+ * little each week, apportioned so the rows add up to `visits`. */
+function channelSplit(seed: string, asset: { id: string; prefix: string }, week: number, visits: number, windowStart: string, windowEnd: string): DemoChannels {
+  const mix = CHANNEL_MIX[asset.prefix]!;
+  const weights = mix.map(([channel, weight]) => weight * (0.95 + draw(seed, `${asset.id}/channel-${channel}/${windowEnd}`) * 0.1)
+    * (asset.prefix === 'lb' && channel === 'AI Assistant' ? 1.03 ** Math.min(26, Math.max(-10, week)) : 1));
+  const counts = apportion(visits, weights);
+  const rows = mix.map(([channel], i) => ({ channel, sessions: counts[i]! })).filter(row => row.sessions > 0)
+    .sort((a, b) => b.sessions - a.sessions || a.channel.localeCompare(b.channel))
+    .map(row => ({ ...row, share: row.sessions / visits }));
+  return { windowStart, windowEnd, provisionalDates: [], rows };
+}
+
+/** One week of a product-analytics site, from its visits that week. */
+function productWeek(seed: string, asset: { id: string; prefix: string }, visits: number, windowStart: string, windowEnd: string, date: string): DemoProduct {
+  const r = (key: string) => draw(seed, `${asset.id}/product-${key}/${windowEnd}`);
+  const slow = asset.prefix === 'pw';
+  const measured = Math.round(visits * 0.6);
+  const groups: [path: string, device: string, os: string, share: number, lcp: number, inp: number, cls: number][] = slow
+    ? [['/', 'Mobile', 'Android', 0.25, 4150 + r('lcp-0') * 500, 230 + r('inp-0') * 60, 0.07],
+      ['/', 'Desktop', 'Mac OS X', 0.4, 1600 + r('lcp-1') * 400, 70 + r('inp-1') * 40, 0.02],
+      ['/library', 'Desktop', 'Windows', 0.35, 1900 + r('lcp-2') * 400, 100 + r('inp-2') * 50, 0.04]]
+    : [['/', 'Mobile', 'iOS', 0.45, 1900 + r('lcp-0') * 450, 110 + r('inp-0') * 60, 0.05],
+      ['/recipes', 'Mobile', 'Android', 0.3, 2000 + r('lcp-1') * 450, 130 + r('inp-1') * 60, 0.06],
+      ['/', 'Desktop', 'Windows', 0.25, 1200 + r('lcp-2') * 400, 50 + r('inp-2') * 40, 0.03]];
+  const segments = groups.map(([path, device, os, share, lcp, inp, cls]): DemoVitalSegment => {
+    const lcpP75 = Math.round(lcp), inpP75 = Math.round(inp);
+    return { path, device, os, measurements: Math.round(measured * share), lcpP75, inpP75, clsP75: cls,
+      lcpRating: rating('lcp', lcpP75), inpRating: rating('inp', inpP75), clsRating: rating('cls', cls) };
+  });
+  const failing = segments.filter(segment => segment.lcpP75 > VITAL_LINES.lcp.good || segment.inpP75 > VITAL_LINES.inp.good);
+  // Pinwell's errors are mostly one message from its own code; the recipe
+  // site's are spread over several, none holding half.
+  const messages: [type: string, message: string, share: number, path: string, browser: string][] = slow
+    ? [['TypeError', "Cannot read properties of undefined (reading 'url')", 0.68, '/library', 'Chrome'],
+      ['TypeError', 'Failed to fetch', 0.19, '/library', 'Safari'],
+      ['Error', 'ResizeObserver loop completed with undelivered notifications', 0.13, '/', 'Chrome']]
+    : [['TypeError', 'Load failed', 0.32, '/recipes', 'Safari'], ['TypeError', 'Failed to fetch', 0.26, '/', 'Chrome'],
+      ['Error', 'Script error.', 0.22, '/', 'Chrome'], ['AbortError', 'The operation was aborted.', 0.2, '/recipes', 'Firefox']];
+  const total = slow ? 260 + Math.round(r('errors') * 80) : 110 + Math.round(r('errors') * 40);
+  const counts = apportion(total, messages.map(([, , share]) => share));
+  const top = messages.map(([type, message, , topPath, topBrowser], i): DemoException => {
+    const count = counts[i]!, people = Math.max(1, Math.round(count * 0.5));
+    return { type, message, count, people, sessions: Math.round(count * 0.6), maxPerSession: 3, hasSourceFile: true, topPath, topBrowser };
+  }).sort((a, b) => b.people - a.people || b.count - a.count);
+  const people = Math.round(sum(top.map(row => row.people)) * 0.8);
+  const leading = Math.max(...counts) / total;
+  const funnels: DemoFunnel[] = [];
+  if (!slow) {
+    const visited = Math.round(visits * 0.84), opened = Math.round(visited * 0.58);
+    const saved = Math.round(opened * (0.085 + r('saved') * 0.02)), signed = Math.round(saved * (0.2 + r('signed') * 0.05));
+    const reached = [visited, opened, saved, signed];
+    const steps = ['Visited', 'Opened a recipe', 'Saved it', 'Signed up'].map((event, i) => ({ step: i + 1, event, path: null, people: reached[i]! }));
+    let worst = 1;
+    for (let i = 2; i < steps.length; i++) if (steps[i]!.people / steps[i - 1]!.people < steps[worst]!.people / steps[worst - 1]!.people) worst = i;
+    funnels.push({ id: 'recipe-to-sign-up', name: 'Recipe to sign-up', windowStart, windowEnd, steps, conversion: signed / visited,
+      largestDrop: { fromStep: worst, toStep: worst + 1, lostPeople: steps[worst - 1]!.people - steps[worst]!.people, stepConversion: steps[worst]!.people / steps[worst - 1]!.people },
+      prior: null });
+  }
+  const worstSegment = failing[0];
+  return {
+    source: 'posthog', observedAt: windowEnd, collectedAt: `${date}T05:10:00.000Z`, families: [], webDaily: null, funnels,
+    vitals: { windowStart, windowEnd, reportDate: windowEnd, minMeasurements: 500, lines: VITAL_LINES,
+      segments: [...failing, ...segments.filter(segment => !failing.includes(segment))], unmeasuredSegments: 0 },
+    exceptions: { windowStart, windowEnd, reportDate: windowEnd, total, truncated: false, noise: null, top, people },
+    rageClicks: null, onceEvents: [],
+    checks: [
+      worstSegment
+        ? { key: 'posthog-slow-segment', label: 'Real-visitor speed', state: 'fired', detail: `${worstSegment.os} ${worstSegment.device} visitors to ${worstSegment.path} wait past Google’s lines.` }
+        : { key: 'posthog-slow-segment', label: 'Real-visitor speed', state: 'clear', detail: `${segments.length} measured groups are inside Google’s good lines.` },
+      leading >= 0.5
+        ? { key: 'posthog-error-concentration', label: 'Errors', state: 'fired', detail: `${percent(leading)}% of ${total} errors are one message.` }
+        : { key: 'posthog-error-concentration', label: 'Errors', state: 'clear', detail: `No single message holds half of ${total} errors.` },
+    ],
+    caveat: 'Synthetic product analytics; no PostHog project was read.',
+  };
+}
+
+/** The opportunity each site's week leads with, read from the same week's
+ * numbers: a query close to the top results on Pinwell, the recipe funnel's
+ * largest drop, Light Brief's visits from AI assistants, and Trail Notes'
+ * reliance on search. */
+function opportunities(prefix: string, movers: readonly DemoSearchMover[], channels: DemoChannels, product: DemoProduct | undefined,
+  windowStart: string, windowEnd: string): DemoSearchFinding[] {
+  const channel = (name: string) => channels.rows.find(row => row.channel === name);
+  if (prefix === 'pw') {
+    const near = [...movers].filter(mover => mover.currentPosition > 3 && mover.currentPosition <= 15)
+      .sort((a, b) => b.currentImpressions - a.currentImpressions)[0] ?? movers[0]!;
+    return [opportunity('search-striking-distance', 'recommendation', `Move “${near.query}” into the top results`,
+      `“${near.query}” sits at position ${near.currentPosition} with ${near.currentImpressions} impressions this week.`,
+      'A query already near the top gains the most visits from a small climb.',
+      { value: `#${near.currentPosition}`, label: 'position this week' }, windowStart, windowEnd)];
+  }
+  if (prefix === 'wp' && product?.funnels[0]) {
+    const funnel = product.funnels[0], drop = funnel.largestDrop;
+    const from = funnel.steps[drop.fromStep - 1]!, to = funnel.steps[drop.toStep - 1]!;
+    return [opportunity(`posthog-funnel-drop-${funnel.id}`, 'insight', `${funnel.name}: ${percent(drop.stepConversion)}% go from ${from.event} to ${to.event}`,
+      `${drop.lostPeople} people stopped between ${from.event} and ${to.event} this week, the largest drop in the funnel.`,
+      'The step that loses the most people is where a change reaches the most of them.',
+      { value: `${percent(drop.stepConversion)}%`, label: 'go on to the next step' }, windowStart, windowEnd)];
+  }
+  const ai = channel('AI Assistant');
+  if (prefix === 'lb' && ai) {
+    return [opportunity('ai-referral-floor', 'discovery', 'AI assistants are already sending visitors',
+      `${ai.sessions} visits came through AI assistants in four weeks, ${percent(ai.share)}% of all visits.`,
+      'These visits show which pages assistants already recommend.',
+      { value: String(ai.sessions), label: 'visits from AI assistants' }, channels.windowStart, channels.windowEnd)];
+  }
+  const search = channel('Organic Search');
+  if (prefix === 'tn' && search && search.share >= 0.85) {
+    return [opportunity('concentration-risk', 'warning', `Search brings ${percent(search.share)}% of all visits`,
+      `${search.sessions} of the four weeks' visits came from search; one change in search results moves almost all of them.`,
+      'Visits from other channels make the site less dependent on one source.',
+      { value: `${percent(search.share)}%`, label: 'of visits from search' }, channels.windowStart, channels.windowEnd)];
+  }
+  return [];
+}
 
 /** Capture one original scenario. Advancing time never regenerates its seed,
  * asset identities, historical incidents, task history or accounting anchor.
@@ -249,6 +511,7 @@ export function createDemoActivity(input: DemoScenario): {
   seededReports(): DemoSearchReport[];
   homeOutage(date: string): DemoHomeOutage;
   homeFetch(at: string): DemoHomeFetch;
+  pageSpeed(date: string): DemoPageSpeed[];
 } {
   const scenario = generateDemoScenario(input.manifest);
   const hash = demoScenarioHash(scenario);
@@ -309,7 +572,13 @@ export function createDemoActivity(input: DemoScenario): {
     };
     /** Whether night `n` sends no report: the scenario's gap continues, then recurs. */
     const quiet = (n: number): boolean => (n + DEMO_REPORT_GAP_DAYS) % gapPeriod < gapLength;
-    return { asset, rows, initialTotal, cumulative, count, search, quiet };
+    /** Day `n`'s GA4 visits as reported: null before the site existed or on a
+     * day GA4 never answered. */
+    const sessionsOn = (n: number): number | null => {
+      if (n < 0) { const row = -n <= rows.length ? rows.at(n)! : null; return row && !row.reportMissing ? row.sessions : null; }
+      return ga4Missing(asset.prefix, n) ? null : count(n, 'sessions');
+    };
+    return { asset, rows, initialTotal, cumulative, count, search, quiet, sessionsOn };
   });
   /** One day's synthetic ad estimate: seeded sessions before the anchor, the
    * continuation's after it. */
@@ -335,7 +604,7 @@ export function createDemoActivity(input: DemoScenario): {
     const week = dayIndex / 7;
     const currentStart = shiftDemoDay(date, -7), currentEnd = shiftDemoDay(date, -1);
     const previousStart = shiftDemoDay(date, -14), previousEnd = shiftDemoDay(date, -8);
-    for (const { asset, search } of assetInputs) {
+    for (const { asset, rows, search, sessionsOn } of assetInputs) {
       const weekly = (from: number): number => Array.from({ length: 7 }, (_, i) => search(from + i).impressions).reduce((a, b) => a + b, 0);
       const current = weekly(ordinal - 7), previous = weekly(ordinal - 14);
       const movers = QUERIES[asset.prefix]!.map((query, k): DemoSearchMover => {
@@ -353,18 +622,26 @@ export function createDemoActivity(input: DemoScenario): {
       const rising = ranked[0]!.positionImprovement > 0;
       const lead = rising ? ranked[0]! : ranked.at(-1)!;
       const places = Math.abs(lead.positionImprovement).toFixed(1);
+      const leadItem: DemoSearchFinding = { key: `search-${rising ? 'riser' : 'faller'}-${date}`, kind: rising ? 'insight' : 'warning',
+        title: `“${lead.query}” ${rising ? 'climbed' : 'slipped'} ${places} places to #${lead.currentPosition}`,
+        summary: `Synthetic search report: “${lead.query}” moved from position ${lead.previousPosition} to ${lead.currentPosition} week over week.`,
+        whyItMatters: rising ? 'A query climbing toward the first results brings more visits for the same pages.' : 'A query slipping down the results loses visits the pages used to earn.',
+        primary: { value: `#${lead.currentPosition}`, label: 'position this week' }, confidence: 'medium', windowStart: currentStart, windowEnd: currentEnd,
+        evidence: [{ label: 'Position last week', value: String(lead.previousPosition) }, { label: 'Impressions this week', value: String(lead.currentImpressions) }],
+        sources: ['Synthetic search report'], caveat: 'Synthetic data; no search provider was read.' };
+      // Where the last four weeks' visits came from, from the site's first
+      // day when it is younger, and the week's visits a product read counts.
+      const visits = (from: number, to: number): number => sum(Array.from({ length: to - from }, (_, i) => sessionsOn(from + i) ?? 0));
+      const since = Math.max(ordinal - CHANNEL_WINDOW_DAYS, -rows.length);
+      const channels = channelSplit(seed, asset, week, visits(since, ordinal), shiftDemoDay(date, since - ordinal), currentEnd);
+      const product = PRODUCT_SITES.includes(asset.prefix) ? productWeek(seed, asset, visits(ordinal - 7, ordinal), currentStart, currentEnd, date) : undefined;
+      const items = [leadItem, ...opportunities(asset.prefix, movers, channels, product, currentStart, currentEnd)];
       reports.push({ schemaVersion: 1, asset: asset.id, generatedAt: `${date}T05:30:00.000Z`, windowStart: previousStart, windowEnd: currentEnd, sourceArchiveCount: 14,
-        items: [{ key: `search-${rising ? 'riser' : 'faller'}-${date}`, kind: rising ? 'insight' : 'warning',
-          title: `“${lead.query}” ${rising ? 'climbed' : 'slipped'} ${places} places to #${lead.currentPosition}`,
-          summary: `Synthetic search report: “${lead.query}” moved from position ${lead.previousPosition} to ${lead.currentPosition} week over week.`,
-          whyItMatters: rising ? 'A query climbing toward the first results brings more visits for the same pages.' : 'A query slipping down the results loses visits the pages used to earn.',
-          primary: { value: `#${lead.currentPosition}`, label: 'position this week' }, confidence: 'medium', windowStart: currentStart, windowEnd: currentEnd,
-          evidence: [{ label: 'Position last week', value: String(lead.previousPosition) }, { label: 'Impressions this week', value: String(lead.currentImpressions) }],
-          sources: ['Synthetic search report'], caveat: 'Synthetic data; no search provider was read.' }],
-        suppressedItems: [], methodology: ['Synthetic weekly query report derived from the demo scenario; no provider was called.'],
+        items, suppressedItems: [], methodology: ['Synthetic weekly report derived from the demo scenario; no provider was called.'],
         searchQueries: { google: { provider: 'google', currentStart, currentEnd, previousStart, previousEnd, daysPerWindow: 7, movers,
           evidence: [{ label: 'Grounding queries excluded', value: '0', detail: 'No quoted-literal queries in this window' }],
-          source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null } });
+          source: 'Synthetic search report', caveat: 'Synthetic query movements; no real search data.' }, bing: null, dataforseo: null },
+        channels, ...(product ? { product } : {}) });
     }
     return reports;
   };
@@ -372,6 +649,9 @@ export function createDemoActivity(input: DemoScenario): {
   // report the seed stored; the site still setting up sends none.
   const codebaseSites = scenario.assets.filter(asset => demoCodebaseReporting(asset)).map(asset => ({ asset, weekday: demoCodebaseWeekday(asset),
     after: scenario.codebaseRuns.filter(run => run.asset === asset.id).at(-1)?.date ?? referenceDate }));
+  // Each subscription site continues after the last day the seed stored.
+  const subscriptionSites = scenario.manifest.subscriptionSites.map(site => ({ asset: scenario.assets.find(asset => asset.id === site.asset)!, account: site.account,
+    after: scenario.subscriptionDays.filter(day => day.asset === site.asset).at(-1)?.date ?? shiftDemoDay(referenceDate, -1) }));
   const day = (date: string): DemoActivityDay => {
     const ordinal = dateNumber(date) - anchor;
     if (ordinal < 0 || ordinal > DEMO_ACTIVITY_LIMITS.daysFromAnchor) refuse();
@@ -381,7 +661,7 @@ export function createDemoActivity(input: DemoScenario): {
       const pageViews = Math.round(sessions * (shape.pages + draw(seed, `${asset.id}/${date}/pages`) * shape.pagesSpread));
       const activeUsers = Math.round(sessions * shape.activeUsers);
       const { clicks, impressions, position } = search(ordinal);
-      const reportMissing = asset.prefix === 'pw' && ordinal % 29 === 10;
+      const reportMissing = ga4Missing(asset.prefix, ordinal);
       const observations = (values: Record<string, number>) => Object.entries(values).map(([metric, value]) => ({ date, metric, value }));
       const properties = demoProperties(asset);
       const signals: DemoActivitySignal[] = [
@@ -405,8 +685,8 @@ export function createDemoActivity(input: DemoScenario): {
     const nextMonth = new Date(Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)), 1));
     const monthDays = Number(new Date(nextMonth.getTime() - DAY).toISOString().slice(8, 10));
     const money: DemoActivityMoney[] = [];
-    // The seed already includes the cutoff day's partial receipts and prepaid
-    // monthly costs. Continue receipts on the NEXT day; never book them twice.
+    // The seed already includes the cutoff day's partial licensing receipts and
+    // prepaid monthly costs. Continue receipts on the NEXT day; never book them twice.
     for (const asset of scenario.assets) {
       // An ad network pays each month on the sixth of the second month after
       // it; the seed booked every payment made before the anchor day.
@@ -420,20 +700,45 @@ export function createDemoActivity(input: DemoScenario): {
             note: 'Synthetic ad network payment; no real payout.', coverageStart: dates[0]!, coverageEnd: dates.at(-1)!, coverageComplete: true });
         }
       }
-      if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null) {
+      // Subscription income arrives as daily figures (`subscriptions`); a
+      // month that ended is closed with its reconciled total, the sum of them.
+      if (ordinal > 0 && asset.revenueFamily === 'subs' && date.endsWith('-01')) {
+        const ended = shiftDemoMonth(month, -1);
+        const dates = monthDates(ended).filter(day => day >= asset.createdAt.slice(0, 10));
+        if (dates.length) {
+          money.push({ asset: asset.id, kind: 'revenue', family: 'subs', period: ended,
+            amountMinor: dates.reduce((sum, day) => sum + demoSubscriptionMinor(seed, asset, day), 0),
+            currency: 'USD', bookingState: 'reconciled', source: STRIPE_REVENUE_SOURCE, externalId: `${key}/${asset.prefix}/close`,
+            note: 'Synthetic month of subscription income, reconciled; no real payment.', coverageStart: dates[0]!, coverageEnd: dates.at(-1)!, coverageComplete: true });
+        }
+      }
+      if (ordinal > 0 && asset.revenue !== null && asset.revenueFamily !== null && asset.revenueFamily !== 'subs') {
         money.push({ asset: asset.id, kind: 'revenue', family: asset.revenueFamily, period: month,
           amountMinor: Math.round(asset.revenue / monthDays * (0.9 + draw(seed, `${asset.id}/${date}/income`) * 0.2)),
-          currency: 'USD', bookingState: 'reconciled', source: 'demo-simulator', externalId: `${key}/${asset.prefix}/income`,
+          currency: 'USD', bookingState: 'reconciled', source: null, externalId: `${key}/${asset.prefix}/income`,
           note: 'Synthetic daily receipts; no real payment or causal lift.', coverageStart: date, coverageEnd: date, coverageComplete: false });
       }
       if (ordinal > 0 && date.endsWith('-01')) {
         money.push({ asset: asset.id, kind: 'cost', family: asset.isOs ? 'os-overhead' : 'infra', period: month,
-          amountMinor: Math.round(asset.cost * (0.94 + draw(seed, `${asset.id}/${month}/cost`) * 0.12)),
-          currency: 'USD', bookingState: 'reconciled', source: 'demo-simulator', externalId: `${key}/${asset.prefix}/cost`,
+          amountMinor: asset.cost,
+          currency: 'USD', bookingState: 'reconciled', source: demoRecurringCost(asset).source, externalId: `${key}/${asset.prefix}/cost`,
           note: 'Synthetic prepaid operating bill; no real charge.', coverageStart: date,
           coverageEnd: shiftDemoDay(nextMonth.toISOString().slice(0, 10), -1), coverageComplete: true });
       }
+      // The month that just ended: the agents' model usage, as its provider's
+      // usage export reports it once the month is over.
+      if (ordinal > 0 && date.endsWith('-01') && asset.isOs) {
+        const ended = shiftDemoMonth(month, -1);
+        money.push({ asset: asset.id, kind: 'cost', family: 'inference', period: ended, amountMinor: demoInferenceCostMinor(seed, asset.id, ended),
+          currency: 'USD', bookingState: 'estimated', source: DEMO_INFERENCE_SOURCE, externalId: `${key}/${asset.prefix}/inference`,
+          note: 'Synthetic model usage export; no real charge.', coverageStart: `${ended}-01`, coverageEnd: shiftDemoDay(date, -1), coverageComplete: true });
+      }
     }
+    const subscriptions: DemoActivitySubscriptionDay[] = subscriptionSites.flatMap(({ asset, account, after }) => {
+      const days: string[] = [];
+      for (let day = ordinal === 0 ? shiftDemoDay(after, 1) : date; day <= date; day = shiftDemoDay(day, 1)) days.push(day);
+      return days.map(day => ({ asset: asset.id, account, date: day, amountMinor: demoSubscriptionMinor(seed, asset, day), currency: 'USD' as const }));
+    });
     // Days since the first Monday after the anchor. Each site runs its own
     // weekly cycle one day after the site before it (filed, started two days
     // later, closed two days after that), reviews and ships alternating, so
@@ -474,7 +779,7 @@ export function createDemoActivity(input: DemoScenario): {
     const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
     const codebase = codebaseSites.filter(site => site.weekday === weekday && date > site.after)
       .map(site => demoCodebaseEnvelope(seed, site.asset, referenceDate, date));
-    return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, tasks, changes, reports, codebase };
+    return { synthetic: true, version: DEMO_ACTIVITY_VERSION, scenarioHash: hash, date, key, assets, money, subscriptions, tasks, changes, reports, codebase };
   };
   /** Today so far: each provisional count is the finished day's count scaled
    * by the share of the day already counted, so the quarter-hour refreshes
@@ -519,26 +824,58 @@ export function createDemoActivity(input: DemoScenario): {
     return { asset: site.id, domain: site.domain!, from: new Date(from).toISOString(),
       to: new Date(from + DEMO_OUTAGE_MINUTES * 60_000).toISOString(), checkAt };
   };
-  // A fixed page per site: the same words every hour, so the page-depth rule
-  // the same check arms reads a steady page.
-  const homeHtml = new Map(homes.map(site => {
+  // Fixed pages per site: the same words every hour, so the page-depth rule
+  // the same check arms reads a steady page. Each page has a title, a
+  // description, one heading and a canonical address, as the nightly
+  // structure check reads them.
+  const sitePages = new Map(homes.map(site => {
     const count = 300 + Math.floor(draw(seed, `home-words:${site.id}`) * 400);
     const words = Array.from({ length: count }, (_, i) => HOME_WORDS[(i * 7 + site.prefix.length) % HOME_WORDS.length]).join(' ');
-    return [site.domain!, `<!doctype html><html><head><title>${site.name}</title></head><body><main><p>${words}</p></main></body></html>`];
+    const page = (path: string, body: string) => `<!doctype html><html><head><title>${site.name}${path === '/' ? '' : ` · ${path.slice(1)}`}</title>`
+      + `<meta name="description" content="${site.name}: ${path === '/' ? 'home' : path.slice(1)}."><link rel="canonical" href="https://${site.domain}${path}"></head>`
+      + `<body><main><h1>${site.name}</h1><p>${body}</p></main></body></html>`;
+    const paths = ['/', ...SITE_PAGES[site.prefix]!];
+    const pages = new Map(paths.map(path => [path, page(path, path === '/' ? words : words.split(' ').slice(0, 120).join(' '))]));
+    const sitemap = `<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${paths.map(path => `<url><loc>https://${site.domain}${path}</loc></url>`).join('')}</urlset>`;
+    const robots = `User-agent: *\nAllow: /\nSitemap: https://${site.domain}/sitemap.xml\n`;
+    const missing = MISSING_HEADERS[site.prefix] ?? [];
+    const headers = Object.fromEntries(Object.entries(SECURITY_HEADERS).filter(([name]) => !missing.includes(name)));
+    return [site.domain!, { pages, sitemap, robots, headers }] as const;
   }));
+  /** Each fictional site as the hourly home-page check and the nightly site
+   * checks read it: its pages, robots.txt and sitemap. Only the home page
+   * goes down in the day's outage. */
   const homeFetch = (at: string): DemoHomeFetch => {
     const outage = homeOutage(at.slice(0, 10));
     return async (input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-      let host = '';
-      try { host = new URL(url).hostname; } catch { /* not a URL: answered as no page */ }
-      const html = homeHtml.get(host);
+      let host = '', path = '';
+      try { ({ hostname: host, pathname: path } = new URL(url)); } catch { /* not a URL: answered as no page */ }
+      const site = sitePages.get(host);
+      if (site === undefined) return new Response(null, { status: 404 });
+      if (path === '/robots.txt') return new Response(site.robots, { status: 200, headers: { 'content-type': 'text/plain; charset=utf-8' } });
+      if (path === '/sitemap.xml') return new Response(site.sitemap, { status: 200, headers: { 'content-type': 'application/xml' } });
+      const html = site.pages.get(path);
       if (html === undefined) return new Response(null, { status: 404 });
-      if (host === outage.domain && at >= outage.from && at < outage.to) return new Response(null, { status: 503 });
-      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+      if (path === '/' && host === outage.domain && at >= outage.from && at < outage.to) return new Response(null, { status: 503 });
+      return new Response(html, { status: 200, headers: { 'content-type': 'text/html; charset=utf-8', ...site.headers } });
     };
   };
-  return Object.freeze({ day, collection, adRevenue, seededReports, homeOutage, homeFetch, batch(first: string, last: string): DemoActivityDay[] {
+  /** Each measured site's page speed as Chrome users saw it over the 28 days
+   * before `date`, in the reading the daily page-speed job stores
+   * (`workers/ingest/src/crux.ts`). The young site has too few visits. */
+  const pageSpeed = (date: string): DemoPageSpeed[] => {
+    if (dateNumber(date) - anchor > DEMO_ACTIVITY_LIMITS.daysFromAnchor) refuse();
+    const collectionPeriod = { firstDate: shiftDemoDay(date, -29), lastDate: shiftDemoDay(date, -2) };
+    return homes.filter(site => PAGE_SPEED[site.prefix] && date >= site.createdAt.slice(0, 10)).map(site => {
+      const base = PAGE_SPEED[site.prefix]!, wobble = (key: string) => 0.96 + draw(seed, `${site.id}/speed-${key}/${date}`) * 0.08;
+      const phone = { lcp: Math.round(base.lcp * wobble('lcp')), inp: Math.round(base.inp * wobble('inp')), cls: Math.round(base.cls * wobble('cls') * 100) / 100, collectionPeriod };
+      const desktop = { lcp: Math.round(phone.lcp * 0.62), inp: Math.round(phone.inp * 0.55), cls: phone.cls, collectionPeriod };
+      return { asset: site.id, lcp: phone.lcp, detail: { origin: `https://${site.domain}`, lcp: phone.lcp, inp: phone.inp, cls: phone.cls,
+        formFactor: 'PHONE' as const, collectionPeriod, formFactors: { PHONE: phone, DESKTOP: desktop } } };
+    });
+  };
+  return Object.freeze({ day, collection, adRevenue, seededReports, homeOutage, homeFetch, pageSpeed, batch(first: string, last: string): DemoActivityDay[] {
     const days = dateNumber(last) - dateNumber(first) + 1;
     if (days < 1 || days > DEMO_ACTIVITY_LIMITS.daysPerBatch) refuse();
     return Array.from({ length: days }, (_, i) => day(shiftDemoDay(first, i)));

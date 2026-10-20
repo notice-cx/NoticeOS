@@ -54,6 +54,10 @@
       "types": "./src/asset-name.d.mts",
       "default": "./src/asset-name.mjs"
     },
+    "./views": {
+      "types": "./src/views.d.mts",
+      "default": "./src/views.mjs"
+    },
     "./*": {
       "types": "./src/*.ts",
       "default": "./src/*.ts"

@@ -25,7 +25,27 @@ The editor also opens from **Settings** > **TV dashboard** > **Edit layout**, or
 - **The side panel**: the selected widget's settings. With nothing selected, it lists the widgets on the TV to pick from. **Add a widget** and **Versions** open in the same place.
 - **Site order**, under the side panel: **Move example.com up** or **down** sets the order the site rows are drawn in, everywhere. The link above the list, **Drag them, and choose where each shows, in Arrange**, opens **Arrange** on the Sites page, where the same order is set by dragging and each site has its switches for Home, the TV and Work this week ([Where each site shows](/tower/sites#where-each-site-shows)).
 
-The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs attention**, **Live feed** and **Agents**. The default layout places the first six. **Agents** ranks each agent and the model it named by tasks closed in the last 7 days, and shows how many tasks the agents hold now. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Sites**, **Last 24 hours**, **Work** and **Needs attention** can each be narrowed to some sites. A site whose own **TV** switch is off is in no widget; its box in a widget's site list is empty, cannot be ticked, and reads **Off on the TV by its own setting**. On **Work**, a site whose **Work this week** switch is off reads **Off in Work this week by its own setting**. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
+The widgets are a fixed library: **Top strip**, **The loop**, **Last 24 hours**, **Sites**, **Revenue**, **Work**, **Needs attention**, **Live feed**, **Agents**, **Site health**, **The agents** and **Visitors by channel**. The default layout places the first six. **Agents** ranks each agent and the model it named by tasks closed in the last 7 days, and shows how many tasks the agents hold now. **Site health** shows five dots per site for up, speed, errors, search and code; **The agents** shows what the agents are building, shipped this week and proved; **Visitors by channel** shows every site's visits by channel and the largest funnel drop. **Site health** and **Visitors by channel** can be narrowed to some sites. You cannot create a new widget, and a widget's settings are the only way to change what it shows. **Sites**, **Last 24 hours**, **Work** and **Needs attention** can each be narrowed to some sites. A site whose own **TV** switch is off is in no widget; its box in a widget's site list is empty, cannot be ticked, and reads **Off on the TV by its own setting**. On **Work**, a site whose **Work this week** switch is off reads **Off in Work this week by its own setting**. The countdown's dates are set on **Settings** > **TV dashboard** with **Set a countdown**, or in the **Top strip**'s settings.
+
+## Start from a view's preset
+
+Each of the three views has a ready-made layout:
+
+| Start from | Layout |
+|---|---|
+| **I run the business** | **Top strip**, then **Site health** over **Revenue** on the left, beside **Needs attention** over **The agents** on the right |
+| **I build the product** | **Top strip**, then **Revenue** over **Visitors by channel** on the left, beside **Sites** over **Work** on the right |
+| **Everything** | the default layout |
+
+1. Select **Add a widget**.
+2. Select **Start from**, beside the drawer's title.
+3. Select a view. The one already on the TV is ticked and cannot be selected.
+
+![The TV layout page in a test installation with one site: Add a widget open beside the copy of the TV, with the Start from menu listing I run the business, I build the product and Everything, Everything ticked.](../images/wall-start-from.webp)
+
+The whole arrangement on the TV copy is replaced by the preset. It is not on the TV until you select **Save**, and **Undo** puts back the arrangement you had. A version saved this way with no note is named **Started from I run the business**, or the view you chose.
+
+Until any layout is saved, the TV shows the preset of the workspace's default view (Settings > General > **Your view**), and the editor opens on it.
 
 ## Move a widget
 
@@ -65,7 +85,7 @@ A widget drawn smaller than it can be read shows **Too narrow for Sites** (or **
 ## Undo and save
 
 - **Undo** and **Redo** (⌘Z and ⇧⌘Z, or Ctrl on Windows and Linux) step through every change since you opened the page, a whole resize drag as one step. **Discard** goes back to what is on the TV, and can itself be undone.
-- In **Version note**, type a note if you want one. Leave it empty and the version is named by what changed.
+- In **Version note**, type a note if you want one. Leave it empty and the version is named by what changed, or **Started from \<view>** when the layout is a view's preset.
 - Select **Save**. The bar shows **On the TV** again, and the TV redraws the next time it refreshes its data.
 
 If you leave the page with unsaved changes, you are asked to confirm first.

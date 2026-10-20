@@ -11,7 +11,7 @@ import { AGENT_RESOURCE_PATH, bearerToken } from './agent-access.mjs';
 import { towerOperation, isHostedStoredRead, isHostedGoogleDiscovery, liveProviderReadRequest, connectionReadinessRequest,
   credentialWriteRequest, credentialWriteInput, type CredentialWriteMethod,
   providerCollectionRequest, providerCollectionInput, type ProviderCollectionMethod, storedResearchReadRequest,
-  assetMutationRequest, assetMutationInput, type AssetMutationMethod,
+  assetMutationRequest, assetMutationInput, type AssetMutationMethod, personPreferenceRequest,
   watchQueryHistoryRequest, watchQueryHistoryRange, siteIconsReadRequest, siteIconsReadInput } from './workspace-operations.mjs';
 import { ingestOperation } from './workspace-operations.mjs';
 import { isCloudflareD1Request } from './workspace-operations.mjs';
@@ -255,7 +255,8 @@ export async function withWorkspaceEntry<T>(env: object, request: Request,
   if ((!settings && !googleStart && !storedResearch && !isHostedStoredRead(proof) && !isHostedGoogleDiscovery(proof)
       && !connectionReadinessRequest(proof) && !credentialWriteRequest(proof)
       && !providerCollectionRequest(proof) && !liveProviderReadRequest(proof) && !assetMutationRequest(proof)
-      && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof))
+      && !watchQueryHistoryRequest(proof) && !siteIconsReadRequest(proof) && !isCloudflareD1Request(proof)
+      && !personPreferenceRequest(proof))
     || selected.kind !== 'workspace' || selected.action === null) refuse();
   const origin = binding(env, 'workspaceOrigin');
   const browser = createBrowserRequestPolicy(origin);

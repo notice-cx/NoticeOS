@@ -45,6 +45,7 @@ import { type CallContext, type StoreBinding, type WorkspaceStore, withWorkspace
 import { handleDecisionsRequest } from "./decision-route";
 import { handleFlagRequest } from "./flag-route";
 import { handleHostedAssetMutation } from './hosted-asset-mutation-route';
+import { handleHostedPersonPreference } from './person-preference-route';
 import { JSON_HEADERS } from "./http";
 import {
   INTEGRATION_PROVIDERS_PATH,
@@ -693,6 +694,8 @@ const towerHandler = {
       }
       const mutation = await handleHostedAssetMutation(request, env, ctx);
       if (mutation !== null) return mutation;
+      const preference = await handleHostedPersonPreference(request, env, ctx, profile);
+      if (preference !== null) return preference;
       // Only reviewed stored reads and configuration operations enter here;
       // the broad standalone dispatcher never receives hosted capabilities.
       const storedRead = isHostedStoredRead(request);

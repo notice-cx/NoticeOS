@@ -44,11 +44,13 @@ export declare const ADDABLE_CONTAINERS: ReadonlyMap<string, {
 /**
  * The keys a wholesale-editable file may gain or lose: one document at one
  * exact pointer, nothing under it. A pointer set never creates a key, and the
- * default (the Wall's layout, the countdown, the no-report list) has exactly
+ * default (the Wall's layout, the countdown, the workspace's default view, the
+ * no-report list) has exactly
  * one representation, in the code — so a file nobody has saved one in holds
  * `null` or no key at all (`readsAsUnsaved`). Each is added and removed whole.
  * What a document must contain is decided per document: `wallOpRefusal`,
- * the countdown form plus `parseDashboardConfig`, `noNightlyReportOpRefusal`.
+ * the countdown form plus `parseDashboardConfig`, `workspaceViewOpRefusal`,
+ * `noNightlyReportOpRefusal`.
  */
 export declare const ADDABLE_DOCUMENTS: ReadonlyMap<string, readonly string[]>;
 /** Is this exact pointer one of the declared documents above? */

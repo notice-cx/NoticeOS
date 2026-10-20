@@ -331,6 +331,9 @@ export async function shipJobRunQueue(record, { state, post = fetch, readToken, 
 export const CRON_CATCHUP_POLICIES = Object.freeze([
   { job: 'cron 10,30,50 * * * *', expression: '10,30,50 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 0 * * * *', expression: '0 * * * *', kind: 'cron', maxAgeMs: 2 * HOUR_MS },
+  // Subscription revenue: a day already saved with the same figure writes
+  // nothing, so a late firing only fills what is missing.
+  { job: 'cron 20 * * * *', expression: '20 * * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   // The operator notification lane: two hours, like the freshness lane it
   // follows. Catching it up cannot duplicate anything; the lane records what
   // it has already said.
@@ -339,6 +342,8 @@ export const CRON_CATCHUP_POLICIES = Object.freeze([
   { job: 'cron 0 3 * * *', expression: '0 3 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 30 3 * * *', expression: '30 3 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 0 4 * * *', expression: '0 4 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
+  // Page speed: a same-day re-run replaces that day's reading.
+  { job: 'cron 15 4 * * *', expression: '15 4 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 30 4 * * *', expression: '30 4 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   { job: 'cron 15 12 * * *', expression: '15 12 * * *', kind: 'cron', maxAgeMs: 36 * HOUR_MS },
   // PostHog product analytics archive: an unchanged window re-archives as

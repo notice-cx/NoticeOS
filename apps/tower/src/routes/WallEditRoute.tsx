@@ -7,6 +7,7 @@ import { siteDisplayOf } from "@shared/site-display";
 import {
   EMPTY_WALL_CONFIG,
   WALL_LAYOUT_POINTER,
+  WALL_PRESETS,
   WALL_RETIRED_WARNING,
   nextWallWidgetId,
   parseWallConfig,
@@ -14,8 +15,10 @@ import {
   withRevertedWallLayout,
   withSavedWallLayout,
   type WallConfig,
+  type WallLayout,
   type WallWidgetType,
 } from "@shared/wall-layout";
+import { DEFAULT_VIEW } from "@shared/views";
 import { PageHeader } from "@/components/PageHeader";
 import { ReadFailed } from "@/components/ReadFailed";
 import { PageSkeleton } from "@/components/Skeleton";
@@ -65,9 +68,10 @@ const SLUG = "wall-layout";
  * `readsAsUnsaved`). A saved layout the Tower refused reaches this page as the
  * default drawn in its place, with the value as stored in
  * `dashboard.refused.wall` as the guard: a Save guarded by the default would
- * be refused by a store that never held it.
+ * be refused by a store that never held it. With nothing saved, the editor
+ * starts from the workspace view's preset, as the TV draws it.
  */
-function readWallConfig(dashboard: DashboardConfig): {
+export function readWallConfig(dashboard: DashboardConfig): {
   raw: JsonValue;
   config: WallConfig;
   refused: string | null;
@@ -76,7 +80,10 @@ function readWallConfig(dashboard: DashboardConfig): {
   const refusedByStore = dashboard.refused?.wall ?? null;
   const raw = refusedByStore ? (refusedByStore.saved as JsonValue) : shown;
   try {
-    return { raw, config: parseWallConfig(shown), refused: refusedByStore?.reason ?? null };
+    const config = shown === null
+      ? { layout: WALL_PRESETS[dashboard.view?.default ?? DEFAULT_VIEW], history: [] }
+      : parseWallConfig(shown);
+    return { raw, config, refused: refusedByStore?.reason ?? null };
   } catch (err) {
     // The Worker has read it already, so this is the belt: a layout that
     // reached the browser undrawable is named rather than replaced with a
@@ -236,6 +243,11 @@ export function WallEditRoute() {
     setLanded({ widgetId: id, verb: "added to", focus: false });
   };
 
+  const start = (layout: WallLayout, label: string) => {
+    dispatch({ type: "replace", layout });
+    setAnnouncement(`Started from ${label}`);
+  };
+
   const remove = (widgetId: string) => {
     const place = wallWidgetWhere(state.layout, widgetId);
     dispatch({ type: "remove", widgetId });
@@ -378,6 +390,7 @@ export function WallEditRoute() {
                   layout={state.layout}
                   disabled={disabled}
                   onAdd={add}
+                  onStart={start}
                   onClose={() => setPanel("widget")}
                 />
               ) : panel === "versions" ? (
