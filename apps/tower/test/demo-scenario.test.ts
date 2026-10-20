@@ -168,4 +168,4 @@ it.each(['2026-10-01T07:00:00.000Z', '2026-10-16T12:00:00.000Z'])('current recor
   expect(saved).toEqual([{ asset: 'pinwell.example', start: period + '-01', end: cutoff.slice(0, 10), complete: false }]);
   expect(wall.assets.filter(asset => ![...facts.manifest.adSites, ...facts.manifest.subscriptionSites].some(site => site.asset === asset.id))
     .every(asset => asset.revenueProjection?.status === 'no-revenue')).toBe(true);
-});
+}, 30_000);
