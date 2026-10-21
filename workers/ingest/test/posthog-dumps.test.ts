@@ -18,6 +18,7 @@ import { EGRESS_DOWN_CODE, EGRESS_DOWN_RULE_ID } from '../src/egress.js';
 import { healthFailure } from '../src/integration-health-store.js';
 import { readIntegrationHealth } from '../src/integration-health-read.js';
 import { LOCAL_STORE_FAILED } from '../src/signal-dumps.js';
+import { posthogCooldown, posthogRetryAt, savePosthogCooldown } from '../src/posthog-query-budget.js';
 import type { LaneRegister } from '../src/lane-mapping.js';
 import {
   ARCHIVE_RUNS,
@@ -1211,6 +1212,21 @@ describe('PostHog queries', () => {
     expect(posthogQuery('web-daily', window).text).toContain("event = '$pageview'");
   });
 
+  it('filters event type and dates before decoding properties in every table scan', () => {
+    for (const family of POSTHOG_FAMILIES) {
+      const query = posthogQuery(family, window, [CALCULATOR]).text;
+      const scans = query.match(/FROM events\n/g) ?? [];
+      expect(query.match(/FROM events\n\s*PREWHERE /g)).toHaveLength(scans.length);
+      for (const line of query.split('\n').filter(line => line.includes('PREWHERE'))) {
+        expect(line).toContain('timestamp >=');
+        expect(line).toContain('timestamp <');
+        expect(line).not.toContain('properties');
+      }
+      if (family !== 'events') expect(query).toMatch(/PREWHERE[^\n]*event|PREWHERE[^\n]*\n\s+AND event IN/);
+    }
+    expect(posthogQuery('inp-targets', window).text).toContain('WHERE properties.$web_vitals_INP_value IS NOT NULL');
+  });
+
   it('builds one ordered funnel query from the declared steps', () => {
     const second: PosthogFunnel = { id: 'save', name: 'Save a plan', steps: [{ event: 'calculation_complete' }, { event: 'plan_save' }] };
     const query = posthogQuery('funnels', { start: '2026-09-16', end: '2026-09-22' }, [CALCULATOR, second]);
@@ -1229,5 +1245,73 @@ describe('PostHog queries', () => {
     // there is 09-21.
     expect(windowFor('events', 'America/New_York', undefined, Date.parse('2026-09-23T01:00:00Z'))).toEqual({ start: '2026-09-08', end: '2026-09-21' });
     expect(windowFor('events', null, undefined, Date.parse('2026-09-23T01:00:00Z'))).toEqual({ start: '2026-09-09', end: '2026-09-22' });
+  });
+});
+
+describe('PostHog query-budget cooldown', () => {
+  const settings = { host: 'us', projectId: '424242' } as const;
+
+  it.each([
+    ['1800', 1_800_000],
+    ['Wed, 23 Sep 2026 13:00:00 GMT', 1_800_000],
+    ['0', 1_000],
+    ['-1', 3_600_000],
+    ['invalid', 3_600_000],
+    [null, 3_600_000],
+  ])('reads Retry-After %s without allowing a hot loop', (header, delay) => {
+    const response = new Response(null, { headers: header === null ? {} : { 'retry-after': header } });
+    expect(posthogRetryAt(response, NOW)).toBe(new Date(NOW + delay).toISOString());
+  });
+
+  it('persists a 429 delay across runs and keys, then permits collection at expiry', async () => {
+    const refused = posthogFetch(call => call.family === 'web-daily'
+      ? Response.json({ code: 'api_queries_budget_exceeded' }, { status: 429, headers: { 'retry-after': '1800' } })
+      : answerAll(call));
+    await runPosthogDumps(env, { nowMs: NOW, fetchImpl: refused.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    const rows = await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`);
+    const held = posthogFetch();
+    const result = await runPosthogDumps(env, {
+      nowMs: NOW + 60_000, fetchImpl: held.fetchImpl,
+      rawKeys: JSON.stringify({ 'meadow.example': 'phx_different_test_key' }), laneRegister: register(),
+      scope: { asset: 'meadow.example', window: { start: '2026-09-09', end: '2026-09-22' } },
+    });
+    expect(held.calls).toHaveLength(0);
+    expect(result).toMatchObject({ attempted: 0, bytesRead: 0, budgetStopped: true });
+    expect(result.skipped).toHaveLength(7);
+    expect(result.skipped.every(skip => skip.reason === 'budget-exhausted' && skip.nextAttemptAt === '2026-09-23T13:00:00.000Z')).toBe(true);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(rows);
+    const after = posthogFetch();
+    const resumed = await runPosthogDumps(env, { nowMs: NOW + 1_800_000, fetchImpl: after.fetchImpl, rawKeys: KEYS, laneRegister: register(), retryLimit: 0 });
+    expect(resumed).toMatchObject({ attempted: 7, succeeded: 7 });
+  });
+
+  it('also persists a zero-budget successful response without fabricating a failure', async () => {
+    const exhausted = posthogFetch(call => call.family === 'web-daily'
+      ? Response.json(posthogBody('web-daily'), { headers: { 'x-posthog-query-budget-remaining-bytes': '0' } })
+      : answerAll(call));
+    const first = await runPosthogDumps(env, { nowMs: NOW, fetchImpl: exhausted.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(first).toMatchObject({ attempted: 1, succeeded: 1, failed: 0, budgetStopped: true });
+    const next = posthogFetch();
+    await runPosthogDumps(env, { nowMs: NOW + 60_000, fetchImpl: next.fetchImpl, rawKeys: KEYS, laneRegister: register() });
+    expect(next.calls).toHaveLength(0);
+    expect(await posthogCooldown(env.STORE, settings, NOW + 60_000)).toMatchObject({ nextAttemptAt: '2026-09-23T13:30:00.000Z' });
+    expect((await manifests()).map(row => row.status)).toEqual(['success']);
+  });
+
+  it('shares a project delay without blocking a different project or region', async () => {
+    await savePosthogCooldown(env.STORE, settings, { reason: 'rate-limited', detail: 'Not stored', nextAttemptAt: '2026-09-23T13:00:00.000Z' });
+    const keys = JSON.stringify({ 'meadow.example': KEY, 'northwind.example': 'phx_other_test_key' });
+    const both: LaneRegister = { assets: {
+      'meadow.example': { posthog: { ...settings, funnels: [CALCULATOR] } },
+      'northwind.example': { posthog: { ...settings, projectId: '700001' } },
+    } };
+    const posthog = posthogFetch();
+    const result = await runPosthogDumps(env, { nowMs: NOW, fetchImpl: posthog.fetchImpl, rawKeys: keys, laneRegister: both });
+    expect(posthog.calls.some(call => call.url.includes('/424242/'))).toBe(false);
+    expect(posthog.calls.filter(call => call.url.includes('/700001/'))).toHaveLength(7);
+    expect(result.skipped.filter(skip => skip.reason === 'rate-limited')).toHaveLength(7);
+    expect(await posthogCooldown(env.STORE, { ...settings, host: 'eu' }, NOW)).toBeNull();
+    await savePosthogCooldown(env.STORE, settings, { reason: 'budget-exhausted', detail: 'Not stored', nextAttemptAt: '2026-09-23T12:31:00.000Z' });
+    expect(await posthogCooldown(env.STORE, settings, NOW)).toMatchObject({ reason: 'rate-limited', nextAttemptAt: '2026-09-23T13:00:00.000Z' });
   });
 });
