@@ -114,6 +114,8 @@ When the board draws more than one epic, a row of project cards above the graph,
 
 **Filters**: **Project** (**Every project** or one), **Status** (**Any status**, then **Open**, **In progress**, **Blocked**, **Parked**, **Closed, last 7 days**, each with its count), **Priority**, **Assignee** and a label. The filters narrow the list, not the charts above it.
 
+When filters hide every decision on **All tasks**, the queue shows **No decisions match these filters.** and keeps the whole board’s count; clearing the filters restores the rows. **No decisions for you.** is reserved for a fully read empty queue. **No decision details read.** means the count includes decisions but no row details were read. An unread project keeps **Waiting work is unknown for unread projects.**
+
 **Working now**, under the summary, lists who holds tasks in progress and how many each holds, with a link, **Agents →**, to the [Agents](/tower/agents) page.
 
 The table, headed **All tasks**, shows **Id**, **Project**, **Who** (the agent or person holding it, or **nobody**), **Age** and **State**, and **Close as** at the end of every row that is not closed, drawn faint until the row is pointed at; on a phone it is inside the opened row. **Select** sits beside the heading when two or more rows can be closed. Each row opens its task page at `/tasks/<id>`, with the full description and the evidence attached when it was closed.

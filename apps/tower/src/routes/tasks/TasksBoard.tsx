@@ -285,7 +285,7 @@ export function TasksBoard({ project: scope = null, newTask = false }: TasksBoar
 
   const queue = nothingWaits && inbox.length === 0 ? null : (
     <div data-waiting-list className="flex min-w-0 flex-col gap-3">
-      <AskQueue asks={inbox} total={totals.waiting} complete={countsComplete} nowMs={now} showProject={!scoped} />
+      <AskQueue asks={inbox} total={totals.waiting} complete={countsComplete} filtered={narrowed} nowMs={now} showProject={!scoped} />
       {/* A list the eye can finish. */}
       {inbox.length > 0 && countsComplete ? (
         <FinishLine line="That's every decision for you." age={shownAt ? `read ${formatAge(ageMs(now, shownAt))} ago` : null} className="min-h-0 py-2.5" />

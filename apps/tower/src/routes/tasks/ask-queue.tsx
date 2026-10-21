@@ -40,11 +40,12 @@ function answerable(ask: Ask, capabilities: TasksCapabilities): boolean {
  * It is offered when two or more rows can be answered here. The All tasks
  * table's Select is the same pieces (`SelectionBar`).
  */
-export function AskQueue({ asks, total, complete, nowMs, showProject, className }: {
+export function AskQueue({ asks, total, complete, filtered, nowMs, showProject, className }: {
   asks: readonly Ask[];
   /** The whole queue, which the snapshot's rows may undercount. */
   total: number;
   complete: boolean;
+  filtered: boolean;
   nowMs: number;
   showProject: boolean;
   className?: string;
@@ -63,7 +64,7 @@ export function AskQueue({ asks, total, complete, nowMs, showProject, className 
       totalNote={complete ? undefined : "partial read"}
       title="Your decisions"
       limit={selecting ? Math.max(asks.length, ASK_ROWS) : ASK_ROWS}
-      empty={complete ? "No decisions for you." : "Waiting work is unknown for unread projects."}
+      empty={!complete ? "Waiting work is unknown for unread projects." : total === 0 ? "No decisions for you." : filtered ? "No decisions match these filters." : "No decision details read."}
       headerAction={selecting || selectable.length >= 2 ? <SelectToggle selection={selection} marks={{ "data-inbox-select-mode": "" }} /> : null}
       toolbar={selecting ? <AskSelection chosen={chosen} selectable={selectable} onPick={selection.pick} onSent={selection.leave} /> : null}
       className={className}

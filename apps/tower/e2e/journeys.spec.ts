@@ -2373,6 +2373,29 @@ test("a filtered backlog is closed as Already handled in one action from All tas
   await assertNoPageOverflow(page);
 });
 
+test("decision filters keep their whole count and restore the hidden decisions when cleared", async ({ page }, testInfo) => {
+  await createAsset(page);
+  for (const route of ["/__journey/task-source", "/__journey/choice-task"]) expect((await page.request.post(route)).ok()).toBe(true);
+  await page.goto(`/tasks/all?project=${JOURNEY_ASSET}`);
+  const row = page.locator(`[data-inbox-row="${CHOICE_TASK}"]`);
+  await expect(row).toBeVisible();
+  const title = page.getByText(/^\d+ decisions for you$/, { exact: true });
+  const count = await title.innerText();
+  await page.goto(`/tasks/all?project=${JOURNEY_ASSET}&label=unmatched-fixture-label`);
+  await expect(page.getByText("No decisions match these filters.", { exact: true })).toBeVisible();
+  await expect(page.getByText(count, { exact: true })).toBeVisible();
+  await expect(page.locator("[data-inbox-row]")).toHaveCount(0);
+  await expect(page.getByText("No decisions for you.", { exact: true })).toHaveCount(0);
+  await assertNoPageOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("decisions-filtered.png"), fullPage: true });
+  await page.getByRole("link", { name: "Clear filters" }).click();
+  await expect(row).toBeVisible();
+  await expect(page.getByText(count, { exact: true })).toBeVisible();
+  await expect(page.getByText("No decisions match these filters.", { exact: true })).toHaveCount(0);
+  await assertNoPageOverflow(page);
+  await page.screenshot({ path: testInfo.outputPath("decisions-restored.png"), fullPage: true });
+});
+
 // A question an agent filed with three options is one press from its row in
 // Your decisions. Undo takes the first press back; the second reaches the task
 // client once its window closes (the pick recorded, a comment, the hand-back

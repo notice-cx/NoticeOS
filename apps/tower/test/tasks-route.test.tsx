@@ -1616,6 +1616,33 @@ describe("/tasks — designed empty states", () => {
     expect(screen.getByText("Loading…")).toBeInTheDocument();
   });
 
+  it("keeps the whole decision count when a label hides every decision, and restores them when cleared", () => {
+    const { container } = renderBoard({ live: true, boards: {
+      "meadow.example": board([liveTask({ id: "md-ask", title: "Choose a launch date", labels: ["human"], ready: true })]),
+    }, entry: "/tasks/all?label=seo" });
+    expect(answerLine(container)).toBe("1 decision for you");
+    expect(screen.getByText("No decisions match these filters.")).toBeInTheDocument();
+    expect(screen.queryByText("No decisions for you.")).toBeNull();
+    expect(container.querySelector("[data-inbox-row]")).toBeNull();
+    fireEvent.click(screen.getByRole("link", { name: "Clear filters" }));
+    expect(container.querySelector('[data-inbox-row="md-ask"]')).toHaveTextContent("Choose a launch date");
+    expect(screen.queryByText("No decisions match these filters.")).toBeNull();
+    expect(answerLine(container)).toBe("1 decision for you");
+  });
+
+  it("keeps missing request details distinct from an empty queue or a filtered queue", () => {
+    const { unmount } = renderBoard({ data: payload({ projects: [project({ counts: { ...project().counts, waiting: 3 }, waiting: [] })] }) });
+    expect(screen.getByText("No decision details read.")).toBeInTheDocument();
+    expect(screen.queryByText("No decisions for you.")).toBeNull();
+    unmount();
+    renderBoard({ data: payload({ projects: [
+      project({ counts: { ...project().counts, waiting: 3 }, waiting: [] }),
+      project({ asset: "unread.example", ok: false }),
+    ] }) });
+    expect(screen.getByText("Waiting work is unknown for unread projects.")).toBeInTheDocument();
+    expect(screen.queryByText("No decisions match these filters.")).toBeNull();
+  });
+
   it("says no task matches the filters rather than drawing an empty table", () => {
     const { container } = renderBoard({ entry: "/tasks?status=blocked" });
     expect(screen.getByText("No task matches these filters.")).toBeInTheDocument();
