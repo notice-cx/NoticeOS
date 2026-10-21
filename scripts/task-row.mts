@@ -124,4 +124,4 @@ export function toComment(row: unknown): TaskComment {
   };
 }
 
-export { text as taskRowText };
+export { text as taskRowText, dependencies as taskRowDependencies };

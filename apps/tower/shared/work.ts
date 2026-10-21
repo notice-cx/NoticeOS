@@ -28,6 +28,16 @@ export const WORK_HISTORY_MIN_POINTS = 3;
  * in step with the runner's cron. */
 export const WORK_POLL_CADENCE_HOURS = 1 / 60;
 
+/** One link from a task to another, on the task that waits: the other task's
+ * id and `bd`'s link type (`blocks`, `related`, … — `TASK_BLOCKING_DEPENDENCIES`
+ * names the ones that hold a task back). `status` is the other task's stored
+ * status where the read held that task. */
+export interface WorkDependency {
+  id: string;
+  type: string;
+  status?: string | null;
+}
+
 /** One task, exactly as the board renders it. `bd`'s vocabulary, flattened
  * by the poller; the OS adds nothing and interprets nothing. */
 export interface WorkItem {
@@ -69,6 +79,10 @@ export interface WorkItem {
   card?: TaskCard | null;
   /** The kind of change it makes (task-change-class.mts), null when unrecorded. */
   changeClass?: TaskChangeClass | null;
+  /** The task's links to other tasks, every type, as the list read reports
+   * them; `[]` when it has none. Absent from a row an older snapshot wrote,
+   * which recorded no links: "not measured", never "no links". */
+  dependencies?: WorkDependency[];
 }
 
 /**
@@ -191,6 +205,9 @@ export interface WorkProject {
   epics: WorkEpic[] | null;
   ready: WorkItem[];
   inProgress: WorkItem[];
+  /** Open work waiting on another task: the first of them, those that wait on
+   * a listed decision first. Absent from an older snapshot. */
+  blocked?: WorkItem[];
   recentlyClosed: WorkItem[];
   /** Parked work, soonest wake-up first. [] when none; the `counts.deferred`
    * null carries "did not look". */

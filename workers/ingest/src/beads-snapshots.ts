@@ -13,7 +13,7 @@
 // count is stored absent, never defaulted to 0.
 
 import { BEADS_HANDOFF_KINDS } from '@noticeos/contract/task-snapshot';
-import { BEADS_CLOSES_MAX } from '@noticeos/contract/task-snapshot';
+import { BEADS_CLOSES_MAX, BEADS_DEPENDENCIES_MAX } from '@noticeos/contract/task-snapshot';
 import { TASK_CHOICE_KEYS, TASK_CHOICE_LIMITS, taskChoiceOf, taskChoicesOf, type TaskChoice, type TaskChoiceKey, type TaskChoices } from '@noticeos/contract/task-choices';
 import { isTaskResolution, TASK_RESOLUTIONS, type TaskResolution } from '@noticeos/contract/task-resolution';
 import { taskCardOf, type TaskCard } from '@noticeos/contract/task-card';
@@ -163,6 +163,16 @@ interface StoredIssue {
    * present only when the poller sent them. */
   resolution?: NotDone;
   duplicateOf?: string;
+  /** The task's links; present only when the poller sent them, so a row from
+   * an older poller never reads as a task with no links. */
+  dependencies?: StoredDependency[];
+}
+
+/** One link: `status` is a key only when the poller knew the other task's. */
+interface StoredDependency {
+  id: string;
+  type: string;
+  status?: string;
 }
 
 /** A close's resolution as a snapshot carries it: done is the absence of one. */
@@ -233,6 +243,7 @@ interface StoredProject {
   closes?: StoredCloses;
   ready: StoredIssue[];
   inProgress: StoredIssue[];
+  blocked?: StoredIssue[];
   recentlyClosed: StoredIssue[];
 }
 
@@ -284,6 +295,24 @@ function optionalInstant(issues: Issues, value: unknown, path: string): string |
   return new Date(parsed).toISOString();
 }
 
+/** A task's links, or undefined when this poller does not send them. Present,
+ * the list must be whole: a link left out would let a held task read as free. */
+function parseDependencies(issues: Issues, value: unknown, path: string): StoredDependency[] | null | undefined {
+  if (value === undefined || value === null) return undefined;
+  const rows = asObjectArray(issues, value, path, BEADS_DEPENDENCIES_MAX);
+  if (!rows) return null;
+  const out: StoredDependency[] = [];
+  for (const [index, raw] of rows.entries()) {
+    const at = `${path}.${index}`;
+    const id = requiredString(issues, raw.id, `${at}.id`, BEADS_ID_MAX);
+    const type = requiredString(issues, raw.type, `${at}.type`, BEADS_TYPE_MAX);
+    const status = optionalString(issues, raw.status, `${at}.status`, BEADS_STATUS_MAX);
+    if (id === null || type === null) return null;
+    out.push({ id, type, ...(status === null ? {} : { status }) });
+  }
+  return out;
+}
+
 function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string): StoredIssue | null {
   const id = requiredString(issues, raw.id, `${path}.id`, BEADS_ID_MAX);
   const title = requiredString(issues, raw.title, `${path}.title`, BEADS_TITLE_MAX);
@@ -322,8 +351,9 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
   if (duplicateOf !== null && resolution !== 'duplicate') {
     issues.add(`${path}.duplicateOf`, 'custom', `${path}.duplicateOf goes with resolution duplicate only`);
   }
+  const dependencies = parseDependencies(issues, raw.dependencies, `${path}.dependencies`);
 
-  if (id === null || title === null || status === null || issueType === null || priority === null) {
+  if (id === null || title === null || status === null || issueType === null || priority === null || dependencies === null) {
     return null;
   }
   return {
@@ -338,6 +368,7 @@ function parseIssue(issues: Issues, raw: Record<string, unknown>, path: string):
     ...(changeClass === null ? {} : { changeClass }),
     ...(resolution === null ? {} : { resolution }),
     ...(duplicateOf === null || resolution !== 'duplicate' ? {} : { duplicateOf }),
+    ...(dependencies === undefined ? {} : { dependencies }),
   };
 }
 
@@ -734,6 +765,7 @@ function parseProject(
   const closes = parseCloses(issues, raw.closes, `${path}.closes`);
   const ready = parseIssueList(issues, raw.ready, `${path}.ready`);
   const inProgress = parseIssueList(issues, raw.inProgress, `${path}.inProgress`);
+  const blocked = parseOptionalIssueList(issues, raw.blocked, `${path}.blocked`);
   const recentlyClosed = parseIssueList(issues, raw.recentlyClosed, `${path}.recentlyClosed`);
 
   if (
@@ -752,6 +784,7 @@ function parseProject(
     closes === null ||
     !ready ||
     !inProgress ||
+    blocked === null ||
     !recentlyClosed
   ) {
     return null;
@@ -773,6 +806,7 @@ function parseProject(
     !raw.ok &&
     (ready.length > 0 ||
       inProgress.length > 0 ||
+      (blocked?.length ?? 0) > 0 ||
       recentlyClosed.length > 0 ||
       (deferred?.length ?? 0) > 0 ||
       (recentlyCreated?.length ?? 0) > 0 ||
@@ -800,6 +834,7 @@ function parseProject(
     ...(epics === undefined ? {} : { epics }),
     ready,
     inProgress,
+    ...(blocked === undefined ? {} : { blocked }),
     recentlyClosed,
     ...(deferred === undefined ? {} : { deferred }),
     ...(recentlyCreated === undefined ? {} : { recentlyCreated }),

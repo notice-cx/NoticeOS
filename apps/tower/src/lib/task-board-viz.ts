@@ -316,9 +316,9 @@ function epicEdge(from: BoardTask, to: string): FlowEdge {
  * another, as a graph: its unfinished children, the tasks in the read that
  * block them (an approval outside the epic included), and the finished ones
  * that released them. An epic with no edge is not a graph, and the saved
- * snapshot carries no edges at all, so a board without the live read draws
- * none. Ordered by what most needs the operator: stuck tasks, then asks,
- * then how much is unfinished.
+ * snapshot holds only the first tasks of each list, so a board without the
+ * live read draws none. Ordered by what most needs the operator: stuck tasks,
+ * then asks, then how much is unfinished.
  */
 export function epicGraphs({ projects, snapshots, nowMs, href }: {
   projects: readonly BoardProject[];

@@ -110,8 +110,29 @@ describe("wallNextUpOf — the decisions", () => {
     const next = wallNextUpOf(snapshot(project("meadow.example", { waiting: [item("md-1"), item("md-2", { createdAt: "not a date" })] })), NOW)!;
     expect(next.decisions.map((decision) => decision.ageDays)).toEqual([null, null]);
     expect(next.oldestAgeDays).toBeNull();
-    // Nothing in the snapshot says what waits on what.
+    // A snapshot an older poller wrote records no links: what waits on what is unknown, not none.
     expect(next.decisions.map((decision) => decision.releases)).toEqual([null, null]);
+  });
+
+  it("counts what a decision holds from the snapshot's links: the open, unparked tasks its project lists that wait on it", () => {
+    const waitsOn = (id: string, type = "blocks") => ({ dependencies: [{ id, type, status: "open" }] });
+    const next = wallNextUpOf(snapshot(
+      project("meadow.example", {
+        waiting: [item("md-gate", { issueType: "gate", dependencies: [] }), item("md-ask", { dependencies: [] })],
+        blocked: [
+          item("md-held", waitsOn("md-gate")),
+          item("md-also", { dependencies: [{ id: "md-gate", type: "waits-for" }, { id: "md-ask", type: "blocks", status: "open" }] }),
+          item("md-related", waitsOn("md-gate", "related")),
+        ],
+        inProgress: [item("md-working", { status: "in_progress", dependencies: [] })],
+        // Parked and closed work waits on nobody.
+        deferred: [item("md-parked", { status: "deferred", ...waitsOn("md-gate") })],
+        recentlyClosed: [item("md-done", { status: "closed", ...waitsOn("md-gate") })],
+      }),
+      // Another project's task with the same link is that project's.
+      project("root-os", { waiting: [item("ro-1", { dependencies: [] })], blocked: [item("ro-held", waitsOn("md-gate"))] }),
+    ), NOW)!;
+    expect(next.decisions.map((decision) => [decision.id, decision.releases])).toEqual([["md-gate", 2], ["md-ask", 1], ["ro-1", 0]]);
   });
 
   it("names each ask with the board's verb: a gate is approved, open choices are chosen, the rest answered", () => {
@@ -190,5 +211,39 @@ describe("wallNextUpOf — the work held now", () => {
       ["md-2", "codex", 5],
       ["md-1", null, null],
     ]);
+  });
+});
+
+describe("the snapshot's links, as the Tower reads the stored row", () => {
+  /** A store whose newest photograph is `payload`. */
+  const storing = (payload: unknown) => ({
+    read: async (run: (tx: { query: () => Promise<unknown[]> }) => Promise<unknown>) =>
+      run({ query: async () => [{ captured_at: hoursAgo(0), payload: JSON.stringify(payload) }] }),
+  }) as unknown as WorkspaceStore;
+  const stored = (over: Record<string, unknown>) => ({ asset: "meadow.example", prefix: "md", ok: true, error: null, counts: {},
+    ready: [], inProgress: [], recentlyClosed: [], ...over });
+
+  it("reads each row's links and the blocked list, and leaves out what an older poller never wrote", async () => {
+    const snapshot = await loadLatestBeadsSnapshot(storing({ projects: [
+      stored({
+        ready: [{ id: "md-1", title: "Older row" }, { id: "md-2", title: "No links", dependencies: [] }],
+        blocked: [
+          { id: "md-a", title: "Held", dependencies: [{ id: "md-gate", type: "blocks", status: "open" }, { id: "md-x", type: "related" }] },
+          // One unreadable link costs the row its links, never a shorter list.
+          { id: "md-b", title: "Garbled", dependencies: [{ id: "md-gate", type: "blocks" }, { type: "blocks" }] },
+        ],
+      }),
+      stored({ asset: "root-os", prefix: "ro" }),
+      stored({ asset: "ferns.example", prefix: "fn", ok: false, error: "no repo", blocked: [{ id: "fn-1", title: "Not read" }] }),
+    ] }));
+    const [meadow, root, ferns] = snapshot!.projects;
+    expect(meadow!.ready.map((item) => [item.id, Object.hasOwn(item, "dependencies"), item.dependencies])).toEqual([
+      ["md-1", false, undefined], ["md-2", true, []],
+    ]);
+    expect(meadow!.blocked!.map((item) => [item.id, item.dependencies])).toEqual([
+      ["md-a", [{ id: "md-gate", type: "blocks", status: "open" }, { id: "md-x", type: "related" }]], ["md-b", undefined],
+    ]);
+    expect(Object.hasOwn(root!, "blocked")).toBe(false);
+    expect(Object.hasOwn(ferns!, "blocked")).toBe(false);
   });
 });

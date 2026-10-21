@@ -1708,6 +1708,7 @@ function findInSnapshot(
       project.waiting,
       project.ready,
       project.inProgress,
+      project.blocked ?? [],
       project.deferred,
       project.recentlyClosed,
     ];

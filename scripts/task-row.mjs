@@ -117,4 +117,4 @@ export function toComment(row) {
         createdAt: instant(source.created_at),
     };
 }
-export { text as taskRowText };
+export { text as taskRowText, dependencies as taskRowDependencies };
