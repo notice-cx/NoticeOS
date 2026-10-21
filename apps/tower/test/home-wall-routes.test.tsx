@@ -900,7 +900,7 @@ describe("Home and the Wall with an unread core task hub", () => {
 
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
     expect(panelFor("Decide")).toHaveTextContent("Reading your tasks…");
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
   });
 
   it("shows the Wall's tasks as unknown while keeping specific non-task concerns covered", () => {
@@ -1024,7 +1024,7 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(regions.at(-1)).toHaveAttribute("data-home-timeline");
 
     expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
     expect(screen.getByRole("link", { name: "All sites →" })).toHaveAttribute("href", "/assets");
   });
 
@@ -1264,7 +1264,7 @@ describe("Home — Decide", () => {
     expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("button", { name: "Answer" })).toBeInTheDocument();
     expect(within(rows[1]!).getByRole("button", { name: "Close as" })).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
+    expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
   });
 
   it("tells an empty inbox apart from an inbox it has never seen", () => {
@@ -1291,7 +1291,7 @@ describe("Home — Decide", () => {
     expect(within(panel).getAllByRole("listitem")).toHaveLength(4);
     fireEvent.click(within(panel).getByRole("button", { name: "Show 6 more" }));
     expect(within(panel).getAllByRole("listitem")).toHaveLength(10);
-    expect(within(panel).getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks");
+    expect(within(panel).getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
   });
 
   it("names the wait beside each row, and nothing about the read itself", () => {
@@ -1554,7 +1554,7 @@ describe("Home and Wall phase scoping", () => {
 
     withSecondSite();
     const home = renderHome();
-    expect(home.container.querySelector('a[href="/tasks"]')).not.toBeNull();
+    expect(home.container.querySelector('a[href="/tasks/all"]')).not.toBeNull();
     expect(home.container.querySelector('a[href="/work"]')).toBeNull();
   });
 });

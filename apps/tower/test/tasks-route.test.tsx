@@ -228,7 +228,7 @@ function renderBoard({
   live = false,
   boards = {},
   errors = {},
-  entry = "/tasks",
+  entry = "/tasks/all",
   isPending = false,
   operations,
 }: Options = {}) {
@@ -247,15 +247,19 @@ function renderBoard({
       <MemoryRouter initialEntries={[entry]}>
         <Routes>
           <Route path="/tasks/:id" element={<TaskDestination />} />
-          <Route
-            path="/tasks"
-            element={
-              <>
-                <TasksRoute />
-                <Search />
-              </>
-            }
-          />
+          {/* The board is the All tasks tab; a filtered `/tasks` link forwards there. */}
+          {["/tasks", "/tasks/all"].map((path) => (
+            <Route
+              key={path}
+              path={path}
+              element={
+                <>
+                  <TasksRoute />
+                  <Search />
+                </>
+              }
+            />
+          ))}
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -1256,7 +1260,7 @@ describe("/tasks — claim, close and defer in place", () => {
   ])("preserves $scope board filters through the $link task link", ({ scope, link }) => {
     const entry = scope === "asset"
       ? "/assets/meadow.example/tasks?range=90&status=open"
-      : "/tasks?status=open&project=meadow.example";
+      : "/tasks/all?status=open&project=meadow.example";
     const { container } = scope === "asset"
       ? renderScoped("meadow.example", { entry })
       : renderBoard({ entry });

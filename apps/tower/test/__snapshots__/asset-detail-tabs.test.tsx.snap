@@ -4674,7 +4674,7 @@ exports[`AssetDetailRoute — every tab renders the DOM the split found > render
 </div>
 </div>
 <div id="asset-tab-panel" role="tabpanel" aria-labelledby="asset-tab-tasks" class="page-arrive flex flex-col gap-4">
-<div id="tasks" class="scroll-mt-4">
+<div id="tasks" class="flex scroll-mt-4 flex-col gap-6">
 <div class="flex w-full flex-col gap-3.5" data-tasks-board="meadow.example">
 <div class="flex flex-wrap items-center justify-end gap-2">
 <button class="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors duration-[var(--brand-fast)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 [&amp;_svg]:size-4 [&amp;_svg]:shrink-0 border border-primary bg-primary text-primary-foreground hover:border-primary-hover hover:bg-primary-hover h-9 px-4 py-2 max-sm:min-h-11" type="button" disabled="" data-new-task="true" data-new-task-project="meadow.example">New task</button>
