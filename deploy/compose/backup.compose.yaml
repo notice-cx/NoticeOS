@@ -27,6 +27,9 @@ services:
     cap_add: [DAC_OVERRIDE, CHOWN, SETUID, SETGID]
     security_opt: [no-new-privileges:true]
     entrypoint: [node, deploy/compose/backup-entrypoint.mjs]
+    environment:
+      NOTICEOS_HOST_FOLDER: ${NOTICEOS_INSTALLATION:-}
+      NOTICEOS_HOST_BACKUP_OFFSITE_PARENT: ${NOTICEOS_BACKUP_OFFSITE_PARENT:-}
     healthcheck:
       test: [CMD, node, deploy/compose/backup-health.mjs]
       interval: 5s

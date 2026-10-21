@@ -16,6 +16,7 @@ export interface WorkflowSummary {
     history: WorkflowBucket[];
     runs: WorkflowRun[];
 }
+export declare const WORKFLOW_RECENT_RUN_LIMIT = 30;
 /**
  * A manual firing as the run history reads it: a job
  * step a person ran now from the connect panel, recorded by the ingest in

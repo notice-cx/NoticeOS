@@ -3,6 +3,7 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { isBackupRunEvidence } from '../packages/contract/src/backup-evidence.mjs';
 
 const FORMAT = 'noticeos-backup-request-v1';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u;
@@ -85,7 +86,8 @@ async function atomicJson(profile, name, value, io) {
 
 function resultChecked(value) {
   if (!value || typeof value.ok !== 'boolean' || typeof value.detail !== 'string' || value.detail.length > 4000) refusal();
-  return { ok: value.ok, detail: value.detail };
+  if (value.backup !== undefined && !isBackupRunEvidence(value.backup)) refusal();
+  return { ok: value.ok, detail: value.detail, ...(value.backup ? { backup: value.backup } : {}) };
 }
 
 export async function finishBackupRequest(profile, request, result, options = {}) {
@@ -99,7 +101,7 @@ export async function finishBackupRequest(profile, request, result, options = {}
 export async function completedBackupRequest(profile, id, { fs: io = fs } = {}) {
   try {
     await privateClaim(profile, io);
-    const response = await privateJson(claimFile(profile, 'response.json'), io);
+    const response = await privateJson(claimFile(profile, 'response.json'), io, 65536);
     const value = response.value;
     if (response.uid !== profile.uid || value.format !== FORMAT || value.id !== id || value.finished !== true) return null;
     return resultChecked(value.result);

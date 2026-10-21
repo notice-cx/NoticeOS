@@ -4,6 +4,9 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import { readBackupClient, readBackupRequest, validateBackupRequest, finishBackupRequest, requestContainerBackup, containerBackupStatus } from './container-backup-channel.mjs';
+import { serviceBackupRequest } from './container-backup-worker.mjs';
+import { BACKUP_PARTS } from '../packages/contract/src/backup-evidence.mjs';
+import { captureWorkflowOutput } from './workflow-output.mjs';
 
 async function fixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'noticeos-backup-channel-'));
@@ -40,6 +43,30 @@ test('the private channel carries only a generated identity, and completion fenc
   await finishBackupRequest(f.profile, request, { ok: true, detail: 'All required stores copied.' });
   assert.deepEqual(await waiting, { ok: true, detail: 'All required stores copied.' });
   assert.deepEqual(await fs.readdir(f.profile.transportDir), []);
+});
+
+test('the worker preserves validated per-run evidence through the channel into execution output', async t => {
+  const f = await fixture(t);
+  const backup = { version: 1, startedAt: '2026-09-09T04:00:00.000Z', finishedAt: '2026-09-09T04:00:25.000Z', complete: true,
+    local: { path: '/state/.local/backups/2026-09-09', context: 'backup-worker', status: 'completed' },
+    offsite: { path: '/backup-offsite/backups/2026-09-09', context: 'backup-worker', status: 'completed' },
+    parts: BACKUP_PARTS.map(id => ({ id, status: 'completed', copied: 1, expected: 1, targets: [], totalTargets: 0 })) };
+  const waiting = requestContainerBackup(f.file, { timeoutMs: 2000, intervalMs: 5 });
+  await requested(f.profile);
+  await serviceBackupRequest(f.profile, async () => ({ ok: true, detail: 'Backup complete.', backup, rawSql: 'private marker' }));
+  const result = await waiting;
+  assert.deepEqual(result.backup, backup);
+  assert.deepEqual(captureWorkflowOutput(result).backup, backup);
+  assert.ok(!JSON.stringify(result).includes('private marker'));
+});
+
+test('the channel refuses unknown fields inside evidence, without accepting a partial result', async t => {
+  const f = await fixture(t);
+  const waiting = requestContainerBackup(f.file, { timeoutMs: 2000, intervalMs: 5 });
+  const request = await requested(f.profile);
+  await assert.rejects(finishBackupRequest(f.profile, request, { ok: true, detail: 'Done', backup: { token: 'private' } }), /unavailable/u);
+  await finishBackupRequest(f.profile, request, { ok: false, detail: 'Metadata unavailable' });
+  assert.equal((await waiting).ok, false);
 });
 
 test('simultaneous requests and a lost worker never remove the in-flight claim', async t => {

@@ -109,6 +109,7 @@ const ALLOWED_PHRASES = [
   'config/beads.json',
   'config/beads.README.md',
   '/.beads/config.yaml',
+  "'beads/'", // The actual backup-set directory, displayed as code beside Task databases.
   'config/changesets',
   // 2. STORED, WIRE AND DOM VALUES. Renaming one is a data migration or a
   //    broken link, not a copy change.
@@ -514,6 +515,7 @@ const SITE_NOUN_FILES = [
  * can see them. Exact phrases; each is code a person does not read as the noun.
  */
 const SITE_NOUN_IDENTIFIERS = [
+  'cloudflare-d1/ · assets/', // Actual backup directories, displayed as code beside Site databases.
   'db · assets row', // an owner chip naming the `assets` table it writes (doc 14 owner-chip row)
 ];
 

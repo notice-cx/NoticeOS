@@ -1,5 +1,6 @@
 import { useDemoReadonly } from '@/lib/browser-context';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
+import { BackupExecutionDetails, BackupRunDetails } from './workflows/BackupRunDetails';
 import { Link, Navigate, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowUpRight, Clock, GitBranch, Pencil, Search } from 'lucide-react';
 import { WORKFLOW_DEFINITIONS, WORKFLOW_STATE_LABEL, installedWorkflows, workflowBasePath, type WorkflowSurface, workflowState, workflowRunAge, type WorkflowsPayload, type WorkflowDefinition, type WorkflowState } from '@shared/workflows';
@@ -166,6 +167,7 @@ function WorkflowIndex({ schedule, surface }: { schedule: boolean; surface: Work
 }
 
 function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface }) {
+  const ExecutionContainer = id === 'backup' ? BackupExecutionDetails : Fragment;
   const demoReadonly = useDemoReadonly();
   const base = workflowBasePath(surface);
   const breadcrumb = surface === 'system' ? [{ label: 'System health', to: '/health' }, { label: 'Background operations', to: base }] : [{ label: 'Workflows', to: base }];
@@ -202,6 +204,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
     {!data && query.isError ? <ReadFailed title={`Couldn't load this ${surface === 'system' ? 'operation' : 'workflow'}`} subject={`read:${surface === 'system' ? 'operation' : 'workflow'}`} error={query.error} retrying={query.isFetching} onRetry={() => void query.refetch()} />
       : !data || !summary ? <p className="text-sm text-muted-foreground">Loading workflow…</p> : <>
       <RuntimeNotice data={data} />
+      {id === 'backup' && <BackupRunDetails run={selected} captured={data.backup} pending={query.isPlaceholderData || Boolean(defaultRun && !runId)} />}
       <div className="flex flex-wrap items-start justify-between gap-4 border-y border-border py-4">
         <div className="flex flex-wrap gap-x-10 gap-y-3"><div><p className="mb-1 text-xs text-muted-foreground">Schedule · Local time</p><p className="text-sm font-medium tabular-nums">{saved?.enabled ? scheduleLabel(saved.cron, scheduleTimezone(saved)) : 'Paused'}</p></div><div><p className="mb-1 text-xs text-muted-foreground">Next execution</p><NextRun workflow={definition} data={data} showCadence={false} /></div><div><p className="mb-1 text-xs text-muted-foreground">Category</p><p className="text-sm">{definition.group}</p></div></div>
         {/* A collection's schedule is edited with the collection: on the
@@ -224,7 +227,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         onReload={async () => { const fresh = await query.refetch(); setEditing({ overrides: fresh.data?.overrides ?? null }); }}
         onClose={() => { setEditing(null); requestAnimationFrame(() => editButton.current?.focus()); }} />}
       {!collection && !writable.writable && !(demoReadonly && writable.reason === DEMO_READ_ONLY) && <p className="text-sm text-muted-foreground">{writable.reason}</p>}
-      <section className="space-y-4" aria-label="Workflow execution">
+      <ExecutionContainer><section className="space-y-4" aria-label="Workflow execution">
         <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-base font-semibold">Execution stages</h2><label className="flex items-center gap-2 text-xs text-muted-foreground">Run<select className={cn(fieldClass, 'max-w-full tabular-nums')} value={runId ?? ''} onChange={(e) => { const next = new URLSearchParams(search); next.set('run', e.target.value); setSearch(next); }}>
           {!runId && <option value="">No recorded run</option>}
           {summary.active && <option value={summary.active.id}>Running now</option>}
@@ -233,7 +236,7 @@ function WorkflowDetail({ id, surface }: { id: string; surface: WorkflowSurface 
         </select></label></div>
         {selected ? <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground tabular-nums"><WorkflowStateLabel state={selected.state === 'running' && (!data.runtimeFresh || !data.observationsFresh) ? 'unknown' : selected.state} /><time dateTime={selected.startedAt} title={utcRunReference(selected.startedAt)}>{formatNextRun(selected.startedAt)}</time><WorkflowRunTrigger run={selected} /><span>{workflowDuration(selected.startedAt, selected.finishedAt)}</span><span>{selected.definitionVersion ? `Version ${selected.definitionVersion}` : 'Version unavailable'}</span></div> : runId ? query.isPlaceholderData ? <p role="status" data-status-for={`workflow-run:${runId}`} className="text-sm text-muted-foreground">Loading execution…</p> : <p className="text-sm text-warn">This run is not in the retained execution history.</p> : null}
         <WorkflowStages key={selected?.id ?? 'definition'} definition={definition} run={selected ?? null} fresh={data.runtimeFresh && data.observationsFresh} />
-      </section>
+      </section></ExecutionContainer>
       <section className="space-y-3" aria-label="Recent runs"><div className="flex items-center justify-between"><h2 className="text-base font-semibold">Recent runs</h2><span className="text-xs text-muted-foreground">Latest 10 · Local time</span></div>
         <div className="divide-y divide-border rounded-lg border border-border">{summary.runs.slice(0, 10).map((run) => <Link key={run.id} to={`${base}/${id}?run=${encodeURIComponent(run.id)}`} className={cn('grid min-h-14 grid-cols-[minmax(0,1fr)_auto_3.5rem] items-center gap-3 px-4 py-3 outline-none hover:bg-muted/30 focus-visible:ring-2 focus-visible:ring-ring', selected?.id === run.id && 'bg-muted/40')} data-workflow-run={run.id}><span className="flex flex-wrap items-center gap-x-3 gap-y-1"><time dateTime={run.startedAt} title={utcRunReference(run.startedAt)} className="text-sm tabular-nums">{formatNextRun(run.startedAt)}</time><WorkflowRunTrigger run={run} /></span><WorkflowStateLabel state={run.state} /><span className="text-right text-xs text-muted-foreground tabular-nums">{workflowDuration(run.startedAt, run.finishedAt)}</span></Link>)}{!summary.runs.length && <p className="p-5 text-sm text-muted-foreground">No recorded runs for this workflow.</p>}</div>
       </section>

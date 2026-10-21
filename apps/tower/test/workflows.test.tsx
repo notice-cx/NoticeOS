@@ -55,6 +55,13 @@ beforeEach(() => {
 afterEach(() => { cleanup(); client.clear(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 describe('workflow operating surface', () => {
+  it('does not report a backup in progress when no run has been recorded', async () => {
+    data = { ...data, ...buildWorkflowHistory([], [], [], now) };
+    mount('/health/operations/backup');
+    expect(await screen.findByRole('heading', { name: 'No backup run available' })).toBeVisible();
+    expect(screen.queryByText('Backup in progress')).toBeNull();
+    expect(screen.queryByText('Loading this run’s backup evidence.')).toBeNull();
+  });
   it('reserves Workflows for intentional operator automations and scopes the counts and categories', async () => {
     mount('/workflows');
     expect(await screen.findByRole('link', { name: 'Search review tasks' })).toBeInTheDocument();

@@ -1,5 +1,6 @@
 import type { WorkflowRun } from '@noticeos/contract';
 import type { ScheduledJobsPayload } from './scheduled-jobs';
+import type { BackupRunEvidence } from '../../../packages/contract/src/backup-evidence.mjs';
 import { WORKFLOW_DEFINITIONS, type WorkflowDefinition } from '../../../scripts/workflow-definitions.mjs';
 export * from '../../../scripts/workflow-definitions.mjs';
 
@@ -38,6 +39,7 @@ export interface WorkflowsPayload extends ScheduledJobsPayload {
   observationsFresh: boolean;
   workflows: WorkflowSummary[];
   selectedRun: WorkflowRun | null;
+  backup?: { runId: string; evidence: BackupRunEvidence; source: 'execution' | 'report' } | null;
 }
 
 export type WorkflowState = WorkflowRun['state'] | 'paused' | 'unknown' | 'never';

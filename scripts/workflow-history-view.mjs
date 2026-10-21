@@ -3,6 +3,7 @@ import { isWorkflowStepOutput } from './workflow-output.mjs';
 import { jobRunName } from './scheduled-jobs.mjs';
 import { WORKFLOW_DEFINITIONS } from './workflow-definitions.mjs';
 const HOUR = 3_600_000;
+export const WORKFLOW_RECENT_RUN_LIMIT = 30;
 const isObject = (value) => Boolean(value && typeof value === 'object');
 function validTrace(value, definitions) {
     if (!isObject(value) || typeof value.id !== 'string' || typeof value.workflowId !== 'string' ||
@@ -97,7 +98,7 @@ export function summarizeWorkflowHistory(records, active, now, selectedId, defin
                 bucket.runId = run.id;
         }
         return { id: workflow.id, latest: own[0] ?? null, active: activeRuns.find((r) => r.workflowId === workflow.id) ?? null,
-            history, runs: own.slice(0, 30).map((run) => ({ ...run, steps: null })) };
+            history, runs: own.slice(0, WORKFLOW_RECENT_RUN_LIMIT).map((run) => ({ ...run, steps: null })) };
     });
     return { workflows, selectedRun: selectedId ? runs.find((r) => r.id === selectedId) ?? activeRuns.find((r) => r.id === selectedId) ?? null : null };
 }

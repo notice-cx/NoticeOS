@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
 import { render as renderOwned } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { act, render, fireEvent, screen, waitFor } from './render';
@@ -19,9 +20,9 @@ const receipt: D1Receipt = { version: 1, accountId, databaseId, asset: 'example.
 beforeEach(() => vi.restoreAllMocks());
 function panel(canSave = true, connect = false) {
   const body = <CloudflareD1Panel inventory={inventory} names={new Map([['example.com', 'Example']])} canSave={canSave} onChanged={async () => {}} />;
-  return render(<QueryClientProvider client={new QueryClient()}>{connect ? <ConnectPanel provider={integrationProvider('cloudflare')!} canConnect onClose={() => {}}
+  return render(<MemoryRouter><QueryClientProvider client={new QueryClient()}>{connect ? <ConnectPanel provider={integrationProvider('cloudflare')!} canConnect onClose={() => {}}
     presentation="inline" onConnect={async () => ({ verdict: 'accepted', checkedAt: receipt.startedAt, facts: { databases: 1, cloudflareD1: inventory } })}
-    next={() => body} /> : body}</QueryClientProvider>);
+    next={() => body} /> : body}</QueryClientProvider></MemoryRouter>);
 }
 function managePanel() {
   const connect = vi.fn();
@@ -98,6 +99,8 @@ it('connects then explicitly selects an asset and starts backup with one action'
   expect(screen.getByText('Export temporarily blocks database queries.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Back up selected' }));
   await screen.findByText('Export stored');
+  expect(screen.getByRole('link', { name: 'View full backup history' })).toHaveAttribute('href', '/health/operations/backup');
+  expect(screen.getByText(/Full backups create fresh exports/)).toBeVisible();
   expect(save).toHaveBeenCalledWith({ version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] });
   expect(run).toHaveBeenCalledWith(accountId, databaseId);
   expect(save.mock.invocationCallOrder[0]).toBeLessThan(run.mock.invocationCallOrder[0]!);
