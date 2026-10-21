@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor, within } from "./render";
+import { act, fireEvent, render, screen, waitFor, within } from "./render";
 import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -1774,5 +1774,95 @@ describe('/financials — stated currency and unavailable mixed totals', () => {
     expect(screen.getAllByText('€100.00').length).toBeGreaterThan(0);
     expect(screen.getAllByText('$200.00').length).toBeGreaterThan(0);
     expect(container.querySelector('[data-segment="reconciled"]')).toBeNull();
+  });
+});
+
+describe("/financials — New price", () => {
+  async function openPrice() {
+    const table = editor("recurring-costs");
+    fireEvent.click(within(table).getByRole("button", { name: "New price for Claude Code (Max)" }));
+    return screen.findByRole("dialog", { name: "New price · Claude Code (Max)" });
+  }
+  function fillPrice(form: HTMLElement, month = "2026-10") {
+    fireEvent.change(within(form).getByLabelText("USD / month"), { target: { value: "250" } });
+    fireEvent.change(within(form).getByLabelText("First month"), { target: { value: month } });
+  }
+  it("saves both operations once and offers one guarded Undo", async () => {
+    const calls = stubLane(undefined, { status: 200, body: { applied: 2, archive: null, commit: null } });
+    renderPage(withCosts());
+    const form = await openPrice();
+    fillPrice(form);
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledOnce());
+    expect(calls).toHaveLength(1);
+    const ops = calls[0]!.body!.ops;
+    expect(ops).toEqual([
+      { kind: "file-json-set", file: "config/recurring-costs.json", pointer: "/costs/0", expect: RECURRING[0], value: { ...RECURRING[0], to: "2026-09" } },
+      { kind: "file-json-insert", file: "config/recurring-costs.json", pointer: "/costs/-", value: { ...RECURRING[0], id: expect.any(String), amountUsdPerMonth: 250, from: "2026-10" } },
+    ]);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    toasts.success.mock.calls[0]?.[1]?.action.onClick();
+    await waitFor(() => expect(calls).toHaveLength(2));
+    expect(calls[1]!.body!.ops).toEqual([
+      { kind: "file-json-delete", file: "config/recurring-costs.json", pointer: "/costs/2", expect: (ops[1] as { value: unknown }).value },
+      { kind: "file-json-set", file: "config/recurring-costs.json", pointer: "/costs/0", expect: { ...RECURRING[0], to: "2026-09" }, value: RECURRING[0] },
+    ]);
+  });
+  it("keeps both entered values after a refused save", async () => {
+    const calls = stubLane(undefined, { status: 409, body: { error: "stale" } });
+    renderPage(withCosts());
+    const form = await openPrice();
+    fillPrice(form);
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(toasts.error).toHaveBeenCalled());
+    expect(within(form).getByLabelText("USD / month")).toHaveValue(250);
+    expect(within(form).getByLabelText("First month")).toHaveValue("2026-10");
+    expect(calls).toHaveLength(1);
+    expect(toasts.success).not.toHaveBeenCalled();
+    expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled();
+  });
+  it("blocks duplicate submissions while a save is pending", async () => {
+    const calls = stubLane(undefined, { status: 200, body: { applied: 2, archive: null, commit: null } });
+    const lane = vi.mocked(fetch).getMockImplementation()!;
+    let finish!: () => void;
+    const gate = new Promise<void>((resolve) => { finish = resolve; });
+    vi.mocked(fetch).mockImplementation(async (input, init) => {
+      if (init?.method === "PUT") await gate;
+      return lane(input, init);
+    });
+    renderPage(withCosts());
+    const form = await openPrice();
+    fillPrice(form);
+    fireEvent.click(within(form).getByRole("button", { name: "Save" }));
+    expect(within(form).getByRole("button", { name: "Saving…" })).toBeDisabled();
+    fireEvent.submit(form.querySelector("form")!);
+    await act(async () => { finish(); });
+    await waitFor(() => expect(toasts.success).toHaveBeenCalledOnce());
+    expect(calls).toHaveLength(1);
+  });
+  it("preserves entered values while saves pause and resume", async () => {
+    const calls = stubLane();
+    renderPage(withCosts());
+    const form = await openPrice();
+    fillPrice(form);
+    await act(async () => { client.setQueryData(["config-writable"], { writable: false, reason: "Paused", sources: {} }); });
+    await waitFor(() => expect(within(form).getByRole("button", { name: "Save" })).toBeDisabled());
+    fireEvent.submit(form.querySelector("form")!);
+    expect(calls).toHaveLength(0);
+    await act(async () => { client.setQueryData(["config-writable"], { writable: true, reason: null, sources: {} }); });
+    expect(within(form).getByLabelText("USD / month")).toHaveValue(250);
+    expect(within(form).getByLabelText("First month")).toHaveValue("2026-10");
+    await waitFor(() => expect(within(form).getByRole("button", { name: "Save" })).toBeEnabled());
+  });
+  it("keeps invalid dates local and the immutable original amount fixed", async () => {
+    const calls = stubLane();
+    renderPage(withCosts());
+    const form = await openPrice();
+    fillPrice(form, "2026-06");
+    expect(within(form).getByLabelText("First month")).toBeInvalid();
+    fireEvent.submit(form.querySelector("form")!);
+    expect(await within(form).findByRole("alert")).toHaveTextContent("follow the current month");
+    expect(calls).toHaveLength(0);
+    expect(editor("recurring-costs").querySelector('[data-collection-fixed="amountUsdPerMonth"]')).not.toBeNull();
   });
 });

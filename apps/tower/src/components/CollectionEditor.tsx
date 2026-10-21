@@ -117,6 +117,8 @@ export interface CollectionEditorProps {
   onAdded?: (row: Record<string, JsonValue>) => void;
   /** The row's identity glyph, drawn beside the first (key) column. */
   rowGlyph?: (row: CollectionRow) => ReactNode;
+  /** Extra actions owned by the host page, beside Remove. */
+  rowActions?: (row: CollectionRow, disabled: boolean) => ReactNode;
   /** The changeset slug, and the commit subject. */
   slug?: string;
   /**
@@ -174,6 +176,7 @@ export function CollectionEditor({
   onSave,
   onAdded,
   rowGlyph,
+  rowActions,
   className,
 }: CollectionEditorProps) {
   const register = configRegister(registerKey);
@@ -396,7 +399,9 @@ export function CollectionEditor({
                     {column.label}
                   </TableHead>
                 ))}
-                <TableHead className="w-px" />
+                <TableHead className={cn("w-px", rowActions && "@min-[40rem]:sticky @min-[40rem]:right-0 @min-[40rem]:z-10 @min-[40rem]:bg-card")}>
+                  {rowActions ? "Actions" : null}
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -418,6 +423,7 @@ export function CollectionEditor({
                   fieldOptions={fieldOptions}
                   refuseField={(field, value) => listRefusal(field, value, row.token)}
                   glyph={rowGlyph?.(row)}
+                  actions={rowActions?.(row, locked || pending !== null)}
                   locked={locked}
                   removable={!oneRow}
                   saving={pending === row.token}
@@ -483,6 +489,7 @@ function Row({
   fieldOptions,
   refuseField,
   glyph,
+  actions,
   locked,
   removable,
   saving,
@@ -503,6 +510,7 @@ function Row({
   fieldOptions?: Readonly<Record<string, readonly string[]>>;
   refuseField?: (field: RegisterField, value: JsonValue) => string | null;
   glyph?: ReactNode;
+  actions?: ReactNode;
   locked: boolean;
   removable: boolean;
   saving: boolean;
@@ -581,7 +589,11 @@ function Row({
           {column.render(row)}
         </TableCell>
       ))}
-      <TableCell className="align-top" foldWhenStacked={folds}>
+      <TableCell
+        className={cn("align-top", actions && "@min-[40rem]:sticky @min-[40rem]:right-0 @min-[40rem]:z-10 @min-[40rem]:bg-card")}
+        foldWhenStacked={folds}
+      >
+        {actions}
         {locked || !removable ? null : confirming ? (
           <div className="flex items-center gap-1" data-collection-confirm={row.key}>
             <Button

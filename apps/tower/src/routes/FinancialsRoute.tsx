@@ -1,6 +1,6 @@
 import { moneyCurrency } from "@noticeos/contract/money";
 import { ChevronRight, LoaderCircle } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { revenueWindowDays, type PortfolioDailyRevenue } from "@shared/daily-revenue";
 import {
@@ -25,6 +25,10 @@ import { StateChip } from "@/components/StateChip";
 import { HeroChart, type HeroSeries } from "@/components/surface/HeroChart";
 import { SectionLabel, eyebrowClass } from "@/components/surface/SectionLabel";
 import { Sparkline } from "@/components/surface/Sparkline";
+import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useStructuralSave } from "@/hooks/useConfigSave";
+import { recurringPriceId, recurringPriceOps } from "@/lib/recurring-price";
 import { fieldClass } from "@/components/ui/field";
 import { pillControlClass } from "@/components/ui/pill";
 import {
@@ -254,6 +258,7 @@ function FirstRun({ data }: { data: FinancialsPayload }) {
         <Costs
           period={data.period}
           currentPeriod={data.currentPeriod}
+          bookedThrough={data.periods.reduce((latest, month) => month > latest ? month : latest, data.currentPeriod)}
           recurringCosts={data.recurringCosts}
           domainOrders={data.domainOrders}
           schedule={data.domains}
@@ -557,6 +562,7 @@ function Ledger({ data }: { data: FinancialsPayload }) {
         <Costs
           period={data.period}
           currentPeriod={openPeriod}
+          bookedThrough={data.periods.reduce((latest, month) => month > latest ? month : latest, openPeriod)}
           recurringCosts={data.recurringCosts}
           domainOrders={data.domainOrders}
           schedule={data.domains}
@@ -743,6 +749,7 @@ function declaredByAsset(
 function Costs({
   period,
   currentPeriod,
+  bookedThrough,
   recurringCosts,
   domainOrders,
   schedule,
@@ -751,6 +758,7 @@ function Costs({
   period: string;
   /** The month the reader is standing in — what "renews soon" counts from. */
   currentPeriod: string;
+  bookedThrough: string;
   recurringCosts: RecurringCost[];
   domainOrders: DomainOrder[];
   schedule: DomainSchedule[];
@@ -784,6 +792,9 @@ function Costs({
         statesReadOnly={false}
         rows={recurringCosts}
         slug="financials-recurring-cost"
+        rowActions={(row, disabled) => (
+          <NewRecurringPrice rows={recurringCosts} index={Number(row.token)} disabled={disabled} bookedThrough={bookedThrough} />
+        )}
         fieldOptions={assetOptions}
       />
 
@@ -887,5 +898,91 @@ function DeclaredRunRate({ lines, total }: { lines: DeclaredLine[]; total: numbe
         })}
       </ul>
     </div>
+  );
+}
+
+
+function NewRecurringPrice({ rows, index, disabled, bookedThrough }: {
+  rows: RecurringCost[];
+  index: number;
+  disabled: boolean;
+  bookedThrough: string;
+}) {
+  const save = useStructuralSave();
+  const titleId = useId();
+  const errorId = useId();
+  const [open, setOpen] = useState(false);
+  const [snapshot, setSnapshot] = useState(rows);
+  const [amount, setAmount] = useState("");
+  const [month, setMonth] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+  const cost = rows[index]!;
+
+  async function submit() {
+    if (disabled || inFlight.current) return;
+    setError(null);
+    let operations;
+    try {
+      if (JSON.stringify(snapshot[index]) !== JSON.stringify(rows[index])) {
+        throw new Error("This recurring cost changed. Close the form and try again.");
+      }
+      operations = recurringPriceOps(rows, index, amount, month, recurringPriceId(cost.id), bookedThrough);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      return;
+    }
+    inFlight.current = true;
+    setSaving(true);
+    try {
+      if (await save({ ...operations, label: `New price · ${cost.label}`, slug: "financials-new-recurring-price" })) {
+        setOpen(false);
+        setAmount("");
+        setMonth("");
+      }
+    } finally {
+      inFlight.current = false;
+      setSaving(false);
+    }
+  }
+
+  if (disabled && !open) return null;
+  return (
+    <Popover open={open} onOpenChange={(next) => {
+      if (inFlight.current) return;
+      if (next) setSnapshot(rows);
+      setOpen(next);
+    }}>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="outline" size="sm" disabled={disabled || saving}
+          aria-label={`New price for ${cost.label}`}>
+          New price
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent aria-labelledby={titleId} className="w-80 max-w-[calc(100vw-1rem)]">
+        <form className="flex flex-col gap-3" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
+          <h4 id={titleId} className="text-sm font-medium">New price · {cost.label}</h4>
+          <p className="text-xs text-muted-foreground">The original price ends the month before. Earlier amounts stay unchanged. Earliest month: {nextPeriod(bookedThrough)}.</p>
+          <label className="flex min-w-0 flex-col gap-1 text-xs">
+            USD / month
+            <input className={fieldClass} type="number" inputMode="decimal" min="0" step="any"
+              value={amount} disabled={disabled || saving} onChange={(event) => { setAmount(event.target.value); setError(null); }} />
+          </label>
+          <label className="flex min-w-0 flex-col gap-1 text-xs">
+            First month
+            <input className={fieldClass} type="month" min={nextPeriod(bookedThrough)} value={month} disabled={disabled || saving}
+              aria-describedby={error ? errorId : undefined} aria-invalid={error ? true : undefined}
+              onChange={(event) => { setMonth(event.target.value); setError(null); }} />
+          </label>
+          {error ? <p id={errorId} role="alert" className="text-xs text-error">{error}</p> : null}
+          {disabled ? <p role="status" className="text-xs text-muted-foreground">Saves paused</p> : null}
+          <div className="flex gap-2">
+            <Button type="submit" size="sm" disabled={disabled || saving}>{saving ? "Saving…" : "Save"}</Button>
+            <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+        </form>
+      </PopoverContent>
+    </Popover>
   );
 }
