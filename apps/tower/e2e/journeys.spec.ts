@@ -2405,6 +2405,7 @@ test("decision filters keep their whole count and restore the hidden decisions w
   await expect(page.getByText("No decisions for you.", { exact: true })).toHaveCount(0);
   await assertNoPageOverflow(page);
   await page.screenshot({ path: testInfo.outputPath("decisions-filtered.png"), fullPage: true });
+  if (testInfo.project.name === "mobile") await page.getByRole("button", { name: /^Filters/ }).click();
   await page.getByRole("link", { name: "Clear filters" }).click();
   await expect(row).toBeVisible();
   await expect(page.getByText(count, { exact: true })).toBeVisible();
