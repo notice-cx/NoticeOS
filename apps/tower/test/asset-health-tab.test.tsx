@@ -102,7 +102,10 @@ describe("the Health tab", () => {
 
     const panels = [...container.querySelectorAll("[data-health-evidence]")];
     expect(panels.map((panel) => panel.getAttribute("data-health-evidence"))).toEqual(["reachable", "speed", "errors", "search", "code"]);
-    expect(panels.map((panel) => within(panel as HTMLElement).getByRole("region").getAttribute("aria-label"))).toEqual(["Up", "Speed", "Errors", "Search", "Code"]);
+    const names = ["Up", "Speed", "Errors", "Search", "Code"];
+    panels.forEach((panel, index) => {
+      expect(within(panel as HTMLElement).getByRole("region")).toHaveAccessibleName(names[index]);
+    });
     const evidence = container.querySelector('[data-health-evidence="reachable"]')!;
     expect(evidence).toHaveTextContent("Checked every hour");
     expect(evidence).toHaveTextContent("Home page: fine on Jul 4");
