@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { render as renderOwned } from '@testing-library/react';
 import { beforeEach, expect, it, vi } from 'vitest';
-import { render, fireEvent, screen, waitFor } from './render';
+import { act, render, fireEvent, screen, waitFor } from './render';
 import * as api from '@/lib/api';
 import { CloudflareD1Panel } from '@/routes/integrations/CloudflareD1Panel';
 import { ConnectPanel } from '@/components/ConnectPanel';
@@ -23,6 +23,40 @@ function panel(canSave = true, connect = false) {
     presentation="inline" onConnect={async () => ({ verdict: 'accepted', checkedAt: receipt.startedAt, facts: { databases: 1, cloudflareD1: inventory } })}
     next={() => body} /> : body}</QueryClientProvider>);
 }
+function managePanel() {
+  const connect = vi.fn();
+  render(<QueryClientProvider client={new QueryClient()}>
+    <ConnectPanel provider={integrationProvider('cloudflare')!} canConnect opened="sites" presentation="inline" onClose={() => {}}
+      onConnect={connect} next={() => <CloudflareD1Panel names={new Map([['example.com', 'Example']])} canSave onChanged={async () => {}} />} />
+  </QueryClientProvider>);
+  return connect;
+}
+it('opens Manage without carried inventory, then loads the saved database mapping without writes', async () => {
+  let resolve!: (value: D1Status) => void;
+  const pending = new Promise<D1Status>(done => { resolve = done; });
+  const read = vi.spyOn(api, 'fetchD1Status').mockReturnValue(pending);
+  const save = vi.spyOn(api, 'saveD1Selection');
+  const exportDatabase = vi.spyOn(api, 'exportD1Database');
+  const connect = managePanel();
+  expect(screen.getByText('Loading databases')).toBeVisible();
+  expect(read).toHaveBeenCalledWith(true);
+  await act(async () => resolve({ ...initial, databases: inventory.databases,
+    selection: { version: 1, accountId, targets: [{ databaseId, asset: 'example.com' }] } }));
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: 'Example database' })).toBeChecked());
+  expect(screen.getByRole('combobox', { name: 'Site for Example database' })).toHaveValue('example.com');
+  expect(read).toHaveBeenCalledTimes(1);
+  expect(connect).not.toHaveBeenCalled();
+  expect(save).not.toHaveBeenCalled();
+  expect(exportDatabase).not.toHaveBeenCalled();
+});
+it('lets Manage retry a failed inventory read and show an empty database list', async () => {
+  const read = vi.spyOn(api, 'fetchD1Status').mockRejectedValueOnce(new Error('Unavailable'))
+    .mockResolvedValue({ ...initial, databases: [] });
+  managePanel();
+  fireEvent.click(await screen.findByRole('button', { name: 'Retry databases' }));
+  await screen.findByText('No D1 databases');
+  expect(read.mock.calls).toEqual([[true], [true]]);
+});
 it('loads without randomUUID and keeps one read per panel session, including StrictMode', async () => {
   const read = vi.spyOn(api, 'fetchD1Status').mockResolvedValue(initial);
   const client = new QueryClient();
