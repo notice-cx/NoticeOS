@@ -88,13 +88,17 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
       workspace = profile === 'demo' ? demo! : header ?? '';
       if (!UUID.test(workspace) || profile === 'demo' && header !== null && header !== demo) invalid();
       const path = url.pathname;
-      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss|choose))?))?$/iu.test(path)
+      if (!/^\/api\/tasks(?:\/(?:projects|capabilities|agent-stats|[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*(?:\/(?:history|comments|close|respond|dismiss|choose))?))?$/iu.test(path)
         && !/^\/api\/gates\/[a-z0-9]+-{1,2}[a-z0-9]+(?:\.[0-9]+)*\/resolve$/iu.test(path)) invalid();
       if (original.method === 'GET' && original.body !== null) invalid();
       const supplied = original.headers.get(IDEMPOTENCY_HEADER);
       if (supplied !== null && (original.method === 'GET' || !IDEMPOTENCY_KEY.test(supplied))) invalid();
       if (path === '/api/tasks/projects' || path === '/api/tasks/capabilities') {
         if (original.method !== 'GET' || url.search !== '') invalid();
+      } else if (path === '/api/tasks/agent-stats') {
+        if (original.method !== 'GET') invalid();
+        query = selections(url, ['project']);
+        if (query.project !== undefined && !UUID.test(query.project)) invalid();
       } else if (original.method !== 'GET') {
         mutation = await readHostedTaskCommand(original, url, workspace);
         if (supplied !== null && !['create', 'update', 'comment', 'close'].includes(mutation.operation.kind)) invalid();
@@ -119,6 +123,7 @@ export function createHostedTasksApi(options: HostedTasksApiOptions): (original:
     try {
       if (url.pathname === '/api/tasks/projects') return readResponse(original, { projects: await operations.projects(proof, workspace) });
       if (url.pathname === '/api/tasks/capabilities') return readResponse(original, await operations.capabilities(proof, workspace));
+      if (url.pathname === '/api/tasks/agent-stats') return readResponse(original, await operations.agentStats(proof, workspace, query?.project));
       // Parsing consumed the original stream once before admission; neither a
       // body tee nor a caller-supplied command/context is forwarded.
       if (mutation) return writeResponse(await operations.write(proof, workspace, mutation, key));

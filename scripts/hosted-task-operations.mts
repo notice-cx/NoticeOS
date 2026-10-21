@@ -15,6 +15,7 @@ import { AdmissionRefused, type WorkspaceAdmission, type WorkspaceContext } from
 import { hostedTaskAction, HumanDecisionRefused, recordedTaskCard, refusalFromState, shippedTaskCard, taskProposal, TaskMaintenanceRefused, TaskStateRefused,
   type HostedTaskOperation, type HostedTaskRequest, type HostedTaskStatus, type TaskProjectName } from './hosted-task-command.mjs';
 import { toLiveTask, toComment, toEpic } from './task-row.mjs';
+import { AGENT_HISTORY_DAYS, readAgentStats, type AgentStatsPayload, type AgentStatsProject } from '../packages/contract/src/agent-stats.mjs';
 
 /** Runs one task operation in the server-selected workspace (hosted-task-executor, standalone-tasks). */
 export interface TaskOperationExecutor {
@@ -60,6 +61,9 @@ export interface HostedTaskOperations {
   /** The caller's actor name in this workspace: what a claim records as its assignee. */
   actor(proof: Request, workspaceId: string): Promise<string>;
   capabilities(proof: Request, workspaceId: string): Promise<HostedTaskCapabilities>;
+  /** Task summaries need readiness, but no epic progress or actor catalog. */
+  listTasks(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[]): Promise<Record<string, unknown>>;
+  agentStats(proof: Request, workspaceId: string, projectId?: string): Promise<AgentStatsPayload>;
   /** `closedDays` widens the closed read from the board's week to the Agents page's history. */
   board(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[], closedDays?: number): Promise<Record<string, unknown>>;
   task(proof: Request, workspaceId: string, projectId: string, taskId: string): Promise<Record<string, unknown>>;
@@ -298,6 +302,32 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
     try { await run({ kind: 'depend', taskId: operation.taskId, dependsOn: operation.duplicateOf, type: 'related' }); } catch { /* See above. */ }
   }
 
+  function taskList(proof: Request, workspaceId: string, projectId: string, statuses: readonly HostedTaskStatus[],
+    closedDays: number, boardDetails: boolean): Promise<Record<string, unknown>> {
+    if (!Array.isArray(statuses) || statuses.length < 1 || statuses.length > 5 || new Set(statuses).size !== statuses.length
+      || statuses.some(status => !STATUSES.includes(status))) invalid();
+    if (!Number.isInteger(closedDays) || closedDays < 1 || closedDays > CLOSED_HISTORY_DAYS) invalid();
+    return read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {
+      const actors = boardDetails ? await actorsOf() : undefined;
+      const active = statuses.filter((status): status is Exclude<HostedTaskStatus, 'closed'> => status !== 'closed');
+      // A closed task is never ready, so a closed-only read skips the ready list.
+      const ready = new Set(active.length === 0 ? [] : rows(await run({ kind: 'ready' })).map(row => record(row).id)
+        .filter((id): id is string => typeof id === 'string'));
+      const closedSince = new Date(Date.parse(readAt) - closedDays * DAY_MS).toISOString().slice(0, 10);
+      const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
+      for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
+        const task = toLiveTask(row, ready); if (!task.id) invalid(); tasks.set(task.id, task);
+      }
+      if (statuses.includes('closed')) for (const row of rows(await run({ kind: 'closed-board', since: closedSince, until: readAt }))) {
+        const task = toLiveTask(row, ready); if (!task.id) invalid();
+        if (task.status === 'closed' && task.closedAt !== null && task.closedAt >= `${closedSince}T00:00:00.000Z` && task.closedAt <= readAt) tasks.set(task.id, task);
+      }
+      let epics = null;
+      if (boardDetails && active.length) try { epics = rows(await run({ kind: 'epics' })).map(toEpic).filter(value => value !== null); } catch { /* Unknown stays null; never invent progress. */ }
+      return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, closedSince, tasks: [...tasks.values()], ...(boardDetails ? { epics, actors } : {}) };
+    });
+  }
+
   return Object.freeze({
     projects(proof, workspaceId) {
       return admitted(proof, workspaceId, 'tasks.read', async (_context, catalog) => catalog);
@@ -314,29 +344,36 @@ export function createHostedTaskOperations(options: HostedTaskOperationsOptions)
         editableFields: EDITABLE_TASK_FIELDS,
       }));
     },
-    board(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
-      if (!Array.isArray(statuses) || statuses.length < 1 || statuses.length > 5 || new Set(statuses).size !== statuses.length
-        || statuses.some(status => !STATUSES.includes(status))) invalid();
-      if (!Number.isInteger(closedDays) || closedDays < 1 || closedDays > CLOSED_HISTORY_DAYS) invalid();
-      return read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {
-        const actors = await actorsOf();
-        const active = statuses.filter((status): status is Exclude<HostedTaskStatus, 'closed'> => status !== 'closed');
-        // A closed task is never ready, so a closed-only read skips the ready list.
-        const ready = new Set(active.length === 0 ? [] : rows(await run({ kind: 'ready' })).map(row => record(row).id)
-          .filter((id): id is string => typeof id === 'string'));
-        const closedSince = new Date(Date.parse(readAt) - closedDays * DAY_MS).toISOString().slice(0, 10);
-        const tasks = new Map<string, ReturnType<typeof toLiveTask>>();
-        for (const row of active.length ? rows(await run({ kind: 'active-board', statuses: active })) : []) {
-          const task = toLiveTask(row, ready); if (!task.id) invalid(); tasks.set(task.id, task);
-        }
-        if (statuses.includes('closed')) for (const row of rows(await run({ kind: 'closed-board', since: closedSince, until: readAt }))) {
-          const task = toLiveTask(row, ready); if (!task.id) invalid();
-          if (task.status === 'closed' && task.closedAt !== null && task.closedAt >= `${closedSince}T00:00:00.000Z` && task.closedAt <= readAt) tasks.set(task.id, task);
-        }
-        let epics = null;
-        if (active.length) try { epics = rows(await run({ kind: 'epics' })).map(toEpic).filter(value => value !== null); } catch { /* Unknown stays null; never invent progress. */ }
-        return { project: project.logicalKey, prefix: project.prefix, repo: '', readAt, closedSince, tasks: [...tasks.values()], epics, actors };
+    async agentStats(proof, workspaceId, projectId) {
+      const catalog = await admitted(proof, workspaceId, 'tasks.read', async (_context, entries) => {
+        if (projectId !== undefined) return [await selected(workspaceId, entries, projectId)];
+        return entries;
       });
+      const readAt = new Date(now()).toISOString();
+      const since = new Date(Date.parse(readAt) - AGENT_HISTORY_DAYS * DAY_MS).toISOString().slice(0, 10);
+      const projects: AgentStatsProject[] = [], broken: string[] = [];
+      for (const entry of catalog) {
+        try {
+          const tasks = await read(proof, workspaceId, entry.projectId, async (_project, run) => {
+            const active = rows(await run({ kind: 'active-board', statuses: ['in_progress', 'blocked'] }));
+            const closed = rows(await run({ kind: 'closed-board', since, until: readAt }));
+            const tasks = [...active, ...closed].map(row => toLiveTask(row, new Set<string>()));
+            if (tasks.some(task => !task.id)) invalid();
+            return tasks;
+          });
+          projects.push({ project: entry.projectId, tasks });
+        } catch (error) {
+          if (error instanceof AdmissionRefused || proof.signal.aborted) throw error;
+          broken.push(entry.displayName);
+        }
+      }
+      return { readAt, projects: catalog.length, broken, stats: readAgentStats(projects, Date.parse(readAt)) };
+    },
+    listTasks(proof, workspaceId, projectId, statuses) {
+      return taskList(proof, workspaceId, projectId, statuses, CLOSED_DAYS, false);
+    },
+    board(proof, workspaceId, projectId, statuses, closedDays = CLOSED_DAYS) {
+      return taskList(proof, workspaceId, projectId, statuses, closedDays, true);
     },
     task(proof, workspaceId, projectId, taskId) {
       return explained(proof, workspaceId, projectId, [taskId], () => read(proof, workspaceId, projectId, async (project, run, readAt, actorsOf) => {

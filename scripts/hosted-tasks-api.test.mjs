@@ -65,6 +65,25 @@ test('detail reads actual comment bodies and history retains explicit project se
   assert.equal((await f.handler(request(`/api/tasks/tt-a/history?project=${P}&limit=4`))).status,200);
   assert.deepEqual(f.calls.at(-1).command.operation,{kind:'history',taskId:'tt-a',limit:4});
 });
+
+test('statistics are a scoped read with strict selectors and no board enrichment',async()=>{
+  const f=fixture();
+  const reply=await f.handler(request('/api/tasks/agent-stats'));
+  assert.equal(reply.status,200);
+  const data=await reply.json();
+  assert.equal(data.projects,1);assert.deepEqual(data.broken,[]);
+  assert.deepEqual(f.calls.map(call=>call.command.operation.kind),['active-board','closed-board']);
+  assert.deepEqual(f.actorReads,[]);
+  const count=f.calls.length;
+  for(const path of['/api/tasks/agent-stats?project=unknown',`/api/tasks/agent-stats?project=${P}&project=${P}`,'/api/tasks/agent-stats?closedDays=300']) {
+    assert.equal((await f.handler(request(path))).status,400);
+  }
+  assert.equal(f.calls.length,count);
+  assert.equal((await f.handler(request('/api/tasks/agent-stats','POST',{}))).status,400);
+  f.active(false);
+  assert.equal((await f.handler(request('/api/tasks/agent-stats'))).status,403);
+  assert.equal(f.calls.length,count);
+});
 test('malformed selectors and mutation authority fields refuse before catalog or executor',async()=>{
   const f=fixture();
   for(const path of['/api/tasks/tt-a',`/api/tasks?project=${P}&status=unknown`,`/api/tasks?project=${P}&status=open,open`,

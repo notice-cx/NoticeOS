@@ -1,21 +1,16 @@
 import { useTowerApi } from '@/lib/browser-context';
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import type { SettingsPayload } from "@shared/settings";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
+import type { SettingsPayload, SettingsPreferences } from "@shared/settings";
 
-
-/**
- * The settings page's one read. Polled rather than fetched once: a file save
- * restarts the local Worker, `useConfigSave` invalidates the `settings` key
- * once that restart has landed, and the poll is the backstop for a config
- * change made outside the browser. `keepPreviousData` so a poll that lands
- * mid-restart shows the last good payload instead of blanking a page the
- * operator is typing into.
- */
-export function useSettings() {
-  const { fetchSettings } = useTowerApi();
-  return useQuery<SettingsPayload>({
-    queryKey: ["settings"],
-    queryFn: ({ signal }) => fetchSettings(signal),
+/** Settings editors read the complete payload; rate and clock readers ask for
+ * preferences. Both shapes share config-save invalidation and polling rules. */
+export function useSettings(view: 'preferences'): UseQueryResult<SettingsPreferences>;
+export function useSettings(): UseQueryResult<SettingsPayload>;
+export function useSettings(view?: 'preferences') {
+  const { fetchSettings, fetchSettingsPreferences } = useTowerApi();
+  return useQuery<SettingsPayload | SettingsPreferences>({
+    queryKey: view ? ["settings", view] : ["settings"],
+    queryFn: ({ signal }) => view ? fetchSettingsPreferences(signal) : fetchSettings(signal),
     refetchInterval: 60_000,
     placeholderData: keepPreviousData,
     staleTime: 30_000,

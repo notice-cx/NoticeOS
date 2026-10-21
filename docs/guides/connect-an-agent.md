@@ -50,7 +50,7 @@ The server's instructions ask the agent to pass `model`, the name of the model i
 When you file, claim or close a NoticeOS task, pass `model` with the name of the model you run as.
 ```
 
-The task records the model beside the agent's name, the Wall's **Live feed** shows it on the agent's lines, and the [Agents](/tower/agents) page ranks agents and models by it. Work closed without a model still counts on **Tasks** and **Agents**, but it is not ranked and does not appear in the TV's **Agents** widget or on Home.
+The task records the model beside the agent's name, the Wall's **Live feed** shows it on the agent's lines, and the [Agents](/tower/agents) page groups work by its normalized model name. Missing or unrecognized models share **Other** on that page. The TV's **Agents** widget and Home require a named model. Use `get_agent_stats` for model statistics without loading individual tasks. `list_tasks` reads task summaries and readiness, without epic progress or actor rosters.
 
 ## What the agent can do
 

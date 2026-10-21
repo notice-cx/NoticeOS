@@ -6,6 +6,10 @@
   "type": "module",
   "description": "Shared NoticeOS signal contracts: pulse envelopes, provider read models, and volume-aware flag rules (docs/02).",
   "exports": {
+    "./agent-stats": {
+      "types": "./src/agent-stats.d.mts",
+      "default": "./src/agent-stats.mjs"
+    },
     "./cloudflare-d1": {
       "types": "./src/cloudflare-d1.d.mts",
       "default": "./src/cloudflare-d1.mjs"

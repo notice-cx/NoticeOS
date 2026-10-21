@@ -115,7 +115,7 @@ test('one endpoint in both protocol eras: a 401 to sign in, then discovery, one 
   assert.doesNotMatch(discovered.instructions, /get_panel/u, 'no panel tools here, so no word of them');
   const { tools } = (await (await f.mcp(post({ jsonrpc: '2.0', id: 2, method: 'tools/list' }))).json()).result;
   assert.deepEqual((await (await f.mcp(modern('tools/list'))).json()).result.tools, tools, 'one tool list in both eras');
-  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'reconcile_task', 'list_projects', 'list_tasks', 'get_task', 'get_task_history',
+  assert.deepEqual(tools.map(tool => tool.name), ['list_workspaces', 'get_task_guide', 'reconcile_task', 'list_projects', 'get_agent_stats', 'list_tasks', 'get_task', 'get_task_history',
     'create_task', 'create_tasks', 'claim_task', 'update_task', 'comment_on_task', 'add_dependency', 'remove_dependency', 'request_human_approval',
     'close_task', ...READ_MODEL_TOOL_NAMES]);
   for (const name of ['create_task', 'create_tasks', 'claim_task', 'close_task']) {
@@ -717,6 +717,21 @@ test('list_tasks with no project lists every project, each row naming its projec
   // A project the call names must still be one of the workspace's, and the caller's own admission still refuses.
   assert.equal((await call(f, 'list_tasks', { workspace: A, project: 'nope' })).content[0].text, 'invalid arguments: project (a projectId from list_projects)');
   assert.equal((await call(f, 'list_tasks', { workspace: DEMO })).content[0].text, `refused: workspace ${DEMO} is not one of yours; list_workspaces lists yours.`);
+});
+
+test('get_agent_stats aggregates across projects and reports unavailable projects without task details', async () => {
+  const f = fixture({ more: [{ catalog: { projectId: B, logicalKey: 'second', displayName: 'Second', prefix: 'ot' }, executor: null }] });
+  f.tasks.set('tt-a', { id: 'tt-a', title: 'Private task body', status: 'closed', closed_at: '2026-10-07T10:00:00Z',
+    started_at: '2026-10-07T08:00:00Z', metadata: { noticeos_claimed_model: 'Opus 5.5' } });
+  const result = await call(f, 'get_agent_stats', { workspace: A }, { bearer: READER });
+  assert.equal(result.isError, undefined);
+  assert.equal(result.structuredContent.projects, 2);
+  assert.deepEqual(result.structuredContent.broken, ['Second']);
+  assert.equal(result.structuredContent.stats.week, 1);
+  assert.equal(JSON.stringify(result).includes('Private task body'), false);
+  assert.deepEqual(f.calls.map(call => call.operation.kind), ['active-board', 'closed-board']);
+  assert.equal((await call(f, 'get_agent_stats', { workspace: A, project: P })).structuredContent.projects, 1);
+  assert.equal((await call(f, 'get_agent_stats', { workspace: DEMO })).isError, true);
 });
 
 test('list_tasks keeps the tasks an assignee holds, with "me" for the caller as a claim records it', async () => {

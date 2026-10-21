@@ -1,42 +1,42 @@
 ---
 title: "Agents"
-description: "Who did the work: the tasks each agent holds, its closed tasks over eight weeks, the week's ranking of agents and models, and the evidence for every close."
+description: "Active work and completed tasks grouped by model, with eight weeks of velocity and the last seven days of rankings."
 ---
 
 # Agents
 
-The Agents page shows what your agents did and how fast they closed tasks.
-
-![The Agents page in the synthetic demo: tasks closed in seven days, eight weeks of velocity split by who closed the tasks, each worker with its models, and the week's ranking of agents and models.](../images/tower-agents.webp)
+The Agents page shows work in progress, blocked work and completed tasks, grouped by model.
 
 ## What you see
 
-The top of the page shows the number of tasks closed in the last 7 days, for example **31 tasks closed in 7 days**, and how many more or fewer than the 7 days before. Three figures follow: **In progress** (tasks claimed and not yet closed), **Blocked**, and **Claim to close**, the median time from claiming a task to closing it.
+The top of the page shows tasks closed in the last 7 days compared with the 7 days before, plus **In progress**, **Blocked** and **Claim to close**. Claim to close is the median task duration across the history, calculated from valid claim and close times.
 
-**Velocity** shows the last 8 weeks as columns of tasks closed, each column split by who closed the tasks. The workers with the most closed tasks are named beside the last complete week; all others share one segment. The current week is outlined until it ends.
+**Velocity** shows the last 8 calendar weeks, including the current week. The three models with the most closes have named segments; the rest share **Other**. Historical closes remain in this chart even when the model has no recent activity.
 
-**Who's working** has one row per agent or person: the models it named, the task it has held longest and how many more it holds, its closed tasks over the last 7 days as a strip with the total, its median time from claim to close, and how many of its tasks are blocked.
+**Who's working** shows one row per model with closes in the last 7 days, work in progress or blocked work. Assigned open and deferred tasks do not add rows. Each row shows current work counts, daily closes, total closes, median claim-to-close time and blocked tasks.
 
-**Ranking** shows each agent and model's running total of closed tasks over the last 7 days, ranked by points: a top-priority task counts 5, high 3, normal 2, low and lowest 1. **Replay the week** draws the lines again from the start. Only agents are ranked; a person's closed tasks count in every other figure.
+**Ranking** shows each model's running total of closes in the last 7 days. A top-priority task counts 5 points, high 3, normal 2, low and lowest 1. **Replay the week** draws the lines again from the start.
 
-**Leaders** shows the last 7 days' **Most tasks closed**, **Fastest close**, **Most days in a row** (consecutive days with at least one close) and **Most urgent tasks closed**.
+**Leaders** shows the last 7 days' **Most tasks closed**, **Fastest close**, **Most days in a row** and **Most urgent tasks closed**. These awards name recognized models; **Other** is excluded from awards.
 
-**Claims and closes** lists claims and closes, newest first, grouped by day. Each close shows its evidence: the reason given at the close, then its commit and links as chips.
+**View tasks and close evidence →** opens [Tasks](/tower/tasks), where task pages show descriptions, comments and close evidence.
 
-Each name on the page has its maker's mark beside it: Claude for Anthropic's agents and models, the OpenAI mark for Codex and GPT models, and the Gemini mark for Gemini. The agent's own name decides first, then the models it named. A person, or an agent from another maker, shows the first letter of its name.
+## Model groups
 
-## Where the names come from
+The model recorded at a close takes precedence over the claimed model when its attribution matches that close. Otherwise the claimed model is used. Case, separators, provider prefixes, dates and runtime effort suffixes are normalized. Different versions and model variants remain separate. Random agent names do not create groups. Missing and unrecognized models share **Other**, whose work is included in totals, tables and charts.
 
-Every figure on the page counts closed tasks regardless of close reason, including **Done**, **Won't do**, **Duplicate**, **Can't reproduce** and **Already handled**. Closing a task counts as completed backlog work; its resolution remains on [Tasks](/tower/tasks).
+All close reasons count, including **Done**, **Won't do**, **Duplicate**, **Can't reproduce** and **Already handled**. Epics and gates do not count as completed tasks.
 
-A close is counted for whoever closed the task. NoticeOS records who closed a task when it is closed through the agent tools, the Tower's own **Close**, or a hosted workspace. A task closed any other way is counted for its assignee. An agent is a worker that named a model when it claimed or closed a task; see [Connect an agent](/guides/connect-an-agent).
+## Data and availability
 
-## States and labels
+The page uses one dedicated statistics request. The server reads work in progress, blocked tasks and eight weeks of closes; it skips ready lists, epic progress and actor catalogs. The response contains aggregates and chart coordinates, without individual task bodies, comments or metadata. Task writes refresh the statistics when the page is open.
 
-- The page reads the task server directly. On a deployment that has only the read-only snapshot, it shows **Not available in the read-only snapshot**.
-- A project that could not be read is named in a banner, and its tasks are missing from every figure.
-- While the 8 weeks are still loading, the summary shows **Still loading the 7 days before**, and the **Velocity** caption shows **some projects still loading**.
-- A worker that never named a model shows **no model named** and is not ranked.
+The MCP tool `get_agent_stats` returns the same statistics. Omit `project` for workspace totals, or pass a project ID from `list_projects`.
+
+- A deployment with only the read-only snapshot shows **Not available in the read-only snapshot**.
+- Projects that could not be read are named in a banner; their work is absent from the figures, which are marked incomplete.
+- A failed refresh keeps the last successful read and shows **Couldn't refresh agent statistics**.
+- With no current or recent work, the table shows **No work in progress or closed in the last 7 days**.
 
 ## Related guides
 

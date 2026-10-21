@@ -1,60 +1,26 @@
-import { useClosedHistoryAcross, useTaskProjects, useTasksAcross, useTasksLive } from "./useTasks";
-import { useWork } from "./useWork";
-import { readAgentWork, type AgentProjectRead, type AgentWork } from "@/lib/agent-work";
-import { taskBoardProjects, taskCatalogProjects } from "@/lib/task-board-read";
+import { useQuery } from '@tanstack/react-query';
+import { useTowerApi } from '@/lib/browser-context';
+import { useTasksLive } from './useTasks';
 
-export interface AgentWorkRead {
-  /** The task server reads tasks live; without it there is no history to draw. */
-  live: boolean;
-  /** Projects to read, as the board lists them. */
-  projects: number;
-  /** Every project's board and history read answered. */
-  complete: boolean;
-  pending: boolean;
-  /** Projects whose read failed, by name. */
-  broken: string[];
-  work: AgentWork | null;
-}
-
-/**
- * The Agents page's read: each project's board (shared with Tasks, so the
- * two never disagree about what is in hand) and its eight weeks of closed
- * work, read beside it.
- */
-export function useAgentWork(nowMs: number): AgentWorkRead {
-  const capabilities = useTasksLive();
-  const snapshot = useWork();
-  const catalog = useTaskProjects();
-  const roster = capabilities.projectSelection
-    ? taskCatalogProjects(catalog.data ?? [], snapshot.data)
-    : taskBoardProjects(snapshot.data, null);
-  const keys = roster.map((project) => project.asset);
-  const boards = useTasksAcross(keys);
-  const histories = useClosedHistoryAcross(keys);
-  if (!capabilities.live) return { live: false, projects: roster.length, complete: false, pending: false, broken: [], work: null };
-  const reads: AgentProjectRead[] = [];
-  const broken: string[] = [];
-  roster.forEach((project, index) => {
-    const board = boards[index], history = histories[index];
-    if (board?.isError || history?.isError) broken.push(project.name);
-    const payloads = [board?.data, history?.data].filter((payload) => payload !== undefined && payload.project === project.asset);
-    if (payloads.length === 0) return;
-    reads.push({
-      project: project.asset,
-      name: project.name,
-      tasks: payloads.flatMap((payload) => payload!.tasks),
-      actors: payloads.find((payload) => payload!.actors)?.actors,
-    });
+/** One aggregate read, invalidated with task writes. No board, snapshot,
+ * actor catalog or per-project task history is fetched for this page. */
+export function useAgentWork() {
+  const { live } = useTasksLive();
+  const { fetchAgentStats } = useTowerApi();
+  const query = useQuery({
+    queryKey: ['tasks', 'agent-stats'],
+    queryFn: ({ signal }) => fetchAgentStats(signal),
+    enabled: live,
+    staleTime: 15_000,
   });
-  const pending = boards.some((query) => query.isPending) || histories.some((query) => query.isPending)
-    || (capabilities.projectSelection ? catalog.isPending : snapshot.isPending);
-  const historyComplete = histories.length > 0 && histories.every((query) => query.isSuccess);
+  const data = query.data;
   return {
-    live: true,
-    projects: roster.length,
-    complete: historyComplete && boards.every((query) => query.isSuccess),
-    pending,
-    broken,
-    work: reads.length > 0 ? readAgentWork(reads, nowMs, historyComplete) : null,
+    live,
+    projects: data?.projects ?? 0,
+    complete: data !== undefined && data.broken.length === 0 && !query.isError,
+    pending: live && query.isPending,
+    broken: data?.broken ?? [],
+    failed: query.isError,
+    work: data && (data.projects === 0 || data.broken.length < data.projects) ? data.stats : null,
   };
 }

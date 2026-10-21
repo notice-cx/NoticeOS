@@ -163,6 +163,12 @@ export interface BeadsConfig {
 /** GET /api/settings — every portfolio-wide knob, in the order the page renders
  * them. The pure builder receives resolved store-first configuration and the
  * route's clock-selection evidence; it performs no reads itself. */
+/** Small settings read for score calculations and the Home clock proposal. */
+export interface SettingsPreferences {
+  clock: ClockSettings;
+  operatorRateUsdPerMin: number;
+}
+
 export interface SettingsPayload {
   generatedAt: string;
   /** The operator's clock (`config/constants.json`). */

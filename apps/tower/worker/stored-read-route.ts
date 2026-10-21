@@ -71,14 +71,25 @@ export async function handleStoredRead(request: Request, {
   // the bounded clock-selection read below. Missing evidence keeps the clock
   // chosen instead of inventing a proposal.
   if (url.pathname === "/api/settings") {
+    if (request.method !== 'GET') return new Response(null, { status: 405, headers: { Allow: 'GET' } });
+    const views = url.searchParams.getAll('view');
+    if ([...url.searchParams.keys()].some(key => key !== 'view') || views.length > 1 || (views.length === 1 && views[0] !== 'preferences')) {
+      return jsonError('invalid_settings_view', 400);
+    }
     const cfg = await config();
     // The one store read here, and a total one: an unanswered read leaves the
     // clock "chosen", so nothing is proposed.
     const everSaved = await timeZoneEverSaved(store);
+    const clock = {
+      owner: 'config/constants.json',
+      timeZone: cfg.osTimeZone,
+      chosen: everSaved === null ? true : timeZoneChosen(cfg.osTimeZone, compiledTimeZone, everSaved),
+    };
+    if (views[0] === 'preferences') return Response.json({ clock, operatorRateUsdPerMin: cfg.operatorRateUsdPerMin }, { headers: JSON_HEADERS });
     const payload = buildSettingsPayload({
       now: new Date(),
       osTimeZone: cfg.osTimeZone,
-      timeZoneChosen: everSaved === null ? true : timeZoneChosen(cfg.osTimeZone, compiledTimeZone, everSaved),
+      timeZoneChosen: clock.chosen,
       monthlyCaps: cfg.monthlyCaps,
       operatorRateUsdPerMin: cfg.operatorRateUsdPerMin,
       flagDefaults: cfg.flagDefaults,

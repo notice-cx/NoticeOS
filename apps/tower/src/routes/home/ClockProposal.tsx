@@ -22,7 +22,7 @@ const SUBJECT = "field:Time zone";
  * the proposal.
  */
 export function ClockProposal() {
-  const { data } = useSettings();
+  const { data } = useSettings('preferences');
   const { writable } = useConfigWritable();
   const saveField = useFieldConfigSave();
   const clock = data?.clock;
