@@ -20,10 +20,12 @@ describe('the view registry', () => {
     expect(VIEW_LIBRARY.map((view) => view.id)).toEqual([...VIEW_IDS]);
     const everything = viewSpec('everything');
     expect(everything.nav).toEqual([...VIEW_NAV_PATHS]);
-    // Today's eight, in today's order; the modules after them are drawn only
+    // The seven Home modules, in their display order; the modules after them are drawn only
     // by the views that name them.
-    expect(everything.home).toEqual(['money', 'yesterday', 'sources', 'problems', 'decide', 'agents', 'sites', 'timeline']);
-    expect(HOME_MODULES.slice(0, 8)).toEqual(everything.home);
+    expect(everything.home).toEqual(['money', 'yesterday', 'sites', 'problems', 'decide', 'agents', 'timeline']);
+    expect(HOME_MODULES.slice(0, 7)).toEqual(everything.home);
+    expect(everything.home).not.toContain('sources');
+    expect(everything.siteTabs).toContain('sources');
     expect(everything.siteTabs).toEqual([...SITE_TABS]);
     expect(DEFAULT_VIEW).toBe('everything');
   });
@@ -74,7 +76,7 @@ describe('homeModulesFor', () => {
   it('never adds a module the view does not draw', () => {
     expect(homeModulesFor({ view: 'business', focus: ['visitors', 'site-health'] })).toEqual(['health', 'money', 'factory', 'decide']);
     expect(homeModulesFor({ view: 'everything', focus: ['visitors'] })).toEqual([
-      'sites', 'money', 'yesterday', 'sources', 'problems', 'decide', 'agents', 'timeline',
+      'sites', 'money', 'yesterday', 'problems', 'decide', 'agents', 'timeline',
     ]);
   });
 });

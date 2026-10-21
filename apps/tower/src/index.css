@@ -96,6 +96,13 @@
      `info` slate 16, pace green 24. It shares the blue family with
      --search-bing (ΔE 7), so the two never draw on one chart. */
   --traffic: oklch(0.66 0.17 258);
+  /* Asset identities shared by contribution charts and their named legends. */
+  --asset-1: oklch(0.75 0.12 200);
+  --asset-2: oklch(0.72 0.15 295);
+  --asset-3: oklch(0.78 0.13 75);
+  --asset-4: oklch(0.73 0.14 350);
+  --asset-5: oklch(0.72 0.13 250);
+  --asset-6: oklch(0.78 0.12 130);
   /* Today's pace against the same hours last week: on pace, a little behind,
      far behind. A scoped comparison scale made of existing hues, never an
      alert; the arrow and % always ride beside it. Aliases, so the one place a
@@ -500,6 +507,12 @@
   --skeleton-shine: oklch(1 0 0 / 0.7);
   --shadow-raised: inset 0 1px 0 oklch(1 0 0 / 0.8), 0 24px 48px -30px oklch(0.25 0.04 260 / 0.28);
   --select-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23586176' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  --asset-1: oklch(0.51 0.1 200);
+  --asset-2: oklch(0.5 0.15 295);
+  --asset-3: oklch(0.55 0.12 75);
+  --asset-4: oklch(0.52 0.14 350);
+  --asset-5: oklch(0.5 0.13 250);
+  --asset-6: oklch(0.53 0.12 130);
 }
 
 @theme inline {
@@ -544,6 +557,12 @@
   --color-search-bing: var(--search-bing);
   --color-financial-revenue: var(--financial-revenue);
   --color-financial-cost: var(--financial-cost);
+  --color-asset-1: var(--asset-1);
+  --color-asset-2: var(--asset-2);
+  --color-asset-3: var(--asset-3);
+  --color-asset-4: var(--asset-4);
+  --color-asset-5: var(--asset-5);
+  --color-asset-6: var(--asset-6);
   --color-traffic: var(--traffic);
   --color-pace-on: var(--pace-on);
   --color-pace-behind: var(--pace-behind);

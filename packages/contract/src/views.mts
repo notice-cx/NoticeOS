@@ -28,17 +28,16 @@ export const VIEW_NAV_PATHS = [
 ] as const;
 export type ViewNavPath = (typeof VIEW_NAV_PATHS)[number];
 
-/** Home's modules. The first eight, in this order, are what the Everything
+/** Home's modules. The first seven, in this order, are what the Everything
  * view draws; the rest are drawn only by the views that name them. `answer`
  * is the one-line summary every view keeps at the top. */
 export const HOME_MODULES = [
   "money",
   "yesterday",
-  "sources",
+  "sites",
   "problems",
   "decide",
   "agents",
-  "sites",
   "timeline",
   "health",
   "factory",
@@ -126,7 +125,7 @@ export const VIEW_LIBRARY: readonly ViewSpec[] = [
     label: "Everything",
     detail: "Every page and every figure.",
     nav: [...VIEW_NAV_PATHS],
-    home: ["money", "yesterday", "sources", "problems", "decide", "agents", "sites", "timeline"],
+    home: ["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"],
     siteTabs: [...SITE_TABS],
     wordLevel: "technical",
   },

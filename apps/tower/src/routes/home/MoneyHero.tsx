@@ -9,7 +9,6 @@ import { cn } from "@/lib/utils";
 const usd = (value: number) => formatUsd(value);
 const cents = (value: number) => formatUsd(value, { cents: true });
 
-/** The ink of each site's share, strongest first; past the fourth they share the last. */
 /** The month's split by site, largest first: one revenue ink stepping down. */
 export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "bg-financial-revenue/40", "bg-financial-revenue/25"] as const;
 
@@ -23,6 +22,7 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
   const month = formatPeriodMonthLong(money.period);
   const previous = money.previousPeriod ? formatPeriodMonthLong(money.previousPeriod) : null;
   const total = money.bySite.reduce((sum, site) => sum + site.amount, 0);
+  const shareFill = (id: string, index: number) => money.contributors?.find((source) => source.id === id)?.tone ?? SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]!;
   return (
     <section
       aria-label={`Revenue, ${month} so far`}
@@ -68,6 +68,7 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
           <div className="w-full max-w-sm flex-1">
             <BarStrip
               data={money.days}
+              contributors={money.contributors}
               tone="text-financial-revenue"
               baseline={money.usualDay !== null ? { value: money.usualDay, label: `usual ${cents(money.usualDay)} a day` } : null}
               format={cents}
@@ -96,12 +97,12 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
           <SegmentBar
             ariaLabel={`${month} revenue by site: ${money.bySite.map((site) => `${site.name} ${usd(site.amount)}`).join(", ")}`}
             className="h-2"
-            segments={money.bySite.map((site, index) => ({ name: site.id, value: site.amount, fill: SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]! }))}
+            segments={money.bySite.map((site, index) => ({ name: site.id, value: site.amount, fill: cn("bg-current", shareFill(site.id, index)) }))}
           />
           <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs tabular-nums text-muted-foreground">
             {money.bySite.map((site, index) => (
               <span key={site.id} className="inline-flex items-center gap-1.5 whitespace-nowrap">
-                <span className={cn("size-2 rounded-full", SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)])} />
+                <span className={cn("size-2 rounded-full bg-current", shareFill(site.id, index))} />
                 {site.name} <b className="font-semibold text-foreground">{usd(site.amount)}</b> · {formatPercent((site.amount / total) * 100)}%
               </span>
             ))}

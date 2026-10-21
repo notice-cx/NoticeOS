@@ -17,7 +17,6 @@ import {
   type IntegrationHealthPayload,
   type IntegrationProviderId,
 } from "@noticeos/contract";
-import { CONNECTION_LABELS } from "@shared/connection-status";
 import { integrationStatus } from "@shared/integration-status";
 import type { IntegrationsConfig } from "@shared/integrations";
 import type { WallPayload } from "@shared/wall";
@@ -165,7 +164,7 @@ describe("one source, one status, on every screen", () => {
     expect(SOURCES.filter((source) => source.id in PROVIDER_OF).every((source) => source.state === "live")).toBe(true);
   });
 
-  it("shows each source's same status on its Data sources row, the asset header, Home and Integrations, and the Wall marks the failing ones", async () => {
+  it("shows each source's same status on its Data sources row, the asset header and Integrations, and the Wall marks the failing ones", async () => {
     const asset = renderAt(`/assets/${ASSET}/sources`, <AssetDetailRoute />, "/assets/:id/:tab?");
     await waitFor(() => expect(document.querySelector("#integrations [data-connection]")).not.toBeNull());
     const more = screen.queryByRole("button", { name: /^Show \d+ more$/u });
@@ -175,18 +174,12 @@ describe("one source, one status, on every screen", () => {
     const header = marks(document.querySelector("[data-page-header]")!);
     asset.unmount();
 
-    // Home: no source marks. Each source is a cell of the data-sources grid,
-    // a failing one is drawn there rather than repeated in the problems list,
-    // and the site's one health word says Off track.
-    // Home draws once its reads have answered; this fixture refuses the feed,
-    // which Home retries once.
+    // Home lists source failures as problems; source status details stay on
+    // the site's Data sources tab and Integrations.
     const home = renderAt("/", <HomeRoute />);
     await waitFor(() => expect(home.container.querySelector("[data-home-brief]")).not.toBeNull(), { timeout: 5_000 });
     const homeMarks = marks(home.container);
-    const homeCells = Object.fromEntries(LANES.map((lane) => {
-      const cell = home.container.querySelector(`[data-health-cell="${ASSET}:${lane}"]`);
-      return [lane, { state: cell?.getAttribute("data-state") ?? null, says: cell?.querySelector("[aria-label]")?.getAttribute("aria-label") ?? null }];
-    }));
+    expect(home.container.querySelector("[data-home-health]")).toBeNull();
     const homeProblems = [...home.container.querySelectorAll("[data-incident-list] [data-incident]")].map((row) => row.getAttribute("data-incident"));
     const homeHealth = home.container.querySelector(`[data-portfolio-row="${ASSET}"]`)?.textContent ?? "";
     home.unmount();
@@ -229,11 +222,7 @@ describe("one source, one status, on every screen", () => {
       expect({ lane, row: rows[lane] ?? header[lane] }).toEqual({ lane, row: header[lane] });
     }
     expect(homeMarks).toEqual({});
-    for (const lane of LANES) {
-      expect({ lane, home: homeCells[lane]!.state }).toEqual({ lane, home: header[lane] });
-      expect(homeCells[lane]!.says).toContain(` · ${CONNECTION_LABELS[header[lane] as keyof typeof CONNECTION_LABELS]}`);
-    }
-    expect(homeProblems.filter((key) => key?.startsWith("source-"))).toEqual([]);
+    expect(homeProblems.filter((key) => key?.startsWith("source-"))).toHaveLength(2);
     expect(homeHealth).toContain("Off track");
     expect(wallIcons).toEqual({});
     // Google's site row joins its two sources, so it fails with Search

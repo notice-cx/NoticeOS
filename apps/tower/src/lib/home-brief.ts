@@ -1,7 +1,9 @@
-import { shiftLabel } from "@shared/surface";
+import { DEFAULT_RANGE_DAYS, shiftLabel } from "@shared/surface";
 import type { AssetCard, PortfolioBand, SeriesPoint } from "@shared/wall";
 import type { AnswerFigure } from "@/components/surface/PageAnswer";
 import { formatInt, formatPercent, formatSeriesDate, formatUsd } from "@/lib/format";
+import type { BarStripPoint } from "@/components/viz/BarStrip";
+import { assetContributors } from "@/lib/asset-contributors";
 import { monthRevenue } from "@/lib/wall-revenue";
 
 // The portfolio's readings that are not Home's money hero: yesterday's
@@ -54,6 +56,37 @@ export function peopleYesterday(assets: readonly AssetCard[]): PeopleYesterday |
     previous: comparable ? previous : null,
     changePercent: comparable ? ((total - previous) / previous) * 100 : null,
     series,
+  };
+}
+
+/** The last 28 calendar days ending on the latest settled reading. Missing
+ * days stay null; a late site's earlier contributions remain in the total. */
+export function peopleInLast28Days(assets: readonly Pick<AssetCard, "id" | "displayName" | "activeUsers">[]) {
+  const sources = assets.map((asset) => ({
+    id: asset.id,
+    days: new Map([...(asset.activeUsers.contextSeries ?? []), ...asset.activeUsers.series]
+      .filter((point) => asset.activeUsers.provisionalFrom === null || point.t < asset.activeUsers.provisionalFrom)
+      .map((point) => [point.t, point.v])),
+  }));
+  const date = sources.flatMap((source) => [...source.days.keys()]).sort().at(-1);
+  if (!date) return null;
+  const start = shiftLabel(date, -(DEFAULT_RANGE_DAYS - 1));
+  const reporting = sources.filter((source) => [...source.days.keys()].some((day) => day >= start));
+  const series: BarStripPoint[] = Array.from({ length: DEFAULT_RANGE_DAYS }, (_, index) => {
+    const t = shiftLabel(start, index);
+    const contributions = Object.fromEntries(reporting.flatMap((source) => {
+      const value = source.days.get(t);
+      return value === undefined ? [] : [[source.id, value]];
+    }));
+    const values = Object.values(contributions);
+    return { t, v: values.length === 0 ? null : values.reduce((sum, value) => sum + value, 0), contributions };
+  });
+  return {
+    date,
+    total: series.reduce((sum, point) => sum + (point.v ?? 0), 0),
+    series,
+    partial: series.filter((point) => point.v !== null && Object.keys(point.contributions!).length < reporting.length).map((point) => point.t),
+    contributors: assetContributors(assets).filter((contributor) => reporting.some((source) => source.id === contributor.id)),
   };
 }
 
