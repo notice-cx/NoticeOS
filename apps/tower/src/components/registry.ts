@@ -1288,8 +1288,8 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     name: "BarStrip",
     file: "components/viz/BarStrip.tsx",
     purpose:
-      "A short run of days as bars: the newest settled day in the series' identity ink, the days before it neutral, the usual level as a dashed rule. A day still counting is hatched, an unreported day an empty hatched slot, a measured zero a stub.",
-    variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero"],
+      "A short run of days as bars: the newest settled day in the series' identity ink, the days before it neutral, the usual level as a dashed rule. A day still counting is hatched, an unreported day an empty hatched slot, a measured zero a stub. Optional asset contributions split every day into identity colours with a named legend and values on hover.",
+    variants: ["14 days with a usual level", "unreported day and today still counting", "30 days in a hero", "stacked asset contributions with a legend"],
   },
   {
     name: "StackedWeeks",
@@ -1366,6 +1366,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/viz/IncidentList.tsx",
     purpose:
       "Open problems in one ranked panel: new since the last look first, then still open, then anything open over a week folded into one line. Each row carries its evidence (a reading against its normal) where a sentence used to be.",
+    demo: "Home uses the top three ranked issues; covered by home-wall-routes.test.tsx.",
     variants: ["new, open and folded long-standing", "with normal-range evidence", "nothing open"],
   },
   {
@@ -1373,6 +1374,7 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     file: "components/viz/DecisionQueue.tsx",
     purpose:
       "A queue drawn as a queue: how many are waiting, the oldest wait, the age spread as one bar, then rows with age drawn as a length and their verbs quiet until the row is pointed at or focused.",
+    demo: "Home uses a bounded compact overview; covered by home-wall-routes.test.tsx.",
     variants: ["147 waiting with the rest one press away", "empty"],
   },
   {

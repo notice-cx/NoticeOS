@@ -62,6 +62,15 @@ export function VisualKitGallery() {
             ariaLabel="People a day, last 15 days"
           />
         </Specimen>
+        <Specimen id="bar-strip-assets" title="BarStrip — daily contributions by site" className="w-80">
+          <BarStrip
+            data={REVENUE_14.map((day) => ({ ...day, contributions: { "first.example": day.v * 0.6, "second.example": day.v * 0.4 } }))}
+            contributors={[{ id: "first.example", name: "First Site", tone: "text-asset-1" }, { id: "second.example", name: "Second Site", tone: "text-asset-2" }]}
+            tone="text-financial-revenue"
+            format={usd}
+            ariaLabel="Revenue a day by site"
+          />
+        </Specimen>
         <Specimen id="pace-bar" title="PaceBar — the month so far, where it is heading, last month's total" className="w-[28rem]">
           <PaceBar value={364} label="Oct so far" previousAtSameDay={null} previousTotal={1127} previousLabel="Sep" projected={1020} tone="text-financial-revenue" format={usdWhole} />
         </Specimen>
@@ -178,7 +187,7 @@ export function VisualKitGallery() {
           <EventTimeline {...eventTimelineCompact} />
         </Specimen>
         <Specimen id="incidents" title="IncidentList — ranked; new since you looked leads; over a week folds into one line" className="w-[40rem]">
-          <IncidentList
+          <IncidentList compact
             items={INCIDENTS.map((item) =>
               item.key === "api-nom"
                 ? { ...item, evidence: <NormalBand value={1} low={9} high={17} label="API requests yesterday" unit="a day" bad="below" compact /> }
@@ -212,7 +221,7 @@ export function VisualKitGallery() {
 
       <Group title="Home: decisions and sites">
         <Specimen id="decision-queue" title="DecisionQueue — size, age spread, then the rows with age as a length" className="w-[34rem]">
-          <DecisionQueue
+          <DecisionQueue compact limit={3}
             items={QUEUE.map((item) => ({
               ...item,
               actions: (

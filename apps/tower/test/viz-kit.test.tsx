@@ -1,6 +1,6 @@
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
-import { render, screen } from "./render";
+import { fireEvent, render, screen } from "./render";
 import { BarStrip, stripSummary } from "@/components/viz/BarStrip";
 import { ageBuckets, ageLength, DecisionQueue } from "@/components/viz/DecisionQueue";
 import { incidentGroup, IncidentList, rankIncidents } from "@/components/viz/IncidentList";
@@ -33,6 +33,30 @@ describe("BarStrip", () => {
     const { container } = render(<BarStrip data={data} tone="text-traffic" ariaLabel="People a day" />);
     expect(container.querySelector('[data-bar="2026-10-09"]')?.getAttribute("data-state")).toBe("unreported");
     expect(container.querySelector('[data-bar="2026-10-10"]')?.getAttribute("data-state")).toBe("settled");
+  });
+
+  it("stacks days by asset, matches legend colours and names each contribution on hover", () => {
+    const { container, getByRole } = render(<BarStrip
+      data={[
+        { t: "2026-10-08", v: 20, contributions: { a: 5, b: 15 } },
+        { t: "2026-10-09", v: null },
+        { t: "2026-10-10", v: 0, contributions: { a: 0 } },
+        { t: "2026-10-11", v: 6, contributions: { b: 6 } },
+      ]}
+      contributors={[{ id: "a", name: "Site A", tone: "text-asset-1" }, { id: "b", name: "Site B", tone: "text-asset-2" }]}
+      tone="text-traffic" partial={["2026-10-10"]} ariaLabel="Visitors a day"
+    />);
+    const first = container.querySelector('[data-bar="2026-10-08"]')!;
+    expect(first.querySelector('[data-contributor="a"]')).toHaveStyle({ height: "25%" });
+    expect(first.querySelector('[data-contributor="b"]')).toHaveStyle({ height: "75%" });
+    expect(first.querySelector('[data-contributor="a"]')).toHaveClass("text-asset-1");
+    expect(container.querySelector('[data-bar-legend] .text-asset-1')).toBeInTheDocument();
+    expect(container.querySelector('[data-bar="2026-10-09"]')).toHaveAttribute("data-state", "unreported");
+    expect(container.querySelector('[data-bar="2026-10-10"]')).toHaveAttribute("data-state", "partial");
+    expect(container.querySelector('[data-bar="2026-10-11"] [data-contributor="a"]')).toBeNull();
+    expect(getByRole("img")).toHaveAccessibleName(/Site B 6/);
+    fireEvent.pointerEnter(first);
+    expect(container).toHaveTextContent("Site A 5 · Site B 15");
   });
 
   it("says its span, its highlighted day, its usual level and its gaps in words", () => {

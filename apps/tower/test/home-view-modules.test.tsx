@@ -149,7 +149,7 @@ describe("Home's combined revenue card", () => {
     expect(hero.textContent?.match(/projected/gi)).toHaveLength(1);
     expect(within(hero).getByRole("img", { name: /^Revenue a day, October/ })).toBeInTheDocument();
     expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
-    expect(container.querySelector('[data-stat="Visitors, yesterday"]') !== null).toBe(view === "everything");
+    expect(container.querySelector('[data-stat="Visitors in the last 28 days"]') !== null).toBe(view === "everything");
   });
 
   it.each([
@@ -183,25 +183,15 @@ function modulesDrawn(container: HTMLElement): string[] {
   if (grid(container).getAttribute("data-home-layout") === "stacks") {
     return [...grid(container).querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
   }
-  const drawn: string[] = [];
-  for (const child of [...grid(container).children]) {
-    const module = child.getAttribute("data-home-module");
-    if (module) drawn.push(module);
-    else if (child.hasAttribute("data-surface-hero")) drawn.push("money");
-    else if (child.hasAttribute("data-home-health")) drawn.push("sources");
-    else if (child.hasAttribute("data-home-timeline")) drawn.push("timeline");
-    else if (child.querySelector("[data-one-site-lead], [data-portfolio-rows]")) drawn.push("sites");
-    else if (child.hasAttribute("data-home-visitors")) drawn.push("yesterday");
-    else {
-      for (const member of [...child.children]) {
-        if (member.hasAttribute("data-incident-list")) drawn.push("problems");
-        else if (member.hasAttribute("data-decision-queue")) drawn.push("decide");
-        else if (member.hasAttribute("data-home-agents")) drawn.push("agents");
-        else drawn.push("unknown");
-      }
-    }
-  }
-  return drawn;
+  return [...grid(container).querySelectorAll("[data-surface-hero], [data-home-visitors], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
+    if (element.hasAttribute("data-surface-hero")) return "money";
+    if (element.hasAttribute("data-home-visitors")) return "yesterday";
+    if (element.hasAttribute("data-home-sites")) return "sites";
+    if (element.hasAttribute("data-incident-list")) return "problems";
+    if (element.hasAttribute("data-decision-queue")) return "decide";
+    if (element.hasAttribute("data-home-agents")) return "agents";
+    return "timeline";
+  });
 }
 
 /** The rows of a stacked board: a full-width module, or the two columns'
@@ -245,20 +235,20 @@ function expectContentHeight(container: HTMLElement) {
 }
 
 describe("the views draw their modules", () => {
-  it("keeps Everything's module order with the visitors card beside revenue", () => {
+  it("draws Everything with Sites below Visitors and the three executive summaries together", () => {
     state.payload = wall([card("first.example.com"), card("second.example.com")]);
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sources", "problems", "decide", "sites", "timeline"]);
+    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"]);
     expect(grid(container).getAttribute("class")).toBe("grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0");
-    expect([...grid(container).children].map((child) => child.getAttribute("class"))).toEqual([
-      "@3xl:col-span-2 @6xl:col-span-8",
-      "@3xl:col-span-2 @6xl:col-span-4",
-      "self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8",
-      "grid content-start items-start gap-5 @3xl:col-span-2 @3xl:grid-cols-2 @6xl:col-span-4 @6xl:grid-cols-1 [&>*]:min-w-0",
-      "@3xl:col-span-2 @6xl:col-span-12",
-      "rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12",
-    ]);
+    const visitorsColumn = container.querySelector("[data-home-visitors]")!;
+    expect(visitorsColumn.querySelector("[data-home-sites]")).not.toBeNull();
+    expect(container.querySelectorAll("[data-home-sites]")).toHaveLength(1);
+    expect(container.querySelector("[data-home-health]")).toBeNull();
+    const summaries = container.querySelector("[data-incident-list]")!.parentElement!;
+    expect(summaries).toHaveClass("@6xl:col-span-12", "@6xl:grid-cols-3");
+    expect(summaries.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
+    expect(summaries.querySelector(":scope > [data-home-agents]")).not.toBeNull();
     expect(container.querySelector("[data-home-module]")).toBeNull();
     expect(container.querySelector("[data-home-answer-health]")).toBeNull();
     expect(container.querySelector("[data-home-answer] h2")!.textContent).toBe("October so far $45 est. Nothing is broken.");

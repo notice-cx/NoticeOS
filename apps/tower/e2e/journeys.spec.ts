@@ -2484,9 +2484,9 @@ test("Home and Tasks draw once from all their reads: no saved rows before the li
   // Home over six synthetic sites with collected numbers, so it draws the
   // dashboard rather than the first-run guide.
   await page.route("**/api/wall", (route) => route.fulfill({ json: wallFixturePayload() }));
-  // Home's answer and its data-source grid, which the integration health reads.
-  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-home-health]")
-    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-home-health]").innerText : null`);
+  // Home's answer and Problems summary, which include integration health.
+  await recordDraws(page, `() => document.querySelector("[data-home-answer]") && document.querySelector("[data-incident-list]")
+    ? document.querySelector("[data-home-answer]").innerText + " | " + document.querySelector("[data-incident-list]").innerText : null`);
   requests.length = 0;
   await page.goto("/");
   await expect(page.locator("[data-home-brief]")).toHaveCount(1);

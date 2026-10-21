@@ -23,11 +23,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { pillControlClass } from "@/components/ui/pill";
 import { BarStrip } from "@/components/viz/BarStrip";
-import { DecisionQueue, QueueRow, type QueueItem } from "@/components/viz/DecisionQueue";
+import { DecisionQueue, type QueueItem } from "@/components/viz/DecisionQueue";
 import { EventTimeline } from "@/components/viz/EventTimeline";
-import { HealthGrid } from "@/components/viz/HealthGrid";
 import { IncidentList } from "@/components/viz/IncidentList";
 import { PortfolioRows, type PortfolioRow } from "@/components/viz/PortfolioRows";
+import { SectionLabel } from "@/components/surface/SectionLabel";
 import { StatTile } from "@/components/viz/StatTile";
 import { useAssetDetail } from "@/hooks/useAssetDetail";
 import { useConnections } from "@/hooks/useConnections";
@@ -38,17 +38,15 @@ import { useWallFeed } from "@/hooks/useWallFeed";
 import { useTasksLive } from "@/hooks/useTasks";
 import { useView } from "@/hooks/useView";
 import { useWork } from "@/hooks/useWork";
-import { useDemoReadonly } from "@/lib/browser-context";
 import { formatInt, formatPercent, formatPeriodMonthLong, formatSeriesDate, formatTimestamp, formatUsd } from "@/lib/format";
 import { AGENTS_ROUTE } from "@/components/nav-items";
-import { greeting, peopleYesterday } from "@/lib/home-brief";
+import { greeting, peopleInLast28Days } from "@/lib/home-brief";
 import { homeMoney, siteDays, yesterdayMoney, type HomeMoney } from "@/lib/home-money";
 import { openAlertsLabel } from "@/lib/severity";
 import { siteHealth } from "@/lib/site-health";
 import { rowFacts, techHealth, techHealthSummary } from "@/lib/tech-health";
-import { askVerb } from "@/lib/task-board-read";
 import { cn } from "@/lib/utils";
-import { healthGridRows, incidentsFromIssues, sourceColumns, timelineFromWall } from "@/lib/viz-adapters";
+import { incidentsFromIssues, timelineFromWall } from "@/lib/viz-adapters";
 import { weekOnWeek } from "@/lib/sites-index";
 import { completeDays } from "@/lib/wall-sites";
 import { wallIssues, type WallIssue } from "@/lib/wall-issues";
@@ -63,14 +61,12 @@ import { HealthModule } from "@/routes/home/HealthModule";
 import { HomeModules } from "@/routes/home/modules";
 import { ViewQuestions } from "@/routes/home/ViewSteps";
 import { MoneyHero } from "@/routes/home/MoneyHero";
-import { useAskActions } from "@/routes/tasks/ask-actions";
 
 /**
  * Home answers how the business is doing, what is broken and what needs the
  * operator, drawn from the data: the month's money as the lead with
- * yesterday's revenue within it and visitors beside it; every site's data sources as
- * one grid beside the ranked problems the grid does not draw; the decisions
- * waiting beside the sites compared; the last day on a time axis. The
+ * yesterday's revenue within it and the last 28 days' visitors and sites beside it;
+ * the ranked problems, the decisions waiting and the agents' work; the last day on a time axis. The
  * person's view picks which of these regions are drawn and in what order. A
  * fresh install sees the three steps to a first number instead.
  */
@@ -134,7 +130,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const stacks = view.id !== "everything";
   const issues = withSystemIssues(wallIssues({ assets: data.assets, attention: data.attention, connections, nowMs }), data.system, nowMs);
   const money = homeMoney(data.portfolio, data.assets);
-  // The site rows (the data sources, the sites compared, the day's lanes)
+  // The site rows (the sites compared and the day's lanes)
   // draw the sites whose Home and Sites list switch is on. A hidden site's
   // problems are still counted and listed; the money stays the portfolio's.
   const listed = sitesShownOn(data.assets, siteDisplayOf(data), "list");
@@ -154,44 +150,34 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const conditions = new Set<string>(["open-flags", "human-gates", "os-runner-health", "scheduled-lane-health", "signal-freshness", "budget-guardrail"]);
   for (const issue of issues) for (const condition of issue.conditions) conditions.add(condition);
 
+  const sitesUnderVisitors = modules.includes("yesterday") && modules.includes("sites");
+  const shownModules = sitesUnderVisitors ? modules.filter((module) => module !== "sites" && (money !== null || module !== "yesterday")) : modules;
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => (
       <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <PeopleLead assets={data.assets} />}
+        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <div className="flex flex-col gap-5"><PeopleLead assets={data.assets} />{sitesUnderVisitors ? draw.sites() : null}</div>}
       </div>
     ),
     yesterday: () => (
-      <div className="@3xl:col-span-2 @6xl:col-span-4" data-home-visitors="">
-        {money ? <VisitorsYesterday assets={data.assets} /> : null}
+      <div className="flex flex-col gap-5 @3xl:col-span-2 @6xl:col-span-4" data-home-visitors="">
+        {money ? <VisitorsLast28Days assets={data.assets} /> : null}
+        {sitesUnderVisitors ? draw.sites() : null}
       </div>
-    ),
-    sources: () => (
-      <section aria-label="Data sources" className="self-start rounded-xl bg-card p-5 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-8" data-home-health="">
-        <HealthGrid
-          rows={healthGridRows(listed, data.system, connections, nowMs, sitePath).map((row) => {
-            const asset = listed.find((candidate) => candidate.id === row.id);
-            return asset ? { ...row, icon: <PropertyFavicon domain={asset.id} icons={asset.icons} displayName={asset.displayName} /> } : row;
-          })}
-          columns={sourceColumns(listed)}
-          nowMs={nowMs}
-          calm
-          action={<Link to="/integrations" className="whitespace-nowrap text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">Integrations →</Link>}
-        />
-      </section>
     ),
     problems: () => (
       <IncidentList
-        items={incidentsFromIssues(issues, { besideGrid: true, gridLeavesOut: hiddenIds, to: (issue) => issueLink(issue, data.assets) })}
+        items={incidentsFromIssues(issues, { to: (issue) => issueLink(issue, data.assets) })}
         nowMs={nowMs}
         marker={since}
+        compact
         action={{ label: "All alerts →", to: "/alerts" }}
-        empty="Nothing else is broken."
+        empty="Nothing is broken."
       />
     ),
     decide: () => <LiveDecidePanel nowMs={nowMs} />,
-    agents: () => <LiveAgentsLine />,
+    agents: () => <LiveAgentsLine nowMs={nowMs} />,
     sites: () => (
-      <div className="@3xl:col-span-2 @6xl:col-span-12">
+      <div className="@3xl:col-span-2 @6xl:col-span-12" data-home-sites="">
         {oneSite ? <OneSiteLead site={oneSite} nowMs={nowMs} /> : <Sites assets={listed} issues={issues} money={money} nowMs={nowMs} />}
       </div>
     ),
@@ -200,7 +186,8 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
     channels: () => <ChannelsModule cards={listed} />,
     gaps: () => <GapsModule cards={listed} />,
     timeline: () => (
-      <section aria-label="The last 24 hours" className="rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+      <section aria-labelledby="home-timeline-title" className="flex flex-col gap-4 rounded-xl bg-card px-5 py-4 ring-1 ring-border/70 @3xl:col-span-2 @6xl:col-span-12" data-home-timeline="">
+        <SectionLabel id="home-timeline-title" title="Problems and activity" caption="Last 24 hours" />
         <EventTimeline
           lanes={timeline.lanes}
           spans={timeline.spans}
@@ -228,7 +215,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
         health={view.id === "business" ? healthWords(listed, issues, nowMs) : null}
         wordLevel={view.wordLevel}
       />
-      <HomeModules modules={modules} draw={draw} layout={stacks ? "stacks" : "grid"} />
+      <HomeModules modules={shownModules} draw={draw} layout={stacks ? "stacks" : "grid"} />
     </div>
   );
 }
@@ -236,7 +223,7 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
 /** Where a problem's row opens: its site, the System, or the alerts. */
 function issueLink(issue: WallIssue, assets: readonly AssetCard[]): string {
   const asset = issue.assets.length === 1 ? assets.find((candidate) => candidate.id === issue.assets[0]) : undefined;
-  if (asset) return sitePath(asset);
+  if (asset) return issue.key.startsWith("source-") ? `/assets/${encodeURIComponent(asset.id)}/sources` : sitePath(asset);
   return issue.key.startsWith("system-") || issue.key.startsWith("source-") ? "/health" : "/alerts";
 }
 
@@ -309,30 +296,30 @@ function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel
   );
 }
 
-function VisitorsYesterday({ assets, display = false }: { assets: readonly AssetCard[]; display?: boolean }) {
-  const people = peopleYesterday(assets);
-  const usual = people && people.series.length >= 3 ? people.series.reduce((sum, day) => sum + day.v, 0) / people.series.length : null;
+function VisitorsLast28Days({ assets, display = false }: { assets: readonly AssetCard[]; display?: boolean }) {
+  const people = peopleInLast28Days(assets);
+  const reported = people?.series.filter((point) => point.v !== null) ?? [];
+  const usual = reported.length >= 3 ? reported.reduce((sum, day) => sum + (day.v ?? 0), 0) / reported.length : null;
   return (
     <StatTile
-      label="Visitors, yesterday"
+      label="Visitors in the last 28 days"
       value={people?.total ?? null}
       absent="nothing reported yet"
       format={formatInt}
       role="people"
       size={display ? "display" : "figure"}
       to="/assets"
-      comparison={people && people.previous !== null ? { percent: people.changePercent, change: people.total - people.previous, against: "vs a week before" } : null}
       history={people && people.series.length >= 3 ? (
-        <BarStrip data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last two weeks" className={display ? "h-20" : "h-10"} />
+        <BarStrip contributors={people.contributors} partial={people.partial} data={people.series} tone="text-traffic" baseline={usual !== null ? { value: usual, label: `usual ${formatInt(usual)}` } : null} ariaLabel="Visitors a day, last 28 days" className={display ? "h-20" : "h-10"} />
       ) : null}
-      context={people ? <>as of <b>{formatSeriesDate(people.date)}</b></> : null}
+      context={people ? <>as of <b>{formatSeriesDate(people.date)}</b>{reported.length < DEFAULT_RANGE_DAYS ? ` · ${reported.length} of ${DEFAULT_RANGE_DAYS} days reported` : people.partial.length > 0 ? " · some sites have missing days" : null}</> : null}
     />
   );
 }
 
 /** With no revenue source anywhere, people lead: no money figure nobody counted. */
 function PeopleLead({ assets }: { assets: readonly AssetCard[] }) {
-  return <VisitorsYesterday assets={assets} display />;
+  return <VisitorsLast28Days assets={assets} display />;
 }
 
 /** The sites compared: health, people a day, yesterday's money and its
@@ -386,8 +373,8 @@ function sinceClock(since: string, nowMs: number): string {
 
 // --- decide -----------------------------------------------------------------
 
-/** How many rows Decide shows before its own expander. */
-const DECIDE_ROWS = 4;
+/** Home shows the most urgent decisions; Tasks holds the full queue. */
+const DECIDE_ROWS = 3;
 
 interface WaitingRow {
   item: WorkItem;
@@ -427,35 +414,51 @@ function LiveFactory({ cards, nowMs }: { cards: readonly AssetCard[]; nowMs: num
   return <FactoryModule cards={cards} work={work.data ?? null} nowMs={nowMs} />;
 }
 
-function LiveAgentsLine() {
+function LiveAgentsLine({ nowMs }: { nowMs: number }) {
   const work = useWork();
-  return <AgentsLine work={work.data} />;
+  return <AgentsLine work={work.data} failed={work.isError} nowMs={nowMs} />;
 }
 
-/**
- * What the agents did in the last 7 days, in one line under Decide: their
- * closes, the busiest by name, and the way to the Agents page. An agent is a
- * worker that named a model; nothing is drawn until one has.
- */
-export function AgentsLine({ work }: { work: WorkPayload | undefined }) {
-  const totals = new Map<string, { name: string; closed: number; agent: boolean }>();
-  for (const project of work?.projects ?? []) {
+/** The agents' completed and active work, from the same snapshot as Decisions. */
+export function AgentsLine({ work, failed = false, nowMs = Date.now() }: { work: WorkPayload | undefined; failed?: boolean; nowMs?: number }) {
+  const totals = new Map<string, { name: string; closed: number; active: number; agent: boolean }>();
+  const projects = work?.projects ?? [];
+  for (const project of projects) {
     for (const worker of project.ok ? project.workers ?? [] : []) {
-      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, agent: false };
-      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, agent: entry.agent || worker.model !== null });
+      const entry = totals.get(worker.id) ?? { name: worker.id, closed: 0, active: 0, agent: false };
+      totals.set(worker.id, { ...entry, closed: entry.closed + worker.closedRecent, active: entry.active + worker.inProgress, agent: entry.agent || worker.model !== null });
     }
   }
   const agents = [...totals.values()].filter((entry) => entry.agent).sort((a, b) => b.closed - a.closed || a.name.localeCompare(b.name));
-  if (agents.length === 0) return null;
+  const hasSnapshot = work?.capturedAt != null;
+  const complete = projects.length > 0 && projects.every((project) => project.ok && project.workers !== undefined);
+  const note = failed || !complete ? "partial read" : hasSnapshot && isAmber(nowMs, work.capturedAt, WORK_POLL_CADENCE_HOURS) ? "outdated" : undefined;
   const closed = agents.reduce((sum, entry) => sum + entry.closed, 0);
+  const active = agents.reduce((sum, entry) => sum + entry.active, 0);
+  const empty = failed ? "Could not read agent activity." : work === undefined ? "Reading agent activity…" : !hasSnapshot ? "No agent activity read yet." : !complete ? "Agent activity not fully read." : "No agent activity reported.";
   return (
-    <p className="m-0 flex flex-wrap items-baseline gap-x-2 gap-y-1 px-1 text-sm" data-home-agents="">
-      <span className="font-semibold text-foreground">Agents closed {formatInt(closed)} {closed === 1 ? "task" : "tasks"} in 7 days</span>
-      {agents.slice(0, 3).map((entry) => (
-        <span key={entry.name} className="text-muted-foreground">· {entry.name} <span className="tabular-nums">{formatInt(entry.closed)}</span></span>
-      ))}
-      <Link to={AGENTS_ROUTE} className="font-medium text-foreground underline-offset-4 hover:underline">Agents →</Link>
-    </p>
+    <section aria-label="Agents" className="flex min-w-0 flex-col gap-4 rounded-xl bg-card p-5 ring-1 ring-border/70" data-home-agents="">
+      <SectionLabel title="Agents" action={{ label: "Agents →", to: AGENTS_ROUTE }} />
+      {!hasSnapshot || agents.length === 0 ? <p className="m-0 text-sm text-muted-foreground">{empty}</p> : (
+        <>
+          <div className="grid grid-cols-2 gap-4">
+            <div><span className="block text-figure tabular-nums" data-agents-closed="">{formatInt(closed)}</span><span className="text-xs text-muted-foreground">Closed in 7 days</span></div>
+            <div><span className="block text-figure tabular-nums" data-agents-active="">{formatInt(active)}</span><span className="text-xs text-muted-foreground">In progress</span></div>
+          </div>
+          {note ? <span className="text-xs text-muted-foreground">{note}</span> : null}
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {agents.slice(0, 3).map((entry) => (
+              <li key={entry.name} className="flex min-w-0 items-center gap-2 text-xs" aria-label={`${entry.name}: ${formatInt(entry.closed)} closed, ${formatInt(entry.active)} in progress`}>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{entry.name}</span>
+                <span aria-hidden className="h-1.5 w-16 overflow-hidden rounded-full bg-viz-track"><span className="block h-full rounded-full bg-muted-foreground/60" style={{ width: `${closed > 0 ? entry.closed / closed * 100 : 0}%` }} /></span>
+                <span className="w-10 text-end tabular-nums">{formatInt(entry.closed)}</span>
+              </li>
+            ))}
+          </ul>
+          {agents.length > 3 ? <span className="text-xs text-muted-foreground">{formatInt(agents.length - 3)} more {agents.length === 4 ? "agent" : "agents"}</span> : null}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -473,16 +476,9 @@ function queueItem(row: WaitingRow, nowMs: number): QueueItem {
   };
 }
 
-/**
- * Decide: every project's operator inbox, flattened, drawn as a queue — how
- * many wait, how old the wait is, then the rows with their verbs. A gate
- * offers Approve; an ask offers Answer and Dismiss, and its options when it
- * carries choices; all go through the Tasks board's own path, with its Undo
- * toast. The three empty states are three
- * different facts: the read has not answered yet, nothing has ever been read,
- * or there is genuinely nothing to decide.
- */
+/** Home's bounded decision summary; full requests and their actions open on Tasks. */
 export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undefined; failed: boolean; nowMs: number }) {
+  const location = useLocation();
   const projects = work?.projects ?? [];
   const rows: WaitingRow[] = projects
     .filter((project) => project.ok)
@@ -506,42 +502,19 @@ export function DecidePanel({ work, failed, nowMs }: { work: WorkPayload | undef
             : total > 0
               ? "No request details read."
               : "Nothing to decide.";
-  const items = ordered.map((row) => queueItem(row, nowMs));
+  const items = ordered.map((row) => ({ ...queueItem(row, nowMs), returnTo: `${location.pathname}${location.search}` }));
 
   return (
     <DecisionQueue
       items={items}
       total={hasSnapshot && total > 0 ? total : null}
       totalNote={note}
-      title="Decide"
+      title="Decisions"
+      compact
       action={{ label: "All tasks →", to: "/tasks/all" }}
       limit={DECIDE_ROWS}
       empty={empty}
       className="flex-1"
-    >
-      {ordered.map((row, index) => (
-        <DecideRow key={row.item.id} row={row} item={items[index]!} index={index} />
-      ))}
-    </DecisionQueue>
-  );
-}
-
-function DecideRow({ row, item, index }: { row: WaitingRow; item: QueueItem; index: number }) {
-  const location = useLocation();
-  const readonly = useDemoReadonly();
-  const { buttons, box } = useAskActions({
-    ask: askVerb(row.item),
-    id: row.item.id,
-    title: row.item.title,
-    project: row.asset,
-    choices: row.item.choices ?? null,
-    disabledReason: readonly ? "Read-only demo" : null,
-    placement: "row",
-  });
-  return (
-    <QueueRow
-      item={{ ...item, returnTo: `${location.pathname}${location.search}`, actions: buttons, below: box }}
-      index={index}
     />
   );
 }

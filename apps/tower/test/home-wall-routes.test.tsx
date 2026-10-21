@@ -2,7 +2,7 @@ import { integrationStatus } from '@shared/integration-status';
 import { INTEGRATION_PROVIDERS } from "@noticeos/contract";
 import { fireEvent, render, screen, waitFor, within } from "./render";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttentionItem, CardDataSource, PortfolioBand, WallPayload } from "@shared/wall";
 import { emptyWorkHistory, type WorkItem, type WorkPayload, type WorkProject } from "@shared/work";
@@ -732,25 +732,15 @@ describe("Home drawn from the person's view", () => {
     if (grid.getAttribute("data-home-layout") === "stacks") {
       return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
     }
-    const drawn: string[] = [];
-    for (const child of [...grid.children]) {
-      const module = child.getAttribute("data-home-module");
-      if (module) drawn.push(module);
-      else if (child.hasAttribute("data-surface-hero")) drawn.push("money");
-      else if (child.hasAttribute("data-home-health")) drawn.push("sources");
-      else if (child.hasAttribute("data-home-timeline")) drawn.push("timeline");
-      else if (child.querySelector("[data-one-site-lead], [data-portfolio-rows]")) drawn.push("sites");
-      else if (child.hasAttribute("data-home-visitors")) drawn.push("yesterday");
-      else {
-        for (const member of [...child.children]) {
-          if (member.hasAttribute("data-incident-list")) drawn.push("problems");
-          else if (member.hasAttribute("data-decision-queue")) drawn.push("decide");
-          else if (member.hasAttribute("data-home-agents")) drawn.push("agents");
-          else drawn.push("unknown");
-        }
-      }
-    }
-    return drawn;
+    return [...grid.querySelectorAll("[data-surface-hero], [data-home-visitors], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
+      if (element.hasAttribute("data-surface-hero")) return "money";
+      if (element.hasAttribute("data-home-visitors")) return "yesterday";
+      if (element.hasAttribute("data-home-sites")) return "sites";
+      if (element.hasAttribute("data-incident-list")) return "problems";
+      if (element.hasAttribute("data-decision-queue")) return "decide";
+      if (element.hasAttribute("data-home-agents")) return "agents";
+      return "timeline";
+    });
   }
 
   beforeEach(() => {
@@ -762,8 +752,8 @@ describe("Home drawn from the person's view", () => {
   it("draws every module in today's order with no choice stored", () => {
     const { container } = renderHome();
 
-    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sources", "problems", "decide", "agents", "sites", "timeline"]);
-    // Problems, Decide and the agents' line share one column.
+    expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"]);
+    // Problems, Decisions and Agents share one summary row.
     const column = container.querySelector("[data-incident-list]")!.parentElement!;
     expect(column.querySelector(":scope > [data-decision-queue]")).not.toBeNull();
     expect(column.querySelector(":scope > [data-home-agents]")).not.toBeNull();
@@ -899,7 +889,7 @@ describe("Home and the Wall with an unread core task hub", () => {
     payload.operator = prior;
 
     expect(container.querySelector("[data-home-brief]")).not.toBeNull();
-    expect(panelFor("Decide")).toHaveTextContent("Reading your tasks…");
+    expect(panelFor("Decisions")).toHaveTextContent("Reading your tasks…");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
   });
 
@@ -948,7 +938,7 @@ describe("Home — one site leads with its own numbers", () => {
     expect(screen.queryByRole("link", { name: "All sites →" })).toBeNull();
     expect(container.querySelector("[data-portfolio-census]")!.textContent).toBe("updated 5m ago");
     expect(container.textContent).not.toMatch(/portfolio|1 site/i);
-    expect(panelFor("Decide")).toBeInTheDocument();
+    expect(panelFor("Decisions")).toBeInTheDocument();
   });
 
   it("leads with the one site's revenue when revenue is what it has", () => {
@@ -1014,15 +1004,17 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(money.querySelector("[data-money-figure]")).toHaveTextContent("$45est.");
     expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
     expect(within(money).getByRole("link", { name: "Yesterday · not reported yet" })).toHaveAttribute("href", "/financials");
-    expect(container.querySelector('[data-stat="Visitors, yesterday"]')).toHaveAttribute("href", "/assets");
+    expect(container.querySelector('[data-stat="Visitors in the last 28 days"]')).toHaveAttribute("href", "/assets");
 
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
     expect(container.querySelector("[data-about]")).toBeNull();
     expect(container.textContent).not.toMatch(/\bfresh\b|\bjobs?\b|snapshot|captured in preview/i);
 
     // The page ends on the last day drawn on a time axis.
-    const regions = [...container.querySelectorAll("[data-home-brief] section[aria-label]")];
+    const regions = [...container.querySelectorAll("[data-home-brief] section[aria-label], [data-home-brief] section[aria-labelledby]")];
     expect(regions.at(-1)).toHaveAttribute("data-home-timeline");
+    expect(screen.getByRole("heading", { name: "Problems and activity" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Problems and activity" })).toHaveTextContent("Last 24 hours");
 
     expect(screen.getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
@@ -1052,73 +1044,58 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(screen.queryByRole("button", { name: "Resolve alert" })).toBeNull();
   });
 
-  it("counts backups failing two nights as one broken thing, drawn in the System row that opens System health", () => {
+  it("counts backups failing two nights as one broken thing and lists it under Problems", () => {
     const now = Date.parse("2026-07-29T12:05:00.000Z");
-    const backups = (container: HTMLElement) => container.querySelector('[data-health-cell="system:backups"]')!;
-
     payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 1, backupNight(now, 1))] };
     const oneNight = renderHome();
     expect(answerLine(oneNight.container)).toHaveTextContent(/Nothing is broken\.$/);
-    expect(backups(oneNight.container)).toHaveAttribute("data-state", "overdue");
+    expect(oneNight.container.querySelector("[data-home-health]")).toBeNull();
+    expect(incidentKeys(oneNight.container)).not.toContain("system-backups-failing");
     oneNight.unmount();
 
     payload.system = { ...SEEDED_SYSTEM, scheduledLanes: [backupLane(now, 12, backupNight(now, 12))] };
     const { container } = renderHome();
     expect(answerLine(container)).toHaveTextContent(/1 thing is broken\.$/);
-    expect(backups(container)).toHaveAttribute("data-state", "failing");
-    const link = backups(container).querySelector("a")!;
+    expect(incidentKeys(container)).toContain("system-backups-failing");
+    const link = container.querySelector('[data-incident="system-backups-failing"] a')!;
     expect(link).toHaveAttribute("href", "/health");
-    expect(link).toHaveAccessibleName("System · Backups · Failing since 11d ago · last good copy 12d ago");
-    // The grid draws it, so the problems beside the grid do not repeat it.
-    expect(incidentKeys(container)).not.toContain("system-backups-failing");
+    expect(link).toHaveAccessibleName(/Backups/);
   });
 
-  it("ranks errors above warnings, newest first, and folds what has been open over a week into one line", () => {
+  it("ranks errors above warnings and bounds the Problems preview to three links", () => {
     payload.attention = Array.from({ length: 7 }, (_, index) =>
       alert({
         id: index + 1,
-        message: `Alert ${index + 1}`,
+        message: index === 6 ? "A long problem title ".repeat(40) : `Alert ${index + 1}`,
         severity: index % 2 === 0 ? "error" : "warn",
         firedAt: `2026-07-2${index + 1}T09:00:00.000Z`,
         firstFiredAt: `2026-07-2${index + 1}T09:00:00.000Z`,
       }),
     );
-
     const { container } = renderHome();
     expect(answerLine(container)).toHaveTextContent("4 things are broken, 3 at risk.");
     const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
     expect(list).toHaveTextContent("4 broken3 at risk");
-    expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3", "alert-6", "alert-4"]);
-    expect([...list.querySelectorAll("[data-incident]")].map((row) => row.getAttribute("data-state")))
-      .toEqual(["error", "error", "error", "warn", "warn"]);
+    expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3"]);
+    expect(list).toHaveTextContent("Showing 3 of 7 problems");
+    expect(within(list).queryAllByRole("button")).toHaveLength(0);
     const first = list.querySelector('[data-incident="alert-7"] a')!;
     expect(first).toHaveAttribute("href", "/assets/meadow.example");
-    expect(first).toHaveAccessibleName(/^Meadow Board · Alert 7 · since 2d ago$/);
-
-    // Alerts 1 and 2 have been open over a week: one quiet line, opened in place.
-    const fold = within(list).getByRole("button", { name: /^Open for over a week · 2/ });
-    expect(fold).toHaveAttribute("aria-expanded", "false");
-    expect(fold).toHaveTextContent("Alert 1 on Meadow Board · Alert 2 on Meadow Board");
-    fireEvent.click(fold);
-    expect(incidentKeys(container)).toEqual(["alert-7", "alert-5", "alert-3", "alert-6", "alert-4", "alert-1", "alert-2"]);
+    const title = within(first as HTMLElement).getByText(/A long problem title/);
+    expect(title).toHaveClass("line-clamp-2");
+    expect(title).toHaveAttribute("title", "A long problem title ".repeat(40).trim());
+    expect(within(list).getByRole("link", { name: "All alerts →" })).toHaveAttribute("href", "/alerts");
   });
 
-  it("draws a failing source in the grid where it lives, and does not repeat it in the problems list", () => {
+  it("keeps source failures in Problems when the Data sources module is absent", () => {
     googleAnswers([{ capability: "ga4-daily", state: "failing" }]);
     const ga4: CardDataSource = { id: "ga4", label: "Google Analytics", state: "live", observedAt: "2026-07-29T12:00:00Z", verification: { kind: "collection-success", laneId: "ga4" } };
     payload.assets = [{ ...SEEDED_ASSETS[0]!, dataSources: [ga4] }];
     payload.attention = [alert({ id: 5, severity: "warn" })];
-
     const { container } = renderHome();
-    const cell = container.querySelector<HTMLElement>('[data-health-cell="meadow.example:ga4"]')!;
-    expect(cell).toHaveAttribute("data-state", "failing");
-    expect(within(cell).getByRole("link")).toHaveAccessibleName(/^Meadow Board · Google Analytics · Failing/);
-    expect(within(cell).getByRole("link")).toHaveAttribute("href", "/assets/meadow.example?tab=sources");
-    const headline = container.querySelector("[data-health-headline]")!;
-    expect(headline).toHaveAttribute("data-health-headline", "failing");
-    expect(headline).toHaveTextContent("Google Analytics on Meadow Board");
-
-    expect(incidentKeys(container)).toEqual(["alert-5"]);
+    expect(container.querySelector("[data-home-health]")).toBeNull();
+    expect(incidentKeys(container)).toEqual(["source-ga4", "alert-5"]);
+    expect(container.querySelector('[data-incident="source-ga4"] a')).toHaveAttribute("href", "/assets/meadow.example/sources");
     expect(answerLine(container)).toHaveTextContent("1 thing is broken, 1 at risk.");
   });
 
@@ -1154,8 +1131,6 @@ describe("Home — the answer, the money and what is broken", () => {
 
     const { container } = renderHome();
     const list = container.querySelector<HTMLElement>("[data-incident-list]")!;
-    // Open since July 5th, so it waits in the fold for what is over a week old.
-    fireEvent.click(within(list).getByRole("button", { name: /^Open for over a week · 1/ }));
     const rows = list.querySelectorAll<HTMLElement>("[data-incident]");
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("Four sites have no nightly reports");
@@ -1163,23 +1138,24 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(rows[0]!.querySelector("a")).toHaveAttribute("href", "/alerts");
   });
 
-  it("puts yesterday's visitors beside the money, against the same day a week before", () => {
-    const days = Array.from({ length: 14 }, (_, index) => ({ t: `2026-07-${String(15 + index).padStart(2, "0")}`, v: index === 13 ? 130 : 100 }));
-    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days, provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
+  it("shows the last 28 completed days' visitors beside the money, with each asset's contributions", () => {
+    const days = Array.from({ length: 30 }, (_, index) => ({ t: new Date(Date.UTC(2026, 6, index + 1)).toISOString().slice(0, 10), v: index === 29 ? 9999 : 100 }));
+    payload.assets = [
+      { ...SEEDED_ASSETS[0]!, activeUsers: { series: days.slice(2), contextSeries: days.slice(0, 2), provisionalFrom: "2026-07-30", collectedAt: null, timeZoneChanges: [] } },
+      { ...SEEDED_ASSETS[0]!, id: "second.example", displayName: "Second Site", activeUsers: { series: days.slice(0, 28).map((day) => ({ ...day, v: 50 })), provisionalFrom: null, collectedAt: null, timeZoneChanges: [] } },
+    ];
 
-    const up = renderHome();
-    const tile = up.container.querySelector<HTMLElement>('[data-stat="Visitors, yesterday"]')!;
-    expect(tile.querySelector("[data-stat-figure]")).toHaveTextContent("130");
-    expect(within(tile).getByLabelText("30% up vs a week before")).toBeInTheDocument();
-    expect(within(tile).getByRole("img", { name: /^Visitors a day, last two weeks, Jul 15 to Jul 28/ })).toBeInTheDocument();
-    expect(tile).toHaveTextContent(/as of Jul 28/);
-    up.unmount();
-
-    payload.assets = [{ ...SEEDED_ASSETS[0]!, activeUsers: { series: days.map((day, index) => ({ ...day, v: index === 13 ? 70 : 100 })), provisionalFrom: "2026-07-29", collectedAt: null, timeZoneChanges: [] } }];
-    const down = renderHome();
-    const fell = down.container.querySelector<HTMLElement>('[data-stat="Visitors, yesterday"]')!;
-    expect(fell.querySelector("[data-stat-figure]")).toHaveTextContent("70");
-    expect(within(fell).getByLabelText("30% down vs a week before")).toBeInTheDocument();
+    const { container } = renderHome();
+    const tile = container.querySelector<HTMLElement>('[data-stat="Visitors in the last 28 days"]')!;
+    expect(tile.querySelector("[data-stat-figure]")).toHaveTextContent("4,150");
+    expect(within(tile).getByRole("img", { name: /^Visitors a day, last 28 days, Jul 2 to Jul 29/ })).toBeInTheDocument();
+    expect(tile.querySelectorAll("[data-bar]")).toHaveLength(28);
+    expect(tile.querySelector('[data-bar="2026-07-29"]')).toHaveAttribute("data-state", "partial");
+    expect(tile.querySelectorAll('[data-bar="2026-07-28"] [data-contributor]')).toHaveLength(2);
+    expect(tile.querySelector("[data-bar-legend]")).toHaveTextContent("Second Site");
+    expect(tile).toHaveTextContent(/as of Jul 29/);
+    expect(tile).toHaveTextContent("some sites have missing days");
+    expect(tile).not.toHaveTextContent("vs a week before");
   });
 
   it("gives every site one row with its health word, in seed order, that opens its page", () => {
@@ -1193,9 +1169,8 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(rows[1]).toHaveTextContent("On track");
     expect(within(rows[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
     expect(rows[0]).toHaveTextContent("no visitors reported");
-    // The grid keeps the same order, with the System last.
-    expect([...container.querySelectorAll("[data-health-row]")].map((row) => row.getAttribute("data-health-row")))
-      .toEqual(["meadow.example", "second.example", "system"]);
+    expect(container.querySelector("[data-home-health]")).toBeNull();
+    expect(container.querySelector("[data-home-visitors] [data-home-sites]")).not.toBeNull();
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
   });
@@ -1231,7 +1206,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
     const { container } = renderHome();
     expect([...container.querySelectorAll("[data-portfolio-row]")].map((row) => row.getAttribute("data-portfolio-row"))).toEqual(["second.example"]);
-    expect([...container.querySelectorAll("[data-health-row]")].map((row) => row.getAttribute("data-health-row"))).toEqual(["second.example", "system"]);
+    expect(container.querySelector("[data-home-health]")).toBeNull();
     expect(container.querySelector('[data-lane="meadow.example"]')).toBeNull();
     expect(incidentKeys(container)).toEqual(expect.arrayContaining(["alert-9", expect.stringMatching(/^source-/u)]));
     expect(answerLine(container)).toHaveTextContent("2 things are broken.");
@@ -1239,7 +1214,19 @@ describe("Home — the answer, the money and what is broken", () => {
 });
 
 describe("Home — Decide", () => {
-  it("puts an open gate above a higher-priority ask, with its verb on the row", () => {
+  it("returns from a decision to Home with the current query parameters", () => {
+    workState.data = workPayload([project("Meadow Board", [waiting({ id: "md-return", title: "Review the change" })])]);
+    function NavigationState() {
+      return <output data-testid="navigation-state">{JSON.stringify(useLocation().state)}</output>;
+    }
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={["/?range=7"]}>
+      <HomeRoute /><NavigationState />
+    </MemoryRouter></QueryClientProvider>);
+    fireEvent.click(within(panelFor("Decisions")).getByRole("link", { name: "Review the change" }));
+    expect(screen.getByTestId("navigation-state")).toHaveTextContent('"returnTo":"/?range=7"');
+  });
+
+  it("puts an open gate above a higher-priority ask and links each to its task", () => {
     workState.data = workPayload([
       project("Meadow Board", [waiting({ id: "md-9k1", priority: 0, title: "Top-priority ask" })]),
       project("System", [waiting({ id: "ro-3z7", priority: 3, issueType: "gate", title: "Approve the spend cap" })]),
@@ -1247,7 +1234,7 @@ describe("Home — Decide", () => {
 
     renderHome();
 
-    const rows = within(panelFor("Decide")).getAllByRole("listitem");
+    const rows = within(panelFor("Decisions")).getAllByRole("listitem");
     // A gate holds work out of the ready queue, so it leads regardless of its
     // own priority band.
     expect(rows.map((row) => row.getAttribute("data-queue-item"))).toEqual(["ro-3z7", "md-9k1"]);
@@ -1256,12 +1243,11 @@ describe("Home — Decide", () => {
     expect(rows[0]).toHaveTextContent("System");
     expect(rows[0]!.textContent).not.toContain("· gate");
     expect(rows[0]!.textContent).not.toContain("ro-3z7");
-    expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
+    expect(within(rows[0]!).queryAllByRole("button")).toHaveLength(0);
     expect(within(rows[0]!).getByRole("link")).toHaveAttribute("href", "/tasks/ro-3z7");
     expect(rows[1]).toHaveTextContent("Top-priority ask");
     expect(within(rows[1]!).getByLabelText("Question")).toBeInTheDocument();
-    expect(within(rows[1]!).getByRole("button", { name: "Answer" })).toBeInTheDocument();
-    expect(within(rows[1]!).getByRole("button", { name: "Close as" })).toBeInTheDocument();
+    expect(within(rows[1]!).queryAllByRole("button")).toHaveLength(0);
     expect(screen.getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
   });
 
@@ -1277,25 +1263,29 @@ describe("Home — Decide", () => {
     expect(screen.queryByText("Nothing to decide.")).toBeNull();
   });
 
-  it("counts the whole queue, shows four rows, and discloses the rest in place", () => {
-    const capped = project("Meadow Board", Array.from({ length: 10 }, (_, index) =>
-      waiting({ id: `md-${index}`, title: `Request ${index + 1}` }),
+  it("counts 100+ waiting requests but shows only three bounded links without actions or expansion", () => {
+    const longTitle = "Approve this detailed change ".repeat(40);
+    const capped = project("Meadow Board", Array.from({ length: 110 }, (_, index) =>
+      waiting({ id: `md-${index}`, title: index === 0 ? longTitle : `Request ${index + 1}` }),
     ));
-    capped.counts.waiting = 24;
+    capped.counts.waiting = 120;
     workState.data = workPayload([capped]);
     renderHome();
-    const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/24\s*for you to decide/);
-    expect(within(panel).getAllByRole("listitem")).toHaveLength(4);
-    fireEvent.click(within(panel).getByRole("button", { name: "Show 6 more" }));
-    expect(within(panel).getAllByRole("listitem")).toHaveLength(10);
-    expect(within(panel).getByRole("link", { name: "All tasks →" })).toHaveAttribute("href", "/tasks/all");
+    const panel = panelFor("Decisions");
+    expect(panel).toHaveTextContent(/120\s*for you to decide/);
+    const rows = within(panel).getAllByRole("listitem");
+    expect(rows).toHaveLength(3);
+    const title = within(rows[0]!).getByRole("link");
+    expect(title).toHaveClass("line-clamp-2");
+    expect(title).toHaveAttribute("title", longTitle);
+    expect(within(panel).queryAllByRole("button")).toHaveLength(0);
+    expect(within(panel).getByRole("link", { name: "View all 120 decisions →" })).toHaveAttribute("href", "/tasks/all");
   });
 
   it("names the wait beside each row, and nothing about the read itself", () => {
     workState.data = workPayload([project("Meadow Board", [waiting({ updatedAt: "2026-07-01T12:05:00.000Z" })])]);
     renderHome();
-    const panel = panelFor("Decide");
+    const panel = panelFor("Decisions");
     expect(panel).not.toHaveTextContent("Task status read");
     expect(panel).not.toHaveTextContent("captured in preview");
     expect(panel.querySelector("button button, a button")).toBeNull();
@@ -1313,7 +1303,7 @@ describe("Home — Decide", () => {
         failure === "stale snapshot" ? "2026-07-29T11:00:00.000Z" : undefined);
       workState.isError = failure === "failed refresh";
       renderHome();
-      const panel = panelFor("Decide");
+      const panel = panelFor("Decisions");
       expect(panel).not.toHaveTextContent("Nothing to decide.");
       expect(panel).toHaveTextContent(/not fully read|unknown/);
       expect(panel.textContent!.match(/outdated/g)?.length ?? 0).toBeLessThanOrEqual(1);
@@ -1323,8 +1313,8 @@ describe("Home — Decide", () => {
   it("names a stale count outdated, once, beside the count", () => {
     workState.data = workPayload([project("Meadow Board", [waiting()])], "2026-07-29T11:00:00.000Z");
     renderHome();
-    const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/1\s*for you to decide · oldest 1h · outdated/);
+    const panel = panelFor("Decisions");
+    expect(panel).toHaveTextContent(/1\s*for you to decide · oldest known 1h · outdated/);
     expect(panel.textContent!.match(/outdated/g)).toHaveLength(1);
   });
 
@@ -1336,8 +1326,8 @@ describe("Home — Decide", () => {
     failed.counts.waiting = 99;
     workState.data = workPayload([known, failed]);
     renderHome();
-    const panel = panelFor("Decide");
-    expect(panel).toHaveTextContent(/12\s*for you to decide · oldest 1h · partial read/);
+    const panel = panelFor("Decisions");
+    expect(panel).toHaveTextContent(/12\s*for you to decide · oldest known 1h · partial read/);
     expect(panel).not.toHaveTextContent("111");
   });
 
@@ -1346,7 +1336,7 @@ describe("Home — Decide", () => {
     emptyPreview.counts.waiting = 12;
     workState.data = workPayload([emptyPreview]);
     renderHome();
-    const panel = panelFor("Decide");
+    const panel = panelFor("Decisions");
     expect(panel).toHaveTextContent(/12\s*for you to decide/);
     expect(panel).toHaveTextContent("No request details read.");
     expect(panel).not.toHaveTextContent("Nothing to decide.");
@@ -1355,12 +1345,12 @@ describe("Home — Decide", () => {
   it("recovers from a failed initial read to an evidenced empty inbox", () => {
     workState.isError = true;
     const view = renderHome();
-    expect(panelFor("Decide")).toHaveTextContent("Could not read your tasks.");
+    expect(panelFor("Decisions")).toHaveTextContent("Could not read your tasks.");
     workState.isError = false;
     workState.data = workPayload([project("Meadow Board", [])]);
     view.rerender(homeTree());
-    expect(panelFor("Decide")).toHaveTextContent("Nothing to decide.");
-    expect(panelFor("Decide")).not.toHaveTextContent("Could not read");
+    expect(panelFor("Decisions")).toHaveTextContent("Nothing to decide.");
+    expect(panelFor("Decisions")).not.toHaveTextContent("Could not read");
   });
 
   it("gives every row the ask face — warn at every priority, a gate's triangle", () => {
@@ -1375,15 +1365,15 @@ describe("Home — Decide", () => {
 
     renderHome();
 
-    const rows = within(panelFor("Decide")).getAllByRole("listitem");
+    const rows = within(panelFor("Decisions")).getAllByRole("listitem");
     const glyphs = rows.map((row) => row.querySelector("svg[aria-label]")!);
     // A task's priority is not a severity: priority is the order, not the colour.
-    expect(glyphs.map((glyph) => glyph.classList.contains("text-warn"))).toEqual([true, true, true, true]);
+    expect(glyphs.map((glyph) => glyph.classList.contains("text-warn"))).toEqual([true, true, true]);
     // Never colour-only: a gate holding other work is a triangle, an ask a
     // question mark, and each says which.
-    expect(glyphs.map((glyph) => glyph.getAttribute("aria-label"))).toEqual(["Approval", "Question", "Question", "Question"]);
-    expect(within(rows[0]!).getByRole("button", { name: "Approve" })).toBeInTheDocument();
-    expect(within(rows[3]!).queryByRole("button", { name: "Approve" })).toBeNull();
+    expect(glyphs.map((glyph) => glyph.getAttribute("aria-label"))).toEqual(["Approval", "Question", "Question"]);
+    expect(within(rows[0]!).queryAllByRole("button")).toHaveLength(0);
+    expect(within(panelFor("Decisions")).queryAllByRole("button")).toHaveLength(0);
   });
 });
 
@@ -1592,7 +1582,7 @@ describe("Portfolio card with no ledger row at all", () => {
     }
   });
 
-  it("draws no money on Home rather than a $0 nobody counted, and lets yesterday's visitors lead", () => {
+  it("draws no money on Home rather than a $0 nobody counted, and lets the last 28 days' visitors lead", () => {
     payload.portfolio = nothing;
 
     const { container } = renderHome();
@@ -1604,7 +1594,7 @@ describe("Portfolio card with no ledger row at all", () => {
     expect(container.textContent).not.toContain("$0");
     expect(screen.queryByText(/· estimated|est\./)).toBeNull();
     // The visitors take the lead's place, once.
-    const visitors = container.querySelectorAll('[data-stat="Visitors, yesterday"]');
+    const visitors = container.querySelectorAll('[data-stat="Visitors in the last 28 days"]');
     expect(visitors).toHaveLength(1);
     expect(visitors[0]!.closest("[data-surface-hero]")).not.toBeNull();
   });
