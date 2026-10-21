@@ -17,7 +17,7 @@ Home shows three things, in this order: how the business is doing, what is broke
 
 In the **I run the business** view, the sentence starts with the sites' health once at least one site is measured: **All 3 sites are fine.**, or **2 of 3 sites are fine.** followed by the site that most needs a look and its first problem, such as **Example Shop: the home page did not load.** That part is red when a site is down and amber when a site is worth a look. The month's money follows, and the count of broken things is shown only when there is at least one.
 
-**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate (**so far** in the **I run the business** view). Beside it, the month's days as bars, with a dashed line across them at the usual day. Under it, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by site. Two figures are beside it: **Revenue, yesterday** and **Visitors, yesterday**, each with its change against the same day a week before and its recent days as bars. With no revenue source on any site, visitors come first and no money figure is drawn.
+**Money.** The month so far is the largest number on the screen, marked **est.** while it is an estimate (**so far** in the **I run the business** view). **Yesterday** shows the previous day's revenue with cents inside the same card, including how many sites reported when some are missing. Missing reports show **not reported yet**; reports on different clocks show **mixed report days · no total**. Beside the figures, the month's days appear as bars, with a dashed line at the usual day. Under them, a bar shows the month so far, its projected total and last month's total, and **Where October came from** splits the month by site. **Visitors, yesterday** remains a separate card, with its change against the same day a week before and its recent days as bars. With no revenue source on any site, visitors come first and no money figure is drawn.
 
 **Data sources.** One grid of every listed site and every data source, with a **System** row for the reports, scheduled runs, backups and data spend that keep NoticeOS running. A working source is a faint green tick; a failing one is solid red with how long it has been failing, and one failing for over a week has only a red outline, so new breakage stands out. Hatching means not connected. The **Backups** cell shows the age of the newest completed backup, such as **last good copy 12d ago**, or **no good copy yet**; it turns amber after one scheduled backup fails and red after two, dated from the first failure. From the second failure it also counts as one broken thing in the summary, until a backup completes. The newest problem is named at the top of the grid.
 
@@ -58,7 +58,7 @@ The view chosen on the first run, or later in [Settings → General → **Your v
 |---|---|
 | **I run the business** | **Site health**, **Money**, **The agents · this week**, **Decide** |
 | **I build the product** | **Money**, **Where visitors come from · 4 weeks**, **Worth a look**, **Problems**, **Decide**, **Sites** |
-| **Everything** | **Money**, **Revenue, yesterday** and **Visitors, yesterday**, **Data sources**, **Problems**, **Decide**, the agents' line (**Agents closed N tasks in 7 days**), **Sites**, **The last 24 hours** |
+| **Everything** | **Money** including **Yesterday**, **Visitors, yesterday**, **Data sources**, **Problems**, **Decide**, the agents' line (**Agents closed N tasks in 7 days**), **Sites**, **The last 24 hours** |
 
 In **I run the business**, Home opens on **Site health**, with the month's money and **Decide** under it and **The agents · this week** further down:
 
@@ -75,7 +75,7 @@ Each pick from **What matters most?** moves one part to the top, in the order pi
 - Open a site from its row in the grid, the sites list or the timeline.
 - Open a problem from its row in **Problems**; **All alerts →** opens Alerts.
 - **Approve**, **Answer** or **Close as** a decision from its row; **Close as** declines it as **Won't do**, **Duplicate**, **Can't reproduce** or **Already handled**.
-- Open Money from **Revenue, yesterday**, and the Sites page from **Visitors, yesterday** or **All sites →**.
+- Open Money from **Yesterday** in the revenue card, and the Sites page from **Visitors, yesterday** or **All sites →**.
 - **Integrations →** opens the data sources' connections.
 - In **Site health**, open a site from its name; point at or focus a dot to show its word and its problem. The site's **Health** tab shows the readings behind each dot.
 - In **The agents · this week**, **Agents →** opens the Agents page.

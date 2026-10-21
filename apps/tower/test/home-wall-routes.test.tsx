@@ -740,7 +740,7 @@ describe("Home drawn from the person's view", () => {
       else if (child.hasAttribute("data-home-health")) drawn.push("sources");
       else if (child.hasAttribute("data-home-timeline")) drawn.push("timeline");
       else if (child.querySelector("[data-one-site-lead], [data-portfolio-rows]")) drawn.push("sites");
-      else if (child.textContent?.includes("Revenue, yesterday")) drawn.push("yesterday");
+      else if (child.hasAttribute("data-home-visitors")) drawn.push("yesterday");
       else {
         for (const member of [...child.children]) {
           if (member.hasAttribute("data-incident-list")) drawn.push("problems");
@@ -1012,7 +1012,8 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(money).toHaveAccessibleName("Revenue, July so far");
     // The month's ledger rows are an estimate, and the figure says so.
     expect(money.querySelector("[data-money-figure]")).toHaveTextContent("$45est.");
-    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toHaveAttribute("href", "/financials");
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
+    expect(within(money).getByRole("link", { name: "Yesterday · not reported yet" })).toHaveAttribute("href", "/financials");
     expect(container.querySelector('[data-stat="Visitors, yesterday"]')).toHaveAttribute("href", "/assets");
 
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();

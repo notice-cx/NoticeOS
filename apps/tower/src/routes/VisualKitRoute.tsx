@@ -114,8 +114,8 @@ export function VisualKitGallery() {
       </Group>
 
       <Group title="Home: the money region (pick one)">
-        <Specimen id="money-a" title="A — one hero: the month on its pace bar beside its daily bars, with yesterday and visitors beside it" className="w-full">
-          <MoneyHeroA average={average} peopleAverage={peopleAverage} />
+        <Specimen id="money-a" title="A — one hero: the month and yesterday's revenue beside its daily bars, with visitors alongside" className="w-full">
+          <MoneyHeroA peopleAverage={peopleAverage} />
         </Specimen>
         <Specimen id="money-b" title="B — three equal figures, the month's pace bar inside the first" className="w-full">
           <div className="grid w-full gap-4 md:grid-cols-3">
@@ -313,20 +313,11 @@ function ChangesAndFunnels({ peopleAverage }: { peopleAverage: number }) {
   );
 }
 
-function MoneyHeroA({ average, peopleAverage }: { average: number; peopleAverage: number }) {
+function MoneyHeroA({ peopleAverage }: { peopleAverage: number }) {
   return (
     <div className="grid w-full gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-      <MoneyHero money={MONEY} />
+      <MoneyHero money={MONEY} yesterday={{ amount: 11.76, reported: 2, sites: 2, basis: { date: "2026-10-18", timeZone: "UTC" } }} />
       <div className="grid gap-4">
-        <StatTile
-          label="Revenue, yesterday"
-          value={11.76}
-          format={usd}
-          note="est."
-          role="money"
-          comparison={{ percent: -6.2, change: -0.78, against: "vs last Sat" }}
-          history={<BarStrip data={REVENUE_14} tone="text-financial-revenue" baseline={{ value: average, label: `usual ${usd(average)}` }} format={usd} ariaLabel="Revenue a day, last 14 days" className="h-10" />}
-        />
         <StatTile
           label="Visitors, yesterday"
           value={3891}
