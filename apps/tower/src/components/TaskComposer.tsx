@@ -12,7 +12,7 @@ import {
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 
-import type { SettingsPayload, TaskHubSpoke } from "@shared/settings";
+import type { TaskHubSpoke } from "@shared/settings";
 import {
   READ_ONLY_TASKS_HINT,
   taskWritesAvailable,
@@ -45,6 +45,7 @@ import { pillChoiceClass, pillChoiceStateClass, pillControlClass, pillPickerStat
 import { WhyItRanks } from "@/components/viz/WhyItRanks";
 import { useCreateTask, useTasksLive, useTaskProjects } from "@/hooks/useTasks";
 import { taskPath } from '@/lib/task-path';
+import { operatorRateOf } from "@/hooks/useOperatorRate";
 import { useSettings } from "@/hooks/useSettings";
 import { useSiteIcons } from "@/hooks/useSiteIcons";
 import { useWork } from "@/hooks/useWork";
@@ -82,9 +83,6 @@ export const SIGNAL_PILLS = [
   { label: "4 wk", days: 28 },
   { label: "8 wk", days: 56 },
 ] as const;
-
-/** USD per operator minute until the installation's own rate has been read. */
-const FALLBACK_RATE_USD_PER_MIN = 2;
 
 const SCORE = new Intl.NumberFormat("en-US", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -198,12 +196,6 @@ export function acceptanceText(lines: readonly string[]): string {
     .join("\n");
 }
 
-/** Settings' "Value of your time", in USD a minute. */
-function operatorRate(settings: SettingsPayload | undefined): number {
-  const rate = settings?.budget?.knobs.find((knob) => knob.key === "operator_rate_usd_per_min")?.value;
-  return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? rate : FALLBACK_RATE_USD_PER_MIN;
-}
-
 /** What the composer opens with. A handoff surface hands over a
  * `TaskHandoffPrefill` (`src/lib/task-handoff.ts` computes the values). */
 export interface TaskComposerPrefill {
@@ -268,6 +260,7 @@ export function TaskComposer({
   const fieldId = useId();
   const navigate = useNavigate();
   const settings = useSettings();
+  const operatorRateUsdPerMin = operatorRateOf(settings.data);
   const { data: work } = useWork({ enabled: projects === undefined });
   const createTask = useCreateTask();
   const capability = useTasksLive();
@@ -355,7 +348,7 @@ export function TaskComposer({
   const whyShown = whyTried ? whyProblem(why) : null;
   const whyError = (field: WhyField) => (whyShown?.field === field ? whyShown.message : undefined);
   const card = whyCard(why);
-  const score = card ? scoreTaskCard(card, { operatorRateUsdPerMin: operatorRate(settings.data) }) : null;
+  const score = card ? scoreTaskCard(card, { operatorRateUsdPerMin }) : null;
   const setWhyField = <K extends WhyField>(key: K, value: WhyDraft[K]) =>
     setWhy((current) => ({ ...current, [key]: value }));
 
