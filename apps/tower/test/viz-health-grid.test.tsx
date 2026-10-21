@@ -52,7 +52,7 @@ describe("healthStateOf", () => {
 });
 
 describe("healthTally", () => {
-  it("counts every cell once and leaves the deliberately unused out of play", () => {
+  it("counts every cell once and excludes unconnected and unused sources from health", () => {
     expect(healthTally(HEALTH_ROWS)).toEqual({
       working: 35,
       collecting: 1,
@@ -61,13 +61,13 @@ describe("healthTally", () => {
       unknown: 0,
       notConnected: 6,
       notUsing: 6,
-      inPlay: 46,
+      inUse: 40,
     });
   });
 
   it("says the counts in one order and drops the zeros", () => {
-    expect(healthTallyWords(healthTally(HEALTH_ROWS))).toBe("35 working · 1 collecting · 3 failing · 1 overdue · 6 not connected");
-    expect(healthTallyWords(healthTally(HEALTH_ROWS_NARROW))).toBe("19 working · 2 failing · 1 unknown · 2 not connected");
+    expect(healthTallyWords(healthTally(HEALTH_ROWS))).toBe("35 working · 1 collecting · 3 failing · 1 overdue");
+    expect(healthTallyWords(healthTally(HEALTH_ROWS_NARROW))).toBe("19 working · 2 failing · 1 unknown");
   });
 });
 
@@ -128,13 +128,12 @@ describe("HealthGrid", () => {
     expect(within(grid).getByRole("link", { name: "Uptime on Summit, failing 37m" }).getAttribute("href")).toBe(
       "/assets/summit.example.com/sources",
     );
-    expect(within(grid).getByRole("img", { name: "35 working · 1 collecting · 3 failing · 1 overdue · 6 not connected" })).toBeTruthy();
+    expect(within(grid).getByRole("img", { name: "35 working · 1 collecting · 3 failing · 1 overdue" })).toBeTruthy();
     expect([...grid.querySelectorAll("[data-tally]")].map((item) => item.getAttribute("data-tally"))).toEqual([
       "working",
       "collecting",
       "failing",
       "overdue",
-      "not-connected",
     ]);
   });
 
@@ -170,12 +169,37 @@ describe("HealthGrid", () => {
     );
   });
 
-  it("counts each row's working sources out of those in play", () => {
+  it("describes each row's source health without a completion score", () => {
     const { grid } = draw();
     const rowText = (id: string) => grid.querySelector(`[data-health-row="${id}"] [data-health-live]`)!.textContent;
-    expect(rowText("summit.example.com")).toBe("5 of 8 working");
-    expect(rowText("ripple-index.example.com")).toBe("2 of 2 working");
-    expect(rowText("system")).toBe("3 of 4 working");
+    expect(rowText("summit.example.com")).toBe("5 working · 2 failing");
+    expect(rowText("ripple-index.example.com")).toBe("2 working");
+    expect(rowText("system")).toBe("3 working · 1 failing");
+  });
+
+  it("leaves optional unconnected sources out of a healthy asset's summary", () => {
+    const row: HealthRow = {
+      id: "example",
+      name: "Example",
+      cells: HEALTH_COLUMNS.map((column, index) => ({ column: column.id, state: index < 2 ? "working" : "not-connected" })),
+    };
+    const { grid, cell } = draw([row]);
+    expect(grid.querySelector("[data-health-live]")!.textContent).toBe("2 working");
+    expect(within(grid).getByRole("img", { name: "2 working" })).toBeTruthy();
+    expect(grid.querySelector('[data-tally="not-connected"]')).toBeNull();
+    expect(cell(`example:${HEALTH_COLUMNS[2]!.id}`).getAttribute("data-state")).toBe("not-connected");
+    expect(grid.querySelector("[data-health-live]")!.children).toHaveLength(0);
+  });
+
+  it("does not claim working health when no source is in use", () => {
+    const { grid } = draw([{
+      id: "example",
+      name: "Example",
+      cells: HEALTH_COLUMNS.map((column, index) => ({ column: column.id, state: index % 2 === 0 ? "not-connected" : "not-using" })),
+    }]);
+    expect(grid.querySelector("[data-health-live]")!.textContent).toBe("No sources in use");
+    expect(grid.querySelector("[data-health-headline]")).toBeNull();
+    expect(grid.querySelector("[data-health-tally]")).toBeNull();
   });
 
   it("names a row's problems for the narrow strip, freshest first", () => {
