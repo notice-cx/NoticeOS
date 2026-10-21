@@ -143,6 +143,8 @@ import { OwnerChip } from "@/components/OwnerChip";
 import { PageHeader } from "@/components/PageHeader";
 import { PageDecisions } from "@/components/PageDecisions";
 import { ProgressRing } from "@/components/ProgressRing";
+import { WhyItRanks } from "@/components/viz/WhyItRanks";
+import { scoreTaskCard } from "@noticeos/contract/task-card";
 import { PriorityBar } from "@/components/PriorityBar";
 import { PropertyFavicon } from "@/components/PropertyFavicon";
 import { DemoViewerStatus } from "@/components/DemoViewerStatus";
@@ -3333,6 +3335,22 @@ export function KitchenSinkRoute() {
             <ProgressRing done={2} total={4} title="Setup 2 of 4 — still to do: Data sources, Baseline · 28 days" size="md" />
             <ProgressRing done={5} total={9} title="5 of 9 done" size="md" />
             <ProgressRing done={1} total={1} title="1 of 1 done" size="md" />
+          </Section>
+
+          <Section title="WhyItRanks (a task's card as figures)">
+            <div className="w-full max-w-2xl">
+              <WhyItRanks
+                card={{ valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, buildMinutes: 120, daysToSignal: 14, measurability: "holdout", kill: { state: "Sessions still under baseline", date: "2026-11-11" } }}
+                score={scoreTaskCard({ valuePerMonth: 1100, likelihood: 0.7, reviewMinutes: 10, daysToSignal: 14, measurability: "holdout" }, { operatorRateUsdPerMin: 2 })}
+                rank={{ position: 1, of: 35 }}
+              />
+            </div>
+            <div className="w-full max-w-xl">
+              <WhyItRanks size="sm" card={{ valuePerMonth: 300, likelihood: 0.55, reviewMinutes: 15, daysToSignal: 28, measurability: "cohort" }} score={null} />
+            </div>
+            <div className="w-full max-w-xl">
+              <WhyItRanks size="sm" card={{ valuePerMonth: -40, likelihood: 0.5, reviewMinutes: 0, daysToSignal: 5, measurability: "unmeasured" }} score={null} />
+            </div>
           </Section>
 
           <Section title="Setup checklist panel (the asset page's Overview)">

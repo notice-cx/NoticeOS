@@ -275,6 +275,13 @@ export const COMPONENT_REGISTRY: RegistryEntry[] = [
     variants: ["under", "near", "over"],
   },
   {
+    name: "WhyItRanks",
+    file: "components/viz/WhyItRanks.tsx",
+    purpose:
+      "Why a task is worth doing, as its card's figures in one row: the money at stake a month, how likely it is to pay off (a ten-cell meter), the operator's minutes, when the ledger will show it, the kill date and, when ranked, its place and the policy version. One figure per fact with its unit a step lighter; `sm` sits in a row, `md` leads a card or a page section.",
+    variants: ["md with a kill date and a rank", "sm in a row", "no kill date", "a loss avoided (negative value)"],
+  },
+  {
     name: "ProgressRing",
     file: "components/ProgressRing.tsx",
     purpose:
