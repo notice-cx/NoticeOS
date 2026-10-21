@@ -32,14 +32,14 @@ NoticeOS reads the site's own home page and uses the title it finds there. If th
 
 ### What "Not launched yet" does
 
-A site marked **Not launched yet** starts in a pre-launch stage. Paid collection and the nightly-report freshness check skip it, so NoticeOS raises no alerts and spends nothing on paid collection for a site with nothing to measure yet. You can change the stage later on the site's **Settings** tab under **Manual lifecycle stage**.
+A site marked **Not launched yet** starts in a pre-launch stage. Paid collection and the nightly-report freshness check skip it, so NoticeOS raises no alerts and spends nothing on paid collection for a site with nothing to measure yet. Use **Begin monitoring** on the site's **Settings** tab under **Lifecycle** to release that hold.
 
 ### What the site's Settings tab holds
 
 Each site has its own **Settings** tab with these sections:
 
 - **Identity** — the name, the domain and which legal entity owns the site.
-- **Manual lifecycle stage** — the site's current stage, including pre-launch.
+- **Lifecycle** — the site's stage, computed from collection history; **Begin monitoring** releases a pre-launch hold.
 - **Automation** — what NoticeOS is allowed to do automatically for this site.
 - **Data collection** — the site's own nightly report: its endpoint, whether the fetch is enabled, and the last report received.
 - **Alert rules in force** — which anomaly rules apply to this site.
@@ -50,7 +50,7 @@ Portfolio-wide settings, such as the time zone and budgets, are on the main **Se
 ## Verify
 
 - The site's **Data sources** tab lists every source the product can collect for it. Nothing is connected yet, so each row shows **Not connected**. The first source in the list that is still unconnected has the page's main **Connect** button.
-- **Home** shows the site's health word **Setting up** until the first numbers arrive.
+- **Home** shows the site's current health. Setup progress is on the site's **Sources** tab.
 - After the first source is working, the site's **Overview** shows its first number.
 
 ## If it didn't work

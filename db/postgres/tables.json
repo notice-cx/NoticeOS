@@ -37,6 +37,7 @@
     "mediavine_runs": { "shape": "history", "arrival": "attempted_at" },
     "mediavine_sites": { "shape": "state", "arrival": null },
     "mediavine_state": { "shape": "state", "arrival": null },
+    "notification_outbox": { "shape": "state", "arrival": "created_at" },
     "notifications": { "shape": "history", "arrival": "sent_at" },
     "person_preferences": { "shape": "history", "arrival": "recorded_at" },
     "pulses": { "shape": "history", "arrival": "received_at" },

@@ -80,8 +80,6 @@ export function emptyDraft(): AssetDraft {
 export const CREATABLE_STATUSES: AssetStatusValue[] = [
   "pre-launch",
   "onboarding",
-  "baselining",
-  "live",
 ];
 
 // ---------------------------------------------------------------------------

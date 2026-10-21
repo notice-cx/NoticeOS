@@ -104,11 +104,11 @@ export function AssetsRoute() {
    * already narrowed: "how many sites are live" is a fact about the list. */
   const statusCounts = new Map<string, number>();
   for (const card of assets) statusCounts.set(card.status, (statusCounts.get(card.status) ?? 0) + 1);
-  // The five canonical stages always appear, in lifecycle order, even at zero.
+  // Current derived stages and explicit lifecycle decisions appear even at zero.
   // An unknown status (from the store or only the URL) is appended rather than
   // dropped, as `assetStatusLabel` does, so the control never shows nothing.
   const statusOptions = [
-    ...Object.keys(ASSET_STATUS_LABEL),
+    ...Object.keys(ASSET_STATUS_LABEL).filter((stage) => stage !== "baselining"),
     ...[...new Set([...statusCounts.keys(), ...(status === "all" ? [] : [status])])]
       .filter((value) => !(value in ASSET_STATUS_LABEL))
       .sort(),
@@ -284,7 +284,6 @@ function sitesAnswer(listed: readonly SiteLine[]): { key: string; line: string; 
   }
   const offTrack = lines.filter((line) => line.health.key === "off-track");
   const atRisk = lines.filter((line) => line.health.key === "at-risk");
-  const settingUp = lines.filter((line) => line.health.key === "setting-up");
   const needs = [...offTrack, ...atRisk];
   if (needs.length > 0) {
     const word = atRisk.length === 0 ? "off track" : offTrack.length === 0 ? "at risk" : "need attention";
@@ -307,13 +306,7 @@ function sitesAnswer(listed: readonly SiteLine[]): { key: string; line: string; 
       ),
     };
   }
-  const fine = lines.length - settingUp.length;
-  if (settingUp.length === 0) return { key: "on-track", line: `All ${formatInt(lines.length)} ${noun} on track`, detail: undefined };
-  return {
-    key: "setting-up",
-    line: fine === 0 ? `${formatInt(lines.length)} ${noun} setting up` : `${formatInt(fine)} of ${formatInt(lines.length)} ${noun} on track`,
-    detail: fine === 0 ? undefined : `${formatInt(settingUp.length)} setting up`,
-  };
+  return { key: "on-track", line: `All ${formatInt(lines.length)} ${noun} on track`, detail: undefined };
 }
 
 /** How many sites the list leaves out because their Home and Sites list

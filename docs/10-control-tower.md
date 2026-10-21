@@ -1156,22 +1156,17 @@ config write path with an Undo, and a stale write rejected with a visible messag
   principle 1 rather than principle 5: an inline confirmation lists what stops as
   glyph rows (data collection, alerts, its card on Home and the TV dashboard)
   *before* it sets `assets.status` to `retired`. A retired asset shows
-  **Restore** in its place, returning it to the stage it left.
-- **A stage move is an event on the asset**.
-  `assets.status` records the asset's current stage, not its earlier
-  ones. Every write that
-  moves the stage (Archive, Restore, each *Change stage…* pick, and the Undo in
-  their toast) also writes an **annotation**: `kind: config`, and a `ref` of
-  `lifecycle:<from>><to>` which is both the machine-readable record and part of
-  the row's `(asset, at, kind, ref)` identity. Restore READS the most recent
-  recorded move into `retired` and offers **Restore to** the stage it came from,
-  beside an *Archived (date)* chip. **No new column and no new annotation kind**, because both
-  would be a migration and migrations are operator-only (AGENTS.md); `config` is
-  the closest accurate existing kind — a stage is a stored setting on the asset,
-  edited from this tab under the `db · assets row` owner. An asset with no
-  recorded move gets a stage picker (Live first) beside **Restore** and a *No
-  recorded stage* chip. The Activity tab shows the moves with no extra code, rendered as the sentence
-  *"Stage moved from Baselining to Retired"* rather than the ref (doc 14).
+  **Restore** in its place, resuming monitoring. An explicit pre-launch hold is preserved.
+- **Lifecycle is derived from collected data.** Before collection has recorded
+  data the site is **Onboarding**; afterwards it is **Live**. The calculation
+  reads stored collection history rather than a recent chart window. A source
+  failure affects health without erasing the start of collection. Settings
+  shows the computed stage and no progress-stage picker. **Begin monitoring**
+  releases an explicit **Pre-launch** hold. **Archive** and **Restore** record
+  human decisions as `config` annotations with `lifecycle:<from>><to>` refs.
+  Restore reads the most recent archive to preserve a pre-launch hold;
+  otherwise the active stage is computed again from collection history.
+  Historical stage annotations remain on Activity.
 - **No Delete** — a site is never deleted, a mistaken add included: the store
   is history, and the Postgres model gives the application no DELETE on a site
   ([`db/postgres/README.md`](../db/postgres/README.md)). Archive is the only

@@ -79,6 +79,14 @@ async function invalidatedKeys(calls: unknown[][]): Promise<string[]> {
 }
 
 describe("a config save refreshes every page built from a config file", () => {
+  it.each(["retired", "live"] as const)("refreshes archived work, history and activity immediately on status %s", async status => {
+    const invalidated = vi.spyOn(client, "invalidateQueries");
+    const { result } = renderHook(() => useConfigSave(), { wrapper });
+    await result.current({ label: "Lifecycle stage", ops: [{ kind: "store-asset-set", asset: "example.com", column: "status", expect: status === "retired" ? "live" : "retired", value: status }] });
+    const keys = await invalidatedKeys(invalidated.mock.calls);
+    expect(keys).toEqual(expect.arrayContaining(["work", "alert-history", "wall-feed"]));
+  });
+
   it("from the SETTING path", async () => {
     const invalidated = vi.spyOn(client, "invalidateQueries");
     const { result } = renderHook(() => useConfigSave(), { wrapper });

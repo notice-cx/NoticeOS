@@ -103,6 +103,20 @@ function renderComposer(prefill: TaskComposerPrefill | null = null) {
 const field = (label: string) => screen.getByLabelText(label) as HTMLInputElement;
 const fileTask = () => screen.getByRole("button", { name: "File task" });
 
+it("refuses a project removed from the roster while its task form is open", async () => {
+  const client = new QueryClient();
+  const compose = (projects: TaskHubSpoke[]) => <QueryClientProvider client={client}><MemoryRouter>
+    <TaskComposer open onClose={vi.fn()} prefill={{ project: "meadow.example", title: "Review the saved report" }} projects={projects} />
+  </MemoryRouter></QueryClientProvider>;
+  const view = render(compose(SPOKES));
+  expect(field("Project").value).toBe("meadow.example");
+  view.rerender(compose(SPOKES.filter(row => row.asset !== "meadow.example")));
+  fireEvent.click(fileTask());
+  expect(lane.calls).toEqual([]);
+  expect(await screen.findByText("Choose the site whose repo this task belongs to.")).toBeInTheDocument();
+  client.clear();
+});
+
 describe('hosted composer fields', () => {
   it('retains linked labels/metadata and ordinary fields in a selected hosted project', async () => {
     lane.capability = { live: true, writable: true, reason: null, projectSelection: true, operations: ['create', 'update', 'comment', 'close'] };

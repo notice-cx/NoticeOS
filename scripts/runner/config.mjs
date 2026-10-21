@@ -94,13 +94,6 @@ export const CONFIG = {
   // with no review bead against it. Hourly, off the top of the hour so it does
   // not share a tick with the wrangler crons.
   panelFilerCron: '25 * * * *',
-  // How often every spoke's push state is reconciled against its remote, and
-  // its gates evaluated. Hourly at :40 — off :00/:15/:30/:45 (the ingest crons
-  // and the hub check) and off :25 (the panel filer), so no tick ever carries
-  // two lanes' worth of subprocesses. Hourly is the cadence the bead needs:
-  // the window in which a push bead names work that is already live is what
-  // this number sets.
-  pushStateCron: '40 * * * *',
   // How often closed bets are carried to the beads that own their readings.
   // Hourly at :50 — off every other lane's tick. Verdicts only appear when the
   // 03:30 sweep closes something, so it stays silent on ticks with nothing to
@@ -113,11 +106,6 @@ export const CONFIG = {
   // because the value is edited on /settings and by hand, and otherwise only
   // the nightly backup reads it.
   beadsMapCheckCron: '5 * * * *',
-  // How long unpushed commits may sit before the runner files a bead about
-  // them: the gap between "the operator is mid-session" and "the operator
-  // moved on and forgot". Filing at the first tick would file against every
-  // commit anybody makes.
-  pushStaleHours: 24,
   // How often every rostered property's local signal panels are rebuilt
   // (config/signal-panels.json). 13:10 UTC: after both archive crons have
   // landed — the daily GA4/GSC/BWT lane at 12:15 and the weekly DataForSEO

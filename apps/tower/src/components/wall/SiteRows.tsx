@@ -622,7 +622,7 @@ function SiteHealth({ asset, mark, site }: { asset: AssetCard; mark: SiteMark | 
   const health = siteHealth(asset, mark ? [{ assets: [asset.id], severity: mark.severity }] : []);
   // A retired site, drawn only when its TV switch is on, has no level: nobody
   // watches it, so it is neither healthy nor failing.
-  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "setting-up" || health.key === "retired" ? "unknown" : "healthy";
+  const state = health.key === "off-track" ? "error" : health.key === "at-risk" ? "warn" : health.key === "retired" ? "unknown" : "healthy";
   const level = state === "error" ? 1 : state === "warn" ? 2 : state === "healthy" ? 4 : 0;
   const label = mark ? `${mark.label}${mark.more ? `; ${mark.more} more ${mark.more === 1 ? "issue" : "issues"}` : ""}` : health.word;
   return (

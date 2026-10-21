@@ -1,7 +1,7 @@
 import { tryHealthConnection } from './integration-health-context.js';
 import { beginCollection, collectionMonitoring, type CollectionMonitoring } from './collection-attempt.js';
 // PostHog product analytics archive: once a day, per asset with a key and a
-// saved region + project, six aggregate families are read from the query API
+// saved region + project, seven aggregate families are read from the query API
 // and archived through the ordinary signal-dump path.
 //
 // Read-only, two endpoints: the project read (timezone, and proof the key can
@@ -62,6 +62,7 @@ import { javascriptInstant, type WorkspaceStore } from '@noticeos/postgres';
 import { SITE_ORDER } from '@noticeos/contract';
 import { asRecord, stringField } from './shared.js';
 import { claimLease } from './integration-leases.js';
+import { posthogCooldown, posthogRetryAt, savePosthogCooldown, type PosthogQueryCooldown } from './posthog-query-budget.js';
 
 /** The credential field: asset id → that asset's read-only personal API key. */
 export const POSTHOG_KEY_SLOT = 'POSTHOG_KEYS';
@@ -127,6 +128,8 @@ export interface PosthogSkip {
   family: PosthogFamily | null;
   reason: PosthogSkipReason;
   detail: string;
+  /** A provider-directed wait shared by all callers of the mapped project. */
+  nextAttemptAt?: string;
   /** Only on an `in-flight` skip: the run that holds the asset. */
   inFlight?: PosthogRunInFlight;
 }
@@ -152,9 +155,8 @@ export interface PosthogDumpsOptions {
   laneRegister?: LaneRegister;
   configSources?: ConfigSourceMap;
   scope?: PosthogCollectScope;
-  /** The lease clock. Windows are dated from `nowMs`; a lease is dated when it
-   * is taken, because a later asset in a long run must still hold its lease for
-   * the full `POSTHOG_LEASE_MS`. */
+  /** Live clock for leases and provider cooldowns. Report windows remain
+   * dated from `nowMs`; provider delays start when the response arrives. */
   clock?: () => number;
   /** Override the run's egress gate (tests control the verdict TTL). */
   egress?: EgressGate;
@@ -240,7 +242,8 @@ interface RetryPass {
 
 /** Shared state for one run: whether PostHog has told us to stop. */
 interface RunState {
-  stop: { reason: 'budget-exhausted' | 'rate-limited'; detail: string } | null;
+  stop: PosthogQueryCooldown | null;
+  clock: () => number;
   budgetRemainingBytes: number | null;
   bytesRead: number;
   retry: RetryPass;
@@ -287,6 +290,7 @@ export async function runPosthogDumps(
   const skipped: PosthogSkip[] = [];
   const state: RunState = {
     stop: null,
+    clock,
     budgetRemainingBytes: null,
     bytesRead: 0,
     retry: {
@@ -368,6 +372,13 @@ export async function runPosthogDumps(
       continue;
     }
     try {
+      // Check under the asset lease: the previous owner saves its provider
+      // delay before releasing, so a waiting caller cannot miss that delay.
+      const cooldown = await posthogCooldown(env.STORE, settings, clock());
+      if (cooldown !== null) {
+        for (const family of families) skipped.push({ asset: candidate.asset, family, ...cooldown });
+        continue;
+      }
       outcomes.push(
         ...(await collectAsset(env, {
           target,
@@ -386,7 +397,11 @@ export async function runPosthogDumps(
     } finally {
       // Every exit: success, provider failures, a 429 budget stop (collectAsset
       // returns normally with `state.stop` set) and anything thrown.
-      await releasePosthogLease(env.STORE, candidate.asset, lease.owner);
+      try {
+        if (state.stop !== null) await savePosthogCooldown(env.STORE, settings, state.stop);
+      } finally {
+        await releasePosthogLease(env.STORE, candidate.asset, lease.owner);
+      }
     }
   }
 
@@ -422,7 +437,7 @@ export async function runPosthogDumps(
     unchanged: outcomes.filter((outcome) => outcome.status === 'unchanged').length,
     failed: outcomes.filter((outcome) => outcome.status === 'error').length,
     skipped,
-    budgetStopped: state.stop !== null,
+    budgetStopped: state.stop !== null || skipped.some(skip => skip.reason === 'budget-exhausted' || skip.reason === 'rate-limited'),
     budgetRemainingBytes: state.budgetRemainingBytes,
     bytesRead: state.bytesRead,
     retried: state.retry.asked,
@@ -463,7 +478,7 @@ export async function runPosthogDumps(
       budgetStopped: result.budgetStopped,
       budgetRemainingBytes: result.budgetRemainingBytes,
       bytesRead: result.bytesRead,
-      skipped: skipped.map(({ asset, family, reason }) => ({ asset, family, reason })),
+      skipped: skipped.map(({ asset, family, reason, nextAttemptAt }) => ({ asset, family, reason, ...(nextAttemptAt ? { nextAttemptAt } : {}) })),
       // Earlier window ends asked again, and how many owed ones were left.
       retried: result.retried,
       retryNotAsked: result.retryNotAsked,
@@ -1016,8 +1031,8 @@ async function collectFamily(env: IngestEnv, run: FamilyRun): Promise<SignalDump
       signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
     });
     readBudget(response, state);
-    const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
-    if (!response.ok) throw posthogProviderError(response.status, payload, state);
+    const payload = await posthogResponseBody(response, state);
+    if (!response.ok) throw posthogProviderError(response, payload, state);
 
     const results = queryResults(payload, query.columns);
     const { rows, truncated } = parseFamilyRows(family, results, settings.funnels);
@@ -1095,7 +1110,7 @@ async function readProjectTimeZone(
     headers: { authorization: `Bearer ${key}` },
     signal: AbortSignal.timeout(POSTHOG_REQUEST_TIMEOUT_MS),
   });
-  const payload = await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
+  const payload = await posthogResponseBody(response, state);
   if (!response.ok) {
     if (response.status === 404) {
       throw new SignalError(
@@ -1103,7 +1118,7 @@ async function readProjectTimeZone(
         `PostHog has no project ${projectId} in this region, or this key cannot see it (HTTP 404).`,
       );
     }
-    throw posthogProviderError(response.status, payload, state);
+    throw posthogProviderError(response, payload, state);
   }
   const zone = asRecord(payload)?.timezone;
   return typeof zone === 'string' && zone.length > 0 ? zone : null;
@@ -1116,14 +1131,32 @@ function readBudget(response: Response, state: RunState): void {
   if (response.headers.has(BYTES_READ_HEADER) && Number.isFinite(read)) state.bytesRead += read;
   // Nothing left means the next query would be refused: stop before asking.
   if (response.ok && state.budgetRemainingBytes !== null && state.budgetRemainingBytes <= 0 && state.stop === null) {
-    state.stop = { reason: 'budget-exhausted', detail: 'PostHog reported no query budget left this hour.' };
+    state.stop = { reason: 'budget-exhausted', detail: 'PostHog reported no query budget left this hour.', nextAttemptAt: posthogRetryAt(response, state.clock()) };
+  }
+}
+
+async function posthogResponseBody(response: Response, state: RunState): Promise<unknown> {
+  stopOnRateLimit(response, state);
+  try {
+    return await boundedResponseJson(response, 'PostHog', RESPONSE_BYTE_LIMIT, POSTHOG_RESPONSE);
+  } catch (error) {
+    if (response.status === 429) throw posthogProviderError(response, {}, state);
+    throw error;
+  }
+}
+
+/** Status and headers remain usable when the refusal body cannot be decoded. */
+function stopOnRateLimit(response: Response, state: RunState): void {
+  if (response.status === 429) {
+    state.stop = { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.', nextAttemptAt: posthogRetryAt(response, state.clock()) };
   }
 }
 
 /** One provider refusal, with the codes the health classifier reads: `access`
  * for a key PostHog will not accept, `budget` for the hourly bytes-read
  * allowance, `rate-limit` for request-rate limits. A 429 also stops the run. */
-function posthogProviderError(status: number, payload: unknown, state: RunState): SignalError {
+function posthogProviderError(response: Response, payload: unknown, state: RunState): SignalError {
+  const status = response.status;
   const record = asRecord(payload);
   const detail =
     stringField(record, 'detail') ?? stringField(record, 'error') ?? `PostHog returned HTTP ${status}.`;
@@ -1134,8 +1167,8 @@ function posthogProviderError(status: number, payload: unknown, state: RunState)
   if (status === 429) {
     const budget = stringField(record, 'code') === 'api_queries_budget_exceeded';
     state.stop = budget
-      ? { reason: 'budget-exhausted', detail: 'PostHog’s hourly query budget is used up; the rest of this run was not asked.' }
-      : { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.' };
+      ? { reason: 'budget-exhausted', detail: 'PostHog’s hourly query budget is used up; the rest of this run was not asked.', nextAttemptAt: state.stop?.nextAttemptAt ?? posthogRetryAt(response, state.clock()) }
+      : { reason: 'rate-limited', detail: 'PostHog is limiting query requests; the rest of this run was not asked.', nextAttemptAt: state.stop?.nextAttemptAt ?? posthogRetryAt(response, state.clock()) };
     return new SignalError(
       budget ? 'posthog_query_budget_exceeded' : 'posthog_rate_limit',
       `PostHog rejected the query (HTTP 429${budget ? ', hourly query budget used up' : ', request rate limit'}). ${detail}`.slice(0, 500),
@@ -1214,7 +1247,7 @@ export function posthogQuery(
           '  uniq(person_id) AS people,',
           "  uniq(nullIf(toString(properties.$session_id), '')) AS sessions",
           'FROM events',
-          `WHERE event = '$pageview' AND ${bounds}`,
+          `PREWHERE event = '$pageview' AND ${bounds}`,
           'GROUP BY date',
           'ORDER BY date ASC',
           `LIMIT ${limit}`,
@@ -1231,7 +1264,7 @@ export function posthogQuery(
           '  toString(min(toDate(timestamp))) AS first_seen,',
           '  toString(max(toDate(timestamp))) AS last_seen',
           'FROM events',
-          `WHERE ${bounds}`,
+          `PREWHERE ${bounds}`,
           'GROUP BY event',
           'ORDER BY count DESC, event ASC',
           `LIMIT ${limit}`,
@@ -1277,7 +1310,7 @@ export function posthogQuery(
           "      nullIf(toString(properties.$browser), '') AS browser,",
           `      if(match(JSONExtractRaw(properties, '$exception_list'), '"(filename|abs_path)": *"[^"]+"'), 1, 0) AS source_file`,
           '    FROM events',
-          `    WHERE event = '$exception' AND ${bounds}`,
+          `    PREWHERE event = '$exception' AND ${bounds}`,
           '  )',
           ')',
           'GROUP BY exception_type, exception_message',
@@ -1326,7 +1359,7 @@ export function posthogQuery(
           "        nullIf(toString(properties.$device_type), '') AS device,",
           "        splitByChar(';', elements_chain)[1] AS target",
           '      FROM events',
-          `      WHERE event = '$rageclick' AND ${bounds}`,
+          `      PREWHERE event = '$rageclick' AND ${bounds}`,
           '    )',
           '  )',
           '  GROUP BY path, tag, text, attr',
@@ -1334,7 +1367,7 @@ export function posthogQuery(
           'LEFT JOIN (',
           "  SELECT nullIf(toString(properties.$pathname), '') AS path, uniq(person_id) AS page_people",
           '  FROM events',
-          `  WHERE event = '$pageview' AND ${bounds}`,
+          `  PREWHERE event = '$pageview' AND ${bounds}`,
           '  GROUP BY path',
           ') AS pv ON rc.path = pv.path',
           'ORDER BY people DESC, clicks DESC, path ASC, tag ASC, text ASC, attr ASC',
@@ -1355,11 +1388,11 @@ export function posthogQuery(
           '  quantileExact(0.75)(toFloat(properties.$web_vitals_FCP_value)) AS fcp_p75,',
           '  count() AS measurements',
           'FROM events',
-          `WHERE event = '$web_vitals' AND ${bounds}`,
-          "  AND nullIf(toString(properties.$pathname), '') IN (",
+          `PREWHERE event = '$web_vitals' AND ${bounds}`,
+          "WHERE nullIf(toString(properties.$pathname), '') IN (",
           "    SELECT nullIf(toString(properties.$pathname), '') AS top_path",
           '    FROM events',
-          `    WHERE event = '$web_vitals' AND ${bounds}`,
+          `    PREWHERE event = '$web_vitals' AND ${bounds}`,
           '    GROUP BY top_path',
           '    ORDER BY count() DESC, top_path ASC',
           `    LIMIT ${POSTHOG_WEB_VITALS_TOP_PATHS}`,
@@ -1391,12 +1424,12 @@ export function posthogQuery(
           `  ${milliseconds('processingDuration')} AS processing_p75,`,
           `  ${milliseconds('presentationDelay')} AS presentation_delay_p75`,
           'FROM events',
-          `WHERE event = '$web_vitals' AND ${bounds}`,
-          '  AND properties.$web_vitals_INP_value IS NOT NULL',
+          `PREWHERE event = '$web_vitals' AND ${bounds}`,
+          'WHERE properties.$web_vitals_INP_value IS NOT NULL',
           "  AND nullIf(toString(properties.$pathname), '') IN (",
           "    SELECT nullIf(toString(properties.$pathname), '') AS top_path",
           '    FROM events',
-          `    WHERE event = '$web_vitals' AND ${bounds}`,
+          `    PREWHERE event = '$web_vitals' AND ${bounds}`,
           '    GROUP BY top_path',
           '    ORDER BY count() DESC, top_path ASC',
           `    LIMIT ${POSTHOG_WEB_VITALS_TOP_PATHS}`,
@@ -1449,7 +1482,7 @@ function funnelQuery(window: PosthogWindow, funnels: readonly PosthogFunnel[]): 
       '  person_id,',
       levels.join(',\n'),
       '  FROM events',
-      `  WHERE ${timeBounds(window)}`,
+      `  PREWHERE ${timeBounds(window)}`,
       `    AND event IN (${events.map(hogqlString).join(', ')})`,
       '  GROUP BY person_id',
       ')',

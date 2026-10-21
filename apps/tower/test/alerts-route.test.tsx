@@ -607,6 +607,14 @@ describe("/alerts — the portfolio's open exceptions", () => {
     expect(row.textContent).toMatch(/^Error: /);
   });
 
+  it.each(["/alerts", "/alerts?view=history"])("excludes archived sites from the selector at %s", url => {
+    const data = payload([]);
+    state.data = { ...data, assets: data.assets.map((row, index) => index === 0 ? { ...row, status: "retired" } : row) };
+    render(<QueryClientProvider client={new QueryClient()}><MemoryRouter initialEntries={[url]}><AlertsRoute /></MemoryRouter></QueryClientProvider>);
+    expect(within(screen.getByLabelText("Site")).queryByRole("option", { name: "Meadow Board" })).toBeNull();
+    expect(within(screen.getByLabelText("Site")).getByRole("option", { name: "Areas" })).toBeInTheDocument();
+  });
+
   it("offers every asset in the store as a filter, not only the ones alerting", () => {
     renderAlerts([alert()]);
 

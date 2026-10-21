@@ -9,6 +9,7 @@
 // exact match against the allowlist. Nothing here writes a migration; what it
 // inserts and changes is rows.
 
+import { canSetLifecycleControl, lifecycleControlValue } from '@noticeos/contract/asset-lifecycle';
 import { SITE_ORDER, STORE_COLUMNS, SYSTEM_NAME } from '@noticeos/contract';
 import type {
   AssetRowSummary,
@@ -203,8 +204,13 @@ export async function writeAssetColumn(
     const current = readBack(siteRow(target), column);
     if (guarded && current !== raw.expect) return { ok: false, error: 'expect_mismatch', column, current };
 
+    if (column === 'status' && !canSetLifecycleControl(target.status, String(value))) {
+      return { ok: false, error: 'validation', issues: [{ path: 'value', code: 'derived',
+        message: 'Active lifecycle stages are determined from collected data. Use archive, restore or begin monitoring.' }] };
+    }
+
     // The table's flag is a boolean; the lane's 0/1 is its declared field.
-    const stored = column === 'sense_only' ? value === 1 : value;
+    const stored = column === 'sense_only' ? value === 1 : column === 'status' ? lifecycleControlValue(String(value)) : value;
     const [row] = await tx.query<StoredSiteRow>(UPDATE_SQL[column], [asset, stored, updatedAt]);
 
     // No row updated means no such asset: a clean 422 rather than a silent no-op.
@@ -389,6 +395,9 @@ export async function createAsset(
   const domain = declaredString(issues, raw.domain, 'domain', SITE_ROW_FIELDS.domain);
   // Absent means the defaults. The declared enum is what makes the cast true.
   const status = (declaredString(issues, raw.status, 'status', SITE_ROW_FIELDS.status) ?? 'onboarding') as AssetStatus;
+  if (status === 'live' || status === 'baselining') {
+    issues.add('status', 'derived', 'Active lifecycle stages are determined from collected data.');
+  }
   const senseOnly = declaredNumber(issues, raw.senseOnly, 'senseOnly', SITE_ROW_FIELDS.senseOnly) ?? 1;
 
   if (!issues.ok || id === null || displayName === null) {

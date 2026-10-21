@@ -1055,7 +1055,7 @@ export const CONFIG_REGISTERS: Record<ConfigRegisterKey, ConfigRegister> = {
         label: 'TV',
         type: 'boolean',
         required: false,
-        describe: 'every widget on the TV',
+        describe: 'site rows and counts on the TV',
       },
       {
         name: 'work',

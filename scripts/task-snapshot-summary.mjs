@@ -129,7 +129,7 @@ function handoffRank(a, b) {
 // ingest worker. `bd` resolves its own connection settings from each repo's
 // `.beads/config.yaml`, so the poller never holds hub credentials; it only
 // says where to look (-C). This is a read: the poller never creates, closes
-// or edits a task (runner/panel-review.mjs and runner/push-state.mjs are
+// or edits a task (runner/panel-review.mjs and runner/task-map.mjs are
 // separate lanes that write).
 
 /** How many of each list a project reports: the board shows the head of the

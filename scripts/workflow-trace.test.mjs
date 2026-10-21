@@ -46,28 +46,12 @@ test('each failed step hands its own error to the caller once, and a listener ca
 test('partial collection failure is visible without changing the collector result', () => {
   assert.equal(stepResult({ failed: 1, succeeded: 5 }).state, 'failed');
   assert.equal(stepResult({ failed: [{ property: 'example' }] }).state, 'failed');
+  assert.equal(stepResult({ failed: 2 }).summary, '2 collections failed.');
+  assert.equal(stepResult({ failed: 1 }).summary, '1 collection failed.');
   assert.equal(stepResult({ attempted: 0, failed: 0 }).state, 'skipped');
   assert.equal(stepResult({ outcome: 'skipped' }).state, 'skipped');
   assert.equal(stepResult({ ok: false }).state, 'failed');
   assert.equal(stepResult(undefined).state, 'succeeded');
-});
-
-test('a failed step names what failed: sites whose remote could not be read, else collections', () => {
-  // The unpublished-commit check (runPushStateFiler in scripts/os-up.mjs):
-  // nothing was collected from these sites, so they are not "collections".
-  const pushState = { checked: 2, filed: [], closed: [], failed: [
-    { asset: 'one.example', reason: 'remote-sign-in-refused' },
-    { asset: 'two.example', reason: 'remote-unreachable' },
-    { asset: 'three.example', reason: 'git-read-failed' },
-  ] };
-  assert.deepEqual(stepResult(pushState), { state: 'failed', summary: '3 sites could not be read.' });
-  assert.equal(stepResult({ ...pushState, failed: pushState.failed.slice(0, 1) }).summary, '1 site could not be read.');
-  // Collection lanes keep their wording, counted or listed.
-  assert.equal(stepResult({ failed: 2, succeeded: 5 }).summary, '2 collections failed.');
-  assert.equal(stepResult({ failed: 1 }).summary, '1 collection failed.');
-  assert.equal(stepResult({ failed: [{ property: 'example' }] }).summary, '1 collection failed.');
-  // A list that is not wholly unread sites is not called sites.
-  assert.equal(stepResult({ failed: [...pushState.failed, { asset: 'four.example', error: 'timeout' }] }).summary, '4 collections failed.');
 });
 
 test('parallel stages retain distinct start/end evidence', async () => {
@@ -128,4 +112,28 @@ test('bounded history reader ignores torn lines and never reads an unbounded log
     await writeFile(file, '{"value":"old-long-record"}\n{"value":2}\n{"broken":');
     assert.deepEqual(await readJsonLines(file, 35), [{ value: 2 }]);
   } finally { await rm(dir, { recursive: true, force: true }); }
+});
+
+test('notification history retains observed event and recovery triggers through projections', async () => {
+  const { createWorkflowHistory } = await import('./workflow-history.mjs');
+  const { buildWorkflowHistory } = await import('./workflow-history-view.mjs');
+  const { jobRunName } = await import('./scheduled-jobs.mjs');
+  const root = await mkdtemp(path.join(os.tmpdir(), 'notification-history-'));
+  try {
+    const history = createWorkflowHistory(root);
+    const definition = WORKFLOW_DEFINITIONS.find(workflow => workflow.id === 'notifications');
+    const job = jobRunName(definition);
+    const at = Date.now() - 1000;
+    const event = history.beginRun(job, at, { kind: 'event' });
+    await event.run('notify', async () => ({ sent: 2 }));
+    await event.finish('ran');
+    const recovery = history.beginRun(job, at + 1);
+    await recovery.run('notify', async () => ({ sent: 0, skipped: 'nothing-to-say' }));
+    await recovery.finish('skipped');
+    const traces = await readJsonLines(path.join(root, '.local/logs/workflow-runs.jsonl'));
+    const records = [{ job, at: new Date(at).toISOString(), ms: 1, outcome: 'ran' }];
+    const selected = buildWorkflowHistory(records, traces, [], Date.now(), traces[0].id);
+    assert.equal(selected.selectedRun.trigger.kind, 'event');
+    assert.deepEqual(selected.workflows.find(workflow => workflow.id === 'notifications').runs.map(run => run.trigger.kind), ['recovery', 'event']);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

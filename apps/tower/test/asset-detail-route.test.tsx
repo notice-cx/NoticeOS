@@ -1700,8 +1700,10 @@ describe("AssetDetailRoute — the setup checklist", () => {
     };
   }
 
-  it("does not render at all for a live asset", async () => {
-    stubFetch(200, payload());
+  it("does not render once observed setup checks are complete", async () => {
+    const data = payload();
+    data.asset = { ...data.asset, status: "live", reportDays: 28 };
+    stubFetch(200, data);
     const { container, findAllByText } = renderRoute("meadow.example", "", "sources");
 
     await findAllByText("Data sources");
@@ -1765,8 +1767,8 @@ describe("AssetDetailRoute — the setup checklist", () => {
     await findByText(/^Data setup ·/);
     expect(container.querySelector("[data-setup-source]")).toBeNull();
     const step = container.querySelector('[data-setup-item="sources"]')!;
-    expect(step).toHaveTextContent("2 of 3 connected, off or not applicable");
-    expect(step).toHaveAttribute("data-setup-state", "pending");
+    expect(step).toHaveTextContent("1 connected");
+    expect(step).toHaveAttribute("data-setup-state", "done");
     expect(step).not.toHaveTextContent(/Configured|Working|Declined for now/u);
   });
 
@@ -1806,7 +1808,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
     const setup = view.container.querySelector<HTMLElement>("[data-setup-checklist]")!;
     const sourceStep = setup.querySelector('[data-setup-item="sources"]')!;
     expect(sourceStep).toHaveAttribute("data-setup-state", "done");
-    expect(sourceStep).toHaveTextContent("1 of 1 connected, off or not applicable");
+    expect(sourceStep).toHaveTextContent("1 connected");
     expect(sourceStep).not.toHaveTextContent(/working|failing|healthy/iu);
     expect(setup.querySelector('[data-setup-item="first-report"]')).toHaveAttribute("data-setup-state", "done");
     expect(setup.querySelector('[data-setup-item="baseline"]')).toHaveAttribute("data-setup-state", "pending");
@@ -5306,32 +5308,31 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       : undefined;
   }
 
-  it("moves the lifecycle stage through the store lane, with an Undo to come back", async () => {
-    toasts.success.mockReset();
+  it("shows lifecycle as derived and offers no stage assignment", async () => {
     const fetchMock = stubFetch(200, payload());
-    const { findByLabelText } = renderRoute("meadow.example", "", "settings");
+    const { findByText, queryByLabelText } = renderRoute("meadow.example", "", "settings");
+    await findByText("Determined from collected data. Live after the first collection.");
+    expect(queryByLabelText("Change lifecycle stage")).toBeNull();
+    expect(patchBody(fetchMock)).toBeUndefined();
+  });
 
-    const stage = await findByLabelText("Change lifecycle stage");
-    fireEvent.change(stage, { target: { value: "baselining" } });
-    fireEvent.click(
-      [...stage.parentElement!.querySelectorAll("button")].find(
-        (b) => b.textContent === "Save",
-      )!,
-    );
+  it("uses the stored control for archive guards when the derived stage differs", async () => {
+    const data = payload();
+    data.asset = { ...data.asset, status: "live", storedStatus: "baselining" };
+    const fetchMock = stubFetch(200, data);
+    const { findByRole, getByRole } = renderRoute("meadow.example", "", "settings");
+    fireEvent.click(await findByRole("button", { name: "Archive site…" }));
+    fireEvent.click(getByRole("button", { name: "Archive site" }));
+    await waitFor(() => expect(patchBody(fetchMock)?.body).toEqual({ column: "status", value: "retired", expect: "baselining" }));
+  });
 
-    await waitFor(() => {
-      expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meadow.example",
-        body: { column: "status", value: "baselining", expect: "live" },
-      });
-    });
-    await waitFor(() => expect(toasts.success).toHaveBeenCalled());
-    const [message, options] = toasts.success.mock.calls[0] as [
-      string,
-      { action?: { label?: string } },
-    ];
-    expect(message).toBe("Saved — Lifecycle stage");
-    expect(options.action?.label).toBe("Undo");
+  it("lets the operator release a pre-launch hold without selecting a progress stage", async () => {
+    const data = payload();
+    data.asset = { ...data.asset, status: "pre-launch", storedStatus: "pre-launch" };
+    const fetchMock = stubFetch(200, data);
+    const { findByRole } = renderRoute("meadow.example", "", "settings");
+    fireEvent.click(await findByRole("button", { name: "Begin monitoring" }));
+    await waitFor(() => expect(patchBody(fetchMock)?.body).toEqual({ column: "status", value: "onboarding", expect: "pre-launch" }));
   });
 
   it("names what archiving stops before it writes anything", async () => {
@@ -5372,7 +5373,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
         url: "/api/assets/meadow.example",
-        body: { column: "status", value: "live", expect: "retired" },
+        body: { column: "status", value: "onboarding", expect: "retired" },
       });
     });
   });
@@ -5422,27 +5423,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     });
   });
 
-  it("records a stage picked from Change stage… too, not only an archive", async () => {
-    const fetchMock = stubFetch(200, payload());
-    const { findByLabelText } = renderRoute("meadow.example", "", "settings");
-
-    const stage = await findByLabelText("Change lifecycle stage");
-    fireEvent.change(stage, { target: { value: "baselining" } });
-    fireEvent.click(
-      [...stage.parentElement!.querySelectorAll("button")].find(
-        (b) => b.textContent === "Save",
-      )!,
-    );
-
-    await waitFor(() => {
-      expect(annotationBody(fetchMock)).toEqual({
-        url: "/api/assets/meadow.example/annotations",
-        body: { kind: "config", ref: "lifecycle:live>baselining" },
-      });
-    });
-  });
-
-  it("restores to the stage the timeline recorded, and says where that came from", async () => {
+  it("restores monitoring without assigning the old progress stage", async () => {
     const fetchMock = stubFetch(200, archivedFrom("baselining"));
     const { container, findByRole, queryByRole } = renderRoute(
       "meadow.example",
@@ -5450,7 +5431,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
       "settings",
     );
 
-    const restore = await findByRole("button", { name: "Restore to Baselining" });
+    const restore = await findByRole("button", { name: "Restore" });
     expect(container.querySelector("[data-restore-default]")).toBeNull();
     expect(container.querySelector("[data-restore-stage]")).toBeNull();
     expect(queryByRole("button", { name: "Restore to Live" })).toBeNull();
@@ -5460,7 +5441,7 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     await waitFor(() => {
       expect(patchBody(fetchMock)).toEqual({
         url: "/api/assets/meadow.example",
-        body: { column: "status", value: "baselining", expect: "retired" },
+        body: { column: "status", value: "onboarding", expect: "retired" },
       });
     });
   });
@@ -5479,29 +5460,25 @@ describe("AssetDetailRoute — the Settings tab manages the asset", () => {
     stubFetch(200, data);
     const { findByRole } = renderRoute("meadow.example", "", "settings");
 
-    await findByRole("button", { name: "Restore to Onboarding" });
+    await findByRole("button", { name: "Restore" });
   });
 
-  it("offers the stage to restore to when nothing records the stage the asset left", async () => {
+  it("restores without a stage picker when no archive history is available", async () => {
     const data = payload();
     data.asset = { ...data.asset, status: "retired" };
     const fetchMock = stubFetch(200, data);
     const { container, findByRole } = renderRoute("meadow.example", "", "settings");
-
     const restore = await findByRole("button", { name: "Restore" });
-    const picker = container.querySelector<HTMLSelectElement>("[data-restore-stage]")!;
-    expect(picker.value).toBe("live");
-    expect([...picker.options].map((o) => o.value)).not.toContain("retired");
-    expect(container.querySelector("[data-restore-default]")!.textContent).toBe("No recorded stage");
-
-    fireEvent.change(picker, { target: { value: "baselining" } });
+    expect(container.querySelector("[data-restore-stage]")).toBeNull();
     fireEvent.click(restore);
-    await waitFor(() => {
-      expect(patchBody(fetchMock)).toEqual({
-        url: "/api/assets/meadow.example",
-        body: { column: "status", value: "baselining", expect: "retired" },
-      });
-    });
+    await waitFor(() => expect(patchBody(fetchMock)?.body).toEqual({ column: "status", value: "onboarding", expect: "retired" }));
+  });
+
+  it("preserves the explicit pre-launch hold on restore", async () => {
+    const fetchMock = stubFetch(200, archivedFrom("pre-launch"));
+    const { findByRole } = renderRoute("meadow.example", "", "settings");
+    fireEvent.click(await findByRole("button", { name: "Restore" }));
+    await waitFor(() => expect(patchBody(fetchMock)?.body).toEqual({ column: "status", value: "pre-launch", expect: "retired" }));
   });
 
   it("ignores a config annotation that is not a lifecycle move", async () => {

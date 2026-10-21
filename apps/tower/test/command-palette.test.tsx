@@ -157,6 +157,17 @@ describe("opening and closing", () => {
 });
 
 describe("what it lists", () => {
+  it("excludes archived sites from both recent and searchable destinations", () => {
+    window.localStorage.setItem(PALETTE_RECENT_KEY, JSON.stringify(["asset:meadow.example"]));
+    state.assets = ASSETS.map(asset => asset.id === "meadow.example" ? { ...asset, status: "retired" } : asset);
+    renderShell();
+    openWithShortcut();
+    expect(rows().some(row => row.includes("Meadow Board"))).toBe(false);
+    expect(rows().some(row => row.includes("Fern Index"))).toBe(true);
+    fireEvent.change(paletteInput(), { target: { value: "Meadow Board" } });
+    expect(rows().some(row => row.includes("Meadow Board"))).toBe(false);
+  });
+
   it("offers every page and every asset", () => {
     renderShell();
     openWithShortcut();

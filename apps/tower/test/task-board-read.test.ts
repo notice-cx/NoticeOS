@@ -302,6 +302,14 @@ describe("a hosted catalog joined to the snapshot by prefix", () => {
   });
   const filters: TaskBoardFilters = { project: "all", status: "all", priority: "all", label: "", assignee: "all" };
 
+  it("excludes archived prefixes from live catalogs even when their logical key differs", () => {
+    const archived = { ...snapshot, projects: [], archivedProjects: [{ asset: "lightbrief.example", prefix: "lb" }] };
+    expect(taskCatalogProjects(catalog, archived)).toEqual([]);
+    const unknown = { projectId: "other", logicalKey: "unknown", displayName: "Unknown", prefix: "uk" };
+    expect(taskCatalogProjects([...catalog, unknown], archived).map(row => row.asset)).toEqual(["unknown"]);
+    expect(taskCatalogProjects(catalog, snapshot).map(row => row.asset)).toEqual(["lb"]);
+  });
+
   it("keeps the logical key as the read address and takes the snapshot's counts", () => {
     const roster = taskCatalogProjects(catalog, snapshot);
     expect(roster).toHaveLength(1);

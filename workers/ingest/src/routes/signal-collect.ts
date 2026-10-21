@@ -319,6 +319,15 @@ async function handlePosthogCollect(
       409,
     );
   }
+  const cooldown = result.skipped.find(skip => skip.nextAttemptAt !== undefined);
+  if (result.attempted === 0 && cooldown?.nextAttemptAt) {
+    const seconds = Math.max(1, Math.ceil((Date.parse(cooldown.nextAttemptAt) - (options.clock ?? Date.now)()) / 1_000));
+    return json(
+      { error: 'posthog_query_cooldown', reason: cooldown.reason, detail: cooldown.detail, nextAttemptAt: cooldown.nextAttemptAt, asset, families: tags },
+      429,
+      { 'retry-after': String(seconds) },
+    );
+  }
   // The whole asset was skipped before any request: a refusal the CLI exits
   // non-zero on, rather than a 200 that collected nothing.
   const assetSkip = result.skipped.find((skip) => skip.family === null);
@@ -354,10 +363,11 @@ async function handlePosthogCollect(
       retryNotAsked: result.retryNotAsked,
       budgetStopped: result.budgetStopped,
       budgetRemainingBytes: result.budgetRemainingBytes,
-      skipped: result.skipped.map(({ family, reason, detail }) => ({
+      skipped: result.skipped.map(({ family, reason, detail, nextAttemptAt }) => ({
         report: family === null ? null : posthogFamilyTag(family),
         reason,
         detail,
+        ...(nextAttemptAt ? { nextAttemptAt } : {}),
       })),
       outcomes: result.outcomes.map((outcome) => ({
         report: posthogFamilyTag(outcome.report as PosthogFamily),

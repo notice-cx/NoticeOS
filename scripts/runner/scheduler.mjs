@@ -41,7 +41,7 @@ const HOUR_MS = 60 * 60 * 1000;
 export const STARTUP_CATCHUP_POLICIES = [
   ...CRON_CATCHUP_POLICIES,
   { job: 'panel-review', expression: CONFIG.panelFilerCron, kind: 'panel-review', maxAgeMs: 2 * HOUR_MS },
-  { job: 'push-state', expression: CONFIG.pushStateCron, kind: 'push-state', maxAgeMs: 2 * HOUR_MS },
+  { job: 'task-map', expression: CONFIG.beadsMapCheckCron, kind: 'task-map', maxAgeMs: 2 * HOUR_MS },
   { job: 'panel-refresh', expression: CONFIG.panelRefreshCron, kind: 'panel-refresh', maxAgeMs: 36 * HOUR_MS },
   { job: 'backup', expression: CONFIG.backupCron, kind: 'backup', maxAgeMs: 36 * HOUR_MS },
 ];

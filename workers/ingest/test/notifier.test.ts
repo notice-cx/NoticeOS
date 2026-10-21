@@ -14,10 +14,13 @@
 // ever claims a message that actually landed.
 
 import { env } from 'cloudflare:test';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { composeMessage, runNotifier } from '../src/notifier.js';
 import { putCredential } from '../src/credentials.js';
-import { credentialVerdict, forgetCredentials, insertFlag as storeFlag, insertPulse, pgRows, refuseHealthStates, reset, setConnection } from './helpers.js';
+import { runScheduledCron } from '../src/dispatch.js';
+import { forgetConfigCache, seedConfigDocuments } from '../src/config-store.js';
+import constantsJson from './fixture-config/constants.json';
+import { asOwner, credentialVerdict, emptyTables, forgetCredentials, insertFlag as storeFlag, insertPulse, pgRows, refuseHealthStates, reset, setConnection } from './helpers.js';
 import { changeSites, storeSites } from './sites';
 
 const NOW = Date.parse('2026-09-05T13:05:00.000Z');
@@ -26,15 +29,16 @@ const WEBHOOK = 'https://discord.test/api/webhooks/1/notifier-suite';
 
 interface Posted {
   fetchImpl: typeof fetch;
-  posts: { url: string; content: string }[];
+  posts: { url: string; content: string; allowedMentions: unknown }[];
 }
 
-function discordFetch(status = 204): Posted {
-  const posts: { url: string; content: string }[] = [];
+function discordFetch(status = 204, headers?: HeadersInit): Posted {
+  const posts: Posted['posts'] = [];
   const fetchImpl = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-    posts.push({ url, content: JSON.parse(String(init?.body)).content as string });
-    return new Response(null, { status });
+    const body = JSON.parse(String(init?.body)) as { content: string; allowed_mentions: unknown };
+    posts.push({ url, content: body.content, allowedMentions: body.allowed_mentions });
+    return new Response(null, { status, headers });
   }) as typeof fetch;
   return { fetchImpl, posts };
 }
@@ -98,7 +102,7 @@ describe('what the OS interrupts the operator about', () => {
     ]);
 
     // THE DEDUPE, which is the whole reason the table exists: the lane runs
-    // hourly, and a condition that is still open must not be re-sent every hour.
+    // after events or recovery, and an open condition must not be re-sent.
     const again = await runNotifier(env, {
       nowMs: NOW + HOUR,
       fetchImpl: discord.fetchImpl,
@@ -206,9 +210,13 @@ describe('what the OS interrupts the operator about', () => {
     await runNotifier(env, { nowMs: NOW + HOUR, fetchImpl: discord.fetchImpl });
     expect(await notified()).toHaveLength(1);
 
-    // A NEW failing call is a new failure, and worth saying again.
-    await setConnection('bing-webmaster', { last_used_at: new Date(NOW + 2 * HOUR).toISOString() });
+    // Failed retries stay in one episode, including when their timestamp changes.
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW + 2 * HOUR).toISOString(), last_error: 'Still refused.' });
     await runNotifier(env, { nowMs: NOW + 3 * HOUR, fetchImpl: discord.fetchImpl });
+    expect(await notified()).toHaveLength(1);
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW + 4 * HOUR).toISOString(), last_ok_at: new Date(NOW + 4 * HOUR).toISOString(), last_error: null });
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW + 5 * HOUR).toISOString(), last_error: 'Refused again.' });
+    await runNotifier(env, { nowMs: NOW + 6 * HOUR, fetchImpl: discord.fetchImpl });
     expect(await notified()).toHaveLength(2);
   });
 
@@ -249,34 +257,13 @@ describe('what the OS interrupts the operator about', () => {
     expect((await notified()).map((row) => row.subject)).toEqual(['alert']);
   });
 
-  it('stands down, and says so, when it cannot read what it already said', async () => {
+  it('sends nothing when durable delivery intent cannot be claimed', async () => {
     await connectDiscord();
     await insertFlag({});
-    const memoryless = new Proxy(env.STORE, {
-      get(target, property) {
-        if (property === 'read') {
-          return (work: Parameters<typeof target.read>[0]) =>
-            target.read((tx) => work(new Proxy(tx, {
-              get(inner, name) {
-                const value = Reflect.get(inner, name, inner) as unknown;
-                if (name !== 'query' || typeof value !== 'function') {
-                  return typeof value === 'function' ? value.bind(inner) : value;
-                }
-                return (sql: string, ...rest: unknown[]) => {
-                  if (sql.includes('noticeos.notifications')) throw new Error('fixture: notifications unreadable');
-                  return value.call(inner, sql, ...rest);
-                };
-              },
-            })));
-        }
-        const value = Reflect.get(target, property, target) as unknown;
-        return typeof value === 'function' ? value.bind(target) : value;
-      },
-    });
+    const memoryless = { ...env.STORE, write: async () => { throw new Error('fixture: outbox unavailable'); } };
     const discord = discordFetch();
-
-    const result = await runNotifier(Object.assign({}, env, { STORE: memoryless }), { nowMs: NOW, fetchImpl: discord.fetchImpl });
-    expect(result).toEqual({ found: 1, fresh: 0, sent: 0, skipped: 'store-unavailable' });
+    const result = await runNotifier({ ...env, STORE: memoryless }, { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    expect(result).toEqual({ found: 0, fresh: 0, sent: 0, skipped: 'store-unavailable' });
     expect(discord.posts).toHaveLength(0);
     expect(await notified()).toEqual([]);
   });
@@ -318,4 +305,290 @@ it('keeps successful delivery and dedupe when health recording fails', async () 
     await runNotifier(env, { nowMs: NOW + HOUR, fetchImpl: discord.fetchImpl });
     expect(discord.posts).toHaveLength(1);
   } finally { await undo(); }
+});
+
+async function queued() {
+  return pgRows<{ state: string; attempts: number; due: string; lease: string | null; subject: string; ref: string }>(
+    `SELECT state, attempts, next_attempt_at AS due, lease_id::text AS lease, subject, subject_ref AS ref
+       FROM noticeos.notification_outbox ORDER BY subject_ref, occurred_at`,
+  );
+}
+
+function pauseCredentialRead() {
+  let entered: () => void = () => {};
+  let release: () => void = () => {};
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const released = new Promise<void>(resolve => { release = resolve; });
+  const original = env.STORE;
+  let blocked = false;
+  const store: typeof original = { ...original, read: async work => {
+    if (!blocked) { blocked = true; entered(); await released; }
+    return original.read(work);
+  } };
+  return { store, started, release };
+}
+
+describe('durable event delivery', () => {
+  it('honors the saved pause for an event-triggered dispatch before claiming work', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    await emptyTables(['config_documents']);
+    forgetConfigCache();
+    try {
+      const constants = { ...structuredClone(constantsJson), schedules: { notifications: { enabled: false, cron: '5 * * * *' } } };
+      expect(await seedConfigDocuments(env, { documents: { 'config/constants.json': constants }, actor: 'config:seed' }, NOW)).toMatchObject({ ok: true });
+      const result = await runScheduledCron('5 * * * *', env, 'event');
+      expect(result.outcome).toBe('skipped');
+      expect(result.steps?.find(step => step.id === 'notify')?.state).toBe('skipped');
+      expect((await queued())[0]).toMatchObject({ state: 'pending', attempts: 0, lease: null });
+      expect(await notified()).toEqual([]);
+    } finally {
+      await emptyTables(['config_documents']);
+      forgetConfigCache();
+    }
+  });
+
+  it('records failed notification delivery as a failed event dispatch', async () => {
+    await connectDiscord();
+    await insertFlag({ firedAt: new Date().toISOString() });
+    const failed = discordFetch(503);
+    const intercepted = vi.spyOn(globalThis, 'fetch').mockImplementation(failed.fetchImpl);
+    try {
+      const result = await runScheduledCron('5 * * * *', env, 'event');
+      expect(result.outcome).toBe('failed');
+      expect(result.steps?.find(step => step.id === 'notify')?.state).toBe('failed');
+      expect(failed.posts).toHaveLength(1);
+      expect(await notified()).toEqual([]);
+    } finally { intercepted.mockRestore(); }
+  });
+
+  it('rechecks acknowledgement after waiting for a credential', async () => {
+    await connectDiscord();
+    const id = await insertFlag({});
+    const gate = pauseCredentialRead();
+    const discord = discordFetch();
+    const run = runNotifier({ ...env, STORE: gate.store }, { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    try {
+      await gate.started;
+      await env.STORE.write(tx => tx.execute(`UPDATE noticeos.flags SET disposition = 'ack' WHERE flag_number = $1`, [id]));
+    } finally { gate.release(); }
+    expect(await run).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect((await queued())[0]!.state).toBe('cancelled');
+  });
+
+  it('prevents a consumer whose lease was replaced while reading credentials from sending', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const gate = pauseCredentialRead();
+    const discord = discordFetch();
+    const run = runNotifier({ ...env, STORE: gate.store }, { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    try {
+      await gate.started;
+      await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_outbox
+        SET lease_id = $1::uuid, lease_until = $2::timestamptz`, [crypto.randomUUID(), new Date(NOW + 300_000).toISOString()]));
+    } finally { gate.release(); }
+    expect(await run).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect(await notified()).toEqual([]);
+  });
+
+  it('serializes concurrent recovery of a pre-upgrade connection failure', async () => {
+    await connectDiscord();
+    await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-key' } });
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW - HOUR).toISOString(), last_error: 'Synthetic failure' });
+    await asOwner('TRUNCATE noticeos.notification_outbox');
+    const discord = discordFetch();
+    const results = await Promise.all([
+      runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl, recover: true }),
+      runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl, recover: true }),
+    ]);
+    expect(results.reduce((sent, result) => sent + result.sent, 0)).toBe(1);
+    expect(discord.posts).toHaveLength(1);
+    expect(await queued()).toHaveLength(1);
+    expect(await notified()).toHaveLength(1);
+  });
+
+  it('preserves a source receipt written by the previous release while the new trigger was installed', async () => {
+    await connectDiscord();
+    await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-key' } });
+    await asOwner("UPDATE noticeos.integration_connections SET created_at = '2026-09-05T10:00:00Z' WHERE provider = 'bing-webmaster'");
+    const failedAt = new Date(NOW - HOUR).toISOString();
+    await setConnection('bing-webmaster', { last_used_at: failedAt, last_error: 'Synthetic failure' });
+    expect(await queued()).toHaveLength(1);
+    await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.notifications
+      (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES ($1::uuid, 'discord', 'data-source', 'bing-webmaster', $2, 'source-failing', $3::timestamptz)`,
+    [tx.workspaceId, failedAt, new Date(NOW - 30_000).toISOString()]));
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect((await queued())[0]!.state).toBe('sent');
+    expect(await notified()).toHaveLength(1);
+  });
+
+  it('keeps overflow pending until its own message is delivered', async () => {
+    await connectDiscord();
+    for (let i = 0; i < 14; i++) await insertFlag({ metric: `metric-${i}` });
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 10 });
+    expect(await notified()).toHaveLength(10);
+    expect((await queued()).filter(row => row.state === 'pending')).toHaveLength(4);
+    expect(discord.posts[0]!.content).toContain('10 new alerts');
+    expect(discord.posts[0]!.content).not.toContain('more');
+    expect(await runNotifier(env, { nowMs: NOW + 1, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 4 });
+    expect(await notified()).toHaveLength(14);
+    expect((await queued()).every(row => row.state === 'sent')).toBe(true);
+  });
+
+  it('prevents overlapping consumers from sending the same leased batch', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const discord = discordFetch();
+    let entered: () => void = () => {};
+    let release: () => void = () => {};
+    const started = new Promise<void>(resolve => { entered = resolve; });
+    const released = new Promise<void>(resolve => { release = resolve; });
+    const first = runNotifier(env, { nowMs: NOW, fetchImpl: async (input, init) => {
+      entered();
+      await released;
+      return discord.fetchImpl(input, init);
+    } });
+    try {
+      await started;
+      expect(await runNotifier(env, { nowMs: NOW + 1, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+      expect(await notified()).toEqual([]);
+    } finally { release(); }
+    expect(await first).toMatchObject({ sent: 1 });
+    expect(discord.posts).toHaveLength(1);
+    expect(await notified()).toHaveLength(1);
+  });
+
+  it('reclaims a crashed consumer’s lease only after it expires', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    await env.STORE.write(tx => tx.execute(`UPDATE noticeos.notification_outbox
+      SET lease_id = $1::uuid, lease_until = $2::timestamptz, attempts = 1`,
+    [crypto.randomUUID(), new Date(NOW + 120_000).toISOString()]));
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW + 119_999, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect(await runNotifier(env, { nowMs: NOW + 120_000, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect((await queued())[0]).toMatchObject({ state: 'sent', attempts: 2, lease: null });
+  });
+
+  it('persists retry deadlines and respects Discord’s Retry-After', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const limited = discordFetch(429, { 'retry-after': '90' });
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: limited.fetchImpl })).toMatchObject({ skipped: 'delivery-failed' });
+    const [pending] = await queued();
+    expect(pending).toMatchObject({ state: 'pending', attempts: 1, lease: null });
+    const due = Date.parse(pending!.due);
+    expect(due).toBeGreaterThanOrEqual(NOW + 90_000);
+    expect(due).toBeLessThan(NOW + 91_000);
+    expect(await notified()).toEqual([]);
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: due - 1, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect(await runNotifier(env, { nowMs: due, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect((await queued())[0]).toMatchObject({ state: 'sent', attempts: 2 });
+  });
+
+  it('backs off failed deliveries without marking them notified', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const failed = discordFetch(503);
+    await runNotifier(env, { nowMs: NOW, fetchImpl: failed.fetchImpl });
+    const firstDue = Date.parse((await queued())[0]!.due);
+    expect(firstDue).toBeGreaterThanOrEqual(NOW + 30_000);
+    expect(firstDue).toBeLessThan(NOW + 31_000);
+    await runNotifier(env, { nowMs: firstDue, fetchImpl: failed.fetchImpl });
+    const secondDue = Date.parse((await queued())[0]!.due);
+    expect(secondDue).toBeGreaterThanOrEqual(firstDue + 60_000);
+    expect(secondDue).toBeLessThan(firstDue + 61_000);
+    expect(await notified()).toEqual([]);
+  });
+
+  it.each(['acknowledged', 'resolved'] as const)('cancels an alert %s before delivery', async change => {
+    await connectDiscord();
+    const id = await insertFlag({});
+    await env.STORE.write(tx => tx.execute(change === 'acknowledged'
+      ? `UPDATE noticeos.flags SET disposition = 'ack', disposition_at = $2::timestamptz WHERE flag_number = $1`
+      : `UPDATE noticeos.flags SET resolved_at = $2::timestamptz WHERE flag_number = $1`, [id, new Date(NOW).toISOString()]));
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+    expect(discord.posts).toHaveLength(0);
+    expect((await queued())[0]).toMatchObject({ state: 'cancelled', lease: null });
+    expect(await notified()).toEqual([]);
+  });
+
+  it('cancels queued intent when a report retry replaces the alert', async () => {
+    await connectDiscord();
+    const at = (hoursAgo: number) => new Date(NOW - hoursAgo * HOUR).toISOString();
+    const first = await insertPulse({ asset: 'meadow.example', date: at(2).slice(0, 10), receivedAt: at(2) });
+    const id = await storeFlag({ asset: 'meadow.example', firedAt: at(2), severity: 'error', kind: 'anomaly',
+      metric: 'signups', message: 'superseded reading', ruleId: 'flow-poisson-low', pulseId: first });
+    const retry = await insertPulse({ asset: 'meadow.example', date: at(2).slice(0, 10), receivedAt: at(1) });
+    await env.STORE.write(tx => tx.execute(`UPDATE noticeos.flags SET replaced_by_pulse_id = $2 WHERE flag_number = $1`, [id, retry]));
+    const discord = discordFetch();
+    await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl });
+    expect(discord.posts).toHaveLength(0);
+    expect((await queued())[0]).toMatchObject({ state: 'cancelled' });
+  });
+
+  it('delivers an escalation even when the original warning is older than the notification horizon', async () => {
+    await connectDiscord();
+    const id = await insertFlag({ severity: 'warn', firedAt: new Date(NOW - 30 * HOUR).toISOString() });
+    await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.flag_evidence
+      (workspace_id, flag_id, observed_at, severity, message)
+      SELECT workspace_id, flag_id, $2::timestamptz, 'error', 'Condition escalated'
+        FROM noticeos.flags WHERE flag_number = $1`, [id, new Date(NOW - 1_000).toISOString()]));
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect(discord.posts[0]!.content).toContain('Condition escalated');
+  });
+
+  it('cancels an old connection episode after recovery and sends a later failure', async () => {
+    await connectDiscord();
+    await putCredential(env, { provider: 'bing-webmaster', fields: { BING_WEBMASTER_API_KEY: 'synthetic-key' } });
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW - HOUR).toISOString(), last_error: 'First failure' });
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW - 30_000).toISOString(),
+      last_ok_at: new Date(NOW - 30_000).toISOString(), last_error: null });
+    await setConnection('bing-webmaster', { last_used_at: new Date(NOW - 1_000).toISOString(), last_error: 'Second failure' });
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 1 });
+    expect(discord.posts[0]!.content).toContain('Second failure');
+    expect((await queued()).map(row => row.state)).toEqual(['cancelled', 'sent']);
+    expect(await notified()).toHaveLength(1);
+  });
+
+  it('recovers pre-upgrade intent and preserves old successful delivery receipts', async () => {
+    await connectDiscord();
+    await insertFlag({});
+    const old = await insertFlag({ metric: 'previously-notified' });
+    await env.STORE.write(tx => tx.execute(`INSERT INTO noticeos.notifications
+      (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
+      VALUES ($1::uuid, 'discord', 'alert', $2, '', 'open-error', $3::timestamptz)`,
+    [tx.workspaceId, String(old), new Date(NOW - 1000).toISOString()]));
+    await asOwner('TRUNCATE noticeos.notification_outbox');
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 0 });
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 1 });
+    expect(discord.posts).toHaveLength(1);
+    expect(discord.posts[0]!.content).not.toContain('previously-notified');
+    expect(await notified()).toHaveLength(2);
+    expect(await runNotifier(env, { nowMs: NOW + 1, fetchImpl: discord.fetchImpl, recover: true })).toMatchObject({ sent: 0 });
+  });
+
+  it('bounds Discord content and disables mentions from alert text', async () => {
+    await connectDiscord();
+    for (let i = 0; i < 10; i++) await insertFlag({ metric: `metric-${i}`, message: `@everyone\n${'x'.repeat(1000)}` });
+    const discord = discordFetch();
+    expect(await runNotifier(env, { nowMs: NOW, fetchImpl: discord.fetchImpl })).toMatchObject({ sent: 10 });
+    expect(discord.posts[0]!.content.length).toBeLessThanOrEqual(2000);
+    expect(discord.posts[0]!.content.split('\n')).toHaveLength(11);
+    expect(discord.posts[0]!.allowedMentions).toEqual({ parse: [] });
+    expect(await notified()).toHaveLength(10);
+  });
 });

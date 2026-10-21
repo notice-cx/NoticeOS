@@ -341,22 +341,16 @@ function FeedEvidence({ model, evidence }: { model: string | null; evidence: str
   );
 }
 
-/** The widget the Wall draws: the column, polling its own read, without the
- * lines about a site whose TV switch is off, each site drawn with the icons on
- * its card. */
+/** The widget the Wall draws: all stored activity, polling its own read,
+ * each site drawn with the icons on its card. */
 export function WallFeedWidget({
   nowMs,
-  hidden,
   assets,
 }: {
   nowMs: number;
-  hidden?: ReadonlySet<string>;
   assets?: readonly Pick<AssetCard, "id" | "icons">[];
 }) {
   const { data, isError } = useWallFeed();
-  const feed = data && hidden && hidden.size > 0
-    ? { ...data, items: data.items.filter((item) => item.asset === null || !hidden.has(item.asset)) }
-    : data;
   const icons = useMemo(() => new Map(assets?.map((asset) => [asset.id, asset.icons])), [assets]);
-  return <WallFeed feed={feed} failed={isError} nowMs={nowMs} icons={icons} />;
+  return <WallFeed feed={data} failed={isError} nowMs={nowMs} icons={icons} />;
 }

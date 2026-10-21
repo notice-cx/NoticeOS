@@ -1,9 +1,11 @@
 import type { WordLevel } from "@shared/views";
+import { Link } from "react-router-dom";
 import { SegmentBar } from "@/components/SegmentBar";
 import { BarStrip } from "@/components/viz/BarStrip";
 import { PaceBar } from "@/components/viz/PaceBar";
-import { formatPercent, formatPeriodMonth, formatPeriodMonthLong, formatUsd } from "@/lib/format";
+import { formatPercent, formatPeriodMonth, formatPeriodMonthLong, formatSeriesDate, formatUsd } from "@/lib/format";
 import type { HomeMoney } from "@/lib/home-money";
+import type { YesterdayTotal } from "@/lib/wall-revenue";
 import { cn } from "@/lib/utils";
 
 const usd = (value: number) => formatUsd(value);
@@ -18,9 +20,8 @@ export const SHARE_FILL = ["bg-financial-revenue", "bg-financial-revenue/65", "b
  * usual day dashed, and which sites earned it. Raised, because it is the one
  * region the screen leads with.
  */
-export function MoneyHero({ money, className, wordLevel = "operational" }: { money: HomeMoney; className?: string; wordLevel?: WordLevel }) {
+export function MoneyHero({ money, yesterday, className, wordLevel = "operational" }: { money: HomeMoney; yesterday: YesterdayTotal | null; className?: string; wordLevel?: WordLevel }) {
   const month = formatPeriodMonthLong(money.period);
-  const previous = money.previousPeriod ? formatPeriodMonthLong(money.previousPeriod) : null;
   const total = money.bySite.reduce((sum, site) => sum + site.amount, 0);
   const shareFill = (id: string, index: number) => money.contributors?.find((source) => source.id === id)?.tone ?? SHARE_FILL[Math.min(index, SHARE_FILL.length - 1)]!;
   return (
@@ -44,25 +45,8 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
               ) : null}
             </span>
           )}
-          <span className="text-sm text-muted-foreground [&_b]:font-semibold [&_b]:text-foreground">
-            {money.projected !== null ? (
-              <>
-                Projected <b>{usd(money.projected)}</b>
-                {money.changePercent !== null && previous ? (
-                  <>
-                    {" · "}
-                    <span className={cn("font-semibold", money.changePercent < 0 ? "text-warn" : "text-trend-positive")}>
-                      {formatPercent(Math.abs(money.changePercent))}% {money.changePercent < 0 ? "under" : "over"}
-                    </span>{" "}
-                    {previous}
-                  </>
-                ) : null}
-                {money.daysLeft !== null ? ` · ${money.daysLeft} ${money.daysLeft === 1 ? "day" : "days"} left` : null}
-              </>
-            ) : (
-              money.waiting ?? "No pace yet"
-            )}
-          </span>
+          <YesterdayRevenue total={yesterday} business={wordLevel === "business"} />
+          {money.projected === null && money.waiting ? <span className="text-xs text-muted-foreground">{money.waiting}</span> : null}
         </div>
         {money.days.length >= 3 ? (
           <div className="w-full max-w-sm flex-1">
@@ -110,5 +94,20 @@ export function MoneyHero({ money, className, wordLevel = "operational" }: { mon
         </div>
       ) : null}
     </section>
+  );
+}
+
+function YesterdayRevenue({ total, business }: { total: YesterdayTotal | null; business: boolean }) {
+  const basis = total?.basis;
+  const title = basis ? `${formatSeriesDate(basis.date)} · ${basis.label ?? basis.timeZone}` : undefined;
+  return (
+    <Link to="/financials" title={title} className="text-sm tabular-nums text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" data-home-yesterday="">
+      Yesterday {total?.amount != null && !total.mixedBasis ? (
+        <>
+          <b className="font-semibold text-foreground">{cents(total.amount)}</b> {business ? "so far" : "est."}
+          {total.reported < total.sites ? ` · ${total.reported} of ${total.sites} sites` : null}
+        </>
+      ) : total?.mixedBasis ? "· mixed report days · no total" : "· not reported yet"}
+    </Link>
   );
 }

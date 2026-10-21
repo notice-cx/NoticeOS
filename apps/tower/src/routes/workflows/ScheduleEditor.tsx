@@ -88,6 +88,7 @@ export function ScheduleEditor(props: {
 
 function ScheduleForm({ job, overrides, writable, onClose, onReload }: { job: ScheduledJob; overrides: ScheduleOverrides | null; writable: boolean; onClose: () => void; onReload?: () => Promise<void> }) {
   const current = scheduleFor(job, overrides ?? {});
+  const eventDriven = job.id === 'notifications';
   const [displayTimezone] = useState(localTimezone);
   const [initial] = useState(() => fieldsOf(current, displayTimezone));
   const [enabled, setEnabled] = useState(current.enabled);
@@ -122,10 +123,10 @@ function ScheduleForm({ job, overrides, writable, onClose, onReload }: { job: Sc
   }
   return <form className="mt-4 space-y-4 rounded-md border border-border bg-muted/30 p-4" aria-label={`${job.label} schedule`} onSubmit={(event) => { event.preventDefault(); void write(); }}>
     <fieldset disabled={busy || !writable} className="flex flex-wrap items-end gap-4">
-      <label className="flex flex-col gap-1.5 text-sm">Status
+      <label className="flex flex-col gap-1.5 text-sm">{eventDriven ? 'Delivery' : 'Status'}
         <select autoFocus className={fieldClass} value={enabled ? 'enabled' : 'paused'} onChange={(event) => setEnabled(event.target.value === 'enabled')}><option value="enabled">Enabled</option><option value="paused">Paused</option></select>
       </label>
-      <label className="flex flex-col gap-1.5 text-sm">Frequency
+      <label className="flex flex-col gap-1.5 text-sm">{eventDriven ? 'Recovery frequency' : 'Frequency'}
         <select className={fieldClass} value={frequency} onChange={(event) => setFrequency(event.target.value)}>
           <option value="minutes">Every few minutes</option><option value="hourly">Hourly</option><option value="daily">Daily</option><option value="weekly">Weekly</option>
           {initial.frequency === 'current' && <option value="current">Keep current timing</option>}

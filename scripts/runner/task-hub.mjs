@@ -226,7 +226,7 @@ export async function readBeadsProjects(readConfig) {
   }
 }
 
-// ── How the filing lanes (push-state, task-map, panel-review) list, file,
+// ── How the filing lanes (task-map, panel-review) list, file,
 // close and read back their tasks ───────────────────────────────────────────
 
 /** What puts a task in `bd human list`, the operator's inbox. */

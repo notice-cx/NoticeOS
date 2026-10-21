@@ -1,9 +1,9 @@
 import { expectsNightlyReport } from "@noticeos/contract/reporting";
 import { NIGHTLY_REPORT_LANE_ID } from "./integrations";
-import type { SourceKind, SourceReading } from "./connection-status";
+import { isUnusedSource, type SourceKind, type SourceReading } from "./connection-status";
 
 /**
- * Shared setup progress for assets in onboarding or baselining. Connecting
+ * Shared setup progress derived from incomplete data-collection checks. Connecting
  * the sources, historical report arrival and observed report coverage are
  * separate steps; none of them proves that a connection is currently working.
  *
@@ -16,10 +16,6 @@ import type { SourceKind, SourceReading } from "./connection-status";
 /** The checklist's coverage window, not an alert eligibility threshold. Each
  * rule evaluates its own metric history and volume prerequisites. */
 export const SETUP_BASELINE_DAYS = 28;
-
-/** Manual lifecycle stages that show setup progress. Visibility is not a
- * health verdict: a source can collect during onboarding or fail after launch. */
-export const SETUP_STAGES: ReadonlySet<string> = new Set(["onboarding", "baselining"]);
 
 export type SetupItemId = "identity" | "sources" | "first-report" | "baseline" | "pause-check";
 
@@ -94,23 +90,15 @@ export function daysSince(iso: string, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - then) / MS_PER_DAY));
 }
 
-/** Does this manual lifecycle stage show the setup checklist? */
-export function isSettingUp(status: string): boolean {
-  return SETUP_STAGES.has(status);
-}
-
-/** Is this site retired? Nobody watches it: it is shown nowhere until a
- * switch is turned on (`siteShownOn`), and never counted among the sites
- * that need the operator. */
+/** Archived sites stay hidden until restored. */
 export function isRetired(status: string): boolean {
   return status === "retired";
 }
 
-/** A source is settled once it is connected (whatever its current health),
- * switched off or not applicable. Not connected is still owed, and Unknown —
- * a monitoring read that has not answered — is not proof that it is done. */
+/** A connection settles setup regardless of current health. An unanswered
+ * monitoring read cannot prove that setup is complete. */
 function isSettled(kind: SourceKind): boolean {
-  return kind !== "not-connected" && kind !== "unknown";
+  return kind !== "unknown";
 }
 
 function pluralDays(n: number): string {
@@ -118,16 +106,15 @@ function pluralDays(n: number): string {
 }
 
 /**
- * The checklist for one asset, or `null` when the asset is not being set up.
+ * The checklist for one monitored asset, or null when its checks are complete.
  *
- * Returning null rather than an all-done checklist is the mechanism behind "the
- * ring disappears when the asset is live": every caller renders nothing for
- * null, so no surface has to hold its own opinion about which stages count.
+ * Launch holds and retired sites have no collection setup obligation. Current
+ * data and source facts determine completion, regardless of an old stage.
  */
 export function assetSetupChecklist(
   facts: SetupChecklistFacts,
 ): SetupChecklist | null {
-  if (!isSettingUp(facts.status)) return null;
+  if (isRetired(facts.status) || facts.status === "pre-launch") return null;
 
   // The first report and report coverage are the nightly obligation, and only
   // a site that expects a report owes them. One that has never sent one is
@@ -153,6 +140,8 @@ export function assetSetupChecklist(
   const remaining = counted
     .filter((item) => item.state === "pending")
     .map((item) => item.label);
+
+  if (remaining.length === 0) return null;
 
   return {
     items,
@@ -186,25 +175,26 @@ function identityItem(facts: SetupChecklistFacts): SetupChecklistItem {
 }
 
 /**
- * Item 2 — data sources. Done when every source is connected, switched off
- * or not applicable, read from the same status each source's Data sources
- * row shows. The nightly-report slot is excluded, because item 3 is exactly
- * that lane.
+ * Unconnected, unused and inapplicable catalog entries are not setup
+ * obligations. Unknown connection evidence remains unresolved. The nightly
+ * report has its own arrival item.
  */
 function sourcesItem(facts: SetupChecklistFacts): SetupChecklistItem {
   const kinds = facts.sources
     .filter((source) => source.id !== NIGHTLY_REPORT_LANE_ID)
-    .map((source) => source.kind);
+    .map((source) => source.kind)
+    .filter((kind) => !isUnusedSource(kind));
   const settled = kinds.filter(isSettled).length;
+  const unknown = kinds.length - settled;
   return {
     id: "sources",
     label: "Data sources",
-    state: settled === kinds.length ? "done" : "pending",
+    state: kinds.length === 0 ? "optional" : unknown === 0 ? "done" : "pending",
     note: kinds.length === 0
-      ? "No data sources apply to this site."
-      : `${settled} of ${kinds.length} connected, off or not applicable`,
+      ? "No data sources connected."
+      : `${settled} connected${unknown > 0 ? ` · ${unknown} unknown` : ""}`,
     href: `/assets/${encodeURIComponent(facts.id)}/sources`,
-    progress: { done: settled, total: kinds.length },
+    progress: kinds.length === 0 ? null : { done: settled, total: kinds.length },
   };
 }
 

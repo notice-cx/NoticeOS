@@ -151,9 +151,11 @@ export function doorErrorCode(body) {
  * door's error code when it gave one. Never throws. Over the long-request
  * transport, since a weekly collection answers after minutes.
  */
-export async function fireScheduledTrigger(door, expr, { fetchImpl = localDoorFetch, emit = () => {} } = {}) {
+export async function fireScheduledTrigger(door, expr, { fetchImpl = localDoorFetch, emit = () => {}, trigger, signal } = {}) {
   try {
-    const res = await fetchImpl(scheduledTriggerUrl(door, expr), { method: 'GET' });
+    const target = new URL(scheduledTriggerUrl(door, expr));
+    if (trigger) target.searchParams.set('trigger', trigger);
+    const res = await fetchImpl(target.toString(), { method: 'GET', ...(signal ? { signal } : {}) });
     if (res.ok) {
       emit('INFO', `cron "${expr}" fired → HTTP ${res.status}`);
       const result = await res.json().catch(() => null);

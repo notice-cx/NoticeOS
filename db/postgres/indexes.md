@@ -68,6 +68,7 @@ query chooses that index or that its write cost has been measured.
 | `integration_health_events_target` | Attempt history for a capability target; target foreign key. |
 | `integration_health_events_recorded` | Workspace event feed ordered by recording time (`apps/tower/worker/wall-feed.ts`). |
 | `config_changes_document` | Saved-document revision history (`workers/ingest/src/config-store.ts`). |
+| `notification_outbox_due` | Pending workspace delivery deadlines, bounded claims and retry scheduling (`workers/ingest/src/notifier.ts`, `packages/postgres/src/notification-events.mts`); terminal history is excluded. |
 | `notifications_subject` | Delivery history for alert subjects (`workers/ingest/src/notifier.ts`, `apps/tower/worker/flag-scope.ts`). |
 | `job_runs_started` | Recent workspace workflow history (`workers/ingest/src/job-runs.ts`). |
 | `egress_checks_observed` | Latest workspace connectivity checks (`workers/ingest/src/db.ts`). |
@@ -93,3 +94,10 @@ The existing `apps/tower/test/signal-trends.test.ts` covers Tower trend variants
 No indexes are added or removed by this qualification. Any future index change
 needs representative analyzed read plans and measured write/storage costs,
 followed by a new migration and the installation's maintenance approval.
+
+`scripts/notification-outbox.test.mjs` seeds 5,000 terminal events and six pending
+ones, refreshes statistics as the disposable database owner, and checks the due
+read as the workspace-scoped application role. The analyzed plan uses the pending
+partial index with workspace and deadline bounds. The test records fixture write
+time, index size and total relation size as observations; it imposes no timing
+threshold and makes no production latency claim.

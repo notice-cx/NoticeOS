@@ -23,6 +23,13 @@ export const CONFIG_BACKED_QUERIES = [
   "task-source",
 ] as const;
 
+/** Archive and Restore change these store-backed lists even when their rows did not change. */
+export function refreshAssetLifecycleQueries(queryClient: QueryClient): void {
+  for (const key of ["work", "alert-history", "wall-feed"]) {
+    void queryClient.invalidateQueries({ queryKey: [key] });
+  }
+}
+
 /** Vite statically imports the editable config files, so a file save restarts
  * the local Worker and the payload every page reads is rebuilt a beat later.
  * Refetching immediately would only re-read the old bundle. */

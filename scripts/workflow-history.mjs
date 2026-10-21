@@ -36,12 +36,13 @@ export function createWorkflowHistory(root) {
             await fs.rename(`${file}.tmp`, file);
         });
     }
-    function beginRun(job, startedAtMs) {
+    function beginRun(job, startedAtMs, trigger) {
         const definition = WORKFLOW_DEFINITIONS.find((w) => jobRunName(w) === job);
         if (!definition)
             return null;
         const run = { id: `${definition.id}@${new Date(startedAtMs).toISOString()}`, workflowId: definition.id,
-            definitionVersion: definition.version, startedAt: new Date(startedAtMs).toISOString(), state: 'running', steps: [] };
+            definitionVersion: definition.version, startedAt: new Date(startedAtMs).toISOString(), state: 'running', steps: [],
+            ...(trigger ? { trigger } : definition.triggerKind === 'event' ? { trigger: { kind: 'recovery' } } : {}) };
         const recorder = createWorkflowRecorder({ changed: (steps) => { run.steps = steps; void publishHeartbeat(); } });
         active.set(run.id, run);
         void publishHeartbeat();
@@ -83,7 +84,7 @@ export function createWorkflowHistory(root) {
 // The stack's runner's history: this code folder's `.local/`.
 const checkoutHistory = createWorkflowHistory(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'));
 export function publishWorkflowHeartbeat() { return checkoutHistory.publishHeartbeat(); }
-export function beginWorkflowRun(job, startedAtMs) { return checkoutHistory.beginRun(job, startedAtMs); }
+export function beginWorkflowRun(job, startedAtMs, trigger) { return checkoutHistory.beginRun(job, startedAtMs, trigger); }
 /** Bounded tail read; a torn first/last JSONL line is never an invented run. */
 export async function readJsonLines(file, maxBytes = 12 * 1024 * 1024) {
     const handle = await fs.open(file, 'r');

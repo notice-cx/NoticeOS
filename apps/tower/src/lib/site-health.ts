@@ -1,5 +1,5 @@
 import { ASSET_STATUS_LABEL } from "@shared/asset-detail";
-import { isRetired, isSettingUp } from "@shared/asset-setup";
+import { isRetired } from "@shared/asset-setup";
 import type { AssetCard } from "@shared/wall";
 import type { StateTone } from "@/components/StateChip";
 import type { WallIssue } from "@/lib/wall-issues";
@@ -9,11 +9,11 @@ import type { WallIssue } from "@/lib/wall-issues";
  * own header can never call the same site two things. The word is a verdict
  * and the colour follows it: only the two problem words wear a tone. Order: a
  * retired site is "Retired" whatever else is true of it, because nobody
- * watches it; a site still being set up is "Setting up"; then the worst open
- * problem wins; then monitor-only names the automation posture; then on
- * track.
+ * watches it; then the worst open problem wins; then monitor-only names the
+ * automation posture; then on track. Manual lifecycle stages do not describe
+ * current health.
  */
-export type SiteHealthKey = "retired" | "setting-up" | "off-track" | "at-risk" | "monitor-only" | "on-track";
+export type SiteHealthKey = "retired" | "off-track" | "at-risk" | "monitor-only" | "on-track";
 
 export interface SiteHealth {
   key: SiteHealthKey;
@@ -24,7 +24,6 @@ export interface SiteHealth {
 /** Each health key's word and tone, for a filter chip or a legend. */
 export const SITE_HEALTH: Readonly<Record<SiteHealthKey, { word: string; tone: StateTone }>> = {
   retired: { word: ASSET_STATUS_LABEL.retired, tone: "na" },
-  "setting-up": { word: "Setting up", tone: "na" },
   "off-track": { word: "Off track", tone: "critical" },
   "at-risk": { word: "At risk", tone: "caution" },
   "monitor-only": { word: "Monitor only", tone: "neutral" },
@@ -38,8 +37,6 @@ export function siteHealth(
   const mine = issues.filter((issue) => issue.assets.includes(card.id));
   const key: SiteHealthKey = isRetired(card.status)
     ? "retired"
-    : isSettingUp(card.status)
-    ? "setting-up"
     : card.openError > 0 || mine.some((issue) => issue.severity === "error")
       ? "off-track"
       : card.openWarn > 0 || mine.some((issue) => issue.severity === "warn")

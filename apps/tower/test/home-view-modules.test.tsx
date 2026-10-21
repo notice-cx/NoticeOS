@@ -5,6 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { AssetCard, CardChannels, CardDataSource, CardProduct, SeriesPoint, SignalTrend, WallPayload } from "@shared/wall";
 import type { WorkPayload } from "@shared/work";
+import type { RevenueProjection } from "@shared/revenue-projection";
 
 // Home's four business modules (site health, the agents' week, where visitors
 // come from, what is worth a look) and the views that draw them. The wall,
@@ -123,6 +124,56 @@ function tree(children: ReactNode) {
 
 const renderHome = () => render(tree(<HomeRoute />));
 
+const revenueProjection: RevenueProjection = {
+  period: "2026-10", status: "ready", reason: null, reportedThrough: "2026-10-18",
+  earnedMinor: 1800, projectedMinor: 3100, dailyPaceMinor: 100,
+  previousPeriod: "2026-09", previousMonthMinor: 3000, changePercent: null,
+  historyDays: 84, holidayHistoryDays: 0,
+  points: Array.from({ length: 31 }, (_, index) => ({
+    date: `2026-10-${String(index + 1).padStart(2, "0")}`,
+    cumulativeMinor: (index + 1) * 100, projected: index >= 18,
+  })),
+};
+
+describe("Home's combined revenue card", () => {
+  const dailyRevenue = { date: "2026-10-18", amountMinor: 1176, reportedThrough: "2026-10-18", timeZone: "UTC" };
+
+  it.each(["everything", "business", "product"])("shows yesterday within the month card in the %s view", (view) => {
+    state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue })]);
+    storeView(view);
+    const { container } = renderHome();
+    const hero = container.querySelector<HTMLElement>("[data-money-hero]")!;
+    const yesterday = within(hero).getByRole("link", { name: `Yesterday $11.76 ${view === "business" ? "so far" : "est."}` });
+    expect(yesterday).toHaveAttribute("href", "/financials");
+    expect(yesterday.getAttribute("title")).toContain("UTC");
+    expect(hero.textContent?.match(/projected/gi)).toHaveLength(1);
+    expect(within(hero).getByRole("img", { name: /^Revenue a day, October/ })).toBeInTheDocument();
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
+    expect(container.querySelector('[data-stat="Visitors, yesterday"]') !== null).toBe(view === "everything");
+  });
+
+  it.each([
+    ["zero", { ...dailyRevenue, amountMinor: 0 }, "Yesterday $0.00 est."],
+    ["missing", { ...dailyRevenue, amountMinor: null }, "Yesterday · not reported yet"],
+    ["stale", { ...dailyRevenue, date: "2026-10-17" }, "Yesterday · not reported yet"],
+  ])("preserves %s revenue without inventing an amount", (_state, summary, label) => {
+    state.payload = wall([healthy("first.example.com", { revenueProjection, dailyRevenue: summary })]);
+    const { container } = renderHome();
+    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent(label);
+  });
+
+  it("labels partial reporting and withholds a total across different reporting clocks", () => {
+    const first = healthy("first.example.com", { revenueProjection, dailyRevenue });
+    const second = healthy("second.example.com", { revenueProjection });
+    state.payload = wall([first, second]);
+    const { container, rerender } = renderHome();
+    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent("Yesterday $11.76 est. · 1 of 2 sites");
+    state.payload = wall([first, { ...second, dailyRevenue: { ...dailyRevenue, timeZone: "Europe/London" } }]);
+    rerender(tree(<HomeRoute />));
+    expect(container.querySelector("[data-home-visitors]")).toHaveTextContent("Yesterday · mixed report days · no total");
+  });
+});
+
 /** The board's grid: the second child of the brief, under the answer. */
 const grid = (container: HTMLElement) => container.querySelector("[data-home-brief]")!.children[1]!;
 
@@ -132,9 +183,9 @@ function modulesDrawn(container: HTMLElement): string[] {
   if (grid(container).getAttribute("data-home-layout") === "stacks") {
     return [...grid(container).querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
   }
-  return [...grid(container).querySelectorAll("[data-surface-hero], [data-home-yesterday], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
+  return [...grid(container).querySelectorAll("[data-surface-hero], [data-home-visitors], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
     if (element.hasAttribute("data-surface-hero")) return "money";
-    if (element.hasAttribute("data-home-yesterday")) return "yesterday";
+    if (element.hasAttribute("data-home-visitors")) return "yesterday";
     if (element.hasAttribute("data-home-sites")) return "sites";
     if (element.hasAttribute("data-incident-list")) return "problems";
     if (element.hasAttribute("data-decision-queue")) return "decide";
@@ -190,7 +241,7 @@ describe("the views draw their modules", () => {
 
     expect(modulesDrawn(container)).toEqual(["money", "yesterday", "sites", "problems", "decide", "agents", "timeline"]);
     expect(grid(container).getAttribute("class")).toBe("grid gap-5 @3xl:grid-cols-2 @6xl:grid-cols-12 [&>*]:min-w-0");
-    const visitorsColumn = container.querySelector("[data-home-yesterday]")!;
+    const visitorsColumn = container.querySelector("[data-home-visitors]")!;
     expect(visitorsColumn.querySelector("[data-home-sites]")).not.toBeNull();
     expect(container.querySelectorAll("[data-home-sites]")).toHaveLength(1);
     expect(container.querySelector("[data-home-health]")).toBeNull();
@@ -362,13 +413,13 @@ describe("the site-health module", () => {
     }
   });
 
-  it("writes each row's problems beside it, else Fine, else that it is still setting up", () => {
+  it("writes each row's problems beside it, else Fine, else that nothing is measured yet", () => {
     const { container } = render(tree(<HealthModule cards={cards} issues={[]} />));
 
     const note = (id: string) => row(container, id).querySelector("[data-site-health-note]")!.textContent;
     expect(note("slow.example.com")).toBe("Slow for 1 in 4 visitors · 3 people hit an error");
     expect(note("fine.example.com")).toBe("Fine");
-    expect(note("new.example.com")).toBe("Still setting up · nothing measured yet");
+    expect(note("new.example.com")).toBe("Nothing measured yet");
   });
 
   it("colours a home page that did not load in the error colour", () => {

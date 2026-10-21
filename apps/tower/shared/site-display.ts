@@ -3,9 +3,8 @@
 // the icon addresses that replace the ones read from its pages (`lightIcon`,
 // `darkIcon`). What the operator set is stored in `config/tower.json` at
 // `/sites` (the `site-display` register in scripts/config-registers.mts). A
-// switch nobody set follows the site's stage, so a retired site shows nowhere
-// until a switch is turned on, and a stage move never rewrites a switch
-// somebody set. `siteShownOn` is the one reading every screen uses;
+// retired site is hidden on every surface regardless of its saved switches.
+// A stage move preserves those switches for Restore. `siteShownOn` is the one reading every screen uses;
 // `siteDisplayChange` is the one write of one key, with its exact way back.
 
 // The TV imports this module, so it must not import the config register
@@ -64,9 +63,9 @@ export function shownByDefault(status: string): boolean {
   return !isRetired(status);
 }
 
-/** Where a site shows: each switch as the operator set it, else its stage's
- * default. */
+/** Archived sites stay hidden; other sites use their saved switches. */
 export function siteShownOn(site: DisplayedSite, display: SiteDisplay | null | undefined): ShownOn {
+  if (isRetired(site.status)) return { list: false, tv: false, work: false };
   const set = display?.[site.id];
   const fallback = shownByDefault(site.status);
   return {

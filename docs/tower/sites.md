@@ -17,7 +17,7 @@ The Sites page shows which sites need your attention.
 
 | Column | What it holds |
 |---|---|
-| **Site** | its name, and under it its status: **Setting up**, **On track**, **Monitor only**, **At risk**, **Off track**, **Retired**, coloured only when it is a problem |
+| **Site** | its name, and under it its status: **On track**, **Monitor only**, **At risk**, **Off track**, **Retired**, coloured only when it is a problem |
 | **People a day** | the last four weeks as a line, and the latest finished day's count |
 | **Yesterday** | yesterday's revenue and its change on the same day a week before |
 | **Share of month** | the site's part of the month's revenue so far |
@@ -52,7 +52,7 @@ A link to a tab your view leaves out still opens it, with that tab added at the 
 - **Tasks**: first the site's decisions as the Tasks page's **Next** tab ranks them: **Next for you**, the one to take first, with why it is first and its card's figures, and **Then, for you**, the others, with **Focus →** for this site's decisions alone. Both are left out when no decision of this site waits on you. Under them, the site's slice of the Tasks board (**All tasks**): its decisions, **Urgent**, **Blocked** and **Done this week** for the site's project, each with its change since last week, and **In and out** with done this week against last week. See [Tasks](/tower/tasks).
 - **Activity**: the last 90 days of changes and bets on one timeline, a bet marked where it was registered and again where its verdict was recorded. Under it, the **Timeline** of recorded changes and the bets still being measured.
 - **Data sources**: how the site's data arrives, drawn as one diagram with a failing source outlined in red; then one row per source with **Connect**, **Not using** and the mapping fields, and **More sources** for the optional ones. **Site health** shows the daily checks of the site itself: **Served home page** (words of visible text), **AI crawler access**, **Sitemap** (URLs listed), **Security headers** (how many of six headers the home page sends, such as **4 of 6**, with the missing ones named) and **Page speed** (the 75th percentile of Largest Contentful Paint, Interaction to Next Paint and Cumulative Layout Shift for phones, each with **good**, **needs improvement** or **poor**, or **not measured yet** before the first reading).
-- **Settings**: one column of cards: **Identity**, **Manual lifecycle stage**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Identity** holds the site's **Display name**, **Owning entity**, **Domain** and **Site id**, then **Icons**: what NoticeOS found the last time it read the site's home page (**Icons declared**, **Nothing declared**, **Page unreachable** or **Not read yet**), when that was, such as **Read 2h ago**, and **Read again**. Under them, **Light icon** and **Dark icon** each show one icon on a white square and on a black square, its address, and a field for an address of your own. A site with no domain, a retired site and the System have no **Icons**: the daily read does not cover them. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
+- **Settings**: one column of cards: **Identity**, **Lifecycle**, **Where it shows**, **Automation**, **Data collection**, **Card totals**, **Alert rules in force**, **Tracked search terms** and **Archive**. **Identity** holds the site's **Display name**, **Owning entity**, **Domain** and **Site id**, then **Icons**: what NoticeOS found the last time it read the site's home page (**Icons declared**, **Nothing declared**, **Page unreachable** or **Not read yet**), when that was, such as **Read 2h ago**, and **Read again**. Under them, **Light icon** and **Dark icon** each show one icon on a white square and on a black square, its address, and a field for an address of your own. A site with no domain, a retired site and the System have no **Icons**: the daily read does not cover them. **Where it shows** holds the site's place in your order, such as **3rd of 8**, with **Move up** and **Move down**, its three switches, and **Arrange the sites**, which opens Arrange.
 
 ## The Health tab
 
@@ -105,16 +105,16 @@ Each site has three switches:
 | Switch | When it is on, the site shows |
 |---|---|
 | **Home and Sites list** | as a row on Home (the data sources grid, the sites and the last 24 hours) and on the Sites page |
-| **TV** | in every widget on the TV |
+| **TV** | in site rows and counts on the TV |
 | **Work this week** | as a project row in the TV's **Work this week**, while its **TV** switch is on too |
 
 The switches are on every row of **Arrange** on the Sites page, on the **Sites** card of **Settings** > **TV dashboard**, and on the site's own **Where it shows** card. A switch with a tick is on; one with a crossed-out eye is off.
 
-A switch nobody has set follows the site's lifecycle stage: on for every stage except **Retired**, and off for a retired site. A switch you set stays as you set it when the site's stage changes, so a site you take off the TV stays off after you restore it.
+A switch nobody has set is on for an active site. Saved preferences survive a lifecycle change. An archived site stays hidden regardless of its switches; restoring it applies those preferences again.
 
-A retired site that is shown reads **Retired** wherever it is: its status on Home, the Sites page, the TV and its own page, a **Retired** chip beside its name in **Arrange**, on the **Sites** card and in the TV editor's site lists, and **· Retired** after its project's name in the Tasks project list. It is never counted among the sites that need you: not in the Sites page's summary or status bar, not in Home's count of what is broken or its **Problems**, and not in the TV's loop or problems. Its alerts stay on **Alerts** and its tasks on the Tasks board. Restoring it to another stage turns every switch you did not set back on.
+Archive removes a site from the sidebar, search navigation, Home, the Sites list and the TV. Its alerts, tasks and activity are excluded from portfolio lists and counts. **Arrange** and **Settings** > **TV dashboard** still list it with a **Retired** chip and a **Restore** link. Its visibility switches stay off and disabled until Restore. Stored records and financial history are preserved.
 
-A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money.
+A site that is not retired and has its switches off still collects data, raises alerts and files tasks. Its problems are still counted on Home and listed under **Problems** and on Alerts, its tasks stay on the Tasks board, and its money and visitors stay in the month's figures. **Revenue this month** on the TV counts every site's money. **Live feed** shows tasks and other stored activity from all assets that have not been archived, even when their **TV** switches are off.
 
 The switches are stored in `config/tower.json` at `sites`, by site id, and are exported with the rest of the configuration. The **Light icon** and **Dark icon** addresses are stored in the same site entry.
 
@@ -138,3 +138,5 @@ The switches are stored in `config/tower.json` at `sites`, by site id, and are e
 - [Connect data sources](/guides/connect-data-sources)
 - [Attribution and measurement](/concepts/attribution-and-measurement)
 - The design in [doc 14, Design](../14-design.md#surfaces-as-built)
+
+Lifecycle is computed from collection history: **Onboarding** before any data is recorded, then **Live**. Old Onboarding, Baselining or Live assignments do not override this calculation. Missing recent reports affect health, not the recorded start of collection. **Pre-launch** is an explicit launch hold; **Begin monitoring** releases it. **Archive** and **Restore** record the decision to stop or resume monitoring. Restore preserves a recorded launch hold and otherwise computes the active stage from data, without a stage picker.

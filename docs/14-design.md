@@ -364,8 +364,8 @@ things changed in that time; under it one sentence summarises where the month
 is heading and what is broken. The month's money is the main figure
 (`MoneyHero`: the month so far as the largest figure on the screen, its
 projected total against last month's total on a `PaceBar`, the month's days as
-a `BarStrip`, and which sites the revenue came from), with yesterday's revenue
-and visitors in the last 28 days as `StatTile`s beside it. The visitor figure
+a `BarStrip`, yesterday's reported revenue and which sites the revenue came
+from), with visitors in the last 28 days as a `StatTile` beside it. The visitor figure
 sums reported daily counts over 28 calendar days ending at the newest settled
 reading; provisional days are excluded and missing days remain gaps. Home's
 visitor and revenue bars are stacked by site with matching colour legends. With no revenue source anywhere,

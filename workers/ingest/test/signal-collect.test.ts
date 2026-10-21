@@ -3,6 +3,7 @@ import { DATAFORSEO_BASE_REPORTS, SERP_PANEL_DEVICES } from '@noticeos/contract'
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { handleSignalCollect } from '../src/routes/signal-collect.js';
 import { runPosthogDumps } from '../src/posthog-dumps.js';
+import { savePosthogCooldown } from '../src/posthog-query-budget.js';
 import { dataForSeoFamiliesFor } from '../src/dataforseo-dumps.js';
 import serpPanelConfig from './fixture-config/serp-panel.json';
 import { OPERATOR_TOKEN } from './fixtures.js';
@@ -448,6 +449,22 @@ function gatedPosthogProvider() {
 }
 
 describe('POST /api/signal-collect — PostHog families', () => {
+  it('returns the stored provider retry deadline instead of claiming a skipped run collected data', async () => {
+    const nowMs = Date.parse('2026-09-23T12:30:00Z');
+    await savePosthogCooldown(env.STORE, { host: 'us', projectId: '424242' }, {
+      reason: 'budget-exhausted', detail: 'Not stored', nextAttemptAt: '2026-09-23T13:00:00.000Z',
+    });
+    const provider = gatedPosthogProvider();
+    const response = await handleSignalCollect(collectRequest({ asset: 'meadow.example', families: ['posthog-events'] }), env, {
+      posthog: { fetchImpl: provider.fetchImpl, rawKeys: PH_KEYS, laneRegister: PH_REGISTER, nowMs, clock: () => nowMs },
+    });
+    expect(response.status).toBe(429);
+    expect(response.headers.get('retry-after')).toBe('1800');
+    expect(await response.json()).toMatchObject({ error: 'posthog_query_cooldown', reason: 'budget-exhausted', nextAttemptAt: '2026-09-23T13:00:00.000Z' });
+    expect(provider.calls).toHaveLength(0);
+    expect(await pgCount(`SELECT count(*) AS n FROM ${ARCHIVE_RUNS} WHERE integration = 'posthog'`)).toBe(0);
+  });
+
   it('collects every PostHog family for one asset over a fixed window', async () => {
     const { fetchImpl, queries } = posthogProvider();
     const { status, body } = await collect(

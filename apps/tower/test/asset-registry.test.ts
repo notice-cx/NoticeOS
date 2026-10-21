@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { readSite, readSites } from "../worker/asset-registry";
+import { readSite, readSites, readSitesById } from "../worker/asset-registry";
 import { type AssetDetailDeps, buildAssetDetailPayload } from "../worker/asset-detail-payload";
 import { buildAlertHistoryPayload } from "../worker/alert-history";
 import { handleDecisionsRequest } from "../worker/decision-route";
@@ -92,10 +92,28 @@ describe.skipIf(unavailable !== null)(`the site list is read on Postgres${unavai
     const ctx = await createTestStore();
     await addSites(ctx, [{ id: "os.example", domain: null, displayName: "OS", status: "live", senseOnly: 0, isOs: 1, createdAt: "2026-07-01T00:00:00.000Z" }]);
     expect(await readSite(ctx.call, "os.example")).toEqual({
-      id: "os.example", domain: null, displayName: "OS", status: "live", senseOnly: 0, isOs: 1,
+      id: "os.example", domain: null, displayName: "OS", status: "onboarding", storedStatus: "live", hasCollectedData: false, senseOnly: 0, isOs: 1,
       createdAt: "2026-07-01T00:00:00.000Z", updatedAt: "2026-07-01T00:00:00.000Z",
     });
     expect(await readSite(ctx.call, "never.example")).toBeNull();
+  });
+
+  it("derives every active stage from durable data and preserves explicit decisions", async () => {
+    const ctx = await createTestStore();
+    const statuses = ["onboarding", "baselining", "live", "pre-launch", "retired"];
+    await addSites(ctx, statuses.map((status) => ({ id: `${status}.example`, displayName: status, status })));
+    const before = await readSites(ctx.call);
+    expect(before.map((site) => site.status)).toEqual(["onboarding", "onboarding", "onboarding", "pre-launch", "retired"]);
+    await ctx.call.write((tx) => tx.execute(`INSERT INTO noticeos.counter_readings (workspace_id, asset_id, metric, value, observed_at)
+      SELECT workspace_id, asset_id, 'users', 0, '2020-01-01T00:00:00Z'::timestamptz FROM noticeos.assets`));
+    const after = await readSites(ctx.call);
+    expect(after.map((site) => site.status)).toEqual(["live", "live", "live", "pre-launch", "retired"]);
+    const ids = statuses.map((status) => `${status}.example`);
+    const byId = await readSitesById(ctx.call, ids);
+    expect(ids.map((id) => byId.get(id)?.status)).toEqual(after.map((site) => site.status));
+    expect(await readSite(ctx.call, ids[0]!)).toMatchObject({ status: "live", storedStatus: "onboarding", hasCollectedData: true });
+    expect((await buildWallPayload(ctx.call, WALL)).assets[0]?.status).toBe("live");
+    expect((await buildAssetDetailPayload(ctx.call, ids[0]!, DETAIL))?.asset).toMatchObject({ status: "live", storedStatus: "onboarding" });
   });
 
   it("the Wall's cards, the asset page and the integrations matrix name the site from Postgres", async () => {

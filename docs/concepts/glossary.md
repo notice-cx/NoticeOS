@@ -89,7 +89,7 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : The record of money: revenue and cost rows per site per month. A row never changes; a correction is a new row that replaces it. Shown on the Money page.
 
 **Lifecycle stage**
-: A site's stage: Pre-launch, Onboarding, Baselining or Live, or Retired once archived. Set on the site's Settings tab; no alerts are raised for a pre-launch site and no money is spent on it.
+: A site's stage: Onboarding before collection has recorded data, then Live. Pre-launch and Retired record explicit launch-hold and archive decisions. Active stages are computed from stored collection history.
 
 **MCP**
 : The Model Context Protocol, an open standard that lets an AI agent use a service's tools. The Tower serves NoticeOS's tools at `/api/mcp`.
@@ -155,7 +155,7 @@ This page defines the words used on NoticeOS screens and in these docs, so other
 : One website in your portfolio. The word on screen is always Site; "property" is reserved for a provider's own object, such as a Google Analytics property.
 
 **Site status**
-: The one status label a site shows: Setting up, On track, Monitor only, At risk or Off track. Home, Sites, the site's own page and the Wall all show the same label.
+: The one status label a site shows: On track, Monitor only, At risk or Off track. Home, Sites, the site's own page and the Wall all show the same label.
 
 **Snooze**
 : Hiding an alert from the open list until a date within 90 days. The same alert comes back on that date.

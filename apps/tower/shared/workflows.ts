@@ -66,22 +66,5 @@ export function workflowRunAge(startedAt: string, now: number): string {
   return relativeTime.format(-Math.floor(elapsed / divisor), unit);
 }
 
-/** The runner's unpublished-commit check (`push-state` in
- * scripts/scheduled-jobs.mts): the one job whose unread sites System health
- * names. */
-export const PUSH_STATE_JOB = 'push-state';
-
-/**
- * The sites a run could not read, and why: its steps' failed output items,
- * each labelled by its site, and their reasons in words (the run's own
- * projection, scripts/workflow-output.mts). Null when the run read every site.
- */
-export function unreadSites(run: WorkflowRun | null | undefined): { runId: string; sites: string[]; reasons: string[] } | null {
-  const items = run?.steps?.flatMap((step) => step.output?.items ?? []).filter((item) => item.state === 'failed') ?? [];
-  if (!run || items.length === 0) return null;
-  const reasons = items.flatMap((item) => item.fields.filter((field) => field.key === 'reason').map((field) => String(field.value)));
-  return { runId: run.id, sites: [...new Set(items.map((item) => item.label))], reasons: [...new Set(reasons)] };
-}
-
 export type WorkflowSurface = 'workflow' | 'system';
 export function workflowBasePath(surface: WorkflowSurface): string { return surface === 'system' ? '/health/operations' : '/workflows'; }

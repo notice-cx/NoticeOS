@@ -732,9 +732,9 @@ describe("Home drawn from the person's view", () => {
     if (grid.getAttribute("data-home-layout") === "stacks") {
       return [...grid.querySelectorAll("[data-home-module]")].map((el) => el.getAttribute("data-home-module")!);
     }
-    return [...grid.querySelectorAll("[data-surface-hero], [data-home-yesterday], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
+    return [...grid.querySelectorAll("[data-surface-hero], [data-home-visitors], [data-home-sites], [data-incident-list], [data-decision-queue], [data-home-agents], [data-home-timeline]")].map((element) => {
       if (element.hasAttribute("data-surface-hero")) return "money";
-      if (element.hasAttribute("data-home-yesterday")) return "yesterday";
+      if (element.hasAttribute("data-home-visitors")) return "yesterday";
       if (element.hasAttribute("data-home-sites")) return "sites";
       if (element.hasAttribute("data-incident-list")) return "problems";
       if (element.hasAttribute("data-decision-queue")) return "decide";
@@ -1002,7 +1002,8 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(money).toHaveAccessibleName("Revenue, July so far");
     // The month's ledger rows are an estimate, and the figure says so.
     expect(money.querySelector("[data-money-figure]")).toHaveTextContent("$45est.");
-    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toHaveAttribute("href", "/financials");
+    expect(container.querySelector('[data-stat="Revenue, yesterday"]')).toBeNull();
+    expect(within(money).getByRole("link", { name: "Yesterday · not reported yet" })).toHaveAttribute("href", "/financials");
     expect(container.querySelector('[data-stat="Visitors in the last 28 days"]')).toHaveAttribute("href", "/assets");
 
     expect(container.querySelector("[data-kpi-strip]")).toBeNull();
@@ -1169,14 +1170,13 @@ describe("Home — the answer, the money and what is broken", () => {
     expect(within(rows[0]!).getByRole("link", { name: /Meadow Board/ })).toHaveAttribute("href", "/assets/meadow.example");
     expect(rows[0]).toHaveTextContent("no visitors reported");
     expect(container.querySelector("[data-home-health]")).toBeNull();
-    expect(container.querySelector("[data-home-yesterday] [data-home-sites]")).not.toBeNull();
+    expect(container.querySelector("[data-home-visitors] [data-home-sites]")).not.toBeNull();
     expect(container.textContent).not.toContain("Automation enabled");
     expect(container.textContent).not.toContain("12 open");
   });
 
-  // A retired site is watched by nobody: no row until its switch is on, then
-  // a row that reads Retired, and never a problem counted in the answer.
-  it("leaves a retired site out of its rows and its counts, and reads it Retired once its switch is on", () => {
+  // Archived sites contribute neither rows nor problems, including saved list overrides.
+  it("keeps archived sites out of rows and counts despite saved visibility", () => {
     withSecondSite();
     payload.assets = [...payload.assets, { ...SEEDED_ASSETS[0]!, id: "old.example", displayName: "Old Example", status: "retired", work: null }];
     payload.attention = [alert({ id: 9, severity: "error" }), alert({ id: 10, severity: "error", asset: "old.example", assetDisplayName: "Old Example" })];
@@ -1190,9 +1190,7 @@ describe("Home — the answer, the money and what is broken", () => {
 
     payload.dashboard = { ...SEEDED_DASHBOARD, sites: { "old.example": { list: true } } };
     const shown = renderHome();
-    const old = rows(shown.container).find((row) => row.getAttribute("data-portfolio-row") === "old.example")!;
-    expect(old).toHaveTextContent("Retired");
-    expect(old).not.toHaveTextContent("Off track");
+    expect(rows(shown.container).some(row => row.getAttribute("data-portfolio-row") === "old.example")).toBe(false);
     expect(answerLine(shown.container)).toHaveTextContent("1 thing is broken.");
   });
 

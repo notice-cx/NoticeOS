@@ -91,10 +91,9 @@ export function lifecycleMoveSentence(move: LifecycleMove): string {
 }
 
 /**
- * The stage this asset was in when it was last archived — what Restore returns
- * it to. `items` is newest first, so the first move into `retired` is the one
- * being undone. `null` means no move is on record; a caller that then shows
- * `live` must say it is a default rather than a fact.
+ * The stage recorded when this site was last archived. Restore uses it to
+ * preserve an explicit pre-launch hold, never to assign active progress.
+ * `items` is newest first; null means no archive move is recorded.
  */
 export function stageBeforeRetire(
   items: readonly AnnotationItem[],
@@ -205,6 +204,9 @@ export interface AssetInfo {
   displayName: string;
   domain: string | null;
   status: AssetStatus;
+  /** Stored control value for guarded archive/launch writes, not the derived stage. */
+  storedStatus?: AssetStatus;
+  hasCollectedData?: boolean;
   senseOnly: boolean;
   isOs: boolean;
   createdAt: string;

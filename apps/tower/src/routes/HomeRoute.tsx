@@ -50,7 +50,7 @@ import { incidentsFromIssues, timelineFromWall } from "@/lib/viz-adapters";
 import { weekOnWeek } from "@/lib/sites-index";
 import { completeDays } from "@/lib/wall-sites";
 import { wallIssues, type WallIssue } from "@/lib/wall-issues";
-import { hasRevenueSource } from "@/lib/wall-revenue";
+import { hasRevenueSource, yesterdayTotal } from "@/lib/wall-revenue";
 import { withSystemIssues } from "@/lib/wall-system-state";
 import { SiteLead } from "@/routes/asset-detail/SiteLead";
 import { ClockProposal } from "@/routes/home/ClockProposal";
@@ -65,7 +65,7 @@ import { MoneyHero } from "@/routes/home/MoneyHero";
 /**
  * Home answers how the business is doing, what is broken and what needs the
  * operator, drawn from the data: the month's money as the lead with
- * yesterday's revenue, the last 28 days' visitors and the sites beside it;
+ * yesterday's revenue within it and the last 28 days' visitors and sites beside it;
  * the ranked problems, the decisions waiting and the agents' work; the last day on a time axis. The
  * person's view picks which of these regions are drawn and in what order. A
  * fresh install sees the three steps to a first number instead.
@@ -155,12 +155,11 @@ function Board({ data, feed, connections, nowMs }: { data: WallPayload; feed: Wa
   const draw: Record<HomeModuleId, () => ReactNode> = {
     money: () => (
       <div className="@3xl:col-span-2 @6xl:col-span-8" data-surface-hero="">
-        {money ? <MoneyHero money={money} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <div className="flex flex-col gap-5"><PeopleLead assets={data.assets} />{sitesUnderVisitors ? draw.sites() : null}</div>}
+        {money ? <MoneyHero money={money} yesterday={yesterdayTotal(data.assets, nowMs)} className={stacks ? undefined : "h-full"} wordLevel={view.wordLevel} /> : <div className="flex flex-col gap-5"><PeopleLead assets={data.assets} />{sitesUnderVisitors ? draw.sites() : null}</div>}
       </div>
     ),
     yesterday: () => (
-      <div className="flex flex-col gap-5 @3xl:col-span-2 @6xl:col-span-4" data-home-yesterday="">
-        {money ? <YesterdayRevenue assets={data.assets} money={money} nowMs={nowMs} /> : null}
+      <div className="flex flex-col gap-5 @3xl:col-span-2 @6xl:col-span-4" data-home-visitors="">
         {money ? <VisitorsLast28Days assets={data.assets} /> : null}
         {sitesUnderVisitors ? draw.sites() : null}
       </div>
@@ -294,26 +293,6 @@ function Answer({ money, issues, since, changed, nowMs, health = null, wordLevel
         </h2>
       )}
     </header>
-  );
-}
-
-function YesterdayRevenue({ assets, money, nowMs }: { assets: readonly AssetCard[]; money: HomeMoney; nowMs: number }) {
-  const yesterday = yesterdayMoney(assets, nowMs, money.days);
-  const usual = yesterday && yesterday.days.length >= 3 ? yesterday.days.reduce((sum, day) => sum + (day.v ?? 0), 0) / yesterday.days.length : null;
-  return (
-    <StatTile
-      label="Revenue, yesterday"
-      value={yesterday?.amount ?? null}
-      absent="not reported yet"
-      format={cents}
-      note={money.estimated ? "est." : undefined}
-      role="money"
-      to="/financials"
-      comparison={yesterday?.weekBefore != null ? { percent: yesterday.changePercent, change: yesterday.amount - yesterday.weekBefore, against: "vs a week before" } : null}
-      history={yesterday && yesterday.days.length >= 3 ? (
-        <BarStrip contributors={money.contributors} data={yesterday.days} tone="text-financial-revenue" baseline={usual !== null ? { value: usual, label: `usual ${cents(usual)}` } : null} format={cents} ariaLabel="Revenue a day, this month" className="h-10" />
-      ) : null}
-    />
   );
 }
 

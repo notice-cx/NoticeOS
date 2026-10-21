@@ -75,6 +75,10 @@ present.
   direct statement. Quote the labels the product shows exactly; changing one
   is a product-copy change. The brand line "Your startup. In clear view." is
   the one exception.
+- **Derive statuses from observed facts.** A state is manually assigned only
+  when it records a human decision, such as a launch hold, retirement or
+  automation permission. Collection, setup progress and health are computed;
+  an old stored stage never substitutes for evidence.
 - **SQL is snake_case.** Migrations are numbered and append-only; the store
   keeps every row of history and is never truncated.
 - **Design is one doc, written as taste** ([doc 14](docs/14-design.md)): the
@@ -136,8 +140,9 @@ are measured: an agent allowed to change how its own results are measured
 would eventually change them.
 
 Also standing: publishing-velocity caps and per-surface churn caps (doc 04);
-PRs only through the one fine-grained GitHub App, never a PAT; assets never
-query external analytics about themselves, they push to central. Automated
+automated asset execution uses the one fine-grained GitHub App, never a PAT;
+agent PR publication follows the Git policy below. Assets never query external
+analytics about themselves, they push to central. Automated
 asset execution requires a one-action kill switch and a proven drill before
 enablement (doc 06); agent execution is manual in this release and its pause
 check is shown as unavailable.
@@ -289,9 +294,16 @@ or policy commitments retain their explicit action-specific approval.
 ## Git policy
 
 Changes go through a branch and a GitHub pull request. Do not commit to or push
-`main` directly. The task hub never commits or pushes. The operator authorises
-separate commits for completed, verified pieces of requested work without another prompt; stage only
-the intended changes; follow the
+`main` directly. The task hub never commits or pushes. For requested work,
+agents may create commits, push commits to PR branches, create and update PRs,
+and read their review and CI metadata without further owner approval. Prefer
+the GitHub App; an existing authenticated GitHub login is also permitted for
+these operations without a per-PR exception. This authorisation excludes
+merges, deployments, pushes that deploy, and other production access, which
+retain their specific approval requirements.
+
+Commit completed, verified pieces separately; stage only the intended changes;
+follow the
 [commit and PR title standard](CONTRIBUTING.md#commit-messages-and-pull-request-titles)
 with the task id in a `Refs:` footer. Never amend and never force-push a
 branch someone else has.

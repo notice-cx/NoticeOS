@@ -69,7 +69,15 @@ describe('workflow operating surface', () => {
     expect(screen.queryByRole('link', { name: 'Task board refresh' })).toBeNull();
     expect(screen.queryByRole('link', { name: 'Backups' })).toBeNull();
     expect(screen.queryByRole('option', { name: 'Business signals' })).toBeNull();
-    expect(screen.getByText(/5 of 5 workflows/)).toBeInTheDocument();
+    expect(screen.getByText(/4 of 4 workflows/)).toBeInTheDocument();
+  });
+  it('excludes retired workflow runs from history and attention counts', () => {
+    const startedAt = new Date(now - 60_000).toISOString();
+    const id = `push-state@${startedAt}`;
+    const retired = { ...trace, id, workflowId: 'push-state', startedAt };
+    const history = buildWorkflowHistory([{ job: 'push-state', at: startedAt, ms: 1000, outcome: 'failed' }], [retired], [], now, id);
+    expect(history.workflows.some(workflow => workflow.id === 'push-state')).toBe(false);
+    expect(history.selectedRun).toBeNull();
   });
   it('preserves legacy execution links when an operation moves to System Health', async () => {
     mount(`/workflows/counters?run=${encodeURIComponent(trace.id)}`);
@@ -376,4 +384,21 @@ describe('workflow history evidence', () => {
     expect(within(recent).getByText('Manual')).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /· Manual$/ })).toBeInTheDocument();
   });
+});
+
+it('shows notification events separately from recovery timing and keeps event run context', async () => {
+  const at = '2026-09-09T16:24:00.000Z';
+  const run: WorkflowRun = { id: `notifications@${at}`, workflowId: 'notifications', definitionVersion: 2,
+    startedAt: at, finishedAt: at, state: 'succeeded', trigger: { kind: 'event' }, steps: [] };
+  data = { ...data, ...buildWorkflowHistory([], [run], [], now) };
+  mount(`/workflows/notifications?run=${encodeURIComponent(run.id)}`);
+  expect(await screen.findByRole('heading', { name: 'Operator notifications' })).toBeVisible();
+  expect(await screen.findByText('Recovery check · Local time')).toBeVisible();
+  expect(screen.getByText('On new alerts')).toBeVisible();
+  expect(screen.queryByRole('button', { name: 'Edit schedule' })).toBeNull();
+  expect(screen.getByRole('button', { name: 'Manage delivery' })).toBeVisible();
+  expect(screen.getAllByText('Event').length).toBeGreaterThan(0);
+  fireEvent.click(screen.getByRole('button', { name: 'Manage delivery' }));
+  expect(screen.getByText('Recovery frequency')).toBeVisible();
+  expect(screen.getByText('Delivery')).toBeVisible();
 });

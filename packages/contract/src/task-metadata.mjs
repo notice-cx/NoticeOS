@@ -24,8 +24,6 @@ export const TASK_METADATA = Object.freeze({
     panelDate: Object.freeze({ name: "noticeos_panel_date", legacy: "reindex_panel_date" }),
     /** The published panel version a review covers. It has no older name. */
     panelVersion: Object.freeze({ name: "noticeos_panel_version", legacy: "noticeos_panel_version" }),
-    /** An unpushed-work ask's site. */
-    pushAsset: Object.freeze({ name: "noticeos_push_asset", legacy: "reindex_push_asset" }),
     /** A task-map drift report's project. */
     taskMapAsset: Object.freeze({ name: "noticeos_task_map_asset", legacy: "reindex_task_map_asset" }),
     /** The server's identity for the hosted write that created this task, so a

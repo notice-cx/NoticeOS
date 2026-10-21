@@ -16,7 +16,7 @@ const BD_CANDIDATES = [
   '/usr/local/bin/bd',
 ];
 
-// Same problem, same shape, for the push-state lane's git calls. Homebrew's git
+// The runner also reads its own code revision. Homebrew's git
 // first: /usr/bin/git is the Command Line Tools shim, which on a machine with no
 // CLT selected answers by opening a GUI installer prompt rather than by failing.
 const GIT_CANDIDATES = ['/opt/homebrew/bin/git', '/usr/local/bin/git', '/usr/bin/git'];

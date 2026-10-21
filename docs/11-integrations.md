@@ -19,7 +19,7 @@ has a budget line on NoticeOS's own ledger and fails closed as described in
 | **GA4 Data API** | live collector: daily active users, sessions, page views, events; on-demand display read: exact distinct users in trailing 30- and 5-minute windows, users per minute over the last 30, plus today-by-hour against the same weekday last week; daily archive: eight report families plus an exact rolling 28-day event-user aggregate ([doc 02](02-signal-contract.md#central-signals)) | Sense, Attribute | service account; Viewer grant per property; read-only API scope | Free tier (separate token quotas per property and request category) | daily-series query runs 96/day/property; open Tower displays share two Realtime requests/property per minute (both minute ranges, and the per-minute rows of the Wall's per-minute visitor chart), and one bounded Core hourly request/property per 15 minutes for today plus seven days ago; a display whose cache was emptied (a deploy, eviction, a new day or clock) reads at once instead of waiting out that cadence, at most one extra read per window; hidden tabs stop polling, and rejected requests enter a shared cooldown; archive adds 33 base requests/day/property (eight daily families × four revision dates plus one rolling aggregate), plus pagination, and caps each report at 250k rows. Data API is aggregate/modelled reporting, not raw event/session export. **Event parameters** (`customEvent:*`) return data only after an operator registers them as custom dimensions, and are never backfilled. Every GA4 collection sends `returnPropertyQuota`, so token spend is measured rather than inferred from request counts | retain last good daily/display snapshot and archive; record a failed durable report manifest; never turn a provider failure or a future hour into zero; today remains visibly incomplete; an unregistered custom dimension is its own manifest state (`ga4_custom_dimension_unregistered`), never an empty success; scheduled collection records an exhausted token budget as `ga4_quota_exhausted`; display reads return a safe quota category and next permitted attempt, and a bucket under 20% remaining raises `ga4-quota-pressure` before the failures start |
 | **Bing Webmaster Tools API** | live: site-level daily clicks/impressions; archive: six report families ([doc 02](02-signal-contract.md#central-signals)). The separate AI Performance UI report is not exposed by the documented API | Sense (S2 complement), Attribute | user-level API key on one central BWT account; sites verified per property (GSC import supported) | Free | one live request/site/day plus one shared site-list request and four archive requests/verified site/day — six on the day the two weekly families come due. Microsoft publishes no read-quota figure; query/page reports update weekly, are collected weekly, and can lag behind the current date | retain last good live snapshot; record each failed archive family independently; never fill an absent trailing day with zero or relabel undifferentiated impressions as AI citations |
 | **MS Clarity data-export API** | session behavior aggregates (rage/dead clicks, quickbacks, script errors, scroll) | Sense (UX signals), hypothesis grounding | API token per project | Free, but **10 calls/project/DAY hard cap**; trailing 72h only; ≤3 dims; 1,000 rows, no pagination | one call returns ALL metric blocks per dimension split, so URL + Device = full read in 2 calls; ALWAYS snapshot to store and analyze from disk; counts only — element detail needs dashboard replays; `clarity.ms` is adblock-DNS-listed (undercounts ~15–25%, rankings stay valid; can also block NoticeOS's own probes) | optional data source — degrade without an error, flag staleness |
-| **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; six bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run; missing rows are not zeros |
+| **PostHog query API** ([below](#posthog)) | product behaviour: daily visits, event taxonomy, errors, rage clicks, real-visitor page speed (LCP/INP/CLS/FCP p75), declared funnels | Sense (UX and product signals), Decide (hypothesis grounding) | one read-only personal API key for the account (Project, Insight and Query read), connected on `/integrations`; region, projects and saved funnels discovered | Free per query | 2,400 requests/hour, 240/minute, 3 concurrent queries, a 10-second execution cap and an hourly bytes-read budget per project; seven bounded, server-aggregated queries per asset per day, run one at a time | keep the last archive, mark the source degraded, record the rejected or skipped family; a 429 stops the run and stores a project retry delay; missing rows are not zeros |
 | **Chrome UX Report API** ([below](#chrome-ux-report)) | page speed by origin: the 75th percentile of LCP, INP and CLS that real Chrome users saw over the trailing 28 days, for phones and desktops | Sense (S5 site checks) | one Google Cloud API key with the Chrome UX Report API enabled, connected on `/integrations` | Free | 150 queries/minute per Google Cloud project; two queries per site per day, four when the bare domain has no data and its `www.` host is asked | keep the last reading; a site with too little Chrome traffic is recorded as no data, never as zero; a refused key stops the run |
 | **DataForSEO** | top ranked keywords with demand/difficulty/CPC/SERP features, backlink stock + 90-day new/lost movement, Google/ChatGPT mention metrics, and live result pages for an operator-chosen head-term panel | Sense (S1/S1b/S3/S4), Decide (opportunity sizing, the AI-Overview gate) | one shared API login/password; launched domains are discovered from Postgres; tracked terms from `config/serp-panel.json` | Metered: roughly $0.26–$0.29 per property per weekly run, plus ~$0.004 per tracked panel term per device; each report records exact provider cost | five bounded calls/week/launched property plus one per tracked query **per device**; the site's saved market (United States · English by default), phone and desktop; 200-row ranked-keyword cap, a 31-term panel ceiling and a 20-result panel depth. A $0.25/report reserve makes the $25/month portfolio data cap fail closed before a call, and the provider card shows how much of that cap is left this month, counted from the costs the reports themselves recorded, plus the prepaid account credit with the date it was read — refreshed by ONE free `appendix/user_data` read at the end of every successful sweep, which is metered spend of zero and is never retried | retain the latest stored snapshot, mark the data source degraded, and never interpolate missing rankings, links, AI mentions, or AI-Overview state |
 | **Ahrefs** | DR (free tier), site metrics (plan-gated) | Decide (sizing), Attribute (links) | MCP (existing) | Plan-dependent; many endpoints return 403 on the current plan | treat as best-effort enrichment only | fall back to DataForSEO backlinks |
@@ -186,18 +186,28 @@ no call.
 
 - **Two conditions.** `NOTIFIED_CONDITIONS` in `packages/contract` is both what
   the notifier sends and what the card lists: a new open **error** alert,
-  and a data source that turns **Failing** (read through the same
-  `connectionState` as the card's chip). Nothing else.
-- **Once per condition.** The notification job runs hourly at `:05`. The
-  `notifications` table records each condition only after a successful
-  delivery, so a failed send is retried next tick and the Alerts row's
-  *notified* mark means a message was delivered.
-- **A real delivery records a success on the credential** (`last_ok_at`), as
-  the Clarity export does.
-- **Without a `notifications` table, nothing is sent**, and the card shows
-  this; migrations are operator-only.
-- **Only the last 24 hours**, so the first run does not resend older events,
-  and at most ten lines per message with a count of the rest.
+  and a data source that changes to **Failing**. Nothing else.
+- **Event-triggered delivery.** Source transactions save notification intent in
+  `notification_outbox`. The standalone runner listens for committed wake-ups,
+  groups events for one second, and sends up to ten events per message.
+- **Once per failure episode.** Repeated failed provider calls do not create
+  additional notifications. A successful call followed by a failure starts a
+  new episode. An alert receives at most one successful-delivery receipt.
+- **Durable retries.** Failed sends retry after 30 seconds, with exponential
+  backoff capped at 15 minutes and the provider's retry delay honored up to an
+  hour. Startup, reconnection and the hourly `:05` recovery check collect missed
+  events. Unsent events expire after 24 hours; resolved, acknowledged, replaced
+  or recovered conditions are suppressed before delivery.
+- **Delivered items only.** The append-only `notifications` table records only
+  events included in a successfully delivered message. Overflow remains pending
+  for another message. A real delivery also records the credential's outcome.
+- **At least once.** A crash after Discord accepts a message but before its
+  receipt commits can cause a duplicate. Leases prevent concurrent consumers
+  from sending the same claimed batch.
+- **Operator-controlled migration.** An existing installation needs migration
+  `0021_notification_outbox.sql` before updating the application. Startup does
+  not apply it. The schema change is additive and retains the existing receipt
+  table. Without the required queue or receipt store, no message is sent.
 
 ### Clarity: the one per-asset credential
 
@@ -653,7 +663,7 @@ endpoints:
 Both use `Authorization: Bearer <key>`. Every query:
 
 - aggregates inside PostHog;
-- filters on `timestamp` to its window;
+- filters event names and `timestamp` in `PREWHERE`, before reading event properties; property filters remain in `WHERE`;
 - ends in an explicit `LIMIT` of the bound plus one (the extra row is how
   truncation is detected; it is then dropped and the archive marked
   `truncated`);
@@ -666,6 +676,23 @@ the whole run.** The rejected family gets an error row:
 `posthog_query_budget_exceeded` for the budget, `posthog_rate_limit` for the
 request rate. Every family not yet requested is listed as skipped on the completion
 line, with no request made and no row written.
+
+The provider's `Retry-After` is stored per region and project in
+`integration_leases`. It accepts a seconds value or an HTTP date; an absent or
+invalid delay waits one hour. A successful response with no remaining query
+budget also starts a wait. Daily and on-demand collection send no request for
+that project during the wait, including its timezone read, even after a restart
+or a change of API key. Skipped results and the completion log include
+`nextAttemptAt`. On-demand requests during that wait return
+`429 posthog_query_cooldown` and `Retry-After`, rather than reporting a
+successful collection of zero reports. No failure row is created for a request that was skipped. A
+stored wait on one project does not block another project on a later run.
+
+The [PostHog query API](https://posthog.com/docs/api/queries#hourly-read-budget)
+meters bytes read as well as request count. Early filtering reduces reads
+without changing report windows, aggregations, event capture or the selected
+plan. It does not establish that every report fits the remaining provider
+budget.
 
 **One run per asset at a time.** Every run takes the asset's lease before its
 first PostHog request: the daily run, the runner's `runScheduled` and

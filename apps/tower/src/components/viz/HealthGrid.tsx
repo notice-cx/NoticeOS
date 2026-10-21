@@ -1,7 +1,7 @@
 import { Fragment, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, CircleAlert, CircleDashed, Clock3, ServerCog } from "lucide-react";
-import { CONNECTION_LABELS, type SourceKind } from "@shared/connection-status";
+import { CONNECTION_LABELS, isUnusedSource, type SourceKind } from "@shared/connection-status";
 import { ageMs, formatAge } from "@shared/freshness";
 import { SegmentBar } from "@/components/SegmentBar";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
@@ -78,11 +78,11 @@ export interface HealthTally {
   unknown: number;
   notConnected: number;
   notUsing: number;
-  /** Every cell but the deliberately unused: the sources a subject is meant to have. */
-  inPlay: number;
+  /** Sources with a connection or an unresolved health reading. */
+  inUse: number;
 }
 
-type Counted = Exclude<keyof HealthTally, "inPlay">;
+type Counted = Exclude<keyof HealthTally, "inUse">;
 
 const TALLY_FIELD: Record<HealthState, Counted> = {
   working: "working",
@@ -94,26 +94,25 @@ const TALLY_FIELD: Record<HealthState, Counted> = {
   "not-using": "notUsing",
 };
 
-/** The one count of a set of rows: the header's bar and words, each row's
- * "5 of 7". */
+/** Inventory counts are retained, but unconnected and unused sources do not
+ * contribute to the health summary. */
 export function healthTally(rows: readonly Pick<HealthRow, "cells">[]): HealthTally {
-  const tally: HealthTally = { working: 0, collecting: 0, failing: 0, overdue: 0, unknown: 0, notConnected: 0, notUsing: 0, inPlay: 0 };
+  const tally: HealthTally = { working: 0, collecting: 0, failing: 0, overdue: 0, unknown: 0, notConnected: 0, notUsing: 0, inUse: 0 };
   for (const row of rows) {
     for (const cell of row.cells) {
       tally[TALLY_FIELD[cell.state]] += 1;
-      if (cell.state !== "not-using") tally.inPlay += 1;
+      if (!isUnusedSource(cell.state)) tally.inUse += 1;
     }
   }
   return tally;
 }
 
-/** Bar, legend and words share this order. Not using is a decision rather
- * than a source, so it is never tallied. */
-const TALLIED: readonly HealthState[] = ["working", "collecting", "failing", "overdue", "unknown", "not-connected"];
+/** Bar, legend and words describe source health, not catalog completeness. */
+const TALLIED: readonly HealthState[] = ["working", "collecting", "failing", "overdue", "unknown"];
 
 const stateWord = (state: HealthState) => CONNECTION_LABELS[state].toLowerCase();
 
-/** "31 working · 3 failing · 1 overdue · 9 not connected", zero counts left out. */
+/** "31 working · 3 failing · 1 overdue", zero counts left out. */
 export function healthTallyWords(tally: HealthTally): string {
   return TALLIED.filter((state) => tally[TALLY_FIELD[state]] > 0)
     .map((state) => `${tally[TALLY_FIELD[state]]} ${stateWord(state)}`)
@@ -491,22 +490,8 @@ function RowHead({ row, problems, at, tabbable, register, onFocusTarget }: RowHe
             {row.name}
           </span>
         )}
-        <span data-health-live className={cn("items-center gap-1.5", problems.length > 0 ? "hidden @2xl:flex" : "flex")}>
-          <span className="text-micro whitespace-nowrap tabular-nums text-muted-foreground">
-            {tally.inPlay === 0 ? (
-              "none in use"
-            ) : (
-              <>
-                {tally.working} of {tally.inPlay}
-                <span className="sr-only"> working</span>
-              </>
-            )}
-          </span>
-          {tally.inPlay > 0 ? (
-            <span aria-hidden className="h-1 w-8 overflow-hidden rounded-full bg-viz-track">
-              <span className="block h-full rounded-full bg-healthy" style={{ width: `${(tally.working / tally.inPlay) * 100}%` }} />
-            </span>
-          ) : null}
+        <span data-health-live className={cn("text-micro tabular-nums text-muted-foreground", problems.length > 0 ? "hidden @2xl:block" : "block")}>
+          {healthTallyWords(tally) || "No sources in use"}
         </span>
         {problems.length > 0 ? (
           <span data-health-row-problems className="flex min-w-0 flex-wrap gap-x-2 @2xl:hidden">
@@ -542,7 +527,7 @@ function Headline({ problems, tally }: { problems: readonly HealthProblem[]; tal
         </p>
       );
     }
-    if (tally.inPlay === 0) return null;
+    if (tally.inUse === 0) return null;
     return (
       <p data-health-headline="clear" className="m-0 flex items-center gap-1.5 text-sm text-muted-foreground">
         <Check className="size-4 text-healthy" strokeWidth={2.75} aria-hidden />
@@ -669,7 +654,7 @@ export function HealthGrid({ rows, columns, nowMs, title = "Data sources", actio
           </div>
           {action ? <div className="shrink-0">{action}</div> : null}
         </div>
-        {tally.inPlay > 0 ? (
+        {tally.inUse > 0 ? (
           <div className="grid gap-2">
             <SegmentBar
               ariaLabel={words}

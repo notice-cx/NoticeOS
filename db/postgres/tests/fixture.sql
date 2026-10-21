@@ -175,6 +175,10 @@ VALUES (:'ws', 'tower', E'{\n  "panels": []\n}\n', 1, '2026-09-01T00:00:00Z', 'c
 INSERT INTO noticeos.config_changes (workspace_id, document_key, ops, reason, actor, version_before, version_after, changed_at)
 VALUES (:'ws', 'tower', '[{"op":"replace","path":"/panels","value":[]}]', 'seed', 'config:seed', 0, 1, '2026-09-01T00:00:00Z');
 
+INSERT INTO noticeos.notification_outbox (workspace_id, subject, subject_ref, occurrence, connection_id, occurred_at, next_attempt_at)
+SELECT :'ws', 'data-source', provider, 'fixture-episode', connection_id, '2026-09-02T03:00:00Z', '2026-09-02T03:00:00Z'
+  FROM noticeos.integration_connections WHERE provider = 'dataforseo';
+
 INSERT INTO noticeos.notifications (workspace_id, channel, subject, subject_ref, occurrence, condition, sent_at)
 VALUES (:'ws', 'discord', 'alert', '1', '', 'error-flag', '2026-09-02T03:01:00Z');
 
