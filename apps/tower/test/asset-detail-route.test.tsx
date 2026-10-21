@@ -1767,8 +1767,8 @@ describe("AssetDetailRoute — the setup checklist", () => {
     await findByText(/^Data setup ·/);
     expect(container.querySelector("[data-setup-source]")).toBeNull();
     const step = container.querySelector('[data-setup-item="sources"]')!;
-    expect(step).toHaveTextContent("2 of 3 connected, off or not applicable");
-    expect(step).toHaveAttribute("data-setup-state", "pending");
+    expect(step).toHaveTextContent("1 connected");
+    expect(step).toHaveAttribute("data-setup-state", "done");
     expect(step).not.toHaveTextContent(/Configured|Working|Declined for now/u);
   });
 
@@ -1808,7 +1808,7 @@ describe("AssetDetailRoute — the setup checklist", () => {
     const setup = view.container.querySelector<HTMLElement>("[data-setup-checklist]")!;
     const sourceStep = setup.querySelector('[data-setup-item="sources"]')!;
     expect(sourceStep).toHaveAttribute("data-setup-state", "done");
-    expect(sourceStep).toHaveTextContent("1 of 1 connected, off or not applicable");
+    expect(sourceStep).toHaveTextContent("1 connected");
     expect(sourceStep).not.toHaveTextContent(/working|failing|healthy/iu);
     expect(setup.querySelector('[data-setup-item="first-report"]')).toHaveAttribute("data-setup-state", "done");
     expect(setup.querySelector('[data-setup-item="baseline"]')).toHaveAttribute("data-setup-state", "pending");

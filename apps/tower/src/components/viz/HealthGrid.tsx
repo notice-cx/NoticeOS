@@ -1,7 +1,7 @@
 import { Fragment, useId, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Check, CircleAlert, CircleDashed, Clock3, ServerCog } from "lucide-react";
-import { CONNECTION_LABELS, type SourceKind } from "@shared/connection-status";
+import { CONNECTION_LABELS, isUnusedSource, type SourceKind } from "@shared/connection-status";
 import { ageMs, formatAge } from "@shared/freshness";
 import { SegmentBar } from "@/components/SegmentBar";
 import { eyebrowClass } from "@/components/surface/SectionLabel";
@@ -101,7 +101,7 @@ export function healthTally(rows: readonly Pick<HealthRow, "cells">[]): HealthTa
   for (const row of rows) {
     for (const cell of row.cells) {
       tally[TALLY_FIELD[cell.state]] += 1;
-      if (cell.state !== "not-using" && cell.state !== "not-connected") tally.inUse += 1;
+      if (!isUnusedSource(cell.state)) tally.inUse += 1;
     }
   }
   return tally;
