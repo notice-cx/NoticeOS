@@ -22,10 +22,10 @@ import {
   type RuleConfig,
 } from '@noticeos/contract';
 import { noNightlyReportAssets } from '@noticeos/contract/configuration';
-import { javascriptInstant } from '@noticeos/postgres';
+import { javascriptInstant, type Transaction } from '@noticeos/postgres';
 import constants from '../../../config/constants.json';
 import { rollUpAlertDay } from './alert-daily.js';
-import { holdCondition, raiseAlertUnlessOpen, resolveOpen } from './alert-store.js';
+import { holdCondition, holdCountAlerts, raiseAlertUnlessOpen, resolveOpen } from './alert-store.js';
 import { readCollectorConfigs } from './config-store.js';
 import { cronRunSuccessValue, latestJobRuns } from './job-runs.js';
 import { readOsAssetId } from './os-asset.js';
@@ -65,10 +65,10 @@ export function ruleConfigFromConstants(stored?: unknown): RuleConfig {
  * cron fire: `POST /api/pulse` and the nightly pull's own ingest. An explicit
  * `config` still wins, so every suite states its own thresholds.
  */
-async function ruleConfigFor(env: Pick<IngestEnv, 'STORE'>, config?: RuleConfig): Promise<RuleConfig> {
+async function ruleConfigFor(tx: Transaction, config?: RuleConfig): Promise<RuleConfig> {
   if (config !== undefined) return config;
-  const { documents } = await readCollectorConfigs(env, ['config/constants.json']);
-  return ruleConfigFromConstants(documents['config/constants.json']);
+  const [row] = await tx.query<{ body: string }>("SELECT body::text AS body FROM noticeos.config_documents WHERE document_key = 'constants' FOR SHARE");
+  return ruleConfigFromConstants(row ? JSON.parse(row.body) : undefined);
 }
 
 const iso = (ms: number): string => new Date(ms).toISOString();
@@ -126,24 +126,25 @@ export async function writePulse(
   envelope: PulseEnvelope,
   ruleConfig?: RuleConfig,
 ): Promise<WritePulseResult> {
-  const config = await ruleConfigFor(env, ruleConfig);
   const receivedAt = iso(Date.now());
   const date = pulseDay(envelope.generatedAt);
 
-  // Centrally evaluate against eight matching periods (or aligned
-  // multi-day windows), never the asset-supplied flat avg7d. The cohort is
-  // days strictly before this report's own.
-  const seasonal = await assembleSeasonalInputs(env, envelope, config);
-  const verdicts = evaluatePulse(envelope, {
-    config,
-    baselineByMetric: seasonal.baselineByMetric,
-    windowObservedByMetric: seasonal.windowObservedByMetric,
-    requireHistoricalBaseline: true,
-  });
-  const central = firedFlags(verdicts);
-  const recoveredMetrics = new Set(verdicts.filter((v) => v.outcome === 'ok').map((v) => String(v.inputs.metric)));
   return env.STORE.write(async (tx) => {
+    await holdCountAlerts(tx, envelope.asset);
     await holdCondition(tx, envelope.asset, `report:${date}`);
+    const config = await ruleConfigFor(tx, ruleConfig);
+    // Centrally evaluate against eight matching periods (or aligned
+    // multi-day windows), never the asset-supplied flat avg7d. The cohort is
+    // days strictly before this report's own.
+    const seasonal = await assembleSeasonalInputs(tx, envelope, config);
+    const verdicts = evaluatePulse(envelope, {
+      config,
+      baselineByMetric: seasonal.baselineByMetric,
+      windowObservedByMetric: seasonal.windowObservedByMetric,
+      requireHistoricalBaseline: true,
+    });
+    const central = firedFlags(verdicts);
+    const recoveredMetrics = new Set(verdicts.filter((v) => v.outcome === 'ok').map((v) => String(v.inputs.metric)));
     const [report] = await tx.query<{ pulse_id: bigint; day_number: number }>(
       `WITH revision AS (
          SELECT coalesce(max(revision), 0) + 1 AS next FROM noticeos.pulses
@@ -337,13 +338,13 @@ export async function writePulse(
 /** Read only reports before the tested day. Provider reporting-timezone
  * settings do not change these asset-reported counters. */
 async function assembleSeasonalInputs(
-  env: Pick<IngestEnv, 'STORE'>,
+  tx: Transaction,
   envelope: PulseEnvelope,
   config: RuleConfig,
 ): Promise<SeasonalInputs> {
   const currentDate = pulseDay(envelope.generatedAt);
   const earliestDate = shiftDate(currentDate, -seasonalHistorySpanDays(config));
-  const priors = await readReportHistory(env, envelope.asset, earliestDate, currentDate);
+  const priors = await readReportHistoryIn(tx, envelope.asset, earliestDate, currentDate);
   return seasonalInputsFrom(parsePulseHistory(priors), envelope, config);
 }
 
@@ -358,15 +359,15 @@ export async function readReportHistory(
   from: string,
   before: string,
 ): Promise<{ date: string; envelope: string }[]> {
-  return env.STORE.read((tx) =>
-    tx.query<{ date: string; envelope: string }>(
-      `SELECT pulse_date AS date, envelope::text AS envelope
-         FROM noticeos.current_pulses
-        WHERE asset_id = $1 AND pulse_date >= $2::date AND pulse_date < $3::date
-        ORDER BY pulse_date ASC`,
-      [asset, from, before],
-    ),
-  );
+  return env.STORE.read((tx) => readReportHistoryIn(tx, asset, from, before));
+}
+
+function readReportHistoryIn(tx: Transaction, asset: string, from: string, before: string) {
+  return tx.query<{ date: string; envelope: string }>(
+    `SELECT pulse_date AS date, envelope::text AS envelope
+       FROM noticeos.current_pulses
+      WHERE asset_id = $1 AND pulse_date >= $2::date AND pulse_date < $3::date
+      ORDER BY pulse_date ASC`, [asset, from, before]);
 }
 
 /** Includes eight aligned windows and the weekday residual fits that can

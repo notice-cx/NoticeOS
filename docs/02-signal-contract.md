@@ -114,6 +114,47 @@ The future-observation interval includes residual and fitted-trend uncertainty
 Rolling validation trains only on observations before each tested window
 ([Forecasting: Principles and Practice](https://otexts.com/fpp3/tscv.html)).
 
+### Refresh count alerts from stored reports
+
+After a rule rollout, an operator can preview a refresh for one active asset:
+
+```sh
+pnpm os:refresh-anomalies -- --asset example.com
+```
+
+The preview reads the latest stored report, its historical comparisons, current
+settings and relevant alert decisions. It lists alerts to retire, preserve or
+create, and metrics with insufficient evidence. It makes no provider requests
+and writes nothing. The latest report must be no older than the report-age
+limit; historical dates are comparisons, never new current observations.
+
+Apply by repeating the command with `--apply` followed by the printed
+`applyToken`. The token expires after ten minutes. Apply rechecks the report,
+history, settings, evidence and operator decisions under a shared lock with
+report ingestion. A changed input or a snooze expiring during review requires
+a new preview. The token identifies the reviewed state; existing operator
+authentication authorizes the request.
+
+Apply retires only recognized count warnings and records replacements against
+the original report and generation time, with stored-report provenance.
+Acknowledged and resolved history, active snoozes, unsupported evidence,
+independent warnings and technical checks remain intact. Expired snoozes can
+be retired while their disposition history remains stored. Reports, arrival
+times, source health and notification scheduling remain unchanged. Merge,
+restart and update do not run this refresh.
+
+Each request allows at most 64 metrics and 200 candidate count-alert rows.
+Input rows are bounded to 64 KiB, report and alert collections to 2 MiB each,
+and the result to 512 KiB. Database statements and lock waits have five-second
+timeouts. Limits cause refusal, never a partial apply. Alert changes and the
+receipt commit together. Retrying an applied token returns its receipt without
+duplicating changes; receipts follow `job_runs` retention, and an expired token
+with no receipt cannot apply again. The standalone installation launcher also
+supports `noticeos refresh-anomalies --asset example.com`.
+
+Both the preview read and apply against an existing installation require
+specific operator approval under the production-access policy.
+
 ### Codebase report
 
 A second report an asset sends about itself: one measurement of its

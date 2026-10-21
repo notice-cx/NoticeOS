@@ -1,3 +1,4 @@
+import { anomalyRefreshArgs } from '../../scripts/anomaly-refresh-args.mjs';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -66,6 +67,7 @@ export function containerCommand(argv) {
   if (job === 'run-job' && rest.length === 1 && /^[0-9*/,\- ]{9,64}$/u.test(rest[0])) return ['scripts/os-up.mjs', '--tick', rest[0]];
   if (job === 'collect') { try { return ['scripts/signal-collect.mjs', ...collectJobArgs(rest)]; } catch { return null; } }
   if (job === 'capacity' && (rest.length === 0 || rest.length === 1 && rest[0] === '--json')) return ['scripts/os-capacity.mjs', ...rest];
+  if (job === 'refresh-anomalies') { try { anomalyRefreshArgs(rest); return ['scripts/anomaly-refresh.mjs', ...rest]; } catch { return null; } }
   if (job === 'mcp' && (rest.length === 0 || rest.length === 2 && rest[0] === '--actor')) return ['scripts/local-mcp.mjs', ...rest];
   if (job === 'bd' && rest.length > 0) return ['scripts/local-bd.mjs', ...rest];
   return null;
@@ -75,7 +77,7 @@ export async function main(argv = process.argv.slice(2), { environment = contain
   // `docker run --rm <image> launcher | sh -s -- setup` installs NoticeOS with Docker alone.
   if (argv.length === 1 && argv[0] === 'launcher') { out.write(fs.readFileSync(new URL('./noticeos', import.meta.url))); return 0; }
   const command = containerCommand(argv);
-  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>", collect --asset <id> [--families <a,b>], capacity [--json], mcp [--actor <name>], bd <arguments>, setup or seed-settings.\n'); return 2; }
+  if (command === null) { err.write('NoticeOS container refused: run it with no job, or launcher, backup, run-job "<cron>", collect --asset <id> [--families <a,b>], capacity [--json], refresh-anomalies --asset <id> [--apply <preview-token>], mcp [--actor <name>], bd <arguments>, setup or seed-settings.\n'); return 2; }
   let env;
   try {
     env = environment();

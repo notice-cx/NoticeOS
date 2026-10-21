@@ -139,6 +139,16 @@ test('a backup, one schedule or the capacity report runs inside the running app 
   await assert.rejects(stackControl('backup', selector, stopped), /pnpm os:start/u);
   assert.deepEqual(stopped.writes(), []);
 });
+
+test('stored anomaly refresh uses the selected app and refuses unbounded input before Docker', async () => {
+  const args = ['--asset', 'example.com'];
+  const own = fixture();
+  await stackControl('refresh-anomalies', selector, { ...own, args });
+  assert.deepEqual(own.writes(), [['exec','-T','noticeos','node','deploy/compose/entrypoint.mjs','refresh-anomalies',...args]]);
+  const refused = fixture();
+  await assert.rejects(stackControl('refresh-anomalies', selector, { ...refused, args: ['--all'] }), /Usage/);
+  assert.deepEqual(refused.calls, []);
+});
 test('one site\'s collection runs inside the running app with exactly the asset, families and window given, and nothing else', async () => {
   for (const args of [['--asset', 'example.com', '--families', 'posthog-inp-targets'], ['--asset', 'example.com'],
     ['--', '--asset', 'example.com', '--families', 'posthog-*', '--start', '2026-09-08', '--end', '2026-09-22'],
