@@ -96,12 +96,13 @@ async function seedSignupsHistory(dailyLast24h: number[]): Promise<void> {
   }
 }
 
-/** Seed the four matching weekdays required to arm central seasonal rules. */
+/** Seed complete history for the central prediction and its weekday variance fits. */
 async function seedEnvelopeWeekdays(
   asset: string,
   metrics: Record<string, EnvMetric>,
 ): Promise<void> {
-  for (const date of ['2026-06-07', '2026-06-14', '2026-06-21', '2026-06-28']) {
+  for (let back = 131; back >= 1; back--) {
+    const date = new Date(NOW - back * 86_400_000).toISOString().slice(0, 10);
     const generatedAt = `${date}T02:00:00.000Z`;
     const envelope = JSON.stringify({
       asset,
@@ -148,9 +149,9 @@ async function pullFailureFlag(
 
 describe('pull adapter — successful pull', () => {
   it('writes a pulse row, maps the counters, and runs the central rules', async () => {
-    // Four prior Sundays at 10 with a 0-signups Sunday => the seasonal central
+    // Eight prior periods at 50 with a zero-signups Sunday => the central
     // rule must fire, proving the pull went through the shared write path.
-    await seedSignupsHistory(Array.from({ length: 28 }, () => 10));
+    await seedSignupsHistory(Array.from({ length: 131 }, () => 50));
 
     const result = await runPullAdapter(env, {
       entries: [MEADOW_ENTRY],
@@ -175,8 +176,8 @@ describe('pull adapter — successful pull', () => {
     expect(central).toMatchObject({ metric: 'signups', severity: 'warn' });
     expect(JSON.parse(central!.rule_inputs!)).toMatchObject({
       observed: 0,
-      baselinePerDay: 10,
-      baselineSource: 'same-weekday-4w',
+      baselinePerDay: 50,
+      baselineSource: 'same-weekday-8-periods',
     });
   });
 
@@ -611,7 +612,7 @@ describe('pull adapter — isolation', () => {
 describe('pull adapter — envelope format', () => {
   it('writes the pulse verbatim, runs the central rules, and preserves the source avg7d', async () => {
     await seedEnvelopeWeekdays('northwind.example', {
-      affiliateClicks: { last24h: 12, avg7d: 100, total: 3300 },
+      affiliateClicks: { last24h: 50, avg7d: 100, total: 3300 },
       receiptsHosted: { last24h: 5, avg7d: 100, total: 880 },
       receiptVisits: { last24h: 40, avg7d: 100, total: 11900 },
       apiRequests: { last24h: 800, avg7d: 100, total: 249000 },
@@ -636,14 +637,14 @@ describe('pull adapter — envelope format', () => {
     expect(env0?.metrics.affiliateClicks).toMatchObject({ last24h: 0, avg7d: 12.5, total: 3400 });
     expect(env0?.metrics.apiRequests).toMatchObject({ last24h: 800, avg7d: 790.4 });
 
-    // central rule uses the stored matching-Sunday baseline (0 vs 12), not the
+    // Central rule uses the stored matching-Sunday baseline (0 vs 50), not the
     // source's point-in-time avg7d (12.5).
     const [central] = await flagRows(`asset_id = 'northwind.example' AND rule_id = 'flow-poisson-low'`);
     expect(central).toMatchObject({ metric: 'affiliateClicks', severity: 'warn' });
     expect(JSON.parse(central!.rule_inputs!)).toMatchObject({
       observed: 0,
-      baselinePerDay: 12,
-      baselineSource: 'same-weekday-4w',
+      baselinePerDay: 50,
+      baselineSource: 'same-weekday-8-periods',
     });
   });
 

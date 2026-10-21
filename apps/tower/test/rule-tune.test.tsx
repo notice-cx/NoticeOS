@@ -207,6 +207,20 @@ describe("BacktestStrip", () => {
     expect(shaded[29]).toBe(false);
     expect(shaded[22]).toBe(true);
   });
+
+  it("distinguishes weak evidence from missing observations and shows the tested window", () => {
+    const result = backtest(() => ({ state: "unjudged" }));
+    result.days[0]!.reason = "insufficient-predictive-evidence";
+    result.days[0]!.comparisons = [{ metric: "signups", observed: 0, windowHours: 72, lower: 0, upper: 90,
+      comparisonDates: [], comparisonCounts: Array(8).fill(12) }];
+    result.days[1]!.reason = "missing-observation";
+    const { container } = render(<BacktestStrip backtest={result} />);
+    expect(container.querySelector('[data-backtest-note="unjudged"]')).toHaveTextContent("Missing counts prevent evaluation");
+    const cells = [...container.querySelectorAll("[data-backtest-day]")];
+    expect(cells[0]!.getAttribute("title")).toContain("history is too variable or sparse");
+    expect(cells[0]!.getAttribute("title")).toContain("0 in 3 days; predicted 0–90; 8 matching periods");
+    expect(cells[1]!.getAttribute("title")).toContain("report count is missing");
+  });
 });
 
 describe("TuneRuleAction", () => {

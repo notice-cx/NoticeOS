@@ -3,10 +3,14 @@
 // self-pulse.
 
 import {
+  COUNT_HISTORY_PERIODS,
+  countHistorySpanDays,
+  countWindowsFrom,
   DEFAULT_RULE_CONFIG,
   evaluatePulse,
   expectsNightlyReport,
   firedFlags,
+  isLegacyEnvelopeCountWarning,
   MAX_WINDOW_DAYS_LIMIT,
   PulseEnvelope,
   REPORT_FRESHNESS_RULE_ID,
@@ -16,7 +20,6 @@ import {
   type MetricBaseline,
   type ReportingState,
   type RuleConfig,
-  zeroCanFire,
 } from '@noticeos/contract';
 import { noNightlyReportAssets } from '@noticeos/contract/configuration';
 import { javascriptInstant } from '@noticeos/postgres';
@@ -32,8 +35,8 @@ import { shiftUtcDay, utcDay, utcDayStartMs } from './shared.js';
 export const FRESHNESS_RULE_ID = REPORT_FRESHNESS_RULE_ID;
 /** rule id stamped on flags exploded out of an asset's own envelope. */
 export const ASSET_DECLARED_RULE_ID = 'asset-declared';
-/** A full four same-weekday observations before flow alerts arm. */
-export const SEASONAL_BASELINE_WEEKS = 4;
+/** Complete comparable periods required by the central count model. */
+export const SEASONAL_BASELINE_PERIODS = COUNT_HISTORY_PERIODS;
 
 /**
  * The central flag-rule config. `stored` is the document the store holds, or
@@ -127,28 +130,18 @@ export async function writePulse(
   const receivedAt = iso(Date.now());
   const date = pulseDay(envelope.generatedAt);
 
-  // Centrally evaluate against four matching weekdays (or four aligned
+  // Centrally evaluate against eight matching periods (or aligned
   // multi-day windows), never the asset-supplied flat avg7d. The cohort is
   // days strictly before this report's own.
   const seasonal = await assembleSeasonalInputs(env, envelope, config);
-  const central = firedFlags(
-    evaluatePulse(envelope, {
-      config,
-      baselineByMetric: seasonal.baselineByMetric,
-      windowObservedByMetric: seasonal.windowObservedByMetric,
-      requireHistoricalBaseline: true,
-    }),
-  );
-  // Which metrics are still firing tonight: the close-then-reinsert pattern
-  // below is unconditional, and a snooze has to tell "recovered" from "still
-  // broken".
-  const firingFlowMetrics = new Set(
-    central
-      .filter((v) => v.ruleId === 'flow-poisson-low' || v.ruleId === 'flow-lowvol-window')
-      .map((v) => v.flag?.metric)
-      .filter((metric): metric is string => typeof metric === 'string'),
-  );
-
+  const verdicts = evaluatePulse(envelope, {
+    config,
+    baselineByMetric: seasonal.baselineByMetric,
+    windowObservedByMetric: seasonal.windowObservedByMetric,
+    requireHistoricalBaseline: true,
+  });
+  const central = firedFlags(verdicts);
+  const recoveredMetrics = new Set(verdicts.filter((v) => v.outcome === 'ok').map((v) => String(v.inputs.metric)));
   return env.STORE.write(async (tx) => {
     await holdCondition(tx, envelope.asset, `report:${date}`);
     const [report] = await tx.query<{ pulse_id: bigint; day_number: number }>(
@@ -210,7 +203,7 @@ export async function writePulse(
               JOIN noticeos.pulses p ON p.workspace_id = f.workspace_id AND p.pulse_id = f.pulse_id
              WHERE p.asset_id = $2 AND p.pulse_date = $12::date
                AND f.replaced_by_pulse_id IS NULL
-               AND f.rule_id = $9
+               AND (f.rule_id = $9 OR ($9 IN ('flow-poisson-low','flow-lowvol-window') AND f.rule_id IN ('flow-poisson-low','flow-lowvol-window')))
                AND COALESCE(f.metric, '') = COALESCE($7, '')
                AND ($11::boolean = false OR COALESCE(f.message, '') = COALESCE($8, ''))
           )
@@ -223,7 +216,7 @@ export async function writePulse(
             -- asset-supplied generatedAt.
             SELECT 1 FROM noticeos.flags
              WHERE asset_id = $2
-               AND rule_id = $9
+               AND (rule_id = $9 OR ($9 IN ('flow-poisson-low','flow-lowvol-window') AND rule_id IN ('flow-poisson-low','flow-lowvol-window')))
                AND COALESCE(metric, '') = COALESCE($7, '')
                AND resolved_at IS NULL
                AND disposition = 'snooze'
@@ -251,6 +244,7 @@ export async function writePulse(
     // their own, so we stamp `asset-declared` and preserve the raw flag as inputs.
     let insertedEnvelopeFlags = 0;
     for (const f of envelope.flags ?? []) {
+      if (isLegacyEnvelopeCountWarning(f, envelope)) continue;
       insertedEnvelopeFlags += await insertFlag(
         envelope.generatedAt,
         f.severity,
@@ -267,6 +261,33 @@ export async function writePulse(
     // current one is inserted, so one recovered Saturday cannot leave the
     // property yellow forever.
     let resolvedAnomalies = 0;
+    const priorDeclared = await tx.query<{ number: number; metric: string; inputs: string; envelope: string; disposition: string | null; snoozed: boolean }>(
+      `SELECT f.flag_number::int AS number, f.metric, f.rule_inputs::text AS inputs,
+              p.envelope::text AS envelope, f.disposition,
+              COALESCE(f.snooze_until > $3::timestamptz, false) AS snoozed
+         FROM noticeos.flags f
+         JOIN noticeos.pulses p ON p.workspace_id = f.workspace_id AND p.asset_id = f.asset_id AND p.pulse_id = f.pulse_id
+        WHERE f.asset_id = $1 AND f.rule_id = 'asset-declared'
+          AND f.metric = ANY($2::text[]) AND f.resolved_at IS NULL
+          AND f.replaced_by_pulse_id IS NULL AND (f.disposition IS NULL OR f.disposition = 'snooze')`,
+      [envelope.asset, envelope.capabilities.filter((metric) => metric in envelope.metrics), receivedAt],
+    );
+    const recognized = priorDeclared.filter((row) => {
+      try {
+        const inputs = JSON.parse(row.inputs) as Record<string, unknown>;
+        const original = PulseEnvelope.safeParse(JSON.parse(row.envelope));
+        return inputs.source === 'envelope' && inputs.metric === row.metric && original.success
+          && isLegacyEnvelopeCountWarning(inputs, original.data);
+      }
+      catch { return false; }
+    });
+    const legacySnoozes = new Set(recognized.filter((row) => row.disposition === 'snooze' && row.snoozed).map((row) => row.metric));
+    const superseded = recognized.filter((row) => row.disposition === null || !row.snoozed || recoveredMetrics.has(row.metric)).map((row) => row.number);
+    if (superseded.length > 0) resolvedAnomalies += await tx.execute(
+      `UPDATE noticeos.flags SET resolved_at = $1::timestamptz
+        WHERE asset_id = $2 AND flag_number = ANY($3::bigint[]) AND resolved_at IS NULL AND (disposition IS NULL OR disposition = 'snooze')`,
+      [receivedAt, envelope.asset, superseded],
+    );
     for (const metric of Object.keys(envelope.metrics)) {
       resolvedAnomalies += await tx.execute(
         // A snoozed flow alert is closed by its own recovery, and only by that:
@@ -279,13 +300,14 @@ export async function writePulse(
           WHERE asset_id = $2 AND metric = $3
             AND rule_id IN ('flow-poisson-low','flow-lowvol-window')
             AND resolved_at IS NULL AND replaced_by_pulse_id IS NULL
-            AND (disposition IS NULL OR ($4::boolean = false AND disposition = 'snooze'))`,
-        [receivedAt, envelope.asset, metric, firingFlowMetrics.has(metric)],
+            AND (disposition IS NULL OR ($4::boolean = true AND disposition = 'snooze'))`,
+        [receivedAt, envelope.asset, metric, recoveredMetrics.has(metric)],
       );
     }
     let insertedCentralFlags = 0;
     for (const v of central) {
       const flag = v.flag!;
+      if (legacySnoozes.has(flag.metric)) continue;
       insertedCentralFlags += await insertFlag(
         receivedAt,
         flag.severity,
@@ -312,20 +334,8 @@ export async function writePulse(
   });
 }
 
-/**
- * Build a seasonality-aware baseline from the four matching weekdays before
- * the current report. A metric busy enough for a zero day to fire compares
- * day-to-day at a seven-day offset; a quieter one compares its current
- * multi-day window with four equivalently aligned windows. Any missing cohort
- * keeps that metric quiet.
- *
- * A day a reporting-timezone change distorted stays in this cohort: it is
- * built from an asset's own nightly self-report, which a provider property's
- * timezone does not touch, and the cohort requires all four weekdays, so
- * dropping one silences the metric for four weeks. A rule that reads a
- * provider-bucketed daily series must drop those days (`distortedDays()` in
- * `time-zone-change.ts`).
- */
+/** Read only reports before the tested day. Provider reporting-timezone
+ * settings do not change these asset-reported counters. */
 async function assembleSeasonalInputs(
   env: Pick<IngestEnv, 'STORE'>,
   envelope: PulseEnvelope,
@@ -359,18 +369,10 @@ export async function readReportHistory(
   );
 }
 
-/** What {@link seasonalInputsFrom} needs to see behind a pulse: the deepest
- * cohort it reads is the oldest of the four windows of the longest length. */
+/** Includes eight aligned windows and the weekday residual fits that can
+ * widen their prediction interval. */
 export function seasonalHistorySpanDays(config: RuleConfig): number {
-  const days = Math.max(1, config.maxWindowDays);
-  return SEASONAL_BASELINE_WEEKS * 7 * cohortSpacingWeeks(days) + days - 1;
-}
-
-/** Weeks between the ends of the four earlier windows: whole weeks keep each
- * on the current day's weekday, and at least `days` apart keeps them from
- * overlapping one another or the window being judged. */
-function cohortSpacingWeeks(days: number): number {
-  return Math.ceil(days / 7);
+  return countHistorySpanDays(Math.max(1, config.maxWindowDays));
 }
 
 /** Stored `pulses` rows → the date-keyed history the baseline reads. An
@@ -413,51 +415,26 @@ export function seasonalInputsFrom(
 
   for (const [metric, current] of Object.entries(envelope.metrics)) {
     const daily = (date: string) => history.get(date)?.metrics[metric]?.last24h;
-    const window = seasonalWindow(daily, current.last24h, currentDate, config);
-    if (!window) continue;
-    baselineByMetric[metric] = {
-      perDay: window.perDay,
-      source: 'same-weekday-4w',
-      sampleSize: SEASONAL_BASELINE_WEEKS,
-      comparisonDates: window.comparisonDates,
-      windowHours: window.days * 24,
-    };
-    if (window.days > 1) windowObservedByMetric[metric] = window.observed;
+    const windows = countWindowsFrom((back) => daily(shiftDate(currentDate, -back)), config.maxWindowDays, config.alpha);
+    const candidates: MetricBaseline[] = windows.map((window) => {
+      const earlier = windowTotal(daily, shiftDate(currentDate, -1), window.days - 1);
+      return {
+        perDay: window.forecast.historicalMean / window.days,
+        source: 'same-weekday-8-periods', forecast: window.forecast,
+        eligible: window.eligible, pooledGroups: window.pooledGroups,
+        sampleSize: SEASONAL_BASELINE_PERIODS,
+        comparisonDates: window.endOffsets.map((back) => shiftDate(currentDate, -back)),
+        windowHours: window.days * 24,
+        ...(earlier === undefined ? {} : { observed: current.last24h + earlier }),
+      };
+    });
+    const preferred = candidates.find((candidate) => candidate.eligible) ?? candidates.at(-1);
+    if (!preferred) continue;
+    baselineByMetric[metric] = { ...preferred, candidates };
+    if (preferred.windowHours > 24 && preferred.observed !== undefined) windowObservedByMetric[metric] = preferred.observed;
   }
 
   return { baselineByMetric, windowObservedByMetric };
-}
-
-/**
- * The shortest whole-day window, at most `maxWindowDays`, whose four earlier
- * windows held enough events that a run of zeros across it would fire, with
- * their per-day mean and the count in the window ending today. When even the
- * longest window is too short it is returned all the same, and the rule
- * records the metric as too quiet to judge. Undefined when a day it needs has
- * no report.
- */
-function seasonalWindow(
-  daily: (date: string) => number | undefined,
-  today: number,
-  currentDate: string,
-  config: RuleConfig,
-): { days: number; perDay: number; comparisonDates: string[]; observed: number } | undefined {
-  const longest = Math.max(1, config.maxWindowDays);
-  for (let days = 1; days <= longest; days++) {
-    const spacing = cohortSpacingWeeks(days) * 7;
-    const comparisonDates = Array.from(
-      { length: SEASONAL_BASELINE_WEEKS },
-      (_, index) => shiftDate(currentDate, -(index + 1) * spacing),
-    );
-    const totals = comparisonDates.map((end) => windowTotal(daily, end, days));
-    if (totals.some((total) => total === undefined)) return undefined;
-    const expected = mean(totals as number[]);
-    if (days < longest && !zeroCanFire(expected, config)) continue;
-    const earlier = windowTotal(daily, shiftDate(currentDate, -1), days - 1);
-    if (earlier === undefined) return undefined;
-    return { days, perDay: expected / days, comparisonDates, observed: today + earlier };
-  }
-  return undefined;
 }
 
 /** The sum of `days` daily counts ending on `end`, or undefined when one is
@@ -470,14 +447,10 @@ function windowTotal(
   let total = 0;
   for (let offset = 0; offset < days; offset++) {
     const value = daily(shiftDate(end, -offset));
-    if (value === undefined) return undefined;
+    if (value === undefined || !Number.isSafeInteger(value) || value < 0) return undefined;
     total += value;
   }
-  return total;
-}
-
-function mean(values: number[]): number {
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+  return Number.isSafeInteger(total) ? total : undefined;
 }
 
 /** One `YYYY-MM-DD` day moved by whole days, on the UTC grain the `pulses`

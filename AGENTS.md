@@ -116,10 +116,12 @@ present.
   the block exists and does not repeat what it contains.
 - **Flags carry severity and kind as separate fields** (doc 02):
   `info|warn|error` × `anomaly|opportunity|milestone`; milestone kind is always
-  info severity. Volume-aware rules only: flag when
-  `P(observed | Poisson(baseline × days)) < α` over the shortest whole-day
-  window, at most `max_window_days`, in which a run of zeros could fire
-  (defaults in `config/constants.json`).
+  info severity. Central business-count rules require eight complete aligned
+  historical periods and a decline outside a variability- and trend-aware
+  future-observation interval, with an additional count-noise filter. Test only
+  complete windows through `max_window_days`; missing counts stay unknown and
+  true zeros stay zero. Persist model-versioned evidence. Technical outage and
+  freshness checks retain their separate rules (doc 02).
 - **Completion is evidence, not prose.** Every claim carries a machine-checkable
   pointer: a commit hash, a gate command, an artifact path, a URL. Anything
   deferred is a task in the hub with an owner and a trigger. Deciding not to

@@ -1,3 +1,4 @@
+import { parseLegacyCountWarning } from "@noticeos/contract";
 // Alert language — the one place a stored alert becomes a sentence an operator
 // can act on. The store stays factual (`message` and `rule_inputs` are the
 // rule's own evidence, never rewritten); translation happens here, at read
@@ -244,8 +245,37 @@ function weekdayBaseline(
   };
 }
 
+function predictiveCountLanguage(facts: AlertFacts): AlertLanguage | null {
+  const inputs = facts.ruleInputs ?? {};
+  const prediction = inputs.prediction;
+  const unavailable = { headline: rawFallback(facts), evidence: [] };
+  if (!("prediction" in inputs)) return null;
+  if (!prediction || typeof prediction !== "object" || Array.isArray(prediction)) return unavailable;
+  const p = prediction as Record<string, unknown>;
+  if (p.model !== "weekday-log-predictive-v1") return unavailable;
+  const observed = num(inputs.windowObserved) ?? num(inputs.observed);
+  const low = num(p.lower), high = num(p.upper);
+  if (observed === null || observed < 0 || low === null || low < 0 || high === null || high < low) return unavailable;
+  const hours = num(inputs.windowHours) ?? 24;
+  if (hours <= 0) return unavailable;
+  const window = windowLabel(hours);
+  const counts = Array.isArray(p.comparisonCounts) ? p.comparisonCounts.filter((v): v is number => typeof v === "number" && Number.isFinite(v)) : [];
+  const dates = Array.isArray(inputs.baselineComparisonDates) ? inputs.baselineComparisonDates.filter((v): v is string => typeof v === "string") : [];
+  return {
+    headline: `${metricName(str(inputs.metric) ?? facts.metric)} below expected range — ${count(observed)} in ${window}`,
+    evidence: [
+      { polarity: "supporting", source: "Observed", detail: `${count(observed)} in ${window}`, at: null },
+      { polarity: "supporting", source: "Predicted range", detail: `${count(low)}–${count(high)} in ${window} · includes variability and trend uncertainty`, at: null },
+      { polarity: "supporting", source: "Comparable periods", detail: counts.map((value, i) => `${dates[i] ?? `Period ${i + 1}`}: ${count(value)}`).join(" · "), at: null },
+      { polarity: "supporting", source: "Comparison", detail: "Matching weekdays · recent trend · stored report counts", at: null },
+    ],
+  };
+}
+
 /** `flow-poisson-low` — the single-day drop at healthy volume. */
 function poissonLow(facts: AlertFacts): AlertLanguage {
+  const prediction = predictiveCountLanguage(facts);
+  if (prediction) return prediction;
   const i = facts.ruleInputs ?? {};
   const metric = str(i.metric) ?? facts.metric;
   const observed = num(i.observed);
@@ -283,6 +313,8 @@ function poissonLow(facts: AlertFacts): AlertLanguage {
 /** `flow-lowvol-window` — the multi-day window the rule widens to when daily
  * volume is too thin for a single day to mean anything. */
 function lowVolumeWindow(facts: AlertFacts): AlertLanguage {
+  const prediction = predictiveCountLanguage(facts);
+  if (prediction) return prediction;
   const i = facts.ruleInputs ?? {};
   const metric = str(i.metric) ?? facts.metric;
   const observed = num(i.windowObserved);
@@ -541,12 +573,6 @@ function pullFailed(facts: AlertFacts): AlertLanguage {
   return { headline, hint: pullFailureHint(status), evidence };
 }
 
-/** A site-side detector signature some sites emit as an asset-declared
- * message. The read side recognizes exactly this bounded grammar and moves its
- * arithmetic into evidence; anything else remains the asset's own words. */
-const DECLARED_POISSON_24H =
-  /^last24h\s+([0-9]+(?:\.[0-9]+)?)\s+vs\s+avg7d\s+([0-9]+(?:\.[0-9]+)?)\s+\(rule\s+poisson-24h,\s*P<=([0-9.eE+-]+)\)$/i;
-
 function declaredProbability(p: number): string {
   const pct = p * 100;
   return pct > 0 && pct < 0.01 ? "less than 0.01%" : percent(p);
@@ -557,11 +583,9 @@ function declaredProbability(p: number): string {
 function assetDeclared(facts: AlertFacts): AlertLanguage {
   const inputs = facts.ruleInputs ?? {};
   const msg = str(inputs.msg)?.trim() ?? facts.message?.trim();
-  const match = msg?.match(DECLARED_POISSON_24H);
-  if (match) {
-    const observed = Number(match[1]);
-    const baseline = Number(match[2]);
-    const probability = Number(match[3]);
+  const match = parseLegacyCountWarning(msg);
+  if (match?.windowHours === 24) {
+    const { observed, baseline, probability } = match;
     const metric = str(inputs.metric) ?? facts.metric;
     if (
       Number.isFinite(observed) &&
@@ -589,7 +613,7 @@ function assetDeclared(facts: AlertFacts): AlertLanguage {
           {
             polarity: "supporting",
             source: "Site's own rule · poisson-24h",
-            detail: `P≤${match[3]} (${declaredProbability(probability)})`,
+            detail: `P≤${probability} (${declaredProbability(probability)})`,
             at: null,
           },
         ],

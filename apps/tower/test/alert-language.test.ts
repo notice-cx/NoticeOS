@@ -1091,3 +1091,24 @@ describe("changesLabel", () => {
     expect(changesLabel([], FIRED)).toBeNull();
   });
 });
+
+
+describe("versioned count predictions", () => {
+  const facts: AlertFacts = { ruleId: "flow-lowvol-window", metric: "signups", message: "Stored count comparison",
+    ruleInputs: { metric: "signups", windowObserved: 3, windowHours: 72, baselinePerDay: 11, alpha: 0.01,
+      baselineComparisonDates: ["2026-06-28", "2026-06-21"], prediction: { model: "weekday-log-predictive-v1", lower: 6, upper: 120, comparisonCounts: [30, 34] } } };
+  it("shows the tested count, actual prediction and comparison counts", () => {
+    const result = translateAlert(facts);
+    expect(result.headline).toBe("Signups below expected range — 3 in 3 days");
+    expect(result.evidence.find((r) => r.source === "Predicted range")!.detail).toContain("6–120");
+    expect(result.evidence.find((r) => r.source === "Comparable periods")!.detail).toContain("2026-06-28: 30");
+    expect(JSON.stringify(result)).not.toMatch(/Chance if nothing changed|Confirmed/);
+  });
+  it("does not interpret unknown or malformed prediction evidence as legacy Poisson evidence", () => {
+    for (const prediction of [null, "future", { model: "future" }, { model: "weekday-log-predictive-v1", lower: 10, upper: 1 }]) {
+      const result = translateAlert({ ...facts, ruleInputs: { ...facts.ruleInputs, prediction } });
+      expect(result.headline).toBe("Signups — Stored count comparison");
+      expect(result.evidence).toEqual([]);
+    }
+  });
+});

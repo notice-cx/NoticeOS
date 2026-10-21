@@ -109,6 +109,21 @@ function windowWords(hours: number): string {
  */
 export function alertNormal(facts: Pick<AttentionItem, "ruleId" | "ruleInputs" | "metric">): AlertNormal | null {
   const inputs = facts.ruleInputs ?? {};
+  if ("prediction" in inputs) {
+    if (!inputs.prediction || typeof inputs.prediction !== "object" || Array.isArray(inputs.prediction)) return null;
+    const prediction = inputs.prediction as Record<string, unknown>;
+    if (prediction.model === "weekday-log-predictive-v1") {
+      const value = num(inputs.windowObserved) ?? num(inputs.observed);
+      const low = num(prediction.lower), high = num(prediction.upper), typical = num(prediction.typical);
+      if (value === null || value < 0 || low === null || high === null || typical === null || typical < 0 || low < 0 || high < low) return null;
+      const hours = num(inputs.windowHours) ?? 24;
+      if (hours <= 0) return null;
+      return { value, low, high, label: `${metricWords(inputs, facts.metric)} in ${windowWords(hours)}`,
+        unit: `in ${windowWords(hours)}`, bad: "below", level: { value: typical, label: `trend reference ${Math.round(typical).toLocaleString("en-US")}` } };
+    }
+    // A future prediction model cannot be interpreted with a legacy Poisson band.
+    return null;
+  }
   const poisson = poissonReading(facts.ruleId, inputs);
   if (poisson) {
     const { low, high } = poissonNormalRange(poisson.lambda, poisson.alpha);

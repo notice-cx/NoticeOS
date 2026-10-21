@@ -1,7 +1,7 @@
 /**
  * Replay one alert rule over the stored pulses: how often would it have fired
  * in the last 30 days with these settings? It lives here because the baseline
- * does: the nightly lane judges a pulse against four matching weekdays from the
+ * does: the nightly lane judges a pulse against eight aligned periods from the
  * `pulses` table (`seasonalInputsFrom`), and a preview computed against a flat
  * `avg7d` would look the same and mean something else. Read-only: the settings
  * that arrive are candidates. One wide read spans the whole horizon and
@@ -109,7 +109,7 @@ export async function backtestRule(
   const metric = input.metric ?? null;
   const lastDay = input.through ?? pulseDay(new Date().toISOString());
   const firstDay = shiftDate(lastDay, -(RULE_BACKTEST_WINDOW_DAYS - 1));
-  // The oldest day in the window still needs its own four weeks behind it.
+  // The oldest day in the window still needs its own complete training history behind it.
   const readFrom = shiftDate(firstDay, -seasonalHistorySpanDays(config));
 
   // The nightly lane's own read (`readReportHistory`), through the window's
@@ -174,6 +174,14 @@ function replayDay(
     windowObservedByMetric: seasonal.windowObservedByMetric,
     requireHistoricalBaseline: true,
   }).filter((verdict) => metric === null || verdictMetric(verdict) === metric);
+  const comparisons: NonNullable<RuleBacktestDay['comparisons']> = verdicts.flatMap((verdict) => {
+    const inputs = verdict.inputs;
+    const prediction = inputs.prediction as { lower: number; upper: number; comparisonCounts: number[] } | undefined;
+    return prediction ? [{ metric: String(inputs.metric), windowHours: Number(inputs.windowHours),
+      observed: typeof inputs.windowObserved === 'number' ? inputs.windowObserved : null,
+      lower: prediction.lower, upper: prediction.upper, comparisonDates: inputs.baselineComparisonDates as string[],
+      comparisonCounts: prediction.comparisonCounts }] : [];
+  });
 
   const firings = verdicts
     .filter((verdict) => verdict.outcome === 'fired' && verdict.ruleId === ruleId)
@@ -181,7 +189,7 @@ function replayDay(
       metric: String(verdict.inputs.metric ?? ''),
       severity: verdict.flag!.severity,
     }));
-  if (firings.length > 0) return { date, state: 'fired', firings, stored };
+  if (firings.length > 0) return { date, state: 'fired', firings, comparisons, stored };
 
   // "It ran and stayed silent" and "it never ran" are different facts.
   // `flow-seasonal-baseline` is the lane standing a metric down for want of a
@@ -189,7 +197,7 @@ function replayDay(
   const ran = verdicts.some(
     (verdict) => verdict.ruleId === ruleId && verdict.outcome === 'ok',
   );
-  if (ran) return { date, state: 'quiet', firings: [], stored };
+  if (ran) return { date, state: 'quiet', firings: [], comparisons, stored };
 
   const noBaseline = verdicts.some(
     (verdict) => verdict.ruleId === SEASONAL_BASELINE_RULE_ID,
@@ -198,7 +206,11 @@ function replayDay(
     date,
     state: 'unjudged',
     firings: [],
-    reason: noBaseline ? 'no-baseline' : 'out-of-regime',
+    reason: noBaseline ? 'no-baseline'
+      : verdicts.some((v) => v.inputs.reason === 'missing-observation') ? 'missing-observation'
+      : verdicts.some((v) => v.inputs.reason === 'insufficient-predictive-evidence') ? 'insufficient-predictive-evidence'
+      : 'out-of-regime',
+    comparisons,
     stored,
   };
 }
