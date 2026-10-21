@@ -26,6 +26,8 @@ export interface BoardTask extends WorkItem {
   /** The asset id of the project this row was read from. */
   project: string;
   labels: string[];
+  /** Work classification for filters; stored status remains available to detail views. */
+  workStatus?: string;
   /** Claimable now — `bd ready`'s blocker-aware answer, never re-derived. */
   ready: boolean;
   awaitType: string | null;
@@ -41,6 +43,7 @@ export interface BoardTask extends WorkItem {
  * where the read that wrote it did not measure it — a different fact from zero,
  * and the strip says so rather than quietly summing it as one. */
 interface ProjectStats {
+  /** Not-started work, including the blocked subset. */
   open: number;
   urgent: number | null;
   inProgress: number;
@@ -163,6 +166,24 @@ export function snapshotRows(project: WorkProject): BoardTask[] {
 
 const blocks = (edge: { type: string }) => TASK_BLOCKING_DEPENDENCIES.includes(edge.type);
 
+/** Approvals and containers remain addressable, but are not completed work. */
+function isWork(task: BoardTask): boolean {
+  return task.issueType !== "epic" && !isGate(task);
+}
+
+/** In-flight, parked and closed work keep their status. Only not-started work
+ * joins Blocked; a saved blocked list remains evidence when links are absent. */
+function withWorkStatus(
+  rows: readonly BoardTask[],
+  blockedIds: ReadonlySet<string> = new Set(),
+  statuses: ReadonlyMap<string, string> = new Map(rows.map(task => [task.id, task.status])),
+): BoardTask[] {
+  return rows.map(task => ({ ...task, workStatus: task.status === "open" && (
+    blockedIds.has(task.id) || task.dependencies?.some(edge => blocks(edge)
+      && (statuses.get(edge.id) ?? edge.status) !== "closed")
+  ) ? "blocked" : task.status }));
+}
+
 /**
  * What answering each row releases: the open tasks among `rows` it holds whose
  * every other blocker is known to be closed. A row whose read recorded no links
@@ -226,10 +247,9 @@ function touchedAt(task: BoardTask): number {
  * One project's rows and counts, from the live read if it answered and from the
  * photograph otherwise.
  *
- * The counts are computed from whichever rows the board renders, so the strip
- * can never disagree with the table under it: a live close removes the row AND
- * decrements the headline in the same paint. The live read carries ALL closes
- * in its stated date window; the snapshot's capped rows are fallback samples.
+ * Live work counts come from complete rows in the read's stated date window.
+ * Snapshot counts remain authoritative: its capped rows are fallback samples.
+ * Open includes blocked work in both reads; in-progress work is separate.
  */
 function buildProject(
   project: WorkProject,
@@ -246,7 +266,7 @@ function buildProject(
     laneError,
   };
   if (live === null) {
-    const tasks = withDecisionImpact(snapshotRows(project));
+    const tasks = withDecisionImpact(withWorkStatus(snapshotRows(project), new Set(project.blocked?.map(item => item.id))));
     const byId = new Map(tasks.map((task) => [task.id, task]));
     const { open, highPriority, inProgress, blocked, closedRecent } = project.counts;
     return {
@@ -263,13 +283,14 @@ function buildProject(
       waiting: (project.ok ? project.waiting : []).flatMap((item) => byId.get(item.id) ?? []),
       totals: {
         waiting: project.ok ? project.counts.waiting ?? project.waiting.length : 0,
-        tasks: project.ok ? open + inProgress + blocked + closedRecent : 0,
+        tasks: project.ok ? open + inProgress + closedRecent : 0,
       },
     };
   }
 
-  const tasks = withDecisionImpact(liveRows(live));
-  const active = tasks.filter((task) => task.status !== PARKED && task.status !== "closed");
+  const tasks = withDecisionImpact(withWorkStatus(liveRows(live), new Set(), new Map(live.tasks.map(task => [task.id, task.status]))));
+  const work = tasks.filter(isWork);
+  const active = work.filter((task) => task.status !== PARKED && task.status !== "closed");
   // An approval is the one question for its blocked parent. Its task remains
   // accessible in All tasks, without a second competing inbox row.
   const approvals = new Set(tasks.filter(task => isGate(task) && inboxAsk(task) !== null).map(task => task.id));
@@ -284,16 +305,16 @@ function buildProject(
     readAt: live.readAt,
     closedSince: live.closedSince ?? null,
     stats: {
-      open: tasks.filter((task) => task.status === "open").length,
+      open: work.filter((task) => task.status === "open" || task.status === "blocked").length,
       urgent: active.filter((task) => task.priority <= 1).length,
-      inProgress: tasks.filter((task) => task.status === IN_PROGRESS).length,
-      blocked: tasks.filter((task) => task.status === "blocked").length,
-      closed: tasks.filter((task) => task.status === "closed").length,
+      inProgress: work.filter((task) => task.status === IN_PROGRESS).length,
+      blocked: work.filter((task) => task.workStatus === "blocked").length,
+      closed: work.filter((task) => task.status === "closed").length,
     },
     epicNames: new Map((live.epics ?? []).map((epic) => [epic.id, epic.title])),
     tasks,
     waiting,
-    totals: { waiting: waiting.length, tasks: tasks.length },
+    totals: { waiting: waiting.length, tasks: work.filter(task => task.status !== PARKED).length },
   };
 }
 
@@ -334,7 +355,7 @@ function boardTotals(projects: BoardProject[]): {
     ...sum,
     urgent: measured === 0 && blindUrgent > 0 ? null : urgent,
     blindUrgent,
-    live: sum.open + sum.inProgress + sum.blocked,
+    live: sum.open + sum.inProgress,
   };
 }
 
@@ -423,7 +444,7 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   const projectFilter = scope ?? filters.project;
   const matches = (task: BoardTask): boolean =>
     (projectFilter === "all" || task.project === projectFilter) &&
-    (filters.status === "all" || STORED_TO_KEY.get(task.status) === filters.status) &&
+    (filters.status === "all" || STORED_TO_KEY.get(isWork(task) ? task.workStatus ?? task.status : task.status) === filters.status) &&
     (filters.priority === "all" || PRIORITY_BANDS[clampBand(task.priority)] === filters.priority) &&
     (filters.label === "" || task.labels.some(label => label.toLowerCase().includes(filters.label.toLowerCase()))) &&
     (filters.assignee === "all" || (task.assignee ?? "") === filters.assignee);
@@ -431,8 +452,8 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
   const statusCounts = new Map<string, number>();
   const priorityCounts = new Map<string, number>();
   const assigneeCounts = new Map<string, number>();
-  for (const task of allTasks) {
-    const status = STORED_TO_KEY.get(task.status);
+  for (const task of allTasks.filter(isWork)) {
+    const status = STORED_TO_KEY.get(task.workStatus ?? task.status);
     if (status !== undefined) statusCounts.set(status, (statusCounts.get(status) ?? 0) + 1);
     const priority = PRIORITY_BANDS[clampBand(task.priority)]!;
     priorityCounts.set(priority, (priorityCounts.get(priority) ?? 0) + 1);
@@ -473,9 +494,9 @@ export function readTaskBoard({ capabilities, snapshot, scope = null, reads, fil
       closed: countsComplete && (!capabilities.live || complete) ? totals.closed : null,
     },
     live: capabilities.live, reason: capabilities.reason,
-    rows: allTasks.filter(task => matches(task) && !waitingIds.has(task.id)).sort(boardOrder), inbox,
+    rows: allTasks.filter(task => isWork(task) && matches(task) && !waitingIds.has(task.id)).sort(boardOrder), inbox,
     statusCounts, priorityCounts, assigneeCounts,
-    projectCounts: new Map(projects.map(project => [project.asset, project.tasks.length])),
+    projectCounts: new Map(projects.map(project => [project.asset, project.tasks.filter(isWork).length])),
     byId: new Map(projects.map(project => [project.asset, project])),
     broken: projects.filter(project => !project.ok || project.laneError !== null),
     closedHistoryState: complete ? "complete" as const : pendingProjects.length > 0 ? "loading" as const : "sample" as const,

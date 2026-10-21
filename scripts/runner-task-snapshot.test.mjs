@@ -51,6 +51,31 @@ test('epics are not work, and a gate is titled by the ask it holds', () => {
   assert.deepEqual(entry.waiting.map((row) => row.title), ['Approve the price change']);
 });
 
+test('work counts include blocked work once and exclude approval records in every state', () => {
+  const task = (id, status = 'open', priority = 2) => ({ id, title: id, status, priority, issue_type: 'task' });
+  const open = task('shop-open');
+  const held = { ...task('shop-held', 'open', 0), dependencies: [{ depends_on_id: 'shop-gate', type: 'blocks' }] };
+  const stored = task('shop-stored', 'blocked', 1);
+  const working = task('shop-working', 'in_progress', 1);
+  const done = task('shop-done', 'closed', 0);
+  const parked = task('shop-parked', 'deferred', 0);
+  const gate = { ...task('shop-gate', 'open', 0), await_type: 'human' };
+  const closedGate = { ...gate, id: 'shop-approved', status: 'closed' };
+  const entry = summarizeBeadsProject(PROJECT, {
+    active: ok([open, held, stored, working, gate]), ready: ok([open, gate]),
+    // A blocked in-progress task stays in the in-progress segment. The stored
+    // blocked task is also retained when the dependency query omits it.
+    blocked: ok([held, { ...working, status: 'open' }, gate]), closed: ok([done, closedGate]), deferred: ok([parked, { ...gate, status: 'deferred' }]),
+    human: ok([]), gates: ok([gate]),
+  });
+  assert.deepEqual(entry.counts, { open: 3, highPriority: 3, ready: 1, inProgress: 1, blocked: 2,
+    closedRecent: 1, deferred: 1, waiting: 1 });
+  assert.deepEqual(entry.blocked.map(row => row.id).sort(), ['shop-held', 'shop-stored']);
+  assert.deepEqual(entry.recentlyClosed.map(row => row.id), ['shop-done']);
+  assert.deepEqual(entry.waiting.map(row => row.id), ['shop-gate']);
+  assert.deepEqual(entry.priorities, [1, 2, 1, 0, 0]);
+});
+
 test('the handoff join keeps one bead per finding, open first, and only this site’s', () => {
   const rows = [
     { id: 'shop-9', status: 'closed', closed_at: '2026-09-01T00:00:00Z', metadata: { noticeos_key: 'k1', noticeos_kind: 'finding' } },

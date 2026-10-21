@@ -417,3 +417,97 @@ describe("the snapshot's links between tasks", () => {
     expect(Object.hasOwn(view.inbox[0]!.task, "dependencies")).toBe(false);
   });
 });
+
+
+describe("work count parity", () => {
+  const dependency = (id: string, type = "blocks", status: string | null = null) => ({ id, type, status, title: null });
+  const tasks = [
+    liveTask({ id: "md-open", ready: true }),
+    liveTask({ id: "md-held", priority: 0, dependencies: [dependency("md-gate")] }),
+    liveTask({ id: "md-wait", dependencies: [dependency("outside-open", "waits-for", "open")] }),
+    liveTask({ id: "md-conditional", dependencies: [dependency("outside-unknown", "conditional-blocks")] }),
+    liveTask({ id: "md-stored", status: "blocked", priority: 1 }),
+    liveTask({ id: "md-working", status: "in_progress", priority: 1, dependencies: [dependency("md-gate")] }),
+    liveTask({ id: "md-done", status: "closed", priority: 0 }),
+    liveTask({ id: "md-parked", status: "deferred", priority: 0, dependencies: [dependency("md-gate")] }),
+    liveTask({ id: "md-released", ready: true, dependencies: [dependency("md-closed-timer"), dependency("md-closed-epic"),
+      dependency("md-done", "blocks", "open"), dependency("outside-related", "related"), dependency("outside-parent", "parent-child")] }),
+    liveTask({ id: "md-human", ready: true, labels: ["human"] }),
+    liveTask({ id: "md-gate", issueType: "gate", awaitType: "human", priority: 0 }),
+    liveTask({ id: "md-closed-gate", issueType: "gate", awaitType: "human", status: "closed", priority: 0 }),
+    liveTask({ id: "md-timer", issueType: "gate", awaitType: "timer", priority: 0 }),
+    liveTask({ id: "md-closed-timer", issueType: "gate", awaitType: "timer", status: "closed" }),
+    liveTask({ id: "md-closed-epic", issueType: "epic", status: "closed" }),
+    liveTask({ id: "md-epic", issueType: "epic", priority: 0 }),
+  ];
+  const get = (id: string): WorkItem => {
+    const task = tasks.find(task => task.id === id)!;
+    return { ...task, dependencies: task.dependencies.map(edge => ({ ...edge,
+      status: tasks.find(other => other.id === edge.id)?.status ?? edge.status ?? undefined })) };
+  };
+  const saved = project({
+    counts: { open: 7, highPriority: 3, ready: 3, inProgress: 1, blocked: 4, closedRecent: 1, deferred: 1, waiting: 2 },
+    ready: [get("md-open"), get("md-released"), get("md-human")],
+    blocked: [get("md-held"), get("md-wait"), get("md-conditional"), get("md-stored")],
+    inProgress: [get("md-working")], deferred: [get("md-parked")],
+    recentlyClosed: [get("md-done"), get("md-closed-gate")], waiting: [get("md-gate"), get("md-human")],
+  });
+  const options = (live: boolean, status = "all") => ({ snapshot: payload({ projects: [saved] }),
+    capabilities: { live, reason: null }, reads: new Map([[saved.asset, success(board(tasks))]]), filters: { ...filters, status } });
+
+  it("counts the same work, approvals and aggregate backlog with or without daily history", () => {
+    const live = read(options(true));
+    const snapshot = read(options(false));
+    expect(live.projects[0]!.stats).toEqual({ open: 7, urgent: 3, inProgress: 1, blocked: 4, closed: 1 });
+    expect(live.projects[0]!.stats).toEqual(snapshot.projects[0]!.stats);
+    expect(live.projects[0]!.totals).toEqual({ waiting: 2, tasks: 9 });
+    expect(live.projects[0]!.totals).toEqual(snapshot.projects[0]!.totals);
+    expect(live.totals).toEqual(snapshot.totals);
+    expect(live.totals.live).toBe(8);
+    expect(live.counts).toEqual(snapshot.counts);
+    expect(live.weeks).toBeNull();
+    expect(snapshot.weeks).toBeNull();
+    expect(live.inbox.map(row => row.task.id).sort()).toEqual(["md-gate", "md-human"]);
+    expect(snapshot.inbox.map(row => row.task.id).sort()).toEqual(["md-gate", "md-human"]);
+    expect(live.allTasks.some(task => task.id === "md-closed-gate")).toBe(true);
+    expect(live.rows.some(task => task.issueType === "gate")).toBe(false);
+    expect(snapshot.rows.some(task => task.issueType === "gate")).toBe(false);
+    expect(live.statusCounts).toEqual(snapshot.statusCounts);
+    expect(live.projectCounts.get(saved.asset)).toBe(10);
+  });
+
+  it.each([
+    ["open", ["md-human", "md-open", "md-released"]],
+    ["blocked", ["md-conditional", "md-held", "md-stored", "md-wait"]],
+    ["in-progress", ["md-working"]], ["closed", ["md-done"]], ["parked", ["md-parked"]],
+  ])("uses the same %s work classification for status filters in both reads", (status, ids) => {
+    for (const live of [true, false]) {
+      const view = read(options(live, status));
+      const workIds = [...view.rows, ...view.inbox.map(row => row.task)].filter(task => task.issueType !== "gate").map(task => task.id).sort();
+      expect(workIds).toEqual(ids);
+      expect(view.statusCounts.get(status)).toBe(ids.length);
+      if (status === "blocked") expect(view.rows.find(task => task.id === "md-held")?.status).toBe("open");
+    }
+  });
+
+  it("sums mixed project sources without adding their blocked subset twice", () => {
+    const other = project({ asset: "northwind.example", prefix: "nw", ready: [], inProgress: [],
+      counts: { ...saved.counts, open: 12, blocked: 10, inProgress: 2, highPriority: null, closedRecent: 5, waiting: 0 } });
+    const view = read({ ...options(true), snapshot: payload({ projects: [saved, other] }) });
+    expect(view.projects.map(project => project.source)).toEqual(["live", "snapshot"]);
+    expect(view.totals).toMatchObject({ open: 19, blocked: 14, inProgress: 3, closed: 6, live: 22, urgent: 3, blindUrgent: 1 });
+    expect(view.counts.closed).toBeNull();
+    expect(view.weeks).toBeNull();
+  });
+
+  it("uses saved blocked membership when an older sample has no dependency links", () => {
+    const held = item({ id: "md-held" });
+    const view = read({ snapshot: payload({ projects: [project({ blocked: [held], ready: [], inProgress: [],
+      counts: { ...project().counts, open: 40, blocked: 35, inProgress: 7, closedRecent: 12 } })] }),
+      capabilities: { live: false, reason: null }, filters: { ...filters, status: "blocked" } });
+    expect(view.rows.map(task => task.id)).toEqual(["md-held"]);
+    expect(view.statusCounts.get("blocked")).toBe(1);
+    expect(view.totals).toMatchObject({ open: 40, blocked: 35, inProgress: 7, closed: 12, live: 47 });
+    expect(view.projects[0]!.totals.tasks).toBe(59);
+  });
+});
